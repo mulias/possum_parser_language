@@ -1,0 +1,7 @@
+coordinate = array_sep(int, ",") ;
+scan =
+  Id <- "--- scanner " > int < " ---" < newline &
+  Coords <- array_sep(coordinate, newline) $
+  {"id": Id, "beacons": Coords} ;
+
+input(array_sep(scan, whitespace))

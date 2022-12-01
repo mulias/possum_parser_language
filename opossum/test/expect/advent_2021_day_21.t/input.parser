@@ -1,0 +1,8 @@
+player =
+  "Player " &
+  Id <- int &
+  " starting position: " &
+  Pos <- int $
+  {"id": Id, "pos": Pos} ;
+
+array_sep(player, newline)

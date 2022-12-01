@@ -1,0 +1,8 @@
+passport = object_sep(
+  many(alpha),
+  ":",
+  word,
+  " " | newline
+) ;
+
+input(array_sep(passport, newline + newline))

@@ -1,0 +1,5 @@
+(executable
+ (name possum)
+ (modes native)
+ (public_name possum)
+ (libraries opossum))

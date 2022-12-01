@@ -1,0 +1,2 @@
+command = D <- word & ws & M <- int $ {"direction": D, "magnitude": M} ;
+input(array_sep(command, newline))

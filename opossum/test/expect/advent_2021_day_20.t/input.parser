@@ -1,0 +1,4 @@
+pixel = "." $ 0 | "#" $ 1 ;
+Algorithm <- array(pixel) < ws &
+Image <- array_sep(array(pixel), newline) $
+{"algorithm": Algorithm, "image": Image}

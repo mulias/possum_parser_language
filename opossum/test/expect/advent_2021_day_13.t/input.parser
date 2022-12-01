@@ -1,0 +1,9 @@
+dot = X <- int & "," & Y <- int $ [X, Y] ;
+fold = "fold along " & D <- alpha & "=" & P <- int $ {"direction": D, "position": P} ;
+
+input(
+  Dots <- array_sep(dot, newline) &
+  whitespace &
+  Folds <- array_sep(fold, newline) $
+  {"dots": Dots, "folds": Folds}
+)

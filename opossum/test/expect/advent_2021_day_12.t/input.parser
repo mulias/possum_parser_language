@@ -1,0 +1,3 @@
+cave = many(alpha) ;
+cave_connection = C1 <- cave & "-" & C2 <- cave $ [C1, C2] ;
+input(array_sep(cave_connection, newline))

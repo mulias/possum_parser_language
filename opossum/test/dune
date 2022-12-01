@@ -1,0 +1,3 @@
+(tests
+ (names ParserTest AstTransformerTest ExecutorTest)
+ (libraries alcotest opossum))

@@ -1,0 +1,20 @@
+(library
+ (name opossum)
+ (modules
+  Ast
+  AstTransformer
+  Cli
+  Env
+  Errors
+  Evaluator
+  Executor
+  Json
+  JsonParser
+  Main
+  Parser
+  Program
+  ProgramParser
+  ProgramStdlib)
+ (libraries base core core_unix.command_unix stdio angstrom yojson re)
+ (preprocess
+  (pps ppx_deriving.show ppx_let ppx_string)))

@@ -1,0 +1,6 @@
+Fruit   | Price  | Quantity
+Apple   | 10     | 5
+Banana  | 40     | 8
+Pear    | 20     | 2
+Mango   | 12     | 20
+Peach   | 33     | 1

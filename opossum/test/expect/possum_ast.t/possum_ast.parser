@@ -1,0 +1,155 @@
+input(program) ;
+
+program =
+  ws &
+  Defs <- array_sep(named_parser | main_parser, ";") &
+  ws & maybe(";") $
+  {"type": "program", "defs": Defs} ;
+
+ws = default(many(comment | whitespace), '') ;
+comment = "#" > until(char, newline | end) ;
+
+named_parser =
+  ws &
+  Id <- parser_id &
+  Params <- default("(" > default(array_sep(ws > id < ws, ","), []) < ")", []) &
+  ws > "=" > ws &
+  Body <- parser_steps &
+  ws $
+  {"type": "named_parser", "id": Id, "params": Params, "body": Body} ;
+
+main_parser =
+  ws & Body <- parser_steps & ws $
+  {"type": "main_parser", "body": Body} ;
+
+parser_steps =
+  ws &
+  First <- parser_step &
+  InfixSteps <- default(flattened(array(infix_step)), []) $
+  {"type": "parser_steps", "steps": [First, ...InfixSteps]} ;
+
+infix_step =
+  ws &
+  Infix <- infix & ws &
+  Step <- parser_step & ws $
+  [Infix, Step] ;
+
+infix =
+  ws > (
+    "|" $ {"infix": "Or"} |
+    ">" $ {"infix": "TakeRight"} |
+    "<-" $ {"infix": "Assign"} |
+    "<" $ {"infix": "TakeLeft"} |
+    "+" $ {"infix": "Concat"} |
+    "&" $ {"infix": "And"} |
+    "$" $ {"infix": "Return"}
+  ) ;
+
+parser_step =
+  group |
+  regex |
+  parser_apply_or_constant_literal |
+  parser_literal |
+  value_array |
+  value_object |
+  value_id ;
+
+group = "(" & ws & Steps <- parser_steps & ws & ")" $ {"type": "group", "value": Steps} ;
+
+regex = Regex <- "/" > regex_body < "/" $ {"type": "regex_step", "value": Regex} ;
+regex_body =
+  (["\\", C] <- two_chars & Regex <- const("\\") + const(C) + regex_body $ Regex) |
+  (["/", _Outside] <- peek(two_chars) $ "") |
+  (C <- char & Regex <- const(C) + regex_body $ Regex) ;
+
+parser_apply_or_constant_literal =
+  Id <- parser_id &
+  Args <- default(parser_apply_args, []) &
+  Step <- (
+    (["true", []] <- const([Id, Args]) $ {"type": "true_lit"}) |
+    (["false", []] <- const([Id, Args]) $ {"type": "false_lit"}) |
+    (["null", []] <- const([Id, Args]) $ {"type": "null_lit"}) |
+    (succeed $ {"type": "parser_apply", "id": Id, "args": Args})
+  ) $
+  Step ;
+
+parser_apply_args =
+  "(" > array_sep(ws > parser_steps < ws, ",") < ")" ;
+
+value_literal =
+  string_lit |
+  true_lit |
+  false_lit |
+  null_lit |
+  number_lit ;
+
+true_lit = "true" $ {"type": "true_lit"} ;
+
+false_lit = "false" $ {"type": "false_lit"} ;
+
+null_lit = "null" $ {"type": "null_lit"} ;
+
+parser_literal = string_lit | number_lit ;
+
+string_lit =
+  Str <- ('"' > string_content('"') < '"') | ("'" > string_content("'") < "'") $
+  {"type": "string_lit", "value": Str} ;
+
+string_content(Quote) =
+  (["\\", C] <- two_chars & Str <- const(C) + string_content(Quote) $ Str) |
+  ([Quote, _Outside] <- peek(two_chars) $ "") |
+  (C <- char & Str <- const(C) + string_content(Quote) $ Str) ;
+
+number_lit = N <- number $ {"type": "number_lit", "value": N} ;
+
+value =
+  value_literal |
+  value_array |
+  value_object |
+  value_id ;
+
+value_array =
+  "[" & ws &
+  A <- default(array_sep(ws > value_array_member < ws, ","), []) &
+  ws & "]" $
+  {"type": "value_array", "value": A} ;
+
+value_array_member = value_array_spread | value_array_element ;
+
+value_array_spread = "..." & J <- value $ {"type": "value_array_spread", "value": J} ;
+
+value_array_element = J <- value $ {"type": "value_array_element", "value": J} ;
+
+value_object =
+  "{" & ws &
+  O <- default(array_sep(ws > value_object_member < ws, ","), []) &
+  ws & "}" $
+  {"type": "value_object", "value": O} ;
+
+value_object_member = value_object_spread | value_object_pair ;
+
+value_object_spread = "..." & J <- value $ {"type": "value_object_spread", "value": J} ;
+
+value_object_pair =
+  Name <- string_lit | value_id &
+  ws & ":" & ws &
+  Value <- value $
+  {"type": "value_object_element", "name": Name, "value": Value} ;
+
+parser_id = Id <- /_*[a-z]+[a-zA-Z0-9_]*/ $ {"type": "parser_id", "value": Id} ;
+value_id = Id <- /_*[A-Z]+[a-zA-Z0-9_]*/ $ {"type": "value_id", "value": Id} ;
+id = parser_id | value_id ;
+
+###
+# Helpers
+###
+
+two_chars = A <- default(char, null) & B <- default(char, null) $ [A, B] ;
+
+flattened(array) = A <- array & Flat <- flatten_array(A) $ Flat ;
+
+flatten_array(A) = (
+  [A1, ...Rest] <- const(A) &
+  FlatRest <- flatten_array(Rest) $
+  [...A1, ...FlatRest]
+) | const([]) ;

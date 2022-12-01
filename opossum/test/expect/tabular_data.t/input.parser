@@ -1,0 +1,22 @@
+map(parser, List) = (
+  [First, ...Rest] <- const(List) &
+  Result <- parser(First) &
+  ResultRest <- map(parser, Rest) $
+  [Result, ...ResultRest]
+) | const([]) ;
+
+zip_pairs(Names, Values) = (
+  [N, ...Ns] <- const(Names) &
+  [V, ...Vs] <- const(Values) &
+  Rest <- zip_pairs(Ns, Vs) $
+  {N: V, ...Rest}
+) | const({}) ;
+
+table_sep = maybe(ws) > "|" < maybe(ws) ;
+
+input(
+  Headers <- array_sep(word, table_sep) & newline &
+  Rows <- array_sep(array_sep(number | word, table_sep), newline) &
+  Table <- map(zip_pairs(Headers), Rows) $
+  Table
+)
