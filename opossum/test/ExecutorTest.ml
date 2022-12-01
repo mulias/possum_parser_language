@@ -215,24 +215,20 @@ let test_bingo_parser () =
   in
   let expected : Program.json =
     `Assoc
-      [
-        ("numbers", `List [ `Intlit "31"; `Intlit "88"; `Intlit "35" ]);
-        ( "boards",
-          `List
-            [
-              `List
-                [
-                  `List [ `Intlit "50"; `Intlit "83"; `Intlit "3" ];
-                  `List [ `Intlit "47"; `Intlit "9"; `Intlit "94" ];
-                  `List [ `Intlit "61"; `Intlit "22"; `Intlit "53" ];
-                ];
-              `List
-                [
-                  `List [ `Intlit "1"; `Intlit "1"; `Intlit "1" ];
-                  `List [ `Intlit "1"; `Intlit "1"; `Intlit "1" ];
-                  `List [ `Intlit "1"; `Intlit "1"; `Intlit "1" ];
-                ];
-            ] );
+      [ ("numbers", `List [ `Intlit "31"; `Intlit "88"; `Intlit "35" ])
+      ; ( "boards"
+        , `List
+            [ `List
+                [ `List [ `Intlit "50"; `Intlit "83"; `Intlit "3" ]
+                ; `List [ `Intlit "47"; `Intlit "9"; `Intlit "94" ]
+                ; `List [ `Intlit "61"; `Intlit "22"; `Intlit "53" ]
+                ]
+            ; `List
+                [ `List [ `Intlit "1"; `Intlit "1"; `Intlit "1" ]
+                ; `List [ `Intlit "1"; `Intlit "1"; `Intlit "1" ]
+                ; `List [ `Intlit "1"; `Intlit "1"; `Intlit "1" ]
+                ]
+            ] )
       ]
   in
   check_eval program input expected
@@ -254,33 +250,26 @@ let test_recursive_parsers () =
   in
   let expected : Program.json =
     `List
-      [
-        `List
-          [
-            `List
-              [
-                `List [ `List [ `Intlit "6"; `Intlit "3" ]; `Intlit "7" ];
-                `Intlit "0";
-              ];
-            `List [ `List [ `Intlit "7"; `Intlit "0" ]; `Intlit "0" ];
-          ];
-        `List
-          [
-            `List
-              [
-                `List [ `Intlit "4"; `Intlit "7" ];
-                `List [ `Intlit "6"; `List [ `Intlit "6"; `Intlit "5" ] ];
-              ];
-            `List
-              [
-                `Intlit "4";
-                `List
-                  [
-                    `List [ `Intlit "6"; `Intlit "5" ];
-                    `List [ `Intlit "9"; `Intlit "1" ];
-                  ];
-              ];
-          ];
+      [ `List
+          [ `List
+              [ `List [ `List [ `Intlit "6"; `Intlit "3" ]; `Intlit "7" ]
+              ; `Intlit "0"
+              ]
+          ; `List [ `List [ `Intlit "7"; `Intlit "0" ]; `Intlit "0" ]
+          ]
+      ; `List
+          [ `List
+              [ `List [ `Intlit "4"; `Intlit "7" ]
+              ; `List [ `Intlit "6"; `List [ `Intlit "6"; `Intlit "5" ] ]
+              ]
+          ; `List
+              [ `Intlit "4"
+              ; `List
+                  [ `List [ `Intlit "6"; `Intlit "5" ]
+                  ; `List [ `Intlit "9"; `Intlit "1" ]
+                  ]
+              ]
+          ]
       ]
   in
   check_eval program input expected
@@ -317,64 +306,57 @@ let test_env_scope_for_two_sequences () =
 
 let () =
   Alcotest.run "Evaluator"
-    [
-      ( "number",
-        [
-          test_case "Single digit" `Quick test_number;
-          test_case "Negative" `Quick test_negative_number;
-          test_case "Leading zeros" `Quick test_number_with_leading_zeros;
-          test_case "Bigger than 64 bit int" `Quick test_big_number;
-          test_case "Big number with leading zeros" `Quick
-            test_big_number_with_leading_zeros;
-          test_case "Float" `Quick test_float;
-          test_case "Negative float" `Quick test_negative_float;
-          test_case "Float with leading zeros" `Quick
-            test_float_with_leading_zeros;
-          test_case "Big float" `Quick test_big_float;
-          test_case "Big float with leading zeros" `Quick
-            test_big_float_with_leading_zeros;
-        ] );
-      ("string", [ test_case "Single character" `Quick test_string ]);
-      ( "parser def",
-        [
-          test_case "Single def" `Quick test_parser_def;
-          test_case "Pass named defs as args" `Quick test_defs_as_args;
-          test_case "Mutually recursive defs" `Quick test_mutual_recursion;
-        ] );
-      ( "infix",
-        [
-          test_case "InfixBinary |" `Quick test_infix_or;
-          test_case "InfixBinary <" `Quick test_infix_take_left;
-          test_case "InfixBinary >" `Quick test_infix_take_right;
-          test_case "InfixBinary +" `Quick test_infix_concat
+    [ ( "number"
+      , [ test_case "Single digit" `Quick test_number
+        ; test_case "Negative" `Quick test_negative_number
+        ; test_case "Leading zeros" `Quick test_number_with_leading_zeros
+        ; test_case "Bigger than 64 bit int" `Quick test_big_number
+        ; test_case "Big number with leading zeros" `Quick
+            test_big_number_with_leading_zeros
+        ; test_case "Float" `Quick test_float
+        ; test_case "Negative float" `Quick test_negative_float
+        ; test_case "Float with leading zeros" `Quick
+            test_float_with_leading_zeros
+        ; test_case "Big float" `Quick test_big_float
+        ; test_case "Big float with leading zeros" `Quick
+            test_big_float_with_leading_zeros
+        ] )
+    ; ("string", [ test_case "Single character" `Quick test_string ])
+    ; ( "parser def"
+      , [ test_case "Single def" `Quick test_parser_def
+        ; test_case "Pass named defs as args" `Quick test_defs_as_args
+        ; test_case "Mutually recursive defs" `Quick test_mutual_recursion
+        ] )
+    ; ( "infix"
+      , [ test_case "InfixBinary |" `Quick test_infix_or
+        ; test_case "InfixBinary <" `Quick test_infix_take_left
+        ; test_case "InfixBinary >" `Quick test_infix_take_right
+        ; test_case "InfixBinary +" `Quick test_infix_concat
           (* test_case "Infix normal precedence" `Quick *)
           (*   test_infix_normal_precedence; *)
-          (* test_case "Infix group precedence" `Quick test_infix_group_precedence; *);
-        ] );
-      ( "standard library",
-        [ test_case "Access stdlib parsers" `Quick test_stdlib ] );
-      ( "infix and",
-        [
-          test_case "Return JSON array" `Quick test_infix_return;
-          test_case "Assign JSON variable" `Quick test_infix_and_assignment;
-          test_case "JSON var as object name" `Quick test_json_object_name_var;
-          test_case "Patten match array in assignment" `Quick
-            test_array_pattern_match;
-          test_case "Patten match object in assignment" `Quick
-            test_object_pattern_match;
-        ] );
-      ( "programs",
-        [
-          test_case "Bingo boards" `Quick test_bingo_parser;
-          test_case "Snail numbers" `Quick test_recursive_parsers;
-        ] );
-      ( "env",
-        [
-          test_case "Env scope excludes sequence assigns in named parser" `Quick
-            test_env_scope_for_parser;
-          test_case "Env scope includes assigns in sequence" `Quick
-            test_env_scope_for_sequence;
-          test_case "Env scope does not share assigns between sequences" `Quick
-            test_env_scope_for_two_sequences;
-        ] );
+          (* test_case "Infix group precedence" `Quick test_infix_group_precedence; *)
+        ] )
+    ; ( "standard library"
+      , [ test_case "Access stdlib parsers" `Quick test_stdlib ] )
+    ; ( "infix and"
+      , [ test_case "Return JSON array" `Quick test_infix_return
+        ; test_case "Assign JSON variable" `Quick test_infix_and_assignment
+        ; test_case "JSON var as object name" `Quick test_json_object_name_var
+        ; test_case "Patten match array in assignment" `Quick
+            test_array_pattern_match
+        ; test_case "Patten match object in assignment" `Quick
+            test_object_pattern_match
+        ] )
+    ; ( "programs"
+      , [ test_case "Bingo boards" `Quick test_bingo_parser
+        ; test_case "Snail numbers" `Quick test_recursive_parsers
+        ] )
+    ; ( "env"
+      , [ test_case "Env scope excludes sequence assigns in named parser" `Quick
+            test_env_scope_for_parser
+        ; test_case "Env scope includes assigns in sequence" `Quick
+            test_env_scope_for_sequence
+        ; test_case "Env scope does not share assigns between sequences" `Quick
+            test_env_scope_for_two_sequences
+        ] )
     ]

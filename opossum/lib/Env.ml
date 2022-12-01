@@ -1,8 +1,6 @@
 open! Base
 
-(*
-  Environment to store parser and JSON variables during evaluation.
-*)
+(* Environment to store parser and JSON variables during evaluation. *)
 
 let init : Program.env =
   let global_parsers = ref (Map.empty (module String)) in
@@ -30,11 +28,15 @@ let find_json (env : Program.env) (id : string) : Program.json Option.t =
 let find_json_exn (env : Program.env) (id : string) : Program.json =
   find_json env id |> Option.value_exn
 
-let extend_local_parsers (env : Program.env) (id : string)
+let extend_local_parsers
+    (env : Program.env)
+    (id : string)
     (p : Program.json_parser) : Program.env =
   { env with local_parsers = Map.set env.local_parsers ~key:id ~data:p }
 
-let set_global_parser (env : Program.env) (id : string)
+let set_global_parser
+    (env : Program.env)
+    (id : string)
     (p : Program.json_parser) : unit =
   env.global_parsers := Map.set !(env.global_parsers) ~key:id ~data:p
 

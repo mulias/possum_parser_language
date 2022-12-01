@@ -2,16 +2,20 @@ open Angstrom
 open Angstrom.Let_syntax
 open! Base
 
-(*
-  General use parser combinators.
-*)
+(* General use parser combinators. *)
 
 let is_eol = function '\n' | '\r' -> true | _ -> false
+
 let is_ws = function ' ' | '\t' | '\r' | '\n' -> true | _ -> false
+
 let is_underscore = function '_' -> true | _ -> false
+
 let is_lowercase = function 'a' .. 'z' -> true | _ -> false
+
 let is_uppercase = function 'A' .. 'Z' -> true | _ -> false
+
 let is_alpha a = is_lowercase a || is_uppercase a
+
 let is_not_ws c = not (is_ws c)
 
 let is_symbol = function
@@ -26,7 +30,9 @@ let is_id_char = function
   | _ -> false
 
 let is_digit = function '0' .. '9' -> true | _ -> false
+
 let is_one_nine = function '1' .. '9' -> true | _ -> false
+
 let is_char (x : char) (y : char) = Char.equal x y
 
 let peek p =
@@ -49,10 +55,15 @@ let peek_input =
   Unsafe.peek 0 (fun str ~off:_ ~len:_ -> Bigstringaf.to_string str)
 
 let peek_rest = peek (take_while (fun _ -> true))
+
 let peek_line = peek (take_while (fun c -> not (is_eol c)))
+
 let maybe p = option None (p >>| fun x -> Some x)
+
 let newline = satisfy is_eol
+
 let whitespace = take_while is_ws
+
 let alpha = satisfy is_alpha
 
 let number_integer_part =

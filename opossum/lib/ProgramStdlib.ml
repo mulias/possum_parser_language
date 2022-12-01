@@ -33,9 +33,13 @@ let arity_4 fn : Program.json_parser =
       parser_map arg (fun p -> arity_3 (fn (p, meta))))
 
 let to_string s = `String s
+
 let char_to_string c = `String (Char.to_string c)
+
 let to_null _v = `Null
+
 let to_intlit s = `Intlit s
+
 let char_to_int c = `Intlit (Char.to_string c)
 
 (* Basic parsers *)
@@ -66,32 +70,55 @@ let string_of_parser =
 (* String parsers *)
 
 let char = any_char
+
 let char_parser = arity_0 (char >>| char_to_string)
+
 let alpha = satisfy Parser.is_alpha
+
 let alpha_parser = arity_0 (alpha >>| char_to_string)
+
 let lower = satisfy Parser.is_lowercase
+
 let lower_parser = arity_0 (lower >>| char_to_string)
+
 let upper = satisfy Parser.is_uppercase
+
 let upper_parser = arity_0 (upper >>| char_to_string)
+
 let numeral = satisfy Parser.is_digit
+
 let numeral_parser = arity_0 (numeral >>| char_to_string)
+
 let space = satisfy Parser.is_ws
+
 let space_parser = arity_0 (space >>| char_to_string)
+
 let symbol = satisfy Parser.is_symbol
+
 let symbol_parser = arity_0 (symbol >>| char_to_string)
+
 let newline = string "\r\n" <|> string "\n"
+
 let newline_parser = arity_0 (newline >>| to_string)
+
 let end_of_input_parser = arity_0 (end_of_input >>| to_null)
+
 let whitespace = take_while1 Parser.is_ws
+
 let whitespace_parser = arity_0 (whitespace >>| to_string)
+
 let word = take_while1 Parser.is_not_ws
+
 let word_parser = arity_0 (word >>| to_string)
 
 (* Number parsers *)
 
 let digit = satisfy Parser.is_digit
+
 let digit_parser = arity_0 (digit >>| char_to_int)
+
 let integer = Parser.number_integer_part
+
 let integer_parser = arity_0 (integer >>| to_intlit)
 
 let float_parser =
@@ -126,6 +153,7 @@ let number_parser =
 (* True/False/Null parsers *)
 
 let true_parser = arity_1 (fun (p, _) -> p >>| fun _ -> `Bool true)
+
 let false_parser = arity_1 (fun (p, _) -> p >>| fun _ -> `Bool false)
 
 let boolean_parser =
@@ -179,11 +207,10 @@ let object_parser =
           | non_string, _ ->
               raise
                 (Errors.EvalJsonObjectMemberName
-                   {
-                     id = None;
-                     value = non_string;
-                     start_pos = name_meta.start_pos;
-                     end_pos = name_meta.end_pos;
+                   { id = None
+                   ; value = non_string
+                   ; start_pos = name_meta.start_pos
+                   ; end_pos = name_meta.end_pos
                    }))))
 
 let object_sep_parser =
@@ -195,26 +222,22 @@ let object_sep_parser =
           | non_string, _ ->
               raise
                 (Errors.EvalJsonObjectMemberName
-                   {
-                     id = None;
-                     value = non_string;
-                     start_pos = name_meta.start_pos;
-                     end_pos = name_meta.end_pos;
+                   { id = None
+                   ; value = non_string
+                   ; start_pos = name_meta.start_pos
+                   ; end_pos = name_meta.end_pos
                    }))))
 
 (* Utility parsers *)
-(* | `fail` | Fails with no match | N/A | *)
-(* | `succeed` | Succeeds with no match | `null` | *)
-(* | `maybe(p)` | Parser `p`, or succeeds with no match | Value of `p`, or `null` if `p` fails | *)
-(* | `default(p, D)` | Parser `p` or succeeds with no match | Value of `p`, or `D` if `p` fails | *)
-(* | `const(C)` | Succeeds with no match | Value `C` | *)
 
 let input_parser =
   arity_1 (fun (body, _) ->
       take_while Parser.is_ws *> body <* take_while Parser.is_ws <* end_of_input)
 
 let fail_parser = arity_0 (fail "fail")
+
 let succeed_parser = arity_0 (return `Null)
+
 let maybe_parser = arity_1 (fun (p, _) -> option `Null p)
 
 let default_parser =
@@ -229,51 +252,50 @@ let const_parser = Program.JsonParam (fun (json, _) -> arity_0 (return json))
 let debug_line_parser =
   arity_0
     ( Parser.peek_line >>= fun input ->
-      Stdio.eprintf "debug: \"%s\"\n" input;
+      Stdio.eprintf "debug: \"%s\"\n" input ;
       return `Null )
 
 let load (env : Program.env) =
-  [
-    ("char", char_parser);
-    ("peek", peek_parser);
-    ("string_of", string_of_parser);
-    ("number_of", number_of_parser);
-    ("alpha", alpha_parser);
-    ("lower", lower_parser);
-    ("upper", upper_parser);
-    ("numeral", numeral_parser);
-    ("space", space_parser);
-    ("symbol", symbol_parser);
-    ("newline", newline_parser);
-    ("nl", newline_parser);
-    ("end_of_input", end_of_input_parser);
-    ("end", end_of_input_parser);
-    ("whitespace", whitespace_parser);
-    ("ws", whitespace_parser);
-    ("word", word_parser);
-    ("digit", digit_parser);
-    ("integer", integer_parser);
-    ("int", integer_parser);
-    ("float", float_parser);
-    ("number", number_parser);
-    ("num", number_parser);
-    ("true", true_parser);
-    ("false", false_parser);
-    ("boolean", boolean_parser);
-    ("bool", boolean_parser);
-    ("null", null_parser);
-    ("many", many_parser);
-    ("until", until_parser);
-    ("array", array_parser);
-    ("array_sep", array_sep_parser);
-    ("object", object_parser);
-    ("object_sep", object_sep_parser);
-    ("input", input_parser);
-    ("fail", fail_parser);
-    ("succeed", succeed_parser);
-    ("maybe", maybe_parser);
-    ("default", default_parser);
-    ("const", const_parser);
-    ("debug_line", debug_line_parser);
+  [ ("char", char_parser)
+  ; ("peek", peek_parser)
+  ; ("string_of", string_of_parser)
+  ; ("number_of", number_of_parser)
+  ; ("alpha", alpha_parser)
+  ; ("lower", lower_parser)
+  ; ("upper", upper_parser)
+  ; ("numeral", numeral_parser)
+  ; ("space", space_parser)
+  ; ("symbol", symbol_parser)
+  ; ("newline", newline_parser)
+  ; ("nl", newline_parser)
+  ; ("end_of_input", end_of_input_parser)
+  ; ("end", end_of_input_parser)
+  ; ("whitespace", whitespace_parser)
+  ; ("ws", whitespace_parser)
+  ; ("word", word_parser)
+  ; ("digit", digit_parser)
+  ; ("integer", integer_parser)
+  ; ("int", integer_parser)
+  ; ("float", float_parser)
+  ; ("number", number_parser)
+  ; ("num", number_parser)
+  ; ("true", true_parser)
+  ; ("false", false_parser)
+  ; ("boolean", boolean_parser)
+  ; ("bool", boolean_parser)
+  ; ("null", null_parser)
+  ; ("many", many_parser)
+  ; ("until", until_parser)
+  ; ("array", array_parser)
+  ; ("array_sep", array_sep_parser)
+  ; ("object", object_parser)
+  ; ("object_sep", object_sep_parser)
+  ; ("input", input_parser)
+  ; ("fail", fail_parser)
+  ; ("succeed", succeed_parser)
+  ; ("maybe", maybe_parser)
+  ; ("default", default_parser)
+  ; ("const", const_parser)
+  ; ("debug_line", debug_line_parser)
   ]
   |> List.iter ~f:(fun (name, p) -> Env.set_global_parser env name p)

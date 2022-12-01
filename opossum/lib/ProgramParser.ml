@@ -4,12 +4,11 @@ open Ast
 open Parser
 open! Base
 
-(*
-  Parser for transforming a program into an AST.
-*)
+(* Parser for transforming a program into an AST. *)
 
 (* Skip whitespace and comments *)
 let comment = char '#' *> take_till is_eol
+
 let ws = skip_many (comment <|> take_while1 is_ws)
 
 let parser_id : parser_id Angstrom.t =
@@ -85,17 +84,23 @@ let number_lit : [ int_lit | float_lit ] Angstrom.t =
   <?> "number"
 
 let true_lit : true_lit Angstrom.t =
-  (let%map start_pos = peek_pos and _ = string "true" and end_pos = peek_pos in
+  (let%map start_pos = peek_pos
+   and _ = string "true"
+   and end_pos = peek_pos in
    `True (meta start_pos end_pos))
   <?> "true"
 
 let false_lit : false_lit Angstrom.t =
-  (let%map start_pos = peek_pos and _ = string "false" and end_pos = peek_pos in
+  (let%map start_pos = peek_pos
+   and _ = string "false"
+   and end_pos = peek_pos in
    `False (meta start_pos end_pos))
   <?> "false"
 
 let null_lit : null_lit Angstrom.t =
-  (let%map start_pos = peek_pos and _ = string "null" and end_pos = peek_pos in
+  (let%map start_pos = peek_pos
+   and _ = string "null"
+   and end_pos = peek_pos in
    `Null (meta start_pos end_pos))
   <?> "null"
 
@@ -109,7 +114,9 @@ let json : json Angstrom.t =
         <?> "json_array_spread"
       in
       let json_array_element : json_array_member Angstrom.t =
-        (let%map start_pos = peek_pos and j = json and end_pos = peek_pos in
+        (let%map start_pos = peek_pos
+         and j = json
+         and end_pos = peek_pos in
          `JsonArrayElement (j, meta start_pos end_pos))
         <?> "json_array_element"
       in
@@ -157,7 +164,8 @@ let json : json Angstrom.t =
         (let%map start_pos = peek_pos
          and o =
            char '{' *> ws *> sep_by (ws *> char ',' <* ws) json_object_member
-           <* ws <* char '}'
+           <* ws
+           <* char '}'
          and end_pos = peek_pos in
          `JsonObject (o, meta start_pos end_pos))
         <?> "json_object"
@@ -266,7 +274,8 @@ let parser_steps : permissive_parser_steps Angstrom.t =
             | _ -> return [])
         <?> "infix_steps"
       in
-      let%map first_step = step and rest_steps = infix_steps in
+      let%map first_step = step
+      and rest_steps = infix_steps in
       (first_step, rest_steps))
   <?> "parser_steps"
 
@@ -302,7 +311,8 @@ let program : permissive_program Angstrom.t =
             <|> (char ';' *> defs >>= fun defs_rest -> return (def :: defs_rest))
         | _ -> return [ def ])
   in
-  let%map program = defs and _ = end_of_input <?> "end_of_input" in
+  let%map program = defs
+  and _ = end_of_input <?> "end_of_input" in
   `Program program
 
 let parse (source : string) : permissive_program =

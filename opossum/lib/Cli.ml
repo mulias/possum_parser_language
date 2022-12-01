@@ -6,7 +6,7 @@ let execute (source : string) (input : string) : unit =
   match Main.execute source input with
   | Ok json -> Json.pretty_print json
   | Error msg ->
-      Stdio.eprintf "%s\n" msg;
+      Stdio.eprintf "%s\n" msg ;
       Command.exit 1
 
 let command =

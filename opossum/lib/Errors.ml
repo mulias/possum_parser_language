@@ -1,54 +1,57 @@
 open! Base
 
-type parse_error = {
-  buf : Angstrom.bigstring;
-  off : int;
-  len : int;
-  marks : string list;
-  msg : string;
-}
+type parse_error =
+  { buf : Angstrom.bigstring
+  ; off : int
+  ; len : int
+  ; marks : string list
+  ; msg : string
+  }
 
 exception Unexpected
+
 exception Todo of string
+
 exception ParseProgram of parse_error
 
 exception
-  AstTransform of {
-    expected : string;
-    got : string;
-    start_pos : int;
-    end_pos : int;
-  }
+  AstTransform of
+    { expected : string; got : string; start_pos : int; end_pos : int }
 
 exception EnvFindJson of { id : string; start_pos : int; end_pos : int }
+
 exception EnvFindParser of { id : string; start_pos : int; end_pos : int }
+
 exception EvalJsonArraySpread
+
 exception EvalJsonObjectSpread
 
 exception
-  EvalJsonObjectMemberName of {
-    id : string option;
-    value : Program.json;
-    start_pos : int;
-    end_pos : int;
-  }
+  EvalJsonObjectMemberName of
+    { id : string option; value : Program.json; start_pos : int; end_pos : int }
 
 exception EvalNotEnoughArguments
+
 exception EvalTooManyArguments
+
 exception EvalJsonType of { expected : string; got : string }
+
 exception EvalArgumentType of { expected : string; got : string }
 
 exception
-  EvalConcat of {
-    side : [ `Left | `Right ];
-    value : Program.json;
-    start_pos : int;
-    end_pos : int;
-  }
+  EvalConcat of
+    { side : [ `Left | `Right ]
+    ; value : Program.json
+    ; start_pos : int
+    ; end_pos : int
+    }
 
 exception EvalRegexPattern of { start_pos : int; end_pos : int }
+
 exception ParseInput of parse_error
+
 exception MainNotFound
+
 exception MultipleMainParsers of { start_pos : int; end_pos : int }
 
 (* Word-wrap each line of `s` so that the lines are less than `at` in length. *)
@@ -62,14 +65,17 @@ let wrap_message (s : string) ~(at : int) : string =
                if String.length line + String.length word <= at then
                  (line ^ " " ^ word) :: lines
                else word :: acc)
-    |> List.rev |> String.concat ~sep:"\n"
+    |> List.rev
+    |> String.concat ~sep:"\n"
   in
   String.split_lines s |> List.map ~f:wrap_line |> String.concat ~sep:"\n"
 
 (* Remove the start. middle, or end of `s` so that it's less than `max_width`
-   and the characters from `window_start` to `window_end` remain visible.
-*)
-let truncate_message (s : string) ~(window_start : int) ~(window_end : int)
+   and the characters from `window_start` to `window_end` remain visible. *)
+let truncate_message
+    (s : string)
+    ~(window_start : int)
+    ~(window_end : int)
     ~(max_width : int) : string =
   let len = String.length s in
   let window_len = window_end - window_start in
@@ -79,12 +85,11 @@ let truncate_message (s : string) ~(window_start : int) ~(window_end : int)
   else if window_len > max_width then
     let side_len = (max_width - 11) / 2 in
     String.concat
-      [
-        "...";
-        String.sub s ~pos:window_start ~len:side_len;
-        " ... ";
-        String.sub s ~pos:(window_end - side_len) ~len:side_len;
-        "...";
+      [ "..."
+      ; String.sub s ~pos:window_start ~len:side_len
+      ; " ... "
+      ; String.sub s ~pos:(window_end - side_len) ~len:side_len
+      ; "..."
       ]
   else "..." ^ String.sub s ~pos:(len - window_end) ~len:(max_width - 3)
 
@@ -184,7 +189,8 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
            ~~~(##)'>  I tried to look up the value associated with a variable \
            but couldn't find anything.\n\n\
            The value is used on %{context}\n\n\
-           Variable `%{id}` is undefined."] |> wrap_message ~at:80
+           Variable `%{id}` is undefined."]
+        |> wrap_message ~at:80
       in
       Error msg
   | EnvFindParser { id; start_pos; end_pos } ->
@@ -196,7 +202,8 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
            ~~~(##)'>  I tried to look up the parser associated with a variable \
            but couldn't find anything.\n\n\
            The parser is used on %{context}\n\n\
-           Variable `%{id}` is undefined."] |> wrap_message ~at:80
+           Variable `%{id}` is undefined."]
+        |> wrap_message ~at:80
       in
       Error msg
   | EvalJsonArraySpread -> Error "EvalJsonArraySpread"
@@ -222,7 +229,8 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
            ~~~(##)'>  I wasn't able to create an object because one of the \
            name/value pairs has a name which is not a string.\n\n\
            The parser failed on %{context}\n\n\
-           %{value_description}."] |> wrap_message ~at:80
+           %{value_description}."]
+        |> wrap_message ~at:80
       in
       Error msg
   | EvalNotEnoughArguments -> Error "EvalNotEnoughArguments"
@@ -290,7 +298,8 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
            The parser failed on %{context}\n\n\
            The last attempted parser was:\n\
            %{parse_path}\n\n\
-           But no match was found."] |> wrap_message ~at:80
+           But no match was found."]
+        |> wrap_message ~at:80
       in
       Error msg
   | MainNotFound -> Error "MainNotFound"

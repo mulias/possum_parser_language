@@ -2,49 +2,50 @@ open Angstrom
 open Angstrom.Let_syntax
 open! Base
 
-(*
-  Helper functions for manipulating json parsers.
-*)
+(* Helper functions for manipulating json parsers. *)
 
-let compose (c : 'a Angstrom.t -> 'a Angstrom.t -> 'a Angstrom.t)
-    (p1 : Program.json_parser) (p2 : Program.json_parser) : Program.json_parser
-    =
+let compose
+    (c : 'a Angstrom.t -> 'a Angstrom.t -> 'a Angstrom.t)
+    (p1 : Program.json_parser)
+    (p2 : Program.json_parser) : Program.json_parser =
   match (p1, p2) with
   | Parser p1, Parser p2 -> Parser (c p1 p2)
   | _ -> raise Errors.EvalNotEnoughArguments
 
-let concat_strings (p1 : Program.json_parser) (p2 : Program.json_parser)
+let concat_strings
+    (p1 : Program.json_parser)
+    (p2 : Program.json_parser)
     (meta : Program.meta) : Program.json_parser =
   let concat (pa : Program.t) (pb : Program.t) : Program.t =
-    let%map ja = pa and jb = pb in
+    let%map ja = pa
+    and jb = pb in
     match (ja, jb) with
     | `String sa, `String sb -> `String (sa ^ sb)
     | `String _, not_string ->
         raise
           (Errors.EvalConcat
-             {
-               side = `Right;
-               value = not_string;
-               start_pos = meta.start_pos;
-               end_pos = meta.end_pos;
+             { side = `Right
+             ; value = not_string
+             ; start_pos = meta.start_pos
+             ; end_pos = meta.end_pos
              })
     | not_string, _ ->
         raise
           (Errors.EvalConcat
-             {
-               side = `Left;
-               value = not_string;
-               start_pos = meta.start_pos;
-               end_pos = meta.end_pos;
+             { side = `Left
+             ; value = not_string
+             ; start_pos = meta.start_pos
+             ; end_pos = meta.end_pos
              })
   in
   compose concat p1 p2
 
 (* Given a parser `p` and a list of `args`, recursivly apply each arg. The
    result is either a `CurriedParser` which needs more args, a fully satisfied
-   `Parser`, or a `RuntimeError` if too many args were provided.
-*)
-let rec apply (name : string) (p : Program.json_parser)
+   `Parser`, or a `RuntimeError` if too many args were provided. *)
+let rec apply
+    (name : string)
+    (p : Program.json_parser)
     (args : Program.json_parser_arg list) : Program.json_parser =
   match (p, args) with
   | Delayed (delayed_p, _, delayed_args), _ ->
@@ -67,9 +68,10 @@ let rec apply (name : string) (p : Program.json_parser)
 
 (* Given a parser `p` and a list of `params`, wrap `p` in layers of
    `CurriedParser` so that when `apply` is called each argument is assigned to
-   the corresponding param in the environment.
-*)
-let rec curry (p : Program.env -> Program.json_parser) (params : Ast.id list)
+   the corresponding param in the environment. *)
+let rec curry
+    (p : Program.env -> Program.json_parser)
+    (params : Ast.id list)
     (env : Program.env) : Program.json_parser =
   match params with
   | [] -> p env
