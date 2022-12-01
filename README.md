@@ -96,7 +96,7 @@ be run on your personal home computer.
 ## Examples
 
 The [expect tests directory] covers a wide range of parsing use cases, including
-[Advent of Code] [puzzle inputs], [tabular data], a totally useless JSON parser, and a
+[Advent of Code] [puzzle inputs], [tabular data], a [mostly useless JSON parser], and a
 [parser for encoding possum's own abstract syntax tree] as JSON. Each `*.t` file
 is a [Cram test] which shows example possum invocations and the expected JSON
 output.
@@ -105,6 +105,7 @@ output.
 [advent of code]: https://adventofcode.com/
 [puzzle inputs]: opossum/test/expect/advent_2021_day_04.t/
 [tabular data]: opossum/test/expect/tabular_data.t/
+[mostly useless JSON parser]: opossum/test/expect/json.t/
 [parser for encoding possum's own abstract syntax tree]: opossum/test/expect/possum_ast.t/
 [cram test]: https://bitheap.org/cram/
 

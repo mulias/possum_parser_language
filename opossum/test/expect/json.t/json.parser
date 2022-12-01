@@ -1,0 +1,46 @@
+json ;
+
+json =
+  json_string |
+  json_true   |
+  json_false  |
+  json_null   |
+  json_number |
+  json_array  |
+  json_object ;
+
+json_string =
+  '"' > string_content < '"' ;
+
+string_content =
+  (["\\", C] <- two_chars & Str <- const(C) + string_content $ Str) |
+  (['"', _Outside] <- peek(two_chars) $ "") |
+  (C <- char & Str <- const(C) + string_content $ Str) ;
+
+json_true = true("true") ;
+
+json_false = false("false") ;
+
+json_null = null("null") ;
+
+json_number = number ;
+
+json_array =
+  "[" & ws &
+  A <- default(array_sep(ws > json < ws, ","), []) &
+  ws & "]" $
+  A ;
+
+json_object =
+  "{" & ws &
+  O <- default(object_sep(ws > json_string < ws, ":", ws > json < ws, ","), {})
+  & ws & "}" $
+  O ;
+
+###
+# Helpers
+###
+
+ws = maybe(whitespace) ;
+
+two_chars = A <- default(char, null) & B <- default(char, null) $ [A, B] ;
