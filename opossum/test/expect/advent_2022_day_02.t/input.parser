@@ -1,0 +1,19 @@
+array_sep(round, nl) ;
+
+round = P1 <- player_1 & ws & P2 <- player_2 $ [P1, P2] ;
+
+player_1 = hand_shape ;
+
+player_2 = Shape <- peek(hand_shape) & Goal <- end_goal $ {...Shape, ...Goal} ;
+
+hand_shape = Shape <- rock | paper | scissors $ {"hand_shape": Shape} ;
+
+end_goal = Goal <- lose | win | draw $ {"end_goal": Goal} ;
+
+rock = "A" | "X" $ "rock" ;
+paper = "B" | "Y" $ "paper" ;
+scissors = "C" | "Z" $ "scissors" ;
+
+lose = "X" $ "lose" ;
+draw = "Y" $ "draw" ;
+win = "Z" $ "win" ;
