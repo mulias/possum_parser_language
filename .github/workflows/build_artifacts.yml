@@ -1,37 +1,24 @@
-# Release building
-# ================
-# Build binaries to attach to the releases
-name: release
+name: Build binaries for release
 
 # Configure when to run the workflows.
 on:
   release:
-    types:
-      - created
+    types: [created]
 
 
 jobs:
-  # Build binaries
-  # ==============
   binaries:
+    defaults:
+      run:
+        working-directory: ./opossum
 
-    runs-on: ${{ matrix.os }}
-
-    # Build Matrix
-    # --------------
     strategy:
       matrix:
-        # Operating system to run tests on.
         os:
           - ubuntu-latest
           - macos-latest
-
-        # Ocaml versions to use
-        ocaml-version:
-          - 4.14.0+options
-        ocaml-options:
-          - ocaml-option-flambda
-
+        ocaml-compiler:
+          - 4.14.0
         include:
           - os: ubuntu-latest
             possum_artifact: possum.exe
@@ -40,37 +27,34 @@ jobs:
             possum_artifact: possum.exe
             possum_asset: possum-macos-amd64
 
-    # Build ENV
-    # ---------
+    runs-on: ${{ matrix.os }}
+
     env:
       # Ensure opam will not stop because it waits on some user input
       OPAMYES: "true"
 
-    # Build/test steps
-    # ----------------
     steps:
-    # checkout the repo
-    - name: Checkout the repo
-      uses: actions/checkout@v2.5.0
-    # Setup ocaml/opam
-    - name: Setup OCaml
-      uses: ocaml/setup-ocaml@v1.1.11
-      with:
-        ocaml-compiler: ocaml-variants.${{ matrix.ocaml-version }},${{ matrix.ocaml-options }}
-    # Run opam udpate to get an up-to-date repo
-    - name: Update opam repo
-      run: opam update
-    # Install deps
-    - name: Install deps
-      run: opam install . --deps-only
-    # Build the package
-    - name: Build the package
-      run: opam exec -- dune build --profile=release @install
-    # Upload the binaries
-    - name: Upload Possum binary to release
-      uses: svenstaro/upload-release-action@v2.3.0
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: _build/install/default/bin/${{ matrix.possum_artifact }}
-        asset_name: ${{ matrix.possum_asset }}
-        tag: ${{ github.ref }}
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Update opam repo
+        run: opam update
+
+      - name: Install deps
+        run: opam install . --deps-only
+
+      - name: Build project
+        run: opam exec -- dune build --profile=release @install
+
+      - name: Upload Possum binary to release
+        uses: svenstaro/upload-release-action@v2.3.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: _build/install/default/bin/${{ matrix.possum_artifact }}
+          asset_name: ${{ matrix.possum_asset }}
+          tag: ${{ github.ref }}
