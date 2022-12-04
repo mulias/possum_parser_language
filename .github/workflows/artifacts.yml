@@ -1,0 +1,51 @@
+name: Build binaries
+
+on: workflow_dispatch
+
+jobs:
+  binaries:
+    defaults:
+      run:
+        working-directory: ./opossum
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        include:
+          - os: ubuntu-latest
+            ocaml-compiler: ocaml-variants.4.14.0+options,ocaml-option-static
+            build-cmd: LINKING_MODE=static opam exec -- dune build --profile=release @install
+            possum-artifact: possum
+            possum-asset: possum-linux
+          - os: macos-latest
+            ocaml-compiler: 4.14.0
+            build-cmd: opam exec -- dune build --profile=release @install
+            possum-artifact: possum
+            possum-asset: possum-macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          dune-cache: true
+
+      - name: Install deps
+        run: opam install . --deps-only
+
+      - name: Build project
+        run: ${{ matrix.build-cmd }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.possum-asset }}
+          path: opossum/_build/install/default/bin/${{ matrix.possum-artifact }}

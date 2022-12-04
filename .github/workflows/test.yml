@@ -1,0 +1,49 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  build:
+    defaults:
+      run:
+        working-directory: ./opossum
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+        include:
+          - os: ubuntu-latest
+            ocaml-compiler: ocaml-variants.4.14.0+options,ocaml-option-static
+            build-cmd: LINKING_MODE=static opam exec -- dune build --profile=release @install
+          - os: macos-latest
+            ocaml-compiler: 4.14.0
+            build-cmd: opam exec -- dune build --profile=release @install
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          dune-cache: true
+
+      - name: Install deps
+        run: opam install . --deps-only --with-test
+
+      - name: Build project
+        run: ${{ matrix.build-cmd }}
+
+      - name: Check formatting
+        run: opam exec -- dune build @fmt
+
+      - name: Run tests
+        run: opam exec -- dune runtest

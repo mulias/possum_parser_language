@@ -26,7 +26,7 @@
    (core_unix (= v0.15.2))
    (dune (= 3.6.1))
    (ocaml (= 4.14.0))
-   (ocamlformat (and (= 0.24.1) :dev))
+   (ocamlformat (= 0.24.1))
    (ppx_deriving (= 5.2.1))
    (ppx_let (= v0.15.0))
    (ppx_string (= v0.15.0))

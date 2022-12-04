@@ -2,4 +2,15 @@
  (name possum)
  (modes native)
  (public_name possum)
+ (flags
+  (:standard
+   (:include linking-flags-possum.sexp)))
  (libraries opossum))
+
+(rule
+ (with-stdout-to
+  linking-flags-possum.sexp
+  (run
+   ./gen-linking-flags.sh
+   %{env:LINKING_MODE=dynamic}
+   %{ocaml-config:system})))
