@@ -12,8 +12,8 @@ bug-reports: "https://github.com/mulias/possum_parser_language/issues"
 depends: [
   "alcotest" {= "1.6.0" & with-test}
   "angstrom" {= "0.15.0"}
+  "cmdliner" {= "1.1.1"}
   "core" {= "v0.15.1"}
-  "core_unix" {= "v0.15.2"}
   "dune" {>= "3.6" & = "3.6.1"}
   "ocaml" {= "4.14.0"}
   "ocamlformat" {= "0.24.1"}

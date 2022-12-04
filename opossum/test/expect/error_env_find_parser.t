@@ -10,5 +10,5 @@
   ^^^
   
   Variable `foo` is undefined.
-  [1]
+  [123]
 

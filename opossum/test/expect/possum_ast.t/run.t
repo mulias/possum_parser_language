@@ -54,7 +54,7 @@
     ]
   }
 
-  $ possum possum_ast.parser -i "-37"
+  $ possum possum_ast.parser --input="-37"
   {
     "type": "program",
     "defs": [

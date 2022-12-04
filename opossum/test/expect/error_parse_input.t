@@ -12,7 +12,7 @@
   "my parser"
   
   But no match was found.
-  [1]
+  [123]
 
 
 
@@ -30,7 +30,7 @@
   10
   
   But no match was found.
-  [1]
+  [123]
 
 
 
@@ -48,7 +48,7 @@
   " four"
   
   But no match was found.
-  [1]
+  [123]
 
 
 
@@ -62,7 +62,7 @@
   "DEF"
   
   But there's not enough input left to match on.
-  [1]
+  [123]
 
 
 
@@ -80,7 +80,7 @@
   end
   
   But no match was found.
-  [1]
+  [123]
 
 
 
@@ -98,5 +98,5 @@
   input
   
   But no match was found.
-  [1]
+  [123]
 

@@ -17,7 +17,7 @@
   parser_apply_args
   
   The last step did not succeed and there were no other options.
-  [1]
+  [123]
 
 
   $ possum -p "1 2" -i "1 2"
@@ -35,7 +35,7 @@
   end_of_input
   
   The last step did not succeed and there were no other options.
-  [1]
+  [123]
 
 
   $ possum -p "1 && 2" -i "1 2"
@@ -58,7 +58,7 @@
   id
   
   The last step did not succeed and there were no other options.
-  [1]
+  [123]
 
 
   $ possum -p "(123" -i "123"
@@ -79,7 +79,7 @@
   group
   
   The last step did not succeed and there were no other options.
-  [1]
+  [123]
 
 
   $ possum -p "'' $ [1, 2" -i "foo bar"
@@ -103,4 +103,4 @@
   json_array
   
   The last step did not succeed and there were no other options.
-  [1]
+  [123]

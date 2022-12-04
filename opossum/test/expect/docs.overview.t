@@ -17,7 +17,7 @@ return a number value on success.
   $ possum -p "12" -i "1245"
   12
 
-  $ possum -p "-37" -i "-37"
+  $ possum --parser="-37" --input="-37"
   -37
 
   $ possum -p "10.45" -i "10.45"
@@ -53,7 +53,7 @@ If the parser fails to find a match an error is returned.
   "my parser"
   
   But no match was found.
-  [1]
+  [123]
 
   $ possum -p "10" -i "0010"
   
@@ -69,7 +69,7 @@ If the parser fails to find a match an error is returned.
   10
   
   But no match was found.
-  [1]
+  [123]
 ```
 
 Built in parsers provide shortcuts for common parsing situations. Some examples
@@ -126,7 +126,7 @@ succeeds then the left-side result is returned.
   " four"
   
   But no match was found.
-  [1]
+  [123]
 ```
 
 The `+` combinator ("concat") combines two string parsers, matching and
@@ -148,7 +148,7 @@ either parser returns a non-string JSON value.
   ^^^^^^^^^^^^^
   
   The right-side parser returned a number instead of a string.
-  [1]
+  [123]
 ```
 
 Parsers are greedy. The `word` parser matches all characters up to the next
@@ -165,7 +165,7 @@ literal part has already been matched.
   "DEF"
   
   But there's not enough input left to match on.
-  [1]
+  [123]
 ```
 
 The `$` combinator ("return") matches the left-side parser, and then on success
@@ -233,7 +233,7 @@ Variables assigned within a sequence are scoped to that sequence.
                          ^
   
   Variable `I` is undefined.
-  [1]
+  [123]
 ```
 
 In addition to returning arrays and objects containing variables as elements,
@@ -256,7 +256,7 @@ must be a string.
   
   The value assigned to `Id` is a number, but it needs to be a string in order to
   create a valid object.
-  [1]
+  [123]
 ```
 
 Parsers can be split up and reused by first defining the parser, then using it
@@ -390,7 +390,7 @@ file/string, or `input` to additionally strip leading and trailing whitespace.
   end
   
   But no match was found.
-  [1]
+  [123]
 
   $ possum -p "input(int)" -i "   12   "
   12
@@ -409,5 +409,5 @@ file/string, or `input` to additionally strip leading and trailing whitespace.
   input
   
   But no match was found.
-  [1]
+  [123]
 ```

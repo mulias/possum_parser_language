@@ -11,7 +11,7 @@
   
   The value assigned to `I` is a number, but it needs to be a string in order to
   create a valid object.
-  [1]
+  [123]
 
 
   $ possum -p "object_sep(number, ':', alpha, ',')" -i "0:a,1:b"
@@ -27,4 +27,4 @@
   
   This parser returned a number, but every returned value needs to be a string in
   order to create a valid object.
-  [1]
+  [123]

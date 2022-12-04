@@ -17,7 +17,7 @@ return a number value on success.
   $ possum -p "12" -i "1245"
   12
 
-  $ possum -p "-37" -i "-37"
+  $ possum --parser="-37" --input="-37"
   -37
 
   $ possum -p "10.45" -i "10.45"
