@@ -1,28 +1,35 @@
-(lang dune 3.2)
+(lang dune 3.6)
 
 (name opossum)
 
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github mulias/possum_parser_language))
 
-(authors "Author Name")
+(authors "Elias Mulhall")
 
-(maintainers "Maintainer Name")
+(maintainers "Elias Mulhall")
 
-(license LICENSE)
+(license ISC)
 
-(documentation https://url/to/documentation)
-
-(using menhir 2.1)
+(documentation https://github.com/mulias/possum_parser_language/tree/main/docs)
 
 (package
  (name opossum)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml dune)
- (tags
-  (topics "to describe" your project)))
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
+ (synopsis "A tiny text parsing language")
+ (description "Possum is a domain specific language for parsing arbitrary text into JSON")
+ (depends
+   (alcotest (and (= 1.6.0) :with-test))
+   (angstrom (= 0.15.0))
+   (core (= v0.15.1))
+   (core_unix (= v0.15.2))
+   (dune (= 3.6.1))
+   (ocaml (= 4.14.0))
+   (ocamlformat (and (= 0.24.1) :dev))
+   (ppx_deriving (= 5.2.1))
+   (ppx_let (= v0.15.0))
+   (ppx_string (= v0.15.0))
+   (re (= 1.10.4))
+   (yojson (= 2.0.2))
+   ))
