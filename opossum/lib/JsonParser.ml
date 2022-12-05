@@ -61,10 +61,12 @@ let rec apply
   | JsonParam fn, LitArg (_, j, meta) :: args_tl ->
       apply name (fn (j, meta)) args_tl
   | Parser _, _ :: _ -> raise Errors.EvalTooManyArguments
-  | ParserParam _, JsonArg _ :: _ ->
-      raise (Errors.EvalArgumentType { expected = "parser"; got = "json" })
-  | JsonParam _, ParserArg _ :: _ ->
-      raise (Errors.EvalArgumentType { expected = "json"; got = "parser" })
+  | ParserParam _, JsonArg (_, meta) :: _ ->
+      raise
+        (Errors.EvalArgumentType { expected = "parser"; got = "json"; meta })
+  | JsonParam _, ParserArg (_, meta) :: _ ->
+      raise
+        (Errors.EvalArgumentType { expected = "json"; got = "parser"; meta })
 
 (* Given a parser `p` and a list of `params`, wrap `p` in layers of
    `CurriedParser` so that when `apply` is called each argument is assigned to

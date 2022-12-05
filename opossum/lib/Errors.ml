@@ -36,7 +36,8 @@ exception EvalTooManyArguments
 
 exception EvalJsonType of { expected : string; got : string }
 
-exception EvalArgumentType of { expected : string; got : string }
+exception
+  EvalArgumentType of { expected : string; got : string; meta : Program.meta }
 
 exception
   EvalConcat of
@@ -237,8 +238,18 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
   | EvalTooManyArguments -> Error "EvalTooManyArguments"
   | EvalJsonType { expected; got } ->
       Error [%string "Expected %{expected}, got %{got}"]
-  | EvalArgumentType { expected; got } ->
-      Error [%string "Expected %{expected}, got %{got}"]
+  | EvalArgumentType { expected; got; meta } ->
+      let arg_context =
+        error_context source ~start_pos:meta.start_pos ~end_pos:meta.end_pos
+      in
+      let msg =
+        [%string
+          "\n\
+           Error Evaluating Arguments\n\n\
+           Expected %{expected}, got %{got}\n\n\
+           %{arg_context}"]
+      in
+      Error msg
   | EvalConcat { side = left_or_right; value; start_pos; end_pos } ->
       let side =
         match left_or_right with `Left -> "left-side" | `Right -> "right-side"
