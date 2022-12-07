@@ -1,0 +1,29 @@
+input(dir) ;
+
+dir =
+  "$ cd" & ws &
+  Name <- word & nl &
+  "$ ls" & nl &
+  Files <- files & nl &
+  Subdirs <- child_dirs &
+  ("$ cd .." < nl) | end $
+  {"name": Name, "files": Files, "subdirs": Subdirs} ;
+
+child_dirs = (
+  peek("$ cd .." | end) $ []
+) | (
+  Dir <- dir &
+  Rest <- child_dirs $
+  [Dir, ...Rest]
+) ;
+
+files = array_sep(
+  maybe(dir_listings > nl) > file_listing < maybe(nl > dir_listings),
+  nl
+) | (
+  maybe(dir_listings) $ []
+) ;
+
+dir_listings = array_sep("dir " > word, nl) ;
+
+file_listing = Size <- number & ws & Name <- word $ {"name": Name, "size": Size} ;
