@@ -198,6 +198,11 @@ let array_parser =
 let array_sep_parser =
   arity_2 (fun (elem, _) (sep, _) -> sep_by1 sep elem >>| fun arr -> `List arr)
 
+let table_sep_parser =
+  arity_3 (fun (elem, _) (sep, _) (row_sep, _) ->
+      sep_by1 row_sep (sep_by1 sep elem) >>| fun table ->
+      `List (List.map table ~f:(fun row -> `List row)))
+
 let object_parser =
   arity_2 (fun (name, name_meta) (value, _) ->
       many1 (both name value) >>| fun alist ->
@@ -288,6 +293,7 @@ let load (env : Program.env) =
   ; ("until", until_parser)
   ; ("array", array_parser)
   ; ("array_sep", array_sep_parser)
+  ; ("table_sep", table_sep_parser)
   ; ("object", object_parser)
   ; ("object_sep", object_sep_parser)
   ; ("input", input_parser)

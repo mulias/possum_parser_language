@@ -1,4 +1,4 @@
-  $ possum input.parser input.txt
+  $ possum -p "table_sep(digit, '', nl)" input.txt
   [
     [ 3, 1, 1, 3, 2, 8, 4, 8, 8, 6 ],
     [ 2, 8, 5, 1, 8, 7, 6, 1, 4, 4 ],

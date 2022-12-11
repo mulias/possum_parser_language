@@ -1,4 +1,4 @@
-  $ possum input.parser input.txt
+  $ possum -p "table_sep('>' | 'v' | '.', '', nl)" input.txt
   [
     [
       ".", "v", "v", "v", "v", ">", ".", "v", "v", ".", ".", ".", "v", ".",

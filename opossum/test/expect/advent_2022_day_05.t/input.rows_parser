@@ -1,0 +1,14 @@
+crate = "[" > char < "]" ;
+no_crate = "   " $ null ;
+cargo = crate | no_crate ;
+
+move =
+  "move" & ws & Count <- number  & ws &
+  "from" & ws & From  <- numeral & ws &
+  "to"   & ws & To    <- numeral & ws $
+  {"count": Count, "from": From, "to": To} ;
+
+CargoRows <- table_sep(cargo, " ", nl) &
+_Labels <- ws > array_sep(numeral, ws) < ws &
+Steps <- array(move) $
+{"cargo_rows": CargoRows, "steps": Steps} ;

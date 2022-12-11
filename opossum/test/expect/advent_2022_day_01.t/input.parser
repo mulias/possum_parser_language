@@ -1,1 +1,0 @@
-inventory = array_sep(int, nl) ; array_sep(inventory, nl+nl)

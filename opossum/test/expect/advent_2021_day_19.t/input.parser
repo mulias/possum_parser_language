@@ -1,7 +1,6 @@
-coordinate = array_sep(int, ",") ;
 scan =
-  Id <- "--- scanner " > int < " ---" < newline &
-  Coords <- array_sep(coordinate, newline) $
+  Id <- "--- scanner " > int < " ---" < nl &
+  Coords <- table_sep(int, ",", nl) $
   {"id": Id, "beacons": Coords} ;
 
-input(array_sep(scan, whitespace))
+input(array_sep(scan, ws))

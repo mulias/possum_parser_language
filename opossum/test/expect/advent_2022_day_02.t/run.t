@@ -1,4 +1,4 @@
-  $ possum -p "array_sep(P1<-char & ws & P2<-char $ [P1,P2], nl)" input_sample.txt
+  $ possum -p "array_sep(P1 <-char & ws & P2 <-char $ [P1, P2], nl)" input_sample.txt
   [ [ "A", "Y" ], [ "B", "X" ], [ "C", "Z" ] ]
 
   $ possum input.parser input.txt

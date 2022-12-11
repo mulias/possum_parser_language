@@ -20,8 +20,6 @@ Stacks <- zip_object(Labels, Cargo) $
 # Helpers
 ###
 
-table_sep(el, sep, row_sep) = array_sep(array_sep(el, sep), row_sep) ;
-
 zip_object(Keys, Values) =
   [K, ...KeysRest] <- const(Keys) &
   [V, ...ValuesRest] <- const(Values) &
