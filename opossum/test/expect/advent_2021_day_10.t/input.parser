@@ -8,4 +8,4 @@ token =
   "{" $ {"open": true, "type": "brace", "lit": "{"} |
   "}" $ {"open": false, "type": "brace", "lit": "}"} ;
 
-input(array_sep(array(token), newline))
+input(table_sep(token, '', nl))

@@ -1,4 +1,4 @@
-  $ possum input.parser input.txt
+  $ possum -p "table_sep(int,nl,nl+nl)" input.txt
   [
     [ 11334, 6264, 9318 ],
     [

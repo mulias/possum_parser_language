@@ -131,6 +131,7 @@ provided for convenience.
 | `until(s, stop)` | One or more `s`, must be followed by `stop` which is not consumed | Concatenated string values returned by `s` |
 | `array(element)` | One or more `element` | Array of values returned by `element` |
 | `array_sep(element, sep)` | One or more `element`, interspersed with `sep` | Array of values returned by `element` |
+| `table_sep(element, sep, row_sep)` | One or more `element`, interspersed with `sep` or `row_sep` | Array of array of values |
 | `object(name, value)` | Both `name` and `value` together one or more times | Object of name/value pairs |
 | `object_sep(name, pair_sep, value, sep)` | Parses `name`, `pair_sep`, and `value` together one or more times, interspersed with `sep` | Object of name/value pairs |
 | `input(p)` | `maybe(ws) > p < maybe(ws) < eof` | Value of `p` |
@@ -158,7 +159,10 @@ These are tentative core/library parsers which may or may not get implemented.
 | `if_else(test, Then, Else)` | Parser `test` or succeeds with no match | Value `Then` if `p` succeeds, otherwise `Else` |
 | `map(p, A)` | Parser `p(Val)` for each `Val` in array `A` | Array of parsed values |
 | `fold(p, InitAcc, A)` | Parser `p(Acc, Val)` for each `Val` in array `A` and the accumulated value `Acc` | Final `Acc` |
-| `zip(A, B)` | Succeed with no match, given `A` and `B` are both arrays | Array of `[ ValueA, ValueB ]` tuples |
 | `tabular(Header, Rows)` | Succeed with no match, given `Header` is an array of strings and `Rows` is an array of arrays of values | Array of objects with header col/row col pairs |
 | `array_flatten(A)` | Succeed with no match, given `A` is an array of arrays | Array with all elements of sub-arrays |
 | `array_concat(A)` | Succeed with no match, given `A` is an array of strings | Concatenated string elements |
+| `zip_array(A, B)` | Succeed with no match, given `A` and `B` are both arrays | Array of `[ ValueA, ValueB ]` tuples |
+| `zip_object(A, B)` | Succeed with no match, given `A` and `B` are both arrays | Array of `[ ValueA, ValueB ]` tuples |
+| `rotate_table_clockwise(T)` | Succeed with no match, given `T` is an array of arrays | Shift table elements so rows become columns, bottom left element becomes the first element |
+| `rotate_table_counter_clockwise(T)` | Succeed with no match, given `T` is an array of arrays | Shift table elements so rows become columns, top right element becomes the first element |

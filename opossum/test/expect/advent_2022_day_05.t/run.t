@@ -1,6 +1,8 @@
-  $ possum input.parser input_sample.txt
+  $ possum input.rows_parser input_sample.txt
   {
-    "stacks": { "1": [ "Z", "N" ], "2": [ "M", "C", "D" ], "3": [ "P" ] },
+    "cargo_rows": [
+      [ null, "D", null ], [ "N", "C", null ], [ "Z", "M", "P" ]
+    ],
     "steps": [
       { "count": 1, "from": "2", "to": "1" },
       { "count": 3, "from": "1", "to": "3" },
@@ -9,7 +11,7 @@
     ]
   }
 
-  $ possum input.parser input.txt
+  $ possum input.stacks_parser input.txt
   {
     "stacks": {
       "1": [ "N", "B", "D", "T", "V", "G", "Z", "J" ],

@@ -1,4 +1,4 @@
 pixel = "." $ 0 | "#" $ 1 ;
 Algorithm <- array(pixel) < ws &
-Image <- array_sep(array(pixel), newline) $
+Image <- table_sep(pixel, '', nl) $
 {"algorithm": Algorithm, "image": Image}

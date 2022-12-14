@@ -1,8 +1,8 @@
-rule = Pair <- word & " -> " & Insertion <- word $
+rule =
+  Pair <- word & " -> " & Insertion <- word $
   {"pair": Pair, "insertion": Insertion} ;
 
 input(
-  Template <- word < whitespace &
-  Rules <- array_sep(rule, newline) $
+  Template <- word & ws & Rules <- array_sep(rule, nl) $
   {"template": Template, "rules": Rules}
 )

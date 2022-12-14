@@ -1,9 +1,5 @@
-bingo_numbers = array_sep(int, ',') ;
-bingo_board_line = maybe(many(' ')) > array_sep(int, many(' ')) ;
-bingo_board = array_sep(bingo_board_line, newline) ;
-bingo_boards = array_sep(bingo_board, newline + newline) ;
+bingo_board = table_sep(maybe(' ') > int, ' ', nl) ;
 
-input(
-  Numbers <- bingo_numbers & ws & Boards <- bingo_boards $
-  {'numbers': Numbers, 'boards': Boards}
-)
+Numbers <- array_sep(int, ',') & ws &
+Boards <- array_sep(bingo_board, nl + nl) $
+{'numbers': Numbers, 'boards': Boards}
