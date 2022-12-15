@@ -1,0 +1,2 @@
+list = "[" > default(array_sep(int | list, ","), []) < "]" ;
+array_sep(L <- list & nl & R <- list $ {"left":L, "right":R}, ws)
