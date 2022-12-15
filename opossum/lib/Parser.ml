@@ -44,7 +44,13 @@ let peek p =
   in
   let return_peak =
     return () >>= fun _ ->
-    match !peek_value with Some v -> return v | None -> fail "peek fail"
+    match !peek_value with
+    | Some v ->
+        peek_value := None ;
+        return v
+    | None ->
+        peek_value := None ;
+        fail "peek fail"
   in
   assign_peak <|> return_peak
 
