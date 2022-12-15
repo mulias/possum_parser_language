@@ -1,12 +1,9 @@
-map = many("#" | "." | " " | newline) ;
 octo = "A" | "B" | "C" | "D" ;
 
-map &
-[A1, B1, C1, D1, A2, B2, C2, D2] <- array_sep(octo, map) &
-map & end $
+[A1, B1, C1, D1, A2, B2, C2, D2] <- array(scan(octo)) $
 {
-  "room_a": [A1, A2],
-  "room_b": [B1, B2],
-  "room_c": [C1, C2],
-  "room_d": [D1, D2]
+  "roomA": [A1, A2],
+  "roomB": [B1, B2],
+  "roomC": [C1, C2],
+  "roomD": [D1, D2]
 }

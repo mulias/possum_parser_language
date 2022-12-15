@@ -1,8 +1,8 @@
   $ possum input.parser input.txt
   {
-    "room_a": [ "C", "B" ],
-    "room_b": [ "B", "C" ],
-    "room_c": [ "A", "D" ],
-    "room_d": [ "D", "A" ]
+    "roomA": [ "C", "B" ],
+    "roomB": [ "B", "C" ],
+    "roomC": [ "A", "D" ],
+    "roomD": [ "D", "A" ]
   }
 

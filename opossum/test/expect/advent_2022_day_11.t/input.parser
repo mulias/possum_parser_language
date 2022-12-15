@@ -2,7 +2,7 @@ array(monkey) ;
 
 monkey =
   "Monkey " & Id <- int & ":" & ws &
-  "Starting items: " & Items <- array_sep(int, "," < ws) & ws &
+  "Starting items: " & Items <- array_sep(int, ", ") & ws &
   "Operation: new = " & Operation <- operation & ws &
   "Test: divisible by " & Test <- int & ws &
   "If true: throw to monkey " & IfTrue <- int & ws &

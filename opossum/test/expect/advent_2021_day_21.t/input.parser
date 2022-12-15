@@ -1,6 +1,0 @@
-player =
-  Id <- "Player " > int &
-  Pos <- " starting position: " > int $
-  {"id": Id, "pos": Pos} ;
-
-array_sep(player, newline)
