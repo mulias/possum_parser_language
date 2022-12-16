@@ -190,6 +190,12 @@ let until_parser =
       and _has_stop = Parser.peek stop in
       p_str)
 
+let scan_parser =
+  arity_1 (fun (p, _) ->
+      let%map _ = many_till any_char (Parser.peek p)
+      and value = p in
+      value)
+
 (* Collection parsers *)
 
 let array_parser =
@@ -291,6 +297,7 @@ let load (env : Program.env) =
   ; ("null", null_parser)
   ; ("many", many_parser)
   ; ("until", until_parser)
+  ; ("scan", scan_parser)
   ; ("array", array_parser)
   ; ("array_sep", array_sep_parser)
   ; ("table_sep", table_sep_parser)
