@@ -219,23 +219,6 @@ the sequence of parsers to the left of a `$`.
   { "left": 12, "op": "+", "right": 99 }
 ```
 
-Variables assigned within a sequence are scoped to that sequence.
-```
-  $ possum -p "(I <- int $ I) > ('' $ I)" -i "32"
-  
-  Error Finding Value
-  
-  ~~~(##)'>  I tried to look up the value associated with a variable but couldn't
-  find anything.
-  
-  The value is used on line 1, characters 24-24:
-  (I <- int $ I) > ('' $ I)
-                         ^
-  
-  Variable `I` is undefined.
-  [123]
-```
-
 In addition to returning arrays and objects containing variables as elements,
 we can use a variable as the name in a name/value object pair. The variable
 must be a string.

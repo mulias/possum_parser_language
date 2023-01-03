@@ -299,10 +299,8 @@ let test_env_scope_for_sequence () =
 let test_env_scope_for_two_sequences () =
   let program = "(A <- int $ A) > ('' $ A)" in
   let input = "123" in
-  let expected =
-    Errors.EnvFindJson { id = "A"; start_pos = 23; end_pos = 24 }
-  in
-  check_eval_error program input expected
+  let expected = `Intlit "123" in
+  check_eval program input expected
 
 let () =
   Alcotest.run "Evaluator"
@@ -356,7 +354,7 @@ let () =
             test_env_scope_for_parser
         ; test_case "Env scope includes assigns in sequence" `Quick
             test_env_scope_for_sequence
-        ; test_case "Env scope does not share assigns between sequences" `Quick
+        ; test_case "Env scope share assigns between sequences" `Quick
             test_env_scope_for_two_sequences
         ] )
     ]

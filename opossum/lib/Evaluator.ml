@@ -164,20 +164,15 @@ let eval_literal_parser (ast : Ast.parser_literal) : Program.t =
   | `Intlit (s, _) -> string s *> return (`Intlit s) <?> s
   | `Floatlit (s, _) -> string s *> return (`Floatlit s) <?> s
 
-let rec eval_parser_body
-    (ast : Ast.parser_body)
-    ?(extended_env : Program.env option)
-    (env : Program.env) : Program.t =
-  let extended_env = Option.value extended_env ~default:env in
+let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
+    (Program.json * Program.env) Angstrom.t =
   let rec resolve_delayed_parser id args (delayed_p, delayed_args) =
     return () >>= fun _ ->
-    let evaled_args =
-      List.map args ~f:(fun a -> eval_parser_apply_arg a env ~extended_env)
-    in
+    let evaled_args = List.map args ~f:(fun a -> eval_parser_apply_arg a env) in
     match
       JsonParser.apply id (delayed_p ()) (List.append delayed_args evaled_args)
     with
-    | Parser p -> p
+    | Parser p -> p >>= fun value -> return (value, env)
     | Delayed (delayed_p, _, delayed_args) ->
         resolve_delayed_parser id [] (delayed_p, delayed_args)
     | _ -> raise Errors.EvalNotEnoughArguments
@@ -190,11 +185,10 @@ let rec eval_parser_body
           resolve_delayed_parser id args (delayed_p, delayed_args)
       | Some p -> (
           let evaled_args =
-            List.map args ~f:(fun a ->
-                eval_parser_apply_arg a env ~extended_env)
+            List.map args ~f:(fun a -> eval_parser_apply_arg a env)
           in
           match JsonParser.apply id p evaled_args with
-          | Parser p -> p
+          | Parser p -> p >>= fun value -> return (value, env)
           | Delayed (delayed_p, _, delayed_args) ->
               resolve_delayed_parser id args (delayed_p, delayed_args)
           | _ -> raise Errors.EvalNotEnoughArguments)
@@ -203,7 +197,8 @@ let rec eval_parser_body
             (Errors.EnvFindParser
                { id; start_pos = id_meta.start_pos; end_pos = id_meta.end_pos })
       )
-  | (`String _ | `Intlit _ | `Floatlit _) as lit -> eval_literal_parser lit
+  | (`String _ | `Intlit _ | `Floatlit _) as lit ->
+      eval_literal_parser lit >>= fun value -> return (value, env)
   | `Regex (pattern, { start_pos; end_pos }) ->
       let r =
         try Re.Perl.re pattern ~opts:[ `Multiline ] |> Re.compile
@@ -212,27 +207,23 @@ let rec eval_parser_body
       peek_current_input
       >>= (fun i -> Parser.peek_pos >>= fun p -> Parser.regex r i p)
       <?> "regex"
-  | `Sequence (seq, json_return, _) ->
-      eval_sequence seq json_return extended_env
+      >>= fun value -> return (value, env)
+  | `Sequence (seq, json_return, _) -> eval_sequence seq json_return env
   | `Or (left, right, _) ->
-      let p_left = eval_parser_body left env ~extended_env in
-      let p_right = eval_parser_body right env ~extended_env in
-      p_left <|> p_right
+      eval_parser_body left env <|> eval_parser_body right env
   | `TakeLeft (left, right, _) ->
-      let p_left = eval_parser_body left env ~extended_env in
-      let p_right = eval_parser_body right env ~extended_env in
-      p_left <* p_right
+      eval_parser_body left env >>= fun (v_left, env_left) ->
+      eval_parser_body right env_left >>= fun (_v_right, env_right) ->
+      return (v_left, env_right)
   | `TakeRight (left, right, _) ->
-      let p_left = eval_parser_body left env ~extended_env in
-      let p_right = eval_parser_body right env ~extended_env in
-      p_left *> p_right
+      eval_parser_body left env >>= fun (_v_left, env_left) ->
+      eval_parser_body right env_left
   | `Concat (left, right, meta) -> (
-      let p_left = eval_parser_body left env ~extended_env in
-      let p_right = eval_parser_body right env ~extended_env in
-      let%map j_left = p_left
-      and j_right = p_right in
-      match (j_left, j_right) with
-      | `String s_left, `String s_right -> `String (s_left ^ s_right)
+      eval_parser_body left env >>= fun (v_left, env_left) ->
+      eval_parser_body right env_left >>= fun (v_right, env_right) ->
+      match (v_left, v_right) with
+      | `String s_left, `String s_right ->
+          return (`String (s_left ^ s_right), env_right)
       | `String _, not_string ->
           raise
             (Errors.EvalConcat
@@ -250,18 +241,14 @@ let rec eval_parser_body
                ; end_pos = meta.end_pos
                }))
 
-and eval_parser_body_partial
-    (ast : Ast.parser_body)
-    ?(extended_env : Program.env option)
-    (env : Program.env) : Program.json_parser =
-  let extended_env = Option.value extended_env ~default:env in
+and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
+    Program.json_parser =
   match ast with
   | `ParserApply (`ParserId (id, id_meta), args, _) -> (
       match Env.find_parser env id with
       | Some json_parser ->
           let evaled_args =
-            List.map args ~f:(fun a ->
-                eval_parser_apply_arg a env ~extended_env)
+            List.map args ~f:(fun a -> eval_parser_apply_arg a env)
           in
           JsonParser.apply id json_parser evaled_args
       | None ->
@@ -269,37 +256,34 @@ and eval_parser_body_partial
             (Errors.EnvFindParser
                { id; start_pos = id_meta.start_pos; end_pos = id_meta.end_pos })
       )
-  | _ -> Parser (eval_parser_body ast env ~extended_env)
+  | _ -> Parser (eval_parser_body ast env >>= fun (value, _env) -> return value)
 
 and eval_sequence
     (seq : (Ast.json option * Ast.parser_body) list)
     (json_return : Ast.json)
-    (env : Program.env) : Program.t =
-  let rec build_parser seq json_return extended_env : Program.json Angstrom.t =
+    (env : Program.env) : (Program.json * Program.env) Angstrom.t =
+  let rec build_parser seq json_return env =
     match seq with
     | (optional_pattern, step) :: seq_rest -> (
-        eval_parser_body step env ~extended_env >>= fun j ->
+        eval_parser_body step env >>= fun (value, body_env) ->
         let pattern_extended_env =
           match optional_pattern with
-          | Some pattern -> match_pattern extended_env pattern j
-          | None -> Ok extended_env
+          | Some pattern -> match_pattern body_env pattern value
+          | None -> Ok body_env
         in
         match pattern_extended_env with
         | Ok new_env -> build_parser seq_rest json_return new_env
         | Error _ -> fail "foo")
-    | [] -> return (eval_json json_return extended_env)
+    | [] -> return (eval_json json_return env, env)
   in
   build_parser seq json_return env
 
-and eval_parser_apply_arg
-    (arg : Ast.parser_apply_arg)
-    (env : Program.env)
-    ~(extended_env : Program.env) : Program.json_parser_arg =
+and eval_parser_apply_arg (arg : Ast.parser_apply_arg) (env : Program.env) :
+    Program.json_parser_arg =
   match arg with
   | `ParserArg arg ->
-      ParserArg
-        (eval_parser_body_partial arg env ~extended_env, Ast.get_meta arg)
-  | `JsonArg arg -> JsonArg (eval_json arg extended_env, Ast.get_meta arg)
+      ParserArg (eval_parser_body_partial arg env, Ast.get_meta arg)
+  | `JsonArg arg -> JsonArg (eval_json arg env, Ast.get_meta arg)
   | `LitArg arg ->
       LitArg
         ( Parser (eval_literal_parser arg)
@@ -329,7 +313,7 @@ let eval_named_parser
 let eval_main_parser
     ((body, _) : Ast.parser_body * Program.meta)
     (env : Program.env) : Program.t =
-  eval_parser_body body env
+  eval_parser_body body env >>= fun (value, _env) -> return value
 
 let eval_program
     (Program { main_parser; named_parsers } : Ast.program)
