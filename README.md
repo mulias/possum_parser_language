@@ -42,12 +42,8 @@ It's not beautiful, but if it works then it works.
 Here's a Possum program which produces the same structured data:
 
 ```
-array_sep(array_sep(int, ","), nl)
+table_sep(int, ",", nl)
 ```
-
-This isn't much shorter than the JavaScript code, but it is more declarative --
-instead of specifying the order of steps to transform the data, we describe the
-shape of the data and let Possum do the rest.
 
 We can use `possum` to run this parser from the command line and save the result:
 
