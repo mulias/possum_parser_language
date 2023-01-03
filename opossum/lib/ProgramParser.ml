@@ -255,7 +255,7 @@ let parser_steps : permissive_parser_steps Angstrom.t =
             | Some '<' ->
                 (let%map next_step = string "<-" *> step <?> "infix"
                  and rest_steps = infix_steps in
-                 (`Assign, next_step) :: rest_steps)
+                 (`Destructure, next_step) :: rest_steps)
                 <|> let%map next_step = char '<' *> step <?> "infix"
                     and rest_steps = infix_steps in
                     (`TakeLeft, next_step) :: rest_steps

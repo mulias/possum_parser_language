@@ -240,6 +240,11 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
                ; start_pos = meta.start_pos
                ; end_pos = meta.end_pos
                }))
+  | `Destructure (left, right, _) -> (
+      eval_parser_body right env >>= fun (v_right, env_right) ->
+      match match_pattern env_right left v_right with
+      | Ok new_env -> return (v_right, new_env)
+      | Error _ -> fail "Destructure" <?> "Destructure")
 
 and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
     Program.json_parser =
@@ -259,24 +264,17 @@ and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
   | _ -> Parser (eval_parser_body ast env >>= fun (value, _env) -> return value)
 
 and eval_sequence
-    (seq : (Ast.json option * Ast.parser_body) list)
+    (steps : Ast.parser_body list)
     (json_return : Ast.json)
     (env : Program.env) : (Program.json * Program.env) Angstrom.t =
-  let rec build_parser seq json_return env =
-    match seq with
-    | (optional_pattern, step) :: seq_rest -> (
-        eval_parser_body step env >>= fun (value, body_env) ->
-        let pattern_extended_env =
-          match optional_pattern with
-          | Some pattern -> match_pattern body_env pattern value
-          | None -> Ok body_env
-        in
-        match pattern_extended_env with
-        | Ok new_env -> build_parser seq_rest json_return new_env
-        | Error _ -> fail "foo")
+  let rec build_parser steps json_return env =
+    match steps with
+    | step :: steps_rest ->
+        eval_parser_body step env >>= fun (_value, body_env) ->
+        build_parser steps_rest json_return body_env
     | [] -> return (eval_json json_return env, env)
   in
-  build_parser seq json_return env
+  build_parser steps json_return env
 
 and eval_parser_apply_arg (arg : Ast.parser_apply_arg) (env : Program.env) :
     Program.json_parser_arg =

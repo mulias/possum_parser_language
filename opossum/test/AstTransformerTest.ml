@@ -37,114 +37,117 @@ let test_tabular () =
     Ast.Program
       { main_parser =
           ( `Sequence
-              ( [ ( Some
-                      (`JsonId
-                        ("Headers", { Program.start_pos = 419; end_pos = 426 }))
-                  , `ParserApply
-                      ( `ParserId
-                          ( "array_sep"
-                          , { Program.start_pos = 430; end_pos = 439 } )
-                      , [ `ParserArg
-                            (`ParserApply
-                              ( `ParserId
-                                  ( "word"
-                                  , { Program.start_pos = 440; end_pos = 444 }
-                                  )
-                              , []
-                              , { Program.start_pos = 440; end_pos = 444 } ))
-                        ; `ParserArg
-                            (`ParserApply
-                              ( `ParserId
-                                  ( "table_sep"
-                                  , { Program.start_pos = 446; end_pos = 455 }
-                                  )
-                              , []
-                              , { Program.start_pos = 446; end_pos = 455 } ))
-                        ]
-                      , { Program.start_pos = 430; end_pos = 456 } ) )
-                ; ( None
-                  , `ParserApply
-                      ( `ParserId
-                          ("newline", { Program.start_pos = 459; end_pos = 466 })
-                      , []
-                      , { Program.start_pos = 459; end_pos = 466 } ) )
-                ; ( Some
-                      (`JsonId
-                        ("Rows", { Program.start_pos = 473; end_pos = 477 }))
-                  , `ParserApply
-                      ( `ParserId
-                          ( "array_sep"
-                          , { Program.start_pos = 481; end_pos = 490 } )
-                      , [ `ParserArg
-                            (`ParserApply
-                              ( `ParserId
-                                  ( "array_sep"
-                                  , { Program.start_pos = 491; end_pos = 500 }
-                                  )
-                              , [ `ParserArg
-                                    (`Or
-                                      ( `ParserApply
-                                          ( `ParserId
-                                              ( "number"
-                                              , { Program.start_pos = 501
-                                                ; end_pos = 507
-                                                } )
-                                          , []
-                                          , { Program.start_pos = 501
-                                            ; end_pos = 507
-                                            } )
-                                      , `ParserApply
-                                          ( `ParserId
-                                              ( "word"
-                                              , { Program.start_pos = 510
-                                                ; end_pos = 514
-                                                } )
-                                          , []
-                                          , { Program.start_pos = 510
-                                            ; end_pos = 514
-                                            } )
-                                      , { Program.start_pos = 501
-                                        ; end_pos = 514
-                                        } ))
-                                ; `ParserArg
-                                    (`ParserApply
-                                      ( `ParserId
-                                          ( "table_sep"
-                                          , { Program.start_pos = 516
-                                            ; end_pos = 525
-                                            } )
-                                      , []
-                                      , { Program.start_pos = 516
-                                        ; end_pos = 525
-                                        } ))
-                                ]
-                              , { Program.start_pos = 491; end_pos = 526 } ))
-                        ; `ParserArg
-                            (`ParserApply
-                              ( `ParserId
-                                  ( "newline"
-                                  , { Program.start_pos = 528; end_pos = 535 }
-                                  )
-                              , []
-                              , { Program.start_pos = 528; end_pos = 535 } ))
-                        ]
-                      , { Program.start_pos = 481; end_pos = 536 } ) )
-                ; ( Some
-                      (`JsonId
-                        ("Table", { Program.start_pos = 543; end_pos = 548 }))
-                  , `ParserApply
-                      ( `ParserId
-                          ("tabular", { Program.start_pos = 552; end_pos = 559 })
-                      , [ `JsonArg
-                            (`JsonId
-                              ( "Headers"
-                              , { Program.start_pos = 560; end_pos = 567 } ))
-                        ; `JsonArg
-                            (`JsonId
-                              ( "Rows"
-                              , { Program.start_pos = 569; end_pos = 573 } ))
-                        ]
-                      , { Program.start_pos = 552; end_pos = 574 } ) )
+              ( [ `Destructure
+                    ( `JsonId
+                        ("Headers", { Program.start_pos = 419; end_pos = 426 })
+                    , `ParserApply
+                        ( `ParserId
+                            ( "array_sep"
+                            , { Program.start_pos = 430; end_pos = 439 } )
+                        , [ `ParserArg
+                              (`ParserApply
+                                ( `ParserId
+                                    ( "word"
+                                    , { Program.start_pos = 440; end_pos = 444 }
+                                    )
+                                , []
+                                , { Program.start_pos = 440; end_pos = 444 } ))
+                          ; `ParserArg
+                              (`ParserApply
+                                ( `ParserId
+                                    ( "table_sep"
+                                    , { Program.start_pos = 446; end_pos = 455 }
+                                    )
+                                , []
+                                , { Program.start_pos = 446; end_pos = 455 } ))
+                          ]
+                        , { Program.start_pos = 430; end_pos = 456 } )
+                    , { Program.start_pos = 419; end_pos = 456 } )
+                ; `ParserApply
+                    ( `ParserId
+                        ("newline", { Program.start_pos = 459; end_pos = 466 })
+                    , []
+                    , { Program.start_pos = 459; end_pos = 466 } )
+                ; `Destructure
+                    ( `JsonId
+                        ("Rows", { Program.start_pos = 473; end_pos = 477 })
+                    , `ParserApply
+                        ( `ParserId
+                            ( "array_sep"
+                            , { Program.start_pos = 481; end_pos = 490 } )
+                        , [ `ParserArg
+                              (`ParserApply
+                                ( `ParserId
+                                    ( "array_sep"
+                                    , { Program.start_pos = 491; end_pos = 500 }
+                                    )
+                                , [ `ParserArg
+                                      (`Or
+                                        ( `ParserApply
+                                            ( `ParserId
+                                                ( "number"
+                                                , { Program.start_pos = 501
+                                                  ; end_pos = 507
+                                                  } )
+                                            , []
+                                            , { Program.start_pos = 501
+                                              ; end_pos = 507
+                                              } )
+                                        , `ParserApply
+                                            ( `ParserId
+                                                ( "word"
+                                                , { Program.start_pos = 510
+                                                  ; end_pos = 514
+                                                  } )
+                                            , []
+                                            , { Program.start_pos = 510
+                                              ; end_pos = 514
+                                              } )
+                                        , { Program.start_pos = 501
+                                          ; end_pos = 514
+                                          } ))
+                                  ; `ParserArg
+                                      (`ParserApply
+                                        ( `ParserId
+                                            ( "table_sep"
+                                            , { Program.start_pos = 516
+                                              ; end_pos = 525
+                                              } )
+                                        , []
+                                        , { Program.start_pos = 516
+                                          ; end_pos = 525
+                                          } ))
+                                  ]
+                                , { Program.start_pos = 491; end_pos = 526 } ))
+                          ; `ParserArg
+                              (`ParserApply
+                                ( `ParserId
+                                    ( "newline"
+                                    , { Program.start_pos = 528; end_pos = 535 }
+                                    )
+                                , []
+                                , { Program.start_pos = 528; end_pos = 535 } ))
+                          ]
+                        , { Program.start_pos = 481; end_pos = 536 } )
+                    , { Program.start_pos = 473; end_pos = 536 } )
+                ; `Destructure
+                    ( `JsonId
+                        ("Table", { Program.start_pos = 543; end_pos = 548 })
+                    , `ParserApply
+                        ( `ParserId
+                            ( "tabular"
+                            , { Program.start_pos = 552; end_pos = 559 } )
+                        , [ `JsonArg
+                              (`JsonId
+                                ( "Headers"
+                                , { Program.start_pos = 560; end_pos = 567 } ))
+                          ; `JsonArg
+                              (`JsonId
+                                ( "Rows"
+                                , { Program.start_pos = 569; end_pos = 573 } ))
+                          ]
+                        , { Program.start_pos = 552; end_pos = 574 } )
+                    , { Program.start_pos = 543; end_pos = 574 } )
                 ]
               , `JsonId ("Table", { Program.start_pos = 581; end_pos = 586 })
               , { Program.start_pos = 419; end_pos = 586 } )
@@ -156,8 +159,8 @@ let test_tabular () =
               ]
             , `Or
                 ( `Sequence
-                    ( [ ( Some
-                            (`JsonArray
+                    ( [ `Destructure
+                          ( `JsonArray
                               ( [ `JsonArrayElement
                                     ( `JsonId
                                         ( "Row"
@@ -175,58 +178,66 @@ let test_tabular () =
                                     , { Program.start_pos = 44; end_pos = 49 }
                                     )
                                 ]
-                              , { Program.start_pos = 38; end_pos = 50 } ))
-                        , `ParserApply
-                            ( `ParserId
-                                ( "const"
-                                , { Program.start_pos = 54; end_pos = 59 } )
-                            , [ `JsonArg
-                                  (`JsonId
-                                    ( "Rows"
-                                    , { Program.start_pos = 60; end_pos = 64 }
-                                    ))
-                              ]
-                            , { Program.start_pos = 54; end_pos = 65 } ) )
-                      ; ( Some
-                            (`JsonId
+                              , { Program.start_pos = 38; end_pos = 50 } )
+                          , `ParserApply
+                              ( `ParserId
+                                  ( "const"
+                                  , { Program.start_pos = 54; end_pos = 59 } )
+                              , [ `JsonArg
+                                    (`JsonId
+                                      ( "Rows"
+                                      , { Program.start_pos = 60; end_pos = 64 }
+                                      ))
+                                ]
+                              , { Program.start_pos = 54; end_pos = 65 } )
+                          , { Program.start_pos = 38; end_pos = 65 } )
+                      ; `Destructure
+                          ( `JsonId
                               ( "RowObject"
-                              , { Program.start_pos = 74; end_pos = 83 } ))
-                        , `ParserApply
-                            ( `ParserId
-                                ( "zip_pairs"
-                                , { Program.start_pos = 87; end_pos = 96 } )
-                            , [ `JsonArg
-                                  (`JsonId
-                                    ( "Headers"
-                                    , { Program.start_pos = 97; end_pos = 104 }
-                                    ))
-                              ; `JsonArg
-                                  (`JsonId
-                                    ( "Row"
-                                    , { Program.start_pos = 106; end_pos = 109 }
-                                    ))
-                              ]
-                            , { Program.start_pos = 87; end_pos = 110 } ) )
-                      ; ( Some
-                            (`JsonId
+                              , { Program.start_pos = 74; end_pos = 83 } )
+                          , `ParserApply
+                              ( `ParserId
+                                  ( "zip_pairs"
+                                  , { Program.start_pos = 87; end_pos = 96 } )
+                              , [ `JsonArg
+                                    (`JsonId
+                                      ( "Headers"
+                                      , { Program.start_pos = 97
+                                        ; end_pos = 104
+                                        } ))
+                                ; `JsonArg
+                                    (`JsonId
+                                      ( "Row"
+                                      , { Program.start_pos = 106
+                                        ; end_pos = 109
+                                        } ))
+                                ]
+                              , { Program.start_pos = 87; end_pos = 110 } )
+                          , { Program.start_pos = 74; end_pos = 110 } )
+                      ; `Destructure
+                          ( `JsonId
                               ( "Rest"
-                              , { Program.start_pos = 119; end_pos = 123 } ))
-                        , `ParserApply
-                            ( `ParserId
-                                ( "tabular"
-                                , { Program.start_pos = 127; end_pos = 134 } )
-                            , [ `JsonArg
-                                  (`JsonId
-                                    ( "Headers"
-                                    , { Program.start_pos = 135; end_pos = 142 }
-                                    ))
-                              ; `JsonArg
-                                  (`JsonId
-                                    ( "Rs"
-                                    , { Program.start_pos = 144; end_pos = 146 }
-                                    ))
-                              ]
-                            , { Program.start_pos = 127; end_pos = 147 } ) )
+                              , { Program.start_pos = 119; end_pos = 123 } )
+                          , `ParserApply
+                              ( `ParserId
+                                  ( "tabular"
+                                  , { Program.start_pos = 127; end_pos = 134 }
+                                  )
+                              , [ `JsonArg
+                                    (`JsonId
+                                      ( "Headers"
+                                      , { Program.start_pos = 135
+                                        ; end_pos = 142
+                                        } ))
+                                ; `JsonArg
+                                    (`JsonId
+                                      ( "Rs"
+                                      , { Program.start_pos = 144
+                                        ; end_pos = 146
+                                        } ))
+                                ]
+                              , { Program.start_pos = 127; end_pos = 147 } )
+                          , { Program.start_pos = 119; end_pos = 147 } )
                       ]
                     , `JsonArray
                         ( [ `JsonArrayElement
@@ -260,8 +271,8 @@ let test_tabular () =
               ]
             , `Or
                 ( `Sequence
-                    ( [ ( Some
-                            (`JsonArray
+                    ( [ `Destructure
+                          ( `JsonArray
                               ( [ `JsonArrayElement
                                     ( `JsonId
                                         ( "N"
@@ -279,20 +290,23 @@ let test_tabular () =
                                     , { Program.start_pos = 244; end_pos = 249 }
                                     )
                                 ]
-                              , { Program.start_pos = 240; end_pos = 250 } ))
-                        , `ParserApply
-                            ( `ParserId
-                                ( "const"
-                                , { Program.start_pos = 254; end_pos = 259 } )
-                            , [ `JsonArg
-                                  (`JsonId
-                                    ( "Names"
-                                    , { Program.start_pos = 260; end_pos = 265 }
-                                    ))
-                              ]
-                            , { Program.start_pos = 254; end_pos = 266 } ) )
-                      ; ( Some
-                            (`JsonArray
+                              , { Program.start_pos = 240; end_pos = 250 } )
+                          , `ParserApply
+                              ( `ParserId
+                                  ( "const"
+                                  , { Program.start_pos = 254; end_pos = 259 }
+                                  )
+                              , [ `JsonArg
+                                    (`JsonId
+                                      ( "Names"
+                                      , { Program.start_pos = 260
+                                        ; end_pos = 265
+                                        } ))
+                                ]
+                              , { Program.start_pos = 254; end_pos = 266 } )
+                          , { Program.start_pos = 240; end_pos = 266 } )
+                      ; `Destructure
+                          ( `JsonArray
                               ( [ `JsonArrayElement
                                     ( `JsonId
                                         ( "V"
@@ -310,38 +324,45 @@ let test_tabular () =
                                     , { Program.start_pos = 279; end_pos = 284 }
                                     )
                                 ]
-                              , { Program.start_pos = 275; end_pos = 285 } ))
-                        , `ParserApply
-                            ( `ParserId
-                                ( "const"
-                                , { Program.start_pos = 289; end_pos = 294 } )
-                            , [ `JsonArg
-                                  (`JsonId
-                                    ( "Values"
-                                    , { Program.start_pos = 295; end_pos = 301 }
-                                    ))
-                              ]
-                            , { Program.start_pos = 289; end_pos = 302 } ) )
-                      ; ( Some
-                            (`JsonId
+                              , { Program.start_pos = 275; end_pos = 285 } )
+                          , `ParserApply
+                              ( `ParserId
+                                  ( "const"
+                                  , { Program.start_pos = 289; end_pos = 294 }
+                                  )
+                              , [ `JsonArg
+                                    (`JsonId
+                                      ( "Values"
+                                      , { Program.start_pos = 295
+                                        ; end_pos = 301
+                                        } ))
+                                ]
+                              , { Program.start_pos = 289; end_pos = 302 } )
+                          , { Program.start_pos = 275; end_pos = 302 } )
+                      ; `Destructure
+                          ( `JsonId
                               ( "Rest"
-                              , { Program.start_pos = 311; end_pos = 315 } ))
-                        , `ParserApply
-                            ( `ParserId
-                                ( "zip_pairs"
-                                , { Program.start_pos = 319; end_pos = 328 } )
-                            , [ `JsonArg
-                                  (`JsonId
-                                    ( "Ns"
-                                    , { Program.start_pos = 329; end_pos = 331 }
-                                    ))
-                              ; `JsonArg
-                                  (`JsonId
-                                    ( "Vs"
-                                    , { Program.start_pos = 333; end_pos = 335 }
-                                    ))
-                              ]
-                            , { Program.start_pos = 319; end_pos = 336 } ) )
+                              , { Program.start_pos = 311; end_pos = 315 } )
+                          , `ParserApply
+                              ( `ParserId
+                                  ( "zip_pairs"
+                                  , { Program.start_pos = 319; end_pos = 328 }
+                                  )
+                              , [ `JsonArg
+                                    (`JsonId
+                                      ( "Ns"
+                                      , { Program.start_pos = 329
+                                        ; end_pos = 331
+                                        } ))
+                                ; `JsonArg
+                                    (`JsonId
+                                      ( "Vs"
+                                      , { Program.start_pos = 333
+                                        ; end_pos = 335
+                                        } ))
+                                ]
+                              , { Program.start_pos = 319; end_pos = 336 } )
+                          , { Program.start_pos = 311; end_pos = 336 } )
                       ]
                     , `JsonObject
                         ( [ `JsonObjectPair

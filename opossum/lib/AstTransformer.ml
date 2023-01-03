@@ -104,47 +104,35 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           ( body_of_step left
           , body_of_non_sequence (right, rest) end_pos
           , meta left_meta.start_pos end_pos )
-    | left, (`Assign, _) :: _ | left, (`And, _) :: _ | left, (`Return, _) :: _
-      ->
+    | left, (`Destructure, right) :: rest ->
+        let left_meta = get_meta left in
+        `Destructure
+          ( json_of_step left
+          , body_of_non_sequence (right, rest) end_pos
+          , meta left_meta.start_pos end_pos )
+    | left, (`And, _) :: _ | left, (`Return, _) :: _ ->
         let left_meta = get_meta left in
         raise
           (Errors.AstTransform
-             { expected = "Assign or And inside of sequence"
-             ; got = "Assign or And without sequence Return"
+             { expected = "And inside of sequence"
+             ; got = "And without sequence Return"
              ; start_pos = left_meta.start_pos
              ; end_pos
              })
   in
   let rec body_of_sequence ((first_step, steps) : permissive_parser_steps) :
-      (json option * parser_body) list =
+      parser_body list =
     match
       List.split_while steps ~f:(function `And, _ -> false | _ -> true)
     with
-    | (`Assign, first_non_sequence_step) :: rest_non_sequence_steps, [] ->
-        let non_sequence_steps =
-          (first_non_sequence_step, rest_non_sequence_steps)
-        in
-        let meta = merge_steps_meta non_sequence_steps in
-        [ ( Some (json_of_step first_step)
-          , body_of_non_sequence non_sequence_steps meta.end_pos )
-        ]
     | non_sequence_steps, [] ->
         let non_sequence_steps = (first_step, non_sequence_steps) in
         let meta = merge_steps_meta non_sequence_steps in
-        [ (None, body_of_non_sequence non_sequence_steps meta.end_pos) ]
-    | ( (`Assign, first_non_sequence_step) :: rest_non_sequence_steps
-      , (`And, next_step) :: rest_steps ) ->
-        let non_sequence_steps =
-          (first_non_sequence_step, rest_non_sequence_steps)
-        in
-        let meta = merge_steps_meta non_sequence_steps in
-        ( Some (json_of_step first_step)
-        , body_of_non_sequence non_sequence_steps meta.end_pos )
-        :: body_of_sequence (next_step, rest_steps)
+        [ body_of_non_sequence non_sequence_steps meta.end_pos ]
     | non_sequence_steps, (`And, next_step) :: rest_steps ->
         let non_sequence_steps = (first_step, non_sequence_steps) in
         let meta = merge_steps_meta non_sequence_steps in
-        (None, body_of_non_sequence non_sequence_steps meta.end_pos)
+        body_of_non_sequence non_sequence_steps meta.end_pos
         :: body_of_sequence (next_step, rest_steps)
     | _ -> raise Errors.Unexpected
   in
@@ -178,14 +166,21 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           ( body_of_group left
           , parser_body_of_group_steps (right, rest)
           , merge_meta left right )
-    | left, (`Assign, right) :: _
-    | left, (`And, right) :: _
-    | left, (`Return, right) :: _ ->
+    | left, (`Destructure, right) :: _ ->
+        let meta = merge_meta left right in
+        raise
+          (Errors.AstTransform
+             { expected = "json"
+             ; got = "parser"
+             ; start_pos = meta.start_pos
+             ; end_pos = meta.end_pos
+             })
+    | left, (`And, right) :: _ | left, (`Return, right) :: _ ->
         let meta = merge_meta left right in
         raise
           (Errors.AstTransform
              { expected = "parser body"
-             ; got = "Assign, And, or Return without Sequence"
+             ; got = "And or Return without Sequence"
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
              })

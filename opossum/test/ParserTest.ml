@@ -232,7 +232,7 @@ let test_infix_and_program () =
             , [] ) )
       ; `MainParser
           ( `JsonId ("Numbers", { start_pos = 206; end_pos = 213 })
-          , [ ( `Assign
+          , [ ( `Destructure
               , `ParserApply
                   ( `ParserId ("whitespace", { start_pos = 217; end_pos = 227 })
                   , []
@@ -244,7 +244,7 @@ let test_infix_and_program () =
                   , []
                   , { start_pos = 230; end_pos = 243 } ) )
             ; (`And, `JsonId ("Boards", { start_pos = 250; end_pos = 256 }))
-            ; ( `Assign
+            ; ( `Destructure
               , `ParserApply
                   ( `ParserId ("whitespace", { start_pos = 260; end_pos = 270 })
                   , []
@@ -299,7 +299,7 @@ let test_infix_and_assignment () =
     `Program
       [ `MainParser
           ( `JsonId ("N", { start_pos = 0; end_pos = 1 })
-          , [ ( `Assign
+          , [ ( `Destructure
               , `ParserApply
                   ( `ParserId ("number", { start_pos = 5; end_pos = 11 })
                   , []
@@ -366,7 +366,7 @@ let test_infix_and_inside_parser () =
                       , [ ( `JsonId
                               ( "UniqueDigits"
                               , { Program.start_pos = 90; end_pos = 102 } )
-                          , [ ( `Assign
+                          , [ ( `Destructure
                               , `ParserApply
                                   ( `ParserId
                                       ( "signal_patterns"
@@ -386,7 +386,7 @@ let test_infix_and_inside_parser () =
                                   ( "OutputDigits"
                                   , { Program.start_pos = 132; end_pos = 144 }
                                   ) )
-                            ; ( `Assign
+                            ; ( `Destructure
                               , `ParserApply
                                   ( `ParserId
                                       ( "signal_patterns"
@@ -489,7 +489,7 @@ let test_object_pattern_match () =
                     , { start_pos = 14; end_pos = 21 } )
                 ]
               , { start_pos = 0; end_pos = 22 } )
-          , [ ( `Assign
+          , [ ( `Destructure
               , `ParserApply
                   ( `ParserId ("object_sep", { start_pos = 26; end_pos = 36 })
                   , [ ( `ParserApply

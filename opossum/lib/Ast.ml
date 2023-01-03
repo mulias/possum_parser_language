@@ -78,7 +78,7 @@ type json_object = [ `JsonObject of json_object_member list * meta ]
 
 (* Infix combinators for composing parsers. *)
 type infix =
-  [ `Or | `TakeLeft | `TakeRight | `Concat | `Assign | `And | `Return ]
+  [ `Or | `TakeLeft | `TakeRight | `Concat | `Destructure | `And | `Return ]
 [@@deriving show]
 
 (* Permissive Program AST This part of the AST is produced by the ProgramParser
@@ -92,7 +92,7 @@ type permissive_parser_steps =
   permissive_parser_step * (infix * permissive_parser_step) list
 
 (* A parser. Does not impose certain requirements, such as that json values can
-   only come before an `Assign or after a `Return. *)
+   only come before a `Destructure or after a `Return. *)
 and permissive_parser_step =
   [ `Group of permissive_parser_steps * meta
   | `ParserApply of parser_id * permissive_parser_steps list * meta
@@ -142,11 +142,12 @@ and parser_group =
 type parser_body =
   [ `ParserApply of parser_id * parser_apply_arg list * meta
   | `Regex of string * meta
-  | `Sequence of (json option * parser_body) list * json * meta
+  | `Sequence of parser_body list * json * meta
   | `Or of parser_body * parser_body * meta
   | `TakeLeft of parser_body * parser_body * meta
   | `TakeRight of parser_body * parser_body * meta
   | `Concat of parser_body * parser_body * meta
+  | `Destructure of json * parser_body * meta
   | parser_literal ]
 [@@deriving show]
 
@@ -187,7 +188,8 @@ let get_meta (ast : 'a) : meta =
   | `Or (_, _, meta)
   | `TakeLeft (_, _, meta)
   | `TakeRight (_, _, meta)
-  | `Concat (_, _, meta) ->
+  | `Concat (_, _, meta)
+  | `Destructure (_, _, meta) ->
       meta
 
 let merge_meta left right : meta =

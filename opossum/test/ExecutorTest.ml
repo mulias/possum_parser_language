@@ -285,10 +285,7 @@ let test_env_scope_for_parser () =
 let test_env_scope_for_sequence () =
   let program =
     {program|
-    foo(p, A, B, C) =
-      P <- p &
-      (A <- const(P) $ P) | (B <- const(P) $ P) | (C <- const(P) $ P) $
-      P ;
+    foo(p, A, B, C) = (A <- p) | (B <- p) | (C <- p) ;
     foo(digit, 1, 2, 3)
     |program}
   in
