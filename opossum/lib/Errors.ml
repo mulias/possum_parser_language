@@ -214,7 +214,7 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
   | EvalValueArraySpread -> Error "EvalValueArraySpread"
   | EvalValueObjectSpread -> Error "EvalValueObjectSpread"
   | EvalValueObjectMemberName { id; value; start_pos; end_pos } ->
-      let value_type = Json.type_string value in
+      let value_type = Value.to_type_string value in
       let value_description =
         match id with
         | Some id_str ->
@@ -258,7 +258,7 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
       let side =
         match left_or_right with `Left -> "left-side" | `Right -> "right-side"
       in
-      let value_type = Json.type_string value in
+      let value_type = Value.to_type_string value in
       let context = error_context source ~start_pos ~end_pos in
       let msg =
         [%string

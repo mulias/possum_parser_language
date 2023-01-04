@@ -22,14 +22,13 @@ let eval_literal_value (ast : Ast.value_literal) : Program.value =
   | `String (s, _) -> `String s
   | `Intlit (s, _) -> `Intlit s
   | `Floatlit (s, _) -> `Floatlit s
-  | `True _ -> `Bool true
-  | `False _ -> `Bool false
+  | `Bool (true, _) -> `Bool true
+  | `Bool (false, _) -> `Bool false
   | `Null _ -> `Null
 
 let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
   match ast with
-  | (`String _ | `Intlit _ | `Floatlit _ | `True _ | `False _ | `Null _) as lit
-    ->
+  | (`String _ | `Intlit _ | `Floatlit _ | `Bool _ | `Null _) as lit ->
       eval_literal_value lit
   | `ValueArray (members, _) ->
       `List
@@ -93,8 +92,8 @@ let rec match_pattern
   | `Intlit (p, _), `Intlit v -> if String.equal p v then Ok env else Error ()
   | `Floatlit (p, _), `Floatlit v ->
       if String.equal p v then Ok env else Error ()
-  | `True _, `Bool true -> Ok env
-  | `False _, `Bool false -> Ok env
+  | `Bool (true, _), `Bool true -> Ok env
+  | `Bool (false, _), `Bool false -> Ok env
   | `Null _, `Null -> Ok env
   | `ValueArray (p, _), `List v -> match_array_pattern env p v
   | `ValueObject (p, _), `Assoc v -> match_object_pattern env p v
@@ -145,7 +144,7 @@ and match_pattern_from_env
     (env : Program.env)
     (pattern : Program.value)
     (value : Program.value) : (Program.env, unit) Result.t =
-  if Json.equal pattern value then Ok env else Error ()
+  if Value.equal pattern value then Ok env else Error ()
 
 let eval_literal_parser (ast : Ast.parser_literal) : Program.t =
   match ast with

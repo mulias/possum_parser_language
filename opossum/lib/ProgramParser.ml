@@ -83,18 +83,18 @@ let number_lit : [ int_lit | float_lit ] Angstrom.t =
    | `Floatlit s -> `Floatlit (s, meta))
   <?> "number"
 
-let true_lit : true_lit Angstrom.t =
+let true_lit : bool_lit Angstrom.t =
   (let%map start_pos = peek_pos
    and _ = string "true"
    and end_pos = peek_pos in
-   `True (meta start_pos end_pos))
+   `Bool (true, meta start_pos end_pos))
   <?> "true"
 
-let false_lit : false_lit Angstrom.t =
+let false_lit : bool_lit Angstrom.t =
   (let%map start_pos = peek_pos
    and _ = string "false"
    and end_pos = peek_pos in
-   `False (meta start_pos end_pos))
+   `Bool (false, meta start_pos end_pos))
   <?> "false"
 
 let null_lit : null_lit Angstrom.t =
@@ -233,8 +233,9 @@ let parser_steps : permissive_parser_steps Angstrom.t =
                            `ParserApply
                              (id, args, meta id_meta.start_pos end_pos))
                           <?> "parser_apply"
-                      | "true", _ -> return (`True id_meta) <?> "true"
-                      | "false", _ -> return (`False id_meta) <?> "false"
+                      | "true", _ -> return (`Bool (true, id_meta)) <?> "true"
+                      | "false", _ ->
+                          return (`Bool (false, id_meta)) <?> "false"
                       | "null", _ -> return (`Null id_meta) <?> "null"
                       | _, _ ->
                           return (`ParserApply (id, [], id_meta))

@@ -32,8 +32,8 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
     | single_step, [] -> (
         match single_step with
         | (`String _ | `Intlit _ | `Floatlit _) as lit -> `LitArg lit
-        | ( `ValueArray _ | `ValueObject _ | `ValueId _ | `True _ | `False _
-          | `Null _ ) as value ->
+        | (`ValueArray _ | `ValueObject _ | `ValueId _ | `Bool _ | `Null _) as
+          value ->
             `ValueArg value
         | `Group _ | `ParserApply _ | `Regex _ ->
             `ParserArg (parser_body_of_steps steps))
@@ -47,8 +47,8 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           (id, List.map params ~f:parser_apply_argument_of_steps, meta)
     | `Regex (regex, meta) -> `Regex (regex, meta)
     | (`String _ | `Intlit _ | `Floatlit _) as lit -> lit
-    | ( `ValueArray _ | `ValueObject _ | `ValueId _ | `True _ | `False _
-      | `Null _ ) as value ->
+    | (`ValueArray _ | `ValueObject _ | `ValueId _ | `Bool _ | `Null _) as value
+      ->
         let meta = get_meta value in
         raise
           (Errors.AstTransform
@@ -60,12 +60,10 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
   in
   let value_of_step (step : permissive_parser_step) : value =
     match step with
-    | (`String _ | `Intlit _ | `Floatlit _ | `True _ | `False _ | `Null _) as
-      lit ->
-        lit
+    | (`String _ | `Intlit _ | `Floatlit _ | `Bool _ | `Null _) as lit -> lit
     | (`ValueArray _ | `ValueObject _ | `ValueId _) as value -> value
-    | `ParserApply (`ParserId ("true", _meta), [], meta) -> `True meta
-    | `ParserApply (`ParserId ("false", _meta), [], meta) -> `False meta
+    | `ParserApply (`ParserId ("true", _meta), [], meta) -> `Bool (true, meta)
+    | `ParserApply (`ParserId ("false", _meta), [], meta) -> `Bool (false, meta)
     | `ParserApply (`ParserId ("null", _meta), [], meta) -> `Null meta
     | `Group (_, meta) | `ParserApply (_, _, meta) | `Regex (_, meta) ->
         raise

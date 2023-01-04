@@ -65,7 +65,7 @@ let string_of_parser =
       p >>| fun value ->
       match value with
       | `String s -> `String s
-      | _ -> `String (Json.to_string value))
+      | _ -> `String (Value.to_json_string value))
 
 (* String parsers *)
 

@@ -21,14 +21,11 @@ type int_lit = [ `Intlit of string * meta ] [@@deriving show]
 
 type float_lit = [ `Floatlit of string * meta ] [@@deriving show]
 
-type true_lit = [ `True of meta ] [@@deriving show]
-
-type false_lit = [ `False of meta ] [@@deriving show]
+type bool_lit = [ `Bool of bool * meta ] [@@deriving show]
 
 type null_lit = [ `Null of meta ] [@@deriving show]
 
-type value_literal =
-  [ string_lit | int_lit | float_lit | true_lit | false_lit | null_lit ]
+type value_literal = [ string_lit | int_lit | float_lit | bool_lit | null_lit ]
 [@@deriving show]
 
 type parser_literal = [ string_lit | int_lit | float_lit ] [@@deriving show]
@@ -180,8 +177,7 @@ let get_meta (ast : 'a) : meta =
   | `String (_, meta)
   | `Intlit (_, meta)
   | `Floatlit (_, meta)
-  | `True meta
-  | `False meta
+  | `Bool (_, meta)
   | `Null meta
   | `ValueArray (_, meta)
   | `ValueObject (_, meta)

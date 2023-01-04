@@ -12,7 +12,7 @@ let eval (source : string) (input : string) : Program.value =
 
 let check_eval (program : string) (input : string) (expected : Program.value) =
   let description = sprintf "Can parse\n%s\nwith program\n%s" input program in
-  (check (of_pp Json.pp)) description expected (eval program input)
+  (check (of_pp Value.pp)) description expected (eval program input)
 
 let check_eval_error (program : string) (input : string) (expected : exn) =
   let description =
