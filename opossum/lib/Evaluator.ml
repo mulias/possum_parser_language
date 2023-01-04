@@ -3,7 +3,7 @@ open Angstrom.Let_syntax
 open! Base
 
 (* Evaluate a parser program, producing a parser which can be ran on string
-   input and returns JSON on sccess. *)
+   input and returns a value on sccess. *)
 
 let current_input_ref = ref None
 
@@ -17,7 +17,7 @@ let peek_current_input =
       return input
   | Some input -> return input
 
-let eval_literal_json (ast : Ast.json_literal) : Program.json =
+let eval_literal_value (ast : Ast.value_literal) : Program.value =
   match ast with
   | `String (s, _) -> `String s
   | `Intlit (s, _) -> `Intlit s
@@ -26,137 +26,126 @@ let eval_literal_json (ast : Ast.json_literal) : Program.json =
   | `False _ -> `Bool false
   | `Null _ -> `Null
 
-let rec eval_json (ast : Ast.json) (env : Program.env) : Program.json =
+let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
   match ast with
   | (`String _ | `Intlit _ | `Floatlit _ | `True _ | `False _ | `Null _) as lit
     ->
-      eval_literal_json lit
-  | `JsonArray (members, _) ->
+      eval_literal_value lit
+  | `ValueArray (members, _) ->
       `List
         (List.fold_right members
            ~f:(fun member acc ->
              match member with
-             | `JsonArrayElement (j, _) -> eval_json j env :: acc
-             | `JsonArraySpread (j, _) -> (
-                 match eval_json j env with
+             | `ValueArrayElement (j, _) -> eval_value j env :: acc
+             | `ValueArraySpread (j, _) -> (
+                 match eval_value j env with
                  | `List lst -> List.append lst acc
-                 | _ -> raise Errors.EvalJsonArraySpread))
+                 | _ -> raise Errors.EvalValueArraySpread))
            ~init:[])
-  | `JsonObject (members, _) ->
+  | `ValueObject (members, _) ->
       `Assoc
         (List.fold_right members
            ~f:(fun member acc ->
              match member with
-             | `JsonObjectPair (`String (s, _), j, _) ->
-                 (s, eval_json j env) :: acc
-             | `JsonObjectPair (`JsonId (id, id_meta), j, _) -> (
-                 match Env.find_json env id with
-                 | Some (`String s) -> (s, eval_json j env) :: acc
+             | `ValueObjectPair (`String (s, _), j, _) ->
+                 (s, eval_value j env) :: acc
+             | `ValueObjectPair (`ValueId (id, id_meta), j, _) -> (
+                 match Env.find_value env id with
+                 | Some (`String s) -> (s, eval_value j env) :: acc
                  | None ->
                      raise
-                       (Errors.EnvFindJson
+                       (Errors.EnvFindValue
                           { id
                           ; start_pos = id_meta.start_pos
                           ; end_pos = id_meta.end_pos
                           })
                  | Some non_string ->
                      raise
-                       (Errors.EvalJsonObjectMemberName
+                       (Errors.EvalValueObjectMemberName
                           { id = Some id
                           ; value = non_string
                           ; start_pos = id_meta.start_pos
                           ; end_pos = id_meta.end_pos
                           }))
-             | `JsonObjectSpread (j, _) -> (
-                 match eval_json j env with
+             | `ValueObjectSpread (j, _) -> (
+                 match eval_value j env with
                  | `Assoc assoc -> List.append assoc acc
-                 | _ -> raise Errors.EvalJsonObjectSpread))
+                 | _ -> raise Errors.EvalValueObjectSpread))
            ~init:[])
-  | `JsonId (id, meta) -> (
-      match Env.find_json env id with
+  | `ValueId (id, meta) -> (
+      match Env.find_value env id with
       | Some j -> j
       | None ->
           raise
-            (Errors.EnvFindJson
+            (Errors.EnvFindValue
                { id; start_pos = meta.start_pos; end_pos = meta.end_pos }))
 
 let rec match_pattern
     (env : Program.env)
-    (pattern : Ast.json)
-    (json : Program.json) : (Program.env, unit) Result.t =
-  match (pattern, json) with
-  | `JsonId (id, _), j -> (
-      match Env.find_json env id with
-      | Some pattern_from_env ->
-          match_pattern_from_env env pattern_from_env json
-      | None -> Ok (Env.extend_local_json env id j))
-  | `String (p, _), `String j -> if String.equal p j then Ok env else Error ()
-  | `Intlit (p, _), `Intlit j -> if String.equal p j then Ok env else Error ()
-  | `Floatlit (p, _), `Floatlit j ->
-      if String.equal p j then Ok env else Error ()
+    (pattern : Ast.value)
+    (value : Program.value) : (Program.env, unit) Result.t =
+  match (pattern, value) with
+  | `ValueId (id, _), v -> (
+      match Env.find_value env id with
+      | Some pattern_from_env -> match_pattern_from_env env pattern_from_env v
+      | None -> Ok (Env.extend_values env id v))
+  | `String (p, _), `String v -> if String.equal p v then Ok env else Error ()
+  | `Intlit (p, _), `Intlit v -> if String.equal p v then Ok env else Error ()
+  | `Floatlit (p, _), `Floatlit v ->
+      if String.equal p v then Ok env else Error ()
   | `True _, `Bool true -> Ok env
   | `False _, `Bool false -> Ok env
   | `Null _, `Null -> Ok env
-  | `JsonArray (p, _), `List j -> match_array_pattern env p j
-  | `JsonObject (p, _), `Assoc j -> match_object_pattern env p j
+  | `ValueArray (p, _), `List v -> match_array_pattern env p v
+  | `ValueObject (p, _), `Assoc v -> match_object_pattern env p v
   | _, _ -> Error ()
 
 and match_array_pattern
     (env : Program.env)
-    (pattern : Ast.json_array_member list)
-    (json : Program.json list) : (Program.env, unit) Result.t =
+    (pattern : Ast.value_array_member list)
+    (arr : Program.value list) : (Program.env, unit) Result.t =
   let open Result in
-  match (pattern, json) with
-  | `JsonArrayElement (p, _) :: pattern_rest, j :: json_rest ->
-      match_pattern env p j >>= fun env ->
-      match_array_pattern env pattern_rest json_rest
-  | [ `JsonArraySpread (p, _) ], j -> match_pattern env p (`List j)
+  match (pattern, arr) with
+  | `ValueArrayElement (p, _) :: pattern_rest, v :: arr_rest ->
+      match_pattern env p v >>= fun env ->
+      match_array_pattern env pattern_rest arr_rest
+  | [ `ValueArraySpread (p, _) ], arr -> match_pattern env p (`List arr)
   | [], [] -> Ok env
   | _, _ -> Error ()
 
 and match_object_pattern
     (env : Program.env)
-    (pattern : Ast.json_object_member list)
-    (json : (string * Program.json) list) : (Program.env, unit) Result.t =
-  match (pattern, json) with
-  | `JsonObjectPair (p_name, p_value, _) :: pattern_rest, json -> (
+    (pattern : Ast.value_object_member list)
+    (assoc : (string * Program.value) list) : (Program.env, unit) Result.t =
+  match (pattern, assoc) with
+  | `ValueObjectPair (obj_key, obj_value, _) :: pattern_rest, assoc -> (
       let open Result in
-      match p_name with
+      match obj_key with
       | `String (p, _) -> (
-          (* The name/value pair has a string for the name. Look for that name
-             in the json env. If it's found then match the env value against
+          (* The key/value pair has a string for the key. Look for that key in
+             the value env. If it's found then match the env value against
              p_value. If it's not found than the pattern match fails. *)
-          match List.Assoc.find json ~equal:String.equal p with
-          | Some j_value ->
-              let json_rest = List.Assoc.remove json ~equal:String.equal p in
-              match_pattern env p_value j_value >>= fun env ->
-              match_object_pattern env pattern_rest json_rest
+          match List.Assoc.find assoc ~equal:String.equal p with
+          | Some found_value ->
+              let assoc_rest = List.Assoc.remove assoc ~equal:String.equal p in
+              match_pattern env obj_value found_value >>= fun env ->
+              match_object_pattern env pattern_rest assoc_rest
           | None -> Error ())
-      | `JsonId _ ->
+      | `ValueId _ ->
           (* The name/value pair has an id for the name. We could try to pattern
              match on the value and then assign the name to the first key found
              with that value, but the value might have more ids to assign inside
              it so the complexity here is non-trivial. *)
-          raise
-            (Errors.Todo "pattern match on JSON variable in object member name")
-      )
-  | [ `JsonObjectSpread (p, _) ], j -> match_pattern env p (`Assoc j)
+          raise (Errors.Todo "pattern match on variable in object member name"))
+  | [ `ValueObjectSpread (p, _) ], assoc -> match_pattern env p (`Assoc assoc)
   | [], [] -> Ok env
   | _, _ -> Error ()
 
 and match_pattern_from_env
     (env : Program.env)
-    (pattern : Program.json)
-    (json : Program.json) : (Program.env, unit) Result.t =
-  if Json.equal pattern json then Ok env else Error ()
-
-and match_object_name_pattern
-    (env : Program.env)
-    (pattern : Ast.json_object_member_name)
-    (json : string) : (Program.env, unit) Result.t =
-  match pattern with
-  | `JsonId (id, _) -> Ok (Env.extend_local_json env id (`String json))
-  | `String (p, _) -> if String.equal p json then Ok env else Error ()
+    (pattern : Program.value)
+    (value : Program.value) : (Program.env, unit) Result.t =
+  if Json.equal pattern value then Ok env else Error ()
 
 let eval_literal_parser (ast : Ast.parser_literal) : Program.t =
   match ast with
@@ -165,12 +154,12 @@ let eval_literal_parser (ast : Ast.parser_literal) : Program.t =
   | `Floatlit (s, _) -> string s *> return (`Floatlit s) <?> s
 
 let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
-    (Program.json * Program.env) Angstrom.t =
+    (Program.value * Program.env) Angstrom.t =
   let rec resolve_delayed_parser id args (delayed_p, delayed_args) =
     return () >>= fun _ ->
     let evaled_args = List.map args ~f:(fun a -> eval_parser_apply_arg a env) in
     match
-      JsonParser.apply id (delayed_p ()) (List.append delayed_args evaled_args)
+      ParserFn.apply id (delayed_p ()) (List.append delayed_args evaled_args)
     with
     | Parser p -> p >>= fun value -> return (value, env)
     | Delayed (delayed_p, _, delayed_args) ->
@@ -187,7 +176,7 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
           let evaled_args =
             List.map args ~f:(fun a -> eval_parser_apply_arg a env)
           in
-          match JsonParser.apply id p evaled_args with
+          match ParserFn.apply id p evaled_args with
           | Parser p -> p >>= fun value -> return (value, env)
           | Delayed (delayed_p, _, delayed_args) ->
               resolve_delayed_parser id args (delayed_p, delayed_args)
@@ -208,7 +197,7 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
       >>= (fun i -> Parser.peek_pos >>= fun p -> Parser.regex r i p)
       <?> "regex"
       >>= fun value -> return (value, env)
-  | `Sequence (seq, json_return, _) -> eval_sequence seq json_return env
+  | `Sequence (seq, return_value, _) -> eval_sequence seq return_value env
   | `Or (left, right, _) ->
       eval_parser_body left env <|> eval_parser_body right env
   | `TakeLeft (left, right, _) ->
@@ -247,15 +236,15 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
       | Error _ -> fail "Destructure" <?> "Destructure")
 
 and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
-    Program.json_parser =
+    Program.parser_fn =
   match ast with
   | `ParserApply (`ParserId (id, id_meta), args, _) -> (
       match Env.find_parser env id with
-      | Some json_parser ->
+      | Some parser_fn ->
           let evaled_args =
             List.map args ~f:(fun a -> eval_parser_apply_arg a env)
           in
-          JsonParser.apply id json_parser evaled_args
+          ParserFn.apply id parser_fn evaled_args
       | None ->
           raise
             (Errors.EnvFindParser
@@ -265,43 +254,41 @@ and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
 
 and eval_sequence
     (steps : Ast.parser_body list)
-    (json_return : Ast.json)
-    (env : Program.env) : (Program.json * Program.env) Angstrom.t =
-  let rec build_parser steps json_return env =
+    (return_value : Ast.value)
+    (env : Program.env) : (Program.value * Program.env) Angstrom.t =
+  let rec build_parser steps return_value env =
     match steps with
     | step :: steps_rest ->
         eval_parser_body step env >>= fun (_value, body_env) ->
-        build_parser steps_rest json_return body_env
-    | [] -> return (eval_json json_return env, env)
+        build_parser steps_rest return_value body_env
+    | [] -> return (eval_value return_value env, env)
   in
-  build_parser steps json_return env
+  build_parser steps return_value env
 
 and eval_parser_apply_arg (arg : Ast.parser_apply_arg) (env : Program.env) :
-    Program.json_parser_arg =
+    Program.parser_fn_arg =
   match arg with
   | `ParserArg arg ->
       ParserArg (eval_parser_body_partial arg env, Ast.get_meta arg)
-  | `JsonArg arg -> JsonArg (eval_json arg env, Ast.get_meta arg)
+  | `ValueArg arg -> ValueArg (eval_value arg env, Ast.get_meta arg)
   | `LitArg arg ->
       LitArg
         ( Parser (eval_literal_parser arg)
-        , eval_literal_json (arg :> Ast.json_literal)
+        , eval_literal_value (arg :> Ast.value_literal)
         , Ast.get_meta arg )
 
 let eval_named_parser
     (id : string)
     (params : Ast.id list)
     (body : Ast.parser_body)
-    (env : Program.env) : Program.json_parser =
+    (env : Program.env) : Program.parser_fn =
   Program.Delayed
     ( (fun () ->
         (* First check that the delayed parser hasn't already been evaluated and
            updated in the global env. *)
         match Env.find_parser env id with
         | None | Some (Delayed _) ->
-            let p =
-              JsonParser.curry (eval_parser_body_partial body) params env
-            in
+            let p = ParserFn.curry (eval_parser_body_partial body) params env in
             Env.set_global_parser env id p ;
             p
         | Some p -> p)

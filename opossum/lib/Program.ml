@@ -6,39 +6,37 @@ open! Base
 type meta = { start_pos : int; end_pos : int } [@@deriving show]
 
 (* Programs produce JSON encoded as this type. *)
-type json =
+type value =
   [ `Null
   | `Bool of bool
   | `Intlit of string
   | `Floatlit of string
   | `String of string
-  | `Assoc of (string * json) list
-  | `List of json list ]
+  | `Assoc of (string * value) list
+  | `List of value list ]
 
-(* A Program is a parser which when ran on a text input produces JSON *)
-type t = json Angstrom.t
+(* A Program is a parser which when ran on a text input produces a value *)
+type t = value Angstrom.t
 
 type 'a id_map = (string, 'a, String.comparator_witness) Map.t
 
-(* Parser which is either waiting for more params (other parsers) or ready for
-   input to parse into JSON. *)
-type json_parser =
-  | ParserParam of (json_parser * meta -> json_parser)
-  | JsonParam of (json * meta -> json_parser)
-  | Delayed of (unit -> json_parser) * string * json_parser_arg list
-  | Parser of json Angstrom.t
-
-(* A partially evaluated program wich needs an environment in order to produce a
-   parser. *)
+(* Parser function which is either waiting for params or ready for input. A
+   parser which has been defined but has not yet been invoked may be in the
+   `Delayed` state. *)
+type parser_fn =
+  | ParserParam of (parser_fn * meta -> parser_fn)
+  | ValueParam of (value * meta -> parser_fn)
+  | Delayed of (unit -> parser_fn) * string * parser_fn_arg list
+  | Parser of value Angstrom.t
 
 (* Program environment, passed through all the parsers and sub-parsers. *)
 and env =
-  { global_parsers : json_parser id_map ref
-  ; local_parsers : json_parser id_map
-  ; local_json : json id_map
+  { global_parsers : parser_fn id_map ref
+  ; parsers : parser_fn id_map
+  ; values : value id_map
   }
 
-and json_parser_arg =
-  | ParserArg of json_parser * meta
-  | JsonArg of json * meta
-  | LitArg of json_parser * json * meta
+and parser_fn_arg =
+  | ParserArg of parser_fn * meta
+  | ValueArg of value * meta
+  | LitArg of parser_fn * value * meta

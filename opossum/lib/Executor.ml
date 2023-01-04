@@ -1,12 +1,12 @@
 open! Base
 
-let execute (program : Program.json Angstrom.t) (input : string) : Program.json
-    =
+let execute (program : Program.value Angstrom.t) (input : string) :
+    Program.value =
   Angstrom.Buffered.parse program |> fun ang ->
   Angstrom.Buffered.feed ang (`String input) |> fun ang ->
   Angstrom.Buffered.feed ang `Eof |> fun ang ->
   match ang with
-  | Angstrom.Buffered.Done (_buf, json) -> json
+  | Angstrom.Buffered.Done (_buf, value) -> value
   | Angstrom.Buffered.Fail (state, marks, msg) ->
       raise
         (Errors.ParseInput

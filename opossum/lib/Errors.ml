@@ -18,23 +18,27 @@ exception
   AstTransform of
     { expected : string; got : string; start_pos : int; end_pos : int }
 
-exception EnvFindJson of { id : string; start_pos : int; end_pos : int }
+exception EnvFindValue of { id : string; start_pos : int; end_pos : int }
 
 exception EnvFindParser of { id : string; start_pos : int; end_pos : int }
 
-exception EvalJsonArraySpread
+exception EvalValueArraySpread
 
-exception EvalJsonObjectSpread
+exception EvalValueObjectSpread
 
 exception
-  EvalJsonObjectMemberName of
-    { id : string option; value : Program.json; start_pos : int; end_pos : int }
+  EvalValueObjectMemberName of
+    { id : string option
+    ; value : Program.value
+    ; start_pos : int
+    ; end_pos : int
+    }
 
 exception EvalNotEnoughArguments
 
 exception EvalTooManyArguments
 
-exception EvalJsonType of { expected : string; got : string }
+exception EvalValueType of { expected : string; got : string }
 
 exception
   EvalArgumentType of { expected : string; got : string; meta : Program.meta }
@@ -42,7 +46,7 @@ exception
 exception
   EvalConcat of
     { side : [ `Left | `Right ]
-    ; value : Program.json
+    ; value : Program.value
     ; start_pos : int
     ; end_pos : int
     }
@@ -181,7 +185,7 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
       let context = error_context source ~start_pos ~end_pos in
       let msg = [%string "Expected %{expected}, got %{got} at %{context}"] in
       Error msg
-  | EnvFindJson { id; start_pos; end_pos } ->
+  | EnvFindValue { id; start_pos; end_pos } ->
       let context = error_context source ~start_pos ~end_pos in
       let msg =
         [%string
@@ -207,9 +211,9 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
         |> wrap_message ~at:80
       in
       Error msg
-  | EvalJsonArraySpread -> Error "EvalJsonArraySpread"
-  | EvalJsonObjectSpread -> Error "EvalJsonObjectSpread"
-  | EvalJsonObjectMemberName { id; value; start_pos; end_pos } ->
+  | EvalValueArraySpread -> Error "EvalValueArraySpread"
+  | EvalValueObjectSpread -> Error "EvalValueObjectSpread"
+  | EvalValueObjectMemberName { id; value; start_pos; end_pos } ->
       let value_type = Json.type_string value in
       let value_description =
         match id with
@@ -236,7 +240,7 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
       Error msg
   | EvalNotEnoughArguments -> Error "EvalNotEnoughArguments"
   | EvalTooManyArguments -> Error "EvalTooManyArguments"
-  | EvalJsonType { expected; got } ->
+  | EvalValueType { expected; got } ->
       Error [%string "Expected %{expected}, got %{got}"]
   | EvalArgumentType { expected; got; meta } ->
       let arg_context =

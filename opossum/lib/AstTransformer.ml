@@ -32,9 +32,9 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
     | single_step, [] -> (
         match single_step with
         | (`String _ | `Intlit _ | `Floatlit _) as lit -> `LitArg lit
-        | ( `JsonArray _ | `JsonObject _ | `JsonId _ | `True _ | `False _
-          | `Null _ ) as json ->
-            `JsonArg json
+        | ( `ValueArray _ | `ValueObject _ | `ValueId _ | `True _ | `False _
+          | `Null _ ) as value ->
+            `ValueArg value
         | `Group _ | `ParserApply _ | `Regex _ ->
             `ParserArg (parser_body_of_steps steps))
     | steps -> `ParserArg (parser_body_of_steps steps)
@@ -47,30 +47,30 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           (id, List.map params ~f:parser_apply_argument_of_steps, meta)
     | `Regex (regex, meta) -> `Regex (regex, meta)
     | (`String _ | `Intlit _ | `Floatlit _) as lit -> lit
-    | (`JsonArray _ | `JsonObject _ | `JsonId _ | `True _ | `False _ | `Null _)
-      as json ->
-        let meta = get_meta json in
+    | ( `ValueArray _ | `ValueObject _ | `ValueId _ | `True _ | `False _
+      | `Null _ ) as value ->
+        let meta = get_meta value in
         raise
           (Errors.AstTransform
              { expected = "parser"
-             ; got = "json"
+             ; got = "value"
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
              })
   in
-  let json_of_step (step : permissive_parser_step) : json =
+  let value_of_step (step : permissive_parser_step) : value =
     match step with
     | (`String _ | `Intlit _ | `Floatlit _ | `True _ | `False _ | `Null _) as
       lit ->
         lit
-    | (`JsonArray _ | `JsonObject _ | `JsonId _) as json -> json
+    | (`ValueArray _ | `ValueObject _ | `ValueId _) as value -> value
     | `ParserApply (`ParserId ("true", _meta), [], meta) -> `True meta
     | `ParserApply (`ParserId ("false", _meta), [], meta) -> `False meta
     | `ParserApply (`ParserId ("null", _meta), [], meta) -> `Null meta
     | `Group (_, meta) | `ParserApply (_, _, meta) | `Regex (_, meta) ->
         raise
           (Errors.AstTransform
-             { expected = "json"
+             { expected = "value"
              ; got = "parser"
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
@@ -107,7 +107,7 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
     | left, (`Destructure, right) :: rest ->
         let left_meta = get_meta left in
         `Destructure
-          ( json_of_step left
+          ( value_of_step left
           , body_of_non_sequence (right, rest) end_pos
           , meta left_meta.start_pos end_pos )
     | left, (`And, _) :: _ | left, (`Return, _) :: _ ->
@@ -139,7 +139,7 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
   let body_of_group (group : parser_group) : parser_body =
     match group with
     | `Sequence (steps, return_step, meta) ->
-        `Sequence (body_of_sequence steps, json_of_step return_step, meta)
+        `Sequence (body_of_sequence steps, value_of_step return_step, meta)
     | `NonSequence (steps, meta) -> body_of_non_sequence steps meta.end_pos
   in
   let rec parser_body_of_group_steps (groups : parser_group_steps) : parser_body
@@ -170,7 +170,7 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
         let meta = merge_meta left right in
         raise
           (Errors.AstTransform
-             { expected = "json"
+             { expected = "value"
              ; got = "parser"
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos

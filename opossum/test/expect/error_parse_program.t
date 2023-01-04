@@ -99,8 +99,8 @@
   infix_steps
   infix
   step
-  json
-  json_array
+  value
+  value_array
   
   The last step did not succeed and there were no other options.
   [123]

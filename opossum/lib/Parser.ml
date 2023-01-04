@@ -100,7 +100,7 @@ let int_or_float : [ `Intlit of string | `Floatlit of string ] Angstrom.t =
       ^ Option.value maybe_fraction ~default:""
       ^ Option.value maybe_exponent ~default:"")
 
-let regex (re : Re.re) (input : string) (pos : int) : Program.json Angstrom.t =
+let regex (re : Re.re) (input : string) (pos : int) : Program.value Angstrom.t =
   let group_offsets =
     try Re.exec re input ~pos |> Re.Group.all_offset |> Array.to_list
     with Caml.Not_found -> []

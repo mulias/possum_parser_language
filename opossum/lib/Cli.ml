@@ -4,7 +4,7 @@ let read_file name = Core.In_channel.read_all name
 
 let execute (source : string) (input : string) : unit =
   match Main.execute source input with
-  | Ok json -> Json.pretty_print json
+  | Ok value -> Json.pretty_print value
   | Error msg ->
       Stdio.eprintf "%s\n" msg ;
       Caml.exit Cmdliner.Cmd.Exit.some_error

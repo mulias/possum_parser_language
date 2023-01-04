@@ -231,7 +231,7 @@ let test_infix_and_program () =
                 , { start_pos = 167; end_pos = 198 } )
             , [] ) )
       ; `MainParser
-          ( `JsonId ("Numbers", { start_pos = 206; end_pos = 213 })
+          ( `ValueId ("Numbers", { start_pos = 206; end_pos = 213 })
           , [ ( `Destructure
               , `ParserApply
                   ( `ParserId ("whitespace", { start_pos = 217; end_pos = 227 })
@@ -243,7 +243,7 @@ let test_infix_and_program () =
                       ("bingo_numbers", { start_pos = 230; end_pos = 243 })
                   , []
                   , { start_pos = 230; end_pos = 243 } ) )
-            ; (`And, `JsonId ("Boards", { start_pos = 250; end_pos = 256 }))
+            ; (`And, `ValueId ("Boards", { start_pos = 250; end_pos = 256 }))
             ; ( `Destructure
               , `ParserApply
                   ( `ParserId ("whitespace", { start_pos = 260; end_pos = 270 })
@@ -256,14 +256,15 @@ let test_infix_and_program () =
                   , []
                   , { start_pos = 273; end_pos = 285 } ) )
             ; ( `Return
-              , `JsonObject
-                  ( [ `JsonObjectPair
+              , `ValueObject
+                  ( [ `ValueObjectPair
                         ( `String ("numbers", { start_pos = 293; end_pos = 302 })
-                        , `JsonId ("Numbers", { start_pos = 304; end_pos = 311 })
+                        , `ValueId
+                            ("Numbers", { start_pos = 304; end_pos = 311 })
                         , { start_pos = 293; end_pos = 311 } )
-                    ; `JsonObjectPair
+                    ; `ValueObjectPair
                         ( `String ("boards", { start_pos = 313; end_pos = 321 })
-                        , `JsonId ("Boards", { start_pos = 323; end_pos = 329 })
+                        , `ValueId ("Boards", { start_pos = 323; end_pos = 329 })
                         , { start_pos = 313; end_pos = 329 } )
                     ]
                   , { start_pos = 292; end_pos = 330 } ) )
@@ -288,7 +289,7 @@ let test_infix_and_return () =
     `Program
       [ `MainParser
           ( `String ("a", { start_pos = 0; end_pos = 3 })
-          , [ (`Return, `JsonArray ([], { start_pos = 6; end_pos = 8 })) ] )
+          , [ (`Return, `ValueArray ([], { start_pos = 6; end_pos = 8 })) ] )
       ]
   in
   check_program_ast program ast
@@ -298,16 +299,16 @@ let test_infix_and_assignment () =
   let ast : permissive_program =
     `Program
       [ `MainParser
-          ( `JsonId ("N", { start_pos = 0; end_pos = 1 })
+          ( `ValueId ("N", { start_pos = 0; end_pos = 1 })
           , [ ( `Destructure
               , `ParserApply
                   ( `ParserId ("number", { start_pos = 5; end_pos = 11 })
                   , []
                   , { start_pos = 5; end_pos = 11 } ) )
             ; ( `Return
-              , `JsonArray
-                  ( [ `JsonArrayElement
-                        ( `JsonId ("N", { start_pos = 15; end_pos = 16 })
+              , `ValueArray
+                  ( [ `ValueArrayElement
+                        ( `ValueId ("N", { start_pos = 15; end_pos = 16 })
                         , { start_pos = 15; end_pos = 16 } )
                     ]
                   , { start_pos = 14; end_pos = 17 } ) )
@@ -363,7 +364,7 @@ let test_infix_and_inside_parser () =
               , [ ( `ParserApply
                       ( `ParserId
                           ("array_sep", { Program.start_pos = 71; end_pos = 80 })
-                      , [ ( `JsonId
+                      , [ ( `ValueId
                               ( "UniqueDigits"
                               , { Program.start_pos = 90; end_pos = 102 } )
                           , [ ( `Destructure
@@ -382,7 +383,7 @@ let test_infix_and_inside_parser () =
                                   , { Program.start_pos = 124; end_pos = 129 }
                                   ) )
                             ; ( `And
-                              , `JsonId
+                              , `ValueId
                                   ( "OutputDigits"
                                   , { Program.start_pos = 132; end_pos = 144 }
                                   ) )
@@ -397,14 +398,14 @@ let test_infix_and_inside_parser () =
                                   , { Program.start_pos = 148; end_pos = 163 }
                                   ) )
                             ; ( `Return
-                              , `JsonObject
-                                  ( [ `JsonObjectPair
+                              , `ValueObject
+                                  ( [ `ValueObjectPair
                                         ( `String
                                             ( "unique"
                                             , { Program.start_pos = 175
                                               ; end_pos = 183
                                               } )
-                                        , `JsonId
+                                        , `ValueId
                                             ( "UniqueDigits"
                                             , { Program.start_pos = 185
                                               ; end_pos = 197
@@ -412,13 +413,13 @@ let test_infix_and_inside_parser () =
                                         , { Program.start_pos = 175
                                           ; end_pos = 197
                                           } )
-                                    ; `JsonObjectPair
+                                    ; `ValueObjectPair
                                         ( `String
                                             ( "output"
                                             , { Program.start_pos = 199
                                               ; end_pos = 207
                                               } )
-                                        , `JsonId
+                                        , `ValueId
                                             ( "OutputDigits"
                                             , { Program.start_pos = 209
                                               ; end_pos = 221
@@ -448,22 +449,22 @@ let test_infix_and_inside_parser () =
   in
   check_program_ast program ast
 
-let test_json_spread () =
+let test_array_spread () =
   let program = "'' $ [...A, 1, ...B]" in
   let ast : permissive_program =
     `Program
       [ `MainParser
           ( `String ("", { start_pos = 0; end_pos = 2 })
           , [ ( `Return
-              , `JsonArray
-                  ( [ `JsonArraySpread
-                        ( `JsonId ("A", { start_pos = 9; end_pos = 10 })
+              , `ValueArray
+                  ( [ `ValueArraySpread
+                        ( `ValueId ("A", { start_pos = 9; end_pos = 10 })
                         , { start_pos = 6; end_pos = 10 } )
-                    ; `JsonArrayElement
+                    ; `ValueArrayElement
                         ( `Intlit ("1", { start_pos = 12; end_pos = 13 })
                         , { start_pos = 12; end_pos = 13 } )
-                    ; `JsonArraySpread
-                        ( `JsonId ("B", { start_pos = 18; end_pos = 19 })
+                    ; `ValueArraySpread
+                        ( `ValueId ("B", { start_pos = 18; end_pos = 19 })
                         , { start_pos = 15; end_pos = 19 } )
                     ]
                   , { start_pos = 5; end_pos = 20 } ) )
@@ -479,13 +480,13 @@ let test_object_pattern_match () =
   let ast : permissive_program =
     `Program
       [ `MainParser
-          ( `JsonObject
-              ( [ `JsonObjectPair
+          ( `ValueObject
+              ( [ `ValueObjectPair
                     ( `String ("foo", { start_pos = 1; end_pos = 6 })
-                    , `JsonId ("_Foo", { start_pos = 8; end_pos = 12 })
+                    , `ValueId ("_Foo", { start_pos = 8; end_pos = 12 })
                     , { start_pos = 1; end_pos = 12 } )
-                ; `JsonObjectSpread
-                    ( `JsonId ("Rest", { start_pos = 17; end_pos = 21 })
+                ; `ValueObjectSpread
+                    ( `ValueId ("Rest", { start_pos = 17; end_pos = 21 })
                     , { start_pos = 14; end_pos = 21 } )
                 ]
               , { start_pos = 0; end_pos = 22 } )
@@ -516,7 +517,7 @@ let test_object_pattern_match () =
                       , [] )
                     ]
                   , { start_pos = 26; end_pos = 63 } ) )
-            ; (`Return, `JsonId ("Rest", { start_pos = 66; end_pos = 70 }))
+            ; (`Return, `ValueId ("Rest", { start_pos = 66; end_pos = 70 }))
             ] )
       ]
   in
@@ -609,8 +610,8 @@ let () =
     ; ( "infix and"
       , [ test_case "Multi line program" `Quick test_infix_and_program
         ; test_case "Empty parser with return" `Quick test_infix_and_return
-        ; test_case "Assign JSON variable" `Quick test_infix_and_assignment
-        ; test_case "JSON spread" `Quick test_json_spread
+        ; test_case "Assign variable" `Quick test_infix_and_assignment
+        ; test_case "Array value spread" `Quick test_array_spread
         ; test_case "Pattern match object" `Quick test_object_pattern_match
         ; test_case "inside parser" `Quick test_infix_and_inside_parser
         ] )

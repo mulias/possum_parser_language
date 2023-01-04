@@ -23,7 +23,7 @@ let parser_id : parser_id Angstrom.t =
    `ParserId (id_str, meta start_pos end_pos))
   <?> "parser_id"
 
-let json_id : json_id Angstrom.t =
+let value_id : value_id Angstrom.t =
   (let%map start_pos = peek_pos
    and leading_underscores = take_while is_underscore
    and uppercase_chars = take_while1 is_uppercase
@@ -32,8 +32,8 @@ let json_id : json_id Angstrom.t =
    let id_str =
      String.concat [ leading_underscores; uppercase_chars; id_rest ]
    in
-   `JsonId (id_str, meta start_pos end_pos))
-  <?> "json_id"
+   `ValueId (id_str, meta start_pos end_pos))
+  <?> "value_id"
 
 let id : id Angstrom.t =
   (let%map start_pos = peek_pos
@@ -46,7 +46,7 @@ let id : id Angstrom.t =
    in
    let meta = meta start_pos end_pos in
    if is_lowercase first_char then `ParserId (id_str, meta)
-   else `JsonId (id_str, meta))
+   else `ValueId (id_str, meta))
   <?> "id"
 
 let single_quote_string_lit : string_lit Angstrom.t =
@@ -104,84 +104,84 @@ let null_lit : null_lit Angstrom.t =
    `Null (meta start_pos end_pos))
   <?> "null"
 
-let json : json Angstrom.t =
-  fix (fun json : json Angstrom.t ->
-      let json_array_spread : json_array_member Angstrom.t =
+let value : value Angstrom.t =
+  fix (fun value : value Angstrom.t ->
+      let value_array_spread : value_array_member Angstrom.t =
         (let%map start_pos = peek_pos
-         and j = string "..." *> json
+         and v = string "..." *> value
          and end_pos = peek_pos in
-         `JsonArraySpread (j, meta start_pos end_pos))
-        <?> "json_array_spread"
+         `ValueArraySpread (v, meta start_pos end_pos))
+        <?> "value_array_spread"
       in
-      let json_array_element : json_array_member Angstrom.t =
+      let value_array_element : value_array_member Angstrom.t =
         (let%map start_pos = peek_pos
-         and j = json
+         and v = value
          and end_pos = peek_pos in
-         `JsonArrayElement (j, meta start_pos end_pos))
-        <?> "json_array_element"
+         `ValueArrayElement (v, meta start_pos end_pos))
+        <?> "value_array_element"
       in
-      let json_array_member : json_array_member Angstrom.t =
+      let value_array_member : value_array_member Angstrom.t =
         peek_char_fail
-        >>= (function '.' -> json_array_spread | _ -> json_array_element)
-        <?> "json_array_member"
+        >>= (function '.' -> value_array_spread | _ -> value_array_element)
+        <?> "value_array_member"
       in
-      let json_array : json Angstrom.t =
+      let value_array : value Angstrom.t =
         (let%map start_pos = peek_pos
          and arr =
-           char '[' *> sep_by (char ',') (ws *> json_array_member <* ws)
+           char '[' *> sep_by (char ',') (ws *> value_array_member <* ws)
            <* char ']'
          and end_pos = peek_pos in
-         `JsonArray (arr, meta start_pos end_pos))
-        <?> "json_array"
+         `ValueArray (arr, meta start_pos end_pos))
+        <?> "value_array"
       in
-      let json_object_spread : json_object_member Angstrom.t =
+      let value_object_spread : value_object_member Angstrom.t =
         (let%map start_pos = peek_pos
-         and j = string "..." *> json
+         and v = string "..." *> value
          and end_pos = peek_pos in
-         `JsonObjectSpread (j, meta start_pos end_pos))
-        <?> "json_object_spread"
+         `ValueObjectSpread (v, meta start_pos end_pos))
+        <?> "value_object_spread"
       in
-      let json_object_pair : json_object_member Angstrom.t =
+      let value_object_pair : value_object_member Angstrom.t =
         (let%map start_pos = peek_pos
          and n =
            peek_char_fail >>= function
            | '\'' ->
-               (single_quote_string_lit :> json_object_member_name Angstrom.t)
+               (single_quote_string_lit :> value_object_member_name Angstrom.t)
            | '"' ->
-               (double_quote_string_lit :> json_object_member_name Angstrom.t)
-           | _ -> (json_id :> json_object_member_name Angstrom.t)
-         and v = ws *> char ':' *> ws *> json
+               (double_quote_string_lit :> value_object_member_name Angstrom.t)
+           | _ -> (value_id :> value_object_member_name Angstrom.t)
+         and v = ws *> char ':' *> ws *> value
          and end_pos = peek_pos in
-         `JsonObjectPair (n, v, meta start_pos end_pos))
-        <?> "json_object_pair"
+         `ValueObjectPair (n, v, meta start_pos end_pos))
+        <?> "value_object_pair"
       in
-      let json_object_member : json_object_member Angstrom.t =
+      let value_object_member : value_object_member Angstrom.t =
         peek_char_fail
-        >>= (function '.' -> json_object_spread | _ -> json_object_pair)
-        <?> "json_object_member"
+        >>= (function '.' -> value_object_spread | _ -> value_object_pair)
+        <?> "value_object_member"
       in
-      let json_object : json Angstrom.t =
+      let value_object : value Angstrom.t =
         (let%map start_pos = peek_pos
          and o =
-           char '{' *> ws *> sep_by (ws *> char ',' <* ws) json_object_member
+           char '{' *> ws *> sep_by (ws *> char ',' <* ws) value_object_member
            <* ws
            <* char '}'
          and end_pos = peek_pos in
-         `JsonObject (o, meta start_pos end_pos))
-        <?> "json_object"
+         `ValueObject (o, meta start_pos end_pos))
+        <?> "value_object"
       in
       ws *> peek_char_fail >>= function
-      | '[' -> json_array
-      | '{' -> json_object
-      | '\'' -> (single_quote_string_lit :> json Angstrom.t)
-      | '"' -> (double_quote_string_lit :> json Angstrom.t)
-      | 't' -> (true_lit :> json Angstrom.t)
-      | 'f' -> (false_lit :> json Angstrom.t)
-      | 'n' -> (null_lit :> json Angstrom.t)
-      | '-' -> (number_lit :> json Angstrom.t)
-      | d when is_digit d -> (number_lit :> json Angstrom.t)
-      | _ -> (json_id :> json Angstrom.t))
-  <?> "json"
+      | '[' -> value_array
+      | '{' -> value_object
+      | '\'' -> (single_quote_string_lit :> value Angstrom.t)
+      | '"' -> (double_quote_string_lit :> value Angstrom.t)
+      | 't' -> (true_lit :> value Angstrom.t)
+      | 'f' -> (false_lit :> value Angstrom.t)
+      | 'n' -> (null_lit :> value Angstrom.t)
+      | '-' -> (number_lit :> value Angstrom.t)
+      | d when is_digit d -> (number_lit :> value Angstrom.t)
+      | _ -> (value_id :> value Angstrom.t))
+  <?> "value"
 
 let parser_steps : permissive_parser_steps Angstrom.t =
   fix (fun parser_steps : permissive_parser_steps Angstrom.t ->
@@ -220,10 +220,10 @@ let parser_steps : permissive_parser_steps Angstrom.t =
               | '-' -> (number_lit :> permissive_parser_step Angstrom.t)
               | d when is_digit d ->
                   (number_lit :> permissive_parser_step Angstrom.t)
-              | '[' | '{' -> (json :> permissive_parser_step Angstrom.t)
+              | '[' | '{' -> (value :> permissive_parser_step Angstrom.t)
               | _ -> (
                   id >>= function
-                  | `JsonId _ as j -> return j <?> "json_id"
+                  | `ValueId _ as v -> return v <?> "value_id"
                   | `ParserId (id_str, id_meta) as id -> (
                       peek_char >>= fun next_char ->
                       match (id_str, next_char) with

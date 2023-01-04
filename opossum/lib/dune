@@ -9,9 +9,9 @@
   Evaluator
   Executor
   Json
-  JsonParser
   Main
   Parser
+  ParserFn
   Program
   ProgramParser
   ProgramStdlib)
