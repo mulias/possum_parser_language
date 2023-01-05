@@ -8,12 +8,12 @@
   Errors
   Evaluator
   Executor
-  Json
-  JsonParser
   Main
   Parser
+  ParserFn
   Program
   ProgramParser
+  Value
   ProgramStdlib)
  (libraries base cmdliner core stdio angstrom yojson re)
  (preprocess

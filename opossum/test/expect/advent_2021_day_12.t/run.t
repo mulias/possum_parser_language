@@ -1,23 +1,14 @@
+Advent of Code 2021 Day 12
+https://adventofcode.com/2021/day/12
+
   $ possum input.parser input.txt
   [
-    [ "lg", "GW" ],
-    [ "pt", "start" ],
-    [ "pt", "uq" ],
-    [ "nx", "lg" ],
-    [ "ve", "GW" ],
-    [ "start", "nx" ],
-    [ "GW", "start" ],
-    [ "GW", "nx" ],
-    [ "pt", "SM" ],
-    [ "sx", "GW" ],
-    [ "lg", "end" ],
-    [ "nx", "SM" ],
-    [ "lg", "SM" ],
-    [ "pt", "nx" ],
-    [ "end", "ve" ],
-    [ "ve", "SM" ],
-    [ "TG", "uq" ],
-    [ "end", "SM" ],
-    [ "SM", "uq" ]
+    [ "start", "A" ],
+    [ "start", "b" ],
+    [ "A", "c" ],
+    [ "A", "b" ],
+    [ "b", "d" ],
+    [ "A", "end" ],
+    [ "b", "end" ]
   ]
 

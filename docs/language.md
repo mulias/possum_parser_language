@@ -28,11 +28,11 @@ can usually be ignored in favor of higher level parsers from the standard
 library.
 
 | Parser | Match Behavior | Returns |
-| ------ | --------------- | ------- |
+| ------ | -------------- | ------- |
 | `"string lit"` | Exact characters of string | Matched string |
 | `'string lit'` | Exact characters of string | Matched string |
 | `/[a-z]/` | String matching regex pattern, without skipping any input | Matched string, or array with capture groups |
-| `123` | Exact characters of number | Matched number |
+| `123`  | Exact characters of number | Matched number |
 | `-1.334e23` | Exact characters of number | Matched number |
 | `char` | Any single character | Matched string |
 | `peek(p)` | Parses `p`, consumes no input on success | Result of `p` |
@@ -41,24 +41,24 @@ library.
 
 ### Infix Combinators
 
-Infix operations make it easy to compose parsers without excessive nesting or
+Infix operations make it easy to compose parsers without excessive nesting and
 parentheses.
 
-| Combinator        | Name       | Description |
-| ----------------- | ---------- | ----------- |
-| `p1 \| p2`        | Or         | Try `p1`, if no match is found try `p2` |
-| `p1 > p2`         | Take Right | Match `p1` and then `p2`, return the result of `p2` |
-| `p1 < p2`         | Take Left  | Match `p1` and then `p2`, return the result of `p1` |
-| `p1 + p2`         | Concat     | Match `p1` and then `p2`, if both return strings then succeed with the concatenated string value |
-| `p $ Value`       | Return     | Match `p` and then return `Value` |
-| `p1 & p2 $ Value` | Sequence   | Match `p1` and then `p2`, return `Value` |
-| `Patter <- p $ Value` | Assign | Match `p`, compare the result of `p` to `Pattern` as described below |
+| Combinator | Name | Description |
+| ---------- | ---- | ----------- |
+| `p1 \| p2` | Or   | Try `p1`, if no match is found try `p2` instead |
+| `p1 > p2`  | Take Right | Match `p1` and then `p2`, return the result of `p2` |
+| `p1 < p2`  | Take Left | Match `p1` and then `p2`, return the result of `p1` |
+| `p1 + p2`  | Concat | Match `p1` and then `p2`, if both return strings then succeed with the concatenated string value |
+| `p $ Value` | Return | Match `p` and then return `Value` |
+| `p1 & ... & pN $ Value` | Sequence | Match `p1`, then `p2`, up through `pN`, return `Value` |
+| `Patter <- p` | Destructure | Match `p`, compare the result of `p` to `Pattern` as described below |
 
 ### Values
 
 Values can only be used in a few places:
 
-- The right side of a `$`
+- A returned value, which appears on the right side of a `$`
 ```
 my_parser $ [1,2,3]
 ```
@@ -69,7 +69,7 @@ bar(B) = "bar" $ B ;
 bar({"bar": true})
 ```
 
-- The left side of a `<-`
+- A pattern to destructure on, which appears on the left side of a `<-`
 ```
 [1, 2, ...C] <- array(int) $ C
 ```
@@ -78,9 +78,8 @@ In the first two cases we construct a value which is then returned by a parser.
 In the third case we pattern match the result of the right-side parser against
 the left-side value. In this example `array(int)` must return an array of length
 at least two, where the first two elements are `1` and `2`. The rest of the
-array is assigned to variable `C`. This variable can be referenced in later
-sequence steps and in the return value. If the parser result does not match the
-pattern then the parser fails.
+array is assigned to variable `C`. This variable can be referenced later in the
+parser. If the parser result does not match the pattern then the parser fails.
 
 | Value | Description |
 | ----- | ----------- |

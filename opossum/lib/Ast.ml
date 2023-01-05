@@ -6,14 +6,17 @@ open! Base
 (* Variable id referencing a parser in the environment. *)
 type parser_id = [ `ParserId of string * meta ] [@@deriving show]
 
-(* Variable id referencing a JSON value in the environment. *)
-type json_id = [ `JsonId of string * meta ] [@@deriving show]
+(* Variable id referencing a value in the environment. *)
+type value_id = [ `ValueId of string * meta ] [@@deriving show]
 
 (* All variable ids. *)
-type id = [ parser_id | json_id ] [@@deriving show]
+type id = [ parser_id | value_id ] [@@deriving show]
 
-(* JSON literal values. Can be interpreted either as a parser for the literal,
-   or the JSON literal itself depending on context. *)
+(* Non-variable skippable id used in patterns. *)
+type ignored_id = [ `IgnoredId of meta ] [@@deriving show]
+
+(* Literal values. Can be interpreted either as a parser for the literal, or the
+   literal value itself depending on context. *)
 
 type string_lit = [ `String of string * meta ] [@@deriving show]
 
@@ -21,64 +24,160 @@ type int_lit = [ `Intlit of string * meta ] [@@deriving show]
 
 type float_lit = [ `Floatlit of string * meta ] [@@deriving show]
 
-type true_lit = [ `True of meta ] [@@deriving show]
-
-type false_lit = [ `False of meta ] [@@deriving show]
+type bool_lit = [ `Bool of bool * meta ] [@@deriving show]
 
 type null_lit = [ `Null of meta ] [@@deriving show]
 
-type json_literal =
-  [ string_lit | int_lit | float_lit | true_lit | false_lit | null_lit ]
+type value_literal = [ string_lit | int_lit | float_lit | bool_lit | null_lit ]
 [@@deriving show]
 
 type parser_literal = [ string_lit | int_lit | float_lit ] [@@deriving show]
 
-(* All types supported by JSON, plus JSON variable ids for values which have
-   been set in the environment. *)
-type json =
-  [ json_literal
-  | `JsonArray of
-    [ `JsonArrayElement of json * meta | `JsonArraySpread of json * meta ] list
-    * meta
-  | `JsonObject of
-    [ `JsonObjectPair of [ string_lit | json_id ] * json * meta
-    | `JsonObjectSpread of json * meta ]
+(* All types supported by JSON, plus variable ids for values which have been set
+   in the environment and elements only allowed in destructure patterns. *)
+
+type value_like =
+  [ value_literal
+  | `ValueLikeArray of
+    [ `ValueLikeArrayElement of value_like * meta
+    | `ValueLikeArraySpread of value_like * meta ]
     list
     * meta
-  | json_id ]
+  | `ValueLikeObject of
+    [ `ValueLikeObjectPair of
+      [ string_lit | value_id | ignored_id ] * value_like * meta
+    | `ValueLikeObjectSpread of value_like * meta ]
+    list
+    * meta
+  | value_id
+  | ignored_id ]
 [@@deriving show]
 
-(* JSON arrays. Can contain other JSON values, or a "spread" value, which
-   inserts array members into the parent array. *)
-type json_array_element = [ `JsonArrayElement of json * meta ] [@@deriving show]
-
-type json_array_spread = [ `JsonArraySpread of json * meta ] [@@deriving show]
-
-type json_array_member = [ json_array_element | json_array_spread ]
+type value_like_array_element = [ `ValueLikeArrayElement of value_like * meta ]
 [@@deriving show]
 
-type json_array = [ `JsonArray of json_array_member * meta list ]
+type value_like_array_spread = [ `ValueLikeArraySpread of value_like * meta ]
 [@@deriving show]
 
-(* JSON objects. Can contain other JSON values, or a "spread" value, which
-   inserts object members into the parent object. *)
-type json_object_member_name = [ string_lit | json_id ] [@@deriving show]
-
-type json_object_pair =
-  [ `JsonObjectPair of json_object_member_name * json * meta ]
+type value_like_array_member =
+  [ value_like_array_element | value_like_array_spread ]
 [@@deriving show]
 
-type json_object_spread = [ `JsonObjectSpread of json * meta ] [@@deriving show]
-
-type json_object_member = [ json_object_pair | json_object_spread ]
+type value_like_array =
+  [ `ValueLikeArray of value_like_array_member list * meta ]
 [@@deriving show]
 
-type json_object = [ `JsonObject of json_object_member list * meta ]
+type value_like_object_member_key = [ string_lit | value_id | ignored_id ]
+[@@deriving show]
+
+type value_like_object_pair =
+  [ `ValueLikeObjectPair of value_like_object_member_key * value_like * meta ]
+[@@deriving show]
+
+type value_like_object_spread = [ `ValueLikeObjectSpread of value_like * meta ]
+[@@deriving show]
+
+type value_like_object_member =
+  [ value_like_object_pair | value_like_object_spread ]
+[@@deriving show]
+
+type value_like_object =
+  [ `ValueLikeObject of value_like_object_member list * meta ]
+[@@deriving show]
+
+(* Patterns which values can be destructured against. *)
+
+type pattern =
+  [ value_literal
+  | `PatternArray of
+    [ `PatternArrayElement of pattern * meta
+    | `PatternArraySpread of pattern * meta ]
+    list
+    * meta
+  | `PatternObject of
+    [ `PatternObjectPair of
+      [ string_lit | value_id | ignored_id ] * pattern * meta
+    | `PatternObjectSpread of pattern * meta ]
+    list
+    * meta
+  | value_id
+  | ignored_id ]
+[@@deriving show]
+
+type pattern_array_element = [ `PatternArrayElement of pattern * meta ]
+[@@deriving show]
+
+type pattern_array_spread = [ `PatternArraySpread of pattern * meta ]
+[@@deriving show]
+
+type pattern_array_member = [ pattern_array_element | pattern_array_spread ]
+[@@deriving show]
+
+type pattern_array = [ `PatternArray of pattern_array_member list * meta ]
+[@@deriving show]
+
+type pattern_object_member_key = [ string_lit | value_id | ignored_id ]
+[@@deriving show]
+
+type pattern_object_pair =
+  [ `PatternObjectPair of pattern_object_member_key * pattern * meta ]
+[@@deriving show]
+
+type pattern_object_spread = [ `PatternObjectSpread of pattern * meta ]
+[@@deriving show]
+
+type pattern_object_member = [ pattern_object_pair | pattern_object_spread ]
+[@@deriving show]
+
+type pattern_object = [ `PatternObject of pattern_object_member list * meta ]
+[@@deriving show]
+
+(* Concrete types supported by JSON. *)
+
+type value =
+  [ value_literal
+  | `ValueArray of
+    [ `ValueArrayElement of value * meta | `ValueArraySpread of value * meta ]
+    list
+    * meta
+  | `ValueObject of
+    [ `ValueObjectPair of [ string_lit | value_id ] * value * meta
+    | `ValueObjectSpread of value * meta ]
+    list
+    * meta
+  | value_id ]
+[@@deriving show]
+
+type value_array_element = [ `ValueArrayElement of value * meta ]
+[@@deriving show]
+
+type value_array_spread = [ `ValueArraySpread of value * meta ]
+[@@deriving show]
+
+type value_array_member = [ value_array_element | value_array_spread ]
+[@@deriving show]
+
+type value_array = [ `ValueArray of value_array_member list * meta ]
+[@@deriving show]
+
+type value_object_member_key = [ string_lit | value_id ] [@@deriving show]
+
+type value_object_pair =
+  [ `ValueObjectPair of value_object_member_key * value * meta ]
+[@@deriving show]
+
+type value_object_spread = [ `ValueObjectSpread of value * meta ]
+[@@deriving show]
+
+type value_object_member = [ value_object_pair | value_object_spread ]
+[@@deriving show]
+
+type value_object = [ `ValueObject of value_object_member list * meta ]
 [@@deriving show]
 
 (* Infix combinators for composing parsers. *)
 type infix =
-  [ `Or | `TakeLeft | `TakeRight | `Concat | `Assign | `And | `Return ]
+  [ `Or | `TakeLeft | `TakeRight | `Concat | `Destructure | `And | `Return ]
 [@@deriving show]
 
 (* Permissive Program AST This part of the AST is produced by the ProgramParser
@@ -91,13 +190,13 @@ type infix =
 type permissive_parser_steps =
   permissive_parser_step * (infix * permissive_parser_step) list
 
-(* A parser. Does not impose certain requirements, such as that json values can
-   only come before an `Assign or after a `Return. *)
+(* A parser. Does not impose certain requirements, such as that values can only
+   come before a `Destructure or after a `Return. *)
 and permissive_parser_step =
   [ `Group of permissive_parser_steps * meta
   | `ParserApply of parser_id * permissive_parser_steps list * meta
   | `Regex of string * meta
-  | json
+  | value_like
   | parser_literal ]
 [@@deriving show]
 
@@ -137,21 +236,22 @@ and parser_group =
 (* Program AST This AST is produced by the AstTransformer, which iterates over
    the tree to build a more strict version which can be evaluated. *)
 
-(* A parser. Incorporates infix ops into the tree and requires that json nodes
-   are only used in appropriate positions. *)
+(* A parser. Incorporates infix ops into the tree and requires that values are
+   only used in appropriate places. *)
 type parser_body =
   [ `ParserApply of parser_id * parser_apply_arg list * meta
   | `Regex of string * meta
-  | `Sequence of (json option * parser_body) list * json * meta
+  | `Sequence of parser_body list * value * meta
   | `Or of parser_body * parser_body * meta
   | `TakeLeft of parser_body * parser_body * meta
   | `TakeRight of parser_body * parser_body * meta
   | `Concat of parser_body * parser_body * meta
+  | `Destructure of pattern * parser_body * meta
   | parser_literal ]
 [@@deriving show]
 
 and parser_apply_arg =
-  [ `ParserArg of parser_body | `JsonArg of json | `LitArg of parser_literal ]
+  [ `ParserArg of parser_body | `ValueArg of value | `LitArg of parser_literal ]
 [@@deriving show]
 
 (* Program with one main parser and supporting named parsers. *)
@@ -173,12 +273,14 @@ let get_meta (ast : 'a) : meta =
   | `String (_, meta)
   | `Intlit (_, meta)
   | `Floatlit (_, meta)
-  | `True meta
-  | `False meta
+  | `Bool (_, meta)
   | `Null meta
-  | `JsonArray (_, meta)
-  | `JsonObject (_, meta)
-  | `JsonId (_, meta)
+  | `ValueLikeArray (_, meta)
+  | `ValueLikeObject (_, meta)
+  | `ValueArray (_, meta)
+  | `ValueObject (_, meta)
+  | `ValueId (_, meta)
+  | `IgnoredId meta
   | `ParserId (_, meta)
   | `Sequence (_, _, meta)
   | `NonSequence (_, meta)
@@ -187,7 +289,8 @@ let get_meta (ast : 'a) : meta =
   | `Or (_, _, meta)
   | `TakeLeft (_, _, meta)
   | `TakeRight (_, _, meta)
-  | `Concat (_, _, meta) ->
+  | `Concat (_, _, meta)
+  | `Destructure (_, _, meta) ->
       meta
 
 let merge_meta left right : meta =

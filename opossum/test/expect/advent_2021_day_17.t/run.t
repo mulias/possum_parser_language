@@ -1,3 +1,6 @@
+Advent of Code 2021 Day 17
+https://adventofcode.com/2021/day/17
+
   $ possum input.parser input.txt
-  { "xmin": 57, "xmax": 116, "ymin": -198, "ymax": -148 }
+  { "xmin": 20, "xmax": 30, "ymin": -10, "ymax": -5 }
 

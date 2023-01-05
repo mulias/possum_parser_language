@@ -12,7 +12,7 @@ let eval_exn (source : string) : Program.t =
   ProgramStdlib.load env ;
   Evaluator.eval ast env
 
-let execute_exn (source : string) (input : string) : Program.json =
+let execute_exn (source : string) (input : string) : Program.value =
   let program = eval_exn source in
   Executor.execute program input
 

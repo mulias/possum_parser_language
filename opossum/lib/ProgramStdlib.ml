@@ -2,34 +2,34 @@ open Angstrom
 open Angstrom.Let_syntax
 open! Base
 
-let rec parser_map (p : Program.json_parser) fn =
+let rec parser_map (p : Program.parser_fn) fn =
   match p with
   | Program.Parser p -> fn p
   | Program.Delayed (delayed_p, name, delayed_args) ->
-      parser_map (JsonParser.apply name (delayed_p ()) delayed_args) fn
+      parser_map (ParserFn.apply name (delayed_p ()) delayed_args) fn
   | _ -> raise Errors.EvalNotEnoughArguments
 
-let arity_0 (p : Program.json Angstrom.t) : Program.json_parser =
+let arity_0 (p : Program.value Angstrom.t) : Program.parser_fn =
   Program.Parser p
 
-let arity_1 fn : Program.json_parser =
+let arity_1 fn : Program.parser_fn =
   Program.ParserParam
-    (fun ((arg, meta) : Program.json_parser * Program.meta) ->
+    (fun ((arg, meta) : Program.parser_fn * Program.meta) ->
       parser_map arg (fun p -> arity_0 (fn (p, meta))))
 
-let arity_2 fn : Program.json_parser =
+let arity_2 fn : Program.parser_fn =
   Program.ParserParam
-    (fun ((arg, meta) : Program.json_parser * Program.meta) ->
+    (fun ((arg, meta) : Program.parser_fn * Program.meta) ->
       parser_map arg (fun p -> arity_1 (fn (p, meta))))
 
-let arity_3 fn : Program.json_parser =
+let arity_3 fn : Program.parser_fn =
   Program.ParserParam
-    (fun ((arg, meta) : Program.json_parser * Program.meta) ->
+    (fun ((arg, meta) : Program.parser_fn * Program.meta) ->
       parser_map arg (fun p -> arity_2 (fn (p, meta))))
 
-let arity_4 fn : Program.json_parser =
+let arity_4 fn : Program.parser_fn =
   Program.ParserParam
-    (fun ((arg, meta) : Program.json_parser * Program.meta) ->
+    (fun ((arg, meta) : Program.parser_fn * Program.meta) ->
       parser_map arg (fun p -> arity_3 (fn (p, meta))))
 
 let to_string s = `String s
@@ -65,7 +65,7 @@ let string_of_parser =
       p >>| fun value ->
       match value with
       | `String s -> `String s
-      | _ -> `String (Json.to_string value))
+      | _ -> `String (Value.to_json_string value))
 
 (* String parsers *)
 
@@ -164,14 +164,14 @@ let null_parser = arity_1 (fun (p, _) -> p >>| fun _ -> `Null)
 
 (* Repeated string parsers *)
 
-let concat_strings (p : Program.json list Angstrom.t) : Program.t =
+let concat_strings (p : Program.value list Angstrom.t) : Program.t =
   p >>| fun lst ->
   lst
   |> List.map ~f:(function
        | `String s -> s
        | _ ->
            raise
-             (Errors.EvalJsonType { expected = "string"; got = "not string" }))
+             (Errors.EvalValueType { expected = "string"; got = "not string" }))
   |> String.concat
   |> fun s -> `String s
 
@@ -210,33 +210,33 @@ let table_sep_parser =
       `List (List.map table ~f:(fun row -> `List row)))
 
 let object_parser =
-  arity_2 (fun (name, name_meta) (value, _) ->
-      many1 (both name value) >>| fun alist ->
+  arity_2 (fun (key, key_meta) (value, _) ->
+      many1 (both key value) >>| fun alist ->
       `Assoc
         (List.map alist ~f:(function
           | `String s, j -> (s, j)
           | non_string, _ ->
               raise
-                (Errors.EvalJsonObjectMemberName
+                (Errors.EvalValueObjectMemberKey
                    { id = None
                    ; value = non_string
-                   ; start_pos = name_meta.start_pos
-                   ; end_pos = name_meta.end_pos
+                   ; start_pos = key_meta.start_pos
+                   ; end_pos = key_meta.end_pos
                    }))))
 
 let object_sep_parser =
-  arity_4 (fun (name, name_meta) (pair_sep, _) (value, _) (sep, _) ->
-      sep_by1 sep (both name (pair_sep *> value)) >>| fun alist ->
+  arity_4 (fun (key, key_meta) (pair_sep, _) (value, _) (sep, _) ->
+      sep_by1 sep (both key (pair_sep *> value)) >>| fun alist ->
       `Assoc
         (List.map alist ~f:(function
           | `String s, j -> (s, j)
           | non_string, _ ->
               raise
-                (Errors.EvalJsonObjectMemberName
+                (Errors.EvalValueObjectMemberKey
                    { id = None
                    ; value = non_string
-                   ; start_pos = name_meta.start_pos
-                   ; end_pos = name_meta.end_pos
+                   ; start_pos = key_meta.start_pos
+                   ; end_pos = key_meta.end_pos
                    }))))
 
 (* Utility parsers *)
@@ -254,11 +254,11 @@ let maybe_parser = arity_1 (fun (p, _) -> option `Null p)
 let default_parser =
   Program.ParserParam
     (fun (p, _) ->
-      Program.JsonParam
+      Program.ValueParam
         (fun (default, _) ->
           parser_map p (fun p -> Program.Parser (option default p))))
 
-let const_parser = Program.JsonParam (fun (json, _) -> arity_0 (return json))
+let const_parser = Program.ValueParam (fun (v, _) -> arity_0 (return v))
 
 let debug_line_parser =
   arity_0
