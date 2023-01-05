@@ -418,17 +418,17 @@ syntax to add the members of an object or array to a new object or array.
   [ 1, 2, 3, 4, 5, 6 ]
 
   $ possum -p "
-  >  rev_int_list =
-  >    (I <- int & ',' & L <- rev_int_list $ [...L, I]) |
-  >    (I <- int $ [I]) ;
-  >  rev_int_list
+  >   rev_int_list =
+  >     (I <- int & ',' & L <- rev_int_list $ [...L, I]) |
+  >     (I <- int $ [I]) ;
+  >   rev_int_list
   > " -i "1,2,3,4,5,6"
   [ 6, 5, 4, 3, 2, 1 ]
 
   $ possum -p "
-  >  field = Key <- many(alpha) & ':' & Val <- int $ {Key: Val} ;
-  >  fields = F <- field & ws & Fs <- fields $ {...F, ...Fs} | field ;
-  >  fields
+  >   field = Key <- many(alpha) & ':' & Val <- int $ {Key: Val} ;
+  >   fields = F <- field & ws & Fs <- fields $ {...F, ...Fs} | field ;
+  >   fields
   > " -i "foo:33 bar:1"
   { "foo": 33, "bar": 1 }
 ```
@@ -439,8 +439,8 @@ element. The first element in the array is assigned to `K`, and the remaining
 (possibly empty) array is assigned to `Ks`.
 ```
   $ possum -p "
-  >  zip_pairs(Keys, Values) = (
-  >    [K, ...Ks] <- const(Keys) &
+  >   zip_pairs(Keys, Values) = (
+  >     [K, ...Ks] <- const(Keys) &
   >     [V, ...Vs] <- const(Values) &
   >     Rest <- zip_pairs(Ks, Vs) $
   >     {K: V, ...Rest}

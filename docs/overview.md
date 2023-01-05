@@ -267,24 +267,7 @@ the pattern.
   5
 
   $ possum -p "[1, _, 3] <- array(digit)" -i "153"
-
-  Error Reading Program
-
-  ~~~(##)'>  I ran into a syntax issue in your program.
-
-  The issue starts on line 1, character 3:
-  [1, _, 3] <- array(digit)
-    ^
-
-  Eventually there will be a more helpful error message here, but in the meantime
-  here's the parsing steps leading up to the failure:
-  main_parser
-  parser_steps
-  step
-  json
-  json_array
-
-  The last step did not succeed and there were no other options.
+  [ 1, 5, 3 ]
 
   $ possum -p "5 <- int" -i "55"
 
@@ -343,7 +326,7 @@ first digit.
 ```
 
 In addition to returning arrays and objects containing variables as elements,
-we can use a variable as the name in a name/value object pair. The variable
+we can use a variable as the key in a key/value object pair. The variable
 must be a string.
 ```
   $ possum -p "Var <- word & ' = ' & Value <- int $ {Var: Value}" -i "MY_SECRET = 12345"
@@ -353,8 +336,8 @@ must be a string.
 
   Error Creating Object
 
-  ~~~(##)'>  I wasn't able to create an object because one of the name/value pairs
-  has a name which is not a string.
+  ~~~(##)'>  I wasn't able to create an object because one of the key/value pairs
+  has a key which is not a string.
 
   The parser failed on line 1, characters 56-57:
   Id <- int & ' : ' & Active <- bool('true', 'false') $ {Id: Active}
@@ -426,17 +409,17 @@ syntax to add the members of an object or array to a new object or array.
   [ 1, 2, 3, 4, 5, 6 ]
 
   $ possum -p "
-     rev_int_list =
-       (I <- int & ',' & L <- rev_int_list $ [...L, I]) |
-       (I <- int $ [I]) ;
-     rev_int_list
+      rev_int_list =
+        (I <- int & ',' & L <- rev_int_list $ [...L, I]) |
+        (I <- int $ [I]) ;
+      rev_int_list
     " -i "1,2,3,4,5,6"
   [ 6, 5, 4, 3, 2, 1 ]
 
   $ possum -p "
-     field = Key <- many(alpha) & ':' & Val <- int $ {Key: Val} ;
-     fields = F <- field & ws & Fs <- fields $ {...F, ...Fs} | field ;
-     fields
+      field = Key <- many(alpha) & ':' & Val <- int $ {Key: Val} ;
+      fields = F <- field & ws & Fs <- fields $ {...F, ...Fs} | field ;
+      fields
     " -i "foo:33 bar:1"
   { "foo": 33, "bar": 1 }
 ```
