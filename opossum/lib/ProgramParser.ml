@@ -23,31 +23,45 @@ let parser_id : parser_id Angstrom.t =
    `ParserId (id_str, meta start_pos end_pos))
   <?> "parser_id"
 
-let value_id : value_id Angstrom.t =
-  (let%map start_pos = peek_pos
-   and leading_underscores = take_while is_underscore
-   and uppercase_chars = take_while1 is_uppercase
-   and id_rest = take_while is_id_char
-   and end_pos = peek_pos in
-   let id_str =
-     String.concat [ leading_underscores; uppercase_chars; id_rest ]
-   in
-   `ValueId (id_str, meta start_pos end_pos))
-  <?> "value_id"
+let _value_id =
+  let%map start_pos = peek_pos
+  and leading_underscores = take_while is_underscore
+  and uppercase_chars = take_while1 is_uppercase
+  and id_rest = take_while is_id_char
+  and end_pos = peek_pos in
+  let id_str =
+    String.concat [ leading_underscores; uppercase_chars; id_rest ]
+  in
+  `ValueId (id_str, meta start_pos end_pos)
 
-let id : id Angstrom.t =
-  (let%map start_pos = peek_pos
-   and leading_underscores = take_while is_underscore
-   and first_char = satisfy is_alpha
-   and id_rest = take_while is_id_char
-   and end_pos = peek_pos in
-   let id_str =
-     String.concat [ leading_underscores; String.of_char first_char; id_rest ]
-   in
-   let meta = meta start_pos end_pos in
-   if is_lowercase first_char then `ParserId (id_str, meta)
-   else `ValueId (id_str, meta))
-  <?> "id"
+let value_id : value_id Angstrom.t = _value_id <?> "value_id"
+
+let _id =
+  let%map start_pos = peek_pos
+  and leading_underscores = take_while is_underscore
+  and first_char = satisfy is_alpha
+  and id_rest = take_while is_id_char
+  and end_pos = peek_pos in
+  let id_str =
+    String.concat [ leading_underscores; String.of_char first_char; id_rest ]
+  in
+  let meta = meta start_pos end_pos in
+  if is_lowercase first_char then `ParserId (id_str, meta)
+  else `ValueId (id_str, meta)
+
+let id : id Angstrom.t = _id <?> "id"
+
+let _ignored_id =
+  let%map start_pos = peek_pos
+  and _ = string "_"
+  and end_pos = peek_pos in
+  `IgnoredId (meta start_pos end_pos)
+
+let value_id_or_ignored_id : [ value_id | ignored_id ] Angstrom.t =
+  _value_id <|> _ignored_id <?> "value_id_or_ignored_id"
+
+let id_or_ignored_id : [ id | ignored_id ] Angstrom.t =
+  _id <|> _ignored_id <?> "id_or_ignored_id"
 
 let single_quote_string_lit : string_lit Angstrom.t =
   (let%map start_pos = peek_pos
@@ -104,84 +118,88 @@ let null_lit : null_lit Angstrom.t =
    `Null (meta start_pos end_pos))
   <?> "null"
 
-let value : value Angstrom.t =
-  fix (fun value : value Angstrom.t ->
-      let value_array_spread : value_array_member Angstrom.t =
+let value_like : value_like Angstrom.t =
+  fix (fun value_like : value_like Angstrom.t ->
+      let value_array_spread : value_like_array_member Angstrom.t =
         (let%map start_pos = peek_pos
-         and v = string "..." *> value
+         and v = string "..." *> value_like
          and end_pos = peek_pos in
-         `ValueArraySpread (v, meta start_pos end_pos))
-        <?> "value_array_spread"
+         `ValueLikeArraySpread (v, meta start_pos end_pos))
+        <?> "value_like_array_spread"
       in
-      let value_array_element : value_array_member Angstrom.t =
+      let value_array_element : value_like_array_member Angstrom.t =
         (let%map start_pos = peek_pos
-         and v = value
+         and v = value_like
          and end_pos = peek_pos in
-         `ValueArrayElement (v, meta start_pos end_pos))
-        <?> "value_array_element"
+         `ValueLikeArrayElement (v, meta start_pos end_pos))
+        <?> "value_like_array_element"
       in
-      let value_array_member : value_array_member Angstrom.t =
+      let value_array_member : value_like_array_member Angstrom.t =
         peek_char_fail
         >>= (function '.' -> value_array_spread | _ -> value_array_element)
-        <?> "value_array_member"
+        <?> "value_like_array_member"
       in
-      let value_array : value Angstrom.t =
+      let value_array : value_like Angstrom.t =
         (let%map start_pos = peek_pos
          and arr =
            char '[' *> sep_by (char ',') (ws *> value_array_member <* ws)
            <* char ']'
          and end_pos = peek_pos in
-         `ValueArray (arr, meta start_pos end_pos))
-        <?> "value_array"
+         `ValueLikeArray (arr, meta start_pos end_pos))
+        <?> "value_like_array"
       in
-      let value_object_spread : value_object_member Angstrom.t =
+      let value_object_spread : value_like_object_member Angstrom.t =
         (let%map start_pos = peek_pos
-         and v = string "..." *> value
+         and v = string "..." *> value_like
          and end_pos = peek_pos in
-         `ValueObjectSpread (v, meta start_pos end_pos))
-        <?> "value_object_spread"
+         `ValueLikeObjectSpread (v, meta start_pos end_pos))
+        <?> "value_like_object_spread"
       in
-      let value_object_pair : value_object_member Angstrom.t =
+      let value_object_pair : value_like_object_member Angstrom.t =
         (let%map start_pos = peek_pos
          and n =
            peek_char_fail >>= function
            | '\'' ->
-               (single_quote_string_lit :> value_object_member_name Angstrom.t)
+               (single_quote_string_lit
+                 :> value_like_object_member_name Angstrom.t)
            | '"' ->
-               (double_quote_string_lit :> value_object_member_name Angstrom.t)
-           | _ -> (value_id :> value_object_member_name Angstrom.t)
-         and v = ws *> char ':' *> ws *> value
+               (double_quote_string_lit
+                 :> value_like_object_member_name Angstrom.t)
+           | _ ->
+               (value_id_or_ignored_id
+                 :> value_like_object_member_name Angstrom.t)
+         and v = ws *> char ':' *> ws *> value_like
          and end_pos = peek_pos in
-         `ValueObjectPair (n, v, meta start_pos end_pos))
-        <?> "value_object_pair"
+         `ValueLikeObjectPair (n, v, meta start_pos end_pos))
+        <?> "value_like_object_pair"
       in
-      let value_object_member : value_object_member Angstrom.t =
+      let value_object_member : value_like_object_member Angstrom.t =
         peek_char_fail
         >>= (function '.' -> value_object_spread | _ -> value_object_pair)
-        <?> "value_object_member"
+        <?> "value_like_object_member"
       in
-      let value_object : value Angstrom.t =
+      let value_object : value_like Angstrom.t =
         (let%map start_pos = peek_pos
          and o =
            char '{' *> ws *> sep_by (ws *> char ',' <* ws) value_object_member
            <* ws
            <* char '}'
          and end_pos = peek_pos in
-         `ValueObject (o, meta start_pos end_pos))
-        <?> "value_object"
+         `ValueLikeObject (o, meta start_pos end_pos))
+        <?> "value_like_object"
       in
       ws *> peek_char_fail >>= function
       | '[' -> value_array
       | '{' -> value_object
-      | '\'' -> (single_quote_string_lit :> value Angstrom.t)
-      | '"' -> (double_quote_string_lit :> value Angstrom.t)
-      | 't' -> (true_lit :> value Angstrom.t)
-      | 'f' -> (false_lit :> value Angstrom.t)
-      | 'n' -> (null_lit :> value Angstrom.t)
-      | '-' -> (number_lit :> value Angstrom.t)
-      | d when is_digit d -> (number_lit :> value Angstrom.t)
-      | _ -> (value_id :> value Angstrom.t))
-  <?> "value"
+      | '\'' -> (single_quote_string_lit :> value_like Angstrom.t)
+      | '"' -> (double_quote_string_lit :> value_like Angstrom.t)
+      | 't' -> (true_lit :> value_like Angstrom.t)
+      | 'f' -> (false_lit :> value_like Angstrom.t)
+      | 'n' -> (null_lit :> value_like Angstrom.t)
+      | '-' -> (number_lit :> value_like Angstrom.t)
+      | d when is_digit d -> (number_lit :> value_like Angstrom.t)
+      | _ -> (value_id_or_ignored_id :> value_like Angstrom.t))
+  <?> "value_like"
 
 let parser_steps : permissive_parser_steps Angstrom.t =
   fix (fun parser_steps : permissive_parser_steps Angstrom.t ->
@@ -220,10 +238,11 @@ let parser_steps : permissive_parser_steps Angstrom.t =
               | '-' -> (number_lit :> permissive_parser_step Angstrom.t)
               | d when is_digit d ->
                   (number_lit :> permissive_parser_step Angstrom.t)
-              | '[' | '{' -> (value :> permissive_parser_step Angstrom.t)
+              | '[' | '{' -> (value_like :> permissive_parser_step Angstrom.t)
               | _ -> (
-                  id >>= function
+                  id_or_ignored_id >>= function
                   | `ValueId _ as v -> return v <?> "value_id"
+                  | `IgnoredId _ as i -> return i <?> "ignored_id"
                   | `ParserId (id_str, id_meta) as id -> (
                       peek_char >>= fun next_char ->
                       match (id_str, next_char) with

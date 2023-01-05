@@ -18,6 +18,8 @@ exception
   AstTransform of
     { expected : string; got : string; start_pos : int; end_pos : int }
 
+exception AstIgnoredId of { meta : Program.meta }
+
 exception EnvFindValue of { id : string; start_pos : int; end_pos : int }
 
 exception EnvFindParser of { id : string; start_pos : int; end_pos : int }
@@ -184,6 +186,19 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
   | AstTransform { expected; got; start_pos; end_pos } ->
       let context = error_context source ~start_pos ~end_pos in
       let msg = [%string "Expected %{expected}, got %{got} at %{context}"] in
+      Error msg
+  | AstIgnoredId { meta = { start_pos; end_pos } } ->
+      let context = error_context source ~start_pos ~end_pos in
+      let msg =
+        [%string
+          "\n\
+           Error Reading Program\n\n\
+           ~~~(##)'>  I found an invalid use of \"_\".\n\n\
+           The issue is on %{context}\n\n\
+           A single underscore represents a value to be ignored in a pattern \
+           and can't be used as a variable."]
+        |> wrap_message ~at:80
+      in
       Error msg
   | EnvFindValue { id; start_pos; end_pos } ->
       let context = error_context source ~start_pos ~end_pos in

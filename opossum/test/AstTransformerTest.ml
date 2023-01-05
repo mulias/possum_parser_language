@@ -160,8 +160,8 @@ let test_tabular () =
             , `Or
                 ( `Sequence
                     ( [ `Destructure
-                          ( `ValueArray
-                              ( [ `ValueArrayElement
+                          ( `PatternArray
+                              ( [ `PatternArrayElement
                                     ( `ValueId
                                         ( "Row"
                                         , { Program.start_pos = 39
@@ -169,7 +169,7 @@ let test_tabular () =
                                           } )
                                     , { Program.start_pos = 39; end_pos = 42 }
                                     )
-                                ; `ValueArraySpread
+                                ; `PatternArraySpread
                                     ( `ValueId
                                         ( "Rs"
                                         , { Program.start_pos = 47
@@ -272,8 +272,8 @@ let test_tabular () =
             , `Or
                 ( `Sequence
                     ( [ `Destructure
-                          ( `ValueArray
-                              ( [ `ValueArrayElement
+                          ( `PatternArray
+                              ( [ `PatternArrayElement
                                     ( `ValueId
                                         ( "N"
                                         , { Program.start_pos = 241
@@ -281,7 +281,7 @@ let test_tabular () =
                                           } )
                                     , { Program.start_pos = 241; end_pos = 242 }
                                     )
-                                ; `ValueArraySpread
+                                ; `PatternArraySpread
                                     ( `ValueId
                                         ( "Ns"
                                         , { Program.start_pos = 247
@@ -306,8 +306,8 @@ let test_tabular () =
                               , { Program.start_pos = 254; end_pos = 266 } )
                           , { Program.start_pos = 240; end_pos = 266 } )
                       ; `Destructure
-                          ( `ValueArray
-                              ( [ `ValueArrayElement
+                          ( `PatternArray
+                              ( [ `PatternArrayElement
                                     ( `ValueId
                                         ( "V"
                                         , { Program.start_pos = 276
@@ -315,7 +315,7 @@ let test_tabular () =
                                           } )
                                     , { Program.start_pos = 276; end_pos = 277 }
                                     )
-                                ; `ValueArraySpread
+                                ; `PatternArraySpread
                                     ( `ValueId
                                         ( "Vs"
                                         , { Program.start_pos = 282

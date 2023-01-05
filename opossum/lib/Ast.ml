@@ -12,6 +12,9 @@ type value_id = [ `ValueId of string * meta ] [@@deriving show]
 (* All variable ids. *)
 type id = [ parser_id | value_id ] [@@deriving show]
 
+(* Non-variable skippable id used in patterns. *)
+type ignored_id = [ `IgnoredId of meta ] [@@deriving show]
+
 (* Literal values. Can be interpreted either as a parser for the literal, or the
    literal value itself depending on context. *)
 
@@ -31,7 +34,106 @@ type value_literal = [ string_lit | int_lit | float_lit | bool_lit | null_lit ]
 type parser_literal = [ string_lit | int_lit | float_lit ] [@@deriving show]
 
 (* All types supported by JSON, plus variable ids for values which have been set
-   in the environment. *)
+   in the environment and elements only allowed in destructure patterns. *)
+
+type value_like =
+  [ value_literal
+  | `ValueLikeArray of
+    [ `ValueLikeArrayElement of value_like * meta
+    | `ValueLikeArraySpread of value_like * meta ]
+    list
+    * meta
+  | `ValueLikeObject of
+    [ `ValueLikeObjectPair of
+      [ string_lit | value_id | ignored_id ] * value_like * meta
+    | `ValueLikeObjectSpread of value_like * meta ]
+    list
+    * meta
+  | value_id
+  | ignored_id ]
+[@@deriving show]
+
+type value_like_array_element = [ `ValueLikeArrayElement of value_like * meta ]
+[@@deriving show]
+
+type value_like_array_spread = [ `ValueLikeArraySpread of value_like * meta ]
+[@@deriving show]
+
+type value_like_array_member =
+  [ value_like_array_element | value_like_array_spread ]
+[@@deriving show]
+
+type value_like_array =
+  [ `ValueLikeArray of value_like_array_member list * meta ]
+[@@deriving show]
+
+type value_like_object_member_name = [ string_lit | value_id | ignored_id ]
+[@@deriving show]
+
+type value_like_object_pair =
+  [ `ValueLikeObjectPair of value_like_object_member_name * value_like * meta ]
+[@@deriving show]
+
+type value_like_object_spread = [ `ValueLikeObjectSpread of value_like * meta ]
+[@@deriving show]
+
+type value_like_object_member =
+  [ value_like_object_pair | value_like_object_spread ]
+[@@deriving show]
+
+type value_like_object =
+  [ `ValueLikeObject of value_like_object_member list * meta ]
+[@@deriving show]
+
+(* Patterns which values can be destructured against. *)
+
+type pattern =
+  [ value_literal
+  | `PatternArray of
+    [ `PatternArrayElement of pattern * meta
+    | `PatternArraySpread of pattern * meta ]
+    list
+    * meta
+  | `PatternObject of
+    [ `PatternObjectPair of
+      [ string_lit | value_id | ignored_id ] * pattern * meta
+    | `PatternObjectSpread of pattern * meta ]
+    list
+    * meta
+  | value_id
+  | ignored_id ]
+[@@deriving show]
+
+type pattern_array_element = [ `PatternArrayElement of pattern * meta ]
+[@@deriving show]
+
+type pattern_array_spread = [ `PatternArraySpread of pattern * meta ]
+[@@deriving show]
+
+type pattern_array_member = [ pattern_array_element | pattern_array_spread ]
+[@@deriving show]
+
+type pattern_array = [ `PatternArray of pattern_array_member list * meta ]
+[@@deriving show]
+
+type pattern_object_member_name = [ string_lit | value_id | ignored_id ]
+[@@deriving show]
+
+type pattern_object_pair =
+  [ `PatternObjectPair of pattern_object_member_name * pattern * meta ]
+[@@deriving show]
+
+type pattern_object_spread = [ `PatternObjectSpread of pattern * meta ]
+[@@deriving show]
+
+type pattern_object_member = [ pattern_object_pair | pattern_object_spread ]
+[@@deriving show]
+
+type pattern_object = [ `PatternObject of pattern_object_member list * meta ]
+[@@deriving show]
+
+(* Concrete types supported by JSON. *)
+
 type value =
   [ value_literal
   | `ValueArray of
@@ -46,9 +148,6 @@ type value =
   | value_id ]
 [@@deriving show]
 
-(* Collection of ordered values. Can contain other values, or a "spread" value,
-   which inserts array members into the parent array. *)
-
 type value_array_element = [ `ValueArrayElement of value * meta ]
 [@@deriving show]
 
@@ -58,11 +157,8 @@ type value_array_spread = [ `ValueArraySpread of value * meta ]
 type value_array_member = [ value_array_element | value_array_spread ]
 [@@deriving show]
 
-type value_array = [ `ValueArray of value_array_member * meta list ]
+type value_array = [ `ValueArray of value_array_member list * meta ]
 [@@deriving show]
-
-(* Collection with key/value pairs. Can contain other values, or a "spread"
-   value, which inserts object members into the parent object. *)
 
 type value_object_member_name = [ string_lit | value_id ] [@@deriving show]
 
@@ -100,7 +196,7 @@ and permissive_parser_step =
   [ `Group of permissive_parser_steps * meta
   | `ParserApply of parser_id * permissive_parser_steps list * meta
   | `Regex of string * meta
-  | value
+  | value_like
   | parser_literal ]
 [@@deriving show]
 
@@ -150,7 +246,7 @@ type parser_body =
   | `TakeLeft of parser_body * parser_body * meta
   | `TakeRight of parser_body * parser_body * meta
   | `Concat of parser_body * parser_body * meta
-  | `Destructure of value * parser_body * meta
+  | `Destructure of pattern * parser_body * meta
   | parser_literal ]
 [@@deriving show]
 
@@ -179,9 +275,12 @@ let get_meta (ast : 'a) : meta =
   | `Floatlit (_, meta)
   | `Bool (_, meta)
   | `Null meta
+  | `ValueLikeArray (_, meta)
+  | `ValueLikeObject (_, meta)
   | `ValueArray (_, meta)
   | `ValueObject (_, meta)
   | `ValueId (_, meta)
+  | `IgnoredId meta
   | `ParserId (_, meta)
   | `Sequence (_, _, meta)
   | `NonSequence (_, meta)

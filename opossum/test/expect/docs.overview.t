@@ -273,25 +273,7 @@ the pattern.
   5
 
   $ possum -p "[1, _, 3] <- array(digit)" -i "153"
-  
-  Error Reading Program
-  
-  ~~~(##)'>  I ran into a syntax issue in your program.
-  
-  The issue starts on line 1, character 3:
-  [1, _, 3] <- array(digit)
-    ^
-  
-  Eventually there will be a more helpful error message here, but in the meantime
-  here's the parsing steps leading up to the failure:
-  main_parser
-  parser_steps
-  step
-  value
-  value_array
-  
-  The last step did not succeed and there were no other options.
-  [123]
+  [ 1, 5, 3 ]
 
   $ possum -p "5 <- int" -i "55"
   

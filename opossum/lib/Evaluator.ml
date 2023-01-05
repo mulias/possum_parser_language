@@ -79,14 +79,15 @@ let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
             (Errors.EnvFindValue
                { id; start_pos = meta.start_pos; end_pos = meta.end_pos }))
 
-let rec match_pattern
+let rec destructure
     (env : Program.env)
-    (pattern : Ast.value)
+    (pattern : Ast.pattern)
     (value : Program.value) : (Program.env, unit) Result.t =
   match (pattern, value) with
+  | `IgnoredId _, _ -> Ok env
   | `ValueId (id, _), v -> (
       match Env.find_value env id with
-      | Some pattern_from_env -> match_pattern_from_env env pattern_from_env v
+      | Some value_from_env -> destructure_from_env env value_from_env v
       | None -> Ok (Env.extend_values env id v))
   | `String (p, _), `String v -> if String.equal p v then Ok env else Error ()
   | `Intlit (p, _), `Intlit v -> if String.equal p v then Ok env else Error ()
@@ -95,29 +96,29 @@ let rec match_pattern
   | `Bool (true, _), `Bool true -> Ok env
   | `Bool (false, _), `Bool false -> Ok env
   | `Null _, `Null -> Ok env
-  | `ValueArray (p, _), `List v -> match_array_pattern env p v
-  | `ValueObject (p, _), `Assoc v -> match_object_pattern env p v
+  | `PatternArray (p, _), `List v -> destructure_array env p v
+  | `PatternObject (p, _), `Assoc v -> destructure_object env p v
   | _, _ -> Error ()
 
-and match_array_pattern
+and destructure_array
     (env : Program.env)
-    (pattern : Ast.value_array_member list)
+    (pattern : Ast.pattern_array_member list)
     (arr : Program.value list) : (Program.env, unit) Result.t =
   let open Result in
   match (pattern, arr) with
-  | `ValueArrayElement (p, _) :: pattern_rest, v :: arr_rest ->
-      match_pattern env p v >>= fun env ->
-      match_array_pattern env pattern_rest arr_rest
-  | [ `ValueArraySpread (p, _) ], arr -> match_pattern env p (`List arr)
+  | `PatternArrayElement (p, _) :: pattern_rest, v :: arr_rest ->
+      destructure env p v >>= fun env ->
+      destructure_array env pattern_rest arr_rest
+  | [ `PatternArraySpread (p, _) ], arr -> destructure env p (`List arr)
   | [], [] -> Ok env
   | _, _ -> Error ()
 
-and match_object_pattern
+and destructure_object
     (env : Program.env)
-    (pattern : Ast.value_object_member list)
+    (pattern : Ast.pattern_object_member list)
     (assoc : (string * Program.value) list) : (Program.env, unit) Result.t =
   match (pattern, assoc) with
-  | `ValueObjectPair (obj_key, obj_value, _) :: pattern_rest, assoc -> (
+  | `PatternObjectPair (obj_key, obj_value, _) :: pattern_rest, assoc -> (
       let open Result in
       match obj_key with
       | `String (p, _) -> (
@@ -127,24 +128,24 @@ and match_object_pattern
           match List.Assoc.find assoc ~equal:String.equal p with
           | Some found_value ->
               let assoc_rest = List.Assoc.remove assoc ~equal:String.equal p in
-              match_pattern env obj_value found_value >>= fun env ->
-              match_object_pattern env pattern_rest assoc_rest
+              destructure env obj_value found_value >>= fun env ->
+              destructure_object env pattern_rest assoc_rest
           | None -> Error ())
-      | `ValueId _ ->
+      | `ValueId _ | `IgnoredId _ ->
           (* The name/value pair has an id for the name. We could try to pattern
              match on the value and then assign the name to the first key found
              with that value, but the value might have more ids to assign inside
              it so the complexity here is non-trivial. *)
           raise (Errors.Todo "pattern match on variable in object member name"))
-  | [ `ValueObjectSpread (p, _) ], assoc -> match_pattern env p (`Assoc assoc)
+  | [ `PatternObjectSpread (p, _) ], assoc -> destructure env p (`Assoc assoc)
   | [], [] -> Ok env
   | _, _ -> Error ()
 
-and match_pattern_from_env
+and destructure_from_env
     (env : Program.env)
-    (pattern : Program.value)
+    (value_from_env : Program.value)
     (value : Program.value) : (Program.env, unit) Result.t =
-  if Value.equal pattern value then Ok env else Error ()
+  if Value.equal value_from_env value then Ok env else Error ()
 
 let eval_literal_parser (ast : Ast.parser_literal) : Program.t =
   match ast with
@@ -230,7 +231,7 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
                }))
   | `Destructure (left, right, _) -> (
       eval_parser_body right env >>= fun (v_right, env_right) ->
-      match match_pattern env_right left v_right with
+      match destructure env_right left v_right with
       | Ok new_env -> return (v_right, new_env)
       | Error _ -> fail "Destructure" <?> "Destructure")
 

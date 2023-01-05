@@ -55,7 +55,7 @@
   infix_steps
   infix
   step
-  id
+  id_or_ignored_id
   
   The last step did not succeed and there were no other options.
   [123]
@@ -99,8 +99,8 @@
   infix_steps
   infix
   step
-  value
-  value_array
+  value_like
+  value_like_array
   
   The last step did not succeed and there were no other options.
   [123]
