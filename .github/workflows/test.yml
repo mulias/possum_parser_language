@@ -1,7 +1,6 @@
 name: Test
 
 on:
-  pull_request:
   push:
 
 jobs:
@@ -34,7 +33,7 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          dune-cache: true
+          dune-cache: false
 
       - name: Install deps
         run: opam install . --deps-only --with-test
