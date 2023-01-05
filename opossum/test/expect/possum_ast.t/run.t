@@ -266,7 +266,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Defs" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "array_sep" },
@@ -316,12 +316,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "program" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "defs" },
+                  "key": { "type": "string_lit", "value": "defs" },
                   "value": { "type": "value_id", "value": "Defs" }
                 }
               ]
@@ -437,7 +437,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Id" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "parser_id" },
@@ -445,7 +445,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Params" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "default" },
@@ -542,7 +542,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Body" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "parser_steps" },
@@ -560,22 +560,22 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "named_parser" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "id" },
+                  "key": { "type": "string_lit", "value": "id" },
                   "value": { "type": "value_id", "value": "Id" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "params" },
+                  "key": { "type": "string_lit", "value": "params" },
                   "value": { "type": "value_id", "value": "Params" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "body" },
+                  "key": { "type": "string_lit", "value": "body" },
                   "value": { "type": "value_id", "value": "Body" }
                 }
               ]
@@ -597,7 +597,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Body" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "parser_steps" },
@@ -615,12 +615,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "main_parser" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "body" },
+                  "key": { "type": "string_lit", "value": "body" },
                   "value": { "type": "value_id", "value": "Body" }
                 }
               ]
@@ -642,7 +642,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "First" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "parser_step" },
@@ -650,7 +650,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "InfixSteps" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "default" },
@@ -702,12 +702,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "parser_steps" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "steps" },
+                  "key": { "type": "string_lit", "value": "steps" },
                   "value": {
                     "type": "value_array",
                     "value": [
@@ -741,7 +741,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Infix" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "infix" },
@@ -755,7 +755,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Step" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "parser_step" },
@@ -809,7 +809,7 @@
                     "value": [
                       {
                         "type": "value_object_element",
-                        "name": { "type": "string_lit", "value": "infix" },
+                        "key": { "type": "string_lit", "value": "infix" },
                         "value": { "type": "string_lit", "value": "Or" }
                       }
                     ]
@@ -822,7 +822,7 @@
                     "value": [
                       {
                         "type": "value_object_element",
-                        "name": { "type": "string_lit", "value": "infix" },
+                        "key": { "type": "string_lit", "value": "infix" },
                         "value": { "type": "string_lit", "value": "TakeRight" }
                       }
                     ]
@@ -835,8 +835,11 @@
                     "value": [
                       {
                         "type": "value_object_element",
-                        "name": { "type": "string_lit", "value": "infix" },
-                        "value": { "type": "string_lit", "value": "Assign" }
+                        "key": { "type": "string_lit", "value": "infix" },
+                        "value": {
+                          "type": "string_lit",
+                          "value": "Destructure"
+                        }
                       }
                     ]
                   },
@@ -848,7 +851,7 @@
                     "value": [
                       {
                         "type": "value_object_element",
-                        "name": { "type": "string_lit", "value": "infix" },
+                        "key": { "type": "string_lit", "value": "infix" },
                         "value": { "type": "string_lit", "value": "TakeLeft" }
                       }
                     ]
@@ -861,7 +864,7 @@
                     "value": [
                       {
                         "type": "value_object_element",
-                        "name": { "type": "string_lit", "value": "infix" },
+                        "key": { "type": "string_lit", "value": "infix" },
                         "value": { "type": "string_lit", "value": "Concat" }
                       }
                     ]
@@ -874,7 +877,7 @@
                     "value": [
                       {
                         "type": "value_object_element",
-                        "name": { "type": "string_lit", "value": "infix" },
+                        "key": { "type": "string_lit", "value": "infix" },
                         "value": { "type": "string_lit", "value": "And" }
                       }
                     ]
@@ -887,7 +890,7 @@
                     "value": [
                       {
                         "type": "value_object_element",
-                        "name": { "type": "string_lit", "value": "infix" },
+                        "key": { "type": "string_lit", "value": "infix" },
                         "value": { "type": "string_lit", "value": "Return" }
                       }
                     ]
@@ -948,6 +951,12 @@
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "value_id" },
               "args": []
+            },
+            { "infix": "Or" },
+            {
+              "type": "parser_apply",
+              "id": { "type": "parser_id", "value": "ignored_id" },
+              "args": []
             }
           ]
         }
@@ -968,7 +977,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Steps" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "parser_steps" },
@@ -988,12 +997,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "group" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "Steps" }
                 }
               ]
@@ -1009,7 +1018,7 @@
           "type": "parser_steps",
           "steps": [
             { "type": "value_id", "value": "Regex" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             { "type": "string_lit", "value": "/" },
             { "infix": "TakeRight" },
             {
@@ -1025,12 +1034,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "regex_step" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "Regex" }
                 }
               ]
@@ -1063,7 +1072,7 @@
                       }
                     ]
                   },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "two_chars" },
@@ -1071,7 +1080,7 @@
                   },
                   { "infix": "And" },
                   { "type": "value_id", "value": "Regex" },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "const" },
@@ -1119,11 +1128,11 @@
                       },
                       {
                         "type": "value_array_element",
-                        "value": { "type": "value_id", "value": "_Outside" }
+                        "value": { "type": "ignored_id" }
                       }
                     ]
                   },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "peek" },
@@ -1152,7 +1161,7 @@
                 "type": "parser_steps",
                 "steps": [
                   { "type": "value_id", "value": "C" },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "char" },
@@ -1160,7 +1169,7 @@
                   },
                   { "infix": "And" },
                   { "type": "value_id", "value": "Regex" },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "const" },
@@ -1196,7 +1205,7 @@
           "type": "parser_steps",
           "steps": [
             { "type": "value_id", "value": "Id" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "parser_id" },
@@ -1204,7 +1213,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Args" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "default" },
@@ -1230,7 +1239,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Step" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "group",
               "value": {
@@ -1257,7 +1266,7 @@
                             }
                           ]
                         },
-                        { "infix": "Assign" },
+                        { "infix": "Destructure" },
                         {
                           "type": "parser_apply",
                           "id": { "type": "parser_id", "value": "const" },
@@ -1294,7 +1303,7 @@
                           "value": [
                             {
                               "type": "value_object_element",
-                              "name": { "type": "string_lit", "value": "type" },
+                              "key": { "type": "string_lit", "value": "type" },
                               "value": {
                                 "type": "string_lit",
                                 "value": "true_lit"
@@ -1327,7 +1336,7 @@
                             }
                           ]
                         },
-                        { "infix": "Assign" },
+                        { "infix": "Destructure" },
                         {
                           "type": "parser_apply",
                           "id": { "type": "parser_id", "value": "const" },
@@ -1364,7 +1373,7 @@
                           "value": [
                             {
                               "type": "value_object_element",
-                              "name": { "type": "string_lit", "value": "type" },
+                              "key": { "type": "string_lit", "value": "type" },
                               "value": {
                                 "type": "string_lit",
                                 "value": "false_lit"
@@ -1397,7 +1406,7 @@
                             }
                           ]
                         },
-                        { "infix": "Assign" },
+                        { "infix": "Destructure" },
                         {
                           "type": "parser_apply",
                           "id": { "type": "parser_id", "value": "const" },
@@ -1434,7 +1443,7 @@
                           "value": [
                             {
                               "type": "value_object_element",
-                              "name": { "type": "string_lit", "value": "type" },
+                              "key": { "type": "string_lit", "value": "type" },
                               "value": {
                                 "type": "string_lit",
                                 "value": "null_lit"
@@ -1462,7 +1471,7 @@
                           "value": [
                             {
                               "type": "value_object_element",
-                              "name": { "type": "string_lit", "value": "type" },
+                              "key": { "type": "string_lit", "value": "type" },
                               "value": {
                                 "type": "string_lit",
                                 "value": "parser_apply"
@@ -1470,12 +1479,12 @@
                             },
                             {
                               "type": "value_object_element",
-                              "name": { "type": "string_lit", "value": "id" },
+                              "key": { "type": "string_lit", "value": "id" },
                               "value": { "type": "value_id", "value": "Id" }
                             },
                             {
                               "type": "value_object_element",
-                              "name": { "type": "string_lit", "value": "args" },
+                              "key": { "type": "string_lit", "value": "args" },
                               "value": { "type": "value_id", "value": "Args" }
                             }
                           ]
@@ -1590,7 +1599,7 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "true_lit" }
                 }
               ]
@@ -1612,7 +1621,7 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "false_lit" }
                 }
               ]
@@ -1634,7 +1643,7 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "null_lit" }
                 }
               ]
@@ -1671,7 +1680,7 @@
           "type": "parser_steps",
           "steps": [
             { "type": "value_id", "value": "Str" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "group",
               "value": {
@@ -1723,12 +1732,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "string_lit" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "Str" }
                 }
               ]
@@ -1761,7 +1770,7 @@
                       }
                     ]
                   },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "two_chars" },
@@ -1769,7 +1778,7 @@
                   },
                   { "infix": "And" },
                   { "type": "value_id", "value": "Str" },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "const" },
@@ -1811,11 +1820,11 @@
                       },
                       {
                         "type": "value_array_element",
-                        "value": { "type": "value_id", "value": "_Outside" }
+                        "value": { "type": "ignored_id" }
                       }
                     ]
                   },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "peek" },
@@ -1844,7 +1853,7 @@
                 "type": "parser_steps",
                 "steps": [
                   { "type": "value_id", "value": "C" },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "char" },
@@ -1852,7 +1861,7 @@
                   },
                   { "infix": "And" },
                   { "type": "value_id", "value": "Str" },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "const" },
@@ -1890,7 +1899,7 @@
           "type": "parser_steps",
           "steps": [
             { "type": "value_id", "value": "N" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "number" },
@@ -1902,12 +1911,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "number_lit" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "N" }
                 }
               ]
@@ -1944,6 +1953,12 @@
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "value_id" },
               "args": []
+            },
+            { "infix": "Or" },
+            {
+              "type": "parser_apply",
+              "id": { "type": "parser_id", "value": "ignored_id" },
+              "args": []
             }
           ]
         }
@@ -1964,7 +1979,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "A" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "default" },
@@ -2029,12 +2044,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "value_array" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "A" }
                 }
               ]
@@ -2073,7 +2088,7 @@
             { "type": "string_lit", "value": "..." },
             { "infix": "And" },
             { "type": "value_id", "value": "J" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "value" },
@@ -2085,7 +2100,7 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": {
                     "type": "string_lit",
                     "value": "value_array_spread"
@@ -2093,7 +2108,7 @@
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "J" }
                 }
               ]
@@ -2109,7 +2124,7 @@
           "type": "parser_steps",
           "steps": [
             { "type": "value_id", "value": "J" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "value" },
@@ -2121,7 +2136,7 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": {
                     "type": "string_lit",
                     "value": "value_array_element"
@@ -2129,7 +2144,7 @@
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "J" }
                 }
               ]
@@ -2153,7 +2168,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "O" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "default" },
@@ -2218,12 +2233,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "value_object" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "O" }
                 }
               ]
@@ -2262,7 +2277,7 @@
             { "type": "string_lit", "value": "..." },
             { "infix": "And" },
             { "type": "value_id", "value": "J" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "value" },
@@ -2274,7 +2289,7 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": {
                     "type": "string_lit",
                     "value": "value_object_spread"
@@ -2282,7 +2297,7 @@
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "J" }
                 }
               ]
@@ -2297,8 +2312,8 @@
         "body": {
           "type": "parser_steps",
           "steps": [
-            { "type": "value_id", "value": "Name" },
-            { "infix": "Assign" },
+            { "type": "value_id", "value": "Key" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "string_lit" },
@@ -2326,7 +2341,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Value" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "value" },
@@ -2338,7 +2353,7 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": {
                     "type": "string_lit",
                     "value": "value_object_element"
@@ -2346,12 +2361,12 @@
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "name" },
-                  "value": { "type": "value_id", "value": "Name" }
+                  "key": { "type": "string_lit", "value": "key" },
+                  "value": { "type": "value_id", "value": "Key" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "Value" }
                 }
               ]
@@ -2367,7 +2382,7 @@
           "type": "parser_steps",
           "steps": [
             { "type": "value_id", "value": "Id" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             { "type": "regex_step", "value": "_*[a-z]+[a-zA-Z0-9_]*" },
             { "infix": "Return" },
             {
@@ -2375,12 +2390,12 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "parser_id" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "Id" }
                 }
               ]
@@ -2396,7 +2411,7 @@
           "type": "parser_steps",
           "steps": [
             { "type": "value_id", "value": "Id" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             { "type": "regex_step", "value": "_*[A-Z]+[a-zA-Z0-9_]*" },
             { "infix": "Return" },
             {
@@ -2404,13 +2419,35 @@
               "value": [
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "type" },
+                  "key": { "type": "string_lit", "value": "type" },
                   "value": { "type": "string_lit", "value": "value_id" }
                 },
                 {
                   "type": "value_object_element",
-                  "name": { "type": "string_lit", "value": "value" },
+                  "key": { "type": "string_lit", "value": "value" },
                   "value": { "type": "value_id", "value": "Id" }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "named_parser",
+        "id": { "type": "parser_id", "value": "ignored_id" },
+        "params": [],
+        "body": {
+          "type": "parser_steps",
+          "steps": [
+            { "type": "string_lit", "value": "_" },
+            { "infix": "Return" },
+            {
+              "type": "value_object",
+              "value": [
+                {
+                  "type": "value_object_element",
+                  "key": { "type": "string_lit", "value": "type" },
+                  "value": { "type": "string_lit", "value": "ignored_id" }
                 }
               ]
             }
@@ -2434,6 +2471,12 @@
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "value_id" },
               "args": []
+            },
+            { "infix": "Or" },
+            {
+              "type": "parser_apply",
+              "id": { "type": "parser_id", "value": "ignored_id" },
+              "args": []
             }
           ]
         }
@@ -2446,7 +2489,7 @@
           "type": "parser_steps",
           "steps": [
             { "type": "value_id", "value": "A" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "default" },
@@ -2475,7 +2518,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "B" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "default" },
@@ -2527,7 +2570,7 @@
           "type": "parser_steps",
           "steps": [
             { "type": "value_id", "value": "A" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "array" },
@@ -2535,7 +2578,7 @@
             },
             { "infix": "And" },
             { "type": "value_id", "value": "Flat" },
-            { "infix": "Assign" },
+            { "infix": "Destructure" },
             {
               "type": "parser_apply",
               "id": { "type": "parser_id", "value": "flatten_array" },
@@ -2576,7 +2619,7 @@
                       }
                     ]
                   },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "const" },
@@ -2589,7 +2632,7 @@
                   },
                   { "infix": "And" },
                   { "type": "value_id", "value": "FlatRest" },
-                  { "infix": "Assign" },
+                  { "infix": "Destructure" },
                   {
                     "type": "parser_apply",
                     "id": { "type": "parser_id", "value": "flatten_array" },

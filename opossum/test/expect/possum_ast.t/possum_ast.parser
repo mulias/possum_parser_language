@@ -38,7 +38,7 @@ infix =
   ws > (
     "|" $ {"infix": "Or"} |
     ">" $ {"infix": "TakeRight"} |
-    "<-" $ {"infix": "Assign"} |
+    "<-" $ {"infix": "Destructure"} |
     "<" $ {"infix": "TakeLeft"} |
     "+" $ {"infix": "Concat"} |
     "&" $ {"infix": "And"} |
@@ -52,14 +52,15 @@ parser_step =
   parser_literal |
   value_array |
   value_object |
-  value_id ;
+  value_id |
+  ignored_id ;
 
 group = "(" & ws & Steps <- parser_steps & ws & ")" $ {"type": "group", "value": Steps} ;
 
 regex = Regex <- "/" > regex_body < "/" $ {"type": "regex_step", "value": Regex} ;
 regex_body =
   (["\\", C] <- two_chars & Regex <- const("\\") + const(C) + regex_body $ Regex) |
-  (["/", _Outside] <- peek(two_chars) $ "") |
+  (["/", _] <- peek(two_chars) $ "") |
   (C <- char & Regex <- const(C) + regex_body $ Regex) ;
 
 parser_apply_or_constant_literal =
@@ -97,7 +98,7 @@ string_lit =
 
 string_content(Quote) =
   (["\\", C] <- two_chars & Str <- const(C) + string_content(Quote) $ Str) |
-  ([Quote, _Outside] <- peek(two_chars) $ "") |
+  ([Quote, _] <- peek(two_chars) $ "") |
   (C <- char & Str <- const(C) + string_content(Quote) $ Str) ;
 
 number_lit = N <- number $ {"type": "number_lit", "value": N} ;
@@ -106,7 +107,8 @@ value =
   value_literal |
   value_array |
   value_object |
-  value_id ;
+  value_id |
+  ignored_id ;
 
 value_array =
   "[" & ws &
@@ -131,14 +133,15 @@ value_object_member = value_object_spread | value_object_pair ;
 value_object_spread = "..." & J <- value $ {"type": "value_object_spread", "value": J} ;
 
 value_object_pair =
-  Name <- string_lit | value_id &
+  Key <- string_lit | value_id &
   ws & ":" & ws &
   Value <- value $
-  {"type": "value_object_element", "name": Name, "value": Value} ;
+  {"type": "value_object_element", "key": Key, "value": Value} ;
 
 parser_id = Id <- /_*[a-z]+[a-zA-Z0-9_]*/ $ {"type": "parser_id", "value": Id} ;
 value_id = Id <- /_*[A-Z]+[a-zA-Z0-9_]*/ $ {"type": "value_id", "value": Id} ;
-id = parser_id | value_id ;
+ignored_id = "_" $ {"type": "ignored_id"} ;
+id = parser_id | value_id | ignored_id ;
 
 ###
 # Helpers
