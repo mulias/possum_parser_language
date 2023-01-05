@@ -210,33 +210,33 @@ let table_sep_parser =
       `List (List.map table ~f:(fun row -> `List row)))
 
 let object_parser =
-  arity_2 (fun (name, name_meta) (value, _) ->
-      many1 (both name value) >>| fun alist ->
+  arity_2 (fun (key, key_meta) (value, _) ->
+      many1 (both key value) >>| fun alist ->
       `Assoc
         (List.map alist ~f:(function
           | `String s, j -> (s, j)
           | non_string, _ ->
               raise
-                (Errors.EvalValueObjectMemberName
+                (Errors.EvalValueObjectMemberKey
                    { id = None
                    ; value = non_string
-                   ; start_pos = name_meta.start_pos
-                   ; end_pos = name_meta.end_pos
+                   ; start_pos = key_meta.start_pos
+                   ; end_pos = key_meta.end_pos
                    }))))
 
 let object_sep_parser =
-  arity_4 (fun (name, name_meta) (pair_sep, _) (value, _) (sep, _) ->
-      sep_by1 sep (both name (pair_sep *> value)) >>| fun alist ->
+  arity_4 (fun (key, key_meta) (pair_sep, _) (value, _) (sep, _) ->
+      sep_by1 sep (both key (pair_sep *> value)) >>| fun alist ->
       `Assoc
         (List.map alist ~f:(function
           | `String s, j -> (s, j)
           | non_string, _ ->
               raise
-                (Errors.EvalValueObjectMemberName
+                (Errors.EvalValueObjectMemberKey
                    { id = None
                    ; value = non_string
-                   ; start_pos = name_meta.start_pos
-                   ; end_pos = name_meta.end_pos
+                   ; start_pos = key_meta.start_pos
+                   ; end_pos = key_meta.end_pos
                    }))))
 
 (* Utility parsers *)

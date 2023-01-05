@@ -161,13 +161,13 @@ let value_like : value_like Angstrom.t =
            peek_char_fail >>= function
            | '\'' ->
                (single_quote_string_lit
-                 :> value_like_object_member_name Angstrom.t)
+                 :> value_like_object_member_key Angstrom.t)
            | '"' ->
                (double_quote_string_lit
-                 :> value_like_object_member_name Angstrom.t)
+                 :> value_like_object_member_key Angstrom.t)
            | _ ->
                (value_id_or_ignored_id
-                 :> value_like_object_member_name Angstrom.t)
+                 :> value_like_object_member_key Angstrom.t)
          and v = ws *> char ':' *> ws *> value_like
          and end_pos = peek_pos in
          `ValueLikeObjectPair (n, v, meta start_pos end_pos))

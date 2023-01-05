@@ -29,7 +29,7 @@ exception EvalValueArraySpread
 exception EvalValueObjectSpread
 
 exception
-  EvalValueObjectMemberName of
+  EvalValueObjectMemberKey of
     { id : string option
     ; value : Program.value
     ; start_pos : int
@@ -228,7 +228,7 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
       Error msg
   | EvalValueArraySpread -> Error "EvalValueArraySpread"
   | EvalValueObjectSpread -> Error "EvalValueObjectSpread"
-  | EvalValueObjectMemberName { id; value; start_pos; end_pos } ->
+  | EvalValueObjectMemberKey { id; value; start_pos; end_pos } ->
       let value_type = Value.to_type_string value in
       let value_description =
         match id with
@@ -247,7 +247,7 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
           "\n\
            Error Creating Object\n\n\
            ~~~(##)'>  I wasn't able to create an object because one of the \
-           name/value pairs has a name which is not a string.\n\n\
+           key/value pairs has a key which is not a string.\n\n\
            The parser failed on %{context}\n\n\
            %{value_description}."]
         |> wrap_message ~at:80

@@ -67,11 +67,11 @@ type value_like_array =
   [ `ValueLikeArray of value_like_array_member list * meta ]
 [@@deriving show]
 
-type value_like_object_member_name = [ string_lit | value_id | ignored_id ]
+type value_like_object_member_key = [ string_lit | value_id | ignored_id ]
 [@@deriving show]
 
 type value_like_object_pair =
-  [ `ValueLikeObjectPair of value_like_object_member_name * value_like * meta ]
+  [ `ValueLikeObjectPair of value_like_object_member_key * value_like * meta ]
 [@@deriving show]
 
 type value_like_object_spread = [ `ValueLikeObjectSpread of value_like * meta ]
@@ -116,11 +116,11 @@ type pattern_array_member = [ pattern_array_element | pattern_array_spread ]
 type pattern_array = [ `PatternArray of pattern_array_member list * meta ]
 [@@deriving show]
 
-type pattern_object_member_name = [ string_lit | value_id | ignored_id ]
+type pattern_object_member_key = [ string_lit | value_id | ignored_id ]
 [@@deriving show]
 
 type pattern_object_pair =
-  [ `PatternObjectPair of pattern_object_member_name * pattern * meta ]
+  [ `PatternObjectPair of pattern_object_member_key * pattern * meta ]
 [@@deriving show]
 
 type pattern_object_spread = [ `PatternObjectSpread of pattern * meta ]
@@ -160,10 +160,10 @@ type value_array_member = [ value_array_element | value_array_spread ]
 type value_array = [ `ValueArray of value_array_member list * meta ]
 [@@deriving show]
 
-type value_object_member_name = [ string_lit | value_id ] [@@deriving show]
+type value_object_member_key = [ string_lit | value_id ] [@@deriving show]
 
 type value_object_pair =
-  [ `ValueObjectPair of value_object_member_name * value * meta ]
+  [ `ValueObjectPair of value_object_member_key * value * meta ]
 [@@deriving show]
 
 type value_object_spread = [ `ValueObjectSpread of value * meta ]

@@ -162,7 +162,7 @@ let test_infix_and_assignment () =
   let expected : Program.value = `List [ `Intlit "2345" ] in
   check_eval program input expected
 
-let test_object_name_var () =
+let test_object_key_var () =
   let program = "X <- word $ {X: 1}" in
   let input = "foo" in
   let expected : Program.value = `Assoc [ ("foo", `Intlit "1") ] in
@@ -336,7 +336,7 @@ let () =
     ; ( "infix and"
       , [ test_case "Return array" `Quick test_infix_return
         ; test_case "Assign variable" `Quick test_infix_and_assignment
-        ; test_case "var as object name" `Quick test_object_name_var
+        ; test_case "var as object key" `Quick test_object_key_var
         ; test_case "Patten match array in assignment" `Quick
             test_array_pattern_match
         ; test_case "Patten match object in assignment" `Quick

@@ -334,7 +334,7 @@ first digit.
 ```
 
 In addition to returning arrays and objects containing variables as elements,
-we can use a variable as the name in a name/value object pair. The variable
+we can use a variable as the key in a key/value object pair. The variable
 must be a string.
 ```
   $ possum -p "Var <- word & ' = ' & Value <- int $ {Var: Value}" -i "MY_SECRET = 12345"
@@ -344,8 +344,8 @@ must be a string.
   
   Error Creating Object
   
-  ~~~(##)'>  I wasn't able to create an object because one of the name/value pairs
-  has a name which is not a string.
+  ~~~(##)'>  I wasn't able to create an object because one of the key/value pairs
+  has a key which is not a string.
   
   The parser failed on line 1, characters 56-57:
   Id <- int & ' : ' & Active <- bool('true', 'false') $ {Id: Active}

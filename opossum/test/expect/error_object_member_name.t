@@ -2,8 +2,8 @@
   
   Error Creating Object
   
-  ~~~(##)'>  I wasn't able to create an object because one of the name/value pairs
-  has a name which is not a string.
+  ~~~(##)'>  I wasn't able to create an object because one of the key/value pairs
+  has a key which is not a string.
   
   The parser failed on line 1, characters 13-13:
   I <- int $ {I: 'foo'}
@@ -18,8 +18,8 @@
   
   Error Creating Object
   
-  ~~~(##)'>  I wasn't able to create an object because one of the name/value pairs
-  has a name which is not a string.
+  ~~~(##)'>  I wasn't able to create an object because one of the key/value pairs
+  has a key which is not a string.
   
   The parser failed on line 1, characters 12-17:
   object_sep(number, ':', alpha, ',')

@@ -60,7 +60,7 @@ let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
                           })
                  | Some non_string ->
                      raise
-                       (Errors.EvalValueObjectMemberName
+                       (Errors.EvalValueObjectMemberKey
                           { id = Some id
                           ; value = non_string
                           ; start_pos = id_meta.start_pos
@@ -132,11 +132,11 @@ and destructure_object
               destructure_object env pattern_rest assoc_rest
           | None -> Error ())
       | `ValueId _ | `IgnoredId _ ->
-          (* The name/value pair has an id for the name. We could try to pattern
-             match on the value and then assign the name to the first key found
+          (* The key/value pair has an id for the key. We could try to pattern
+             match on the value and then assign the key to the first key found
              with that value, but the value might have more ids to assign inside
              it so the complexity here is non-trivial. *)
-          raise (Errors.Todo "pattern match on variable in object member name"))
+          raise (Errors.Todo "pattern match on variable in object member key"))
   | [ `PatternObjectSpread (p, _) ], assoc -> destructure env p (`Assoc assoc)
   | [], [] -> Ok env
   | _, _ -> Error ()
