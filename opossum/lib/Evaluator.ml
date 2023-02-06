@@ -302,7 +302,7 @@ let eval_main_parser
 
 let eval_program
     (Program { main_parser; named_parsers } : Ast.program)
-    (env : Program.env) : Program.t =
+    (env : Program.env) : Program.t Option.t =
   let _ = clear_current_input_ref () in
   let named_parsers =
     List.map named_parsers ~f:(fun named_parser ->
@@ -310,6 +310,6 @@ let eval_program
         (id, eval_named_parser id params body env))
   in
   List.iter named_parsers ~f:(fun (id, p) -> Env.set_global_parser env id p) ;
-  eval_main_parser main_parser env
+  Option.map main_parser ~f:(fun p -> eval_main_parser p env)
 
 let eval = eval_program

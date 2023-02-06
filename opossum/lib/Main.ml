@@ -9,8 +9,11 @@ let parse_exn (source : string) : Ast.program =
 let eval_exn (source : string) : Program.t =
   let ast = parse_exn source in
   let env = Env.init in
-  ProgramStdlib.load env ;
-  Evaluator.eval ast env
+  PossumCore.load env ;
+  PossumStdlib.load env ;
+  match Evaluator.eval ast env with
+  | Some program -> program
+  | None -> raise Errors.MainNotFound
 
 let execute_exn (source : string) (input : string) : Program.value =
   let program = eval_exn source in

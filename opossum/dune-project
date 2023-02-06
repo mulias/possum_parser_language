@@ -1,4 +1,5 @@
 (lang dune 3.6)
+(using dune_site 0.1)
 
 (name opossum)
 
@@ -29,6 +30,7 @@
    (dune (= 3.6.1))
    (ocaml (= 4.14.0))
    (ocamlformat (= 0.24.1))
+   (ppx_blob (= 0.7.2))
    (ppx_deriving (= 5.2.1))
    (ppx_let (= v0.15.0))
    (ppx_string (= v0.15.0))

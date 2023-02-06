@@ -280,8 +280,8 @@ let program_of_permissive_program (`Program parsers : permissive_program) :
           Either.Second (name, params, body, meta))
   in
   match main_parsers with
-  | [ main_parser ] -> Program { main_parser; named_parsers }
-  | [] -> raise Errors.MainNotFound
+  | [ main_parser ] -> Program { main_parser = Some main_parser; named_parsers }
+  | [] -> Program { main_parser = None; named_parsers }
   | _main_1 :: (_main_2_body, main_2_meta) :: _rest ->
       raise
         (Errors.MultipleMainParsers

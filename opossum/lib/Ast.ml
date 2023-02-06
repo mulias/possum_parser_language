@@ -260,7 +260,8 @@ type main_parser = parser_body * meta [@@deriving show]
 type named_parser = parser_id * id list * parser_body * meta [@@deriving show]
 
 type program =
-  | Program of { main_parser : main_parser; named_parsers : named_parser list }
+  | Program of
+      { main_parser : main_parser option; named_parsers : named_parser list }
 [@@deriving show]
 
 let meta start_pos end_pos : meta = { start_pos; end_pos }

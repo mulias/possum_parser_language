@@ -36,122 +36,133 @@ let test_tabular () =
   let program : program =
     Ast.Program
       { main_parser =
-          ( `Sequence
-              ( [ `Destructure
-                    ( `ValueId
-                        ("Headers", { Program.start_pos = 417; end_pos = 424 })
-                    , `ParserApply
-                        ( `ParserId
-                            ( "array_sep"
-                            , { Program.start_pos = 428; end_pos = 437 } )
-                        , [ `ParserArg
-                              (`ParserApply
-                                ( `ParserId
-                                    ( "word"
-                                    , { Program.start_pos = 438; end_pos = 442 }
-                                    )
-                                , []
-                                , { Program.start_pos = 438; end_pos = 442 } ))
-                          ; `ParserArg
-                              (`ParserApply
-                                ( `ParserId
-                                    ( "table_sep"
-                                    , { Program.start_pos = 444; end_pos = 453 }
-                                    )
-                                , []
-                                , { Program.start_pos = 444; end_pos = 453 } ))
-                          ]
-                        , { Program.start_pos = 428; end_pos = 454 } )
-                    , { Program.start_pos = 417; end_pos = 454 } )
-                ; `ParserApply
-                    ( `ParserId
-                        ("newline", { Program.start_pos = 457; end_pos = 464 })
-                    , []
-                    , { Program.start_pos = 457; end_pos = 464 } )
-                ; `Destructure
-                    ( `ValueId
-                        ("Rows", { Program.start_pos = 471; end_pos = 475 })
-                    , `ParserApply
-                        ( `ParserId
-                            ( "array_sep"
-                            , { Program.start_pos = 479; end_pos = 488 } )
-                        , [ `ParserArg
-                              (`ParserApply
-                                ( `ParserId
-                                    ( "array_sep"
-                                    , { Program.start_pos = 489; end_pos = 498 }
-                                    )
-                                , [ `ParserArg
-                                      (`Or
-                                        ( `ParserApply
-                                            ( `ParserId
-                                                ( "number"
-                                                , { Program.start_pos = 499
-                                                  ; end_pos = 505
-                                                  } )
-                                            , []
-                                            , { Program.start_pos = 499
-                                              ; end_pos = 505
-                                              } )
-                                        , `ParserApply
-                                            ( `ParserId
-                                                ( "word"
-                                                , { Program.start_pos = 508
-                                                  ; end_pos = 512
-                                                  } )
-                                            , []
-                                            , { Program.start_pos = 508
-                                              ; end_pos = 512
-                                              } )
-                                        , { Program.start_pos = 499
-                                          ; end_pos = 512
-                                          } ))
-                                  ; `ParserArg
-                                      (`ParserApply
-                                        ( `ParserId
-                                            ( "table_sep"
-                                            , { Program.start_pos = 514
-                                              ; end_pos = 523
-                                              } )
-                                        , []
-                                        , { Program.start_pos = 514
-                                          ; end_pos = 523
-                                          } ))
-                                  ]
-                                , { Program.start_pos = 489; end_pos = 524 } ))
-                          ; `ParserArg
-                              (`ParserApply
-                                ( `ParserId
-                                    ( "newline"
-                                    , { Program.start_pos = 526; end_pos = 533 }
-                                    )
-                                , []
-                                , { Program.start_pos = 526; end_pos = 533 } ))
-                          ]
-                        , { Program.start_pos = 479; end_pos = 534 } )
-                    , { Program.start_pos = 471; end_pos = 534 } )
-                ; `Destructure
-                    ( `ValueId
-                        ("Table", { Program.start_pos = 541; end_pos = 546 })
-                    , `ParserApply
-                        ( `ParserId
-                            ( "tabular"
-                            , { Program.start_pos = 550; end_pos = 557 } )
-                        , [ `ValueArg
-                              (`ValueId
-                                ( "Headers"
-                                , { Program.start_pos = 558; end_pos = 565 } ))
-                          ; `ValueArg
-                              (`ValueId
-                                ( "Rows"
-                                , { Program.start_pos = 567; end_pos = 571 } ))
-                          ]
-                        , { Program.start_pos = 550; end_pos = 572 } )
-                    , { Program.start_pos = 541; end_pos = 572 } )
-                ]
-              , `ValueId ("Table", { Program.start_pos = 579; end_pos = 584 })
-              , { Program.start_pos = 417; end_pos = 584 } )
-          , { Program.start_pos = 417; end_pos = 584 } )
+          Some
+            ( `Sequence
+                ( [ `Destructure
+                      ( `ValueId
+                          ("Headers", { Program.start_pos = 417; end_pos = 424 })
+                      , `ParserApply
+                          ( `ParserId
+                              ( "array_sep"
+                              , { Program.start_pos = 428; end_pos = 437 } )
+                          , [ `ParserArg
+                                (`ParserApply
+                                  ( `ParserId
+                                      ( "word"
+                                      , { Program.start_pos = 438
+                                        ; end_pos = 442
+                                        } )
+                                  , []
+                                  , { Program.start_pos = 438; end_pos = 442 }
+                                  ))
+                            ; `ParserArg
+                                (`ParserApply
+                                  ( `ParserId
+                                      ( "table_sep"
+                                      , { Program.start_pos = 444
+                                        ; end_pos = 453
+                                        } )
+                                  , []
+                                  , { Program.start_pos = 444; end_pos = 453 }
+                                  ))
+                            ]
+                          , { Program.start_pos = 428; end_pos = 454 } )
+                      , { Program.start_pos = 417; end_pos = 454 } )
+                  ; `ParserApply
+                      ( `ParserId
+                          ("newline", { Program.start_pos = 457; end_pos = 464 })
+                      , []
+                      , { Program.start_pos = 457; end_pos = 464 } )
+                  ; `Destructure
+                      ( `ValueId
+                          ("Rows", { Program.start_pos = 471; end_pos = 475 })
+                      , `ParserApply
+                          ( `ParserId
+                              ( "array_sep"
+                              , { Program.start_pos = 479; end_pos = 488 } )
+                          , [ `ParserArg
+                                (`ParserApply
+                                  ( `ParserId
+                                      ( "array_sep"
+                                      , { Program.start_pos = 489
+                                        ; end_pos = 498
+                                        } )
+                                  , [ `ParserArg
+                                        (`Or
+                                          ( `ParserApply
+                                              ( `ParserId
+                                                  ( "number"
+                                                  , { Program.start_pos = 499
+                                                    ; end_pos = 505
+                                                    } )
+                                              , []
+                                              , { Program.start_pos = 499
+                                                ; end_pos = 505
+                                                } )
+                                          , `ParserApply
+                                              ( `ParserId
+                                                  ( "word"
+                                                  , { Program.start_pos = 508
+                                                    ; end_pos = 512
+                                                    } )
+                                              , []
+                                              , { Program.start_pos = 508
+                                                ; end_pos = 512
+                                                } )
+                                          , { Program.start_pos = 499
+                                            ; end_pos = 512
+                                            } ))
+                                    ; `ParserArg
+                                        (`ParserApply
+                                          ( `ParserId
+                                              ( "table_sep"
+                                              , { Program.start_pos = 514
+                                                ; end_pos = 523
+                                                } )
+                                          , []
+                                          , { Program.start_pos = 514
+                                            ; end_pos = 523
+                                            } ))
+                                    ]
+                                  , { Program.start_pos = 489; end_pos = 524 }
+                                  ))
+                            ; `ParserArg
+                                (`ParserApply
+                                  ( `ParserId
+                                      ( "newline"
+                                      , { Program.start_pos = 526
+                                        ; end_pos = 533
+                                        } )
+                                  , []
+                                  , { Program.start_pos = 526; end_pos = 533 }
+                                  ))
+                            ]
+                          , { Program.start_pos = 479; end_pos = 534 } )
+                      , { Program.start_pos = 471; end_pos = 534 } )
+                  ; `Destructure
+                      ( `ValueId
+                          ("Table", { Program.start_pos = 541; end_pos = 546 })
+                      , `ParserApply
+                          ( `ParserId
+                              ( "tabular"
+                              , { Program.start_pos = 550; end_pos = 557 } )
+                          , [ `ValueArg
+                                (`ValueId
+                                  ( "Headers"
+                                  , { Program.start_pos = 558; end_pos = 565 }
+                                  ))
+                            ; `ValueArg
+                                (`ValueId
+                                  ( "Rows"
+                                  , { Program.start_pos = 567; end_pos = 571 }
+                                  ))
+                            ]
+                          , { Program.start_pos = 550; end_pos = 572 } )
+                      , { Program.start_pos = 541; end_pos = 572 } )
+                  ]
+                , `ValueId ("Table", { Program.start_pos = 579; end_pos = 584 })
+                , { Program.start_pos = 417; end_pos = 584 } )
+            , { Program.start_pos = 417; end_pos = 584 } )
       ; named_parsers =
           [ ( `ParserId ("tabular", { Program.start_pos = 5; end_pos = 12 })
             , [ `ValueId ("Headers", { Program.start_pos = 13; end_pos = 20 })
