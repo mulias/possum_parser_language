@@ -264,7 +264,7 @@ type program =
       { main_parser : main_parser option; named_parsers : named_parser list }
 [@@deriving show]
 
-let meta start_pos end_pos : meta = { start_pos; end_pos }
+let meta source start_pos end_pos : meta = { source; start_pos; end_pos }
 
 let get_meta (ast : 'a) : meta =
   match ast with
@@ -297,7 +297,7 @@ let get_meta (ast : 'a) : meta =
 let merge_meta left right : meta =
   let left_meta = get_meta left in
   let right_meta = get_meta right in
-  meta left_meta.start_pos right_meta.end_pos
+  meta left_meta.source left_meta.start_pos right_meta.end_pos
 
 let merge_steps_meta ((first_step, steps) : permissive_parser_steps) : meta =
   match List.last steps with

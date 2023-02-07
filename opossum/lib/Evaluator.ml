@@ -55,6 +55,7 @@ let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
                      raise
                        (Errors.EnvFindValue
                           { id
+                          ; source = id_meta.source
                           ; start_pos = id_meta.start_pos
                           ; end_pos = id_meta.end_pos
                           })
@@ -63,6 +64,7 @@ let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
                        (Errors.EvalValueObjectMemberKey
                           { id = Some id
                           ; value = non_string
+                          ; source = id_meta.source
                           ; start_pos = id_meta.start_pos
                           ; end_pos = id_meta.end_pos
                           }))
@@ -77,7 +79,11 @@ let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
       | None ->
           raise
             (Errors.EnvFindValue
-               { id; start_pos = meta.start_pos; end_pos = meta.end_pos }))
+               { id
+               ; source = meta.source
+               ; start_pos = meta.start_pos
+               ; end_pos = meta.end_pos
+               }))
 
 let rec destructure
     (env : Program.env)
@@ -184,14 +190,23 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
       | None ->
           raise
             (Errors.EnvFindParser
-               { id; start_pos = id_meta.start_pos; end_pos = id_meta.end_pos })
-      )
+               { id
+               ; source = id_meta.source
+               ; start_pos = id_meta.start_pos
+               ; end_pos = id_meta.end_pos
+               }))
   | (`String _ | `Intlit _ | `Floatlit _) as lit ->
       eval_literal_parser lit >>= fun value -> return (value, env)
-  | `Regex (pattern, { start_pos; end_pos }) ->
+  | `Regex (pattern, meta) ->
       let r =
         try Re.Perl.re pattern ~opts:[ `Multiline ] |> Re.compile
-        with _ -> raise (Errors.EvalRegexPattern { start_pos; end_pos })
+        with _ ->
+          raise
+            (Errors.EvalRegexPattern
+               { source = meta.source
+               ; start_pos = meta.start_pos
+               ; end_pos = meta.end_pos
+               })
       in
       peek_current_input
       >>= (fun i -> Parser.peek_pos >>= fun p -> Parser.regex r i p)
@@ -218,6 +233,7 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
             (Errors.EvalConcat
                { side = `Right
                ; value = not_string
+               ; source = meta.source
                ; start_pos = meta.start_pos
                ; end_pos = meta.end_pos
                })
@@ -226,6 +242,7 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
             (Errors.EvalConcat
                { side = `Left
                ; value = not_string
+               ; source = meta.source
                ; start_pos = meta.start_pos
                ; end_pos = meta.end_pos
                }))
@@ -248,8 +265,11 @@ and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
       | None ->
           raise
             (Errors.EnvFindParser
-               { id; start_pos = id_meta.start_pos; end_pos = id_meta.end_pos })
-      )
+               { id
+               ; source = id_meta.source
+               ; start_pos = id_meta.start_pos
+               ; end_pos = id_meta.end_pos
+               }))
   | _ -> Parser (eval_parser_body ast env >>= fun (value, _env) -> return value)
 
 and eval_sequence

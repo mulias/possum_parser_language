@@ -2,8 +2,11 @@ open! Base
 
 (* Shared types used to parse, evaluate, and execute a program. *)
 
+type source = [ `Parser | `Stdlib ] [@@deriving show]
+
 (* Metadata collected while parsing program file. *)
-type meta = { start_pos : int; end_pos : int } [@@deriving show]
+type meta = { source : source; start_pos : int; end_pos : int }
+[@@deriving show]
 
 (* Programs produce JSON encoded as this type. *)
 type value =

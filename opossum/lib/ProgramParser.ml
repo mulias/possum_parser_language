@@ -6,13 +6,18 @@ open! Base
 
 (* Parser for transforming a program into an AST. *)
 
+let current_source_ref : Program.source ref = ref `Parser
+
 (* Skip whitespace and comments *)
 let comment = char '#' *> take_till is_eol
 
 let ws = skip_many (comment <|> take_while1 is_ws)
 
+let source = return () >>| fun _ -> !current_source_ref
+
 let parser_id : parser_id Angstrom.t =
-  (let%map start_pos = peek_pos
+  (let%map source = source
+   and start_pos = peek_pos
    and leading_underscores = take_while is_underscore
    and lowercase_chars = take_while1 is_lowercase
    and id_rest = take_while is_id_char
@@ -20,11 +25,12 @@ let parser_id : parser_id Angstrom.t =
    let id_str =
      String.concat [ leading_underscores; lowercase_chars; id_rest ]
    in
-   `ParserId (id_str, meta start_pos end_pos))
+   `ParserId (id_str, meta source start_pos end_pos))
   <?> "parser_id"
 
 let _value_id =
-  let%map start_pos = peek_pos
+  let%map source = source
+  and start_pos = peek_pos
   and leading_underscores = take_while is_underscore
   and uppercase_chars = take_while1 is_uppercase
   and id_rest = take_while is_id_char
@@ -32,12 +38,13 @@ let _value_id =
   let id_str =
     String.concat [ leading_underscores; uppercase_chars; id_rest ]
   in
-  `ValueId (id_str, meta start_pos end_pos)
+  `ValueId (id_str, meta source start_pos end_pos)
 
 let value_id : value_id Angstrom.t = _value_id <?> "value_id"
 
 let _id =
-  let%map start_pos = peek_pos
+  let%map source = source
+  and start_pos = peek_pos
   and leading_underscores = take_while is_underscore
   and first_char = satisfy is_alpha
   and id_rest = take_while is_id_char
@@ -45,17 +52,18 @@ let _id =
   let id_str =
     String.concat [ leading_underscores; String.of_char first_char; id_rest ]
   in
-  let meta = meta start_pos end_pos in
+  let meta = meta source start_pos end_pos in
   if is_lowercase first_char then `ParserId (id_str, meta)
   else `ValueId (id_str, meta)
 
 let id : id Angstrom.t = _id <?> "id"
 
 let _ignored_id =
-  let%map start_pos = peek_pos
+  let%map source = source
+  and start_pos = peek_pos
   and _ = string "_"
   and end_pos = peek_pos in
-  `IgnoredId (meta start_pos end_pos)
+  `IgnoredId (meta source start_pos end_pos)
 
 let value_id_or_ignored_id : [ value_id | ignored_id ] Angstrom.t =
   _value_id <|> _ignored_id <?> "value_id_or_ignored_id"
@@ -64,7 +72,8 @@ let id_or_ignored_id : [ id | ignored_id ] Angstrom.t =
   _id <|> _ignored_id <?> "id_or_ignored_id"
 
 let single_quote_string_lit : string_lit Angstrom.t =
-  (let%map start_pos = peek_pos
+  (let%map source = source
+   and start_pos = peek_pos
    and s = surround ~left:'\'' ~right:'\'' ~escape:'\\'
    and end_pos = peek_pos in
    let s_without_escapes =
@@ -72,11 +81,12 @@ let single_quote_string_lit : string_lit Angstrom.t =
      |> String.substr_replace_all ~pattern:{s|\\|s} ~with_:{s|\|s}
      |> String.substr_replace_all ~pattern:{s|\'|s} ~with_:{s|'|s}
    in
-   `String (s_without_escapes, meta start_pos end_pos))
+   `String (s_without_escapes, meta source start_pos end_pos))
   <?> "string"
 
 let double_quote_string_lit : string_lit Angstrom.t =
-  (let%map start_pos = peek_pos
+  (let%map source = source
+   and start_pos = peek_pos
    and s = surround ~left:'"' ~right:'"' ~escape:'\\'
    and end_pos = peek_pos in
    let s_without_escapes =
@@ -84,54 +94,60 @@ let double_quote_string_lit : string_lit Angstrom.t =
      |> String.substr_replace_all ~pattern:{s|\\|s} ~with_:{s|\|s}
      |> String.substr_replace_all ~pattern:{s|\"|s} ~with_:{s|"|s}
    in
-   `String (s_without_escapes, meta start_pos end_pos))
+   `String (s_without_escapes, meta source start_pos end_pos))
   <?> "string"
 
 let number_lit : [ int_lit | float_lit ] Angstrom.t =
-  (let%map start_pos = peek_pos
+  (let%map source = source
+   and start_pos = peek_pos
    and number = int_or_float
    and end_pos = peek_pos in
-   let meta = meta start_pos end_pos in
+   let meta = meta source start_pos end_pos in
    match number with
    | `Intlit n -> `Intlit (n, meta)
    | `Floatlit s -> `Floatlit (s, meta))
   <?> "number"
 
 let true_lit : bool_lit Angstrom.t =
-  (let%map start_pos = peek_pos
+  (let%map source = source
+   and start_pos = peek_pos
    and _ = string "true"
    and end_pos = peek_pos in
-   `Bool (true, meta start_pos end_pos))
+   `Bool (true, meta source start_pos end_pos))
   <?> "true"
 
 let false_lit : bool_lit Angstrom.t =
-  (let%map start_pos = peek_pos
+  (let%map source = source
+   and start_pos = peek_pos
    and _ = string "false"
    and end_pos = peek_pos in
-   `Bool (false, meta start_pos end_pos))
+   `Bool (false, meta source start_pos end_pos))
   <?> "false"
 
 let null_lit : null_lit Angstrom.t =
-  (let%map start_pos = peek_pos
+  (let%map source = source
+   and start_pos = peek_pos
    and _ = string "null"
    and end_pos = peek_pos in
-   `Null (meta start_pos end_pos))
+   `Null (meta source start_pos end_pos))
   <?> "null"
 
 let value_like : value_like Angstrom.t =
   fix (fun value_like : value_like Angstrom.t ->
       let value_array_spread : value_like_array_member Angstrom.t =
-        (let%map start_pos = peek_pos
+        (let%map source = source
+         and start_pos = peek_pos
          and v = string "..." *> value_like
          and end_pos = peek_pos in
-         `ValueLikeArraySpread (v, meta start_pos end_pos))
+         `ValueLikeArraySpread (v, meta source start_pos end_pos))
         <?> "value_like_array_spread"
       in
       let value_array_element : value_like_array_member Angstrom.t =
-        (let%map start_pos = peek_pos
+        (let%map source = source
+         and start_pos = peek_pos
          and v = value_like
          and end_pos = peek_pos in
-         `ValueLikeArrayElement (v, meta start_pos end_pos))
+         `ValueLikeArrayElement (v, meta source start_pos end_pos))
         <?> "value_like_array_element"
       in
       let value_array_member : value_like_array_member Angstrom.t =
@@ -140,23 +156,26 @@ let value_like : value_like Angstrom.t =
         <?> "value_like_array_member"
       in
       let value_array : value_like Angstrom.t =
-        (let%map start_pos = peek_pos
+        (let%map source = source
+         and start_pos = peek_pos
          and arr =
            char '[' *> sep_by (char ',') (ws *> value_array_member <* ws)
            <* char ']'
          and end_pos = peek_pos in
-         `ValueLikeArray (arr, meta start_pos end_pos))
+         `ValueLikeArray (arr, meta source start_pos end_pos))
         <?> "value_like_array"
       in
       let value_object_spread : value_like_object_member Angstrom.t =
-        (let%map start_pos = peek_pos
+        (let%map source = source
+         and start_pos = peek_pos
          and v = string "..." *> value_like
          and end_pos = peek_pos in
-         `ValueLikeObjectSpread (v, meta start_pos end_pos))
+         `ValueLikeObjectSpread (v, meta source start_pos end_pos))
         <?> "value_like_object_spread"
       in
       let value_object_pair : value_like_object_member Angstrom.t =
-        (let%map start_pos = peek_pos
+        (let%map source = source
+         and start_pos = peek_pos
          and n =
            peek_char_fail >>= function
            | '\'' ->
@@ -170,7 +189,7 @@ let value_like : value_like Angstrom.t =
                  :> value_like_object_member_key Angstrom.t)
          and v = ws *> char ':' *> ws *> value_like
          and end_pos = peek_pos in
-         `ValueLikeObjectPair (n, v, meta start_pos end_pos))
+         `ValueLikeObjectPair (n, v, meta source start_pos end_pos))
         <?> "value_like_object_pair"
       in
       let value_object_member : value_like_object_member Angstrom.t =
@@ -179,13 +198,14 @@ let value_like : value_like Angstrom.t =
         <?> "value_like_object_member"
       in
       let value_object : value_like Angstrom.t =
-        (let%map start_pos = peek_pos
+        (let%map source = source
+         and start_pos = peek_pos
          and o =
            char '{' *> ws *> sep_by (ws *> char ',' <* ws) value_object_member
            <* ws
            <* char '}'
          and end_pos = peek_pos in
-         `ValueLikeObject (o, meta start_pos end_pos))
+         `ValueLikeObject (o, meta source start_pos end_pos))
         <?> "value_like_object"
       in
       ws *> peek_char_fail >>= function
@@ -204,17 +224,19 @@ let value_like : value_like Angstrom.t =
 let parser_steps : permissive_parser_steps Angstrom.t =
   fix (fun parser_steps : permissive_parser_steps Angstrom.t ->
       let group : permissive_parser_step Angstrom.t =
-        (let%map start_pos = peek_pos
+        (let%map source = source
+         and start_pos = peek_pos
          and group = char '(' *> ws *> parser_steps <* ws <* char ')'
          and end_pos = peek_pos in
-         `Group (group, meta start_pos end_pos))
+         `Group (group, meta source start_pos end_pos))
         <?> "group"
       in
       let regex : permissive_parser_step Angstrom.t =
-        (let%map start_pos = peek_pos
+        (let%map source = source
+         and start_pos = peek_pos
          and s = surround ~left:'/' ~right:'/' ~escape:'\\'
          and end_pos = peek_pos in
-         `Regex (s, meta start_pos end_pos))
+         `Regex (s, meta source start_pos end_pos))
         <?> "regex"
       in
       let parser_apply_args : permissive_parser_steps list Angstrom.t =
@@ -250,7 +272,9 @@ let parser_steps : permissive_parser_steps Angstrom.t =
                           (let%map args = parser_apply_args
                            and end_pos = peek_pos in
                            `ParserApply
-                             (id, args, meta id_meta.start_pos end_pos))
+                             ( id
+                             , args
+                             , meta id_meta.source id_meta.start_pos end_pos ))
                           <?> "parser_apply"
                       | "true", _ -> return (`Bool (true, id_meta)) <?> "true"
                       | "false", _ ->
@@ -335,14 +359,19 @@ let program : permissive_program Angstrom.t =
   and _ = end_of_input <?> "end_of_input" in
   `Program program
 
-let parse (source : string) : permissive_program =
+let parse (source : Program.source) (source_text : string) : permissive_program
+    =
+  current_source_ref := source ;
   Angstrom.Buffered.parse program |> fun ang ->
-  Angstrom.Buffered.feed ang (`String source) |> fun ang ->
+  Angstrom.Buffered.feed ang (`String source_text) |> fun ang ->
   Angstrom.Buffered.feed ang `Eof |> fun ang ->
   match ang with
   | Angstrom.Buffered.Done (_buf, ast) -> ast
   | Angstrom.Buffered.Fail (state, marks, msg) ->
       raise
         (Errors.ParseProgram
-           { buf = state.buf; off = state.off; len = state.len; marks; msg })
+           { parse_error =
+               { buf = state.buf; off = state.off; len = state.len; marks; msg }
+           ; source
+           })
   | Angstrom.Buffered.Partial _ -> raise Errors.Unexpected

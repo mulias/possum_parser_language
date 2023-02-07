@@ -4,7 +4,7 @@ open Printf
 open! Base
 
 let eval (source : string) (input : string) : Program.value =
-  let ast = source |> ProgramParser.parse |> AstTransformer.transform in
+  let ast = source |> ProgramParser.parse `Parser |> AstTransformer.transform in
   let env = Env.init in
   let _ = PossumCore.load env in
   let _ = PossumStdlib.load env in
@@ -279,7 +279,8 @@ let test_env_scope_for_parser () =
   let program = "I <- int & X <- foo $ X ; foo = const(I)" in
   let input = "23" in
   let expected =
-    Errors.EnvFindValue { id = "I"; start_pos = 38; end_pos = 39 }
+    Errors.EnvFindValue
+      { id = "I"; source = `Parser; start_pos = 38; end_pos = 39 }
   in
   check_eval_error program input expected
 

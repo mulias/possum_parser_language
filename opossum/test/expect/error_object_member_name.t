@@ -21,10 +21,10 @@
   ~~~(##)'>  I wasn't able to create an object because one of the key/value pairs
   has a key which is not a string.
   
-  The parser failed on line 1, characters 12-17:
-  object_sep(number, ':', alpha, ',')
-             ^^^^^^
+  The parser failed on line 94, characters 4-4:
+    {K: V, ...Rest} ;
+     ^
   
-  This parser returned a number, but every returned value needs to be a string in
-  order to create a valid object.
+  The value assigned to `K` is a number, but it needs to be a string in order to
+  create a valid object.
   [123]

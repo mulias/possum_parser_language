@@ -473,6 +473,7 @@ file/string, or `input` to additionally strip leading and trailing whitespace.
   
   The last attempted parser was:
   end
+  regex
   
   But no match was found.
   [123]
@@ -492,6 +493,8 @@ file/string, or `input` to additionally strip leading and trailing whitespace.
   
   The last attempted parser was:
   input
+  end_of_input
+  regex
   
   But no match was found.
   [123]

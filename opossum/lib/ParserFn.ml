@@ -26,6 +26,7 @@ let concat_strings
           (Errors.EvalConcat
              { side = `Right
              ; value = not_string
+             ; source = meta.source
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
              })
@@ -34,6 +35,7 @@ let concat_strings
           (Errors.EvalConcat
              { side = `Left
              ; value = not_string
+             ; source = meta.source
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
              })
@@ -63,10 +65,22 @@ let rec apply
   | Parser _, _ :: _ -> raise Errors.EvalTooManyArguments
   | ParserParam _, ValueArg (_, meta) :: _ ->
       raise
-        (Errors.EvalArgumentType { expected = "parser"; got = "value"; meta })
+        (Errors.EvalArgumentType
+           { expected = "parser"
+           ; got = "value"
+           ; source = meta.source
+           ; start_pos = meta.start_pos
+           ; end_pos = meta.end_pos
+           })
   | ValueParam _, ParserArg (_, meta) :: _ ->
       raise
-        (Errors.EvalArgumentType { expected = "value"; got = "parser"; meta })
+        (Errors.EvalArgumentType
+           { expected = "value"
+           ; got = "parser"
+           ; source = meta.source
+           ; start_pos = meta.start_pos
+           ; end_pos = meta.end_pos
+           })
 
 (* Given a parser `p` and a list of `params`, wrap `p` in layers of
    `CurriedParser` so that when `apply` is called each argument is assigned to
