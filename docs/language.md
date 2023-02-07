@@ -128,6 +128,7 @@ provided for convenience.
 | `null(n)` | Parses `n` | `null` |
 | `many(s)` | One or more `s` | Concatenated string values returned by `s` |
 | `until(s, stop)` | One or more `s`, must be followed by `stop` which is not consumed | Concatenated string values returned by `s` |
+| `scan(p)` | Skip characters until `p` matches | Value of `p` |
 | `array(element)` | One or more `element` | Array of values returned by `element` |
 | `array_sep(element, sep)` | One or more `element`, interspersed with `sep` | Array of values returned by `element` |
 | `table_sep(element, sep, row_sep)` | One or more `element`, interspersed with `sep` or `row_sep` | Array of array of values |
