@@ -453,71 +453,14 @@
                 {
                   "type": "parser_steps",
                   "steps": [
-                    { "type": "string_lit", "value": "(" },
-                    { "infix": "TakeRight" },
                     {
                       "type": "parser_apply",
-                      "id": { "type": "parser_id", "value": "default" },
-                      "args": [
-                        {
-                          "type": "parser_steps",
-                          "steps": [
-                            {
-                              "type": "parser_apply",
-                              "id": {
-                                "type": "parser_id",
-                                "value": "array_sep"
-                              },
-                              "args": [
-                                {
-                                  "type": "parser_steps",
-                                  "steps": [
-                                    {
-                                      "type": "parser_apply",
-                                      "id": {
-                                        "type": "parser_id",
-                                        "value": "ws"
-                                      },
-                                      "args": []
-                                    },
-                                    { "infix": "TakeRight" },
-                                    {
-                                      "type": "parser_apply",
-                                      "id": {
-                                        "type": "parser_id",
-                                        "value": "id"
-                                      },
-                                      "args": []
-                                    },
-                                    { "infix": "TakeLeft" },
-                                    {
-                                      "type": "parser_apply",
-                                      "id": {
-                                        "type": "parser_id",
-                                        "value": "ws"
-                                      },
-                                      "args": []
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "parser_steps",
-                                  "steps": [
-                                    { "type": "string_lit", "value": "," }
-                                  ]
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "type": "parser_steps",
-                          "steps": [ { "type": "value_array", "value": [] } ]
-                        }
-                      ]
-                    },
-                    { "infix": "TakeLeft" },
-                    { "type": "string_lit", "value": ")" }
+                      "id": {
+                        "type": "parser_id",
+                        "value": "named_parser_params"
+                      },
+                      "args": []
+                    }
                   ]
                 },
                 {
@@ -580,6 +523,52 @@
                 }
               ]
             }
+          ]
+        }
+      },
+      {
+        "type": "named_parser",
+        "id": { "type": "parser_id", "value": "named_parser_params" },
+        "params": [],
+        "body": {
+          "type": "parser_steps",
+          "steps": [
+            { "type": "string_lit", "value": "(" },
+            { "infix": "TakeRight" },
+            {
+              "type": "parser_apply",
+              "id": { "type": "parser_id", "value": "array_sep" },
+              "args": [
+                {
+                  "type": "parser_steps",
+                  "steps": [
+                    {
+                      "type": "parser_apply",
+                      "id": { "type": "parser_id", "value": "ws" },
+                      "args": []
+                    },
+                    { "infix": "TakeRight" },
+                    {
+                      "type": "parser_apply",
+                      "id": { "type": "parser_id", "value": "id" },
+                      "args": []
+                    },
+                    { "infix": "TakeLeft" },
+                    {
+                      "type": "parser_apply",
+                      "id": { "type": "parser_id", "value": "ws" },
+                      "args": []
+                    }
+                  ]
+                },
+                {
+                  "type": "parser_steps",
+                  "steps": [ { "type": "string_lit", "value": "," } ]
+                }
+              ]
+            },
+            { "infix": "TakeLeft" },
+            { "type": "string_lit", "value": ")" }
           ]
         }
       },

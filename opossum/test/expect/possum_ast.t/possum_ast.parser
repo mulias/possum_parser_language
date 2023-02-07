@@ -12,11 +12,13 @@ comment = "#" > until(char, newline | end) ;
 named_parser =
   ws &
   Id <- parser_id &
-  Params <- default("(" > default(array_sep(ws > id < ws, ","), []) < ")", []) &
+  Params <- default(named_parser_params, []) &
   ws > "=" > ws &
   Body <- parser_steps &
   ws $
   {"type": "named_parser", "id": Id, "params": Params, "body": Body} ;
+
+named_parser_params = "(" > array_sep(ws > id < ws, ",") < ")" ;
 
 main_parser =
   ws & Body <- parser_steps & ws $
