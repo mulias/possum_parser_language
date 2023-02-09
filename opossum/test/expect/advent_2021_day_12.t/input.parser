@@ -1,2 +1,2 @@
-cave_connection = C1 <- alphas & "-" & C2 <- alphas $ [C1, C2] ;
+cave_connection = C1 <- alphas & "-" & C2 <- alphas $ [C1, C2]
 input(array_sep(cave_connection, newline))

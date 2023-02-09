@@ -1,4 +1,4 @@
-array(monkey) ;
+array(monkey)
 
 monkey =
   "Monkey " & Id <- int & ":" & ws &
@@ -14,10 +14,10 @@ monkey =
     "test": Test,
     "if_true": IfTrue,
     "if_false": IfFalse
-  } ;
+  }
 
 operation =
   Left <- int | word & ws &
   Op <- word & ws &
   Right <- int | word $
-  {"left": Left, "operator": Op, "right": Right} ;
+  {"left": Left, "operator": Op, "right": Right}

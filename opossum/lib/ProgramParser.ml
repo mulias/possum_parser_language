@@ -349,11 +349,9 @@ let program : permissive_program Angstrom.t =
   let defs =
     fix (fun defs ->
         ws *> (named <|> main) <* ws >>= fun def ->
-        peek_char >>= function
-        | Some ';' ->
-            char ';' *> ws *> end_of_input *> return [ def ]
-            <|> (char ';' *> defs >>= fun defs_rest -> return (def :: defs_rest))
-        | _ -> return [ def ])
+        maybe (char ';') *> ws *> end_of_input *> return [ def ]
+        <|> ( maybe (char ';') *> defs >>= fun defs_rest ->
+              return (def :: defs_rest) ))
   in
   let%map program = defs
   and _ = end_of_input <?> "end_of_input" in

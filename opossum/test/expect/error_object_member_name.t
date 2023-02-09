@@ -22,7 +22,7 @@
   has a key which is not a string.
   
   The parser failed on line 94, characters 4-4:
-    {K: V, ...Rest} ;
+    {K: V, ...Rest}
      ^
   
   The value assigned to `K` is a number, but it needs to be a string in order to

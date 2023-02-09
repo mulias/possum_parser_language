@@ -1,6 +1,6 @@
-signal_patterns = array_sep(alphas, space) ;
+signal_patterns = array_sep(alphas, space)
 pattern =
   UniqueDigits <- signal_patterns & " | " & OutputDigits <- signal_patterns $
-  { "unique": UniqueDigits, "output": OutputDigits } ;
+  { "unique": UniqueDigits, "output": OutputDigits }
 
 array_sep(pattern, newline)

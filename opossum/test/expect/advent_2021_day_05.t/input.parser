@@ -1,4 +1,4 @@
-point = X <- int & "," & Y <- int $ [X, Y] ;
-line = P1 <- point & " -> " & P2 <- point $ {"from": P1, "to": P2} ;
+point = X <- int & "," & Y <- int $ [X, Y]
+line = P1 <- point & " -> " & P2 <- point $ {"from": P1, "to": P2}
 
 input(array_sep(line, newline))

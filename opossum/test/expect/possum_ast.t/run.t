@@ -289,7 +289,18 @@
                 },
                 {
                   "type": "parser_steps",
-                  "steps": [ { "type": "string_lit", "value": ";" } ]
+                  "steps": [
+                    {
+                      "type": "parser_apply",
+                      "id": { "type": "parser_id", "value": "maybe" },
+                      "args": [
+                        {
+                          "type": "parser_steps",
+                          "steps": [ { "type": "string_lit", "value": ";" } ]
+                        }
+                      ]
+                    }
+                  ]
                 }
               ]
             },
