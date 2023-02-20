@@ -301,6 +301,23 @@ let test_env_scope_for_two_sequences () =
   let expected = `Intlit "123" in
   check_eval program input expected
 
+let test_recursive_tail_call () =
+  let program = "scream = ('a' | 'h') + scream | const(''); scream" in
+  let input =
+    String.init 10_000 ~f:(fun _ -> if Random.bool () then 'a' else 'h')
+  in
+  let expected = `String input in
+  check_eval program input expected
+
+let test_large_array () =
+  let program = "array(0 | 1)" in
+  let nums =
+    List.init 10_000 ~f:(fun _ -> if Random.bool () then "0" else "1")
+  in
+  let input = String.concat nums in
+  let expected = `List (List.map nums ~f:(fun n -> `Intlit n)) in
+  check_eval program input expected
+
 let () =
   Alcotest.run "Evaluator"
     [ ( "number"
@@ -355,5 +372,11 @@ let () =
             test_env_scope_for_sequence
         ; test_case "Env scope share assigns between sequences" `Quick
             test_env_scope_for_two_sequences
+        ] )
+    ; ( "performance"
+      , [ test_case "Recursively parse a large string one character at a time"
+            `Quick test_recursive_tail_call
+        ; test_case "Recursively parse numbers into a large array" `Quick
+            test_large_array
         ] )
     ]
