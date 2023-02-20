@@ -349,41 +349,23 @@
           "steps": [
             {
               "type": "parser_apply",
-              "id": { "type": "parser_id", "value": "default" },
+              "id": { "type": "parser_id", "value": "maybe_many" },
               "args": [
                 {
                   "type": "parser_steps",
                   "steps": [
                     {
                       "type": "parser_apply",
-                      "id": { "type": "parser_id", "value": "many" },
-                      "args": [
-                        {
-                          "type": "parser_steps",
-                          "steps": [
-                            {
-                              "type": "parser_apply",
-                              "id": { "type": "parser_id", "value": "comment" },
-                              "args": []
-                            },
-                            { "infix": "Or" },
-                            {
-                              "type": "parser_apply",
-                              "id": {
-                                "type": "parser_id",
-                                "value": "whitespace"
-                              },
-                              "args": []
-                            }
-                          ]
-                        }
-                      ]
+                      "id": { "type": "parser_id", "value": "comment" },
+                      "args": []
+                    },
+                    { "infix": "Or" },
+                    {
+                      "type": "parser_apply",
+                      "id": { "type": "parser_id", "value": "whitespace" },
+                      "args": []
                     }
                   ]
-                },
-                {
-                  "type": "parser_steps",
-                  "steps": [ { "type": "string_lit", "value": "" } ]
                 }
               ]
             }
@@ -1982,51 +1964,36 @@
             { "infix": "Destructure" },
             {
               "type": "parser_apply",
-              "id": { "type": "parser_id", "value": "default" },
+              "id": { "type": "parser_id", "value": "maybe_array_sep" },
               "args": [
                 {
                   "type": "parser_steps",
                   "steps": [
                     {
                       "type": "parser_apply",
-                      "id": { "type": "parser_id", "value": "array_sep" },
-                      "args": [
-                        {
-                          "type": "parser_steps",
-                          "steps": [
-                            {
-                              "type": "parser_apply",
-                              "id": { "type": "parser_id", "value": "ws" },
-                              "args": []
-                            },
-                            { "infix": "TakeRight" },
-                            {
-                              "type": "parser_apply",
-                              "id": {
-                                "type": "parser_id",
-                                "value": "value_array_member"
-                              },
-                              "args": []
-                            },
-                            { "infix": "TakeLeft" },
-                            {
-                              "type": "parser_apply",
-                              "id": { "type": "parser_id", "value": "ws" },
-                              "args": []
-                            }
-                          ]
-                        },
-                        {
-                          "type": "parser_steps",
-                          "steps": [ { "type": "string_lit", "value": "," } ]
-                        }
-                      ]
+                      "id": { "type": "parser_id", "value": "ws" },
+                      "args": []
+                    },
+                    { "infix": "TakeRight" },
+                    {
+                      "type": "parser_apply",
+                      "id": {
+                        "type": "parser_id",
+                        "value": "value_array_member"
+                      },
+                      "args": []
+                    },
+                    { "infix": "TakeLeft" },
+                    {
+                      "type": "parser_apply",
+                      "id": { "type": "parser_id", "value": "ws" },
+                      "args": []
                     }
                   ]
                 },
                 {
                   "type": "parser_steps",
-                  "steps": [ { "type": "value_array", "value": [] } ]
+                  "steps": [ { "type": "string_lit", "value": "," } ]
                 }
               ]
             },
@@ -2171,51 +2138,36 @@
             { "infix": "Destructure" },
             {
               "type": "parser_apply",
-              "id": { "type": "parser_id", "value": "default" },
+              "id": { "type": "parser_id", "value": "maybe_array_sep" },
               "args": [
                 {
                   "type": "parser_steps",
                   "steps": [
                     {
                       "type": "parser_apply",
-                      "id": { "type": "parser_id", "value": "array_sep" },
-                      "args": [
-                        {
-                          "type": "parser_steps",
-                          "steps": [
-                            {
-                              "type": "parser_apply",
-                              "id": { "type": "parser_id", "value": "ws" },
-                              "args": []
-                            },
-                            { "infix": "TakeRight" },
-                            {
-                              "type": "parser_apply",
-                              "id": {
-                                "type": "parser_id",
-                                "value": "value_object_member"
-                              },
-                              "args": []
-                            },
-                            { "infix": "TakeLeft" },
-                            {
-                              "type": "parser_apply",
-                              "id": { "type": "parser_id", "value": "ws" },
-                              "args": []
-                            }
-                          ]
-                        },
-                        {
-                          "type": "parser_steps",
-                          "steps": [ { "type": "string_lit", "value": "," } ]
-                        }
-                      ]
+                      "id": { "type": "parser_id", "value": "ws" },
+                      "args": []
+                    },
+                    { "infix": "TakeRight" },
+                    {
+                      "type": "parser_apply",
+                      "id": {
+                        "type": "parser_id",
+                        "value": "value_object_member"
+                      },
+                      "args": []
+                    },
+                    { "infix": "TakeLeft" },
+                    {
+                      "type": "parser_apply",
+                      "id": { "type": "parser_id", "value": "ws" },
+                      "args": []
                     }
                   ]
                 },
                 {
                   "type": "parser_steps",
-                  "steps": [ { "type": "value_array", "value": [] } ]
+                  "steps": [ { "type": "string_lit", "value": "," } ]
                 }
               ]
             },
@@ -2492,7 +2444,7 @@
             { "infix": "Destructure" },
             {
               "type": "parser_apply",
-              "id": { "type": "parser_id", "value": "default" },
+              "id": { "type": "parser_id", "value": "maybe" },
               "args": [
                 {
                   "type": "parser_steps",
@@ -2500,16 +2452,6 @@
                     {
                       "type": "parser_apply",
                       "id": { "type": "parser_id", "value": "char" },
-                      "args": []
-                    }
-                  ]
-                },
-                {
-                  "type": "parser_steps",
-                  "steps": [
-                    {
-                      "type": "parser_apply",
-                      "id": { "type": "parser_id", "value": "null" },
                       "args": []
                     }
                   ]
@@ -2521,7 +2463,7 @@
             { "infix": "Destructure" },
             {
               "type": "parser_apply",
-              "id": { "type": "parser_id", "value": "default" },
+              "id": { "type": "parser_id", "value": "maybe" },
               "args": [
                 {
                   "type": "parser_steps",
@@ -2529,16 +2471,6 @@
                     {
                       "type": "parser_apply",
                       "id": { "type": "parser_id", "value": "char" },
-                      "args": []
-                    }
-                  ]
-                },
-                {
-                  "type": "parser_steps",
-                  "steps": [
-                    {
-                      "type": "parser_apply",
-                      "id": { "type": "parser_id", "value": "null" },
                       "args": []
                     }
                   ]

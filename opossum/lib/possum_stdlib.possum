@@ -65,6 +65,8 @@ null(n) = n $ null
 
 many(p) = p + (many(p) | const(""))
 
+maybe_many(p) = default(many(p), "")
+
 until(s, stop) = s + (peek(stop) $ "" | until(s, stop))
 
 scan(p) = p | (char > scan(p))
@@ -74,10 +76,14 @@ array(elem) =
   Rest <- array(elem) | const([]) $
   [Elem, ...Rest]
 
+maybe_array(elem) = default(array(elem), [])
+
 array_sep(elem, sep) =
   Elem <- elem &
   Rest <- (sep > array_sep(elem, sep)) | const([]) $
   [Elem, ...Rest]
+
+maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
 
 table_sep(elem, sep, row_sep) = array_sep(array_sep(elem, sep), row_sep)
 
@@ -87,11 +93,16 @@ object(key, value) =
   Rest <- object(key, value) | const({}) $
   {K: V, ...Rest}
 
+maybe_object(key, value) = default(object(key, value), {})
+
 object_sep(key, pair_sep, value, sep) =
   K <- key & pair_sep &
   V <- value &
   Rest <- (sep > object_sep(key, pair_sep, value, sep)) | const({}) $
   {K: V, ...Rest}
+
+maybe_object_sep(key, pair_sep, value, sep) =
+  default(object_sep(key, pair_sep, value, sep), {})
 
 input(p) = maybe(whitespace) > p < maybe(whitespace) < end_of_input
 

@@ -6,7 +6,7 @@ program =
   ws & maybe(";") $
   {"type": "program", "defs": Defs}
 
-ws = default(many(comment | whitespace), '')
+ws = maybe_many(comment | whitespace)
 comment = "#" > until(char, newline | end)
 
 named_parser =
@@ -114,7 +114,7 @@ value =
 
 value_array =
   "[" & ws &
-  A <- default(array_sep(ws > value_array_member < ws, ","), []) &
+  A <- maybe_array_sep(ws > value_array_member < ws, ",") &
   ws & "]" $
   {"type": "value_array", "value": A}
 
@@ -126,7 +126,7 @@ value_array_element = J <- value $ {"type": "value_array_element", "value": J}
 
 value_object =
   "{" & ws &
-  O <- default(array_sep(ws > value_object_member < ws, ","), []) &
+  O <- maybe_array_sep(ws > value_object_member < ws, ",") &
   ws & "}" $
   {"type": "value_object", "value": O}
 
@@ -149,7 +149,7 @@ id = parser_id | value_id | ignored_id
 # Helpers
 ###
 
-two_chars = A <- default(char, null) & B <- default(char, null) $ [A, B]
+two_chars = A <- maybe(char) & B <- maybe(char) $ [A, B]
 
 flattened(array) = A <- array & Flat <- flatten_array(A) $ Flat
 

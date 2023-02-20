@@ -21,7 +21,7 @@
   ~~~(##)'>  I wasn't able to create an object because one of the key/value pairs
   has a key which is not a string.
   
-  The parser failed on line 94, characters 4-4:
+  The parser failed on line 102, characters 4-4:
     {K: V, ...Rest}
      ^
   
