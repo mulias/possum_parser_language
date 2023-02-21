@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - macos-latest
+          - macos-11
           - ubuntu-latest
         include:
           - os: ubuntu-latest
@@ -28,6 +28,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Install env packages on macOS
+        if: runner.os == 'macOS'
+        run: brew install pkg-config
 
       - name: Use OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
