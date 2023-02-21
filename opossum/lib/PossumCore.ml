@@ -48,11 +48,13 @@ let debug_line_parser =
       Stdio.eprintf "debug: \"%s\"\n" input ;
       return `Null )
 
-let load (env : Program.env) : unit =
+let extend_env (env : Program.env) : Program.env =
+  let extended_env = Env.extend env in
   [ ("char", char_parser)
   ; ("peek", peek_parser)
   ; ("string_of", string_of_parser)
   ; ("number_of", number_of_parser)
   ; ("debug_line", debug_line_parser)
   ]
-  |> List.iter ~f:(fun (name, p) -> Env.set_global_parser env name p)
+  |> List.iter ~f:(fun (name, p) -> Env.set_global_parser extended_env name p) ;
+  extended_env

@@ -33,11 +33,13 @@ type parser_fn =
   | Parser of value Angstrom.t
 
 (* Program environment, passed through all the parsers and sub-parsers. *)
-and env =
+and env_scope =
   { global_parsers : parser_fn id_map ref
   ; parsers : parser_fn id_map
   ; values : value id_map
   }
+
+and env = env_scope List.t
 
 and parser_fn_arg =
   | ParserArg of parser_fn * meta

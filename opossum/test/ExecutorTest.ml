@@ -5,9 +5,9 @@ open! Base
 
 let eval (source : string) (input : string) : Program.value =
   let ast = source |> ProgramParser.parse `Parser |> AstTransformer.transform in
-  let env = Env.init in
-  let _ = PossumCore.load env in
-  let _ = PossumStdlib.load env in
+  let env =
+    Env.init |> PossumCore.extend_env |> PossumStdlib.extend_env |> Env.extend
+  in
   let program = Evaluator.eval ast env |> Option.value_exn in
   Executor.execute program input
 

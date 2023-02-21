@@ -176,9 +176,9 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
   | `ParserApply (`ParserId (id, id_meta), args, _) -> (
       return () >>= fun _ ->
       match Env.find_parser env id with
-      | Some (Delayed (delayed_p, _, delayed_args)) ->
+      | Some (Delayed (delayed_p, _, delayed_args), _parser_env) ->
           resolve_delayed_parser id args (delayed_p, delayed_args)
-      | Some p -> (
+      | Some (p, _parser_env) -> (
           let evaled_args =
             List.map args ~f:(fun a -> eval_parser_apply_arg a env)
           in
@@ -257,7 +257,7 @@ and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
   match ast with
   | `ParserApply (`ParserId (id, id_meta), args, _) -> (
       match Env.find_parser env id with
-      | Some parser_fn ->
+      | Some (parser_fn, _parser_env) ->
           let evaled_args =
             List.map args ~f:(fun a -> eval_parser_apply_arg a env)
           in
@@ -307,11 +307,14 @@ let eval_named_parser
         (* First check that the delayed parser hasn't already been evaluated and
            updated in the global env. *)
         match Env.find_parser env id with
-        | None | Some (Delayed _) ->
-            let p = ParserFn.curry (eval_parser_body_partial body) params env in
-            Env.set_global_parser env id p ;
+        | Some (Delayed _, parser_env) ->
+            let p =
+              ParserFn.curry (eval_parser_body_partial body) params parser_env
+            in
+            Env.set_global_parser parser_env id p ;
             p
-        | Some p -> p)
+        | Some (p, _parser_env) -> p
+        | None -> raise Errors.Unexpected)
     , id
     , [] )
 
