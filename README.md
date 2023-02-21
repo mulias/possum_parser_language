@@ -70,14 +70,20 @@ numbers = JSON.parse(input)
 
 ## Installation
 
-For now you're going to have to use Nix to build a `possum` executable which can
-be run on your personal home computer.
+Precompiled binaries are available from the [Github releases page].
+
+To build Opossum from source you'll have to install opam, make a switch for the
+project, and then run dune to build the executable. This can be done using the
+provided Nix config, if you're in to that kind of thing.
 
 ```
   $ cd opossum
+  $ nix-shell shell.nix --run "opam switch create ."
   $ nix-shell shell.nix --run "dune build ./bin/possum.exe"
   $ cp ./_build/default/bin/possum.exe ~/my_bin_path/possum
 ```
+
+[github releases page]: https://github.com/mulias/possum_parser_language/releases
 
 ## Documentation
 
