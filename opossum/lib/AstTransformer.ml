@@ -210,6 +210,12 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           ( pattern_of_step left
           , body_of_non_sequence (right, rest) end_pos
           , meta left_meta.source left_meta.start_pos end_pos )
+    | left, (`Backtrack, right) :: rest ->
+        let left_meta = get_meta left in
+        `Backtrack
+          ( body_of_step left
+          , body_of_non_sequence (right, rest) end_pos
+          , meta left_meta.source left_meta.start_pos end_pos )
     | left, (`And, _) :: _ | left, (`Return, _) :: _ ->
         let left_meta = get_meta left in
         raise
@@ -264,6 +270,11 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           , merge_meta left right )
     | left, (`Concat, right) :: rest ->
         `Concat
+          ( body_of_group left
+          , parser_body_of_group_steps (right, rest)
+          , merge_meta left right )
+    | left, (`Backtrack, right) :: rest ->
+        `Backtrack
           ( body_of_group left
           , parser_body_of_group_steps (right, rest)
           , merge_meta left right )

@@ -21,11 +21,7 @@ together, and a way to construct and pattern match on values.
 
 ### Basic Parsers
 
-These low-level parsers are necessary for building more complex parsers. In
-practice the string literal, number literal, and `char` parsers have broad
-utility in parser programs, while regex, `peek`, `string_of`, and `number_of`
-can usually be ignored in favor of higher level parsers from the standard
-library.
+These low-level parsers are necessary for building more complex parsers.
 
 | Parser | Match Behavior | Returns |
 | ------ | -------------- | ------- |
@@ -35,7 +31,6 @@ library.
 | `123`  | Exact characters of number | Matched number |
 | `-1.334e23` | Exact characters of number | Matched number |
 | `char` | Any single character | Matched string |
-| `peek(p)` | Parses `p`, consumes no input on success | Result of `p` |
 | `string_of(p)` | Parses `p` | Result of `p` as a JSON encoded string |
 | `number_of(p)` | parses `p`, given `p` returns a number or string encoding of a number | Result of `p` as a number |
 
@@ -50,6 +45,7 @@ parentheses.
 | `p1 > p2`  | Take Right | Match `p1` and then `p2`, return the result of `p2` |
 | `p1 < p2`  | Take Left | Match `p1` and then `p2`, return the result of `p1` |
 | `p1 + p2`  | Concat | Match `p1` and then `p2`, if both return strings then succeed with the concatenated string value |
+| `p1 ! p2`  | Backtrack | Match `p1` and then go back in the input and match `p2` instead, return the result of `p2` |
 | `p $ Value` | Return | Match `p` and then return `Value` |
 | `p1 & ... & pN $ Value` | Sequence | Match `p1`, then `p2`, up through `pN`, return `Value` |
 | `Patter <- p` | Destructure | Match `p`, compare the result of `p` to `Pattern` as described below |
@@ -137,6 +133,7 @@ provided for convenience.
 | `input(p)` | `maybe(ws) > p < maybe(ws) < eof` | Value of `p` |
 | `fail` | Fails with no match | N/A |
 | `succeed` | Succeeds with no match | `null` |
+| `peek(p)` | Parses `p`, consumes no input on success | Result of `p` |
 | `maybe(p)` | Parses `p`, or succeeds with no match | Value of `p`, or `null` if `p` fails |
 | `default(p, D)` | Parses `p` or succeeds with no match | Value of `p`, or `D` if `p` fails |
 | `const(C)` | Succeeds with no match | Value `C` |

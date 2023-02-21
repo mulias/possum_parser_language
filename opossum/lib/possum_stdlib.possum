@@ -110,6 +110,8 @@ fail = false <- const(true)
 
 succeed = const(null)
 
+peek(p) = (V <- p) ! const(V)
+
 maybe(p) = p | succeed
 
 default(p, D) = p | const(D)

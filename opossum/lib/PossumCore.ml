@@ -19,8 +19,6 @@ let arity_1 fn : Program.parser_fn =
 
 let char_parser = arity_0 (any_char >>| fun c -> `String (Char.to_string c))
 
-let peek_parser = arity_1 (fun (p, _) -> Parser.peek p)
-
 let string_of_parser =
   arity_1 (fun (p, _) ->
       p >>| fun value ->
@@ -51,7 +49,6 @@ let debug_line_parser =
 let extend_env (env : Program.env) : Program.env =
   let extended_env = Env.extend env in
   [ ("char", char_parser)
-  ; ("peek", peek_parser)
   ; ("string_of", string_of_parser)
   ; ("number_of", number_of_parser)
   ; ("debug_line", debug_line_parser)
