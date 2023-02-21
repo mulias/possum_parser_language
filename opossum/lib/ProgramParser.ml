@@ -368,8 +368,7 @@ let parse (source : Program.source) (source_text : string) : permissive_program
   | Angstrom.Buffered.Fail (state, marks, msg) ->
       raise
         (Errors.ParseProgram
-           { parse_error =
-               { buf = state.buf; off = state.off; len = state.len; marks; msg }
+           { parse_error = { off = state.off; len = state.len; marks; msg }
            ; source
            })
   | Angstrom.Buffered.Partial _ -> raise Errors.Unexpected

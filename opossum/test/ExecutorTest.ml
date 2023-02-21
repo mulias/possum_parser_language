@@ -301,6 +301,18 @@ let test_env_scope_for_two_sequences () =
   let expected = `Intlit "123" in
   check_eval program input expected
 
+let test_env_scope_for_stdlib () =
+  let program = "whitespace = 'abc' ; input(5)" in
+  let success_input = "5" in
+  let success_expected = `Intlit "5" in
+  let error_input = "abc5abc" in
+  let error_expected =
+    Errors.ParseInput
+      { off = 0; len = 7; marks = [ "input"; "p"; "5" ]; msg = "string" }
+  in
+  check_eval program success_input success_expected ;
+  check_eval_error program error_input error_expected
+
 let test_recursive_tail_call () =
   let program = "scream = ('a' | 'h') + scream | const(''); scream" in
   let input =
@@ -372,6 +384,8 @@ let () =
             test_env_scope_for_sequence
         ; test_case "Env scope share assigns between sequences" `Quick
             test_env_scope_for_two_sequences
+        ; test_case "Env scope is not shared accross files" `Quick
+            test_env_scope_for_stdlib
         ] )
     ; ( "performance"
       , [ test_case "Recursively parse a large string one character at a time"

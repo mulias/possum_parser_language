@@ -1,12 +1,6 @@
 open! Base
 
-type parse_error =
-  { buf : Angstrom.bigstring
-  ; off : int
-  ; len : int
-  ; marks : string list
-  ; msg : string
-  }
+type parse_error = { off : int; len : int; marks : string list; msg : string }
 
 exception Unexpected
 

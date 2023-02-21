@@ -8,7 +8,5 @@ let execute (program : Program.value Angstrom.t) (input : string) :
   match ang with
   | Angstrom.Buffered.Done (_buf, value) -> value
   | Angstrom.Buffered.Fail (state, marks, msg) ->
-      raise
-        (Errors.ParseInput
-           { buf = state.buf; off = state.off; len = state.len; marks; msg })
+      raise (Errors.ParseInput { off = state.off; len = state.len; marks; msg })
   | Angstrom.Buffered.Partial _ -> raise Errors.Unexpected
