@@ -3,7 +3,7 @@ open Opossum
 open Opossum.Ast
 open! Base
 
-let parse = ProgramParser.parse
+let parse = ProgramParser.parse `Parser
 
 let check_program_ast (source : string) (expected : permissive_program) =
   let description = "Can parse\n" ^ source in
@@ -12,28 +12,40 @@ let check_program_ast (source : string) (expected : permissive_program) =
 let test_number () =
   let program = "0" in
   let ast : permissive_program =
-    `Program [ `MainParser (`Intlit ("0", { start_pos = 0; end_pos = 1 }), []) ]
+    `Program
+      [ `MainParser
+          (`Intlit ("0", { source = `Parser; start_pos = 0; end_pos = 1 }), [])
+      ]
   in
   check_program_ast program ast
 
 let test_string () =
   let program = {program|"a"|program} in
   let ast : permissive_program =
-    `Program [ `MainParser (`String ("a", { start_pos = 0; end_pos = 3 }), []) ]
+    `Program
+      [ `MainParser
+          (`String ("a", { source = `Parser; start_pos = 0; end_pos = 3 }), [])
+      ]
   in
   check_program_ast program ast
 
 let test_string_whitespace () =
   let program = {program|   "a"   |program} in
   let ast : permissive_program =
-    `Program [ `MainParser (`String ("a", { start_pos = 3; end_pos = 6 }), []) ]
+    `Program
+      [ `MainParser
+          (`String ("a", { source = `Parser; start_pos = 3; end_pos = 6 }), [])
+      ]
   in
   check_program_ast program ast
 
 let test_empty_string () =
   let program = "''" in
   let ast : permissive_program =
-    `Program [ `MainParser (`String ("", { start_pos = 0; end_pos = 2 }), []) ]
+    `Program
+      [ `MainParser
+          (`String ("", { source = `Parser; start_pos = 0; end_pos = 2 }), [])
+      ]
   in
   check_program_ast program ast
 
@@ -41,14 +53,20 @@ let test_string_with_escaped_double_quote () =
   let program = {program|"\""|program} in
   let ast : permissive_program =
     `Program
-      [ `MainParser (`String ({s|"|s}, { start_pos = 0; end_pos = 4 }), []) ]
+      [ `MainParser
+          ( `String ({s|"|s}, { source = `Parser; start_pos = 0; end_pos = 4 })
+          , [] )
+      ]
   in
   check_program_ast program ast
 
 let test_string_with_escaped_single_quote () =
   let program = {program|'\''|program} in
   let ast : permissive_program =
-    `Program [ `MainParser (`String ("'", { start_pos = 0; end_pos = 4 }), []) ]
+    `Program
+      [ `MainParser
+          (`String ("'", { source = `Parser; start_pos = 0; end_pos = 4 }), [])
+      ]
   in
   check_program_ast program ast
 
@@ -56,7 +74,10 @@ let test_string_with_escaped_backslash () =
   let program = {program|"\\"|program} in
   let ast : permissive_program =
     `Program
-      [ `MainParser (`String ({s|\|s}, { start_pos = 0; end_pos = 4 }), []) ]
+      [ `MainParser
+          ( `String ({s|\|s}, { source = `Parser; start_pos = 0; end_pos = 4 })
+          , [] )
+      ]
   in
   check_program_ast program ast
 
@@ -65,7 +86,9 @@ let test_string_with_escaped_quotes_and_backslashes () =
   let ast : permissive_program =
     `Program
       [ `MainParser
-          (`String ({s|\""\\"\|s}, { start_pos = 0; end_pos = 16 }), [])
+          ( `String
+              ({s|\""\\"\|s}, { source = `Parser; start_pos = 0; end_pos = 16 })
+          , [] )
       ]
   in
   check_program_ast program ast
@@ -75,7 +98,8 @@ let test_regex_pattern () =
   let ast : permissive_program =
     `Program
       [ `MainParser
-          (`Regex ("[a-z]+", { Program.start_pos = 0; end_pos = 8 }), [])
+          ( `Regex ("[a-z]+", { source = `Parser; start_pos = 0; end_pos = 8 })
+          , [] )
       ]
   in
   check_program_ast program ast
@@ -86,7 +110,8 @@ let test_regex_pattern_with_escaped_slash () =
     `Program
       [ `MainParser
           ( `Regex
-              ({s|[a-z]+\/[0-9]*|s}, { Program.start_pos = 0; end_pos = 16 })
+              ( {s|[a-z]+\/[0-9]*|s}
+              , { source = `Parser; start_pos = 0; end_pos = 16 } )
           , [] )
       ]
   in
@@ -98,13 +123,22 @@ let test_parser_apply () =
     `Program
       [ `MainParser
           ( `ParserApply
-              ( `ParserId ("field", { start_pos = 0; end_pos = 5 })
-              , [ (`String ("a", { start_pos = 7; end_pos = 10 }), [])
-                ; (`Intlit ("1", { start_pos = 14; end_pos = 15 }), [])
-                ; (`Intlit ("2", { start_pos = 16; end_pos = 17 }), [])
-                ; (`Intlit ("3", { start_pos = 20; end_pos = 21 }), [])
+              ( `ParserId
+                  ("field", { source = `Parser; start_pos = 0; end_pos = 5 })
+              , [ ( `String
+                      ("a", { source = `Parser; start_pos = 7; end_pos = 10 })
+                  , [] )
+                ; ( `Intlit
+                      ("1", { source = `Parser; start_pos = 14; end_pos = 15 })
+                  , [] )
+                ; ( `Intlit
+                      ("2", { source = `Parser; start_pos = 16; end_pos = 17 })
+                  , [] )
+                ; ( `Intlit
+                      ("3", { source = `Parser; start_pos = 20; end_pos = 21 })
+                  , [] )
                 ]
-              , { start_pos = 0; end_pos = 23 } )
+              , { source = `Parser; start_pos = 0; end_pos = 23 } )
           , [] )
       ]
   in
@@ -115,14 +149,16 @@ let test_parser_def () =
   let ast : permissive_program =
     `Program
       [ `NamedParser
-          ( `ParserId ("field", { start_pos = 0; end_pos = 5 })
+          ( `ParserId ("field", { source = `Parser; start_pos = 0; end_pos = 5 })
           , []
-          , (`Intlit ("1", { start_pos = 8; end_pos = 9 }), []) )
+          , (`Intlit ("1", { source = `Parser; start_pos = 8; end_pos = 9 }), [])
+          )
       ; `MainParser
           ( `ParserApply
-              ( `ParserId ("field", { start_pos = 12; end_pos = 17 })
+              ( `ParserId
+                  ("field", { source = `Parser; start_pos = 12; end_pos = 17 })
               , []
-              , { start_pos = 12; end_pos = 17 } )
+              , { source = `Parser; start_pos = 12; end_pos = 17 } )
           , [] )
       ]
   in
@@ -133,9 +169,13 @@ let test_infix_or () =
   let ast : permissive_program =
     `Program
       [ `MainParser
-          ( `Intlit ("1", { start_pos = 0; end_pos = 1 })
-          , [ (`Or, `Intlit ("2", { start_pos = 4; end_pos = 5 }))
-            ; (`Or, `Intlit ("3", { start_pos = 8; end_pos = 9 }))
+          ( `Intlit ("1", { source = `Parser; start_pos = 0; end_pos = 1 })
+          , [ ( `Or
+              , `Intlit ("2", { source = `Parser; start_pos = 4; end_pos = 5 })
+              )
+            ; ( `Or
+              , `Intlit ("3", { source = `Parser; start_pos = 8; end_pos = 9 })
+              )
             ] )
       ]
   in
@@ -158,152 +198,207 @@ let test_infix_and_program () =
   let ast : permissive_program =
     `Program
       [ `NamedParser
-          ( `ParserId ("bingo_numbers", { Program.start_pos = 5; end_pos = 18 })
+          ( `ParserId
+              ( "bingo_numbers"
+              , { source = `Parser; start_pos = 5; end_pos = 18 } )
           , []
           , ( `ParserApply
                 ( `ParserId
-                    ("array_sep", { Program.start_pos = 21; end_pos = 30 })
+                    ( "array_sep"
+                    , { source = `Parser; start_pos = 21; end_pos = 30 } )
                 , [ ( `ParserApply
                         ( `ParserId
-                            ("int", { Program.start_pos = 31; end_pos = 34 })
+                            ( "int"
+                            , { source = `Parser; start_pos = 31; end_pos = 34 }
+                            )
                         , []
-                        , { Program.start_pos = 31; end_pos = 34 } )
+                        , { source = `Parser; start_pos = 31; end_pos = 34 } )
                     , [] )
-                  ; (`String (",", { Program.start_pos = 36; end_pos = 39 }), [])
+                  ; ( `String
+                        (",", { source = `Parser; start_pos = 36; end_pos = 39 })
+                    , [] )
                   ]
-                , { Program.start_pos = 21; end_pos = 40 } )
+                , { source = `Parser; start_pos = 21; end_pos = 40 } )
             , [] ) )
       ; `NamedParser
           ( `ParserId
-              ("bingo_board_line", { Program.start_pos = 47; end_pos = 63 })
+              ( "bingo_board_line"
+              , { source = `Parser; start_pos = 47; end_pos = 63 } )
           , []
           , ( `ParserApply
                 ( `ParserId
-                    ("array_sep", { Program.start_pos = 66; end_pos = 75 })
+                    ( "array_sep"
+                    , { source = `Parser; start_pos = 66; end_pos = 75 } )
                 , [ ( `ParserApply
                         ( `ParserId
-                            ("int", { Program.start_pos = 76; end_pos = 79 })
+                            ( "int"
+                            , { source = `Parser; start_pos = 76; end_pos = 79 }
+                            )
                         , []
-                        , { Program.start_pos = 76; end_pos = 79 } )
+                        , { source = `Parser; start_pos = 76; end_pos = 79 } )
                     , [] )
                   ; ( `ParserApply
                         ( `ParserId
-                            ("spaces", { Program.start_pos = 81; end_pos = 87 })
+                            ( "spaces"
+                            , { source = `Parser; start_pos = 81; end_pos = 87 }
+                            )
                         , []
-                        , { Program.start_pos = 81; end_pos = 87 } )
+                        , { source = `Parser; start_pos = 81; end_pos = 87 } )
                     , [] )
                   ]
-                , { Program.start_pos = 66; end_pos = 88 } )
+                , { source = `Parser; start_pos = 66; end_pos = 88 } )
             , [] ) )
       ; `NamedParser
-          ( `ParserId ("bingo_board", { Program.start_pos = 95; end_pos = 106 })
+          ( `ParserId
+              ( "bingo_board"
+              , { source = `Parser; start_pos = 95; end_pos = 106 } )
           , []
           , ( `ParserApply
                 ( `ParserId
-                    ("array_sep", { Program.start_pos = 109; end_pos = 118 })
+                    ( "array_sep"
+                    , { source = `Parser; start_pos = 109; end_pos = 118 } )
                 , [ ( `ParserApply
                         ( `ParserId
                             ( "bingo_board_line"
-                            , { Program.start_pos = 119; end_pos = 135 } )
+                            , { source = `Parser
+                              ; start_pos = 119
+                              ; end_pos = 135
+                              } )
                         , []
-                        , { Program.start_pos = 119; end_pos = 135 } )
+                        , { source = `Parser; start_pos = 119; end_pos = 135 }
+                        )
                     , [] )
                   ; ( `ParserApply
                         ( `ParserId
                             ( "newline"
-                            , { Program.start_pos = 137; end_pos = 144 } )
+                            , { source = `Parser
+                              ; start_pos = 137
+                              ; end_pos = 144
+                              } )
                         , []
-                        , { Program.start_pos = 137; end_pos = 144 } )
+                        , { source = `Parser; start_pos = 137; end_pos = 144 }
+                        )
                     , [] )
                   ]
-                , { Program.start_pos = 109; end_pos = 145 } )
+                , { source = `Parser; start_pos = 109; end_pos = 145 } )
             , [] ) )
       ; `NamedParser
           ( `ParserId
-              ("bingo_boards", { Program.start_pos = 152; end_pos = 164 })
+              ( "bingo_boards"
+              , { source = `Parser; start_pos = 152; end_pos = 164 } )
           , []
           , ( `ParserApply
                 ( `ParserId
-                    ("array_sep", { Program.start_pos = 167; end_pos = 176 })
+                    ( "array_sep"
+                    , { source = `Parser; start_pos = 167; end_pos = 176 } )
                 , [ ( `ParserApply
                         ( `ParserId
                             ( "bingo_board"
-                            , { Program.start_pos = 177; end_pos = 188 } )
+                            , { source = `Parser
+                              ; start_pos = 177
+                              ; end_pos = 188
+                              } )
                         , []
-                        , { Program.start_pos = 177; end_pos = 188 } )
+                        , { source = `Parser; start_pos = 177; end_pos = 188 }
+                        )
                     , [] )
                   ; ( `ParserApply
                         ( `ParserId
                             ( "newline"
-                            , { Program.start_pos = 190; end_pos = 197 } )
+                            , { source = `Parser
+                              ; start_pos = 190
+                              ; end_pos = 197
+                              } )
                         , []
-                        , { Program.start_pos = 190; end_pos = 197 } )
+                        , { source = `Parser; start_pos = 190; end_pos = 197 }
+                        )
                     , [] )
                   ]
-                , { Program.start_pos = 167; end_pos = 198 } )
+                , { source = `Parser; start_pos = 167; end_pos = 198 } )
             , [] ) )
       ; `MainParser
-          ( `ValueId ("Numbers", { Program.start_pos = 206; end_pos = 213 })
+          ( `ValueId
+              ("Numbers", { source = `Parser; start_pos = 206; end_pos = 213 })
           , [ ( `Destructure
               , `ParserApply
                   ( `ParserId
-                      ("whitespace", { Program.start_pos = 217; end_pos = 227 })
+                      ( "whitespace"
+                      , { source = `Parser; start_pos = 217; end_pos = 227 } )
                   , []
-                  , { Program.start_pos = 217; end_pos = 227 } ) )
+                  , { source = `Parser; start_pos = 217; end_pos = 227 } ) )
             ; ( `TakeRight
               , `ParserApply
                   ( `ParserId
                       ( "bingo_numbers"
-                      , { Program.start_pos = 230; end_pos = 243 } )
+                      , { source = `Parser; start_pos = 230; end_pos = 243 } )
                   , []
-                  , { Program.start_pos = 230; end_pos = 243 } ) )
+                  , { source = `Parser; start_pos = 230; end_pos = 243 } ) )
             ; ( `And
-              , `ValueId ("Boards", { Program.start_pos = 250; end_pos = 256 })
-              )
+              , `ValueId
+                  ( "Boards"
+                  , { source = `Parser; start_pos = 250; end_pos = 256 } ) )
             ; ( `Destructure
               , `ParserApply
                   ( `ParserId
-                      ("whitespace", { Program.start_pos = 260; end_pos = 270 })
+                      ( "whitespace"
+                      , { source = `Parser; start_pos = 260; end_pos = 270 } )
                   , []
-                  , { Program.start_pos = 260; end_pos = 270 } ) )
+                  , { source = `Parser; start_pos = 260; end_pos = 270 } ) )
             ; ( `TakeRight
               , `ParserApply
                   ( `ParserId
                       ( "bingo_boards"
-                      , { Program.start_pos = 273; end_pos = 285 } )
+                      , { source = `Parser; start_pos = 273; end_pos = 285 } )
                   , []
-                  , { Program.start_pos = 273; end_pos = 285 } ) )
+                  , { source = `Parser; start_pos = 273; end_pos = 285 } ) )
             ; ( `Return
               , `ValueLikeObject
                   ( [ `ValueLikeObjectPair
                         ( `String
                             ( "numbers"
-                            , { Program.start_pos = 293; end_pos = 302 } )
+                            , { source = `Parser
+                              ; start_pos = 293
+                              ; end_pos = 302
+                              } )
                         , `ValueId
                             ( "Numbers"
-                            , { Program.start_pos = 304; end_pos = 311 } )
-                        , { Program.start_pos = 293; end_pos = 311 } )
+                            , { source = `Parser
+                              ; start_pos = 304
+                              ; end_pos = 311
+                              } )
+                        , { source = `Parser; start_pos = 293; end_pos = 311 }
+                        )
                     ; `ValueLikeObjectPair
                         ( `String
                             ( "boards"
-                            , { Program.start_pos = 313; end_pos = 321 } )
+                            , { source = `Parser
+                              ; start_pos = 313
+                              ; end_pos = 321
+                              } )
                         , `ValueId
                             ( "Boards"
-                            , { Program.start_pos = 323; end_pos = 329 } )
-                        , { Program.start_pos = 313; end_pos = 329 } )
+                            , { source = `Parser
+                              ; start_pos = 323
+                              ; end_pos = 329
+                              } )
+                        , { source = `Parser; start_pos = 313; end_pos = 329 }
+                        )
                     ]
-                  , { Program.start_pos = 292; end_pos = 330 } ) )
+                  , { source = `Parser; start_pos = 292; end_pos = 330 } ) )
             ; ( `TakeLeft
               , `ParserApply
                   ( `ParserId
-                      ("whitespace", { Program.start_pos = 337; end_pos = 347 })
+                      ( "whitespace"
+                      , { source = `Parser; start_pos = 337; end_pos = 347 } )
                   , []
-                  , { Program.start_pos = 337; end_pos = 347 } ) )
+                  , { source = `Parser; start_pos = 337; end_pos = 347 } ) )
             ; ( `TakeLeft
               , `ParserApply
-                  ( `ParserId ("end", { Program.start_pos = 350; end_pos = 353 })
+                  ( `ParserId
+                      ( "end"
+                      , { source = `Parser; start_pos = 350; end_pos = 353 } )
                   , []
-                  , { Program.start_pos = 350; end_pos = 353 } ) )
+                  , { source = `Parser; start_pos = 350; end_pos = 353 } ) )
             ] )
       ]
   in
@@ -314,9 +409,10 @@ let test_infix_and_return () =
   let ast : permissive_program =
     `Program
       [ `MainParser
-          ( `String ("a", { Program.start_pos = 0; end_pos = 3 })
+          ( `String ("a", { source = `Parser; start_pos = 0; end_pos = 3 })
           , [ ( `Return
-              , `ValueLikeArray ([], { Program.start_pos = 6; end_pos = 8 }) )
+              , `ValueLikeArray
+                  ([], { source = `Parser; start_pos = 6; end_pos = 8 }) )
             ] )
       ]
   in
@@ -327,20 +423,24 @@ let test_infix_and_assignment () =
   let ast : permissive_program =
     `Program
       [ `MainParser
-          ( `ValueId ("N", { Program.start_pos = 0; end_pos = 1 })
+          ( `ValueId ("N", { source = `Parser; start_pos = 0; end_pos = 1 })
           , [ ( `Destructure
               , `ParserApply
-                  ( `ParserId ("number", { Program.start_pos = 5; end_pos = 11 })
+                  ( `ParserId
+                      ( "number"
+                      , { source = `Parser; start_pos = 5; end_pos = 11 } )
                   , []
-                  , { Program.start_pos = 5; end_pos = 11 } ) )
+                  , { source = `Parser; start_pos = 5; end_pos = 11 } ) )
             ; ( `Return
               , `ValueLikeArray
                   ( [ `ValueLikeArrayElement
                         ( `ValueId
-                            ("N", { Program.start_pos = 15; end_pos = 16 })
-                        , { Program.start_pos = 15; end_pos = 16 } )
+                            ( "N"
+                            , { source = `Parser; start_pos = 15; end_pos = 16 }
+                            )
+                        , { source = `Parser; start_pos = 15; end_pos = 16 } )
                     ]
-                  , { Program.start_pos = 14; end_pos = 17 } ) )
+                  , { source = `Parser; start_pos = 14; end_pos = 17 } ) )
             ] )
       ]
   in
@@ -364,115 +464,155 @@ let test_infix_and_inside_parser () =
     `Program
       [ `NamedParser
           ( `ParserId
-              ("signal_patterns", { Program.start_pos = 5; end_pos = 20 })
+              ( "signal_patterns"
+              , { source = `Parser; start_pos = 5; end_pos = 20 } )
           , []
           , ( `ParserApply
                 ( `ParserId
-                    ("array_sep", { Program.start_pos = 23; end_pos = 32 })
+                    ( "array_sep"
+                    , { source = `Parser; start_pos = 23; end_pos = 32 } )
                 , [ ( `ParserApply
                         ( `ParserId
-                            ("many", { Program.start_pos = 33; end_pos = 37 })
+                            ( "many"
+                            , { source = `Parser; start_pos = 33; end_pos = 37 }
+                            )
                         , [ ( `ParserApply
                                 ( `ParserId
                                     ( "alpha"
-                                    , { Program.start_pos = 38; end_pos = 43 }
-                                    )
+                                    , { source = `Parser
+                                      ; start_pos = 38
+                                      ; end_pos = 43
+                                      } )
                                 , []
-                                , { Program.start_pos = 38; end_pos = 43 } )
+                                , { source = `Parser
+                                  ; start_pos = 38
+                                  ; end_pos = 43
+                                  } )
                             , [] )
                           ]
-                        , { Program.start_pos = 33; end_pos = 44 } )
+                        , { source = `Parser; start_pos = 33; end_pos = 44 } )
                     , [] )
-                  ; (`String (" ", { Program.start_pos = 46; end_pos = 49 }), [])
+                  ; ( `String
+                        (" ", { source = `Parser; start_pos = 46; end_pos = 49 })
+                    , [] )
                   ]
-                , { Program.start_pos = 23; end_pos = 50 } )
+                , { source = `Parser; start_pos = 23; end_pos = 50 } )
             , [] ) )
       ; `MainParser
           ( `ParserApply
-              ( `ParserId ("input", { Program.start_pos = 58; end_pos = 63 })
+              ( `ParserId
+                  ("input", { source = `Parser; start_pos = 58; end_pos = 63 })
               , [ ( `ParserApply
                       ( `ParserId
-                          ("array_sep", { Program.start_pos = 71; end_pos = 80 })
+                          ( "array_sep"
+                          , { source = `Parser; start_pos = 71; end_pos = 80 }
+                          )
                       , [ ( `ValueId
                               ( "UniqueDigits"
-                              , { Program.start_pos = 90; end_pos = 102 } )
+                              , { source = `Parser
+                                ; start_pos = 90
+                                ; end_pos = 102
+                                } )
                           , [ ( `Destructure
                               , `ParserApply
                                   ( `ParserId
                                       ( "signal_patterns"
-                                      , { Program.start_pos = 106
+                                      , { source = `Parser
+                                        ; start_pos = 106
                                         ; end_pos = 121
                                         } )
                                   , []
-                                  , { Program.start_pos = 106; end_pos = 121 }
-                                  ) )
+                                  , { source = `Parser
+                                    ; start_pos = 106
+                                    ; end_pos = 121
+                                    } ) )
                             ; ( `And
                               , `String
                                   ( " | "
-                                  , { Program.start_pos = 124; end_pos = 129 }
-                                  ) )
+                                  , { source = `Parser
+                                    ; start_pos = 124
+                                    ; end_pos = 129
+                                    } ) )
                             ; ( `And
                               , `ValueId
                                   ( "OutputDigits"
-                                  , { Program.start_pos = 132; end_pos = 144 }
-                                  ) )
+                                  , { source = `Parser
+                                    ; start_pos = 132
+                                    ; end_pos = 144
+                                    } ) )
                             ; ( `Destructure
                               , `ParserApply
                                   ( `ParserId
                                       ( "signal_patterns"
-                                      , { Program.start_pos = 148
+                                      , { source = `Parser
+                                        ; start_pos = 148
                                         ; end_pos = 163
                                         } )
                                   , []
-                                  , { Program.start_pos = 148; end_pos = 163 }
-                                  ) )
+                                  , { source = `Parser
+                                    ; start_pos = 148
+                                    ; end_pos = 163
+                                    } ) )
                             ; ( `Return
                               , `ValueLikeObject
                                   ( [ `ValueLikeObjectPair
                                         ( `String
                                             ( "unique"
-                                            , { Program.start_pos = 175
+                                            , { source = `Parser
+                                              ; start_pos = 175
                                               ; end_pos = 183
                                               } )
                                         , `ValueId
                                             ( "UniqueDigits"
-                                            , { Program.start_pos = 185
+                                            , { source = `Parser
+                                              ; start_pos = 185
                                               ; end_pos = 197
                                               } )
-                                        , { Program.start_pos = 175
+                                        , { source = `Parser
+                                          ; start_pos = 175
                                           ; end_pos = 197
                                           } )
                                     ; `ValueLikeObjectPair
                                         ( `String
                                             ( "output"
-                                            , { Program.start_pos = 199
+                                            , { source = `Parser
+                                              ; start_pos = 199
                                               ; end_pos = 207
                                               } )
                                         , `ValueId
                                             ( "OutputDigits"
-                                            , { Program.start_pos = 209
+                                            , { source = `Parser
+                                              ; start_pos = 209
                                               ; end_pos = 221
                                               } )
-                                        , { Program.start_pos = 199
+                                        , { source = `Parser
+                                          ; start_pos = 199
                                           ; end_pos = 221
                                           } )
                                     ]
-                                  , { Program.start_pos = 174; end_pos = 222 }
-                                  ) )
+                                  , { source = `Parser
+                                    ; start_pos = 174
+                                    ; end_pos = 222
+                                    } ) )
                             ] )
                         ; ( `ParserApply
                               ( `ParserId
                                   ( "newline"
-                                  , { Program.start_pos = 232; end_pos = 239 }
-                                  )
+                                  , { source = `Parser
+                                    ; start_pos = 232
+                                    ; end_pos = 239
+                                    } )
                               , []
-                              , { Program.start_pos = 232; end_pos = 239 } )
+                              , { source = `Parser
+                                ; start_pos = 232
+                                ; end_pos = 239
+                                } )
                           , [] )
                         ]
-                      , { Program.start_pos = 71; end_pos = 247 } )
+                      , { source = `Parser; start_pos = 71; end_pos = 247 } )
                   , [] )
                 ]
-              , { Program.start_pos = 58; end_pos = 253 } )
+              , { source = `Parser; start_pos = 58; end_pos = 253 } )
           , [] )
       ]
   in
@@ -483,21 +623,29 @@ let test_array_spread () =
   let ast : permissive_program =
     `Program
       [ `MainParser
-          ( `String ("", { Program.start_pos = 0; end_pos = 2 })
+          ( `String ("", { source = `Parser; start_pos = 0; end_pos = 2 })
           , [ ( `Return
               , `ValueLikeArray
                   ( [ `ValueLikeArraySpread
-                        ( `ValueId ("A", { Program.start_pos = 9; end_pos = 10 })
-                        , { Program.start_pos = 6; end_pos = 10 } )
+                        ( `ValueId
+                            ( "A"
+                            , { source = `Parser; start_pos = 9; end_pos = 10 }
+                            )
+                        , { source = `Parser; start_pos = 6; end_pos = 10 } )
                     ; `ValueLikeArrayElement
-                        ( `Intlit ("1", { Program.start_pos = 12; end_pos = 13 })
-                        , { Program.start_pos = 12; end_pos = 13 } )
+                        ( `Intlit
+                            ( "1"
+                            , { source = `Parser; start_pos = 12; end_pos = 13 }
+                            )
+                        , { source = `Parser; start_pos = 12; end_pos = 13 } )
                     ; `ValueLikeArraySpread
                         ( `ValueId
-                            ("B", { Program.start_pos = 18; end_pos = 19 })
-                        , { Program.start_pos = 15; end_pos = 19 } )
+                            ( "B"
+                            , { source = `Parser; start_pos = 18; end_pos = 19 }
+                            )
+                        , { source = `Parser; start_pos = 15; end_pos = 19 } )
                     ]
-                  , { Program.start_pos = 5; end_pos = 20 } ) )
+                  , { source = `Parser; start_pos = 5; end_pos = 20 } ) )
             ] )
       ]
   in
@@ -512,50 +660,81 @@ let test_object_pattern_match () =
       [ `MainParser
           ( `ValueLikeObject
               ( [ `ValueLikeObjectPair
-                    ( `String ("foo", { Program.start_pos = 1; end_pos = 6 })
-                    , `ValueId ("_Foo", { Program.start_pos = 8; end_pos = 12 })
-                    , { Program.start_pos = 1; end_pos = 12 } )
+                    ( `String
+                        ("foo", { source = `Parser; start_pos = 1; end_pos = 6 })
+                    , `ValueId
+                        ( "_Foo"
+                        , { source = `Parser; start_pos = 8; end_pos = 12 } )
+                    , { source = `Parser; start_pos = 1; end_pos = 12 } )
                 ; `ValueLikeObjectSpread
-                    ( `ValueId ("Rest", { Program.start_pos = 17; end_pos = 21 })
-                    , { Program.start_pos = 14; end_pos = 21 } )
+                    ( `ValueId
+                        ( "Rest"
+                        , { source = `Parser; start_pos = 17; end_pos = 21 } )
+                    , { source = `Parser; start_pos = 14; end_pos = 21 } )
                 ]
-              , { Program.start_pos = 0; end_pos = 22 } )
+              , { source = `Parser; start_pos = 0; end_pos = 22 } )
           , [ ( `Destructure
               , `ParserApply
                   ( `ParserId
-                      ("object_sep", { Program.start_pos = 26; end_pos = 36 })
+                      ( "object_sep"
+                      , { source = `Parser; start_pos = 26; end_pos = 36 } )
                   , [ ( `ParserApply
                           ( `ParserId
-                              ("many", { Program.start_pos = 37; end_pos = 41 })
+                              ( "many"
+                              , { source = `Parser
+                                ; start_pos = 37
+                                ; end_pos = 41
+                                } )
                           , [ ( `ParserApply
                                   ( `ParserId
                                       ( "alpha"
-                                      , { Program.start_pos = 42; end_pos = 47 }
-                                      )
+                                      , { source = `Parser
+                                        ; start_pos = 42
+                                        ; end_pos = 47
+                                        } )
                                   , []
-                                  , { Program.start_pos = 42; end_pos = 47 } )
+                                  , { source = `Parser
+                                    ; start_pos = 42
+                                    ; end_pos = 47
+                                    } )
                               , [] )
                             ]
-                          , { Program.start_pos = 37; end_pos = 48 } )
+                          , { source = `Parser; start_pos = 37; end_pos = 48 }
+                          )
                       , [] )
-                    ; ( `String ("=", { Program.start_pos = 50; end_pos = 53 })
-                      , [] )
-                    ; ( `ParserApply
-                          ( `ParserId
-                              ("int", { Program.start_pos = 55; end_pos = 58 })
-                          , []
-                          , { Program.start_pos = 55; end_pos = 58 } )
+                    ; ( `String
+                          ( "="
+                          , { source = `Parser; start_pos = 50; end_pos = 53 }
+                          )
                       , [] )
                     ; ( `ParserApply
                           ( `ParserId
-                              ("ws", { Program.start_pos = 60; end_pos = 62 })
+                              ( "int"
+                              , { source = `Parser
+                                ; start_pos = 55
+                                ; end_pos = 58
+                                } )
                           , []
-                          , { Program.start_pos = 60; end_pos = 62 } )
+                          , { source = `Parser; start_pos = 55; end_pos = 58 }
+                          )
+                      , [] )
+                    ; ( `ParserApply
+                          ( `ParserId
+                              ( "ws"
+                              , { source = `Parser
+                                ; start_pos = 60
+                                ; end_pos = 62
+                                } )
+                          , []
+                          , { source = `Parser; start_pos = 60; end_pos = 62 }
+                          )
                       , [] )
                     ]
-                  , { Program.start_pos = 26; end_pos = 63 } ) )
+                  , { source = `Parser; start_pos = 26; end_pos = 63 } ) )
             ; ( `Return
-              , `ValueId ("Rest", { Program.start_pos = 66; end_pos = 70 }) )
+              , `ValueId
+                  ("Rest", { source = `Parser; start_pos = 66; end_pos = 70 })
+              )
             ] )
       ]
   in
@@ -569,7 +748,10 @@ let test_comment_before () =
   |program} in
   let ast : permissive_program =
     `Program
-      [ `MainParser (`Intlit ("123", { start_pos = 33; end_pos = 36 }), []) ]
+      [ `MainParser
+          ( `Intlit ("123", { source = `Parser; start_pos = 33; end_pos = 36 })
+          , [] )
+      ]
   in
   check_program_ast program ast
 
@@ -579,7 +761,9 @@ let test_comment_same_line () =
   |program} in
   let ast : permissive_program =
     `Program
-      [ `MainParser (`Intlit ("123", { start_pos = 5; end_pos = 8 }), []) ]
+      [ `MainParser
+          (`Intlit ("123", { source = `Parser; start_pos = 5; end_pos = 8 }), [])
+      ]
   in
   check_program_ast program ast
 
@@ -591,7 +775,9 @@ let test_comment_after () =
   |program} in
   let ast : permissive_program =
     `Program
-      [ `MainParser (`Intlit ("123", { start_pos = 5; end_pos = 8 }), []) ]
+      [ `MainParser
+          (`Intlit ("123", { source = `Parser; start_pos = 5; end_pos = 8 }), [])
+      ]
   in
   check_program_ast program ast
 
@@ -610,14 +796,19 @@ let test_comments_everywhere () =
   let ast : permissive_program =
     `Program
       [ `NamedParser
-          ( `ParserId ("foo", { start_pos = 21; end_pos = 24 })
+          ( `ParserId ("foo", { source = `Parser; start_pos = 21; end_pos = 24 })
           , []
-          , (`String ("a", { start_pos = 27; end_pos = 30 }), []) )
-      ; `MainParser (`Intlit ("123", { start_pos = 63; end_pos = 66 }), [])
+          , ( `String ("a", { source = `Parser; start_pos = 27; end_pos = 30 })
+            , [] ) )
+      ; `MainParser
+          ( `Intlit ("123", { source = `Parser; start_pos = 63; end_pos = 66 })
+          , [] )
       ; `NamedParser
-          ( `ParserId ("bar", { start_pos = 101; end_pos = 104 })
+          ( `ParserId
+              ("bar", { source = `Parser; start_pos = 101; end_pos = 104 })
           , []
-          , (`Intlit ("5", { start_pos = 107; end_pos = 108 }), []) )
+          , ( `Intlit ("5", { source = `Parser; start_pos = 107; end_pos = 108 })
+            , [] ) )
       ]
   in
   check_program_ast program ast

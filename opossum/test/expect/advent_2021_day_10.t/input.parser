@@ -6,6 +6,6 @@ token =
   "<" $ {"open": true, "type": "angle", "lit": "<"} |
   ">" $ {"open": false, "type": "angle", "lit": ">"} |
   "{" $ {"open": true, "type": "brace", "lit": "{"} |
-  "}" $ {"open": false, "type": "brace", "lit": "}"} ;
+  "}" $ {"open": false, "type": "brace", "lit": "}"}
 
 input(table_sep(token, '', nl))

@@ -1,0 +1,117 @@
+alpha = /[a-zA-Z]/
+alphas = /[a-zA-Z]+/
+
+lower = /[a-z]/
+lowers = /[a-z]+/
+
+upper = /[A-Z]/
+uppers = /[A-Z]+/
+
+numeral = /[0-9]/
+numerals = /[0-9]+/
+
+space = /[ \t]/
+spaces = /[ \t]+/
+
+symbol = /[!"#\$%&'\(\)\*\+,-\.\\\/:;<=>\?@\[\]\^_{}~\|]/
+symbols = /[!"#\$%&'\(\)\*\+,-\.\\\/:;<=>\?@\[\]\^_{}~\|]+/
+
+newline = /[\n\r]/
+newlines = /[\n\r]+/
+
+nl = newline
+
+end_of_input = /$/
+
+end = end_of_input
+
+whitespace = /[ \t\n\r]+/
+
+ws = whitespace
+
+word = until(char, whitespace | end_of_input)
+
+digit = number_of(numeral)
+
+integer = number_of(/-?[1-9][0-9]*|-?[0-9]/)
+
+int = integer
+
+float = number_of(
+  /-?[1-9][0-9]*|-?[0-9]/ +
+  (
+    ("." + numerals + default(("e" | "E") + ("-" | "+" | "") + /[0-9]+/, "")) |
+    (default("." + numerals, "") + ("e" | "E") + ("-" | "+" | "") + /[0-9]+/)
+  )
+)
+
+number = number_of(
+  /-?[1-9][0-9]*|-?[0-9]/ +
+  default("." + numerals, "") +
+  default(("e" | "E") + ("-" | "+" | "") + /[0-9]+/, "")
+)
+
+num = number
+
+true(t) = t $ true
+
+false(f) = f $ false
+
+boolean(t, f) = true(t) | false(f)
+
+bool = boolean
+
+null(n) = n $ null
+
+many(p) = p + (many(p) | const(""))
+
+maybe_many(p) = default(many(p), "")
+
+until(s, stop) = s + (peek(stop) $ "" | until(s, stop))
+
+scan(p) = p | (char > scan(p))
+
+array(elem) =
+  Elem <- elem &
+  Rest <- array(elem) | const([]) $
+  [Elem, ...Rest]
+
+maybe_array(elem) = default(array(elem), [])
+
+array_sep(elem, sep) =
+  Elem <- elem &
+  Rest <- (sep > array_sep(elem, sep)) | const([]) $
+  [Elem, ...Rest]
+
+maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
+
+table_sep(elem, sep, row_sep) = array_sep(array_sep(elem, sep), row_sep)
+
+object(key, value) =
+  K <- key &
+  V <- value &
+  Rest <- object(key, value) | const({}) $
+  {K: V, ...Rest}
+
+maybe_object(key, value) = default(object(key, value), {})
+
+object_sep(key, pair_sep, value, sep) =
+  K <- key & pair_sep &
+  V <- value &
+  Rest <- (sep > object_sep(key, pair_sep, value, sep)) | const({}) $
+  {K: V, ...Rest}
+
+maybe_object_sep(key, pair_sep, value, sep) =
+  default(object_sep(key, pair_sep, value, sep), {})
+
+input(p) = maybe(whitespace) > p < maybe(whitespace) < end_of_input
+
+fail = false <- const(true)
+
+succeed = const(null)
+
+maybe(p) = p | succeed
+
+default(p, D) = p | const(D)
+
+const(C) = "" $ C

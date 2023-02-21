@@ -27,13 +27,13 @@ json_number = number ;
 
 json_array =
   "[" & ws &
-  A <- default(array_sep(ws > json < ws, ","), []) &
+  A <- maybe_array_sep(ws > json < ws, ",") &
   ws & "]" $
   A ;
 
 json_object =
   "{" & ws &
-  O <- default(object_sep(ws > json_string < ws, ":", ws > json < ws, ","), {})
+  O <- maybe_object_sep(ws > json_string < ws, ":", ws > json < ws, ",")
   & ws & "}" $
   O ;
 
@@ -43,4 +43,4 @@ json_object =
 
 ws = maybe(whitespace) ;
 
-two_chars = A <- default(char, null) & B <- default(char, null) $ [A, B] ;
+two_chars = A <- maybe(char) & B <- maybe(char) $ [A, B] ;

@@ -1,7 +1,7 @@
 Advent of Code 2022 Day 2
 https://adventofcode.com/2022/day/2
 
-  $ possum -p "array_sep(P1 <-char & ws & P2 <-char $ [P1, P2], nl)" input.txt
+  $ possum -p "array_sep(P1<-char&ws&P2<-char\$[P1,P2],nl)" input.txt
   [ [ "A", "Y" ], [ "B", "X" ], [ "C", "Z" ] ]
 
   $ possum input.parser input.txt

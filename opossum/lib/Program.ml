@@ -2,8 +2,11 @@ open! Base
 
 (* Shared types used to parse, evaluate, and execute a program. *)
 
+type source = [ `Parser | `Stdlib ] [@@deriving show]
+
 (* Metadata collected while parsing program file. *)
-type meta = { start_pos : int; end_pos : int } [@@deriving show]
+type meta = { source : source; start_pos : int; end_pos : int }
+[@@deriving show]
 
 (* Programs produce JSON encoded as this type. *)
 type value =
@@ -30,11 +33,13 @@ type parser_fn =
   | Parser of value Angstrom.t
 
 (* Program environment, passed through all the parsers and sub-parsers. *)
-and env =
+and env_scope =
   { global_parsers : parser_fn id_map ref
   ; parsers : parser_fn id_map
   ; values : value id_map
   }
+
+and env = env_scope List.t
 
 and parser_fn_arg =
   | ParserArg of parser_fn * meta

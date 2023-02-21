@@ -1,44 +1,7 @@
 open Angstrom
-open Angstrom.Let_syntax
 open! Base
 
 (* Helper functions for manipulating possum parser functions. *)
-
-let compose
-    (c : 'a Angstrom.t -> 'a Angstrom.t -> 'a Angstrom.t)
-    (p1 : Program.parser_fn)
-    (p2 : Program.parser_fn) : Program.parser_fn =
-  match (p1, p2) with
-  | Parser p1, Parser p2 -> Parser (c p1 p2)
-  | _ -> raise Errors.EvalNotEnoughArguments
-
-let concat_strings
-    (p1 : Program.parser_fn)
-    (p2 : Program.parser_fn)
-    (meta : Program.meta) : Program.parser_fn =
-  let concat (pa : Program.t) (pb : Program.t) : Program.t =
-    let%map ja = pa
-    and jb = pb in
-    match (ja, jb) with
-    | `String sa, `String sb -> `String (sa ^ sb)
-    | `String _, not_string ->
-        raise
-          (Errors.EvalConcat
-             { side = `Right
-             ; value = not_string
-             ; start_pos = meta.start_pos
-             ; end_pos = meta.end_pos
-             })
-    | not_string, _ ->
-        raise
-          (Errors.EvalConcat
-             { side = `Left
-             ; value = not_string
-             ; start_pos = meta.start_pos
-             ; end_pos = meta.end_pos
-             })
-  in
-  compose concat p1 p2
 
 (* Given a parser `p` and a list of `args`, recursivly apply each arg. The
    result is either a `CurriedParser` which needs more args, a fully satisfied
@@ -63,10 +26,22 @@ let rec apply
   | Parser _, _ :: _ -> raise Errors.EvalTooManyArguments
   | ParserParam _, ValueArg (_, meta) :: _ ->
       raise
-        (Errors.EvalArgumentType { expected = "parser"; got = "value"; meta })
+        (Errors.EvalArgumentType
+           { expected = "parser"
+           ; got = "value"
+           ; source = meta.source
+           ; start_pos = meta.start_pos
+           ; end_pos = meta.end_pos
+           })
   | ValueParam _, ParserArg (_, meta) :: _ ->
       raise
-        (Errors.EvalArgumentType { expected = "value"; got = "parser"; meta })
+        (Errors.EvalArgumentType
+           { expected = "value"
+           ; got = "parser"
+           ; source = meta.source
+           ; start_pos = meta.start_pos
+           ; end_pos = meta.end_pos
+           })
 
 (* Given a parser `p` and a list of `params`, wrap `p` in layers of
    `CurriedParser` so that when `apply` is called each argument is assigned to

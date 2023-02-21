@@ -16,15 +16,6 @@ let is_uppercase = function 'A' .. 'Z' -> true | _ -> false
 
 let is_alpha a = is_lowercase a || is_uppercase a
 
-let is_not_ws c = not (is_ws c)
-
-let is_symbol = function
-  | '!' | '"' | '#' | '$' | '%' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | '-'
-  | '.' | '\\' | '/' | ':' | ';' | '<' | '=' | '>' | '?' | '@' | '[' | ']' | '^'
-  | '_' | '{' | '}' | '~' | '|' ->
-      true
-  | _ -> false
-
 let is_id_char = function
   | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true
   | _ -> false
@@ -32,8 +23,6 @@ let is_id_char = function
 let is_digit = function '0' .. '9' -> true | _ -> false
 
 let is_one_nine = function '1' .. '9' -> true | _ -> false
-
-let is_char (x : char) (y : char) = Char.equal x y
 
 let peek p =
   let peek_value = ref None in
@@ -60,17 +49,9 @@ let peek_input =
   peek (skip_while (fun _ -> true)) >>= fun _ ->
   Unsafe.peek 0 (fun str ~off:_ ~len:_ -> Bigstringaf.to_string str)
 
-let peek_rest = peek (take_while (fun _ -> true))
-
 let peek_line = peek (take_while (fun c -> not (is_eol c)))
 
 let maybe p = option None (p >>| fun x -> Some x)
-
-let newline = satisfy is_eol
-
-let whitespace = take_while is_ws
-
-let alpha = satisfy is_alpha
 
 let number_integer_part =
   let multi_digit = consumed (satisfy is_one_nine *> take_while is_digit) in
@@ -84,9 +65,6 @@ let number_exponent_part =
     ((char 'e' <|> char 'E')
     *> maybe (char '-' <|> char '+')
     *> take_while1 is_digit)
-
-let many_till1 p stop =
-  both p (many_till p stop) >>| fun (first, rest) -> first :: rest
 
 let int_or_float : [ `Intlit of string | `Floatlit of string ] Angstrom.t =
   let%map integer = number_integer_part

@@ -31,7 +31,13 @@ let rec value_of_value_like (value_like : value_like) : value =
   | `ValueLikeArray (arr, meta) -> value_of_array arr meta
   | `ValueLikeObject (assoc, meta) -> value_of_object assoc meta
   | `ValueId _ as id -> id
-  | `IgnoredId meta -> raise (Errors.AstIgnoredId { meta })
+  | `IgnoredId meta ->
+      raise
+        (Errors.AstIgnoredId
+           { source = meta.source
+           ; start_pos = meta.start_pos
+           ; end_pos = meta.end_pos
+           })
 
 and value_of_array arr meta : value =
   `ValueArray
@@ -58,7 +64,13 @@ and value_of_object_key value =
   match value with
   | `String s -> `String s
   | `ValueId id -> `ValueId id
-  | `IgnoredId meta -> raise (Errors.AstIgnoredId { meta })
+  | `IgnoredId meta ->
+      raise
+        (Errors.AstIgnoredId
+           { source = meta.source
+           ; start_pos = meta.start_pos
+           ; end_pos = meta.end_pos
+           })
 
 let rec pattern_of_value_like (value_like : value_like) : pattern =
   match value_like with
@@ -110,7 +122,13 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           (id, List.map params ~f:parser_apply_argument_of_steps, meta)
     | `Regex (regex, meta) -> `Regex (regex, meta)
     | (`String _ | `Intlit _ | `Floatlit _) as lit -> lit
-    | `IgnoredId meta -> raise (Errors.AstIgnoredId { meta })
+    | `IgnoredId meta ->
+        raise
+          (Errors.AstIgnoredId
+             { source = meta.source
+             ; start_pos = meta.start_pos
+             ; end_pos = meta.end_pos
+             })
     | (`ValueLikeArray _ | `ValueLikeObject _ | `ValueId _ | `Bool _ | `Null _)
       as value ->
         let meta = get_meta value in
@@ -118,6 +136,7 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           (Errors.AstTransform
              { expected = "parser"
              ; got = "value"
+             ; source = meta.source
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
              })
@@ -136,6 +155,7 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           (Errors.AstTransform
              { expected = "value"
              ; got = "parser"
+             ; source = meta.source
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
              })
@@ -151,6 +171,7 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           (Errors.AstTransform
              { expected = "pattern"
              ; got = "parser"
+             ; source = meta.source
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
              })
@@ -164,37 +185,38 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
         `Or
           ( body_of_step left
           , body_of_non_sequence (right, rest) end_pos
-          , meta left_meta.start_pos end_pos )
+          , meta left_meta.source left_meta.start_pos end_pos )
     | left, (`TakeLeft, right) :: rest ->
         let left_meta = get_meta left in
         `TakeLeft
           ( body_of_step left
           , body_of_non_sequence (right, rest) end_pos
-          , meta left_meta.start_pos end_pos )
+          , meta left_meta.source left_meta.start_pos end_pos )
     | left, (`TakeRight, right) :: rest ->
         let left_meta = get_meta left in
         `TakeRight
           ( body_of_step left
           , body_of_non_sequence (right, rest) end_pos
-          , meta left_meta.start_pos end_pos )
+          , meta left_meta.source left_meta.start_pos end_pos )
     | left, (`Concat, right) :: rest ->
         let left_meta = get_meta left in
         `Concat
           ( body_of_step left
           , body_of_non_sequence (right, rest) end_pos
-          , meta left_meta.start_pos end_pos )
+          , meta left_meta.source left_meta.start_pos end_pos )
     | left, (`Destructure, right) :: rest ->
         let left_meta = get_meta left in
         `Destructure
           ( pattern_of_step left
           , body_of_non_sequence (right, rest) end_pos
-          , meta left_meta.start_pos end_pos )
+          , meta left_meta.source left_meta.start_pos end_pos )
     | left, (`And, _) :: _ | left, (`Return, _) :: _ ->
         let left_meta = get_meta left in
         raise
           (Errors.AstTransform
              { expected = "And inside of sequence"
              ; got = "And without sequence Return"
+             ; source = left_meta.source
              ; start_pos = left_meta.start_pos
              ; end_pos
              })
@@ -251,6 +273,7 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           (Errors.AstTransform
              { expected = "value"
              ; got = "parser"
+             ; source = meta.source
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
              })
@@ -260,6 +283,7 @@ let rec parser_body_of_steps (steps : permissive_parser_steps) : parser_body =
           (Errors.AstTransform
              { expected = "parser body"
              ; got = "And or Return without Sequence"
+             ; source = meta.source
              ; start_pos = meta.start_pos
              ; end_pos = meta.end_pos
              })
@@ -280,11 +304,14 @@ let program_of_permissive_program (`Program parsers : permissive_program) :
           Either.Second (name, params, body, meta))
   in
   match main_parsers with
-  | [ main_parser ] -> Program { main_parser; named_parsers }
-  | [] -> raise Errors.MainNotFound
+  | [ main_parser ] -> Program { main_parser = Some main_parser; named_parsers }
+  | [] -> Program { main_parser = None; named_parsers }
   | _main_1 :: (_main_2_body, main_2_meta) :: _rest ->
       raise
         (Errors.MultipleMainParsers
-           { start_pos = main_2_meta.start_pos; end_pos = main_2_meta.end_pos })
+           { source = main_2_meta.source
+           ; start_pos = main_2_meta.start_pos
+           ; end_pos = main_2_meta.end_pos
+           })
 
 let transform = program_of_permissive_program

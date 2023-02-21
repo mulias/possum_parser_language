@@ -4,21 +4,28 @@ open! Core
    parse structured text into JSON. *)
 
 let parse_exn (source : string) : Ast.program =
-  source |> ProgramParser.parse |> AstTransformer.transform
+  source |> ProgramParser.parse `Parser |> AstTransformer.transform
 
 let eval_exn (source : string) : Program.t =
   let ast = parse_exn source in
-  let env = Env.init in
-  ProgramStdlib.load env ;
-  Evaluator.eval ast env
+  let env =
+    Env.init |> PossumCore.extend_env |> PossumStdlib.extend_env |> Env.extend
+  in
+  match Evaluator.eval ast env with
+  | Some program -> program
+  | None -> raise Errors.MainNotFound
 
 let execute_exn (source : string) (input : string) : Program.value =
   let program = eval_exn source in
   Executor.execute program input
 
-let parse source = Errors.handle (fun () -> parse_exn source) ~source
+let parse parser_source =
+  Errors.handle (fun () -> parse_exn parser_source) ~parser_source
 
-let eval source = Errors.handle (fun () -> eval_exn source) ~source
+let eval parser_source =
+  Errors.handle (fun () -> eval_exn parser_source) ~parser_source
 
-let execute source input =
-  Errors.handle (fun () -> execute_exn source input) ~source ~input
+let execute parser_source input =
+  Errors.handle
+    (fun () -> execute_exn parser_source input)
+    ~parser_source ~input

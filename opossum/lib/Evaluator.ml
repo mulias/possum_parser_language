@@ -55,6 +55,7 @@ let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
                      raise
                        (Errors.EnvFindValue
                           { id
+                          ; source = id_meta.source
                           ; start_pos = id_meta.start_pos
                           ; end_pos = id_meta.end_pos
                           })
@@ -63,6 +64,7 @@ let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
                        (Errors.EvalValueObjectMemberKey
                           { id = Some id
                           ; value = non_string
+                          ; source = id_meta.source
                           ; start_pos = id_meta.start_pos
                           ; end_pos = id_meta.end_pos
                           }))
@@ -77,7 +79,11 @@ let rec eval_value (ast : Ast.value) (env : Program.env) : Program.value =
       | None ->
           raise
             (Errors.EnvFindValue
-               { id; start_pos = meta.start_pos; end_pos = meta.end_pos }))
+               { id
+               ; source = meta.source
+               ; start_pos = meta.start_pos
+               ; end_pos = meta.end_pos
+               }))
 
 let rec destructure
     (env : Program.env)
@@ -170,9 +176,9 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
   | `ParserApply (`ParserId (id, id_meta), args, _) -> (
       return () >>= fun _ ->
       match Env.find_parser env id with
-      | Some (Delayed (delayed_p, _, delayed_args)) ->
+      | Some (Delayed (delayed_p, _, delayed_args), _parser_env) ->
           resolve_delayed_parser id args (delayed_p, delayed_args)
-      | Some p -> (
+      | Some (p, _parser_env) -> (
           let evaled_args =
             List.map args ~f:(fun a -> eval_parser_apply_arg a env)
           in
@@ -184,14 +190,23 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
       | None ->
           raise
             (Errors.EnvFindParser
-               { id; start_pos = id_meta.start_pos; end_pos = id_meta.end_pos })
-      )
+               { id
+               ; source = id_meta.source
+               ; start_pos = id_meta.start_pos
+               ; end_pos = id_meta.end_pos
+               }))
   | (`String _ | `Intlit _ | `Floatlit _) as lit ->
       eval_literal_parser lit >>= fun value -> return (value, env)
-  | `Regex (pattern, { start_pos; end_pos }) ->
+  | `Regex (pattern, meta) ->
       let r =
         try Re.Perl.re pattern ~opts:[ `Multiline ] |> Re.compile
-        with _ -> raise (Errors.EvalRegexPattern { start_pos; end_pos })
+        with _ ->
+          raise
+            (Errors.EvalRegexPattern
+               { source = meta.source
+               ; start_pos = meta.start_pos
+               ; end_pos = meta.end_pos
+               })
       in
       peek_current_input
       >>= (fun i -> Parser.peek_pos >>= fun p -> Parser.regex r i p)
@@ -218,6 +233,7 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
             (Errors.EvalConcat
                { side = `Right
                ; value = not_string
+               ; source = meta.source
                ; start_pos = meta.start_pos
                ; end_pos = meta.end_pos
                })
@@ -226,6 +242,7 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
             (Errors.EvalConcat
                { side = `Left
                ; value = not_string
+               ; source = meta.source
                ; start_pos = meta.start_pos
                ; end_pos = meta.end_pos
                }))
@@ -240,7 +257,7 @@ and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
   match ast with
   | `ParserApply (`ParserId (id, id_meta), args, _) -> (
       match Env.find_parser env id with
-      | Some parser_fn ->
+      | Some (parser_fn, _parser_env) ->
           let evaled_args =
             List.map args ~f:(fun a -> eval_parser_apply_arg a env)
           in
@@ -248,8 +265,11 @@ and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
       | None ->
           raise
             (Errors.EnvFindParser
-               { id; start_pos = id_meta.start_pos; end_pos = id_meta.end_pos })
-      )
+               { id
+               ; source = id_meta.source
+               ; start_pos = id_meta.start_pos
+               ; end_pos = id_meta.end_pos
+               }))
   | _ -> Parser (eval_parser_body ast env >>= fun (value, _env) -> return value)
 
 and eval_sequence
@@ -287,11 +307,14 @@ let eval_named_parser
         (* First check that the delayed parser hasn't already been evaluated and
            updated in the global env. *)
         match Env.find_parser env id with
-        | None | Some (Delayed _) ->
-            let p = ParserFn.curry (eval_parser_body_partial body) params env in
-            Env.set_global_parser env id p ;
+        | Some (Delayed _, parser_env) ->
+            let p =
+              ParserFn.curry (eval_parser_body_partial body) params parser_env
+            in
+            Env.set_global_parser parser_env id p ;
             p
-        | Some p -> p)
+        | Some (p, _parser_env) -> p
+        | None -> raise Errors.Unexpected)
     , id
     , [] )
 
@@ -302,7 +325,7 @@ let eval_main_parser
 
 let eval_program
     (Program { main_parser; named_parsers } : Ast.program)
-    (env : Program.env) : Program.t =
+    (env : Program.env) : Program.t Option.t =
   let _ = clear_current_input_ref () in
   let named_parsers =
     List.map named_parsers ~f:(fun named_parser ->
@@ -310,6 +333,6 @@ let eval_program
         (id, eval_named_parser id params body env))
   in
   List.iter named_parsers ~f:(fun (id, p) -> Env.set_global_parser env id p) ;
-  eval_main_parser main_parser env
+  Option.map main_parser ~f:(fun p -> eval_main_parser p env)
 
 let eval = eval_program

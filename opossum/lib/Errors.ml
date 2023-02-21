@@ -1,28 +1,32 @@
 open! Base
 
-type parse_error =
-  { buf : Angstrom.bigstring
-  ; off : int
-  ; len : int
-  ; marks : string list
-  ; msg : string
-  }
+type parse_error = { off : int; len : int; marks : string list; msg : string }
 
 exception Unexpected
 
 exception Todo of string
 
-exception ParseProgram of parse_error
+exception ParseProgram of { parse_error : parse_error; source : Program.source }
 
 exception
   AstTransform of
-    { expected : string; got : string; start_pos : int; end_pos : int }
+    { expected : string
+    ; got : string
+    ; start_pos : int
+    ; end_pos : int
+    ; source : Program.source
+    }
 
-exception AstIgnoredId of { meta : Program.meta }
+exception
+  AstIgnoredId of { start_pos : int; end_pos : int; source : Program.source }
 
-exception EnvFindValue of { id : string; start_pos : int; end_pos : int }
+exception
+  EnvFindValue of
+    { id : string; start_pos : int; end_pos : int; source : Program.source }
 
-exception EnvFindParser of { id : string; start_pos : int; end_pos : int }
+exception
+  EnvFindParser of
+    { id : string; start_pos : int; end_pos : int; source : Program.source }
 
 exception EvalValueArraySpread
 
@@ -34,6 +38,7 @@ exception
     ; value : Program.value
     ; start_pos : int
     ; end_pos : int
+    ; source : Program.source
     }
 
 exception EvalNotEnoughArguments
@@ -43,7 +48,13 @@ exception EvalTooManyArguments
 exception EvalValueType of { expected : string; got : string }
 
 exception
-  EvalArgumentType of { expected : string; got : string; meta : Program.meta }
+  EvalArgumentType of
+    { expected : string
+    ; got : string
+    ; start_pos : int
+    ; end_pos : int
+    ; source : Program.source
+    }
 
 exception
   EvalConcat of
@@ -51,15 +62,25 @@ exception
     ; value : Program.value
     ; start_pos : int
     ; end_pos : int
+    ; source : Program.source
     }
 
-exception EvalRegexPattern of { start_pos : int; end_pos : int }
+exception
+  EvalRegexPattern of
+    { start_pos : int; end_pos : int; source : Program.source }
 
 exception ParseInput of parse_error
 
 exception MainNotFound
 
-exception MultipleMainParsers of { start_pos : int; end_pos : int }
+exception
+  MultipleMainParsers of
+    { start_pos : int; end_pos : int; source : Program.source }
+
+let get_source_str (source : Program.source) parser_source : string =
+  match source with
+  | `Parser -> parser_source
+  | `Stdlib -> PossumStdlibSource.read
 
 (* Word-wrap each line of `s` so that the lines are less than `at` in length. *)
 let wrap_message (s : string) ~(at : int) : string =
@@ -163,12 +184,13 @@ let error_context (source_or_input : string) ~(start_pos : int) ~(end_pos : int)
      %{context}\n\
      %{underline}"]
 
-let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
+let handle ~(parser_source : string) ?(input : string option) (f : unit -> 'a) :
     ('a, string) Result.t =
   try Ok (f ()) with
   | Todo msg -> Error ("Todo: " ^ msg)
-  | ParseProgram parse_error ->
-      let context = parse_error_context source parse_error in
+  | ParseProgram { parse_error; source } ->
+      let source_str = get_source_str source parser_source in
+      let context = parse_error_context source_str parse_error in
       let parse_path = parse_path parse_error in
       let msg =
         [%string
@@ -183,12 +205,14 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
         |> wrap_message ~at:80
       in
       Error msg
-  | AstTransform { expected; got; start_pos; end_pos } ->
-      let context = error_context source ~start_pos ~end_pos in
+  | AstTransform { expected; got; start_pos; end_pos; source } ->
+      let source_str = get_source_str source parser_source in
+      let context = error_context source_str ~start_pos ~end_pos in
       let msg = [%string "Expected %{expected}, got %{got} at %{context}"] in
       Error msg
-  | AstIgnoredId { meta = { start_pos; end_pos } } ->
-      let context = error_context source ~start_pos ~end_pos in
+  | AstIgnoredId { start_pos; end_pos; source } ->
+      let source_str = get_source_str source parser_source in
+      let context = error_context source_str ~start_pos ~end_pos in
       let msg =
         [%string
           "\n\
@@ -200,8 +224,9 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
         |> wrap_message ~at:80
       in
       Error msg
-  | EnvFindValue { id; start_pos; end_pos } ->
-      let context = error_context source ~start_pos ~end_pos in
+  | EnvFindValue { id; start_pos; end_pos; source } ->
+      let source_str = get_source_str source parser_source in
+      let context = error_context source_str ~start_pos ~end_pos in
       let msg =
         [%string
           "\n\
@@ -213,8 +238,9 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
         |> wrap_message ~at:80
       in
       Error msg
-  | EnvFindParser { id; start_pos; end_pos } ->
-      let context = error_context source ~start_pos ~end_pos in
+  | EnvFindParser { id; start_pos; end_pos; source } ->
+      let source_str = get_source_str source parser_source in
+      let context = error_context source_str ~start_pos ~end_pos in
       let msg =
         [%string
           "\n\
@@ -228,7 +254,7 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
       Error msg
   | EvalValueArraySpread -> Error "EvalValueArraySpread"
   | EvalValueObjectSpread -> Error "EvalValueObjectSpread"
-  | EvalValueObjectMemberKey { id; value; start_pos; end_pos } ->
+  | EvalValueObjectMemberKey { id; value; start_pos; end_pos; source } ->
       let value_type = Value.to_type_string value in
       let value_description =
         match id with
@@ -241,7 +267,8 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
               "This parser returned a %{value_type}, but every returned value \
                needs to be a string in order to create a valid object"]
       in
-      let context = error_context source ~start_pos ~end_pos in
+      let source_str = get_source_str source parser_source in
+      let context = error_context source_str ~start_pos ~end_pos in
       let msg =
         [%string
           "\n\
@@ -257,10 +284,9 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
   | EvalTooManyArguments -> Error "EvalTooManyArguments"
   | EvalValueType { expected; got } ->
       Error [%string "Expected %{expected}, got %{got}"]
-  | EvalArgumentType { expected; got; meta } ->
-      let arg_context =
-        error_context source ~start_pos:meta.start_pos ~end_pos:meta.end_pos
-      in
+  | EvalArgumentType { expected; got; start_pos; end_pos; source } ->
+      let source_str = get_source_str source parser_source in
+      let arg_context = error_context source_str ~start_pos ~end_pos in
       let msg =
         [%string
           "\n\
@@ -269,12 +295,13 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
            %{arg_context}"]
       in
       Error msg
-  | EvalConcat { side = left_or_right; value; start_pos; end_pos } ->
+  | EvalConcat { side = left_or_right; value; start_pos; end_pos; source } ->
       let side =
         match left_or_right with `Left -> "left-side" | `Right -> "right-side"
       in
       let value_type = Value.to_type_string value in
-      let context = error_context source ~start_pos ~end_pos in
+      let source_str = get_source_str source parser_source in
+      let context = error_context source_str ~start_pos ~end_pos in
       let msg =
         [%string
           "\n\
@@ -287,8 +314,9 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
         |> wrap_message ~at:80
       in
       Error msg
-  | EvalRegexPattern { start_pos; end_pos } ->
-      let context = error_context source ~start_pos ~end_pos in
+  | EvalRegexPattern { start_pos; end_pos; source } ->
+      let source_str = get_source_str source parser_source in
+      let context = error_context source_str ~start_pos ~end_pos in
       let msg =
         [%string
           "\n\
@@ -333,8 +361,9 @@ let handle ~(source : string) ?(input : string option) (f : unit -> 'a) :
       in
       Error msg
   | MainNotFound -> Error "MainNotFound"
-  | MultipleMainParsers { start_pos; end_pos } ->
-      let context = error_context source ~start_pos ~end_pos in
+  | MultipleMainParsers { start_pos; end_pos; source } ->
+      let source_str = get_source_str source parser_source in
+      let context = error_context source_str ~start_pos ~end_pos in
       let msg =
         [%string "Expected one main parser, found a second one at %{context}"]
         |> wrap_message ~at:80

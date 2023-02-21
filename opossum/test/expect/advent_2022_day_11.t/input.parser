@@ -1,4 +1,4 @@
-array(monkey) ;
+array_sep(monkey, ws)
 
 monkey =
   "Monkey " & Id <- int & ":" & ws &
@@ -6,7 +6,7 @@ monkey =
   "Operation: new = " & Operation <- operation & ws &
   "Test: divisible by " & Test <- int & ws &
   "If true: throw to monkey " & IfTrue <- int & ws &
-  "If false: throw to monkey " & IfFalse <- int & ws $
+  "If false: throw to monkey " & IfFalse <- int $
   {
     "id": Id,
     "starting_items": Items,
@@ -14,10 +14,10 @@ monkey =
     "test": Test,
     "if_true": IfTrue,
     "if_false": IfFalse
-  } ;
+  }
 
 operation =
   Left <- int | word & ws &
   Op <- word & ws &
   Right <- int | word $
-  {"left": Left, "operator": Op, "right": Right} ;
+  {"left": Left, "operator": Op, "right": Right}

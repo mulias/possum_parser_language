@@ -21,20 +21,9 @@
 
 
   $ possum -p "1 2" -i "1 2"
-  
-  Error Reading Program
-  
-  ~~~(##)'>  I ran into a syntax issue in your program.
-  
-  The issue starts on line 1, character 3:
+  Expected one main parser, found a second one at line 1, characters 3-3:
   1 2
     ^
-  
-  Eventually there will be a more helpful error message here, but in the meantime
-  here's the parsing steps leading up to the failure:
-  end_of_input
-  
-  The last step did not succeed and there were no other options.
   [123]
 
 

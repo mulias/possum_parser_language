@@ -4,10 +4,11 @@ open Printf
 open! Base
 
 let eval (source : string) (input : string) : Program.value =
-  let ast = source |> ProgramParser.parse |> AstTransformer.transform in
-  let env = Env.init in
-  let _ = ProgramStdlib.load env in
-  let program = Evaluator.eval ast env in
+  let ast = source |> ProgramParser.parse `Parser |> AstTransformer.transform in
+  let env =
+    Env.init |> PossumCore.extend_env |> PossumStdlib.extend_env |> Env.extend
+  in
+  let program = Evaluator.eval ast env |> Option.value_exn in
   Executor.execute program input
 
 let check_eval (program : string) (input : string) (expected : Program.value) =
@@ -278,7 +279,8 @@ let test_env_scope_for_parser () =
   let program = "I <- int & X <- foo $ X ; foo = const(I)" in
   let input = "23" in
   let expected =
-    Errors.EnvFindValue { id = "I"; start_pos = 38; end_pos = 39 }
+    Errors.EnvFindValue
+      { id = "I"; source = `Parser; start_pos = 38; end_pos = 39 }
   in
   check_eval_error program input expected
 
@@ -297,6 +299,35 @@ let test_env_scope_for_two_sequences () =
   let program = "(A <- int $ A) > ('' $ A)" in
   let input = "123" in
   let expected = `Intlit "123" in
+  check_eval program input expected
+
+let test_env_scope_for_stdlib () =
+  let program = "whitespace = 'abc' ; input(5)" in
+  let success_input = "5" in
+  let success_expected = `Intlit "5" in
+  let error_input = "abc5abc" in
+  let error_expected =
+    Errors.ParseInput
+      { off = 0; len = 7; marks = [ "input"; "p"; "5" ]; msg = "string" }
+  in
+  check_eval program success_input success_expected ;
+  check_eval_error program error_input error_expected
+
+let test_recursive_tail_call () =
+  let program = "scream = ('a' | 'h') + scream | const(''); scream" in
+  let input =
+    String.init 10_000 ~f:(fun _ -> if Random.bool () then 'a' else 'h')
+  in
+  let expected = `String input in
+  check_eval program input expected
+
+let test_large_array () =
+  let program = "array(0 | 1)" in
+  let nums =
+    List.init 10_000 ~f:(fun _ -> if Random.bool () then "0" else "1")
+  in
+  let input = String.concat nums in
+  let expected = `List (List.map nums ~f:(fun n -> `Intlit n)) in
   check_eval program input expected
 
 let () =
@@ -353,5 +384,13 @@ let () =
             test_env_scope_for_sequence
         ; test_case "Env scope share assigns between sequences" `Quick
             test_env_scope_for_two_sequences
+        ; test_case "Env scope is not shared accross files" `Quick
+            test_env_scope_for_stdlib
+        ] )
+    ; ( "performance"
+      , [ test_case "Recursively parse a large string one character at a time"
+            `Quick test_recursive_tail_call
+        ; test_case "Recursively parse numbers into a large array" `Quick
+            test_large_array
         ] )
     ]
