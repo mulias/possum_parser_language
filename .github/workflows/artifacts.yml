@@ -13,7 +13,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-11
+          - macos-latest
         include:
           - os: ubuntu-latest
             ocaml-compiler: ocaml-variants.4.14.0+options,ocaml-option-static
