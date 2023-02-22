@@ -52,7 +52,7 @@ let run =
            https://github.com/mulias/possum_parser_language/issues"
       ]
     in
-    Cmd.info "possum" ~version:"v0.2.0" ~doc ~exits:Cmd.Exit.defaults ~man
+    Cmd.info "possum" ~version:"v0.3.0" ~doc ~exits:Cmd.Exit.defaults ~man
   in
   let possum_cmd = Cmd.v info possum_term in
   Caml.exit (Cmd.eval possum_cmd)
