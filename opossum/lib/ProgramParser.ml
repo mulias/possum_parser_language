@@ -315,6 +315,10 @@ let parser_steps : permissive_parser_steps Angstrom.t =
                 let%map next_step = char '$' *> step <?> "infix"
                 and rest_steps = infix_steps in
                 (`Return, next_step) :: rest_steps
+            | Some '!' ->
+                let%map next_step = char '!' *> step <?> "infix"
+                and rest_steps = infix_steps in
+                (`Backtrack, next_step) :: rest_steps
             | _ -> return [])
         <?> "infix_steps"
       in

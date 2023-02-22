@@ -251,6 +251,9 @@ let rec eval_parser_body (ast : Ast.parser_body) (env : Program.env) :
       match destructure env_right left v_right with
       | Ok new_env -> return (v_right, new_env)
       | Error _ -> fail "Destructure" <?> "Destructure")
+  | `Backtrack (left, right, _) ->
+      Parser.peek (eval_parser_body left env) >>= fun (_v_left, env_left) ->
+      eval_parser_body right env_left
 
 and eval_parser_body_partial (ast : Ast.parser_body) (env : Program.env) :
     Program.parser_fn =

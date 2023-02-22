@@ -141,6 +141,14 @@ let test_infix_concat () =
   let expected : Program.value = `String "ab" in
   check_eval program input expected
 
+let test_infix_backtrack () =
+  let program = "(D <- digit) ! (DD <- digit) ! (N <- number) $ [D, DD, N]" in
+  let input = "123456" in
+  let expected : Program.value =
+    `List [ `Intlit "1"; `Intlit "1"; `Intlit "123456" ]
+  in
+  check_eval program input expected
+
 let test_stdlib () =
   let program = "array_sep(int, ws)" in
   let input = "1    2 2 33" in
@@ -358,9 +366,7 @@ let () =
         ; test_case "InfixBinary <" `Quick test_infix_take_left
         ; test_case "InfixBinary >" `Quick test_infix_take_right
         ; test_case "InfixBinary +" `Quick test_infix_concat
-          (* test_case "Infix normal precedence" `Quick *)
-          (*   test_infix_normal_precedence; *)
-          (* test_case "Infix group precedence" `Quick test_infix_group_precedence; *)
+        ; test_case "Infix Backtrack !" `Quick test_infix_backtrack
         ] )
     ; ( "standard library"
       , [ test_case "Access stdlib parsers" `Quick test_stdlib ] )

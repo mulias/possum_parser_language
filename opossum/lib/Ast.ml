@@ -177,7 +177,14 @@ type value_object = [ `ValueObject of value_object_member list * meta ]
 
 (* Infix combinators for composing parsers. *)
 type infix =
-  [ `Or | `TakeLeft | `TakeRight | `Concat | `Destructure | `And | `Return ]
+  [ `Or
+  | `TakeLeft
+  | `TakeRight
+  | `Concat
+  | `Destructure
+  | `And
+  | `Return
+  | `Backtrack ]
 [@@deriving show]
 
 (* Permissive Program AST This part of the AST is produced by the ProgramParser
@@ -247,6 +254,7 @@ type parser_body =
   | `TakeRight of parser_body * parser_body * meta
   | `Concat of parser_body * parser_body * meta
   | `Destructure of pattern * parser_body * meta
+  | `Backtrack of parser_body * parser_body * meta
   | parser_literal ]
 [@@deriving show]
 
@@ -291,6 +299,7 @@ let get_meta (ast : 'a) : meta =
   | `TakeLeft (_, _, meta)
   | `TakeRight (_, _, meta)
   | `Concat (_, _, meta)
+  | `Backtrack (_, _, meta)
   | `Destructure (_, _, meta) ->
       meta
 
