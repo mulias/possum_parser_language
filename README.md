@@ -215,7 +215,7 @@ from the command line with `possum --docs=[overview | advanced | language | cli
 [`overview`]: docs/overview.md
 [`advanced`]: docs/advanced.md
 [`language`]: docs/language.md
-[`cli`]: docs/cli.md
+[`cli`]: docs/cli.txt
 [`stdlib`]: docs/stdlib.md
 
 ## Examples

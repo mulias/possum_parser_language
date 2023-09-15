@@ -1,5 +1,3 @@
-# Possum CLI
-
 NAME
        possum - A tiny text parsing language
 
