@@ -172,7 +172,7 @@ The reference implementation for Possum is Opossum, which is written in OCaml.
   Fib(N) =
     1 <- N ? 0 :
     2 <- N ? 1 :
-    fib(N - 1) + fib(N - 2)
+    Fib(N - 1) + Fib(N - 2)
 
   N <- int $ "Fibonacci of %(N) is %(Fib(N))"
 
