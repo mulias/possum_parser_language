@@ -1,57 +1,74 @@
-alpha = /[a-zA-Z]/
-alphas = /[a-zA-Z]+/
+char = "\u0000".."\U0010FFFF"
 
-lower = /[a-z]/
-lowers = /[a-z]+/
+alpha = "a".."z" | "A".."Z"
 
-upper = /[A-Z]/
-uppers = /[A-Z]+/
+alphas = many(alpha)
 
-numeral = /[0-9]/
-numerals = /[0-9]+/
+lower = "a".."z"
 
-space = /[ \t]/
-spaces = /[ \t]+/
+lowers = many(lower)
 
-symbol = /[!"#\$%&'\(\)\*\+,-\.\\\/:;<=>\?@\[\]\^_{}~\|]/
-symbols = /[!"#\$%&'\(\)\*\+,-\.\\\/:;<=>\?@\[\]\^_{}~\|]+/
+upper = "A".."Z"
 
-newline = /[\n\r]/
-newlines = /[\n\r]+/
+uppers = many(upper)
+
+numeral = "0".."9"
+
+numerals = many(numeral)
+
+space = " " | "\t"
+
+spaces = many(space)
+
+newline = "\n" | "\r\n"
+
+newlines = many(newline)
 
 nl = newline
 
-end_of_input = /$/
+end_of_input = char ? @fail ! succeed
 
 end = end_of_input
 
-whitespace = /[ \t\n\r]+/
+whitespace = many(space | newline)
 
 ws = whitespace
 
 word = until(char, whitespace | end_of_input)
 
+line = until(char, newline | end_of_input)
+
 digit = number_of(numeral)
 
-integer = number_of(/-?[1-9][0-9]*|-?[0-9]/)
+integer = number_of(_number_integer_part)
 
 int = integer
 
-float = number_of(
-  /-?[1-9][0-9]*|-?[0-9]/ +
-  (
-    ("." + numerals + default(("e" | "E") + ("-" | "+" | "") + /[0-9]+/, "")) |
-    (default("." + numerals, "") + ("e" | "E") + ("-" | "+" | "") + /[0-9]+/)
-  )
+float = number_of(_number_integer_part + _number_decimal_part)
+
+scientific_integer = number_of(_number_integer_part + _number_exponent_part)
+
+scientific_float = number_of(
+  _number_integer_part +
+  _number_decimal_part +
+  _number_exponent_part
 )
 
 number = number_of(
-  /-?[1-9][0-9]*|-?[0-9]/ +
-  default("." + numerals, "") +
-  default(("e" | "E") + ("-" | "+" | "") + /[0-9]+/, "")
+  _number_integer_part +
+  maybe(_number_decimal_part) +
+  maybe(_number_exponent_part)
 )
 
 num = number
+
+_number_integer_part =
+  (maybe("-") + "1".."9" + numerals) |
+  (maybe("-") + numeral)
+
+_number_decimal_part = "." + numerals
+
+_number_exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
 
 true(t) = t $ true
 
@@ -63,57 +80,329 @@ bool = boolean
 
 null(n) = n $ null
 
-many(p) = p + (many(p) | const(""))
+fail = @fail
 
-maybe_many(p) = default(many(p), "")
-
-until(s, stop) = s + (peek(stop) $ "" | until(s, stop))
-
-scan(p) = p | (char > scan(p))
-
-array(elem) =
-  Elem <- elem &
-  Rest <- array(elem) | const([]) $
-  [Elem, ...Rest]
-
-maybe_array(elem) = default(array(elem), [])
-
-array_sep(elem, sep) =
-  Elem <- elem &
-  Rest <- (sep > array_sep(elem, sep)) | const([]) $
-  [Elem, ...Rest]
-
-maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
-
-table_sep(elem, sep, row_sep) = array_sep(array_sep(elem, sep), row_sep)
-
-object(key, value) =
-  K <- key &
-  V <- value &
-  Rest <- object(key, value) | const({}) $
-  {K: V, ...Rest}
-
-maybe_object(key, value) = default(object(key, value), {})
-
-object_sep(key, pair_sep, value, sep) =
-  K <- key & pair_sep &
-  V <- value &
-  Rest <- (sep > object_sep(key, pair_sep, value, sep)) | const({}) $
-  {K: V, ...Rest}
-
-maybe_object_sep(key, pair_sep, value, sep) =
-  default(object_sep(key, pair_sep, value, sep), {})
-
-input(p) = maybe(whitespace) > p < maybe(whitespace) < end_of_input
-
-fail = false <- const(true)
-
-succeed = const(null)
+succeed = ""
 
 peek(p) = (V <- p) ! const(V)
 
 maybe(p) = p | succeed
 
+skip(p) = p $ ""
+
+nullable(p) = p | const(null)
+
 default(p, D) = p | const(D)
 
-const(C) = "" $ C
+const(C) = succeed $ C
+
+string_of(p) = V <- p $ "%(V)"
+
+number_of(p) = ("%(0 + N)" <- p) | (0 + N <- p) $ N
+
+surround(p, fill) = fill > p < fill
+
+balanced_pairs(open, p, close) =
+  Open <- open & _balanced_pairs_rec(open, p, close, Open, 1)
+
+_balanced_pairs_rec(open, p, close, Acc, Depth) =
+  0 <- Depth ? const(Acc) :
+  Close <- close ? _matching_pair_rec(open, p, close, Acc + Close, Depth - 1) :
+  Open <- open ? _matching_pair_rec(open, p, close, Acc + Open, Depth + 1) :
+  Next <- p & _matching_pair_rec(open, p, close, Acc + Next, Depth)
+
+input(p) = surround(p, maybe(whitespace)) < end_of_input
+
+many(p) = First <- p & _many_rec(p, First)
+
+_many_rec(p, Acc) = Next <- p ? _many_rec(p, Acc + Next) : const(Acc)
+
+until(p, stop) = First <- p & _until_rec(p, stop, First)
+
+_until_rec(p, stop, Acc) =
+  peek(stop) ?
+  const(Acc) :
+  Next <- p & _until_rec(p, stop, Acc + Next)
+
+unless(p, excluded) = excluded ? @fail : p
+
+repeat(p, N) =
+  _assert_positive_integer(N) &
+  First <- p &
+  _repeat_rec(p, N - 1, First)
+
+_repeat_rec(p, N, Acc) =
+  0 <- const(N) ?
+  const(Acc) :
+  Next <- p & _repeat_rec(p, N - 1, Acc + Next)
+
+repeat_between(p, L, H) =
+  _assert_positive_integer(L) &
+  _assert_positive_integer(H) &
+  _assert_positive_integer(H - L) &
+  First <- p &
+  _repeat_between_rec(p, L - 1, H, First)
+
+_repeat_between_rec(p, L, H, Acc) =
+  0 <- const(L) & 0 <- const(H) ? const(Acc) :
+  0 <- const(L) ? Next <- p & _repeat_between_rec(p, L, H - 1, Acc + Next) :
+  Next <- p & _repeat_between_rec(p, L - 1, H, Acc + Next)
+
+scan(p) = p | (char > scan(p))
+
+array(elem) = First <- elem & _array_rec(elem, [First])
+
+_array_rec(elem, Acc) =
+  Elem <- elem ?
+  _array_rec(elem, [...Acc, Elem]) :
+  const(Acc)
+
+array_sep(elem, sep) = First <- elem & _array_sep_rec(elem, sep, [First])
+
+_array_sep_rec(elem, sep, Acc) =
+  Elem <- sep > elem ?
+  _array_sep_rec(elem, sep, [...Acc, Elem]) :
+  const(Acc)
+
+array_until(elem, stop) = First <- elem & _array_until_rec(elem, stop, [First])
+
+_array_until_rec(elem, stop, Acc) =
+  peek(stop) ?
+  const(Acc) :
+  Elem <- elem & _array_until_rec(elem, stop, [...Acc, Elem])
+
+maybe_array(elem) = default(array(elem), [])
+
+maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
+
+table_sep(elem, sep, row_sep) =
+  First <- elem & _table_sep_rec(elem, sep, row_sep, [[First]])
+
+_table_sep_rec(elem, sep, row_sep, Acc) =
+  NextRow <- row_sep > elem ?
+  _table_sep_rec(elem, sep, row_sep, ArrayAppend(Acc [NextRow])) :
+  Elem <- sep > elem ?
+  _table_sep_rec(elem, sep, TableAppend(Acc, Elem)) :
+  const(Acc)
+
+maybe_table_sep(elem, sep, row_sep) =
+  default(table_sep(elem, sep, row_sep), [[]])
+
+single(elem) = Elem <- elem $ [Elem]
+
+pair(elem) = E1 <- elem & E2 <- elem $ [E1, E2]
+
+pair_sep(elem, sep) = E1 <- elem & sep & E2 <- elem $ [E1, E2]
+
+triple(elem) = E1 <- elem & E2 <- elem & E3 <- elem $ [E1, E2, E3]
+
+triple(elem, sep) = E1 <- elem & sep & E2 <- elem & sep & E3 <- elem $ [E1, E2, E3]
+
+tuple(elem, N) =
+  _assert_positive_integer(N) &
+  First <- elem &
+  _tuple_rec(elem, N - 1, [First])
+
+_tuple_rec(elem, N, Acc) =
+  0 <- const(N) ?
+  const(Acc) :
+  Elem <- elem & _tuple_rec(elem, N - 1, [...Acc, Elem])
+
+tuple_sep(elem, sep, N) =
+  _assert_positive_integer(N) &
+  First <- elem &
+  _tuple_sep_rec(elem, sep, N - 1, [First])
+
+_tuple_sep_rec(elem, sep, N, Acc) =
+  0 <- const(N) ?
+  const(Acc) :
+  Elem <- sep > elem & _tuple_sep_rec(elem, sep, N - 1, [...Acc, Elem])
+
+object(key, value) =
+  K <- key & V <- value &
+  _object_rec(key, value, {K: V})
+
+_object_rec(key, value, Acc) =
+  K <- key & V <- value ?
+  object(key, value, {...Acc, K: V}) :
+  const(Acc)
+
+object_sep(key, pair_sep, value, sep) =
+  K <- key & pair_sep & V <- value &
+  _object_sep_rec(key, pair_sep, value, sep, {K: V})
+
+_object_sep_rec(key, pair_sep, value, sep, Acc) =
+  sep & K <- key & pair_sep & V <- value ?
+  _object_sep_rec(key, pair_sep, value, sep, {...Acc, K: V}) :
+  const(Acc)
+
+object_until(key, value, stop) =
+  K <- key & V <- value & _object_until_rec(key, value, stop, {K: V})
+
+_object_until_rec(key, value, stop, Acc) =
+  peek(stop) ?
+  const(Acc) :
+  K <- key & V <- value & _object_until_rec(key, value, stop, {...Acc, K: V})
+
+maybe_object(key, value) = default(object(key, value), {})
+
+maybe_object_sep(key, pair_sep, value, sep) =
+  default(object_sep(key, pair_sep, value, sep), {})
+
+label(Key, value) = Value <- value $ {Key: Value}
+
+json_object = "%({...J})" <- matching_pair("{", char, "}") $ J
+
+json_array = "%([...J])" <- matching_pair("[", char, "]") $ J
+
+json_string = '"' > _json_string_rec("")
+
+_json_string_rec(Acc) =
+  '"' ?
+  const(Acc) :
+  Next <- (
+    `\"` $ `"` |
+    `\\` $ `\` |
+    `\/` $ `/` |
+    `\b` $ "\b" |
+    `\f` $ "\f" |
+    `\n` $ "\n" |
+    `\r` $ "\r" |
+    `\t` $ "\t" |
+    _unicode_escape |
+    unless(char, `\`)
+  ) &
+  _json_string_rec(Acc + Next)
+
+_unicode_escape = `\u` & H <- _hex + _hex + _hex + _hex $ "\u%(H)"
+
+_hex = digit | "a".."f" | "A".."F"
+
+json =
+  json_object |
+  json_array |
+  json_string |
+  number |
+  boolean("true", "false") |
+  null("null")
+
+Head(Arr) = [H, ..._] <- Arr & H
+
+Tail(Arr) = [_, ...T] <- Arr & T
+
+Front(Arr) = [...F, _] <- Arr & F
+
+Last(Arr) = [..._, L] <- Arr & L
+
+ArrayAppend(Array, Elem) = [...Array, Elem]
+
+TableAppend(Table, Elem) =
+  [...Rows, LastRow] <- Table & [...Rows, [...LastRow, Elem]]
+
+MapArray(F, Arr) = @AssertArray(Arr) & _MapArrayRec(F, Arr, [])
+
+_AssertArray(A) = [..._] <- A ? A !! @Error("Expected an array, got %(A).")
+
+_MapArrayRec(F, Arr, Acc) =
+  [First, ...Rest] <- Arr ?
+  _MapArrayRec(F, Rest, [...Acc, F(First)]) !!
+  Acc
+
+MapObject(F, Obj) = @AssertObject(Obj) & _MapObjectRec(F, Obj, {})
+
+_MapObjectRec(F, Obj, Acc) =
+  {K: V, ...Rest} <- Obj ?
+  _MapObjectRec(F, Rest, {...Acc, ...F(K, V)}) !!
+  Acc
+
+MapString(F, Str) = @AssertString(Str) & _MapStringRec(F, Str, "")
+
+_MapStringRec(F, Str, Acc) =
+  "%1(C)%(Rest)" <- Str ?
+  _MapStringRec(F, Rest, "%(Acc)%(F(C))") !!
+  Acc
+
+True(V) = true <- V
+
+False(V) = false <- V
+
+And(A, B) = True(A) & True(B)
+
+Or(A, B) = True(A) | True(B)
+
+XOr(A, B) = (True(A) & False(B)) | (False(A) & True(B))
+
+IsString(V) = "%(_)" <- V
+
+IsNumber(V) = 0 + _ <- V
+
+IsNull(V) = null <- V
+
+IsBool(V) = (true <- V) | (false <- V)
+
+IsArray(V) = [..._] <- V
+
+IsObject(V) = {..._} <- V
+
+map(p, Array) =
+  [First, ...Rest] <- const(Array) &
+  Result <- p(First) &
+  ResultRest <- map(p, Rest) | const([]) $
+  [Result, ...ResultRest] ;
+
+zip_object(Keys, Values) =
+  [K, ...KeysRest] <- const(Keys) &
+  [V, ...ValuesRest] <- const(Values) &
+  Rest <- zip_object(KeysRest, ValuesRest) | const({}) $
+  {K: V, ...Rest} ;
+
+transpose(T) =
+  FirstPerRow <- map(head, T) &
+  RestPerRow <- map(tail, T) &
+  Rest <- transpose(RestPerRow) | const([]) $
+  [FirstPerRow, ...Rest] ;
+
+head(Array) = [Head, ..._Tail] <- const(Array) $ Head ;
+
+tail(Array) = [_Head, ...Tail] <- const(Array) $ Tail ;
+
+reverse(A) =
+  [Head, ...Tail] <- const(A) &
+  Rest <- reverse(Tail) | const([]) $
+  [...Rest, Head] ;
+
+ZipObject(Keys, Values) =
+  [K, ...KeysRest] <- Keys &
+  [V, ...ValuesRest] <- Values &
+  Rest <- ZipObject(KeysRest, ValuesRest) | {} $
+  {K: V, ...Rest}
+
+head(Array) = [Head, ..._Tail] <- const(Array) $ Head ;
+
+tail(Array) = [_Head, ...Tail] <- const(Array) $ Tail ;
+
+transpose(T) =
+  FirstPerRow <- map(head, T) &
+  RestPerRow <- map(tail, T) &
+  Rest <- transpose(RestPerRow) | const([]) $
+  [FirstPerRow, ...Rest] ;
+
+rotate_table_clockwise(T) =
+  R <- transpose(T) &
+  Result <- map(reverse, R) $
+  Result ;
+
+reverse(A) =
+  [Head, ...Tail] <- const(A) &
+  Rest <- reverse(Tail) | const([]) $
+  [...Rest, Head] ;
+
+reject(Value, Array) =
+  [Value, ...Tail] <- const(Array) & Rest <- reject(Value, Tail) $ Rest |
+  [NotValue, ...Tail] <- const(Array) & Rest <- reject(Value, Tail) $ [NotValue, ...Rest] |
+  const([]) ;
+
+
+_assert_positive_integer(N) =
+  @run(peek("1".."9") > integer > end, "%(N)") ? succeed :
+  @error("Expected a positive integer, got %(N).")
