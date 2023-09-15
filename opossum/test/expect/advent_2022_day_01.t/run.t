@@ -1,7 +1,7 @@
 Advent of Code 2022 Day 1
 https://adventofcode.com/2022/day/1
 
-  $ possum -p "table_sep(int,nl,nl+nl)" input.txt
+  $ possum -p 'table_sep(int,nl,nl+nl)' input.txt
   [
     [ 1000, 2000, 3000 ],
     [ 4000 ],

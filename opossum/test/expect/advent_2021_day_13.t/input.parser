@@ -1,8 +1,7 @@
-dot = X <- int & "," & Y <- int $ [X, Y]
 fold = "fold along " & D <- alpha & "=" & P <- int $ {"direction": D, "position": P}
 
 input(
-  Dots <- array_sep(dot, nl) & ws &
+  Dots <- table_sep(int, ",", nl) & ws &
   Folds <- array_sep(fold, nl) $
   {"dots": Dots, "folds": Folds}
 )

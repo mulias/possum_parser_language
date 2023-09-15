@@ -72,7 +72,7 @@ parser_apply_or_constant_literal =
     (["true", []] <- const([Id, Args]) $ {"type": "true_lit"}) |
     (["false", []] <- const([Id, Args]) $ {"type": "false_lit"}) |
     (["null", []] <- const([Id, Args]) $ {"type": "null_lit"}) |
-    (succeed $ {"type": "parser_apply", "id": Id, "args": Args})
+    (const({"type": "parser_apply", "id": Id, "args": Args}))
   ) $
   Step
 

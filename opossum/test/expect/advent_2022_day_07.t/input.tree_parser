@@ -1,28 +1,14 @@
 input(dir)
 
 dir =
-  "$ cd" & ws &
-  Name <- word & nl &
-  "$ ls" & nl &
-  Files <- files & nl &
-  Subdirs <- child_dirs &
-  ("$ cd .." < nl) | end $
+  Name <- "$ cd " > word < nl &
+  Files <- "$ ls" > nl > files < nl &
+  Subdirs <- default(child_dirs, []) $
   {"name": Name, "files": Files, "subdirs": Subdirs}
 
-child_dirs = (
-  peek("$ cd .." | end) $ []
-) | (
-  Dir <- dir &
-  Rest <- child_dirs $
-  [Dir, ...Rest]
-)
+child_dirs = array_until(dir < nl, "$ cd ..")
 
-files = array_sep(
-  maybe(dir_listings > nl) > file_listing < maybe(nl > dir_listings),
-  nl
-) | (
-  maybe(dir_listings) $ []
-)
+files = maybe_array_sep(maybe(dir_listings > nl) > file_listing < maybe(nl > dir_listings), nl)
 
 dir_listings = array_sep("dir " > word, nl)
 

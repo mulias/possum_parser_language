@@ -1,35 +1,6 @@
-input(schedule) ;
+input(schedule)
 
 schedule =
-  [Weekdays, ...Rows] <- table_sep(word, many(" "), nl) &
-  [Hours, ...SubjectRows] <- transpose(Rows) &
-  Schedules <- map(zip_object(Hours), SubjectRows) &
-  Table <- zip_object(Weekdays, Schedules) $
-  Table ;
-
-map(p, Array) =
-  [First, ...Rest] <- const(Array) &
-  Result <- p(First) &
-  ResultRest <- map(p, Rest) | const([]) $
-  [Result, ...ResultRest] ;
-
-zip_object(Keys, Values) =
-  [K, ...KeysRest] <- const(Keys) &
-  [V, ...ValuesRest] <- const(Values) &
-  Rest <- zip_object(KeysRest, ValuesRest) | const({}) $
-  {K: V, ...Rest} ;
-
-transpose(T) =
-  FirstPerRow <- map(head, T) &
-  RestPerRow <- map(tail, T) &
-  Rest <- transpose(RestPerRow) | const([]) $
-  [FirstPerRow, ...Rest] ;
-
-head(Array) = [Head, ..._Tail] <- const(Array) $ Head ;
-
-tail(Array) = [_Head, ...Tail] <- const(Array) $ Tail ;
-
-reverse(A) =
-  [Head, ...Tail] <- const(A) &
-  Rest <- reverse(Tail) | const([]) $
-  [...Rest, Head] ;
+  [Weekdays, ...Rows] <- table_sep(word, spaces, nl) &
+  [Hours, ...SubjectRows] <- const(Transpose(Rows)) $
+  Tabular(Weekdays, Map(Tabular(Hours, _), SubjectRows))

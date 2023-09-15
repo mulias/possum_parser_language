@@ -1,7 +1,7 @@
 Advent of Code 2021 Day 12
 https://adventofcode.com/2021/day/12
 
-  $ possum input.parser input.txt
+  $ possum -p 'input(table_sep(alphas, "-", nl))' input.txt
   [
     [ "start", "A" ],
     [ "start", "b" ],
