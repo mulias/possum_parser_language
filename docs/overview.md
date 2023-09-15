@@ -263,16 +263,16 @@ then matches `p2`. If both succeed then `p1` is returned.
 The "merge" operator `p1 + p2` matches `p1` and then `p2` and combines the two
 values. The merging behavior for two values of the same type is:
 
-    * Concatenate strings
+* Concatenate strings
 
-    * Concatenate arrays
+* Concatenate arrays
 
-    * Combine objects, adding fields from the right-side object to the left-side
-      object, possibly replacing exisiting values.
+* Combine objects, adding fields from the right-side object to the left-side
+  object, possibly replacing exisiting values.
 
-    * Sum numbers
+* Sum numbers
 
-    * Leave matching constants unchanged
+* Leave matching constants unchanged
 
 If the two parsed values have different types then the operation will throw a
 runtime error. Note that in JSON `true` and `false` are distinct constants and

@@ -79,21 +79,21 @@ cases the value is implicit, for example we know that the parser `123 | 456`
 will either return the value `123`, `456`, or fail. In a few cases values can be
 used explicit:
 
-    * A returned value, which appears on the right side of a `$`
-    ```
-    my_parser $ [1,2,3]
-    ```
+* A returned value, which appears on the right side of a `$`
+```
+my_parser $ [1,2,3]
+```
 
-    * Parser arguments
-    ```
-    bar(B) = "bar" $ B ;
-    bar({"bar": true})
-    ```
+* Parser arguments
+```
+bar(B) = "bar" $ B ;
+bar({"bar": true})
+```
 
-    * A pattern to destructure on, which appears on the left side of a `<-`
-    ```
-    [1, 2, ...Rest] <- array(int)
-    ```
+* A pattern to destructure on, which appears on the left side of a `<-`
+```
+[1, 2, ...Rest] <- array(int)
+```
 
 In the first two cases we construct a value which is then returned by a parser.
 In the third case we pattern match the result of the right-side parser against
