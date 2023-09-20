@@ -96,9 +96,9 @@ default(p, D) = p | const(D)
 
 const(C) = succeed $ C
 
-string_of(p) = V <- p $ "%(V)"
+string_of(p) = V <- p $ StringOf(V)
 
-number_of(p) = ("%(0 + N)" <- p) | (0 + N <- p) $ N
+number_of(p) = V <- p $ NumberOf(V)
 
 surround(p, fill) = fill > p < fill
 
@@ -106,7 +106,7 @@ balanced_pairs(open, p, close) =
   Open <- open & _balanced_pairs_rec(open, p, close, Open, 1)
 
 _balanced_pairs_rec(open, p, close, Acc, Depth) =
-  0 <- Depth ? const(Acc) :
+  0 <- const(Depth) ? const(Acc) :
   Close <- close ? _matching_pair_rec(open, p, close, Acc + Close, Depth - 1) :
   Open <- open ? _matching_pair_rec(open, p, close, Acc + Open, Depth + 1) :
   Next <- p & _matching_pair_rec(open, p, close, Acc + Next, Depth)
@@ -286,6 +286,19 @@ json =
   boolean("true", "false") |
   null("null")
 
+_assert_positive_integer(V) =
+  N <- const(IsNumber(V)) ? (
+    @run(peek("1".."9") > integer > end, "%(N)") |
+    @error("Expected a positive integer, got `%(N)`.")
+  ) :
+  S <- const(IsString(V)) ?
+  @error('Expected an integer, got string "%(S)".') :
+  @error("Expected an integer, got value `%(V)`.")
+
+StringOf(V) = "%(V)"
+
+NumberOf(V) = ("%(0 + N)" <- V) | (0 + N <- V) $ V
+
 Head(Arr) = [H, ..._] <- Arr & H
 
 Tail(Arr) = [_, ...T] <- Arr & T
@@ -403,6 +416,3 @@ reject(Value, Array) =
   const([]) ;
 
 
-_assert_positive_integer(N) =
-  @run(peek("1".."9") > integer > end, "%(N)") ? succeed :
-  @error("Expected a positive integer, got %(N).")

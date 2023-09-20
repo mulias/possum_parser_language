@@ -2,5 +2,5 @@ input(schedule)
 
 schedule =
   [Weekdays, ...Rows] <- table_sep(word, spaces, nl) &
-  [Hours, ...SubjectRows] <- const(Transpose(Rows)) $
-  Tabular(Weekdays, Map(Tabular(Hours, _), SubjectRows))
+  [Hours, ...EventRows] <- const(Transpose(Rows)) $
+  ZipIntoObject(Weekdays, Map(ZipIntoObject(Hours, _), EventRows))

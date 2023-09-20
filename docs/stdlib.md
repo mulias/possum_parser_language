@@ -89,15 +89,44 @@ needed parsers, or even create a whole new alternative standard library.
 | `json_string` | Parses a double-quoted string, handling JSON escape characters | String |
 | `json` | JSON encoded value | Matched JSON |
 
-### Value Functions
+### Values
 
-| Parser | Match Behavior | Returns |
-| ------ | -------------- | ------- |
-| `Head(A)` |
-| `Tail(A)` |
-| `Front(A)` |
-| `Last(A)` |
-| `Map(F, Enum)` | Apply `F(Val)` for each `Val` in `Enum`, an array, object, or string | Array of parsed values |
+| Function | Prerequisites | Behavior | Returns |
+| -------- | ------------- | -------- | --------|
+| `IsArray(V)` | None      | Succeed if `V` is an array | `V`, an array |
+| `IsObject(V)` | None     | Succeed if `V` is an object | `V`, an object |
+| `IsString(V)` | None     | Succeed if `V` is a string | `V`, a string |
+| `IsTrue(V)` | None       | Succeed if `V` is `true` | `true` |
+| `IsFalse(V)` | None      | Succeed if `V` is `false` | `false` |
+| `IsBoolean(V)` | None    | Succeed if `V` is a `true` or `false` | `true` or `false` |
+| `IsNull(V)` | None       | Succeed if `V` is `null` | `null` |
+
+| `First(E)` | `E` is an enumerable | Succeed if `E` has at least one element | First element in `E` |
+| `Last(E)` | `E` is an enumerable | Succeed if `E` has at least one element | Last element in `E` |
+| `Front(E)` | `E` is an enumerable |Succeed if `E` has at least one element | All but last element in `E` |
+| `Tail(E)` | `E` is an enumerable |Succeed if `E` has at least one element | All but first element in `E` |
+
+| `Map(F, E)` | `F` is a function, `E` is an enumerable | Apply `F` to
+| `Reverse(E)` | `E` is an enumerable |
+| `Reduce(F, Acc, E)` | `E` is an enumerable |
+
+| `MergeAll(A)` | `A` is an array | Merge all elements of `A` into a single value | Merged value |
+| `SplitAll(E)` | `E` is an enumerable | Split each element of `E` into an array | Array of elements |
+
+| `Filter(F, E)` | `F` is a function, `E` is an enumerable |
+| `Reject(F, E)` | `F` is a function, `E` is an enumerable |
+
+| `TransposeTable(T)` | `T` is an array of arrays | Flip table elements along a diagonal, bottom left element becomes the top right element | Array of arrays |
+| `RotateTableClockwise(T)` | `T` is an array of arrays | Shift table elements so rows become columns, bottom left element becomes the first element | Array of arrays |
+| `RotateTableCounterClockwise(T)` | `T` is an array of arrays | Shift table elements so rows become columns, top right element becomes the first element | Array of arrays |
+
+| `ZipIntoArray(E1, E2)` | `E1` and `E2` are both enumerables |
+| `ZipIntoObject(Keys, E)` | `Keys` is an array of strings, `E` is an enumerable |
+
+
+
+
+Apply `F(Val)` for each `Val` in `Enum`, an array, object, or string | Array of parsed values |
 | `Fold(F, Acc, Enum)` | Parser `p(Acc, Val)` for each `Val` in array `A` and the accumulated value `Acc` | Final `Acc` |
 
 | `Tabular(Header, Rows)`

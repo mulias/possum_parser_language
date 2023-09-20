@@ -3,17 +3,16 @@ no_crate = "   " $ null
 cargo = crate | no_crate
 
 move =
-  "move" & ws & Count <- number  & ws &
-  "from" & ws & From  <- numeral & ws &
-  "to"   & ws & To    <- numeral & ws $
-  {"count": Count, "from": From, "to": To}
+  lebel("count", scan(int)) +
+  label("from", scan(numerals)) +
+  label("to", scan(numerals))
 
 CrateStacks(Labels, CargoRows) =
   CargoCols <- RotateTableClockwise(CargoRows) &
-  CrateCols <- Map(Reject(null, _), CargoCols) &
-  ZipObject(Labels, CargoCols)
+  CrateCols <- Map(Reject(IsNull, _), CargoCols) &
+  ZipIntoObject(Labels, CargoCols)
 
 CargoRows <- table_sep(cargo, " ", nl) &
-Labels <- ws > array_sep(numeral, ws) < ws &
-Steps <- array(move) $
+Labels <- ws > array_sep(numerals, ws) < ws &
+Steps <- array_sep(move, nl) $
 {"stacks": CrateStacks(Labels, CargoRows), "steps": Steps}

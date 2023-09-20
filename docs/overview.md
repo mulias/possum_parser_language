@@ -92,6 +92,7 @@ If the parser fails to find a match an error is returned.
 
   But no match was found.
 
+
   $ possum -p '10' -i '0010'
 
   Error Parsing Input
@@ -129,14 +130,12 @@ numbers.
   "       "
 
   $ possum -p 'newline' -i '
-
   '
-  "\n\n"
+  "\n"
 
   $ possum -p 'nl' -i '
-
   '
-  "\n\n"
+  "\n"
 
   $ possum -p 'whitespace' -i '
 
@@ -154,7 +153,7 @@ numbers.
   $ possum -p 'int' -i '31987abc'
   31987
 
-  $ possum -p 'number' -i '12.45e-10'
+  $ possum -p 'number' -i '12.45e-10xyz'
   12.45e-10
 ```
 
@@ -303,6 +302,7 @@ therefore can't be merged.
 
   The right-side parser returned a number instead of a string.
 
+
   $ possum -p 'bool(1, 0) + bool(1, 0)' -i '10'
 
   Error Merging values
@@ -380,8 +380,10 @@ parser.
 ```
 
 The sequence operator `p1 & p2` matches `p1` and then matches and returns `p2`.
-This behavior is similar to `>`, but `&` has higher precedence and is useful
-when grouping steps in a larger parser.
+This behavior is similar to `>`, but `&` has lower precedence.
+Counter-intuitively, "lower" in this case means that parsers on either side of
+the `&` get grouped together, creating a series of parsing steps without extra
+parentheses.
 ```
   $ possum -p "int & ws & int | "foo" & ws & int" -i "1 foo 3"
   3

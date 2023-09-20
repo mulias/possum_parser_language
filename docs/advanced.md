@@ -4,33 +4,6 @@ This guide covers  of Possum and should give you enough
 
 String literals and ranges can also use single quotes or backticks.
 
-## Alternative String Literal Syntax
-
-```
-  $ possum -p '"\n\n"' -i '
-
-  '
-  "\n\n"
-
-  $ possum -p '"\\n\\n"' -i '\n\n'
-  "\\n\\n"
-
-  $ possum -p '"\\\\\\\\"' -i '\\\\'
-  "\\\\\\\\"
-
-  $ possum -p "'\\\\\\\\'" -i '\\\\'
-  "\\\\\\\\"
-
-  $ possum -p '`\\\\`' -i '\\\\'
-  "\\\\\\\\"
-
-  $ possum -p '"\"\"\""' -i '"""'
-  "\"\"\""
-
-  $ possum -p '`"""`' -i '"""'
-  "\"\"\""
-```
-
 ## Uncommon Infix Operators
 
 The "backtrack" operator `p1 ! p2` matches `p1` and then goes back in the input
@@ -244,6 +217,63 @@ String interpolation
 | `"%(N + 1)" <- p`  | Match a string encoding a number, calculate and bind `N` |
 | `"%([...A])" <- p` | Match a string encoding an array, bind the array to `A` |
 | `"%({..._})" <- p` | Match a string encoding an object |
+
+## Backtick Strings
+
+In addition to single and double quotes, strings can be defined
+with backticks. Backtick strings use the exact characters of the string,
+ignoring any special syntax such as escape characters.
+
+In this example we demonstrate that `"\n\n"` interprets `\n` as an escape
+character for a newline, and as a result parses two newlines. The returned
+string value also uses `\n` as an escape character for a newline.
+```
+  $ possum -p '"\n\n"' -i '
+
+  '
+  "\n\n"
+```
+
+In order to parse the four characters `\n\n` we need to use `\\` to escape the
+backslashes. In contract the backtick string `` `\n\n` `` parses the backslash
+and n as separate characters. Other characters that require escaping in
+single/double quote strings are similarly easier to parse with backticks.
+```
+  $ possum -p '"\\n\\n"' -i '\n\n'
+  "\\n\\n"
+
+  $ possum -p '`\n\n`' -i '\n\n'
+  "\\n\\n"
+
+  $ possum -p '"\\\\\\\\"' -i '\\\\'
+  "\\\\\\\\"
+
+  $ possum -p '`\\\\`' -i '\\\\'
+  "\\\\\\\\"
+
+  $ possum -p '"\"\"\""' -i '"""'
+  "\"\"\""
+
+  $ possum -p '`"""`' -i '"""'
+  "\"\"\""
+```
+
+Backtick strings can also be used for values. In this example we parse a newline
+and return the backslash and n characters.
+```
+  $ possum -p '"\n" $ `\n`' -i '
+  '
+  "\\n"
+```
+
+Backtick strings also circumvent string interpolation syntax.
+```
+  $ possum -p 'N <- 123 $ "%(N)"' -i '123'
+  "123"
+
+  $ possum -p 'N <- 123 $ `%(N)`' -i '123'
+  "%(N)"
+```
 
 ## Recursive Parsers
 
