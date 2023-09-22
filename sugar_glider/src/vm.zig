@@ -218,7 +218,7 @@ pub const VM = struct {
     }
 };
 
-test "vm" {
+test "'a' > 'b' > 'c' | 'abz'" {
     var alloc = std.testing.allocator;
     var vm = VM.init(alloc);
     defer vm.deinit();
@@ -226,23 +226,16 @@ test "vm" {
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
 
-    var strA = try chunk.addConstant(.{ .String = "a" });
-    var strB = try chunk.addConstant(.{ .String = "b" });
-    var strC = try chunk.addConstant(.{ .String = "c" });
-    var strABZ = try chunk.addConstant(.{ .String = "abz" });
-
-    try chunk.writeOp(.String, 1);
-    try chunk.write(strA, 1);
-    try chunk.writeOp(.String, 1);
-    try chunk.write(strB, 1);
+    try chunk.writeString("a", 1);
+    try chunk.writeString("b", 1);
     try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeOp(.String, 1);
-    try chunk.write(strC, 1);
+    try chunk.writeString("c", 1);
     try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeOp(.String, 1);
-    try chunk.write(strABZ, 1);
+    try chunk.writeString("abz", 1);
     try chunk.writeOp(.Or, 1);
     try chunk.writeOp(.Return, 2);
+
+    chunk.disassemble("'a' > 'b' > 'c' | 'abz'");
 
     try std.testing.expect(try vm.interpret(&chunk, "abzsss") == .Ok);
 }

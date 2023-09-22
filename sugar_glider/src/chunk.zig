@@ -43,6 +43,18 @@ pub const Chunk = struct {
         try self.write(@intFromEnum(op), line);
     }
 
+    pub fn writeString(self: *Chunk, s: []const u8, line: u32) !void {
+        var idx = try self.addConstant(.{ .String = s });
+        try self.writeOp(.String, line);
+        try self.write(idx, line);
+    }
+
+    pub fn writeNumber(self: *Chunk, n: []const u8, line: u32) !void {
+        var idx = try self.addConstant(.{ .Number = n });
+        try self.writeOp(.Number, line);
+        try self.write(idx, line);
+    }
+
     pub fn addConstant(self: *Chunk, value: Value) !u8 {
         const idx = @as(u8, @intCast(self.constants.items.len));
         try self.constants.append(value);
@@ -101,23 +113,14 @@ test {
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
 
-    var strA = try chunk.addConstant(.{ .String = "a" });
-    var strB = try chunk.addConstant(.{ .String = "b" });
-    var strC = try chunk.addConstant(.{ .String = "c" });
-    var strXYZ = try chunk.addConstant(.{ .String = "xyz" });
-
-    try chunk.writeOp(.String, 1);
-    try chunk.write(strA, 1);
-    try chunk.writeOp(.String, 1);
-    try chunk.write(strB, 1);
+    try chunk.writeString("a", 1);
+    try chunk.writeString("b", 1);
     try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeOp(.String, 1);
-    try chunk.write(strC, 1);
+    try chunk.writeString("c", 1);
     try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeOp(.String, 1);
-    try chunk.write(strXYZ, 1);
+    try chunk.writeString("xyz", 1);
     try chunk.writeOp(.Or, 1);
     try chunk.writeOp(.Return, 2);
 
-    chunk.disassemble("~~(##)'>");
+    chunk.disassemble("'a' > 'b' > 'v' | 'xyz'");
 }
