@@ -10,8 +10,10 @@ pub const OpCode = enum(u8) {
     TakeRight,
     TakeLeft,
     Merge,
+    Backtrack,
     Return,
     Sequence,
+    Conditional,
     End,
 };
 
@@ -84,8 +86,10 @@ pub const Chunk = struct {
             .TakeRight => self.simpleInstruction("TakeRight", offset),
             .TakeLeft => self.simpleInstruction("TakeLeft", offset),
             .Merge => self.simpleInstruction("Merge", offset),
+            .Backtrack => self.simpleInstruction("Backtrack", offset),
             .Return => self.simpleInstruction("Return", offset),
             .Sequence => self.simpleInstruction("Sequence", offset),
+            .Conditional => self.simpleInstruction("Conditional", offset),
             .End => self.simpleInstruction("End", offset),
         };
     }

@@ -180,6 +180,21 @@ pub const VM = struct {
                         try self.pushFailure();
                     }
                 },
+                .Backtrack => {
+                    const rhs = self.pop();
+                    const lhs = self.pop();
+
+                    if (try self.maybeMatch(lhs)) |leftSuccess| {
+                        self.inputPos = leftSuccess.start;
+                        if (try self.maybeMatch(rhs)) |rightSuccess| {
+                            try self.push(.{ .Success = rightSuccess });
+                        } else {
+                            try self.pushFailure();
+                        }
+                    } else {
+                        try self.pushFailure();
+                    }
+                },
                 .Return => {
                     const rhs = self.pop();
                     const lhs = self.pop();
@@ -222,6 +237,32 @@ pub const VM = struct {
                         }
                     } else {
                         try self.pushFailure();
+                    }
+                },
+                .Conditional => {
+                    const whenNoMatch = self.pop();
+                    const whenMatch = self.pop();
+                    const testParser = self.pop();
+
+                    if (try self.maybeMatch(testParser)) |testSuccess| {
+                        if (try self.maybeMatch(whenMatch)) |whenMatchSuccess| {
+                            try self.push(.{
+                                .Success = .{
+                                    .start = testSuccess.start,
+                                    .end = whenMatchSuccess.end,
+                                    .value = whenMatchSuccess.value,
+                                },
+                            });
+                        } else {
+                            self.inputPos = testSuccess.start;
+                            try self.pushFailure();
+                        }
+                    } else {
+                        if (try self.maybeMatch(whenNoMatch)) |whenNoMatchSuccess| {
+                            try self.push(.{ .Success = whenNoMatchSuccess });
+                        } else {
+                            try self.pushFailure();
+                        }
                     }
                 },
                 .End => {
@@ -583,4 +624,87 @@ test "'foo' $ 'bar'" {
     const successValue = @field(success.value, "string");
 
     try std.testing.expectEqualStrings(successValue, "bar");
+}
+
+test "1 ! 12 ! 123" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .Integer = 1 }, 1);
+    try chunk.writeConst(.{ .Integer = 12 }, 1);
+    try chunk.writeOp(.Backtrack, 1);
+    try chunk.writeConst(.{ .Integer = 123 }, 1);
+    try chunk.writeOp(.Backtrack, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "123");
+
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 3);
+    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
+
+    const successValue = @field(success.value, "integer");
+
+    try std.testing.expect(successValue == 123);
+}
+
+test "'true' ? 123 : 456, first branch" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .String = "true" }, 1);
+    try chunk.writeConst(.{ .Integer = 123 }, 1);
+    try chunk.writeConst(.{ .Integer = 456 }, 1);
+    try chunk.writeOp(.Conditional, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "true123");
+
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 7);
+    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
+
+    const successValue = @field(success.value, "integer");
+
+    try std.testing.expect(successValue == 123);
+}
+
+test "'true' ? 123 : 456, second branch" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .String = "true" }, 1);
+    try chunk.writeConst(.{ .Integer = 123 }, 1);
+    try chunk.writeConst(.{ .Integer = 456 }, 1);
+    try chunk.writeOp(.Conditional, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "456");
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+    const success = @field(result, "ParserSuccess");
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 3);
+    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
+    const successValue = @field(success.value, "integer");
+    try std.testing.expect(successValue == 456);
 }
