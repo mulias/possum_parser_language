@@ -1,6 +1,7 @@
 const std = @import("std");
 const json = std.json;
 const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayList;
 const Chunk = @import("./chunk.zig").Chunk;
 const OpCode = @import("./chunk.zig").OpCode;
@@ -16,7 +17,7 @@ pub const InterpretResult = enum {
 };
 
 pub const VM = struct {
-    allocator: Allocator,
+    arena: ArenaAllocator,
     chunk: *Chunk,
     ip: usize,
     stack: ArrayList(Value),
@@ -25,7 +26,7 @@ pub const VM = struct {
 
     pub fn init(allocator: Allocator) VM {
         return VM{
-            .allocator = allocator,
+            .arena = std.heap.ArenaAllocator.init(allocator),
             .chunk = undefined,
             .ip = undefined,
             .stack = ArrayList(Value).init(allocator),
@@ -35,6 +36,7 @@ pub const VM = struct {
     }
 
     pub fn deinit(self: *VM) void {
+        self.arena.deinit();
         self.stack.deinit();
     }
 
@@ -72,7 +74,7 @@ pub const VM = struct {
                     } else if (self.maybeMatch(rhs)) |rightSuccess| {
                         try self.push(.{ .Success = rightSuccess });
                     } else {
-                        try self.push(.{ .Failure = undefined });
+                        try self.pushFailure();
                     }
                 },
                 .TakeRight => {
@@ -90,10 +92,10 @@ pub const VM = struct {
                             });
                         } else {
                             self.inputPos = leftSuccess.start;
-                            try self.push(.{ .Failure = undefined });
+                            try self.pushFailure();
                         }
                     } else {
-                        try self.push(.{ .Failure = undefined });
+                        try self.pushFailure();
                     }
                 },
                 .TakeLeft => {
@@ -111,10 +113,40 @@ pub const VM = struct {
                             });
                         } else {
                             self.inputPos = leftSuccess.start;
-                            try self.push(.{ .Failure = undefined });
+                            try self.pushFailure();
                         }
                     } else {
-                        try self.push(.{ .Failure = undefined });
+                        try self.pushFailure();
+                    }
+                },
+                .Merge => {
+                    const rhs = self.pop();
+                    const lhs = self.pop();
+
+                    if (self.maybeMatch(lhs)) |leftSuccess| {
+                        if (self.maybeMatch(rhs)) |rightSuccess| {
+                            if (leftSuccess.isString() and rightSuccess.isString()) {
+                                const leftString = leftSuccess.asString();
+                                const rightString = rightSuccess.asString();
+                                const mergedString = try self.mergeStrings(leftString.?, rightString.?);
+
+                                try self.push(.{
+                                    .Success = .{
+                                        .start = leftSuccess.start,
+                                        .end = rightSuccess.end,
+                                        .value = .{ .string = mergedString },
+                                    },
+                                });
+                            } else {
+                                logger.err("Merge type error", .{});
+                                return InterpretResult.RuntimeError;
+                            }
+                        } else {
+                            self.inputPos = leftSuccess.start;
+                            try self.pushFailure();
+                        }
+                    } else {
+                        try self.pushFailure();
                     }
                 },
                 .Return => {
@@ -171,6 +203,16 @@ pub const VM = struct {
         }
     }
 
+    fn mergeStrings(self: *VM, left: []const u8, right: []const u8) ![]const u8 {
+        var dynamic_string = std.ArrayList(u8).init(self.arena.allocator());
+        defer dynamic_string.deinit();
+
+        var writer = dynamic_string.writer();
+        try writer.writeAll(left);
+        try writer.writeAll(right);
+        return try dynamic_string.toOwnedSlice();
+    }
+
     fn readByte(self: *VM) u8 {
         const byte = self.chunk.code.items[self.ip];
         self.ip += 1;
@@ -179,6 +221,10 @@ pub const VM = struct {
 
     fn push(self: *VM, value: Value) !void {
         try self.stack.append(value);
+    }
+
+    fn pushFailure(self: *VM) !void {
+        try self.stack.append(.{ .Failure = undefined });
     }
 
     fn pop(self: *VM) Value {
@@ -238,4 +284,44 @@ test "'a' > 'b' > 'c' | 'abz'" {
     chunk.disassemble("'a' > 'b' > 'c' | 'abz'");
 
     try std.testing.expect(try vm.interpret(&chunk, "abzsss") == .Ok);
+}
+
+test "1234 | 5678 | 910" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeNumber("1234", 1);
+    try chunk.writeNumber("5678", 1);
+    try chunk.writeOp(.Or, 1);
+    try chunk.writeNumber("910", 1);
+    try chunk.writeOp(.Or, 1);
+    try chunk.writeOp(.Return, 2);
+
+    chunk.disassemble("1234 | 5678 | 910");
+
+    try std.testing.expect(try vm.interpret(&chunk, "56789") == .Ok);
+}
+
+test "'foo' + 'bar' + 'baz'" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeString("foo", 1);
+    try chunk.writeString("bar", 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeString("baz", 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeOp(.Return, 2);
+
+    chunk.disassemble("'foo' + 'bar' + 'baz'");
+
+    try std.testing.expect(try vm.interpret(&chunk, "foobarbaz") == .Ok);
 }

@@ -10,6 +10,7 @@ pub const OpCode = enum(u8) {
     Or,
     TakeRight,
     TakeLeft,
+    Merge,
     Return,
 };
 
@@ -88,6 +89,7 @@ pub const Chunk = struct {
             .Or => self.simpleInstruction("Or", offset),
             .TakeRight => self.simpleInstruction("TakeRight", offset),
             .TakeLeft => self.simpleInstruction("TakeLeft", offset),
+            .Merge => self.simpleInstruction("Merge", offset),
             .Return => self.simpleInstruction("Return", offset),
         };
     }
