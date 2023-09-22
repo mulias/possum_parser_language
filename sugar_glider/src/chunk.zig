@@ -10,7 +10,7 @@ pub const OpCode = enum(u8) {
     TakeRight,
     TakeLeft,
     Merge,
-    Return,
+    End,
 };
 
 pub const Chunk = struct {
@@ -82,7 +82,7 @@ pub const Chunk = struct {
             .TakeRight => self.simpleInstruction("TakeRight", offset),
             .TakeLeft => self.simpleInstruction("TakeLeft", offset),
             .Merge => self.simpleInstruction("Merge", offset),
-            .Return => self.simpleInstruction("Return", offset),
+            .End => self.simpleInstruction("End", offset),
         };
     }
 
@@ -114,7 +114,7 @@ test {
     try chunk.writeOp(.TakeRight, 1);
     try chunk.writeConst(.{ .String = "xyz" }, 1);
     try chunk.writeOp(.Or, 1);
-    try chunk.writeOp(.Return, 2);
+    try chunk.writeOp(.End, 2);
 
     chunk.disassemble("'a' > 'b' > 'v' | 'xyz'");
 }

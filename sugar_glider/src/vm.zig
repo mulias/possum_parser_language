@@ -180,7 +180,7 @@ pub const VM = struct {
                         try self.pushFailure();
                     }
                 },
-                .Return => {
+                .End => {
                     const last = self.pop();
 
                     if (try self.maybeMatch(last)) |success| {
@@ -322,7 +322,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
     try chunk.writeOp(.TakeRight, 1);
     try chunk.writeConst(.{ .String = "abz" }, 1);
     try chunk.writeOp(.Or, 1);
-    try chunk.writeOp(.Return, 2);
+    try chunk.writeOp(.End, 2);
 
     const result = try vm.interpret(&chunk, "abzsss");
 
@@ -352,7 +352,7 @@ test "1234 | 5678 | 910" {
     try chunk.writeOp(.Or, 1);
     try chunk.writeConst(.{ .Integer = 910 }, 1);
     try chunk.writeOp(.Or, 1);
-    try chunk.writeOp(.Return, 2);
+    try chunk.writeOp(.End, 2);
 
     const result = try vm.interpret(&chunk, "56789");
 
@@ -382,7 +382,7 @@ test "'foo' + 'bar' + 'baz'" {
     try chunk.writeOp(.Merge, 1);
     try chunk.writeConst(.{ .String = "baz" }, 1);
     try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.Return, 2);
+    try chunk.writeOp(.End, 2);
 
     const result = try vm.interpret(&chunk, "foobarbaz");
 
@@ -412,7 +412,7 @@ test "1 + 2 + 3" {
     try chunk.writeOp(.Merge, 1);
     try chunk.writeConst(.{ .Integer = 3 }, 1);
     try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.Return, 2);
+    try chunk.writeOp(.End, 2);
 
     const result = try vm.interpret(&chunk, "123");
 
@@ -440,7 +440,7 @@ test "1.23 + 10" {
     try chunk.writeConst(.{ .Float = "1.23" }, 1);
     try chunk.writeConst(.{ .Integer = 10 }, 1);
     try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.Return, 2);
+    try chunk.writeOp(.End, 2);
 
     const result = try vm.interpret(&chunk, "1.2310");
 
@@ -468,7 +468,7 @@ test "0.1 + 0.2" {
     try chunk.writeConst(.{ .Float = "0.1" }, 1);
     try chunk.writeConst(.{ .Float = "0.2" }, 1);
     try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.Return, 2);
+    try chunk.writeOp(.End, 2);
 
     const result = try vm.interpret(&chunk, "0.10.2");
 
@@ -496,7 +496,7 @@ test "1e57 + 3e-4" {
     try chunk.writeConst(.{ .Float = "1e57" }, 1);
     try chunk.writeConst(.{ .Float = "3e-4" }, 1);
     try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.Return, 2);
+    try chunk.writeOp(.End, 2);
 
     const result = try vm.interpret(&chunk, "1e573e-4");
 

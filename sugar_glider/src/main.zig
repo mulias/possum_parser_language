@@ -13,7 +13,7 @@ pub fn main() !void {
     defer chunk.deinit();
 
     try chunk.writeConst(.{ .String = "test" }, 1);
-    try chunk.writeOp(.Return, 2);
+    try chunk.writeOp(.End, 2);
 
     _ = try vm.interpret(&chunk, "test");
 }
