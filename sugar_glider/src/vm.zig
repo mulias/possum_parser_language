@@ -10,10 +10,18 @@ const Success = @import("./value.zig").Success;
 const printValue = @import("./value.zig").print;
 const logger = @import("./logger.zig");
 
-pub const InterpretResult = enum {
-    Ok,
+pub const InterpretResultType = enum {
+    ParserSuccess,
+    ParserFailure,
     CompileError,
     RuntimeError,
+};
+
+pub const InterpretResult = union(InterpretResultType) {
+    ParserSuccess: Success,
+    ParserFailure: void,
+    CompileError: []const u8,
+    RuntimeError: []const u8,
 };
 
 pub const VM = struct {
@@ -162,8 +170,7 @@ pub const VM = struct {
                                     },
                                 });
                             } else {
-                                logger.err("Merge type error", .{});
-                                return InterpretResult.RuntimeError;
+                                return InterpretResult{ .RuntimeError = "Unable to merge mismatching types" };
                             }
                         } else {
                             self.inputPos = leftSuccess.start;
@@ -177,14 +184,10 @@ pub const VM = struct {
                     const last = self.pop();
 
                     if (try self.maybeMatch(last)) |success| {
-                        const value = Value{ .Success = success };
-                        value.print();
-                        logger.debug("\n\n", .{});
+                        return InterpretResult{ .ParserSuccess = success };
                     } else {
-                        logger.debug("Failure\n\n", .{});
+                        return InterpretResult{ .ParserFailure = undefined };
                     }
-
-                    return InterpretResult.Ok;
                 },
             }
         }
@@ -321,9 +324,19 @@ test "'a' > 'b' > 'c' | 'abz'" {
     try chunk.writeOp(.Or, 1);
     try chunk.writeOp(.Return, 2);
 
-    chunk.disassemble("'a' > 'b' > 'c' | 'abz'");
+    const result = try vm.interpret(&chunk, "abzsss");
 
-    try std.testing.expect(try vm.interpret(&chunk, "abzsss") == .Ok);
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 3);
+    try std.testing.expectEqualStrings(@tagName(success.value), "string");
+
+    const successValue = @field(success.value, "string");
+
+    try std.testing.expectEqualStrings(successValue, "abz");
 }
 
 test "1234 | 5678 | 910" {
@@ -341,9 +354,19 @@ test "1234 | 5678 | 910" {
     try chunk.writeOp(.Or, 1);
     try chunk.writeOp(.Return, 2);
 
-    chunk.disassemble("1234 | 5678 | 910");
+    const result = try vm.interpret(&chunk, "56789");
 
-    try std.testing.expect(try vm.interpret(&chunk, "56789") == .Ok);
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 4);
+    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
+
+    const successValue = @field(success.value, "integer");
+
+    try std.testing.expect(successValue == 5678);
 }
 
 test "'foo' + 'bar' + 'baz'" {
@@ -361,9 +384,19 @@ test "'foo' + 'bar' + 'baz'" {
     try chunk.writeOp(.Merge, 1);
     try chunk.writeOp(.Return, 2);
 
-    chunk.disassemble("'foo' + 'bar' + 'baz'");
+    const result = try vm.interpret(&chunk, "foobarbaz");
 
-    try std.testing.expect(try vm.interpret(&chunk, "foobarbaz") == .Ok);
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 9);
+    try std.testing.expectEqualStrings(@tagName(success.value), "string");
+
+    const successValue = @field(success.value, "string");
+
+    try std.testing.expectEqualStrings(successValue, "foobarbaz");
 }
 
 test "1 + 2 + 3" {
@@ -381,9 +414,19 @@ test "1 + 2 + 3" {
     try chunk.writeOp(.Merge, 1);
     try chunk.writeOp(.Return, 2);
 
-    chunk.disassemble("1 + 2 + 3");
+    const result = try vm.interpret(&chunk, "123");
 
-    try std.testing.expect(try vm.interpret(&chunk, "123") == .Ok);
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 3);
+    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
+
+    const successValue = @field(success.value, "integer");
+
+    try std.testing.expect(successValue == 6);
 }
 
 test "1.23 + 10" {
@@ -399,9 +442,19 @@ test "1.23 + 10" {
     try chunk.writeOp(.Merge, 1);
     try chunk.writeOp(.Return, 2);
 
-    chunk.disassemble("1.23 + 10");
+    const result = try vm.interpret(&chunk, "1.2310");
 
-    try std.testing.expect(try vm.interpret(&chunk, "1.2310") == .Ok);
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 6);
+    try std.testing.expectEqualStrings(@tagName(success.value), "float");
+
+    const successValue = @field(success.value, "float");
+
+    try std.testing.expect(successValue == 11.23);
 }
 
 test "0.1 + 0.2" {
@@ -417,9 +470,19 @@ test "0.1 + 0.2" {
     try chunk.writeOp(.Merge, 1);
     try chunk.writeOp(.Return, 2);
 
-    chunk.disassemble("0.1 + 0.2");
+    const result = try vm.interpret(&chunk, "0.10.2");
 
-    try std.testing.expect(try vm.interpret(&chunk, "0.10.2") == .Ok);
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 6);
+    try std.testing.expectEqualStrings(@tagName(success.value), "float");
+
+    const successValue = @field(success.value, "float");
+
+    try std.testing.expectApproxEqAbs(successValue, 0.3, 0.0000000000000001);
 }
 
 test "1e57 + 3e-4" {
@@ -435,7 +498,17 @@ test "1e57 + 3e-4" {
     try chunk.writeOp(.Merge, 1);
     try chunk.writeOp(.Return, 2);
 
-    chunk.disassemble("1e57 + 3e-4");
+    const result = try vm.interpret(&chunk, "1e573e-4");
 
-    try std.testing.expect(try vm.interpret(&chunk, "1e573e-4") == .Ok);
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 8);
+    try std.testing.expectEqualStrings(@tagName(success.value), "float");
+
+    const successValue = @field(success.value, "float");
+
+    try std.testing.expect(successValue == 1e57);
 }
