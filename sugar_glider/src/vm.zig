@@ -284,7 +284,7 @@ pub const VM = struct {
                 const start = self.inputPos;
                 const end = self.inputPos + s.len;
 
-                if (std.mem.eql(u8, s, self.input[start..end])) {
+                if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos += s.len;
                     return Success{
                         .start = start,
@@ -300,7 +300,7 @@ pub const VM = struct {
                 const start = self.inputPos;
                 const end = self.inputPos + s.len;
 
-                if (std.mem.eql(u8, s, self.input[start..end])) {
+                if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos += s.len;
                     return Success{
                         .start = start,
@@ -315,7 +315,7 @@ pub const VM = struct {
                 const start = self.inputPos;
                 const end = self.inputPos + n.len;
 
-                if (std.mem.eql(u8, n, self.input[start..end])) {
+                if (self.input.len >= end and std.mem.eql(u8, n, self.input[start..end])) {
                     self.inputPos += n.len;
                     return Success{
                         .start = start,
@@ -700,11 +700,16 @@ test "'true' ? 123 : 456, second branch" {
     try chunk.writeOp(.End, 2);
 
     const result = try vm.interpret(&chunk, "456");
+
     try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
     const success = @field(result, "ParserSuccess");
+
     try std.testing.expect(success.start == 0);
     try std.testing.expect(success.end == 3);
     try std.testing.expectEqualStrings(@tagName(success.value), "integer");
+
     const successValue = @field(success.value, "integer");
+
     try std.testing.expect(successValue == 456);
 }
