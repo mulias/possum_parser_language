@@ -203,6 +203,27 @@ pub const VM = struct {
                         try self.pushFailure();
                     }
                 },
+                .Sequence => {
+                    const rhs = self.pop();
+                    const lhs = self.pop();
+
+                    if (try self.maybeMatch(lhs)) |leftSuccess| {
+                        if (try self.maybeMatch(rhs)) |rightSuccess| {
+                            try self.push(.{
+                                .Success = .{
+                                    .start = leftSuccess.start,
+                                    .end = rightSuccess.end,
+                                    .value = rightSuccess.value,
+                                },
+                            });
+                        } else {
+                            self.inputPos = leftSuccess.start;
+                            try self.pushFailure();
+                        }
+                    } else {
+                        try self.pushFailure();
+                    }
+                },
                 .End => {
                     const last = self.pop();
 
