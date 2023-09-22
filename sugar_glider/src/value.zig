@@ -8,7 +8,8 @@ pub const ValueError = error{
 
 pub const ValueType = enum {
     String,
-    Number,
+    Integer,
+    Float,
     Success,
     Failure,
 };
@@ -32,16 +33,32 @@ pub const Success = struct {
         }
     }
 
-    pub fn isNumber(self: Success) bool {
+    pub fn isInteger(self: Success) bool {
         switch (self.value) {
-            .number_string => return true,
+            .integer => return true,
             else => return false,
         }
     }
 
-    pub fn asNumber(self: Success) ?[]const u8 {
-        switch (self) {
-            .number_string => |n| return n,
+    pub fn asInteger(self: Success) ?i64 {
+        switch (self.value) {
+            .integer => |i| return i,
+            else => return null,
+        }
+    }
+
+    pub fn isNumber(self: Success) bool {
+        switch (self.value) {
+            .integer, .float, .number_string => return true,
+            else => return false,
+        }
+    }
+
+    pub fn asFloat(self: Success) !?f64 {
+        switch (self.value) {
+            .integer => |i| return @as(f64, @floatFromInt(i)),
+            .float => |f| return f,
+            .number_string => |s| return try std.fmt.parseFloat(f64, s),
             else => return null,
         }
     }
@@ -49,19 +66,21 @@ pub const Success = struct {
 
 pub const Value = union(ValueType) {
     String: []const u8,
-    Number: []const u8,
+    Integer: i64,
+    Float: []const u8,
     Success: Success,
     Failure: void,
 
     pub fn print(value: Value) void {
         switch (value) {
             .String => |s| logger.debug("\"{s}\"", .{s}),
-            .Number => |n| logger.debug("{s}", .{n}),
+            .Integer => |i| logger.debug("{d}", .{i}),
+            .Float => |f| logger.debug("{s}", .{f}),
             .Success => |s| {
-                logger.debug("Success {d}-{d} ", .{ s.start, s.end });
+                logger.debug("{s} {d}-{d} ", .{ @tagName(value), s.start, s.end });
                 logger.json_debug(s.value);
             },
-            .Failure => logger.debug("Failure", .{}),
+            .Failure => logger.debug("{s}", .{@tagName(value)}),
         }
     }
 };

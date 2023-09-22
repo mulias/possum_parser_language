@@ -12,7 +12,7 @@ pub fn main() !void {
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
 
-    try chunk.writeString("test", 1);
+    try chunk.writeConst(.{ .String = "test" }, 1);
     try chunk.writeOp(.Return, 2);
 
     _ = try vm.interpret(&chunk, "test");

@@ -60,7 +60,7 @@ pub const VM = struct {
 
             const instruction = @as(OpCode, @enumFromInt(self.readByte()));
             switch (instruction) {
-                .String, .Number => {
+                .Constant => {
                     const constantIdx = self.readByte();
                     const value = self.chunk.constants.items[constantIdx];
                     try self.push(value);
@@ -69,9 +69,9 @@ pub const VM = struct {
                     const rhs = self.pop();
                     const lhs = self.pop();
 
-                    if (self.maybeMatch(lhs)) |leftSuccess| {
+                    if (try self.maybeMatch(lhs)) |leftSuccess| {
                         try self.push(.{ .Success = leftSuccess });
-                    } else if (self.maybeMatch(rhs)) |rightSuccess| {
+                    } else if (try self.maybeMatch(rhs)) |rightSuccess| {
                         try self.push(.{ .Success = rightSuccess });
                     } else {
                         try self.pushFailure();
@@ -81,8 +81,8 @@ pub const VM = struct {
                     const rhs = self.pop();
                     const lhs = self.pop();
 
-                    if (self.maybeMatch(lhs)) |leftSuccess| {
-                        if (self.maybeMatch(rhs)) |rightSuccess| {
+                    if (try self.maybeMatch(lhs)) |leftSuccess| {
+                        if (try self.maybeMatch(rhs)) |rightSuccess| {
                             try self.push(.{
                                 .Success = .{
                                     .start = leftSuccess.start,
@@ -102,8 +102,8 @@ pub const VM = struct {
                     const rhs = self.pop();
                     const lhs = self.pop();
 
-                    if (self.maybeMatch(lhs)) |leftSuccess| {
-                        if (self.maybeMatch(rhs)) |rightSuccess| {
+                    if (try self.maybeMatch(lhs)) |leftSuccess| {
+                        if (try self.maybeMatch(rhs)) |rightSuccess| {
                             try self.push(.{
                                 .Success = .{
                                     .start = leftSuccess.start,
@@ -123,8 +123,8 @@ pub const VM = struct {
                     const rhs = self.pop();
                     const lhs = self.pop();
 
-                    if (self.maybeMatch(lhs)) |leftSuccess| {
-                        if (self.maybeMatch(rhs)) |rightSuccess| {
+                    if (try self.maybeMatch(lhs)) |leftSuccess| {
+                        if (try self.maybeMatch(rhs)) |rightSuccess| {
                             if (leftSuccess.isString() and rightSuccess.isString()) {
                                 const leftString = leftSuccess.asString();
                                 const rightString = rightSuccess.asString();
@@ -135,6 +135,30 @@ pub const VM = struct {
                                         .start = leftSuccess.start,
                                         .end = rightSuccess.end,
                                         .value = .{ .string = mergedString },
+                                    },
+                                });
+                            } else if (leftSuccess.isInteger() and rightSuccess.isInteger()) {
+                                const leftInteger = leftSuccess.asInteger();
+                                const rightInteger = rightSuccess.asInteger();
+                                const mergedInteger = leftInteger.? + rightInteger.?;
+
+                                try self.push(.{
+                                    .Success = .{
+                                        .start = leftSuccess.start,
+                                        .end = rightSuccess.end,
+                                        .value = .{ .integer = mergedInteger },
+                                    },
+                                });
+                            } else if (leftSuccess.isNumber() and rightSuccess.isNumber()) {
+                                const leftNumber = try leftSuccess.asFloat();
+                                const rightNumber = try rightSuccess.asFloat();
+                                const mergedNumber = leftNumber.? + rightNumber.?;
+
+                                try self.push(.{
+                                    .Success = .{
+                                        .start = leftSuccess.start,
+                                        .end = rightSuccess.end,
+                                        .value = .{ .float = mergedNumber },
                                     },
                                 });
                             } else {
@@ -152,7 +176,7 @@ pub const VM = struct {
                 .Return => {
                     const last = self.pop();
 
-                    if (self.maybeMatch(last)) |success| {
+                    if (try self.maybeMatch(last)) |success| {
                         const value = Value{ .Success = success };
                         value.print();
                         logger.debug("\n\n", .{});
@@ -166,7 +190,7 @@ pub const VM = struct {
         }
     }
 
-    fn maybeMatch(self: *VM, value: Value) ?Success {
+    fn maybeMatch(self: *VM, value: Value) !?Success {
         switch (value) {
             .String => |s| {
                 const start = self.inputPos;
@@ -183,7 +207,23 @@ pub const VM = struct {
                     return null;
                 }
             },
-            .Number => |n| {
+            .Integer => |i| {
+                const s = try std.fmt.allocPrint(self.arena.allocator(), "{d}", .{i});
+                const start = self.inputPos;
+                const end = self.inputPos + s.len;
+
+                if (std.mem.eql(u8, s, self.input[start..end])) {
+                    self.inputPos += s.len;
+                    return Success{
+                        .start = start,
+                        .end = end,
+                        .value = json.Value{ .integer = i },
+                    };
+                } else {
+                    return null;
+                }
+            },
+            .Float => |n| {
                 const start = self.inputPos;
                 const end = self.inputPos + n.len;
 
@@ -272,12 +312,12 @@ test "'a' > 'b' > 'c' | 'abz'" {
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
 
-    try chunk.writeString("a", 1);
-    try chunk.writeString("b", 1);
+    try chunk.writeConst(.{ .String = "a" }, 1);
+    try chunk.writeConst(.{ .String = "b" }, 1);
     try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeString("c", 1);
+    try chunk.writeConst(.{ .String = "c" }, 1);
     try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeString("abz", 1);
+    try chunk.writeConst(.{ .String = "abz" }, 1);
     try chunk.writeOp(.Or, 1);
     try chunk.writeOp(.Return, 2);
 
@@ -294,10 +334,10 @@ test "1234 | 5678 | 910" {
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
 
-    try chunk.writeNumber("1234", 1);
-    try chunk.writeNumber("5678", 1);
+    try chunk.writeConst(.{ .Integer = 1234 }, 1);
+    try chunk.writeConst(.{ .Integer = 5678 }, 1);
     try chunk.writeOp(.Or, 1);
-    try chunk.writeNumber("910", 1);
+    try chunk.writeConst(.{ .Integer = 910 }, 1);
     try chunk.writeOp(.Or, 1);
     try chunk.writeOp(.Return, 2);
 
@@ -314,14 +354,88 @@ test "'foo' + 'bar' + 'baz'" {
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
 
-    try chunk.writeString("foo", 1);
-    try chunk.writeString("bar", 1);
+    try chunk.writeConst(.{ .String = "foo" }, 1);
+    try chunk.writeConst(.{ .String = "bar" }, 1);
     try chunk.writeOp(.Merge, 1);
-    try chunk.writeString("baz", 1);
+    try chunk.writeConst(.{ .String = "baz" }, 1);
     try chunk.writeOp(.Merge, 1);
     try chunk.writeOp(.Return, 2);
 
     chunk.disassemble("'foo' + 'bar' + 'baz'");
 
     try std.testing.expect(try vm.interpret(&chunk, "foobarbaz") == .Ok);
+}
+
+test "1 + 2 + 3" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .Integer = 1 }, 1);
+    try chunk.writeConst(.{ .Integer = 2 }, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeConst(.{ .Integer = 3 }, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeOp(.Return, 2);
+
+    chunk.disassemble("1 + 2 + 3");
+
+    try std.testing.expect(try vm.interpret(&chunk, "123") == .Ok);
+}
+
+test "1.23 + 10" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .Float = "1.23" }, 1);
+    try chunk.writeConst(.{ .Integer = 10 }, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeOp(.Return, 2);
+
+    chunk.disassemble("1.23 + 10");
+
+    try std.testing.expect(try vm.interpret(&chunk, "1.2310") == .Ok);
+}
+
+test "0.1 + 0.2" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .Float = "0.1" }, 1);
+    try chunk.writeConst(.{ .Float = "0.2" }, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeOp(.Return, 2);
+
+    chunk.disassemble("0.1 + 0.2");
+
+    try std.testing.expect(try vm.interpret(&chunk, "0.10.2") == .Ok);
+}
+
+test "1e57 + 3e-4" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .Float = "1e57" }, 1);
+    try chunk.writeConst(.{ .Float = "3e-4" }, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeOp(.Return, 2);
+
+    chunk.disassemble("1e57 + 3e-4");
+
+    try std.testing.expect(try vm.interpret(&chunk, "1e573e-4") == .Ok);
 }

@@ -5,8 +5,7 @@ const Value = @import("./value.zig").Value;
 const logger = @import("./logger.zig");
 
 pub const OpCode = enum(u8) {
-    String,
-    Number,
+    Constant,
     Or,
     TakeRight,
     TakeLeft,
@@ -44,15 +43,9 @@ pub const Chunk = struct {
         try self.write(@intFromEnum(op), line);
     }
 
-    pub fn writeString(self: *Chunk, s: []const u8, line: u32) !void {
-        var idx = try self.addConstant(.{ .String = s });
-        try self.writeOp(.String, line);
-        try self.write(idx, line);
-    }
-
-    pub fn writeNumber(self: *Chunk, n: []const u8, line: u32) !void {
-        var idx = try self.addConstant(.{ .Number = n });
-        try self.writeOp(.Number, line);
+    pub fn writeConst(self: *Chunk, v: Value, line: u32) !void {
+        var idx = try self.addConstant(v);
+        try self.writeOp(.Constant, line);
         try self.write(idx, line);
     }
 
@@ -84,8 +77,7 @@ pub const Chunk = struct {
 
         const instruction = @as(OpCode, @enumFromInt(self.code.items[offset]));
         return switch (instruction) {
-            .String => self.constantInstruction("String", offset),
-            .Number => self.constantInstruction("Number", offset),
+            .Constant => self.constantInstruction("Constant", offset),
             .Or => self.simpleInstruction("Or", offset),
             .TakeRight => self.simpleInstruction("TakeRight", offset),
             .TakeLeft => self.simpleInstruction("TakeLeft", offset),
@@ -103,7 +95,7 @@ pub const Chunk = struct {
     pub fn constantInstruction(self: *Chunk, name: []const u8, offset: usize) usize {
         var constantIdx = self.code.items[offset + 1];
         var constantValue = self.constants.items[constantIdx];
-        logger.debug("{s} {} ", .{ name, constantIdx });
+        logger.debug("{s} {}: ", .{ name, constantIdx });
         constantValue.print();
         logger.debug("\n", .{});
         return offset + 2;
@@ -115,12 +107,12 @@ test {
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
 
-    try chunk.writeString("a", 1);
-    try chunk.writeString("b", 1);
+    try chunk.writeConst(.{ .String = "a" }, 1);
+    try chunk.writeConst(.{ .String = "b" }, 1);
     try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeString("c", 1);
+    try chunk.writeConst(.{ .String = "c" }, 1);
     try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeString("xyz", 1);
+    try chunk.writeConst(.{ .String = "xyz" }, 1);
     try chunk.writeOp(.Or, 1);
     try chunk.writeOp(.Return, 2);
 
