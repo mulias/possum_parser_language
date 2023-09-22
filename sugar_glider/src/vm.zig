@@ -180,6 +180,29 @@ pub const VM = struct {
                         try self.pushFailure();
                     }
                 },
+                .Return => {
+                    const rhs = self.pop();
+                    const lhs = self.pop();
+
+                    if (try self.maybeMatch(lhs)) |leftSuccess| {
+                        if (rhs.toJson()) |value| {
+                            try self.push(.{
+                                .Success = .{
+                                    .start = leftSuccess.start,
+                                    .end = leftSuccess.end,
+                                    .value = value,
+                                },
+                            });
+                        } else {
+                            // rhs should never be a success/failure value,
+                            // since operator precedence means the return value
+                            // is always resolved with the return
+                            unreachable;
+                        }
+                    } else {
+                        try self.pushFailure();
+                    }
+                },
                 .End => {
                     const last = self.pop();
 
@@ -511,4 +534,32 @@ test "1e57 + 3e-4" {
     const successValue = @field(success.value, "float");
 
     try std.testing.expect(successValue == 1e57);
+}
+
+test "'foo' $ 'bar'" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .String = "foo" }, 1);
+    try chunk.writeConst(.{ .String = "bar" }, 1);
+    try chunk.writeOp(.Return, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "foo");
+
+    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
+
+    const success = @field(result, "ParserSuccess");
+
+    try std.testing.expect(success.start == 0);
+    try std.testing.expect(success.end == 3);
+    try std.testing.expectEqualStrings(@tagName(success.value), "string");
+
+    const successValue = @field(success.value, "string");
+
+    try std.testing.expectEqualStrings(successValue, "bar");
 }

@@ -83,4 +83,14 @@ pub const Value = union(ValueType) {
             .Failure => logger.debug("{s}", .{@tagName(value)}),
         }
     }
+
+    pub fn toJson(value: Value) ?json.Value {
+        switch (value) {
+            .String => |s| return .{ .string = s },
+            .Integer => |i| return .{ .integer = i },
+            .Float => |f| return .{ .number_string = f },
+            .Success => return null,
+            .Failure => return null,
+        }
+    }
 };
