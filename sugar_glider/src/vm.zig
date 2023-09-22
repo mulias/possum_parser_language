@@ -411,17 +411,9 @@ test "'a' > 'b' > 'c' | 'abz'" {
 
     const result = try vm.interpret(&chunk, "abzsss");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 3);
-    try std.testing.expectEqualStrings(@tagName(success.value), "string");
-
-    const successValue = @field(success.value, "string");
-
-    try std.testing.expectEqualStrings(successValue, "abz");
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try std.testing.expectEqualStrings(result.ParserSuccess.value.string, "abz");
 }
 
 test "1234 | 5678 | 910" {
@@ -441,17 +433,9 @@ test "1234 | 5678 | 910" {
 
     const result = try vm.interpret(&chunk, "56789");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 4);
-    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
-
-    const successValue = @field(success.value, "integer");
-
-    try std.testing.expect(successValue == 5678);
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 4);
+    try std.testing.expect(result.ParserSuccess.value.integer == 5678);
 }
 
 test "'foo' + 'bar' + 'baz'" {
@@ -471,17 +455,9 @@ test "'foo' + 'bar' + 'baz'" {
 
     const result = try vm.interpret(&chunk, "foobarbaz");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 9);
-    try std.testing.expectEqualStrings(@tagName(success.value), "string");
-
-    const successValue = @field(success.value, "string");
-
-    try std.testing.expectEqualStrings(successValue, "foobarbaz");
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 9);
+    try std.testing.expectEqualStrings(result.ParserSuccess.value.string, "foobarbaz");
 }
 
 test "1 + 2 + 3" {
@@ -501,17 +477,9 @@ test "1 + 2 + 3" {
 
     const result = try vm.interpret(&chunk, "123");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 3);
-    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
-
-    const successValue = @field(success.value, "integer");
-
-    try std.testing.expect(successValue == 6);
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try std.testing.expect(result.ParserSuccess.value.integer == 6);
 }
 
 test "1.23 + 10" {
@@ -529,17 +497,9 @@ test "1.23 + 10" {
 
     const result = try vm.interpret(&chunk, "1.2310");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 6);
-    try std.testing.expectEqualStrings(@tagName(success.value), "float");
-
-    const successValue = @field(success.value, "float");
-
-    try std.testing.expect(successValue == 11.23);
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 6);
+    try std.testing.expect(result.ParserSuccess.value.float == 11.23);
 }
 
 test "0.1 + 0.2" {
@@ -557,17 +517,9 @@ test "0.1 + 0.2" {
 
     const result = try vm.interpret(&chunk, "0.10.2");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 6);
-    try std.testing.expectEqualStrings(@tagName(success.value), "float");
-
-    const successValue = @field(success.value, "float");
-
-    try std.testing.expectApproxEqAbs(successValue, 0.3, 0.0000000000000001);
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 6);
+    try std.testing.expectApproxEqAbs(result.ParserSuccess.value.float, 0.3, 0.0000000000000001);
 }
 
 test "1e57 + 3e-4" {
@@ -585,17 +537,9 @@ test "1e57 + 3e-4" {
 
     const result = try vm.interpret(&chunk, "1e573e-4");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 8);
-    try std.testing.expectEqualStrings(@tagName(success.value), "float");
-
-    const successValue = @field(success.value, "float");
-
-    try std.testing.expect(successValue == 1e57);
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 8);
+    try std.testing.expect(result.ParserSuccess.value.float == 1e57);
 }
 
 test "'foo' $ 'bar'" {
@@ -613,17 +557,9 @@ test "'foo' $ 'bar'" {
 
     const result = try vm.interpret(&chunk, "foo");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 3);
-    try std.testing.expectEqualStrings(@tagName(success.value), "string");
-
-    const successValue = @field(success.value, "string");
-
-    try std.testing.expectEqualStrings(successValue, "bar");
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try std.testing.expectEqualStrings(result.ParserSuccess.value.string, "bar");
 }
 
 test "1 ! 12 ! 123" {
@@ -643,17 +579,9 @@ test "1 ! 12 ! 123" {
 
     const result = try vm.interpret(&chunk, "123");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 3);
-    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
-
-    const successValue = @field(success.value, "integer");
-
-    try std.testing.expect(successValue == 123);
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try std.testing.expect(result.ParserSuccess.value.integer == 123);
 }
 
 test "'true' ? 123 : 456, first branch" {
@@ -672,17 +600,9 @@ test "'true' ? 123 : 456, first branch" {
 
     const result = try vm.interpret(&chunk, "true123");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 7);
-    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
-
-    const successValue = @field(success.value, "integer");
-
-    try std.testing.expect(successValue == 123);
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 7);
+    try std.testing.expect(result.ParserSuccess.value.integer == 123);
 }
 
 test "'true' ? 123 : 456, second branch" {
@@ -701,15 +621,7 @@ test "'true' ? 123 : 456, second branch" {
 
     const result = try vm.interpret(&chunk, "456");
 
-    try std.testing.expectEqualStrings(@tagName(result), "ParserSuccess");
-
-    const success = @field(result, "ParserSuccess");
-
-    try std.testing.expect(success.start == 0);
-    try std.testing.expect(success.end == 3);
-    try std.testing.expectEqualStrings(@tagName(success.value), "integer");
-
-    const successValue = @field(success.value, "integer");
-
-    try std.testing.expect(successValue == 456);
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try std.testing.expect(result.ParserSuccess.value.integer == 456);
 }
