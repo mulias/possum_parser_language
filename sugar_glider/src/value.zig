@@ -9,6 +9,7 @@ pub const ValueError = error{
 pub const ValueType = enum {
     String,
     Integer,
+    IntegerRange,
     Float,
     Success,
     Failure,
@@ -67,6 +68,7 @@ pub const Success = struct {
 pub const Value = union(ValueType) {
     String: []const u8,
     Integer: i64,
+    IntegerRange: struct { i64, i64 },
     Float: []const u8,
     Success: Success,
     Failure: void,
@@ -75,6 +77,7 @@ pub const Value = union(ValueType) {
         switch (value) {
             .String => |s| logger.debug("\"{s}\"", .{s}),
             .Integer => |i| logger.debug("{d}", .{i}),
+            .IntegerRange => |r| logger.debug("{d}..{d}", .{ r[0], r[1] }),
             .Float => |f| logger.debug("{s}", .{f}),
             .Success => |s| {
                 logger.debug("{s} {d}-{d} ", .{ @tagName(value), s.start, s.end });
@@ -88,6 +91,7 @@ pub const Value = union(ValueType) {
         switch (value) {
             .String => |s| return .{ .string = s },
             .Integer => |i| return .{ .integer = i },
+            .IntegerRange => return null,
             .Float => |f| return .{ .number_string = f },
             .Success => return null,
             .Failure => return null,

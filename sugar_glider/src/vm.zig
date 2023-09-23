@@ -267,12 +267,24 @@ pub const VM = struct {
                 },
                 .End => {
                     const last = self.pop();
+                    var result: InterpretResult = undefined;
 
                     if (try self.maybeMatch(last)) |success| {
-                        return InterpretResult{ .ParserSuccess = success };
+                        try self.push(.{ .Success = success });
+                        result = InterpretResult{ .ParserSuccess = success };
                     } else {
-                        return InterpretResult{ .ParserFailure = undefined };
+                        try self.push(.{ .Failure = undefined });
+                        result = InterpretResult{ .ParserFailure = undefined };
                     }
+
+                    if (logger.debugVMStack) {
+                        logger.debug("\n", .{});
+                        self.printInput();
+                        self.printStack();
+                        logger.debug("\n", .{});
+                    }
+
+                    return result;
                 },
             }
         }
@@ -310,6 +322,35 @@ pub const VM = struct {
                 } else {
                     return null;
                 }
+            },
+            .IntegerRange => |r| {
+                const lowStr = try std.fmt.allocPrint(self.arena.allocator(), "{d}", .{r[0]});
+                const highStr = try std.fmt.allocPrint(self.arena.allocator(), "{d}", .{r[1]});
+
+                const start = self.inputPos;
+                const shortestMatchEnd = @min(start + lowStr.len, self.input.len);
+                const longestMatchEnd = @min(start + highStr.len, self.input.len);
+
+                var end = longestMatchEnd;
+
+                // Find the longest substring from the start of the input which
+                // parses as an integer, is greater than or equal to r[0] and
+                // less than or equal to r[1].
+                while (end >= shortestMatchEnd) {
+                    const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
+
+                    if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
+                        self.inputPos = end;
+                        return Success{
+                            .start = start,
+                            .end = end,
+                            .value = json.Value{ .integer = i },
+                        };
+                    } else {
+                        end -= 1;
+                    };
+                }
+                return null;
             },
             .Float => |n| {
                 const start = self.inputPos;
@@ -624,4 +665,42 @@ test "'true' ? 123 : 456, second branch" {
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
     try std.testing.expect(result.ParserSuccess.value.integer == 456);
+}
+
+test "1000..10000 | 100..1000" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .IntegerRange = .{ 1000, 10000 } }, 1);
+    try chunk.writeConst(.{ .IntegerRange = .{ 100, 1000 } }, 1);
+    try chunk.writeOp(.Or, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "888");
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try std.testing.expect(result.ParserSuccess.value.integer == 888);
+}
+
+test "-100..-1" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .IntegerRange = .{ -100, -1 } }, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "-5");
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 2);
+    try std.testing.expect(result.ParserSuccess.value.integer == -5);
 }
