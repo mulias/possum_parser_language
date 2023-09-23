@@ -297,11 +297,27 @@ pub const VM = struct {
                 const end = self.inputPos + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
-                    self.inputPos += s.len;
+                    self.inputPos = end;
                     return Success{
                         .start = start,
                         .end = end,
                         .value = json.Value{ .string = s },
+                    };
+                } else {
+                    return null;
+                }
+            },
+            .CharacterRange => |r| {
+                const start = self.inputPos;
+                const end = start + 1;
+                const c = self.input[start];
+
+                if (r[0] <= c and c <= r[1]) {
+                    self.inputPos = end;
+                    return Success{
+                        .start = start,
+                        .end = end,
+                        .value = json.Value{ .string = self.input[start..end] },
                     };
                 } else {
                     return null;
@@ -313,7 +329,7 @@ pub const VM = struct {
                 const end = self.inputPos + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
-                    self.inputPos += s.len;
+                    self.inputPos = end;
                     return Success{
                         .start = start,
                         .end = end,
@@ -357,7 +373,7 @@ pub const VM = struct {
                 const end = self.inputPos + n.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, n, self.input[start..end])) {
-                    self.inputPos += n.len;
+                    self.inputPos = end;
                     return Success{
                         .start = start,
                         .end = end,
@@ -703,4 +719,26 @@ test "-100..-1" {
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 2);
     try std.testing.expect(result.ParserSuccess.value.integer == -5);
+}
+
+test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .CharacterRange = .{ 'a', 'z' } }, 1);
+    try chunk.writeConst(.{ .CharacterRange = .{ 'o', 'o' } }, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeConst(.{ .CharacterRange = .{ 'l', 'q' } }, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "foo");
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try std.testing.expectEqualStrings(result.ParserSuccess.value.string, "foo");
 }

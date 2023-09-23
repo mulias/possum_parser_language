@@ -8,6 +8,7 @@ pub const ValueError = error{
 
 pub const ValueType = enum {
     String,
+    CharacterRange,
     Integer,
     IntegerRange,
     Float,
@@ -67,6 +68,7 @@ pub const Success = struct {
 
 pub const Value = union(ValueType) {
     String: []const u8,
+    CharacterRange: struct { u8, u8 },
     Integer: i64,
     IntegerRange: struct { i64, i64 },
     Float: []const u8,
@@ -76,6 +78,7 @@ pub const Value = union(ValueType) {
     pub fn print(value: Value) void {
         switch (value) {
             .String => |s| logger.debug("\"{s}\"", .{s}),
+            .CharacterRange => |r| logger.debug("\"{c}\"..\"{c}\"", .{ r[0], r[1] }),
             .Integer => |i| logger.debug("{d}", .{i}),
             .IntegerRange => |r| logger.debug("{d}..{d}", .{ r[0], r[1] }),
             .Float => |f| logger.debug("{s}", .{f}),
@@ -90,6 +93,7 @@ pub const Value = union(ValueType) {
     pub fn toJson(value: Value) ?json.Value {
         switch (value) {
             .String => |s| return .{ .string = s },
+            .CharacterRange => return null,
             .Integer => |i| return .{ .integer = i },
             .IntegerRange => return null,
             .Float => |f| return .{ .number_string = f },
