@@ -134,9 +134,9 @@ pub const VM = struct {
                     if (try self.maybeMatch(lhs)) |leftSuccess| {
                         if (try self.maybeMatch(rhs)) |rightSuccess| {
                             if (leftSuccess.isString() and rightSuccess.isString()) {
-                                const leftString = leftSuccess.asString();
-                                const rightString = rightSuccess.asString();
-                                const mergedString = try self.mergeStrings(leftString.?, rightString.?);
+                                const leftString = leftSuccess.asString().?;
+                                const rightString = rightSuccess.asString().?;
+                                const mergedString = try self.mergeStrings(leftString, rightString);
 
                                 try self.push(.{
                                     .Success = .{
@@ -146,9 +146,9 @@ pub const VM = struct {
                                     },
                                 });
                             } else if (leftSuccess.isInteger() and rightSuccess.isInteger()) {
-                                const leftInteger = leftSuccess.asInteger();
-                                const rightInteger = rightSuccess.asInteger();
-                                const mergedInteger = leftInteger.? + rightInteger.?;
+                                const leftInteger = leftSuccess.asInteger().?;
+                                const rightInteger = rightSuccess.asInteger().?;
+                                const mergedInteger = leftInteger + rightInteger;
 
                                 try self.push(.{
                                     .Success = .{
@@ -158,15 +158,43 @@ pub const VM = struct {
                                     },
                                 });
                             } else if (leftSuccess.isNumber() and rightSuccess.isNumber()) {
-                                const leftNumber = try leftSuccess.asFloat();
-                                const rightNumber = try rightSuccess.asFloat();
-                                const mergedNumber = leftNumber.? + rightNumber.?;
+                                const leftNumber = (try leftSuccess.asFloat()).?;
+                                const rightNumber = (try rightSuccess.asFloat()).?;
+                                const mergedNumber = leftNumber + rightNumber;
 
                                 try self.push(.{
                                     .Success = .{
                                         .start = leftSuccess.start,
                                         .end = rightSuccess.end,
                                         .value = .{ .float = mergedNumber },
+                                    },
+                                });
+                            } else if (leftSuccess.isArray() and rightSuccess.isArray()) {
+                                var leftArray = leftSuccess.asArray().?;
+                                var rightArray = rightSuccess.asArray().?;
+                                try leftArray.appendSlice(rightArray.items);
+
+                                try self.push(.{
+                                    .Success = .{
+                                        .start = leftSuccess.start,
+                                        .end = rightSuccess.end,
+                                        .value = .{ .array = leftArray },
+                                    },
+                                });
+                            } else if (leftSuccess.isObject() and rightSuccess.isObject()) {
+                                var leftObject = leftSuccess.asObject().?;
+                                var rightObject = rightSuccess.asObject().?;
+
+                                var iterator = rightObject.iterator();
+                                while (iterator.next()) |entry| {
+                                    try leftObject.put(entry.key_ptr.*, entry.value_ptr.*);
+                                }
+
+                                try self.push(.{
+                                    .Success = .{
+                                        .start = leftSuccess.start,
+                                        .end = rightSuccess.end,
+                                        .value = .{ .object = leftObject },
                                     },
                                 });
                             } else if (leftSuccess.isTrue() and rightSuccess.isTrue()) {
@@ -411,7 +439,7 @@ pub const VM = struct {
             .Failure => return null,
             // JSON-only values should only show up in destructure patterns and
             // return values, so they should not be used as a parser
-            .True, .False, .Null => unreachable,
+            .Array, .Object, .True, .False, .Null => unreachable,
         }
     }
 
@@ -459,10 +487,9 @@ pub const VM = struct {
 
     fn printStack(self: *VM) void {
         logger.debug("stack   | ", .{});
-        for (self.stack.items) |value| {
-            logger.debug("[", .{});
+        for (self.stack.items, 0..) |value, idx| {
             value.print();
-            logger.debug("]", .{});
+            if (idx < self.stack.items.len - 1) logger.debug(" # ", .{});
         }
         logger.debug("\n", .{});
     }
@@ -812,4 +839,77 @@ test "('' $ null) + ('' $ null)" {
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 0);
     try std.testing.expectEqualStrings(@tagName(result.ParserSuccess.value), "null");
+}
+
+test "('a' $ [1, 2]) + ('b' $ [true, false])" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    var a1 = ArrayList(json.Value).init(alloc);
+    defer a1.deinit();
+    try a1.append(.{ .integer = 1 });
+    try a1.append(.{ .integer = 2 });
+
+    var a2 = ArrayList(json.Value).init(alloc);
+    defer a2.deinit();
+    try a2.append(.{ .bool = true });
+    try a2.append(.{ .bool = false });
+
+    try chunk.writeConst(.{ .String = "a" }, 1);
+    try chunk.writeConst(.{ .Array = a1 }, 1);
+    try chunk.writeOp(.Return, 1);
+    try chunk.writeConst(.{ .String = "b" }, 1);
+    try chunk.writeConst(.{ .Array = a2 }, 1);
+    try chunk.writeOp(.Return, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "abc");
+
+    var valueString = ArrayList(u8).init(alloc);
+    defer valueString.deinit();
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 2);
+    try std.testing.expectEqualStrings(try result.ParserSuccess.writeValueString(&valueString), "[1,2,true,false]");
+}
+
+test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    var o1 = std.StringArrayHashMap(json.Value).init(alloc);
+    defer o1.deinit();
+    try o1.put("a", .{ .bool = true });
+
+    var o2 = std.StringArrayHashMap(json.Value).init(alloc);
+    defer o2.deinit();
+    try o2.put("a", .{ .bool = false });
+    try o2.put("b", .{ .null = undefined });
+
+    try chunk.writeConst(.{ .Integer = 123 }, 1);
+    try chunk.writeConst(.{ .Object = o1 }, 1);
+    try chunk.writeOp(.Return, 1);
+    try chunk.writeConst(.{ .Integer = 456 }, 1);
+    try chunk.writeConst(.{ .Object = o2 }, 1);
+    try chunk.writeOp(.Return, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "123456");
+
+    var valueString = ArrayList(u8).init(alloc);
+    defer valueString.deinit();
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 6);
+    try std.testing.expectEqualStrings(try result.ParserSuccess.writeValueString(&valueString), "{\"a\":false,\"b\":null}");
 }

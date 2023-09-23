@@ -1,5 +1,7 @@
 const std = @import("std");
 const json = std.json;
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const logger = @import("./logger.zig");
 
 pub const ValueError = error{
@@ -12,6 +14,8 @@ pub const ValueType = enum {
     Integer,
     IntegerRange,
     Float,
+    Array,
+    Object,
     True,
     False,
     Null,
@@ -68,6 +72,34 @@ pub const Success = struct {
         }
     }
 
+    pub fn isArray(self: Success) bool {
+        switch (self.value) {
+            .array => return true,
+            else => return false,
+        }
+    }
+
+    pub fn asArray(self: Success) ?json.Array {
+        switch (self.value) {
+            .array => |a| return a,
+            else => return null,
+        }
+    }
+
+    pub fn isObject(self: Success) bool {
+        switch (self.value) {
+            .object => return true,
+            else => return false,
+        }
+    }
+
+    pub fn asObject(self: Success) ?json.ObjectMap {
+        switch (self.value) {
+            .object => |o| return o,
+            else => return null,
+        }
+    }
+
     pub fn isTrue(self: Success) bool {
         switch (self.value) {
             .bool => |b| return b == true,
@@ -88,6 +120,11 @@ pub const Success = struct {
             else => return false,
         }
     }
+
+    pub fn writeValueString(self: Success, str: *ArrayList(u8)) ![]const u8 {
+        try std.json.stringify(self.value, .{}, str.writer());
+        return str.items;
+    }
 };
 
 pub const Value = union(ValueType) {
@@ -96,6 +133,8 @@ pub const Value = union(ValueType) {
     Integer: i64,
     IntegerRange: struct { i64, i64 },
     Float: []const u8,
+    Array: json.Array,
+    Object: json.ObjectMap,
     True: void,
     False: void,
     Null: void,
@@ -109,6 +148,8 @@ pub const Value = union(ValueType) {
             .Integer => |i| logger.debug("{d}", .{i}),
             .IntegerRange => |r| logger.debug("{d}..{d}", .{ r[0], r[1] }),
             .Float => |f| logger.debug("{s}", .{f}),
+            .Array => |a| logger.json_debug(.{ .array = a }),
+            .Object => |o| logger.json_debug(.{ .object = o }),
             .True => logger.debug("true", .{}),
             .False => logger.debug("false", .{}),
             .Null => logger.debug("null", .{}),
@@ -127,6 +168,8 @@ pub const Value = union(ValueType) {
             .Integer => |i| return .{ .integer = i },
             .IntegerRange => return null,
             .Float => |f| return .{ .number_string = f },
+            .Array => |a| return .{ .array = a },
+            .Object => |o| return .{ .object = o },
             .True => return .{ .bool = true },
             .False => return .{ .bool = false },
             .Null => return .{ .null = undefined },
