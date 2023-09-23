@@ -178,3 +178,86 @@ pub const Value = union(ValueType) {
         }
     }
 };
+
+pub fn isDeepEql(v1: json.Value, v2: json.Value) bool {
+    return switch (v1) {
+        .string => |s1| switch (v2) {
+            .string => |s2| std.mem.eql(u8, s1, s2),
+            else => false,
+        },
+        .integer => |int1| switch (v2) {
+            .integer => |int2| int1 == int2,
+            .float => |f2| isIntAndFloatEql(int1, f2),
+            .number_string => |n2| isIntAndNumberStringEql(int1, n2),
+            else => false,
+        },
+        .float => |f1| switch (v2) {
+            .integer => |int2| isIntAndFloatEql(int2, f1),
+            .float => |f2| f1 == f2,
+            .number_string => |n2| isFloatAndNumberStringEql(f1, n2),
+            else => false,
+        },
+        .number_string => |n1| switch (v2) {
+            .integer => |int2| isIntAndNumberStringEql(int2, n1),
+            .float => |f2| isFloatAndNumberStringEql(f2, n1),
+            .number_string => |n2| std.mem.eql(u8, n1, n2),
+            else => false,
+        },
+        .null => switch (v2) {
+            .null => true,
+            else => false,
+        },
+        .bool => |b1| switch (v2) {
+            .bool => |b2| b1 == b2,
+            else => false,
+        },
+        .array => |a1| switch (v2) {
+            .array => |a2| {
+                if (a1.items.len != a2.items.len) return false;
+                for (a1.items, a2.items) |elem1, elem2| {
+                    if (!isDeepEql(elem1, elem2)) return false;
+                }
+                return true;
+            },
+            else => false,
+        },
+        .object => |o1| switch (v2) {
+            .object => |o2| {
+                const o1Vals = o1.values();
+                const o2Vals = o2.values();
+                if (o1Vals.len != o2Vals.len) return false;
+                for (o1Vals, o2Vals) |elem1, elem2| {
+                    if (!isDeepEql(elem1, elem2)) return false;
+                }
+                return true;
+            },
+            else => false,
+        },
+    };
+}
+
+fn isIntAndNumberStringEql(int: i64, numberString: []const u8) bool {
+    if (std.fmt.parseInt(i64, numberString, 10) catch null) |int2| {
+        return int == int2;
+    } else if (std.fmt.parseFloat(f64, numberString) catch null) |float| {
+        return isIntAndFloatEql(int, float);
+    } else {
+        return false;
+    }
+}
+
+fn isFloatAndNumberStringEql(float: f64, numberString: []const u8) bool {
+    if (std.fmt.parseFloat(f64, numberString) catch null) |float2| {
+        return float == float2;
+    } else if (std.fmt.parseInt(i64, numberString, 10) catch null) |int| {
+        return isIntAndFloatEql(int, float);
+    } else {
+        return false;
+    }
+}
+
+fn isIntAndFloatEql(int: i64, float: f64) bool {
+    const intOfFloat: i64 = @intFromFloat(float);
+    const roundTrip: f64 = @floatFromInt(intOfFloat);
+    return int == intOfFloat and roundTrip == float;
+}

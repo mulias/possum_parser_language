@@ -5,6 +5,7 @@ const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayList;
 const Chunk = @import("./chunk.zig").Chunk;
 const OpCode = @import("./chunk.zig").OpCode;
+const value = @import("./value.zig");
 const Value = @import("./value.zig").Value;
 const Success = @import("./value.zig").Success;
 const printValue = @import("./value.zig").print;
@@ -70,8 +71,7 @@ pub const VM = struct {
             switch (instruction) {
                 .Constant => {
                     const constantIdx = self.readByte();
-                    const value = self.chunk.constants.items[constantIdx];
-                    try self.push(value);
+                    try self.push(self.chunk.constants.items[constantIdx]);
                 },
                 .Or => {
                     const rhs = self.pop();
@@ -247,17 +247,35 @@ pub const VM = struct {
                         try self.pushFailure();
                     }
                 },
+                .Destructure => {
+                    const rhs = self.pop();
+                    const lhs = self.pop();
+
+                    if (try self.maybeMatch(rhs)) |rightSuccess| {
+                        if (lhs.toJson()) |pattern| {
+                            if (value.isDeepEql(rightSuccess.value, pattern)) {
+                                try self.push(.{ .Success = rightSuccess });
+                            } else {
+                                try self.pushFailure();
+                            }
+                        } else {
+                            try self.pushFailure();
+                        }
+                    } else {
+                        try self.pushFailure();
+                    }
+                },
                 .Return => {
                     const rhs = self.pop();
                     const lhs = self.pop();
 
                     if (try self.maybeMatch(lhs)) |leftSuccess| {
-                        if (rhs.toJson()) |value| {
+                        if (rhs.toJson()) |rightValue| {
                             try self.push(.{
                                 .Success = .{
                                     .start = leftSuccess.start,
                                     .end = leftSuccess.end,
-                                    .value = value,
+                                    .value = rightValue,
                                 },
                             });
                         } else {
@@ -342,8 +360,8 @@ pub const VM = struct {
         }
     }
 
-    fn maybeMatch(self: *VM, value: Value) !?Success {
-        switch (value) {
+    fn maybeMatch(self: *VM, parser: Value) !?Success {
+        switch (parser) {
             .String => |s| {
                 const start = self.inputPos;
                 const end = self.inputPos + s.len;
@@ -459,8 +477,8 @@ pub const VM = struct {
         return byte;
     }
 
-    fn push(self: *VM, value: Value) !void {
-        try self.stack.append(value);
+    fn push(self: *VM, parserOrValue: Value) !void {
+        try self.stack.append(parserOrValue);
     }
 
     fn pushFailure(self: *VM) !void {
@@ -487,8 +505,8 @@ pub const VM = struct {
 
     fn printStack(self: *VM) void {
         logger.debug("stack   | ", .{});
-        for (self.stack.items, 0..) |value, idx| {
-            value.print();
+        for (self.stack.items, 0..) |v, idx| {
+            v.print();
             if (idx < self.stack.items.len - 1) logger.debug(" # ", .{});
         }
         logger.debug("\n", .{});
@@ -524,7 +542,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
-    try std.testing.expectEqualStrings(result.ParserSuccess.value.string, "abz");
+    try expectJson(alloc, result.ParserSuccess, "\"abz\"");
 }
 
 test "1234 | 5678 | 910" {
@@ -546,7 +564,7 @@ test "1234 | 5678 | 910" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 4);
-    try std.testing.expect(result.ParserSuccess.value.integer == 5678);
+    try expectJson(alloc, result.ParserSuccess, "5678");
 }
 
 test "'foo' + 'bar' + 'baz'" {
@@ -568,7 +586,7 @@ test "'foo' + 'bar' + 'baz'" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 9);
-    try std.testing.expectEqualStrings(result.ParserSuccess.value.string, "foobarbaz");
+    try expectJson(alloc, result.ParserSuccess, "\"foobarbaz\"");
 }
 
 test "1 + 2 + 3" {
@@ -590,7 +608,7 @@ test "1 + 2 + 3" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
-    try std.testing.expect(result.ParserSuccess.value.integer == 6);
+    try expectJson(alloc, result.ParserSuccess, "6");
 }
 
 test "1.23 + 10" {
@@ -610,7 +628,7 @@ test "1.23 + 10" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 6);
-    try std.testing.expect(result.ParserSuccess.value.float == 11.23);
+    try expectJson(alloc, result.ParserSuccess, "1.123e+01");
 }
 
 test "0.1 + 0.2" {
@@ -630,7 +648,7 @@ test "0.1 + 0.2" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 6);
-    try std.testing.expectApproxEqAbs(result.ParserSuccess.value.float, 0.3, 0.0000000000000001);
+    try expectJson(alloc, result.ParserSuccess, "3.0000000000000004e-01");
 }
 
 test "1e57 + 3e-4" {
@@ -650,7 +668,7 @@ test "1e57 + 3e-4" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 8);
-    try std.testing.expect(result.ParserSuccess.value.float == 1e57);
+    try expectJson(alloc, result.ParserSuccess, "1.0e+57");
 }
 
 test "'foo' $ 'bar'" {
@@ -670,7 +688,7 @@ test "'foo' $ 'bar'" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
-    try std.testing.expectEqualStrings(result.ParserSuccess.value.string, "bar");
+    try expectJson(alloc, result.ParserSuccess, "\"bar\"");
 }
 
 test "1 ! 12 ! 123" {
@@ -692,7 +710,7 @@ test "1 ! 12 ! 123" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
-    try std.testing.expect(result.ParserSuccess.value.integer == 123);
+    try expectJson(alloc, result.ParserSuccess, "123");
 }
 
 test "'true' ? 123 : 456, first branch" {
@@ -713,7 +731,7 @@ test "'true' ? 123 : 456, first branch" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 7);
-    try std.testing.expect(result.ParserSuccess.value.integer == 123);
+    try expectJson(alloc, result.ParserSuccess, "123");
 }
 
 test "'true' ? 123 : 456, second branch" {
@@ -734,7 +752,7 @@ test "'true' ? 123 : 456, second branch" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
-    try std.testing.expect(result.ParserSuccess.value.integer == 456);
+    try expectJson(alloc, result.ParserSuccess, "456");
 }
 
 test "1000..10000 | 100..1000" {
@@ -754,7 +772,7 @@ test "1000..10000 | 100..1000" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
-    try std.testing.expect(result.ParserSuccess.value.integer == 888);
+    try expectJson(alloc, result.ParserSuccess, "888");
 }
 
 test "-100..-1" {
@@ -772,7 +790,7 @@ test "-100..-1" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 2);
-    try std.testing.expect(result.ParserSuccess.value.integer == -5);
+    try expectJson(alloc, result.ParserSuccess, "-5");
 }
 
 test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
@@ -794,7 +812,7 @@ test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
-    try std.testing.expectEqualStrings(result.ParserSuccess.value.string, "foo");
+    try expectJson(alloc, result.ParserSuccess, "\"foo\"");
 }
 
 test "'true' $ true" {
@@ -814,7 +832,7 @@ test "'true' $ true" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 4);
-    try std.testing.expect(result.ParserSuccess.value.bool);
+    try expectJson(alloc, result.ParserSuccess, "true");
 }
 
 test "('' $ null) + ('' $ null)" {
@@ -838,7 +856,7 @@ test "('' $ null) + ('' $ null)" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 0);
-    try std.testing.expectEqualStrings(@tagName(result.ParserSuccess.value), "null");
+    try expectJson(alloc, result.ParserSuccess, "null");
 }
 
 test "('a' $ [1, 2]) + ('b' $ [true, false])" {
@@ -875,7 +893,7 @@ test "('a' $ [1, 2]) + ('b' $ [true, false])" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 2);
-    try std.testing.expectEqualStrings(try result.ParserSuccess.writeValueString(&valueString), "[1,2,true,false]");
+    try expectJson(alloc, result.ParserSuccess, "[1,2,true,false]");
 }
 
 test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
@@ -911,5 +929,55 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 6);
-    try std.testing.expectEqualStrings(try result.ParserSuccess.writeValueString(&valueString), "{\"a\":false,\"b\":null}");
+    try expectJson(alloc, result.ParserSuccess, "{\"a\":false,\"b\":null}");
+}
+
+test "'f' <- 'a'..'z' & 12 <- 0..100" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .String = "f" }, 1);
+    try chunk.writeConst(.{ .CharacterRange = .{ 'a', 'z' } }, 1);
+    try chunk.writeOp(.Destructure, 1);
+    try chunk.writeConst(.{ .Integer = 12 }, 1);
+    try chunk.writeConst(.{ .IntegerRange = .{ 0, 100 } }, 1);
+    try chunk.writeOp(.Destructure, 1);
+    try chunk.writeOp(.Sequence, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "f12");
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try expectJson(alloc, result.ParserSuccess, "12");
+}
+
+test "42 <- 42.0" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .Integer = 42 }, 1);
+    try chunk.writeConst(.{ .Float = "42.0" }, 1);
+    try chunk.writeOp(.Destructure, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "42.0");
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 4);
+    try expectJson(alloc, result.ParserSuccess, "42.0");
+}
+
+fn expectJson(alloc: Allocator, actual: value.Success, expected: []const u8) !void {
+    var valueString = ArrayList(u8).init(alloc);
+    defer valueString.deinit();
+    try std.testing.expectEqualStrings(try actual.writeValueString(&valueString), expected);
 }
