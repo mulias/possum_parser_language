@@ -12,6 +12,9 @@ pub const ValueType = enum {
     Integer,
     IntegerRange,
     Float,
+    True,
+    False,
+    Null,
     Success,
     Failure,
 };
@@ -64,6 +67,27 @@ pub const Success = struct {
             else => return null,
         }
     }
+
+    pub fn isTrue(self: Success) bool {
+        switch (self.value) {
+            .bool => |b| return b == true,
+            else => return false,
+        }
+    }
+
+    pub fn isFalse(self: Success) bool {
+        switch (self.value) {
+            .bool => |b| return b == false,
+            else => return false,
+        }
+    }
+
+    pub fn isNull(self: Success) bool {
+        switch (self.value) {
+            .null => return true,
+            else => return false,
+        }
+    }
 };
 
 pub const Value = union(ValueType) {
@@ -72,6 +96,9 @@ pub const Value = union(ValueType) {
     Integer: i64,
     IntegerRange: struct { i64, i64 },
     Float: []const u8,
+    True: void,
+    False: void,
+    Null: void,
     Success: Success,
     Failure: void,
 
@@ -82,6 +109,9 @@ pub const Value = union(ValueType) {
             .Integer => |i| logger.debug("{d}", .{i}),
             .IntegerRange => |r| logger.debug("{d}..{d}", .{ r[0], r[1] }),
             .Float => |f| logger.debug("{s}", .{f}),
+            .True => logger.debug("true", .{}),
+            .False => logger.debug("false", .{}),
+            .Null => logger.debug("null", .{}),
             .Success => |s| {
                 logger.debug("{s} {d}-{d} ", .{ @tagName(value), s.start, s.end });
                 logger.json_debug(s.value);
@@ -97,6 +127,9 @@ pub const Value = union(ValueType) {
             .Integer => |i| return .{ .integer = i },
             .IntegerRange => return null,
             .Float => |f| return .{ .number_string = f },
+            .True => return .{ .bool = true },
+            .False => return .{ .bool = false },
+            .Null => return .{ .null = undefined },
             .Success => return null,
             .Failure => return null,
         }

@@ -169,6 +169,30 @@ pub const VM = struct {
                                         .value = .{ .float = mergedNumber },
                                     },
                                 });
+                            } else if (leftSuccess.isTrue() and rightSuccess.isTrue()) {
+                                try self.push(.{
+                                    .Success = .{
+                                        .start = leftSuccess.start,
+                                        .end = rightSuccess.end,
+                                        .value = .{ .bool = true },
+                                    },
+                                });
+                            } else if (leftSuccess.isFalse() and rightSuccess.isFalse()) {
+                                try self.push(.{
+                                    .Success = .{
+                                        .start = leftSuccess.start,
+                                        .end = rightSuccess.end,
+                                        .value = .{ .bool = false },
+                                    },
+                                });
+                            } else if (leftSuccess.isNull() and rightSuccess.isNull()) {
+                                try self.push(.{
+                                    .Success = .{
+                                        .start = leftSuccess.start,
+                                        .end = rightSuccess.end,
+                                        .value = .{ .null = undefined },
+                                    },
+                                });
                             } else {
                                 return InterpretResult{ .RuntimeError = "Unable to merge mismatching types" };
                             }
@@ -385,6 +409,9 @@ pub const VM = struct {
             },
             .Success => |s| return s,
             .Failure => return null,
+            // JSON-only values should only show up in destructure patterns and
+            // return values, so they should not be used as a parser
+            .True, .False, .Null => unreachable,
         }
     }
 
@@ -741,4 +768,48 @@ test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
     try std.testing.expectEqualStrings(result.ParserSuccess.value.string, "foo");
+}
+
+test "'true' $ true" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .String = "true" }, 1);
+    try chunk.writeConst(.{ .True = undefined }, 1);
+    try chunk.writeOp(.Return, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "true");
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 4);
+    try std.testing.expect(result.ParserSuccess.value.bool);
+}
+
+test "('' $ null) + ('' $ null)" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .String = "" }, 1);
+    try chunk.writeConst(.{ .Null = undefined }, 1);
+    try chunk.writeOp(.Return, 1);
+    try chunk.writeConst(.{ .String = "" }, 1);
+    try chunk.writeConst(.{ .Null = undefined }, 1);
+    try chunk.writeOp(.Return, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "");
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 0);
+    try std.testing.expectEqualStrings(@tagName(result.ParserSuccess.value), "null");
 }
