@@ -976,8 +976,32 @@ test "42 <- 42.0" {
     try expectJson(alloc, result.ParserSuccess, "42.0");
 }
 
+test "false <- ('' $ true)" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    try chunk.writeConst(.{ .False = undefined }, 1);
+    try chunk.writeConst(.{ .String = "" }, 1);
+    try chunk.writeConst(.{ .True = undefined }, 1);
+    try chunk.writeOp(.Return, 1);
+    try chunk.writeOp(.Destructure, 1);
+    try chunk.writeOp(.End, 2);
+
+    const result = try vm.interpret(&chunk, "42.0");
+
+    try expectFailure(result);
+}
+
 fn expectJson(alloc: Allocator, actual: value.Success, expected: []const u8) !void {
     var valueString = ArrayList(u8).init(alloc);
     defer valueString.deinit();
     try std.testing.expectEqualStrings(try actual.writeValueString(&valueString), expected);
+}
+
+fn expectFailure(result: InterpretResult) !void {
+    try std.testing.expectEqualStrings(@tagName(result), "ParserFailure");
 }
