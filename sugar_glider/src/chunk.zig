@@ -109,20 +109,3 @@ pub const Chunk = struct {
         return offset + 2;
     }
 };
-
-test {
-    var alloc = std.testing.allocator;
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
-
-    try chunk.writeConst(.{ .String = "a" }, 1);
-    try chunk.writeConst(.{ .String = "b" }, 1);
-    try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeConst(.{ .String = "c" }, 1);
-    try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeConst(.{ .String = "xyz" }, 1);
-    try chunk.writeOp(.Or, 1);
-    try chunk.writeOp(.End, 2);
-
-    chunk.disassemble("'a' > 'b' > 'v' | 'xyz'");
-}
