@@ -388,7 +388,9 @@ pub const VM = struct {
                     return Success{
                         .start = start,
                         .end = end,
-                        .value = json.Value{ .string = self.input[start..end] },
+                        .value = json.Value{
+                            .string = try std.fmt.allocPrint(self.arena.allocator(), "{c}", .{c}),
+                        },
                     };
                 } else {
                     return null;
@@ -463,13 +465,7 @@ pub const VM = struct {
     }
 
     fn mergeStrings(self: *VM, left: []const u8, right: []const u8) ![]const u8 {
-        var dynamic_string = std.ArrayList(u8).init(self.arena.allocator());
-        defer dynamic_string.deinit();
-
-        var writer = dynamic_string.writer();
-        try writer.writeAll(left);
-        try writer.writeAll(right);
-        return try dynamic_string.toOwnedSlice();
+        return try std.fmt.allocPrint(self.arena.allocator(), "{s}{s}", .{ left, right });
     }
 
     fn readByte(self: *VM) u8 {
