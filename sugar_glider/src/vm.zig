@@ -67,11 +67,14 @@ pub const VM = struct {
                 _ = self.chunk.disassembleInstruction(self.ip);
             }
 
-            const instruction = @as(OpCode, @enumFromInt(self.readByte()));
+            const instruction = self.readOp();
             switch (instruction) {
                 .Constant => {
                     const constantIdx = self.readByte();
                     try self.push(self.chunk.constants.items[constantIdx]);
+                },
+                .Jump => {
+                    self.ip += self.readByte();
                 },
                 .Or => {
                     const rhs = self.pop();
@@ -310,29 +313,27 @@ pub const VM = struct {
                     }
                 },
                 .Conditional => {
-                    const whenNoMatch = self.pop();
-                    const whenMatch = self.pop();
-                    const testParser = self.pop();
+                    const jumpOffset = self.readByte();
+                    const rhs = self.pop();
+                    const lhs = self.pop();
 
-                    if (try self.maybeMatch(testParser)) |testSuccess| {
-                        if (try self.maybeMatch(whenMatch)) |whenMatchSuccess| {
+                    if (try self.maybeMatch(lhs)) |testSuccess| {
+                        if (try self.maybeMatch(rhs)) |matchBranchSuccess| {
                             try self.push(.{
                                 .Success = .{
                                     .start = testSuccess.start,
-                                    .end = whenMatchSuccess.end,
-                                    .value = whenMatchSuccess.value,
+                                    .end = matchBranchSuccess.end,
+                                    .value = matchBranchSuccess.value,
                                 },
                             });
                         } else {
+                            // test succeeded but branch failed
                             self.inputPos = testSuccess.start;
                             try self.pushFailure();
                         }
                     } else {
-                        if (try self.maybeMatch(whenNoMatch)) |whenNoMatchSuccess| {
-                            try self.push(.{ .Success = whenNoMatchSuccess });
-                        } else {
-                            try self.pushFailure();
-                        }
+                        // Test parser failed, jump to else branch
+                        self.ip += jumpOffset;
                     }
                 },
                 .End => {
@@ -475,6 +476,10 @@ pub const VM = struct {
         const byte = self.chunk.code.items[self.ip];
         self.ip += 1;
         return byte;
+    }
+
+    fn readOp(self: *VM) OpCode {
+        return @as(OpCode, @enumFromInt(self.readByte()));
     }
 
     fn push(self: *VM, parserOrValue: Value) !void {
@@ -713,7 +718,7 @@ test "1 ! 12 ! 123" {
     try expectJson(alloc, result.ParserSuccess, "123");
 }
 
-test "'true' ? 123 : 456, first branch" {
+test "'true' ? 'foo' + 'bar' : 'baz', first branch" {
     var alloc = std.testing.allocator;
     var vm = VM.init(alloc);
     defer vm.deinit();
@@ -722,19 +727,22 @@ test "'true' ? 123 : 456, first branch" {
     defer chunk.deinit();
 
     try chunk.writeConst(.{ .String = "true" }, 1);
-    try chunk.writeConst(.{ .Integer = 123 }, 1);
-    try chunk.writeConst(.{ .Integer = 456 }, 1);
-    try chunk.writeOp(.Conditional, 1);
+    try chunk.writeConst(.{ .String = "foo" }, 1);
+    try chunk.writeConditional(5, 1);
+    try chunk.writeConst(.{ .String = "bar" }, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeJump(3, 1);
+    try chunk.writeConst(.{ .String = "baz" }, 1);
     try chunk.writeOp(.End, 2);
 
-    const result = try vm.interpret(&chunk, "true123");
+    const result = try vm.interpret(&chunk, "truefoobar");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 7);
-    try expectJson(alloc, result.ParserSuccess, "123");
+    try std.testing.expect(result.ParserSuccess.end == 10);
+    try expectJson(alloc, result.ParserSuccess, "\"foobar\"");
 }
 
-test "'true' ? 123 : 456, second branch" {
+test "'true' ? 'foo' + 'bar' : 'baz', second branch" {
     var alloc = std.testing.allocator;
     var vm = VM.init(alloc);
     defer vm.deinit();
@@ -743,16 +751,19 @@ test "'true' ? 123 : 456, second branch" {
     defer chunk.deinit();
 
     try chunk.writeConst(.{ .String = "true" }, 1);
-    try chunk.writeConst(.{ .Integer = 123 }, 1);
-    try chunk.writeConst(.{ .Integer = 456 }, 1);
-    try chunk.writeOp(.Conditional, 1);
+    try chunk.writeConst(.{ .String = "foo" }, 1);
+    try chunk.writeConditional(5, 1);
+    try chunk.writeConst(.{ .String = "bar" }, 1);
+    try chunk.writeOp(.Merge, 1);
+    try chunk.writeJump(3, 1);
+    try chunk.writeConst(.{ .String = "baz" }, 1);
     try chunk.writeOp(.End, 2);
 
-    const result = try vm.interpret(&chunk, "456");
+    const result = try vm.interpret(&chunk, "baz");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
-    try expectJson(alloc, result.ParserSuccess, "456");
+    try expectJson(alloc, result.ParserSuccess, "\"baz\"");
 }
 
 test "1000..10000 | 100..1000" {
