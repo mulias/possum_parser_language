@@ -70,8 +70,8 @@ pub const VM = struct {
             const instruction = self.readOp();
             switch (instruction) {
                 .Constant => {
-                    const constantIdx = self.readByte();
-                    try self.push(self.chunk.constants.items[constantIdx]);
+                    const idx = self.readByte();
+                    try self.push(self.chunk.getConstant(idx));
                 },
                 .Jump => {
                     self.ip += self.readByte();
@@ -473,13 +473,15 @@ pub const VM = struct {
     }
 
     fn readByte(self: *VM) u8 {
-        const byte = self.chunk.code.items[self.ip];
+        const byte = self.chunk.read(self.ip);
         self.ip += 1;
         return byte;
     }
 
     fn readOp(self: *VM) OpCode {
-        return @as(OpCode, @enumFromInt(self.readByte()));
+        const op = self.chunk.readOp(self.ip);
+        self.ip += 1;
+        return op;
     }
 
     fn push(self: *VM, parserOrValue: Value) !void {
@@ -728,10 +730,10 @@ test "'true' ? 'foo' + 'bar' : 'baz', first branch" {
 
     try chunk.writeConst(.{ .String = "true" }, 1);
     try chunk.writeConst(.{ .String = "foo" }, 1);
-    try chunk.writeConditional(5, 1);
+    try chunk.writeJump(.Conditional, 5, 1);
     try chunk.writeConst(.{ .String = "bar" }, 1);
     try chunk.writeOp(.Merge, 1);
-    try chunk.writeJump(3, 1);
+    try chunk.writeJump(.Jump, 3, 1);
     try chunk.writeConst(.{ .String = "baz" }, 1);
     try chunk.writeOp(.End, 2);
 
@@ -752,10 +754,10 @@ test "'true' ? 'foo' + 'bar' : 'baz', second branch" {
 
     try chunk.writeConst(.{ .String = "true" }, 1);
     try chunk.writeConst(.{ .String = "foo" }, 1);
-    try chunk.writeConditional(5, 1);
+    try chunk.writeJump(.Conditional, 5, 1);
     try chunk.writeConst(.{ .String = "bar" }, 1);
     try chunk.writeOp(.Merge, 1);
-    try chunk.writeJump(3, 1);
+    try chunk.writeJump(.Jump, 3, 1);
     try chunk.writeConst(.{ .String = "baz" }, 1);
     try chunk.writeOp(.End, 2);
 
