@@ -1,6 +1,7 @@
 const std = @import("std");
 
-pub const debugVMStack = true;
+pub const debugScanner = false;
+pub const debugVM = true;
 
 pub fn out(comptime fmt: []const u8, args: anytype) void {
     std.io.getStdOut().writer().print(fmt, args) catch return;

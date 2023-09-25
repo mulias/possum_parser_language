@@ -60,7 +60,7 @@ pub const VM = struct {
 
     pub fn run(self: *VM) !InterpretResult {
         while (true) {
-            if (logger.debugVMStack) {
+            if (logger.debugVM) {
                 logger.debug("\n", .{});
                 self.printInput();
                 self.printStack();
@@ -348,7 +348,7 @@ pub const VM = struct {
                         result = InterpretResult{ .ParserFailure = undefined };
                     }
 
-                    if (logger.debugVMStack) {
+                    if (logger.debugVM) {
                         logger.debug("\n", .{});
                         self.printInput();
                         self.printStack();
