@@ -148,14 +148,14 @@ pub const Value = union(ValueType) {
             .Integer => |i| logger.debug("{d}", .{i}),
             .IntegerRange => |r| logger.debug("{d}..{d}", .{ r[0], r[1] }),
             .Float => |f| logger.debug("{s}", .{f}),
-            .Array => |a| logger.json_debug(.{ .array = a }),
-            .Object => |o| logger.json_debug(.{ .object = o }),
+            .Array => |a| logger.jsonDebug(.{ .array = a }),
+            .Object => |o| logger.jsonDebug(.{ .object = o }),
             .True => logger.debug("true", .{}),
             .False => logger.debug("false", .{}),
             .Null => logger.debug("null", .{}),
             .Success => |s| {
                 logger.debug("{s} {d}-{d} ", .{ @tagName(value), s.start, s.end });
-                logger.json_debug(s.value);
+                logger.jsonDebug(s.value);
             },
             .Failure => logger.debug("{s}", .{@tagName(value)}),
         }

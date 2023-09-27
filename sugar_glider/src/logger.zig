@@ -15,10 +15,10 @@ pub fn debug(comptime fmt: []const u8, args: anytype) void {
     std.io.getStdErr().writer().print(fmt, args) catch return;
 }
 
-pub fn json_out(value: std.json.Value) void {
+pub fn jsonOut(value: std.json.Value) void {
     std.json.stringify(value, .{}, std.io.getStdOut().writer()) catch return;
 }
 
-pub fn json_debug(value: std.json.Value) void {
+pub fn jsonDebug(value: std.json.Value) void {
     std.json.stringify(value, .{}, std.io.getStdErr().writer()) catch return;
 }

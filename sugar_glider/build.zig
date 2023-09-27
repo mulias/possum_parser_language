@@ -15,6 +15,9 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    const library_opts = .{ .target = target, .optimize = optimize };
+    const clap_module = b.dependency("clap", library_opts).module("clap");
+
     const exe = b.addExecutable(.{
         .name = "possum",
         // In this case the main source file is merely a path, however, in more
@@ -23,6 +26,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    exe.addModule("clap", clap_module);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

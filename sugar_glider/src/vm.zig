@@ -10,6 +10,7 @@ const Value = @import("./value.zig").Value;
 const Success = @import("./value.zig").Success;
 const printValue = @import("./value.zig").print;
 const logger = @import("./logger.zig");
+const compiler = @import("./compiler.zig");
 
 pub const InterpretResultType = enum {
     ParserSuccess,
@@ -49,8 +50,13 @@ pub const VM = struct {
         self.stack.deinit();
     }
 
-    pub fn interpret(self: *VM, chunk: *Chunk, input: []const u8) !InterpretResult {
-        self.chunk = chunk;
+    pub fn interpret(self: *VM, parser: []const u8, input: []const u8) !InterpretResult {
+        var chunk = Chunk.init(self.arena.allocator());
+        defer chunk.deinit();
+
+        const success = try compiler.compile(parser, &chunk);
+        if (!success) return .{ .CompileError = "compiler error" };
+
         self.ip = 0;
         self.input = input;
         self.inputPos = 0;
