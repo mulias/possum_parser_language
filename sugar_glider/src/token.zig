@@ -1,7 +1,6 @@
 const std = @import("std");
 
 pub const TokenType = enum {
-    // Single-character tokens.
     LeftParen,
     RightParen,
     LeftBrace,
@@ -19,22 +18,18 @@ pub const TokenType = enum {
     Equal,
     GreaterThan,
     Bar,
-
-    // One or two character tokens.
     LessThan,
     LessThanDash,
-
-    // Literals.
     LowercaseIdentifier,
     UppercaseIdentifier,
     String,
     Integer,
     Float,
-
-    // Keywords.
     True,
     False,
-    Nil,
+    Null,
+    Whitespace,
+    WhitespaceWithNewline,
     Error,
     Eof,
 };
