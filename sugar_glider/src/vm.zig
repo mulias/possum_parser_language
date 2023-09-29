@@ -771,21 +771,21 @@ test "'true' $ true" {
     try expectJson(alloc, result.ParserSuccess, "true");
 }
 
-// test "('' $ null) + ('' $ null)" {
-//     var alloc = std.testing.allocator;
-//     var vm = VM.init(alloc);
-//     defer vm.deinit();
+test "('' $ null) + ('' $ null)" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
 
-//     const parser =
-//         \\ ('' $ null) + ('' $ null)
-//     ;
+    const parser =
+        \\ ('' $ null) + ('' $ null)
+    ;
 
-//     const result = try vm.interpret(parser, "");
+    const result = try vm.interpret(parser, "");
 
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 0);
-//     try expectJson(alloc, result.ParserSuccess, "null");
-// }
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 0);
+    try expectJson(alloc, result.ParserSuccess, "null");
+}
 
 // test "('a' $ [1, 2]) + ('b' $ [true, false])" {
 //     var alloc = std.testing.allocator;
@@ -825,21 +825,21 @@ test "'true' $ true" {
 //     try expectJson(alloc, result.ParserSuccess, "{\"a\":false,\"b\":null}");
 // }
 
-// test "'f' <- 'a'..'z' & 12 <- 0..100" {
-//     var alloc = std.testing.allocator;
-//     var vm = VM.init(alloc);
-//     defer vm.deinit();
+test "'f' <- 'a'..'z' & 12 <- 0..100" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
 
-//     const parser =
-//         \\ 'f' <- 'a'..'z' & 12 <- 0..100
-//     ;
+    const parser =
+        \\ 'f' <- 'a'..'z' & 12 <- 0..100
+    ;
 
-//     const result = try vm.interpret(parser, "f12");
+    const result = try vm.interpret(parser, "f12");
 
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 3);
-//     try expectJson(alloc, result.ParserSuccess, "12");
-// }
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try expectJson(alloc, result.ParserSuccess, "12");
+}
 
 test "42 <- 42.0" {
     var alloc = std.testing.allocator;
