@@ -707,53 +707,53 @@ test "1 ! 12 ! 123" {
 //     try expectJson(alloc, result.ParserSuccess, "\"baz\"");
 // }
 
-// test "1000..10000 | 100..1000" {
-//     var alloc = std.testing.allocator;
-//     var vm = VM.init(alloc);
-//     defer vm.deinit();
+test "1000..10000 | 100..1000" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
 
-//     const parser =
-//         \\ 1000..10000 | 100..1000
-//     ;
+    const parser =
+        \\ 1000..10000 | 100..1000
+    ;
 
-//     const result = try vm.interpret(parser, "888");
+    const result = try vm.interpret(parser, "888");
 
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 3);
-//     try expectJson(alloc, result.ParserSuccess, "888");
-// }
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try expectJson(alloc, result.ParserSuccess, "888");
+}
 
-// test "-100..-1" {
-//     var alloc = std.testing.allocator;
-//     var vm = VM.init(alloc);
-//     defer vm.deinit();
+test "-100..-1" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
 
-//     const parser =
-//         \\ -100..-1
-//     ;
+    const parser =
+        \\ -100..-1
+    ;
 
-//     const result = try vm.interpret(parser, "-5");
+    const result = try vm.interpret(parser, "-5");
 
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 2);
-//     try expectJson(alloc, result.ParserSuccess, "-5");
-// }
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 2);
+    try expectJson(alloc, result.ParserSuccess, "-5");
+}
 
-// test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
-//     var alloc = std.testing.allocator;
-//     var vm = VM.init(alloc);
-//     defer vm.deinit();
+test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
 
-//     const parser =
-//         \\ 'a'..'z' + 'o'..'o' + 'l'..'q'
-//     ;
+    const parser =
+        \\ 'a'..'z' + 'o'..'o' + 'l'..'q'
+    ;
 
-//     const result = try vm.interpret(parser, "foo");
+    const result = try vm.interpret(parser, "foo");
 
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 3);
-//     try expectJson(alloc, result.ParserSuccess, "\"foo\"");
-// }
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try expectJson(alloc, result.ParserSuccess, "\"foo\"");
+}
 
 test "'true' $ true" {
     var alloc = std.testing.allocator;

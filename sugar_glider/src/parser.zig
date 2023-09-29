@@ -109,6 +109,7 @@ pub const Parser = struct {
         try self.advance();
         _ = self.skipWhitespace();
         try self.prefix(self.previous.tokenType);
+        _ = self.skipWhitespace();
 
         while (precedence.bindingPower().right <= Precedence.get(self.current.tokenType).bindingPower().left) {
             try self.advance();
@@ -144,15 +145,67 @@ pub const Parser = struct {
     }
 
     fn string(self: *Parser) !void {
-        const source = self.previous.lexeme[1 .. self.previous.lexeme.len - 1];
-        try self.emitConstant(.{ .String = source });
+        const str1 = stringContents(self.previous.lexeme);
+
+        if (str1.len == 1 and self.current.tokenType == .Dot) {
+            try self.advance();
+            if (self.current.tokenType == .Dot) {
+                try self.advance();
+                if (self.current.tokenType == .String) {
+                    try self.advance();
+                    const str2 = stringContents(self.previous.lexeme);
+                    if (str2.len == 1) {
+                        try self.emitConstant(.{ .CharacterRange = .{ str1[0], str2[0] } });
+                    } else {
+                        try self.err("Expect single character for character range");
+                    }
+                } else {
+                    try self.err("Expect second string for character range");
+                }
+            } else {
+                try self.err("Expect second period");
+            }
+        } else {
+            try self.emitConstant(.{ .String = str1 });
+        }
+    }
+
+    fn stringContents(str: []const u8) []const u8 {
+        return str[1 .. str.len - 1];
     }
 
     fn integer(self: *Parser) !void {
-        if (std.fmt.parseInt(i64, self.previous.lexeme, 10)) |value| {
-            try self.emitConstant(.{ .Integer = value });
-        } else |_| {
+        if (parseInteger(self.previous.lexeme)) |int1| {
+            if (self.current.tokenType == .Dot) {
+                try self.advance();
+                if (self.current.tokenType == .Dot) {
+                    try self.advance();
+                    if (self.current.tokenType == .Integer) {
+                        try self.advance();
+                        if (parseInteger(self.previous.lexeme)) |int2| {
+                            try self.emitConstant(.{ .IntegerRange = .{ int1, int2 } });
+                        } else {
+                            try self.err("Could not parse number");
+                        }
+                    } else {
+                        try self.err("Expect integer");
+                    }
+                } else {
+                    try self.err("Expect second period");
+                }
+            } else {
+                try self.emitConstant(.{ .Integer = int1 });
+            }
+        } else {
             try self.err("Could not parse number");
+        }
+    }
+
+    fn parseInteger(lexeme: []const u8) ?i64 {
+        if (std.fmt.parseInt(i64, lexeme, 10)) |value| {
+            return value;
+        } else |_| {
+            return null;
         }
     }
 

@@ -322,77 +322,77 @@ test "1 ! 12 ! 123" {
 //     try expectEqualChunks(&expectedChunk, &chunk);
 // }
 
-// test "1000..10000 | 100..1000" {
-//     var alloc = std.testing.allocator;
+test "1000..10000 | 100..1000" {
+    var alloc = std.testing.allocator;
 
-//     const source =
-//         \\ 1000..10000 | 100..1000
-//     ;
+    const source =
+        \\ 1000..10000 | 100..1000
+    ;
 
-//     var expectedChunk = Chunk.init(alloc);
-//     defer expectedChunk.deinit();
+    var expectedChunk = Chunk.init(alloc);
+    defer expectedChunk.deinit();
 
-//     try expectedChunk.writeConst(.{ .IntegerRange = .{ 1000, 10000 } }, 1);
-//     try expectedChunk.writeConst(.{ .IntegerRange = .{ 100, 1000 } }, 1);
-//     try expectedChunk.writeOp(.Or, 1);
-//     try expectedChunk.writeOp(.End, 1);
+    try expectedChunk.writeConst(.{ .IntegerRange = .{ 1000, 10000 } }, 1);
+    try expectedChunk.writeConst(.{ .IntegerRange = .{ 100, 1000 } }, 1);
+    try expectedChunk.writeOp(.Or, 1);
+    try expectedChunk.writeOp(.End, 1);
 
-//     var chunk = Chunk.init(alloc);
-//     defer chunk.deinit();
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
 
-//     const success = try compile(source, &chunk);
+    const success = try compile(source, &chunk);
 
-//     try std.testing.expect(success);
-//     try expectEqualChunks(&expectedChunk, &chunk);
-// }
+    try std.testing.expect(success);
+    try expectEqualChunks(&expectedChunk, &chunk);
+}
 
-// test "-100..-1" {
-//     var alloc = std.testing.allocator;
+test "-100..-1" {
+    var alloc = std.testing.allocator;
 
-//     const source =
-//         \\ -100..-1
-//     ;
+    const source =
+        \\ -100..-1
+    ;
 
-//     var expectedChunk = Chunk.init(alloc);
-//     defer expectedChunk.deinit();
+    var expectedChunk = Chunk.init(alloc);
+    defer expectedChunk.deinit();
 
-//     try expectedChunk.writeConst(.{ .IntegerRange = .{ -100, -1 } }, 1);
-//     try expectedChunk.writeOp(.End, 1);
+    try expectedChunk.writeConst(.{ .IntegerRange = .{ -100, -1 } }, 1);
+    try expectedChunk.writeOp(.End, 1);
 
-//     var chunk = Chunk.init(alloc);
-//     defer chunk.deinit();
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
 
-//     const success = try compile(source, &chunk);
+    const success = try compile(source, &chunk);
 
-//     try std.testing.expect(success);
-//     try expectEqualChunks(&expectedChunk, &chunk);
-// }
+    try std.testing.expect(success);
+    try expectEqualChunks(&expectedChunk, &chunk);
+}
 
-// test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
-//     var alloc = std.testing.allocator;
+test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
+    var alloc = std.testing.allocator;
 
-//     const source =
-//         \\ 'a'..'z' + 'o'..'o' + 'l'..'q'
-//     ;
+    const source =
+        \\ 'a'..'z' + 'o'..'o' + 'l'..'q'
+    ;
 
-//     var expectedChunk = Chunk.init(alloc);
-//     defer expectedChunk.deinit();
+    var expectedChunk = Chunk.init(alloc);
+    defer expectedChunk.deinit();
 
-//     try expectedChunk.writeConst(.{ .CharacterRange = .{ 'a', 'z' } }, 1);
-//     try expectedChunk.writeConst(.{ .CharacterRange = .{ 'o', 'o' } }, 1);
-//     try expectedChunk.writeOp(.Merge, 1);
-//     try expectedChunk.writeConst(.{ .CharacterRange = .{ 'l', 'q' } }, 1);
-//     try expectedChunk.writeOp(.Merge, 1);
-//     try expectedChunk.writeOp(.End, 1);
+    try expectedChunk.writeConst(.{ .CharacterRange = .{ 'a', 'z' } }, 1);
+    try expectedChunk.writeConst(.{ .CharacterRange = .{ 'o', 'o' } }, 1);
+    try expectedChunk.writeOp(.Merge, 1);
+    try expectedChunk.writeConst(.{ .CharacterRange = .{ 'l', 'q' } }, 1);
+    try expectedChunk.writeOp(.Merge, 1);
+    try expectedChunk.writeOp(.End, 1);
 
-//     var chunk = Chunk.init(alloc);
-//     defer chunk.deinit();
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
 
-//     const success = try compile(source, &chunk);
+    const success = try compile(source, &chunk);
 
-//     try std.testing.expect(success);
-//     try expectEqualChunks(&expectedChunk, &chunk);
-// }
+    try std.testing.expect(success);
+    try expectEqualChunks(&expectedChunk, &chunk);
+}
 
 test "'true' $ true" {
     var alloc = std.testing.allocator;
