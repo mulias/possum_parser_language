@@ -301,7 +301,7 @@ fn isAlpha(char: u8) bool {
     return isLower(char) or isUpper(char);
 }
 
-test {
+test "123 | 456.10" {
     var scanner = Scanner.init(" 123  |\n  456.10 ");
     try expectToken(&scanner, .{ .tokenType = .Whitespace, .lexeme = " ", .line = 1, .start = 0 });
     try expectToken(&scanner, .{ .tokenType = .Integer, .lexeme = "123", .line = 1, .start = 1 });
@@ -311,6 +311,20 @@ test {
     try expectToken(&scanner, .{ .tokenType = .Float, .lexeme = "456.10", .line = 2, .start = 2 });
     try expectToken(&scanner, .{ .tokenType = .Whitespace, .lexeme = " ", .line = 2, .start = 8 });
     try expectToken(&scanner, .{ .tokenType = .Eof, .lexeme = "", .line = 2, .start = 9 });
+}
+
+test "1 + 2" {
+    const source =
+        \\1 +
+        \\2
+    ;
+    var scanner = Scanner.init(source);
+    try expectToken(&scanner, .{ .tokenType = .Integer, .lexeme = "1", .line = 1, .start = 0 });
+    try expectToken(&scanner, .{ .tokenType = .Whitespace, .lexeme = " ", .line = 1, .start = 1 });
+    try expectToken(&scanner, .{ .tokenType = .Plus, .lexeme = "+", .line = 1, .start = 2 });
+    try expectToken(&scanner, .{ .tokenType = .WhitespaceWithNewline, .lexeme = "\n", .line = 1, .start = 3 });
+    try expectToken(&scanner, .{ .tokenType = .Integer, .lexeme = "2", .line = 2, .start = 0 });
+    try expectToken(&scanner, .{ .tokenType = .Eof, .lexeme = "", .line = 2, .start = 1 });
 }
 
 fn expectToken(scanner: *Scanner, expected: Token) !void {

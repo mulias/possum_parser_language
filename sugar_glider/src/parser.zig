@@ -176,19 +176,20 @@ pub const Parser = struct {
 
     fn binary(self: *Parser) !void {
         const operatorType = self.previous.tokenType;
+        const operatorLine = self.previous.line;
 
         try self.parsePrecedence(Precedence.get(operatorType));
 
         switch (operatorType) {
-            .Plus => try self.emitOp(.Merge),
-            .Bang => try self.emitOp(.Backtrack),
-            .DollarSign => try self.emitOp(.Return),
-            .Ampersand => try self.emitOp(.Sequence),
+            .Plus => try self.emitInfixOp(.Merge, operatorLine),
+            .Bang => try self.emitInfixOp(.Backtrack, operatorLine),
+            .DollarSign => try self.emitInfixOp(.Return, operatorLine),
+            .Ampersand => try self.emitInfixOp(.Sequence, operatorLine),
             .QuestionMark => unreachable,
-            .GreaterThan => try self.emitOp(.TakeRight),
-            .Bar => try self.emitOp(.Or),
-            .LessThan => try self.emitOp(.TakeLeft),
-            .LessThanDash => try self.emitOp(.Destructure),
+            .GreaterThan => try self.emitInfixOp(.TakeRight, operatorLine),
+            .Bar => try self.emitInfixOp(.Or, operatorLine),
+            .LessThan => try self.emitInfixOp(.TakeLeft, operatorLine),
+            .LessThanDash => try self.emitInfixOp(.Destructure, operatorLine),
             else => try self.err("Unexpected binary operator"), // unreachable
         }
     }
@@ -295,6 +296,10 @@ pub const Parser = struct {
 
     fn emitOp(self: *Parser, op: OpCode) !void {
         try self.currentChunk().writeOp(op, self.previous.line);
+    }
+
+    fn emitInfixOp(self: *Parser, op: OpCode, line: usize) !void {
+        try self.currentChunk().writeOp(op, line);
     }
 
     fn emitUnaryOp(self: *Parser, op: OpCode, byte: u8) !void {
