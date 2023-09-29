@@ -46,14 +46,14 @@ pub const Chunk = struct {
     allocator: Allocator,
     code: ArrayList(u8),
     constants: ArrayList(Value),
-    lines: ArrayList(u32),
+    lines: ArrayList(usize),
 
     pub fn init(allocator: Allocator) Chunk {
         return Chunk{
             .allocator = allocator,
             .code = ArrayList(u8).init(allocator),
             .constants = ArrayList(Value).init(allocator),
-            .lines = ArrayList(u32).init(allocator),
+            .lines = ArrayList(usize).init(allocator),
         };
     }
 
@@ -75,23 +75,23 @@ pub const Chunk = struct {
         return self.constants.items[idx];
     }
 
-    pub fn write(self: *Chunk, byte: u8, line: u32) !void {
+    pub fn write(self: *Chunk, byte: u8, line: usize) !void {
         try self.code.append(byte);
         try self.lines.append(line);
     }
 
-    pub fn writeOp(self: *Chunk, op: OpCode, line: u32) !void {
+    pub fn writeOp(self: *Chunk, op: OpCode, line: usize) !void {
         try self.write(@intFromEnum(op), line);
     }
 
-    pub fn writeConst(self: *Chunk, v: Value, line: u32) !void {
+    pub fn writeConst(self: *Chunk, v: Value, line: usize) !void {
         var idx = try self.addConstant(v);
         try self.writeOp(.Constant, line);
         try self.write(idx, line);
     }
 
     // TODO: use u16 jump and split into 2 u8
-    pub fn writeJump(self: *Chunk, op: OpCode, jumpOffset: u8, line: u32) !void {
+    pub fn writeJump(self: *Chunk, op: OpCode, jumpOffset: u8, line: usize) !void {
         try self.writeOp(op, line);
         try self.write(jumpOffset, line);
     }
@@ -127,3 +127,15 @@ pub const Chunk = struct {
         return instruction.disassemble(self, offset);
     }
 };
+
+pub fn expectEqualChunks(expected: *Chunk, actual: *Chunk) !void {
+    try std.testing.expect(std.mem.eql(u8, expected.code.items, actual.code.items));
+
+    try std.testing.expect(expected.constants.items.len == actual.constants.items.len);
+
+    for (expected.constants.items, actual.constants.items) |e, a| {
+        try std.testing.expect(e.isEql(a));
+    }
+
+    try std.testing.expect(std.mem.eql(usize, expected.lines.items, actual.lines.items));
+}

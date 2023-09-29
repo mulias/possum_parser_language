@@ -23,7 +23,11 @@ pub const Scanner = struct {
     pub fn next(self: *Scanner) ?Token {
         if (self.atEnd) return null;
         const token = self.scanToken();
-        if (logger.debugScanner) logger.debug("Scanned token: {}\n", .{token});
+        if (logger.debugScanner) {
+            logger.debug("Scanned token: ", .{});
+            token.printDebug();
+            logger.debug("\n", .{});
+        }
         if (token.tokenType == .Eof) self.atEnd = true;
         return token;
     }
@@ -55,7 +59,8 @@ pub const Scanner = struct {
             '<' => self.makeToken(if (self.match('-')) TokenType.LessThanDash else TokenType.LessThan),
             '>' => self.makeToken(.GreaterThan),
             '|' => self.makeToken(.Bar),
-            '"' => self.scanString(),
+            '"' => self.scanString('"'),
+            '\'' => self.scanString('\''),
             else => |c| {
                 if (isDigit(c) or c == '-') return self.scanNumber();
                 if (isLower(c)) return self.scanLowercaseIdentifier();
@@ -127,13 +132,13 @@ pub const Scanner = struct {
         };
     }
 
-    fn scanString(self: *Scanner) Token {
+    fn scanString(self: *Scanner, mark: u8) Token {
         // if we've already consumed input then assume it was string
         const start = self.pos - self.offset;
         const startLine = self.line;
 
-        while (self.peek() != '"' and !self.isAtEnd()) {
-            if (self.peek() == '\\' and self.peekNext() == '"') self.advance();
+        while (self.peek() != mark and !self.isAtEnd()) {
+            if (self.peek() == '\\' and self.peekNext() == mark) self.advance();
             if (self.peek() == '\n' and self.peekNext() == '\r') self.advance();
             if (self.peek() == '\n') self.line += 1;
             self.advance();
@@ -160,7 +165,9 @@ pub const Scanner = struct {
         while (isDigit(self.peek())) self.advance();
 
         // Look for a fractional/scientific part
-        if (self.scanDecimalPart() or self.scanScientificPart()) {
+        const hasDecimalPart = self.scanDecimalPart();
+        const hasScientificPart = self.scanScientificPart();
+        if (hasDecimalPart or hasScientificPart) {
             return self.makeToken(.Float);
         }
 
@@ -182,7 +189,7 @@ pub const Scanner = struct {
 
     fn scanScientificPart(self: *Scanner) bool {
         if (self.peek() == 'e' or self.peek() == 'E') {
-            if ((self.peekNext() == '-' or self.peekNext() == '+') and isDigit(self.peekN(3))) {
+            if ((self.peekNext() == '-' or self.peekNext() == '+') and isDigit(self.peekN(2))) {
                 // Consume the "e"/"E" and "-"/"+"
                 self.advance();
                 self.advance();

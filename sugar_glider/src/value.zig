@@ -177,6 +177,59 @@ pub const Value = union(ValueType) {
             .Failure => return null,
         }
     }
+
+    pub fn isEql(self: Value, other: Value) bool {
+        return switch (self) {
+            .String => |s1| switch (other) {
+                .String => |s2| std.mem.eql(u8, s1, s2),
+                else => false,
+            },
+            .CharacterRange => |r1| switch (other) {
+                .CharacterRange => |r2| r1[0] == r2[0] and r1[1] == r2[1],
+                else => false,
+            },
+            .Integer => |int1| switch (other) {
+                .Integer => |int2| int1 == int2,
+                else => false,
+            },
+            .IntegerRange => |r1| switch (other) {
+                .IntegerRange => |r2| r1[0] == r2[0] and r1[1] == r2[1],
+                else => false,
+            },
+            .Float => |f1| switch (other) {
+                .Float => |f2| std.mem.eql(u8, f1, f2),
+                else => false,
+            },
+            .Array => |a1| switch (other) {
+                .Array => |a2| isDeepEql(.{ .array = a1 }, .{ .array = a2 }),
+                else => false,
+            },
+            .Object => |o1| switch (other) {
+                .Object => |o2| isDeepEql(.{ .object = o1 }, .{ .object = o2 }),
+                else => false,
+            },
+            .True => switch (other) {
+                .True => true,
+                else => false,
+            },
+            .False => switch (other) {
+                .False => true,
+                else => false,
+            },
+            .Null => switch (other) {
+                .Null => true,
+                else => false,
+            },
+            .Success => |s1| switch (other) {
+                .Success => |s2| isDeepEql(s1.value, s2.value),
+                else => false,
+            },
+            .Failure => switch (other) {
+                .Failure => true,
+                else => false,
+            },
+        };
+    }
 };
 
 pub fn isDeepEql(v1: json.Value, v2: json.Value) bool {

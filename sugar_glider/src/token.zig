@@ -1,4 +1,5 @@
 const std = @import("std");
+const logger = @import("./logger.zig");
 
 pub const TokenType = enum {
     LeftParen,
@@ -45,5 +46,9 @@ pub const Token = struct {
             std.mem.eql(u8, self.lexeme, other.lexeme) and
             self.line == other.line and
             self.start == other.start;
+    }
+
+    pub fn printDebug(self: Token) void {
+        logger.debug("{} '{s}' {d}:{d}", .{ self.tokenType, self.lexeme, self.line, self.start });
     }
 };

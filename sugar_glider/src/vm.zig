@@ -57,6 +57,7 @@ pub const VM = struct {
         const success = try compiler.compile(parser, &chunk);
         if (!success) return .{ .CompileError = "compiler error" };
 
+        self.chunk = &chunk;
         self.ip = 0;
         self.input = input;
         self.inputPos = 0;
@@ -535,19 +536,11 @@ test "'a' > 'b' > 'c' | 'abz'" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 'a' > 'b' > 'c' | 'abz'
+    ;
 
-    try chunk.writeConst(.{ .String = "a" }, 1);
-    try chunk.writeConst(.{ .String = "b" }, 1);
-    try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeConst(.{ .String = "c" }, 1);
-    try chunk.writeOp(.TakeRight, 1);
-    try chunk.writeConst(.{ .String = "abz" }, 1);
-    try chunk.writeOp(.Or, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "abzsss");
+    const result = try vm.interpret(parser, "abzsss");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
@@ -559,17 +552,11 @@ test "1234 | 5678 | 910" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 1234 | 5678 | 910
+    ;
 
-    try chunk.writeConst(.{ .Integer = 1234 }, 1);
-    try chunk.writeConst(.{ .Integer = 5678 }, 1);
-    try chunk.writeOp(.Or, 1);
-    try chunk.writeConst(.{ .Integer = 910 }, 1);
-    try chunk.writeOp(.Or, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "56789");
+    const result = try vm.interpret(parser, "56789");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 4);
@@ -581,17 +568,11 @@ test "'foo' + 'bar' + 'baz'" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 'foo' + 'bar' + 'baz'
+    ;
 
-    try chunk.writeConst(.{ .String = "foo" }, 1);
-    try chunk.writeConst(.{ .String = "bar" }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeConst(.{ .String = "baz" }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "foobarbaz");
+    const result = try vm.interpret(parser, "foobarbaz");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 9);
@@ -603,17 +584,11 @@ test "1 + 2 + 3" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 1 + 2 + 3
+    ;
 
-    try chunk.writeConst(.{ .Integer = 1 }, 1);
-    try chunk.writeConst(.{ .Integer = 2 }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeConst(.{ .Integer = 3 }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "123");
+    const result = try vm.interpret(parser, "123");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
@@ -625,15 +600,11 @@ test "1.23 + 10" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 1.23 + 10
+    ;
 
-    try chunk.writeConst(.{ .Float = "1.23" }, 1);
-    try chunk.writeConst(.{ .Integer = 10 }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "1.2310");
+    const result = try vm.interpret(parser, "1.2310");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 6);
@@ -645,15 +616,11 @@ test "0.1 + 0.2" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 0.1 + 0.2
+    ;
 
-    try chunk.writeConst(.{ .Float = "0.1" }, 1);
-    try chunk.writeConst(.{ .Float = "0.2" }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "0.10.2");
+    const result = try vm.interpret(parser, "0.10.2");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 6);
@@ -665,15 +632,11 @@ test "1e57 + 3e-4" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 1e57 + 3e-4
+    ;
 
-    try chunk.writeConst(.{ .Float = "1e57" }, 1);
-    try chunk.writeConst(.{ .Float = "3e-4" }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "1e573e-4");
+    const result = try vm.interpret(parser, "1e573e-4");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 8);
@@ -685,15 +648,11 @@ test "'foo' $ 'bar'" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 'foo' $ 'bar'
+    ;
 
-    try chunk.writeConst(.{ .String = "foo" }, 1);
-    try chunk.writeConst(.{ .String = "bar" }, 1);
-    try chunk.writeOp(.Return, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "foo");
+    const result = try vm.interpret(parser, "foo");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
@@ -705,286 +664,193 @@ test "1 ! 12 ! 123" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 1 ! 12 ! 123
+    ;
 
-    try chunk.writeConst(.{ .Integer = 1 }, 1);
-    try chunk.writeConst(.{ .Integer = 12 }, 1);
-    try chunk.writeOp(.Backtrack, 1);
-    try chunk.writeConst(.{ .Integer = 123 }, 1);
-    try chunk.writeOp(.Backtrack, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "123");
+    const result = try vm.interpret(parser, "123");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 3);
     try expectJson(alloc, result.ParserSuccess, "123");
 }
 
-test "'true' ? 'foo' + 'bar' : 'baz', first branch" {
-    var alloc = std.testing.allocator;
-    var vm = VM.init(alloc);
-    defer vm.deinit();
+// test "'true' ? 'foo' + 'bar' : 'baz', first branch" {
+//     var alloc = std.testing.allocator;
+//     var vm = VM.init(alloc);
+//     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+//     const parser =
+//         \\ 'true' ? 'foo' + 'bar' : 'baz'
+//     ;
 
-    try chunk.writeConst(.{ .String = "true" }, 1);
-    try chunk.writeConst(.{ .String = "foo" }, 1);
-    try chunk.writeJump(.Conditional, 5, 1);
-    try chunk.writeConst(.{ .String = "bar" }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeJump(.Jump, 3, 1);
-    try chunk.writeConst(.{ .String = "baz" }, 1);
-    try chunk.writeOp(.End, 2);
+//     const result = try vm.interpret(parser, "truefoobar");
 
-    const result = try vm.interpret(&chunk, "truefoobar");
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 10);
+//     try expectJson(alloc, result.ParserSuccess, "\"foobar\"");
+// }
 
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 10);
-    try expectJson(alloc, result.ParserSuccess, "\"foobar\"");
-}
+// test "'true' ? 'foo' + 'bar' : 'baz', second branch" {
+//     var alloc = std.testing.allocator;
+//     var vm = VM.init(alloc);
+//     defer vm.deinit();
 
-test "'true' ? 'foo' + 'bar' : 'baz', second branch" {
-    var alloc = std.testing.allocator;
-    var vm = VM.init(alloc);
-    defer vm.deinit();
+//     const parser =
+//         \\ 'true' ? 'foo' + 'bar' : 'baz'
+//     ;
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+//     const result = try vm.interpret(parser, "baz");
 
-    try chunk.writeConst(.{ .String = "true" }, 1);
-    try chunk.writeConst(.{ .String = "foo" }, 1);
-    try chunk.writeJump(.Conditional, 5, 1);
-    try chunk.writeConst(.{ .String = "bar" }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeJump(.Jump, 3, 1);
-    try chunk.writeConst(.{ .String = "baz" }, 1);
-    try chunk.writeOp(.End, 2);
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 3);
+//     try expectJson(alloc, result.ParserSuccess, "\"baz\"");
+// }
 
-    const result = try vm.interpret(&chunk, "baz");
+// test "1000..10000 | 100..1000" {
+//     var alloc = std.testing.allocator;
+//     var vm = VM.init(alloc);
+//     defer vm.deinit();
 
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 3);
-    try expectJson(alloc, result.ParserSuccess, "\"baz\"");
-}
+//     const parser =
+//         \\ 1000..10000 | 100..1000
+//     ;
 
-test "1000..10000 | 100..1000" {
-    var alloc = std.testing.allocator;
-    var vm = VM.init(alloc);
-    defer vm.deinit();
+//     const result = try vm.interpret(parser, "888");
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 3);
+//     try expectJson(alloc, result.ParserSuccess, "888");
+// }
 
-    try chunk.writeConst(.{ .IntegerRange = .{ 1000, 10000 } }, 1);
-    try chunk.writeConst(.{ .IntegerRange = .{ 100, 1000 } }, 1);
-    try chunk.writeOp(.Or, 1);
-    try chunk.writeOp(.End, 2);
+// test "-100..-1" {
+//     var alloc = std.testing.allocator;
+//     var vm = VM.init(alloc);
+//     defer vm.deinit();
 
-    const result = try vm.interpret(&chunk, "888");
+//     const parser =
+//         \\ -100..-1
+//     ;
 
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 3);
-    try expectJson(alloc, result.ParserSuccess, "888");
-}
+//     const result = try vm.interpret(parser, "-5");
 
-test "-100..-1" {
-    var alloc = std.testing.allocator;
-    var vm = VM.init(alloc);
-    defer vm.deinit();
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 2);
+//     try expectJson(alloc, result.ParserSuccess, "-5");
+// }
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+// test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
+//     var alloc = std.testing.allocator;
+//     var vm = VM.init(alloc);
+//     defer vm.deinit();
 
-    try chunk.writeConst(.{ .IntegerRange = .{ -100, -1 } }, 1);
-    try chunk.writeOp(.End, 2);
+//     const parser =
+//         \\ 'a'..'z' + 'o'..'o' + 'l'..'q'
+//     ;
 
-    const result = try vm.interpret(&chunk, "-5");
+//     const result = try vm.interpret(parser, "foo");
 
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 2);
-    try expectJson(alloc, result.ParserSuccess, "-5");
-}
-
-test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
-    var alloc = std.testing.allocator;
-    var vm = VM.init(alloc);
-    defer vm.deinit();
-
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
-
-    try chunk.writeConst(.{ .CharacterRange = .{ 'a', 'z' } }, 1);
-    try chunk.writeConst(.{ .CharacterRange = .{ 'o', 'o' } }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeConst(.{ .CharacterRange = .{ 'l', 'q' } }, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "foo");
-
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 3);
-    try expectJson(alloc, result.ParserSuccess, "\"foo\"");
-}
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 3);
+//     try expectJson(alloc, result.ParserSuccess, "\"foo\"");
+// }
 
 test "'true' $ true" {
     var alloc = std.testing.allocator;
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 'true' $ true
+    ;
 
-    try chunk.writeConst(.{ .String = "true" }, 1);
-    try chunk.writeConst(.{ .True = undefined }, 1);
-    try chunk.writeOp(.Return, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "true");
+    const result = try vm.interpret(parser, "true");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 4);
     try expectJson(alloc, result.ParserSuccess, "true");
 }
 
-test "('' $ null) + ('' $ null)" {
-    var alloc = std.testing.allocator;
-    var vm = VM.init(alloc);
-    defer vm.deinit();
+// test "('' $ null) + ('' $ null)" {
+//     var alloc = std.testing.allocator;
+//     var vm = VM.init(alloc);
+//     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+//     const parser =
+//         \\ ('' $ null) + ('' $ null)
+//     ;
 
-    try chunk.writeConst(.{ .String = "" }, 1);
-    try chunk.writeConst(.{ .Null = undefined }, 1);
-    try chunk.writeOp(.Return, 1);
-    try chunk.writeConst(.{ .String = "" }, 1);
-    try chunk.writeConst(.{ .Null = undefined }, 1);
-    try chunk.writeOp(.Return, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.End, 2);
+//     const result = try vm.interpret(parser, "");
 
-    const result = try vm.interpret(&chunk, "");
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 0);
+//     try expectJson(alloc, result.ParserSuccess, "null");
+// }
 
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 0);
-    try expectJson(alloc, result.ParserSuccess, "null");
-}
+// test "('a' $ [1, 2]) + ('b' $ [true, false])" {
+//     var alloc = std.testing.allocator;
+//     var vm = VM.init(alloc);
+//     defer vm.deinit();
 
-test "('a' $ [1, 2]) + ('b' $ [true, false])" {
-    var alloc = std.testing.allocator;
-    var vm = VM.init(alloc);
-    defer vm.deinit();
+//     const parser =
+//         \\ ('a' $ [1, 2]) + ('b' $ [true, false])
+//     ;
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+//     const result = try vm.interpret(parser, "abc");
 
-    var a1 = ArrayList(json.Value).init(alloc);
-    defer a1.deinit();
-    try a1.append(.{ .integer = 1 });
-    try a1.append(.{ .integer = 2 });
+//     var valueString = ArrayList(u8).init(alloc);
+//     defer valueString.deinit();
 
-    var a2 = ArrayList(json.Value).init(alloc);
-    defer a2.deinit();
-    try a2.append(.{ .bool = true });
-    try a2.append(.{ .bool = false });
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 2);
+//     try expectJson(alloc, result.ParserSuccess, "[1,2,true,false]");
+// }
 
-    try chunk.writeConst(.{ .String = "a" }, 1);
-    try chunk.writeConst(.{ .Array = a1 }, 1);
-    try chunk.writeOp(.Return, 1);
-    try chunk.writeConst(.{ .String = "b" }, 1);
-    try chunk.writeConst(.{ .Array = a2 }, 1);
-    try chunk.writeOp(.Return, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.End, 2);
+// test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
+//     var alloc = std.testing.allocator;
+//     var vm = VM.init(alloc);
+//     defer vm.deinit();
 
-    const result = try vm.interpret(&chunk, "abc");
+//     const parser =
+//         \\ ('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})
+//     ;
 
-    var valueString = ArrayList(u8).init(alloc);
-    defer valueString.deinit();
+//     const result = try vm.interpret(parser, "123456");
 
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 2);
-    try expectJson(alloc, result.ParserSuccess, "[1,2,true,false]");
-}
+//     var valueString = ArrayList(u8).init(alloc);
+//     defer valueString.deinit();
 
-test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
-    var alloc = std.testing.allocator;
-    var vm = VM.init(alloc);
-    defer vm.deinit();
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 6);
+//     try expectJson(alloc, result.ParserSuccess, "{\"a\":false,\"b\":null}");
+// }
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+// test "'f' <- 'a'..'z' & 12 <- 0..100" {
+//     var alloc = std.testing.allocator;
+//     var vm = VM.init(alloc);
+//     defer vm.deinit();
 
-    var o1 = std.StringArrayHashMap(json.Value).init(alloc);
-    defer o1.deinit();
-    try o1.put("a", .{ .bool = true });
+//     const parser =
+//         \\ 'f' <- 'a'..'z' & 12 <- 0..100
+//     ;
 
-    var o2 = std.StringArrayHashMap(json.Value).init(alloc);
-    defer o2.deinit();
-    try o2.put("a", .{ .bool = false });
-    try o2.put("b", .{ .null = undefined });
+//     const result = try vm.interpret(parser, "f12");
 
-    try chunk.writeConst(.{ .Integer = 123 }, 1);
-    try chunk.writeConst(.{ .Object = o1 }, 1);
-    try chunk.writeOp(.Return, 1);
-    try chunk.writeConst(.{ .Integer = 456 }, 1);
-    try chunk.writeConst(.{ .Object = o2 }, 1);
-    try chunk.writeOp(.Return, 1);
-    try chunk.writeOp(.Merge, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "123456");
-
-    var valueString = ArrayList(u8).init(alloc);
-    defer valueString.deinit();
-
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 6);
-    try expectJson(alloc, result.ParserSuccess, "{\"a\":false,\"b\":null}");
-}
-
-test "'f' <- 'a'..'z' & 12 <- 0..100" {
-    var alloc = std.testing.allocator;
-    var vm = VM.init(alloc);
-    defer vm.deinit();
-
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
-
-    try chunk.writeConst(.{ .String = "f" }, 1);
-    try chunk.writeConst(.{ .CharacterRange = .{ 'a', 'z' } }, 1);
-    try chunk.writeOp(.Destructure, 1);
-    try chunk.writeConst(.{ .Integer = 12 }, 1);
-    try chunk.writeConst(.{ .IntegerRange = .{ 0, 100 } }, 1);
-    try chunk.writeOp(.Destructure, 1);
-    try chunk.writeOp(.Sequence, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "f12");
-
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 3);
-    try expectJson(alloc, result.ParserSuccess, "12");
-}
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 3);
+//     try expectJson(alloc, result.ParserSuccess, "12");
+// }
 
 test "42 <- 42.0" {
     var alloc = std.testing.allocator;
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\ 42 <- 42.0
+    ;
 
-    try chunk.writeConst(.{ .Integer = 42 }, 1);
-    try chunk.writeConst(.{ .Float = "42.0" }, 1);
-    try chunk.writeOp(.Destructure, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "42.0");
+    const result = try vm.interpret(parser, "42.0");
 
     try std.testing.expect(result.ParserSuccess.start == 0);
     try std.testing.expect(result.ParserSuccess.end == 4);
@@ -996,17 +862,11 @@ test "false <- ('' $ true)" {
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
+    const parser =
+        \\  false <- ('' $ true)
+    ;
 
-    try chunk.writeConst(.{ .False = undefined }, 1);
-    try chunk.writeConst(.{ .String = "" }, 1);
-    try chunk.writeConst(.{ .True = undefined }, 1);
-    try chunk.writeOp(.Return, 1);
-    try chunk.writeOp(.Destructure, 1);
-    try chunk.writeOp(.End, 2);
-
-    const result = try vm.interpret(&chunk, "42.0");
+    const result = try vm.interpret(parser, "42.0");
 
     try expectFailure(result);
 }

@@ -44,7 +44,3 @@ pub fn parse(alloc: Allocator, parserSource: cli.Source, inputSource: cli.Source
 fn readFile(alloc: Allocator, path: []const u8) ![]const u8 {
     return try std.fs.cwd().readFileAlloc(alloc, path, 1e10);
 }
-
-test {
-    @import("std").testing.refAllDecls(@This());
-}
