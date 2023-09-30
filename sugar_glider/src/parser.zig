@@ -49,8 +49,8 @@ pub const Precedence = enum {
     pub fn bindingPower(self: Precedence) struct { left: u4, right: u4 } {
         return switch (self) {
             .Or, .TakeRight, .TakeLeft, .Merge, .Backtrack => .{ .left = 5, .right = 6 },
-            .Destructure => .{ .left = 7, .right = 6 },
-            .Return => .{ .left = 5, .right = 8 },
+            .Destructure => .{ .left = 5, .right = 6 },
+            .Return => .{ .left = 5, .right = 6 },
             .Sequence => .{ .left = 3, .right = 4 },
             .Conditional => .{ .left = 2, .right = 1 },
             .Call => .{ .left = 1, .right = 1 },
