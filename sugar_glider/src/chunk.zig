@@ -6,6 +6,8 @@ const logger = @import("./logger.zig");
 
 pub const OpCode = enum(u8) {
     Constant,
+    Pattern,
+    ReturnValue,
     Jump,
     Or,
     TakeRight,
@@ -20,7 +22,7 @@ pub const OpCode = enum(u8) {
 
     pub fn disassemble(self: OpCode, chunk: *Chunk, offset: usize) usize {
         switch (self) {
-            .Constant => {
+            .Constant, .Pattern, .ReturnValue => {
                 var constantIdx = chunk.read(offset + 1);
                 var constantValue = chunk.getConstant(constantIdx);
                 logger.debug("{s} {}: ", .{ @tagName(self), constantIdx });
@@ -84,9 +86,25 @@ pub const Chunk = struct {
         try self.write(@intFromEnum(op), line);
     }
 
+    pub fn updateOpAt(self: *Chunk, opIndex: usize, op: OpCode) !void {
+        self.code.items[opIndex] = @intFromEnum(op);
+    }
+
     pub fn writeConst(self: *Chunk, v: Value, line: usize) !void {
         var idx = try self.addConstant(v);
         try self.writeOp(.Constant, line);
+        try self.write(idx, line);
+    }
+
+    pub fn writePattern(self: *Chunk, v: Value, line: usize) !void {
+        var idx = try self.addConstant(v);
+        try self.writeOp(.Pattern, line);
+        try self.write(idx, line);
+    }
+
+    pub fn writeReturnValue(self: *Chunk, v: Value, line: usize) !void {
+        var idx = try self.addConstant(v);
+        try self.writeOp(.ReturnValue, line);
         try self.write(idx, line);
     }
 

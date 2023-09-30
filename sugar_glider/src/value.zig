@@ -19,6 +19,8 @@ pub const ValueType = enum {
     True,
     False,
     Null,
+    Pattern,
+    ReturnValue,
     Success,
     Failure,
 };
@@ -138,6 +140,8 @@ pub const Value = union(ValueType) {
     True: void,
     False: void,
     Null: void,
+    Pattern: json.Value,
+    ReturnValue: json.Value,
     Success: Success,
     Failure: void,
 
@@ -153,6 +157,14 @@ pub const Value = union(ValueType) {
             .True => logger.debug("true", .{}),
             .False => logger.debug("false", .{}),
             .Null => logger.debug("null", .{}),
+            .Pattern => |p| {
+                logger.debug("{s} ", .{@tagName(value)});
+                logger.jsonDebug(p);
+            },
+            .ReturnValue => |v| {
+                logger.debug("{s} ", .{@tagName(value)});
+                logger.jsonDebug(v);
+            },
             .Success => |s| {
                 logger.debug("{s} {d}-{d} ", .{ @tagName(value), s.start, s.end });
                 logger.jsonDebug(s.value);
@@ -173,6 +185,8 @@ pub const Value = union(ValueType) {
             .True => return .{ .bool = true },
             .False => return .{ .bool = false },
             .Null => return .{ .null = undefined },
+            .Pattern => return null,
+            .ReturnValue => return null,
             .Success => return null,
             .Failure => return null,
         }
@@ -218,6 +232,14 @@ pub const Value = union(ValueType) {
             },
             .Null => switch (other) {
                 .Null => true,
+                else => false,
+            },
+            .Pattern => |p1| switch (other) {
+                .Pattern => |p2| isDeepEql(p1, p2),
+                else => false,
+            },
+            .ReturnValue => |v1| switch (other) {
+                .ReturnValue => |v2| isDeepEql(v1, v2),
                 else => false,
             },
             .Success => |s1| switch (other) {
@@ -289,6 +311,79 @@ pub fn isDeepEql(v1: json.Value, v2: json.Value) bool {
     };
 }
 
+pub const JsonError = error{
+    MergeTypeMismatch,
+};
+
+pub fn mergeJson(alloc: Allocator, v1: json.Value, v2: json.Value) !json.Value {
+    return switch (v1) {
+        .string => |s1| switch (v2) {
+            .string => |s2| {
+                const merged = try std.fmt.allocPrint(alloc, "{s}{s}", .{ s1, s2 });
+                return .{ .string = merged };
+            },
+            else => JsonError.MergeTypeMismatch,
+        },
+        .integer => |int1| switch (v2) {
+            .integer => |int2| .{ .integer = int1 + int2 },
+            .float => |f2| addIntAndFloat(int1, f2),
+            .number_string => |n2| addIntAndNumberString(int1, n2),
+            else => JsonError.MergeTypeMismatch,
+        },
+        .float => |f1| switch (v2) {
+            .integer => |int2| addIntAndFloat(int2, f1),
+            .float => |f2| .{ .float = f1 + f2 },
+            .number_string => |n2| addFloatAndNumberString(f1, n2),
+            else => JsonError.MergeTypeMismatch,
+        },
+        .number_string => |n1| switch (v2) {
+            .integer => |int2| addIntAndNumberString(int2, n1),
+            .float => |f2| addFloatAndNumberString(f2, n1),
+            .number_string => |n2| addNumberStrings(n1, n2),
+            else => JsonError.MergeTypeMismatch,
+        },
+        .null => switch (v2) {
+            .null => v1,
+            else => JsonError.MergeTypeMismatch,
+        },
+        .bool => |b1| switch (v2) {
+            .bool => |b2| if (b1 == b2) {
+                return v1;
+            } else {
+                return JsonError.MergeTypeMismatch;
+            },
+            else => JsonError.MergeTypeMismatch,
+        },
+        .array => |a1| switch (v2) {
+            .array => |a2| {
+                var a = json.Array.init(alloc);
+                try a.appendSlice(a1.items);
+                try a.appendSlice(a2.items);
+                return .{ .array = a };
+            },
+            else => JsonError.MergeTypeMismatch,
+        },
+        .object => |o1| switch (v2) {
+            .object => |o2| {
+                var o = json.ObjectMap.init(alloc);
+
+                var iterator1 = o1.iterator();
+                while (iterator1.next()) |entry| {
+                    try o.put(entry.key_ptr.*, entry.value_ptr.*);
+                }
+
+                var iterator2 = o2.iterator();
+                while (iterator2.next()) |entry| {
+                    try o.put(entry.key_ptr.*, entry.value_ptr.*);
+                }
+
+                return .{ .object = o };
+            },
+            else => JsonError.MergeTypeMismatch,
+        },
+    };
+}
+
 fn isIntAndNumberStringEql(int: i64, numberString: []const u8) bool {
     if (std.fmt.parseInt(i64, numberString, 10) catch null) |int2| {
         return int == int2;
@@ -313,4 +408,37 @@ fn isIntAndFloatEql(int: i64, float: f64) bool {
     const intOfFloat: i64 = @intFromFloat(float);
     const roundTrip: f64 = @floatFromInt(intOfFloat);
     return int == intOfFloat and roundTrip == float;
+}
+
+fn addIntAndNumberString(int: i64, numberString: []const u8) json.Value {
+    if (std.fmt.parseInt(i64, numberString, 10) catch null) |int2| {
+        return .{ .integer = int + int2 };
+    } else if (std.fmt.parseFloat(f64, numberString) catch null) |float| {
+        return addIntAndFloat(int, float);
+    } else {
+        unreachable;
+    }
+}
+
+fn addIntAndFloat(int: i64, float: f64) json.Value {
+    const f2: f64 = @floatFromInt(int);
+    return .{ .float = float + f2 };
+}
+
+fn addFloatAndNumberString(float: f64, numberString: []const u8) json.Value {
+    if (std.fmt.parseFloat(f64, numberString) catch null) |f2| {
+        return .{ .float = float + f2 };
+    } else {
+        unreachable;
+    }
+}
+
+fn addNumberStrings(n1: []const u8, n2: []const u8) json.Value {
+    if (std.fmt.parseInt(i64, n1, 10) catch null) |int| {
+        return addIntAndNumberString(int, n2);
+    } else if (std.fmt.parseFloat(f64, n1) catch null) |float| {
+        return addFloatAndNumberString(float, n2);
+    } else {
+        unreachable;
+    }
 }

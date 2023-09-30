@@ -66,19 +66,58 @@ pub const VM = struct {
     }
 
     pub fn run(self: *VM) !InterpretResult {
-        while (true) {
-            if (logger.debugVM) {
-                logger.debug("\n", .{});
-                self.printInput();
-                self.printStack();
-                _ = self.chunk.disassembleInstruction(self.ip);
-            }
+        self.printDebug();
 
-            const instruction = self.readOp();
-            switch (instruction) {
+        switch (self.readOp()) {
+            .Constant => {
+                const idx = self.readByte();
+                const parser = self.chunk.getConstant(idx);
+                if (try self.maybeMatch(parser)) |success| {
+                    try self.push(.{ .Success = success });
+                } else {
+                    try self.pushFailure();
+                }
+            },
+            .Pattern => {
+                const idx = self.readByte();
+                const c = self.chunk.getConstant(idx);
+
+                if (c.toJson()) |pattern| {
+                    try self.push(.{ .Pattern = pattern });
+                } else {
+                    return InterpretResult{ .RuntimeError = "Invalid pattern" };
+                }
+            },
+            else => unreachable,
+        }
+
+        while (true) {
+            self.printDebug();
+
+            switch (self.readOp()) {
                 .Constant => {
                     const idx = self.readByte();
                     try self.push(self.chunk.getConstant(idx));
+                },
+                .Pattern => {
+                    const idx = self.readByte();
+                    const c = self.chunk.getConstant(idx);
+
+                    if (c.toJson()) |pattern| {
+                        try self.push(.{ .Pattern = pattern });
+                    } else {
+                        return InterpretResult{ .RuntimeError = "Invalid pattern" };
+                    }
+                },
+                .ReturnValue => {
+                    const idx = self.readByte();
+                    const c = self.chunk.getConstant(idx);
+
+                    if (c.toJson()) |val| {
+                        try self.push(.{ .ReturnValue = val });
+                    } else {
+                        return InterpretResult{ .RuntimeError = "Invalid return value" };
+                    }
                 },
                 .Jump => {
                     self.ip += self.readByte();
@@ -141,106 +180,15 @@ pub const VM = struct {
                     const rhs = self.pop();
                     const lhs = self.pop();
 
-                    if (try self.maybeMatch(lhs)) |leftSuccess| {
-                        if (try self.maybeMatch(rhs)) |rightSuccess| {
-                            if (leftSuccess.isString() and rightSuccess.isString()) {
-                                const leftString = leftSuccess.asString().?;
-                                const rightString = rightSuccess.asString().?;
-                                const mergedString = try self.mergeStrings(leftString, rightString);
+                    const maybeError =
+                        switch (lhs) {
+                        .Success => |s| try self.matchAndMerge(s, rhs),
+                        .Pattern => |p| try self.patternMerge(p, rhs),
+                        .ReturnValue => |v| try self.returnValueMerge(v, rhs),
+                        else => unreachable,
+                    };
 
-                                try self.push(.{
-                                    .Success = .{
-                                        .start = leftSuccess.start,
-                                        .end = rightSuccess.end,
-                                        .value = .{ .string = mergedString },
-                                    },
-                                });
-                            } else if (leftSuccess.isInteger() and rightSuccess.isInteger()) {
-                                const leftInteger = leftSuccess.asInteger().?;
-                                const rightInteger = rightSuccess.asInteger().?;
-                                const mergedInteger = leftInteger + rightInteger;
-
-                                try self.push(.{
-                                    .Success = .{
-                                        .start = leftSuccess.start,
-                                        .end = rightSuccess.end,
-                                        .value = .{ .integer = mergedInteger },
-                                    },
-                                });
-                            } else if (leftSuccess.isNumber() and rightSuccess.isNumber()) {
-                                const leftNumber = (try leftSuccess.asFloat()).?;
-                                const rightNumber = (try rightSuccess.asFloat()).?;
-                                const mergedNumber = leftNumber + rightNumber;
-
-                                try self.push(.{
-                                    .Success = .{
-                                        .start = leftSuccess.start,
-                                        .end = rightSuccess.end,
-                                        .value = .{ .float = mergedNumber },
-                                    },
-                                });
-                            } else if (leftSuccess.isArray() and rightSuccess.isArray()) {
-                                var leftArray = leftSuccess.asArray().?;
-                                var rightArray = rightSuccess.asArray().?;
-                                try leftArray.appendSlice(rightArray.items);
-
-                                try self.push(.{
-                                    .Success = .{
-                                        .start = leftSuccess.start,
-                                        .end = rightSuccess.end,
-                                        .value = .{ .array = leftArray },
-                                    },
-                                });
-                            } else if (leftSuccess.isObject() and rightSuccess.isObject()) {
-                                var leftObject = leftSuccess.asObject().?;
-                                var rightObject = rightSuccess.asObject().?;
-
-                                var iterator = rightObject.iterator();
-                                while (iterator.next()) |entry| {
-                                    try leftObject.put(entry.key_ptr.*, entry.value_ptr.*);
-                                }
-
-                                try self.push(.{
-                                    .Success = .{
-                                        .start = leftSuccess.start,
-                                        .end = rightSuccess.end,
-                                        .value = .{ .object = leftObject },
-                                    },
-                                });
-                            } else if (leftSuccess.isTrue() and rightSuccess.isTrue()) {
-                                try self.push(.{
-                                    .Success = .{
-                                        .start = leftSuccess.start,
-                                        .end = rightSuccess.end,
-                                        .value = .{ .bool = true },
-                                    },
-                                });
-                            } else if (leftSuccess.isFalse() and rightSuccess.isFalse()) {
-                                try self.push(.{
-                                    .Success = .{
-                                        .start = leftSuccess.start,
-                                        .end = rightSuccess.end,
-                                        .value = .{ .bool = false },
-                                    },
-                                });
-                            } else if (leftSuccess.isNull() and rightSuccess.isNull()) {
-                                try self.push(.{
-                                    .Success = .{
-                                        .start = leftSuccess.start,
-                                        .end = rightSuccess.end,
-                                        .value = .{ .null = undefined },
-                                    },
-                                });
-                            } else {
-                                return InterpretResult{ .RuntimeError = "Unable to merge mismatching types" };
-                            }
-                        } else {
-                            self.inputPos = leftSuccess.start;
-                            try self.pushFailure();
-                        }
-                    } else {
-                        try self.pushFailure();
-                    }
+                    if (maybeError) |message| return InterpretResult{ .RuntimeError = message };
                 },
                 .Backtrack => {
                     const rhs = self.pop();
@@ -262,12 +210,8 @@ pub const VM = struct {
                     const lhs = self.pop();
 
                     if (try self.maybeMatch(rhs)) |rightSuccess| {
-                        if (lhs.toJson()) |pattern| {
-                            if (value.isDeepEql(rightSuccess.value, pattern)) {
-                                try self.push(.{ .Success = rightSuccess });
-                            } else {
-                                try self.pushFailure();
-                            }
+                        if (value.isDeepEql(rightSuccess.value, lhs.Pattern)) {
+                            try self.push(.{ .Success = rightSuccess });
                         } else {
                             try self.pushFailure();
                         }
@@ -280,20 +224,13 @@ pub const VM = struct {
                     const lhs = self.pop();
 
                     if (try self.maybeMatch(lhs)) |leftSuccess| {
-                        if (rhs.toJson()) |rightValue| {
-                            try self.push(.{
-                                .Success = .{
-                                    .start = leftSuccess.start,
-                                    .end = leftSuccess.end,
-                                    .value = rightValue,
-                                },
-                            });
-                        } else {
-                            // rhs should never be a success/failure value,
-                            // since operator precedence means the return value
-                            // is always resolved with the return
-                            unreachable;
-                        }
+                        try self.push(.{
+                            .Success = .{
+                                .start = leftSuccess.start,
+                                .end = leftSuccess.end,
+                                .value = rhs.ReturnValue,
+                            },
+                        });
                     } else {
                         try self.pushFailure();
                     }
@@ -365,6 +302,15 @@ pub const VM = struct {
                     return result;
                 },
             }
+        }
+    }
+
+    fn printDebug(self: *VM) void {
+        if (logger.debugVM) {
+            logger.debug("\n", .{});
+            self.printInput();
+            self.printStack();
+            _ = self.chunk.disassembleInstruction(self.ip);
         }
     }
 
@@ -467,8 +413,48 @@ pub const VM = struct {
             .Failure => return null,
             // JSON-only values should only show up in destructure patterns and
             // return values, so they should not be used as a parser
-            .Array, .Object, .True, .False, .Null => unreachable,
+            .Pattern, .ReturnValue, .Array, .Object, .True, .False, .Null => unreachable,
         }
+    }
+
+    fn matchAndMerge(self: *VM, leftSuccess: Success, rhs: Value) !?[]const u8 {
+        if (try self.maybeMatch(rhs)) |rightSuccess| {
+            const merged = (value.mergeJson(self.arena.allocator(), leftSuccess.value, rightSuccess.value)) catch return "Unable to merge mismatched types";
+
+            try self.push(.{
+                .Success = .{
+                    .start = leftSuccess.start,
+                    .end = rightSuccess.end,
+                    .value = merged,
+                },
+            });
+        } else {
+            try self.pushFailure();
+        }
+
+        return null;
+    }
+
+    fn patternMerge(self: *VM, leftPattern: json.Value, rhs: Value) !?[]const u8 {
+        if (rhs.toJson()) |rightValue| {
+            const merged = value.mergeJson(self.arena.allocator(), leftPattern, rightValue) catch return "Unable to merge mismatched types";
+            try self.push(.{ .Pattern = merged });
+        } else {
+            return "Not a valid pattern";
+        }
+
+        return null;
+    }
+
+    fn returnValueMerge(self: *VM, leftReturnValue: json.Value, rhs: Value) !?[]const u8 {
+        if (rhs.toJson()) |rightValue| {
+            const merged = value.mergeJson(self.arena.allocator(), leftReturnValue, rightValue) catch return "Unable to merge mismatched types";
+            try self.push(.{ .ReturnValue = merged });
+        } else {
+            return "Not a valid return value";
+        }
+
+        return null;
     }
 
     fn mergeStrings(self: *VM, left: []const u8, right: []const u8) ![]const u8 {
@@ -871,10 +857,45 @@ test "false <- ('' $ true)" {
     try expectFailure(result);
 }
 
+test "('a' + 'b') <- 'ab'" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    const parser =
+        \\ ('a' + 'b') <- 'ab'
+    ;
+
+    const result = try vm.interpret(parser, "ab");
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 2);
+    try expectJson(alloc, result.ParserSuccess, "\"ab\"");
+}
+
+test "123 & 456 | 789 $ true & 'xyz'" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    const parser =
+        \\ 123 & 456 | 789 $ true & 'xyz'
+    ;
+
+    const result = try vm.interpret(parser, "123789xyz");
+
+    var expectedChunk = Chunk.init(alloc);
+    defer expectedChunk.deinit();
+
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 9);
+    try expectJson(alloc, result.ParserSuccess, "\"xyz\"");
+}
+
 fn expectJson(alloc: Allocator, actual: value.Success, expected: []const u8) !void {
     var valueString = ArrayList(u8).init(alloc);
     defer valueString.deinit();
-    try std.testing.expectEqualStrings(try actual.writeValueString(&valueString), expected);
+    try std.testing.expectEqualStrings(expected, try actual.writeValueString(&valueString));
 }
 
 fn expectFailure(result: InterpretResult) !void {

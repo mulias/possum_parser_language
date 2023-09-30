@@ -108,18 +108,20 @@ pub const Parser = struct {
     fn parsePrecedence(self: *Parser, precedence: Precedence) CompilerError!void {
         try self.advance();
         _ = self.skipWhitespace();
-        try self.prefix(self.previous.tokenType);
+        const leftOperandIndex = try self.prefix(self.previous.tokenType);
         _ = self.skipWhitespace();
 
         while (precedence.bindingPower().right <= Precedence.get(self.current.tokenType).bindingPower().left) {
             try self.advance();
             _ = self.skipWhitespace();
-            try self.infix(self.previous.tokenType);
+            try self.infix(self.previous.tokenType, leftOperandIndex);
         }
     }
 
-    fn prefix(self: *Parser, tokenType: TokenType) CompilerError!void {
+    fn prefix(self: *Parser, tokenType: TokenType) CompilerError!usize {
         if (logger.debugParser) logger.debug("prefix {}\n", .{tokenType});
+
+        const chunkIndex = self.chunk.code.items.len;
 
         switch (tokenType) {
             .LeftParen => try self.grouping(),
@@ -131,15 +133,20 @@ pub const Parser = struct {
             .True, .False, .Null => try self.literal(),
             else => try self.prefixError(),
         }
+
+        return chunkIndex;
     }
 
-    fn infix(self: *Parser, tokenType: TokenType) !void {
+    fn infix(self: *Parser, tokenType: TokenType, leftOperandIndex: usize) !void {
         if (logger.debugParser) logger.debug("infix {}\n", .{tokenType});
 
         switch (tokenType) {
             .LeftParen => unreachable,
-            .Plus, .Bang, .DollarSign, .Ampersand, .QuestionMark => try self.binary(),
-            .GreaterThan, .Bar, .LessThan, .LessThanDash => try self.binary(),
+            .Plus, .Bang, .Ampersand => try self.binary(),
+            .GreaterThan, .Bar, .LessThan => try self.binary(),
+            .DollarSign => try self.binaryReturn(),
+            .LessThanDash => try self.binaryDestructure(leftOperandIndex),
+            .QuestionMark => unreachable,
             else => try self.infixError(),
         }
     }
@@ -236,15 +243,41 @@ pub const Parser = struct {
         switch (operatorType) {
             .Plus => try self.emitInfixOp(.Merge, operatorLine),
             .Bang => try self.emitInfixOp(.Backtrack, operatorLine),
-            .DollarSign => try self.emitInfixOp(.Return, operatorLine),
             .Ampersand => try self.emitInfixOp(.Sequence, operatorLine),
-            .QuestionMark => unreachable,
             .GreaterThan => try self.emitInfixOp(.TakeRight, operatorLine),
             .Bar => try self.emitInfixOp(.Or, operatorLine),
             .LessThan => try self.emitInfixOp(.TakeLeft, operatorLine),
-            .LessThanDash => try self.emitInfixOp(.Destructure, operatorLine),
             else => try self.err("Unexpected binary operator"), // unreachable
         }
+    }
+
+    fn binaryReturn(self: *Parser) !void {
+        const operatorType = self.previous.tokenType;
+        const operatorLine = self.previous.line;
+        const rightOperandIndex = self.chunk.code.items.len;
+
+        try self.parsePrecedence(Precedence.get(operatorType));
+
+        // Update the rhs operand to be a return value instead of something that
+        // could be interpreted as a parser
+        std.debug.assert(self.chunk.code.items[rightOperandIndex] == @intFromEnum(OpCode.Constant));
+        try self.chunk.updateOpAt(rightOperandIndex, .ReturnValue);
+
+        try self.emitInfixOp(.Return, operatorLine);
+    }
+
+    fn binaryDestructure(self: *Parser, leftOperandIndex: usize) !void {
+        const operatorType = self.previous.tokenType;
+        const operatorLine = self.previous.line;
+
+        // Update the lhs operand to be a pattern instead of something that
+        // could be interpreted as a parser
+        std.debug.assert(self.chunk.code.items[leftOperandIndex] == @intFromEnum(OpCode.Constant));
+        try self.chunk.updateOpAt(leftOperandIndex, .Pattern);
+
+        try self.parsePrecedence(Precedence.get(operatorType));
+
+        try self.emitInfixOp(.Destructure, operatorLine);
     }
 
     fn currentChunk(self: *Parser) *Chunk {

@@ -255,7 +255,7 @@ test "'foo' $ 'bar'" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .String = "foo" }, 1);
-    try expectedChunk.writeConst(.{ .String = "bar" }, 1);
+    try expectedChunk.writeReturnValue(.{ .String = "bar" }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeOp(.End, 1);
 
@@ -405,7 +405,7 @@ test "'true' $ true" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .String = "true" }, 1);
-    try expectedChunk.writeConst(.{ .True = undefined }, 1);
+    try expectedChunk.writeReturnValue(.{ .True = undefined }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeOp(.End, 1);
 
@@ -429,10 +429,10 @@ test "('' $ null) + ('' $ null)" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .String = "" }, 1);
-    try expectedChunk.writeConst(.{ .Null = undefined }, 1);
+    try expectedChunk.writeReturnValue(.{ .Null = undefined }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeConst(.{ .String = "" }, 1);
-    try expectedChunk.writeConst(.{ .Null = undefined }, 1);
+    try expectedChunk.writeReturnValue(.{ .Null = undefined }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeOp(.Merge, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -531,10 +531,10 @@ test "'f' <- 'a'..'z' & 12 <- 0..100" {
     var expectedChunk = Chunk.init(alloc);
     defer expectedChunk.deinit();
 
-    try expectedChunk.writeConst(.{ .String = "f" }, 1);
+    try expectedChunk.writePattern(.{ .String = "f" }, 1);
     try expectedChunk.writeConst(.{ .CharacterRange = .{ 'a', 'z' } }, 1);
     try expectedChunk.writeOp(.Destructure, 1);
-    try expectedChunk.writeConst(.{ .Integer = 12 }, 1);
+    try expectedChunk.writePattern(.{ .Integer = 12 }, 1);
     try expectedChunk.writeConst(.{ .IntegerRange = .{ 0, 100 } }, 1);
     try expectedChunk.writeOp(.Destructure, 1);
     try expectedChunk.writeOp(.Sequence, 1);
@@ -559,7 +559,7 @@ test "42 <- 42.0" {
     var expectedChunk = Chunk.init(alloc);
     defer expectedChunk.deinit();
 
-    try expectedChunk.writeConst(.{ .Integer = 42 }, 1);
+    try expectedChunk.writePattern(.{ .Integer = 42 }, 1);
     try expectedChunk.writeConst(.{ .Float = "42.0" }, 1);
     try expectedChunk.writeOp(.Destructure, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -583,11 +583,67 @@ test "false <- ('' $ true)" {
     var expectedChunk = Chunk.init(alloc);
     defer expectedChunk.deinit();
 
-    try expectedChunk.writeConst(.{ .False = undefined }, 1);
+    try expectedChunk.writePattern(.{ .False = undefined }, 1);
     try expectedChunk.writeConst(.{ .String = "" }, 1);
-    try expectedChunk.writeConst(.{ .True = undefined }, 1);
+    try expectedChunk.writeReturnValue(.{ .True = undefined }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeOp(.Destructure, 1);
+    try expectedChunk.writeOp(.End, 1);
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    const success = try compile(source, &chunk);
+
+    try std.testing.expect(success);
+    try expectEqualChunks(&expectedChunk, &chunk);
+}
+
+test "('a' + 'b') <- 'ab'" {
+    var alloc = std.testing.allocator;
+
+    const source =
+        \\ ('a' + 'b') <- 'ab'
+    ;
+
+    var expectedChunk = Chunk.init(alloc);
+    defer expectedChunk.deinit();
+
+    try expectedChunk.writePattern(.{ .String = "a" }, 1);
+    try expectedChunk.writeConst(.{ .String = "b" }, 1);
+    try expectedChunk.writeOp(.Merge, 1);
+    try expectedChunk.writeConst(.{ .String = "ab" }, 1);
+    try expectedChunk.writeOp(.Destructure, 1);
+    try expectedChunk.writeOp(.End, 1);
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    const success = try compile(source, &chunk);
+
+    try std.testing.expect(success);
+    try expectEqualChunks(&expectedChunk, &chunk);
+}
+
+test "123 & 456 | 789 $ true & 'xyz'" {
+    var alloc = std.testing.allocator;
+
+    const source =
+        \\ 123 & 456 | 789 $ true & 'xyz'
+    ;
+
+    var expectedChunk = Chunk.init(alloc);
+    defer expectedChunk.deinit();
+
+    try expectedChunk.writeConst(.{ .Integer = 123 }, 1);
+    try expectedChunk.writeConst(.{ .Integer = 456 }, 1);
+    try expectedChunk.writeConst(.{ .Integer = 789 }, 1);
+    try expectedChunk.writeOp(.Or, 1);
+    try expectedChunk.writeReturnValue(.{ .True = undefined }, 1);
+    try expectedChunk.writeOp(.Return, 1);
+    try expectedChunk.writeOp(.Sequence, 1);
+    try expectedChunk.writeConst(.{ .String = "xyz" }, 1);
+    try expectedChunk.writeOp(.Sequence, 1);
     try expectedChunk.writeOp(.End, 1);
 
     var chunk = Chunk.init(alloc);
