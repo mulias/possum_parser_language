@@ -51,9 +51,12 @@ test "'a' > 'b' > 'c' | 'abz'" {
 
     var expectedChunk = Chunk.init(alloc);
     defer expectedChunk.deinit();
+
     try expectedChunk.writeConst(.{ .String = "a" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .String = "b" }, 1);
     try expectedChunk.writeOp(.TakeRight, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .String = "c" }, 1);
     try expectedChunk.writeOp(.TakeRight, 1);
     try expectedChunk.writeConst(.{ .String = "abz" }, 1);
@@ -106,8 +109,10 @@ test "'foo' + 'bar' + 'baz'" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .String = "foo" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .String = "bar" }, 1);
     try expectedChunk.writeOp(.Merge, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .String = "baz" }, 1);
     try expectedChunk.writeOp(.Merge, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -132,8 +137,10 @@ test "1 + 2 + 3" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .Integer = 1 }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .Integer = 2 }, 1);
     try expectedChunk.writeOp(.Merge, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .Integer = 3 }, 1);
     try expectedChunk.writeOp(.Merge, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -158,6 +165,7 @@ test "1.23 + 10" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .Float = "1.23" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .Integer = 10 }, 1);
     try expectedChunk.writeOp(.Merge, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -182,6 +190,7 @@ test "0.1 + 0.2" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .Float = "0.1" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .Float = "0.2" }, 1);
     try expectedChunk.writeOp(.Merge, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -206,6 +215,7 @@ test "1e57 + 3e-4" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .Float = "1e57" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .Float = "3e-4" }, 1);
     try expectedChunk.writeOp(.Merge, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -231,6 +241,7 @@ test "1 + 2" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .Integer = 1 }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .Integer = 2 }, 2);
     try expectedChunk.writeOp(.Merge, 1);
     try expectedChunk.writeOp(.End, 2);
@@ -255,6 +266,7 @@ test "'foo' $ 'bar'" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .String = "foo" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeReturnValue(.{ .String = "bar" }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -279,8 +291,10 @@ test "1 ! 12 ! 123" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .Integer = 1 }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .Integer = 12 }, 1);
     try expectedChunk.writeOp(.Backtrack, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .Integer = 123 }, 1);
     try expectedChunk.writeOp(.Backtrack, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -379,8 +393,10 @@ test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .CharacterRange = .{ 'a', 'z' } }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .CharacterRange = .{ 'o', 'o' } }, 1);
     try expectedChunk.writeOp(.Merge, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .CharacterRange = .{ 'l', 'q' } }, 1);
     try expectedChunk.writeOp(.Merge, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -405,6 +421,7 @@ test "'true' $ true" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .String = "true" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeReturnValue(.{ .True = undefined }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeOp(.End, 1);
@@ -429,9 +446,12 @@ test "('' $ null) + ('' $ null)" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .String = "" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeReturnValue(.{ .Null = undefined }, 1);
     try expectedChunk.writeOp(.Return, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 10, 1);
     try expectedChunk.writeConst(.{ .String = "" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeReturnValue(.{ .Null = undefined }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeOp(.Merge, 1);
@@ -534,6 +554,7 @@ test "'f' <- 'a'..'z' & 12 <- 0..100" {
     try expectedChunk.writePattern(.{ .String = "f" }, 1);
     try expectedChunk.writeConst(.{ .CharacterRange = .{ 'a', 'z' } }, 1);
     try expectedChunk.writeOp(.Destructure, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 7, 1);
     try expectedChunk.writePattern(.{ .Integer = 12 }, 1);
     try expectedChunk.writeConst(.{ .IntegerRange = .{ 0, 100 } }, 1);
     try expectedChunk.writeOp(.Destructure, 1);
@@ -585,6 +606,7 @@ test "false <- ('' $ true)" {
 
     try expectedChunk.writePattern(.{ .False = undefined }, 1);
     try expectedChunk.writeConst(.{ .String = "" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeReturnValue(.{ .True = undefined }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeOp(.Destructure, 1);
@@ -610,6 +632,7 @@ test "('a' + 'b') <- 'ab'" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writePattern(.{ .String = "a" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .String = "b" }, 1);
     try expectedChunk.writeOp(.Merge, 1);
     try expectedChunk.writeConst(.{ .String = "ab" }, 1);
@@ -636,12 +659,15 @@ test "123 & 456 | 789 $ true & 'xyz'" {
     defer expectedChunk.deinit();
 
     try expectedChunk.writeConst(.{ .Integer = 123 }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 13, 1);
     try expectedChunk.writeConst(.{ .Integer = 456 }, 1);
     try expectedChunk.writeConst(.{ .Integer = 789 }, 1);
     try expectedChunk.writeOp(.Or, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeReturnValue(.{ .True = undefined }, 1);
     try expectedChunk.writeOp(.Return, 1);
     try expectedChunk.writeOp(.Sequence, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
     try expectedChunk.writeConst(.{ .String = "xyz" }, 1);
     try expectedChunk.writeOp(.Sequence, 1);
     try expectedChunk.writeOp(.End, 1);

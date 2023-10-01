@@ -142,8 +142,8 @@ pub const Parser = struct {
 
         switch (tokenType) {
             .LeftParen => unreachable,
-            .Plus, .Bang, .Ampersand => try self.binary(),
-            .GreaterThan, .Bar, .LessThan => try self.binary(),
+            .Bar => try self.binaryOr(),
+            .GreaterThan, .LessThan, .Plus, .Bang, .Ampersand => try self.binaryAnd(),
             .DollarSign => try self.binaryReturn(),
             .LessThanDash => try self.binaryDestructure(leftOperandIndex),
             .QuestionMark => unreachable,
@@ -234,9 +234,20 @@ pub const Parser = struct {
         try self.consume(.RightParen, "Expect ')' after expression.");
     }
 
-    fn binary(self: *Parser) !void {
+    fn binaryOr(self: *Parser) !void {
         const operatorType = self.previous.tokenType;
         const operatorLine = self.previous.line;
+
+        try self.parsePrecedence(Precedence.get(operatorType));
+
+        try self.emitInfixOp(.Or, operatorLine);
+    }
+
+    fn binaryAnd(self: *Parser) !void {
+        const operatorType = self.previous.tokenType;
+        const operatorLine = self.previous.line;
+
+        const jumpIndex = try self.emitJump(.JumpIfFailure);
 
         try self.parsePrecedence(Precedence.get(operatorType));
 
@@ -245,25 +256,30 @@ pub const Parser = struct {
             .Bang => try self.emitInfixOp(.Backtrack, operatorLine),
             .Ampersand => try self.emitInfixOp(.Sequence, operatorLine),
             .GreaterThan => try self.emitInfixOp(.TakeRight, operatorLine),
-            .Bar => try self.emitInfixOp(.Or, operatorLine),
             .LessThan => try self.emitInfixOp(.TakeLeft, operatorLine),
             else => try self.err("Unexpected binary operator"), // unreachable
         }
+
+        try self.patchJump(jumpIndex);
     }
 
     fn binaryReturn(self: *Parser) !void {
         const operatorType = self.previous.tokenType;
         const operatorLine = self.previous.line;
-        const rightOperandIndex = self.chunk.code.items.len;
+
+        const jumpIndex = try self.emitJump(.JumpIfFailure);
+        const rightOperandIndex = self.chunk.nextByteIndex();
 
         try self.parsePrecedence(Precedence.get(operatorType));
 
         // Update the rhs operand to be a return value instead of something that
         // could be interpreted as a parser
         std.debug.assert(self.chunk.code.items[rightOperandIndex] == @intFromEnum(OpCode.Constant));
-        try self.chunk.updateOpAt(rightOperandIndex, .ReturnValue);
+        self.chunk.updateOpAt(rightOperandIndex, .ReturnValue);
 
         try self.emitInfixOp(.Return, operatorLine);
+
+        try self.patchJump(jumpIndex);
     }
 
     fn binaryDestructure(self: *Parser, leftOperandIndex: usize) !void {
@@ -273,7 +289,7 @@ pub const Parser = struct {
         // Update the lhs operand to be a pattern instead of something that
         // could be interpreted as a parser
         std.debug.assert(self.chunk.code.items[leftOperandIndex] == @intFromEnum(OpCode.Constant));
-        try self.chunk.updateOpAt(leftOperandIndex, .Pattern);
+        self.chunk.updateOpAt(leftOperandIndex, .Pattern);
 
         try self.parsePrecedence(Precedence.get(operatorType));
 
@@ -362,18 +378,21 @@ pub const Parser = struct {
         // Dummy operands that will be patched later
         try self.emitByte(0xff);
         try self.emitByte(0xff);
-        return self.currentChunk().code.items.len - 2;
+        return self.currentChunk().nextByteIndex() - 2;
     }
 
     fn patchJump(self: *Parser, offset: usize) !void {
-        const jump = self.currentChunk().code.items.len - offset - 2;
+        const jump = self.currentChunk().nextByteIndex() - offset - 2;
 
         if (jump > std.math.maxInt(u16)) {
             try self.err("Too much code to jump over.");
         }
 
-        self.currentChunk().code.items[offset] = @as(u8, @intCast((jump >> 8) & 0xff));
-        self.currentChunk().code.items[offset + 1] = @as(u8, @intCast(jump & 0xff));
+        std.debug.assert(self.currentChunk().read(offset) == 0xff);
+        std.debug.assert(self.currentChunk().read(offset + 1) == 0xff);
+
+        self.currentChunk().updateAt(offset, @as(u8, @intCast((jump >> 8) & 0xff)));
+        self.currentChunk().updateAt(offset + 1, @as(u8, @intCast(jump & 0xff)));
     }
 
     fn emitByte(self: *Parser, byte: u8) !void {

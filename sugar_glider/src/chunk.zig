@@ -9,6 +9,7 @@ pub const OpCode = enum(u8) {
     Pattern,
     ReturnValue,
     Jump,
+    JumpIfFailure,
     Or,
     TakeRight,
     TakeLeft,
@@ -30,11 +31,12 @@ pub const OpCode = enum(u8) {
                 logger.debug("\n", .{});
                 return offset + 2;
             },
-            .Jump, .Conditional => {
-                var jumpOffset = chunk.read(offset + 1);
-                logger.debug("{s} {}", .{ @tagName(self), jumpOffset });
-                logger.debug("\n", .{});
-                return offset + 2;
+            .Jump, .JumpIfFailure, .Conditional => {
+                var jump = @as(u16, @intCast(chunk.read(offset + 1))) << 8;
+                jump |= chunk.read(offset + 2);
+                const target = @as(isize, @intCast(offset)) + 3 + jump;
+                std.debug.print("{s} {} -> {}\n", .{ @tagName(self), offset, target });
+                return offset + 3;
             },
             .Or, .TakeRight, .TakeLeft, .Merge, .Backtrack, .Destructure, .Return, .Sequence, .End => {
                 logger.debug("{s}\n", .{@tagName(self)});
@@ -73,6 +75,10 @@ pub const Chunk = struct {
         return @as(OpCode, @enumFromInt(self.code.items[pos]));
     }
 
+    pub fn nextByteIndex(self: *Chunk) usize {
+        return self.code.items.len;
+    }
+
     pub fn getConstant(self: *Chunk, idx: u8) Value {
         return self.constants.items[idx];
     }
@@ -86,8 +92,12 @@ pub const Chunk = struct {
         try self.write(@intFromEnum(op), line);
     }
 
-    pub fn updateOpAt(self: *Chunk, opIndex: usize, op: OpCode) !void {
-        self.code.items[opIndex] = @intFromEnum(op);
+    pub fn updateAt(self: *Chunk, index: usize, value: u8) void {
+        self.code.items[index] = value;
+    }
+
+    pub fn updateOpAt(self: *Chunk, opIndex: usize, op: OpCode) void {
+        self.updateAt(opIndex, @intFromEnum(op));
     }
 
     pub fn writeConst(self: *Chunk, v: Value, line: usize) !void {
@@ -108,10 +118,16 @@ pub const Chunk = struct {
         try self.write(idx, line);
     }
 
-    // TODO: use u16 jump and split into 2 u8
-    pub fn writeJump(self: *Chunk, op: OpCode, jumpOffset: u8, line: usize) !void {
+    pub fn writeJump(self: *Chunk, op: OpCode, offset: usize, line: usize) !void {
         try self.writeOp(op, line);
-        try self.write(jumpOffset, line);
+
+        const jump = offset - 1;
+        if (jump > std.math.maxInt(u16)) {
+            unreachable;
+        }
+
+        try self.write(@as(u8, @intCast((jump >> 8) & 0xff)), line);
+        try self.write(@as(u8, @intCast(jump & 0xff)), line);
     }
 
     pub fn addConstant(self: *Chunk, value: Value) !u8 {

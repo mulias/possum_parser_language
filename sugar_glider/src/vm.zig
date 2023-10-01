@@ -120,7 +120,22 @@ pub const VM = struct {
                     }
                 },
                 .Jump => {
-                    self.ip += self.readByte();
+                    const offset = self.readShort();
+                    self.ip += offset;
+                },
+                .JumpIfFailure => {
+                    const offset = self.readShort();
+                    const top = self.pop();
+
+                    switch (top) {
+                        .Pattern, .ReturnValue => try self.push(top),
+                        else => if (try self.maybeMatch(top)) |success| {
+                            try self.push(.{ .Success = success });
+                        } else {
+                            try self.pushFailure();
+                            self.ip += offset;
+                        },
+                    }
                 },
                 .Or => {
                     const rhs = self.pop();
@@ -257,7 +272,7 @@ pub const VM = struct {
                     }
                 },
                 .Conditional => {
-                    const jumpOffset = self.readByte();
+                    const jumpOffset = self.readShort();
                     const rhs = self.pop();
                     const lhs = self.pop();
 
@@ -473,6 +488,12 @@ pub const VM = struct {
         return op;
     }
 
+    fn readShort(self: *VM) u16 {
+        self.ip += 2;
+        const items = self.chunk.code.items;
+        return (@as(u16, @intCast(items[self.ip - 2])) << 8) | items[self.ip - 1];
+    }
+
     fn push(self: *VM, parserOrValue: Value) !void {
         try self.stack.append(parserOrValue);
     }
@@ -526,11 +547,20 @@ test "'a' > 'b' > 'c' | 'abz'" {
         \\ 'a' > 'b' > 'c' | 'abz'
     ;
 
-    const result = try vm.interpret(parser, "abzsss");
+    const result1 = try vm.interpret(parser, "abc");
+    try std.testing.expect(result1.ParserSuccess.start == 0);
+    try std.testing.expect(result1.ParserSuccess.end == 3);
+    try expectJson(alloc, result1.ParserSuccess, "\"c\"");
 
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 3);
-    try expectJson(alloc, result.ParserSuccess, "\"abz\"");
+    vm.resetStack();
+    const result2 = try vm.interpret(parser, "abzsss");
+    try std.testing.expect(result2.ParserSuccess.start == 0);
+    try std.testing.expect(result2.ParserSuccess.end == 3);
+    try expectJson(alloc, result2.ParserSuccess, "\"abz\"");
+
+    vm.resetStack();
+    const result3 = try vm.interpret(parser, "ababz");
+    try expectFailure(result3);
 }
 
 test "1234 | 5678 | 910" {
@@ -638,11 +668,14 @@ test "'foo' $ 'bar'" {
         \\ 'foo' $ 'bar'
     ;
 
-    const result = try vm.interpret(parser, "foo");
+    const result1 = try vm.interpret(parser, "foo");
+    try std.testing.expect(result1.ParserSuccess.start == 0);
+    try std.testing.expect(result1.ParserSuccess.end == 3);
+    try expectJson(alloc, result1.ParserSuccess, "\"bar\"");
 
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 3);
-    try expectJson(alloc, result.ParserSuccess, "\"bar\"");
+    vm.resetStack();
+    const result2 = try vm.interpret(parser, "f");
+    try expectFailure(result2);
 }
 
 test "1 ! 12 ! 123" {
@@ -882,14 +915,14 @@ test "123 & 456 | 789 $ true & 'xyz'" {
         \\ 123 & 456 | 789 $ true & 'xyz'
     ;
 
-    const result = try vm.interpret(parser, "123789xyz");
+    const result1 = try vm.interpret(parser, "123789xyz");
+    try std.testing.expect(result1.ParserSuccess.start == 0);
+    try std.testing.expect(result1.ParserSuccess.end == 9);
+    try expectJson(alloc, result1.ParserSuccess, "\"xyz\"");
 
-    var expectedChunk = Chunk.init(alloc);
-    defer expectedChunk.deinit();
-
-    try std.testing.expect(result.ParserSuccess.start == 0);
-    try std.testing.expect(result.ParserSuccess.end == 9);
-    try expectJson(alloc, result.ParserSuccess, "\"xyz\"");
+    vm.resetStack();
+    const result2 = try vm.interpret(parser, "12378xyz");
+    try expectFailure(result2);
 }
 
 fn expectJson(alloc: Allocator, actual: value.Success, expected: []const u8) !void {
