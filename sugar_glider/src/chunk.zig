@@ -162,15 +162,3 @@ pub const Chunk = struct {
         return instruction.disassemble(self, offset);
     }
 };
-
-pub fn expectEqualChunks(expected: *Chunk, actual: *Chunk) !void {
-    try std.testing.expect(std.mem.eql(u8, expected.code.items, actual.code.items));
-
-    try std.testing.expect(expected.constants.items.len == actual.constants.items.len);
-
-    for (expected.constants.items, actual.constants.items) |e, a| {
-        try std.testing.expect(e.isEql(a));
-    }
-
-    try std.testing.expect(std.mem.eql(usize, expected.lines.items, actual.lines.items));
-}

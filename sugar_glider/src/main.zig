@@ -18,7 +18,7 @@ pub fn main() !void {
     }
 }
 
-pub fn parse(alloc: Allocator, parserSource: cli.Source, inputSource: cli.Source) !void {
+fn parse(alloc: Allocator, parserSource: cli.Source, inputSource: cli.Source) !void {
     const parser = switch (parserSource) {
         .String => |str| str,
         .Path => |path| try readFile(alloc, path),
