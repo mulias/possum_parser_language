@@ -55,6 +55,7 @@ pub const Scanner = struct {
             '$' => self.makeToken(.DollarSign),
             '&' => self.makeToken(.Ampersand),
             '?' => self.makeToken(.QuestionMark),
+            ':' => self.makeToken(.Colon),
             '=' => self.makeToken(.Equal),
             '<' => self.makeToken(if (self.match('-')) TokenType.LessThanDash else TokenType.LessThan),
             '>' => self.makeToken(.GreaterThan),

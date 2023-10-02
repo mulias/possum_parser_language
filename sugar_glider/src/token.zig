@@ -16,6 +16,7 @@ pub const TokenType = enum {
     DollarSign,
     Ampersand,
     QuestionMark,
+    Colon,
     Equal,
     GreaterThan,
     Bar,

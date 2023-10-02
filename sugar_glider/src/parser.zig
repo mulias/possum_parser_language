@@ -32,7 +32,7 @@ pub const Precedence = enum {
             .Bang => .Backtrack,
             .DollarSign => .Return,
             .Ampersand => .Sequence,
-            .QuestionMark => .Conditional,
+            .QuestionMark, .Colon => .Conditional,
             .Equal => unreachable,
             .GreaterThan => .TakeRight,
             .Bar => .Or,
@@ -146,7 +146,7 @@ pub const Parser = struct {
             .GreaterThan, .LessThan, .Plus, .Bang, .Ampersand => try self.binaryAnd(),
             .DollarSign => try self.binaryReturn(),
             .LessThanDash => try self.binaryDestructure(leftOperandIndex),
-            .QuestionMark => unreachable,
+            .QuestionMark => try self.conditional(),
             else => try self.infixError(),
         }
     }
@@ -296,6 +296,29 @@ pub const Parser = struct {
         try self.emitInfixOp(.Destructure, operatorLine);
     }
 
+    fn conditional(self: *Parser) !void {
+        const operatorType = self.previous.tokenType;
+        // const operatorLine = self.previous.line;
+
+        // jump to failure branch if the test branch was a failure
+        const failureJumpIndex = try self.emitJump(.ConditionalJump);
+
+        try self.parsePrecedence(.Sequence);
+
+        _ = self.skipWhitespace();
+        try self.consume(.Colon, "Expect ':' for conditional else branch.");
+        _ = self.skipWhitespace();
+
+        // jump over failure branch if the test branch was a success
+        const successJumpIndex = try self.emitJump(.ConditionalJumpSuccess);
+
+        try self.patchJump(failureJumpIndex);
+
+        try self.parsePrecedence(Precedence.get(operatorType));
+
+        try self.patchJump(successJumpIndex);
+    }
+
     fn currentChunk(self: *Parser) *Chunk {
         return self.chunk;
     }
@@ -425,41 +448,5 @@ pub const Parser = struct {
         }
 
         return @as(u8, @intCast(constant));
-    }
-
-    fn ifStatement(self: *Parser) CompilerError!void {
-        try self.consume(.LeftParen, "Expect '(' after 'if'.");
-        try self.expression();
-        try self.consume(.RightParen, "Expect ')' after condition.");
-
-        const thenJump = try self.emitJump(.JumpIfFalse);
-        try self.emitOp(.Pop);
-        try self.statement();
-        const elseJump = try self.emitJump(.Jump);
-
-        try self.patchJump(thenJump);
-        try self.emitOp(.Pop);
-
-        if (try self.match(.Else)) try self.statement();
-        try self.patchJump(elseJump);
-    }
-
-    fn expressionStatement(self: *Parser) !void {
-        try self.expression();
-        try self.consume(.Semicolon, "Expect ';' after expression.");
-        try self.emitOp(.Pop);
-    }
-
-    fn synchronize(self: *Parser) !void {
-        self.panicMode = false;
-
-        while (!self.check(.Eof)) {
-            if (self.previous.tokenType == .Semicolon) return;
-
-            switch (self.current.tokenType) {
-                .Class, .Fun, .Var, .For, .If, .While, .Print, .Return => return,
-                else => try self.advance(),
-            }
-        }
     }
 };

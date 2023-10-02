@@ -137,6 +137,40 @@ pub const VM = struct {
                         },
                     }
                 },
+                .ConditionalJump => {
+                    const offset = self.readShort();
+                    const testBranch = self.pop();
+
+                    if (try self.maybeMatch(testBranch)) |success| {
+                        // Push the test branch result, continue to then branch
+                        try self.push(.{ .Success = success });
+                    } else {
+                        // Jump to else branch
+                        self.ip += offset;
+                    }
+                },
+                .ConditionalJumpSuccess => {
+                    const offset = self.readShort();
+                    const thenBranch = self.pop();
+                    const testBranch = self.pop();
+
+                    if (try self.maybeMatch(thenBranch)) |thenBranchSuccess| {
+                        try self.push(.{
+                            .Success = .{
+                                .start = testBranch.Success.start,
+                                .end = thenBranchSuccess.end,
+                                .value = thenBranchSuccess.value,
+                            },
+                        });
+                    } else {
+                        // test succeeded but branch failed
+                        self.inputPos = testBranch.Success.start;
+                        try self.pushFailure();
+                    }
+
+                    // Jump over the else branch
+                    self.ip += offset;
+                },
                 .Or => {
                     const rhs = self.pop();
                     const lhs = self.pop();
@@ -271,30 +305,6 @@ pub const VM = struct {
                         try self.pushFailure();
                     }
                 },
-                .Conditional => {
-                    const jumpOffset = self.readShort();
-                    const rhs = self.pop();
-                    const lhs = self.pop();
-
-                    if (try self.maybeMatch(lhs)) |testSuccess| {
-                        if (try self.maybeMatch(rhs)) |matchBranchSuccess| {
-                            try self.push(.{
-                                .Success = .{
-                                    .start = testSuccess.start,
-                                    .end = matchBranchSuccess.end,
-                                    .value = matchBranchSuccess.value,
-                                },
-                            });
-                        } else {
-                            // test succeeded but branch failed
-                            self.inputPos = testSuccess.start;
-                            try self.pushFailure();
-                        }
-                    } else {
-                        // Test parser failed, jump to else branch
-                        self.ip += jumpOffset;
-                    }
-                },
                 .End => {
                     const last = self.pop();
                     var result: InterpretResult = undefined;
@@ -314,6 +324,7 @@ pub const VM = struct {
                         logger.debug("\n", .{});
                     }
 
+                    std.debug.assert(self.stack.items.len == 1);
                     return result;
                 },
             }
@@ -694,37 +705,37 @@ test "1 ! 12 ! 123" {
     try expectJson(alloc, result.ParserSuccess, "123");
 }
 
-// test "'true' ? 'foo' + 'bar' : 'baz', first branch" {
-//     var alloc = std.testing.allocator;
-//     var vm = VM.init(alloc);
-//     defer vm.deinit();
+test "'true' ? 'foo' + 'bar' : 'baz', first branch" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
 
-//     const parser =
-//         \\ 'true' ? 'foo' + 'bar' : 'baz'
-//     ;
+    const parser =
+        \\ 'true' ? 'foo' + 'bar' : 'baz'
+    ;
 
-//     const result = try vm.interpret(parser, "truefoobar");
+    const result = try vm.interpret(parser, "truefoobar");
 
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 10);
-//     try expectJson(alloc, result.ParserSuccess, "\"foobar\"");
-// }
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 10);
+    try expectJson(alloc, result.ParserSuccess, "\"foobar\"");
+}
 
-// test "'true' ? 'foo' + 'bar' : 'baz', second branch" {
-//     var alloc = std.testing.allocator;
-//     var vm = VM.init(alloc);
-//     defer vm.deinit();
+test "'true' ? 'foo' + 'bar' : 'baz', second branch" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
 
-//     const parser =
-//         \\ 'true' ? 'foo' + 'bar' : 'baz'
-//     ;
+    const parser =
+        \\ 'true' ? 'foo' + 'bar' : 'baz'
+    ;
 
-//     const result = try vm.interpret(parser, "baz");
+    const result = try vm.interpret(parser, "baz");
 
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 3);
-//     try expectJson(alloc, result.ParserSuccess, "\"baz\"");
-// }
+    try std.testing.expect(result.ParserSuccess.start == 0);
+    try std.testing.expect(result.ParserSuccess.end == 3);
+    try expectJson(alloc, result.ParserSuccess, "\"baz\"");
+}
 
 test "1000..10000 | 100..1000" {
     var alloc = std.testing.allocator;

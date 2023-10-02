@@ -10,6 +10,8 @@ pub const OpCode = enum(u8) {
     ReturnValue,
     Jump,
     JumpIfFailure,
+    ConditionalJump,
+    ConditionalJumpSuccess,
     Or,
     TakeRight,
     TakeLeft,
@@ -18,7 +20,6 @@ pub const OpCode = enum(u8) {
     Destructure,
     Return,
     Sequence,
-    Conditional,
     End,
 
     pub fn disassemble(self: OpCode, chunk: *Chunk, offset: usize) usize {
@@ -31,7 +32,7 @@ pub const OpCode = enum(u8) {
                 logger.debug("\n", .{});
                 return offset + 2;
             },
-            .Jump, .JumpIfFailure, .Conditional => {
+            .Jump, .JumpIfFailure, .ConditionalJump, .ConditionalJumpSuccess => {
                 var jump = @as(u16, @intCast(chunk.read(offset + 1))) << 8;
                 jump |= chunk.read(offset + 2);
                 const target = @as(isize, @intCast(offset)) + 3 + jump;

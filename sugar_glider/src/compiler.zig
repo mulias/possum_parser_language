@@ -308,33 +308,34 @@ test "1 ! 12 ! 123" {
     try expectEqualChunks(&expectedChunk, &chunk);
 }
 
-// test "'true' ? 'foo' + 'bar' : 'baz'" {
-//     var alloc = std.testing.allocator;
+test "'true' ? 'foo' + 'bar' : 'baz'" {
+    var alloc = std.testing.allocator;
 
-//     const source =
-//         \\ 'true' ? 'foo' + 'bar' : 'baz'
-//     ;
+    const source =
+        \\ 'true' ? 'foo' + 'bar' : 'baz'
+    ;
 
-//     var expectedChunk = Chunk.init(alloc);
-//     defer expectedChunk.deinit();
+    var expectedChunk = Chunk.init(alloc);
+    defer expectedChunk.deinit();
 
-//     try expectedChunk.writeConst(.{ .String = "true" }, 1);
-//     try expectedChunk.writeConst(.{ .String = "foo" }, 1);
-//     try expectedChunk.writeJump(.Conditional, 5, 1);
-//     try expectedChunk.writeConst(.{ .String = "bar" }, 1);
-//     try expectedChunk.writeOp(.Merge, 1);
-//     try expectedChunk.writeJump(.Jump, 3, 1);
-//     try expectedChunk.writeConst(.{ .String = "baz" }, 1);
-//     try expectedChunk.writeOp(.End, 1);
+    try expectedChunk.writeConst(.{ .String = "true" }, 1);
+    try expectedChunk.writeJump(.ConditionalJump, 12, 1);
+    try expectedChunk.writeConst(.{ .String = "foo" }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
+    try expectedChunk.writeConst(.{ .String = "bar" }, 1);
+    try expectedChunk.writeOp(.Merge, 1);
+    try expectedChunk.writeJump(.ConditionalJumpSuccess, 3, 1);
+    try expectedChunk.writeConst(.{ .String = "baz" }, 1);
+    try expectedChunk.writeOp(.End, 1);
 
-//     var chunk = Chunk.init(alloc);
-//     defer chunk.deinit();
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
 
-//     const success = try compile(source, &chunk);
+    const success = try compile(source, &chunk);
 
-//     try std.testing.expect(success);
-//     try expectEqualChunks(&expectedChunk, &chunk);
-// }
+    try std.testing.expect(success);
+    try expectEqualChunks(&expectedChunk, &chunk);
+}
 
 test "1000..10000 | 100..1000" {
     var alloc = std.testing.allocator;
