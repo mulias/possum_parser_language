@@ -32,7 +32,7 @@ pub const Precedence = enum {
             .Bang => .Backtrack,
             .DollarSign => .Return,
             .Ampersand => .Sequence,
-            .QuestionMark, .Colon => .Conditional,
+            .QuestionMark => .Conditional,
             .Equal => unreachable,
             .GreaterThan => .TakeRight,
             .Bar => .Or,
@@ -42,7 +42,7 @@ pub const Precedence = enum {
             .String, .Integer, .Float => .None,
             .True, .False, .Null => .None,
             .Whitespace, .WhitespaceWithNewline => .None,
-            .Error, .Eof => .None,
+            .Colon, .Error, .Eof => .None,
         };
     }
 
@@ -303,7 +303,7 @@ pub const Parser = struct {
         // jump to failure branch if the test branch was a failure
         const failureJumpIndex = try self.emitJump(.ConditionalJump);
 
-        try self.parsePrecedence(.Sequence);
+        try self.parsePrecedence(.Conditional);
 
         _ = self.skipWhitespace();
         try self.consume(.Colon, "Expect ':' for conditional else branch.");

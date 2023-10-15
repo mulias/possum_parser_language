@@ -326,3 +326,19 @@ test "123 & 456 | 789 $ true & 'xyz'" {
     const result2 = try vm.interpret(parser, "12378xyz");
     try testing.expectFailure(result2);
 }
+
+test "1 ? 2 & 3 : 4" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    const parser =
+        \\ 1 ? 2 & 3 : 4
+    ;
+
+    const result1 = try vm.interpret(parser, "123");
+    try testing.expectSuccess(result1, 0, 3, "3");
+
+    const result2 = try vm.interpret(parser, "4");
+    try testing.expectSuccess(result2, 0, 1, "4");
+}

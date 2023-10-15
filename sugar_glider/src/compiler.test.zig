@@ -667,3 +667,32 @@ test "123 & 456 | 789 $ true & 'xyz'" {
     try std.testing.expect(success);
     try testing.expectEqualChunks(&expectedChunk, &chunk);
 }
+
+test "1 ? 2 & 3 : 4" {
+    var alloc = std.testing.allocator;
+
+    const source =
+        \\ 1 ? 2 & 3 : 4
+    ;
+
+    var expectedChunk = Chunk.init(alloc);
+    defer expectedChunk.deinit();
+
+    try expectedChunk.writeConst(.{ .Integer = 1 }, 1);
+    try expectedChunk.writeJump(.ConditionalJump, 12, 1);
+    try expectedChunk.writeConst(.{ .Integer = 2 }, 1);
+    try expectedChunk.writeJump(.JumpIfFailure, 4, 1);
+    try expectedChunk.writeConst(.{ .Integer = 3 }, 1);
+    try expectedChunk.writeOp(.Sequence, 1);
+    try expectedChunk.writeJump(.ConditionalJumpSuccess, 3, 1);
+    try expectedChunk.writeConst(.{ .Integer = 4 }, 1);
+    try expectedChunk.writeOp(.End, 1);
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    const success = try compiler.compile(source, &chunk);
+
+    try std.testing.expect(success);
+    try testing.expectEqualChunks(&expectedChunk, &chunk);
+}
