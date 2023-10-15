@@ -286,14 +286,22 @@ pub const Parser = struct {
         const operatorType = self.previous.tokenType;
         const operatorLine = self.previous.line;
 
-        // Update the lhs operand to be a pattern instead of something that
-        // could be interpreted as a parser
-        std.debug.assert(self.chunk.code.items[leftOperandIndex] == @intFromEnum(OpCode.Constant));
-        self.chunk.updateOpAt(leftOperandIndex, .Pattern);
+        const leftOp: OpCode = @enumFromInt(self.chunk.code.items[leftOperandIndex]);
 
-        try self.parsePrecedence(Precedence.get(operatorType));
+        if (leftOp == OpCode.Pattern) {
+            try self.err("Expected a pattern, found nested pattern match");
+        } else {
+            // The lhs should be a constant.
+            std.debug.assert(leftOp == OpCode.Constant);
 
-        try self.emitInfixOp(.Destructure, operatorLine);
+            // Update the lhs operand to be a pattern instead of something that
+            // could be interpreted as a parser
+            self.chunk.updateOpAt(leftOperandIndex, .Pattern);
+
+            try self.parsePrecedence(Precedence.get(operatorType));
+
+            try self.emitInfixOp(.Destructure, operatorLine);
+        }
     }
 
     fn conditional(self: *Parser) !void {

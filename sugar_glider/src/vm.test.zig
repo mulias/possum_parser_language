@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const testing = @import("testing.zig");
 const VM = @import("vm.zig").VM;
 const value = @import("value.zig");
+const logger = @import("./logger.zig");
 
 test "'a' > 'b' > 'c' | 'abz'" {
     var alloc = std.testing.allocator;
@@ -341,4 +342,17 @@ test "1 ? 2 & 3 : 4" {
 
     const result2 = try vm.interpret(parser, "4");
     try testing.expectSuccess(result2, 0, 1, "4");
+}
+
+test "'foo' <- 'foo' <- 'foo'" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    const parser =
+        \\ "foo" <- "foo" <- "foo"
+    ;
+
+    const result = try vm.interpret(parser, "foofoo");
+    try testing.expectCompileError(result);
 }

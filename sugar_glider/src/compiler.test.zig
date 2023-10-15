@@ -696,3 +696,18 @@ test "1 ? 2 & 3 : 4" {
     try std.testing.expect(success);
     try testing.expectEqualChunks(&expectedChunk, &chunk);
 }
+
+test "'foo' <- 'foo' <- 'foo'" {
+    var alloc = std.testing.allocator;
+
+    const source =
+        \\ "foo" <- "foo" <- "foo"
+    ;
+
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+
+    const success = try compiler.compile(source, &chunk);
+
+    try std.testing.expect(!success);
+}

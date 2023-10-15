@@ -34,3 +34,11 @@ pub fn expectSuccess(result: InterpretResult, start: usize, end: usize, value: [
 pub fn expectFailure(result: InterpretResult) !void {
     try std.testing.expectEqualStrings("ParserFailure", @tagName(result));
 }
+
+pub fn expectRuntimeError(result: InterpretResult) !void {
+    try std.testing.expectEqualStrings("RuntimeError", @tagName(result));
+}
+
+pub fn expectCompileError(result: InterpretResult) !void {
+    try std.testing.expectEqualStrings("CompileError", @tagName(result));
+}
