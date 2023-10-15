@@ -13,9 +13,11 @@ test "Compiler can gracefully handle arbitrary programs" {
     for (0..100) |_| {
         const source = programs.random();
         std.debug.print("\n{s}\n", .{source});
+
         var chunk = Chunk.init(alloc);
+        defer chunk.deinit();
+
         const success = try compiler.compile(source, &chunk);
         try std.testing.expect(success);
-        chunk.deinit();
     }
 }
