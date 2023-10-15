@@ -19,6 +19,13 @@ const Parser = enum {
     Group,
 };
 
+const Pattern = enum {
+    String,
+    Number,
+    Merge,
+    Group,
+};
+
 pub const ProgramGenerator = struct {
     arena: ArenaAllocator,
     seed: u64,
@@ -37,10 +44,10 @@ pub const ProgramGenerator = struct {
     }
 
     pub fn random(self: *ProgramGenerator) []const u8 {
-        return self.gen(self.randomInfixParser());
+        return self.genParser(self.randomInfixParser());
     }
 
-    fn gen(self: *ProgramGenerator, parser: Parser) []const u8 {
+    fn genParser(self: *ProgramGenerator, parser: Parser) []const u8 {
         return switch (parser) {
             .String => self.genString(),
             .CharacterRange => self.genCharacterRange(),
@@ -51,11 +58,27 @@ pub const ProgramGenerator = struct {
             .TakeLeft => self.genBinary("<"),
             .Merge => self.genBinary("+"),
             .Backtrack => self.genBinary("!"),
-            .Destructure => self.genBinary("<-"),
+            .Destructure => self.genDestructure(),
             .Return => self.genBinary("$"),
             .Sequence => self.genBinary("&"),
             .Conditional => self.genTernary("?", ":"),
             .Group => self.genGroup(),
+        };
+    }
+
+    fn genPattern(self: *ProgramGenerator, pattern: Pattern) []const u8 {
+        return switch (pattern) {
+            .String => self.genString(),
+            .Number => self.genNumber(),
+            .Merge => {
+                const left = self.genPattern(self.randomPattern());
+                const right = self.genPattern(self.randomPattern());
+                return self.buildString("{s} + {s}", .{ left, right });
+            },
+            .Group => {
+                const inner = self.genPattern(self.randomPattern());
+                return self.buildString("({s})", .{inner});
+            },
         };
     }
 
@@ -83,6 +106,15 @@ pub const ProgramGenerator = struct {
         };
     }
 
+    fn randomPattern(self: *ProgramGenerator) Pattern {
+        return switch (self.rand.random().int(u3)) {
+            0, 1, 2 => .String,
+            3, 4, 5 => .Number,
+            6 => .Group,
+            7 => .Merge,
+        };
+    }
+
     fn genString(self: *ProgramGenerator) []const u8 {
         _ = self;
         return "\"foo\"";
@@ -103,21 +135,27 @@ pub const ProgramGenerator = struct {
     }
 
     fn genBinary(self: *ProgramGenerator, infix: []const u8) []const u8 {
-        const left = self.gen(self.randomParser());
-        const right = self.gen(self.randomParser());
+        const left = self.genParser(self.randomParser());
+        const right = self.genParser(self.randomParser());
         return self.buildString("{s} {s} {s}", .{ left, infix, right });
     }
 
     fn genTernary(self: *ProgramGenerator, infixA: []const u8, infixB: []const u8) []const u8 {
-        const left = self.gen(self.randomParser());
-        const center = self.gen(self.randomParser());
-        const right = self.gen(self.randomParser());
+        const left = self.genParser(self.randomParser());
+        const center = self.genParser(self.randomParser());
+        const right = self.genParser(self.randomParser());
         return self.buildString("{s} {s} {s} {s} {s}", .{ left, infixA, center, infixB, right });
     }
 
     fn genGroup(self: *ProgramGenerator) []const u8 {
-        const inner = self.gen(self.randomInfixParser());
+        const inner = self.genParser(self.randomInfixParser());
         return self.buildString("({s})", .{inner});
+    }
+
+    fn genDestructure(self: *ProgramGenerator) []const u8 {
+        const left = self.genPattern(self.randomPattern());
+        const right = self.genParser(self.randomParser());
+        return self.buildString("{s} <- {s}", .{ left, right });
     }
 
     fn buildString(self: *ProgramGenerator, comptime fmt: []const u8, args: anytype) []const u8 {
