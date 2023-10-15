@@ -354,7 +354,7 @@ test "'foo' <- 'foo' <- 'foo'" {
     ;
 
     const result = try vm.interpret(parser, "foofoo");
-    try testing.expectCompileError(result);
+    try testing.expectRuntimeError(result);
 }
 
 test "empty program" {

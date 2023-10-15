@@ -709,5 +709,5 @@ test "'foo' <- 'foo' <- 'foo'" {
 
     const success = try compiler.compile(source, &chunk);
 
-    try std.testing.expect(!success);
+    try std.testing.expect(success);
 }

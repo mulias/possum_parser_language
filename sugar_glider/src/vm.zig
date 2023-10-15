@@ -234,14 +234,19 @@ pub const VM = struct {
                     const rhs = self.pop();
                     const lhs = self.pop();
 
-                    if (try self.maybeMatch(rhs)) |rightSuccess| {
-                        if (value.isDeepEql(rightSuccess.value, lhs.Pattern)) {
-                            try self.push(.{ .Success = rightSuccess });
-                        } else {
-                            try self.pushFailure();
-                        }
-                    } else {
-                        try self.pushFailure();
+                    switch (lhs) {
+                        .Pattern => |pattern| {
+                            if (try self.maybeMatch(rhs)) |rightSuccess| {
+                                if (value.isDeepEql(rightSuccess.value, pattern)) {
+                                    try self.push(.{ .Success = rightSuccess });
+                                } else {
+                                    try self.pushFailure();
+                                }
+                            } else {
+                                try self.pushFailure();
+                            }
+                        },
+                        else => return InterpretResult{ .RuntimeError = "Ext=pected a left-side pattern" },
                     }
                 },
                 .Return => {

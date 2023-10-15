@@ -294,20 +294,18 @@ pub const Parser = struct {
 
         const leftOp: OpCode = @enumFromInt(self.chunk.code.items[leftOperandIndex]);
 
-        if (leftOp == OpCode.Pattern) {
-            try self.err("Expected a pattern, found nested pattern match");
-        } else {
-            // The lhs should be a constant.
-            std.debug.assert(leftOp == OpCode.Constant);
+        // The lhs should be a constant. In some cases it might already be
+        // marked as a pattern, which indicates semantically incorrect code. We
+        // allow this for now and report the error at runtime.
+        std.debug.assert(leftOp == OpCode.Constant or leftOp == OpCode.Pattern);
 
-            // Update the lhs operand to be a pattern instead of something that
-            // could be interpreted as a parser
-            self.chunk.updateOpAt(leftOperandIndex, .Pattern);
+        // Update the lhs operand to be a pattern instead of something that
+        // could be interpreted as a parser
+        self.chunk.updateOpAt(leftOperandIndex, .Pattern);
 
-            try self.parsePrecedence(Precedence.get(operatorType));
+        try self.parsePrecedence(Precedence.get(operatorType));
 
-            try self.emitInfixOp(.Destructure, operatorLine);
-        }
+        try self.emitInfixOp(.Destructure, operatorLine);
     }
 
     fn conditional(self: *Parser) !void {
