@@ -67,31 +67,6 @@ pub const VM = struct {
     }
 
     pub fn run(self: *VM) !InterpretResult {
-        self.printDebug();
-
-        switch (self.readOp()) {
-            .Constant => {
-                const idx = self.readByte();
-                const parser = self.chunk.getConstant(idx);
-                if (try self.maybeMatch(parser)) |success| {
-                    try self.push(.{ .Success = success });
-                } else {
-                    try self.pushFailure();
-                }
-            },
-            .Pattern => {
-                const idx = self.readByte();
-                const c = self.chunk.getConstant(idx);
-
-                if (c.toJson()) |pattern| {
-                    try self.push(.{ .Pattern = pattern });
-                } else {
-                    return InterpretResult{ .RuntimeError = "Invalid pattern" };
-                }
-            },
-            else => unreachable,
-        }
-
         while (true) {
             self.printDebug();
 
