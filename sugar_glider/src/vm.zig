@@ -365,8 +365,12 @@ pub const VM = struct {
             .CharacterRange => |r| {
                 const start = self.inputPos;
                 const end = start + 1;
-                const c = self.input[start];
 
+                if (self.input.len < end) {
+                    return null;
+                }
+
+                const c = self.input[start];
                 if (r[0] <= c and c <= r[1]) {
                     self.inputPos = end;
                     return Success{

@@ -367,3 +367,16 @@ test "empty program" {
     const result = try vm.interpret(parser, "");
     try testing.expectRuntimeError(result);
 }
+
+test "empty input" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    const parser =
+        \\ "1" | "a" | "a".."z" | ""
+    ;
+
+    const result = try vm.interpret(parser, "\"\"");
+    try testing.expectSuccess(result, 0, 0, "\"\"");
+}
