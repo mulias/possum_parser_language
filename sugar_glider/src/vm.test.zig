@@ -356,3 +356,14 @@ test "'foo' <- 'foo' <- 'foo'" {
     const result = try vm.interpret(parser, "foofoo");
     try testing.expectCompileError(result);
 }
+
+test "empty program" {
+    var alloc = std.testing.allocator;
+    var vm = VM.init(alloc);
+    defer vm.deinit();
+
+    const parser = "";
+
+    const result = try vm.interpret(parser, "");
+    try testing.expectRuntimeError(result);
+}

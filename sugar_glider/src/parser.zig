@@ -87,20 +87,26 @@ pub const Parser = struct {
     pub fn program(self: *Parser) !void {
         try self.advance();
         _ = self.skipWhitespace();
+
+        if (self.check(.Eof)) {
+            try self.end();
+            return;
+        }
+
         try self.statement();
-        try self.consume(TokenType.Eof, "Expect end of program.");
+        try self.consume(.Eof, "Expect end of program.");
         try self.end();
     }
 
-    pub fn statement(self: *Parser) !void {
+    fn statement(self: *Parser) !void {
         try self.parsePrecedence(.Conditional);
     }
 
-    pub fn expression(self: *Parser) !void {
+    fn expression(self: *Parser) !void {
         try self.parsePrecedence(.Conditional);
     }
 
-    pub fn end(self: *Parser) !void {
+    fn end(self: *Parser) !void {
         try self.emitOp(.End);
         if (logger.debugParser) self.chunk.disassemble("code");
     }

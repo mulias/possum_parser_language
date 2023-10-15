@@ -307,6 +307,10 @@ pub const VM = struct {
                     }
                 },
                 .End => {
+                    if (self.stack.items.len == 0) {
+                        return InterpretResult{ .RuntimeError = "No program" };
+                    }
+
                     const last = self.pop();
                     var result: InterpretResult = undefined;
 
