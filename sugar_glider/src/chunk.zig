@@ -1,47 +1,73 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
-const Value = @import("./value.zig").Value;
+const Elem = @import("./elem.zig").Elem;
+const StringTable = @import("string_table.zig").StringTable;
 const logger = @import("./logger.zig");
 
 pub const OpCode = enum(u8) {
+    Backtrack,
     Constant,
-    Pattern,
-    ReturnValue,
+    Destructure,
+    End,
+    False,
     Jump,
     JumpIfFailure,
-    ConditionalJump,
-    ConditionalJumpSuccess,
+    JumpIfSuccess,
+    MergeElems,
+    MergeParsed,
+    Null,
     Or,
-    TakeRight,
-    TakeLeft,
-    Merge,
-    Backtrack,
-    Destructure,
     Return,
+    RunFunctionParser,
+    RunLiteralParser,
     Sequence,
-    End,
+    TakeLeft,
+    TakeRight,
+    True,
 
-    pub fn disassemble(self: OpCode, chunk: *Chunk, offset: usize) usize {
+    pub fn disassemble(self: OpCode, chunk: *Chunk, stringTable: StringTable, offset: usize) usize {
         switch (self) {
-            .Constant, .Pattern, .ReturnValue => {
+            .Backtrack,
+            .Destructure,
+            .End,
+            .False,
+            .MergeElems,
+            .MergeParsed,
+            .Null,
+            .Or,
+            .Return,
+            .RunLiteralParser,
+            .Sequence,
+            .TakeLeft,
+            .TakeRight,
+            .True,
+            => {
+                logger.debug("{s}\n", .{@tagName(self)});
+                return offset + 1;
+            },
+            .Constant => {
                 var constantIdx = chunk.read(offset + 1);
-                var constantValue = chunk.getConstant(constantIdx);
+                var constantElem = chunk.getConstant(constantIdx);
                 logger.debug("{s} {}: ", .{ @tagName(self), constantIdx });
-                constantValue.print();
+                constantElem.print(logger.debug, stringTable);
                 logger.debug("\n", .{});
                 return offset + 2;
             },
-            .Jump, .JumpIfFailure, .ConditionalJump, .ConditionalJumpSuccess => {
+            .RunFunctionParser => {
+                const argCount = chunk.read(offset + 1);
+                logger.debug("{s} {d}\n", .{ @tagName(self), argCount });
+                return offset + 2;
+            },
+            .Jump,
+            .JumpIfFailure,
+            .JumpIfSuccess,
+            => {
                 var jump = @as(u16, @intCast(chunk.read(offset + 1))) << 8;
                 jump |= chunk.read(offset + 2);
                 const target = @as(isize, @intCast(offset)) + 3 + jump;
                 std.debug.print("{s} {} -> {}\n", .{ @tagName(self), offset, target });
                 return offset + 3;
-            },
-            .Or, .TakeRight, .TakeLeft, .Merge, .Backtrack, .Destructure, .Return, .Sequence, .End => {
-                logger.debug("{s}\n", .{@tagName(self)});
-                return offset + 1;
             },
         }
     }
@@ -50,14 +76,14 @@ pub const OpCode = enum(u8) {
 pub const Chunk = struct {
     allocator: Allocator,
     code: ArrayList(u8),
-    constants: ArrayList(Value),
+    constants: ArrayList(Elem),
     lines: ArrayList(usize),
 
     pub fn init(allocator: Allocator) Chunk {
         return Chunk{
             .allocator = allocator,
             .code = ArrayList(u8).init(allocator),
-            .constants = ArrayList(Value).init(allocator),
+            .constants = ArrayList(Elem).init(allocator),
             .lines = ArrayList(usize).init(allocator),
         };
     }
@@ -80,7 +106,7 @@ pub const Chunk = struct {
         return self.code.items.len;
     }
 
-    pub fn getConstant(self: *Chunk, idx: u8) Value {
+    pub fn getConstant(self: *Chunk, idx: u8) Elem {
         return self.constants.items[idx];
     }
 
@@ -101,52 +127,22 @@ pub const Chunk = struct {
         self.updateAt(opIndex, @intFromEnum(op));
     }
 
-    pub fn writeConst(self: *Chunk, v: Value, line: usize) !void {
-        var idx = try self.addConstant(v);
-        try self.writeOp(.Constant, line);
-        try self.write(idx, line);
-    }
-
-    pub fn writePattern(self: *Chunk, v: Value, line: usize) !void {
-        var idx = try self.addConstant(v);
-        try self.writeOp(.Pattern, line);
-        try self.write(idx, line);
-    }
-
-    pub fn writeReturnValue(self: *Chunk, v: Value, line: usize) !void {
-        var idx = try self.addConstant(v);
-        try self.writeOp(.ReturnValue, line);
-        try self.write(idx, line);
-    }
-
-    pub fn writeJump(self: *Chunk, op: OpCode, offset: usize, line: usize) !void {
-        try self.writeOp(op, line);
-
-        const jump = offset - 1;
-        if (jump > std.math.maxInt(u16)) {
-            unreachable;
-        }
-
-        try self.write(@as(u8, @intCast((jump >> 8) & 0xff)), line);
-        try self.write(@as(u8, @intCast(jump & 0xff)), line);
-    }
-
-    pub fn addConstant(self: *Chunk, value: Value) !u8 {
+    pub fn addConstant(self: *Chunk, e: Elem) !u8 {
         const idx = @as(u8, @intCast(self.constants.items.len));
-        try self.constants.append(value);
+        try self.constants.append(e);
         return idx;
     }
 
-    pub fn disassemble(self: *Chunk, name: []const u8) void {
+    pub fn disassemble(self: *Chunk, stringTable: StringTable, name: []const u8) void {
         logger.debug("\n==== {s} ====\n", .{name});
 
         var offset: usize = 0;
         while (offset < self.code.items.len) {
-            offset = self.disassembleInstruction(offset);
+            offset = self.disassembleInstruction(stringTable, offset);
         }
     }
 
-    pub fn disassembleInstruction(self: *Chunk, offset: usize) usize {
+    pub fn disassembleInstruction(self: *Chunk, stringTable: StringTable, offset: usize) usize {
         // print address
         logger.debug("{:0>4} ", .{offset});
 
@@ -159,6 +155,6 @@ pub const Chunk = struct {
 
         const instruction = self.readOp(offset);
 
-        return instruction.disassemble(self, offset);
+        return instruction.disassemble(self, stringTable, offset);
     }
 };

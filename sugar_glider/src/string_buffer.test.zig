@@ -1,37 +1,60 @@
+// Based on https://github.com/JakubSzark/zig-string/blob/master/LICENSE
+//
+// MIT License
+//
+// Copyright (c) 2020 Jakub Szarkowicz (JakubSzark)
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 const std = @import("std");
 const ArenaAllocator = std.heap.ArenaAllocator;
 const assert = std.debug.assert;
 const eql = std.mem.eql;
-
-const zig_string = @import("./zig-string.zig");
-const String = zig_string.String;
+const string_buffer = @import("./string_buffer.zig");
+const StringBuffer = string_buffer.StringBuffer;
 
 test "Basic Usage" {
     // Use your favorite allocator
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    // Create your String
-    var myString = String.init(arena.allocator());
-    defer myString.deinit();
+    // Create your StringBuffer
+    var myStringBuffer = StringBuffer.init(arena.allocator());
+    defer myStringBuffer.deinit();
 
     // Use functions provided
-    try myString.concat("🔥 Hello!");
-    _ = myString.pop();
-    try myString.concat(", World 🔥");
+    try myStringBuffer.concat("🔥 Hello!");
+    _ = myStringBuffer.pop();
+    try myStringBuffer.concat(", World 🔥");
 
     // Success!
-    assert(myString.cmp("🔥 Hello, World 🔥"));
+    assert(myStringBuffer.cmp("🔥 Hello, World 🔥"));
 }
 
-test "String Tests" {
-    // Allocator for the String
+test "StringBuffer Tests" {
+    // Allocator for the StringBuffer
     const page_allocator = std.heap.page_allocator;
     var arena = std.heap.ArenaAllocator.init(page_allocator);
     defer arena.deinit();
 
-    // This is how we create the String
-    var myStr = String.init(arena.allocator());
+    // This is how we create the StringBuffer
+    var myStr = StringBuffer.init(arena.allocator());
     defer myStr.deinit();
 
     // allocate & capacity
@@ -122,15 +145,15 @@ test "String Tests" {
     assert(eql(u8, myStr.split("💯", 5).?, "Hello"));
     assert(eql(u8, myStr.split("💯", 6).?, ""));
 
-    var splitStr = String.init(arena.allocator());
+    var splitStr = StringBuffer.init(arena.allocator());
     defer splitStr.deinit();
 
     try splitStr.concat("variable='value'");
     assert(eql(u8, splitStr.split("=", 0).?, "variable"));
     assert(eql(u8, splitStr.split("=", 1).?, "'value'"));
 
-    // splitToString
-    var newSplit = try splitStr.splitToString("=", 0);
+    // splitToStringBuffer
+    var newSplit = try splitStr.splitToStringBuffer("=", 0);
     assert(newSplit != null);
     defer newSplit.?.deinit();
 
@@ -162,7 +185,7 @@ test "String Tests" {
     assert(eql(u8, mySlice.?, "This is a Test!"));
     arena.allocator().free(mySlice.?);
 
-    // StringIterator
+    // StringBufferIterator
     var i: usize = 0;
     var iter = myStr.iterator();
     while (iter.next()) |ch| {
@@ -176,15 +199,15 @@ test "String Tests" {
 }
 
 test "init with contents" {
-    // Allocator for the String
+    // Allocator for the StringBuffer
     const page_allocator = std.heap.page_allocator;
     var arena = std.heap.ArenaAllocator.init(page_allocator);
     defer arena.deinit();
 
-    const initial_contents = "String with initial contents!";
+    const initial_contents = "StringBuffer with initial contents!";
 
-    // This is how we create the String with contents at the start
-    var myStr = try String.init_with_contents(arena.allocator(), initial_contents);
+    // This is how we create the StringBuffer with contents at the start
+    var myStr = try StringBuffer.init_with_contents(arena.allocator(), initial_contents);
     assert(eql(u8, myStr.str(), initial_contents));
 }
 
@@ -192,59 +215,59 @@ test "starts_with Tests" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    var myString = String.init(arena.allocator());
-    defer myString.deinit();
+    var myStringBuffer = StringBuffer.init(arena.allocator());
+    defer myStringBuffer.deinit();
 
-    try myString.concat("bananas");
-    assert(myString.starts_with("bana"));
-    assert(!myString.starts_with("abc"));
+    try myStringBuffer.concat("bananas");
+    assert(myStringBuffer.starts_with("bana"));
+    assert(!myStringBuffer.starts_with("abc"));
 }
 
 test "ends_with Tests" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    var myString = String.init(arena.allocator());
-    defer myString.deinit();
+    var myStringBuffer = StringBuffer.init(arena.allocator());
+    defer myStringBuffer.deinit();
 
-    try myString.concat("asbananas");
-    assert(myString.ends_with("nas"));
-    assert(!myString.ends_with("abc"));
+    try myStringBuffer.concat("asbananas");
+    assert(myStringBuffer.ends_with("nas"));
+    assert(!myStringBuffer.ends_with("abc"));
 
-    try myString.truncate();
-    try myString.concat("💯hello💯💯hello💯💯hello💯");
+    try myStringBuffer.truncate();
+    try myStringBuffer.concat("💯hello💯💯hello💯💯hello💯");
     std.debug.print("", .{});
-    assert(myString.ends_with("hello💯"));
+    assert(myStringBuffer.ends_with("hello💯"));
 }
 
 test "replace Tests" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    // Create your String
-    var myString = String.init(arena.allocator());
-    defer myString.deinit();
+    // Create your StringBuffer
+    var myStringBuffer = StringBuffer.init(arena.allocator());
+    defer myStringBuffer.deinit();
 
-    try myString.concat("hi,how are you");
-    var result = try myString.replace("hi,", "");
+    try myStringBuffer.concat("hi,how are you");
+    var result = try myStringBuffer.replace("hi,", "");
     assert(result);
-    assert(eql(u8, myString.str(), "how are you"));
+    assert(eql(u8, myStringBuffer.str(), "how are you"));
 
-    result = try myString.replace("abc", " ");
+    result = try myStringBuffer.replace("abc", " ");
     assert(!result);
 
-    myString.clear();
-    try myString.concat("💯hello💯💯hello💯💯hello💯");
-    _ = try myString.replace("hello", "hi");
-    assert(eql(u8, myString.str(), "💯hi💯💯hi💯💯hi💯"));
+    myStringBuffer.clear();
+    try myStringBuffer.concat("💯hello💯💯hello💯💯hello💯");
+    _ = try myStringBuffer.replace("hello", "hi");
+    assert(eql(u8, myStringBuffer.str(), "💯hi💯💯hi💯💯hi💯"));
 }
 
 test "rfind Tests" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    var myString = try String.init_with_contents(arena.allocator(), "💯hi💯💯hi💯💯hi💯");
-    defer myString.deinit();
+    var myStringBuffer = try StringBuffer.init_with_contents(arena.allocator(), "💯hi💯💯hi💯💯hi💯");
+    defer myStringBuffer.deinit();
 
-    assert(myString.rfind("hi") == 9);
+    assert(myStringBuffer.rfind("hi") == 9);
 }

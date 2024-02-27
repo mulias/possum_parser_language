@@ -1,479 +1,314 @@
 const std = @import("std");
-const json = std.json;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayList;
 const Chunk = @import("./chunk.zig").Chunk;
+const Elem = @import("./elem.zig").Elem;
 const OpCode = @import("./chunk.zig").OpCode;
-const value = @import("./value.zig");
-const Value = @import("./value.zig").Value;
-const Success = @import("./value.zig").Success;
-const printValue = @import("./value.zig").print;
-const logger = @import("./logger.zig");
+const ParseResult = @import("parse_result.zig").ParseResult;
+const StringTable = @import("string_table.zig").StringTable;
+const assert = std.debug.assert;
 const compiler = @import("./compiler.zig");
-
-pub const InterpretResultType = enum {
-    ParserSuccess,
-    ParserFailure,
-    CompileError,
-    RuntimeError,
-};
-
-pub const InterpretResult = union(InterpretResultType) {
-    ParserSuccess: Success,
-    ParserFailure: void,
-    CompileError: []const u8,
-    RuntimeError: []const u8,
-};
+const json = std.json;
+const logger = @import("./logger.zig");
 
 pub const VM = struct {
-    arena: ArenaAllocator,
-    chunk: *Chunk,
+    allocator: Allocator,
+    chunk: Chunk,
     ip: usize,
-    stack: ArrayList(Value),
+    stringTable: StringTable,
+    dynList: ?*Elem.Dyn,
+    elems: ArrayList(Elem),
+    parsed: ArrayList(ParseResult),
     input: []const u8,
     inputPos: usize,
 
     pub fn init(allocator: Allocator) VM {
         return VM{
-            .arena = std.heap.ArenaAllocator.init(allocator),
-            .chunk = undefined,
-            .ip = undefined,
-            .stack = ArrayList(Value).init(allocator),
+            .allocator = allocator,
+            .chunk = Chunk.init(allocator),
+            .ip = 0,
+            .stringTable = StringTable.init(allocator),
+            .dynList = null,
+            .elems = ArrayList(Elem).init(allocator),
+            .parsed = ArrayList(ParseResult).init(allocator),
             .input = undefined,
-            .inputPos = undefined,
+            .inputPos = 0,
         };
     }
 
     pub fn deinit(self: *VM) void {
-        self.arena.deinit();
-        self.stack.deinit();
+        self.chunk.deinit();
+        self.stringTable.deinit();
+        self.freeDynList();
+        self.elems.deinit();
+        self.parsed.deinit();
     }
 
-    pub fn interpret(self: *VM, parser: []const u8, input: []const u8) !InterpretResult {
-        var chunk = Chunk.init(self.arena.allocator());
-        defer chunk.deinit();
+    pub fn interpret(self: *VM, program: []const u8, input: []const u8) !ParseResult {
+        try compiler.compile(self, program);
 
-        const success = try compiler.compile(parser, &chunk);
-        if (!success) return .{ .CompileError = "compiler error" };
-
-        self.chunk = &chunk;
-        self.ip = 0;
-        self.resetStack();
         self.input = input;
-        self.inputPos = 0;
 
-        return try self.run();
+        try self.run();
+
+        assert(self.parsed.items.len == 1);
+
+        return self.parsed.pop();
     }
 
-    pub fn run(self: *VM) !InterpretResult {
+    pub fn run(self: *VM) !void {
         while (true) {
             self.printDebug();
 
-            switch (self.readOp()) {
-                .Constant => {
-                    const idx = self.readByte();
-                    try self.push(self.chunk.getConstant(idx));
-                },
-                .Pattern => {
-                    const idx = self.readByte();
-                    const c = self.chunk.getConstant(idx);
-
-                    if (c.toJson()) |pattern| {
-                        try self.push(.{ .Pattern = pattern });
-                    } else {
-                        return InterpretResult{ .RuntimeError = "Invalid pattern" };
-                    }
-                },
-                .ReturnValue => {
-                    const idx = self.readByte();
-                    const c = self.chunk.getConstant(idx);
-
-                    if (c.toJson()) |val| {
-                        try self.push(.{ .ReturnValue = val });
-                    } else {
-                        return InterpretResult{ .RuntimeError = "Invalid return value" };
-                    }
-                },
-                .Jump => {
-                    const offset = self.readShort();
-                    self.ip += offset;
-                },
-                .JumpIfFailure => {
-                    const offset = self.readShort();
-                    const top = self.pop();
-
-                    switch (top) {
-                        .Pattern, .ReturnValue => try self.push(top),
-                        else => if (try self.maybeMatch(top)) |success| {
-                            try self.push(.{ .Success = success });
-                        } else {
-                            try self.pushFailure();
-                            self.ip += offset;
-                        },
-                    }
-                },
-                .ConditionalJump => {
-                    const offset = self.readShort();
-                    const testBranch = self.pop();
-
-                    if (try self.maybeMatch(testBranch)) |success| {
-                        // Push the test branch result, continue to then branch
-                        try self.push(.{ .Success = success });
-                    } else {
-                        // Jump to else branch
-                        self.ip += offset;
-                    }
-                },
-                .ConditionalJumpSuccess => {
-                    const offset = self.readShort();
-                    const thenBranch = self.pop();
-                    const testBranch = self.pop();
-
-                    if (try self.maybeMatch(thenBranch)) |thenBranchSuccess| {
-                        try self.push(.{
-                            .Success = .{
-                                .start = testBranch.Success.start,
-                                .end = thenBranchSuccess.end,
-                                .value = thenBranchSuccess.value,
-                            },
-                        });
-                    } else {
-                        // test succeeded but branch failed
-                        self.inputPos = testBranch.Success.start;
-                        try self.pushFailure();
-                    }
-
-                    // Jump over the else branch
-                    self.ip += offset;
-                },
-                .Or => {
-                    const rhs = self.pop();
-                    const lhs = self.pop();
-
-                    if (try self.maybeMatch(lhs)) |leftSuccess| {
-                        try self.push(.{ .Success = leftSuccess });
-                    } else if (try self.maybeMatch(rhs)) |rightSuccess| {
-                        try self.push(.{ .Success = rightSuccess });
-                    } else {
-                        try self.pushFailure();
-                    }
-                },
-                .TakeRight => {
-                    const rhs = self.pop();
-                    const lhs = self.pop();
-
-                    if (try self.maybeMatch(lhs)) |leftSuccess| {
-                        if (try self.maybeMatch(rhs)) |rightSuccess| {
-                            try self.push(.{
-                                .Success = .{
-                                    .start = leftSuccess.start,
-                                    .end = rightSuccess.end,
-                                    .value = rightSuccess.value,
-                                },
-                            });
-                        } else {
-                            self.inputPos = leftSuccess.start;
-                            try self.pushFailure();
-                        }
-                    } else {
-                        try self.pushFailure();
-                    }
-                },
-                .TakeLeft => {
-                    const rhs = self.pop();
-                    const lhs = self.pop();
-
-                    if (try self.maybeMatch(lhs)) |leftSuccess| {
-                        if (try self.maybeMatch(rhs)) |rightSuccess| {
-                            try self.push(.{
-                                .Success = .{
-                                    .start = leftSuccess.start,
-                                    .end = rightSuccess.end,
-                                    .value = leftSuccess.value,
-                                },
-                            });
-                        } else {
-                            self.inputPos = leftSuccess.start;
-                            try self.pushFailure();
-                        }
-                    } else {
-                        try self.pushFailure();
-                    }
-                },
-                .Merge => {
-                    const rhs = self.pop();
-                    const lhs = self.pop();
-
-                    const maybeError =
-                        switch (lhs) {
-                        .Success => |s| try self.matchAndMerge(s, rhs),
-                        .Pattern => |p| try self.patternMerge(p, rhs),
-                        .ReturnValue => |v| try self.returnValueMerge(v, rhs),
-                        else => unreachable,
-                    };
-
-                    if (maybeError) |message| return InterpretResult{ .RuntimeError = message };
-                },
-                .Backtrack => {
-                    const rhs = self.pop();
-                    const lhs = self.pop();
-
-                    if (try self.maybeMatch(lhs)) |leftSuccess| {
-                        self.inputPos = leftSuccess.start;
-                        if (try self.maybeMatch(rhs)) |rightSuccess| {
-                            try self.push(.{ .Success = rightSuccess });
-                        } else {
-                            try self.pushFailure();
-                        }
-                    } else {
-                        try self.pushFailure();
-                    }
-                },
-                .Destructure => {
-                    const rhs = self.pop();
-                    const lhs = self.pop();
-
-                    switch (lhs) {
-                        .Pattern => |pattern| {
-                            if (try self.maybeMatch(rhs)) |rightSuccess| {
-                                if (value.isDeepEql(rightSuccess.value, pattern)) {
-                                    try self.push(.{ .Success = rightSuccess });
-                                } else {
-                                    try self.pushFailure();
-                                }
-                            } else {
-                                try self.pushFailure();
-                            }
-                        },
-                        else => return InterpretResult{ .RuntimeError = "Ext=pected a left-side pattern" },
-                    }
-                },
-                .Return => {
-                    const rhs = self.pop();
-                    const lhs = self.pop();
-
-                    if (try self.maybeMatch(lhs)) |leftSuccess| {
-                        try self.push(.{
-                            .Success = .{
-                                .start = leftSuccess.start,
-                                .end = leftSuccess.end,
-                                .value = rhs.ReturnValue,
-                            },
-                        });
-                    } else {
-                        try self.pushFailure();
-                    }
-                },
-                .Sequence => {
-                    const rhs = self.pop();
-                    const lhs = self.pop();
-
-                    if (try self.maybeMatch(lhs)) |leftSuccess| {
-                        if (try self.maybeMatch(rhs)) |rightSuccess| {
-                            try self.push(.{
-                                .Success = .{
-                                    .start = leftSuccess.start,
-                                    .end = rightSuccess.end,
-                                    .value = rightSuccess.value,
-                                },
-                            });
-                        } else {
-                            self.inputPos = leftSuccess.start;
-                            try self.pushFailure();
-                        }
-                    } else {
-                        try self.pushFailure();
-                    }
-                },
-                .End => {
-                    if (self.stack.items.len == 0) {
-                        return InterpretResult{ .RuntimeError = "No program" };
-                    }
-
-                    const last = self.pop();
-                    var result: InterpretResult = undefined;
-
-                    if (try self.maybeMatch(last)) |success| {
-                        try self.push(.{ .Success = success });
-                        result = InterpretResult{ .ParserSuccess = success };
-                    } else {
-                        try self.push(.{ .Failure = undefined });
-                        result = InterpretResult{ .ParserFailure = undefined };
-                    }
-
-                    if (logger.debugVM) {
-                        logger.debug("\n", .{});
-                        self.printInput();
-                        self.printStack();
-                        logger.debug("\n", .{});
-                    }
-
-                    std.debug.assert(self.stack.items.len == 1);
-                    return result;
-                },
-            }
+            const opCode = self.readOp();
+            try self.runOp(opCode);
+            if (opCode == .End) break;
         }
+    }
+
+    fn runOp(self: *VM, opCode: OpCode) !void {
+        switch (opCode) {
+            .Backtrack => {
+                const success = self.popParsed().asSuccess();
+                self.inputPos = success.start;
+            },
+            .Constant => {
+                const idx = self.readByte();
+                try self.pushElem(self.chunk.getConstant(idx));
+            },
+            .Destructure => {
+                const pattern = self.popElem();
+                const parsed = self.popParsed();
+
+                if (parsed.isSuccess() and parsed.asSuccess().value.isEql(pattern)) {
+                    try self.pushParsed(parsed);
+                } else {
+                    try self.pushParsed(ParseResult.failure);
+                }
+            },
+            .End => {
+                switch (self.parsed.items.len) {
+                    1 => {
+                        // Done
+                    },
+                    0 => {
+                        return self.runtimeError("No program");
+                    },
+                    else => unreachable,
+                }
+            },
+            .False => {
+                try self.pushElem(Elem.falseConst);
+            },
+            .Jump => {
+                const offset = self.readShort();
+                self.ip += offset;
+            },
+            .JumpIfFailure => {
+                const offset = self.readShort();
+                if (self.peekParsed(0).isFailure()) self.ip += offset;
+            },
+            .JumpIfSuccess => {
+                const offset = self.readShort();
+                if (self.peekParsed(0).isSuccess()) self.ip += offset;
+            },
+            .MergeElems => {
+                const rhs = self.popElem();
+                const lhs = self.popElem();
+
+                if (try Elem.merge(lhs, rhs, self)) |value| {
+                    try self.pushElem(value);
+                } else {
+                    return self.runtimeError("Merge type mismatch");
+                }
+            },
+            .MergeParsed => {
+                const rhs = self.popParsed().asSuccess();
+                const lhs = self.popParsed().asSuccess();
+
+                if (try Elem.merge(lhs.value, rhs.value, self)) |value| {
+                    const result = ParseResult.success(value, lhs.start, rhs.end);
+                    try self.pushParsed(result);
+                } else {
+                    return self.runtimeError("Merge type mismatch");
+                }
+            },
+            .Null => try self.pushElem(Elem.nullConst),
+            .Or => {
+                const rhs = self.popParsed();
+                _ = self.popParsed();
+
+                try self.pushParsed(rhs);
+            },
+            .Return => {
+                const value = self.popElem();
+                const parsed = self.popParsed();
+
+                switch (parsed) {
+                    .Success => |s| {
+                        const result = ParseResult.success(value, s.start, s.end);
+                        try self.pushParsed(result);
+                    },
+                    .Failure => try self.pushParsed(parsed),
+                }
+            },
+            .True => try self.pushElem(Elem.trueConst),
+            .RunFunctionParser => {
+                const argCount = self.readByte();
+
+                self.runFunctionParser(argCount);
+            },
+            .RunLiteralParser => {
+                const elem = self.popElem();
+
+                const result = try self.runLiteralParser(elem);
+                try self.pushParsed(result);
+            },
+            .Sequence => {
+                const rhs = self.popParsed().asSuccess();
+                const lhs = self.popParsed().asSuccess();
+
+                const result = ParseResult.success(rhs.value, lhs.start, rhs.end);
+                try self.pushParsed(result);
+            },
+            .TakeLeft => {
+                const rhs = self.popParsed().asSuccess();
+                const lhs = self.popParsed().asSuccess();
+
+                const result = ParseResult.success(lhs.value, lhs.start, rhs.end);
+                try self.pushParsed(result);
+            },
+            .TakeRight => {
+                const rhs = self.popParsed();
+                const lhs = self.popParsed().asSuccess();
+
+                if (rhs.isSuccess()) {
+                    const rhss = rhs.asSuccess();
+                    const result = ParseResult.success(rhss.value, lhs.start, rhss.end);
+                    try self.pushParsed(result);
+                } else {
+                    self.inputPos = lhs.start;
+                    try self.pushParsed(rhs);
+                }
+            },
+        }
+    }
+
+    pub fn addString(self: *VM, bytes: []const u8) !StringTable.Id {
+        return try self.stringTable.insert(bytes);
+    }
+
+    pub fn getString(self: *VM, sId: StringTable.Id) []const u8 {
+        return self.stringTable.getAssumeExists(sId);
+    }
+
+    pub fn getStringId(self: *VM, string: []const u8) ?StringTable.Id {
+        return self.stringTable.getOffset(string);
     }
 
     fn printDebug(self: *VM) void {
         if (logger.debugVM) {
             logger.debug("\n", .{});
             self.printInput();
-            self.printStack();
-            _ = self.chunk.disassembleInstruction(self.ip);
+            self.printParsed();
+            self.printElems();
+            _ = self.chunk.disassembleInstruction(self.stringTable, self.ip);
         }
     }
 
-    fn maybeMatch(self: *VM, parser: Value) !?Success {
-        switch (parser) {
-            .String => |s| {
+    fn runFunctionParser(self: *VM, argCount: u8) void {
+        _ = argCount;
+        _ = self;
+        unreachable;
+    }
+
+    fn runLiteralParser(self: *VM, elem: Elem) !ParseResult {
+        switch (elem) {
+            .Character => unreachable,
+            .String => |sId| {
+                const s = self.getString(sId);
                 const start = self.inputPos;
                 const end = self.inputPos + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    return Success{
-                        .start = start,
-                        .end = end,
-                        .value = json.Value{ .string = s },
-                    };
+                    return ParseResult.success(elem, start, end);
+                }
+            },
+            .Integer => |n| {
+                if (n.text) |sId| {
+                    const s = self.getString(sId);
+                    const start = self.inputPos;
+                    const end = self.inputPos + s.len;
+
+                    if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
+                        self.inputPos = end;
+                        return ParseResult.success(elem, start, end);
+                    }
                 } else {
-                    return null;
+                    unreachable;
+                }
+            },
+            .Float => |n| {
+                if (n.text) |sId| {
+                    const s = self.getString(sId);
+                    const start = self.inputPos;
+                    const end = self.inputPos + s.len;
+
+                    if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
+                        self.inputPos = end;
+                        return ParseResult.success(elem, start, end);
+                    }
+                } else {
+                    unreachable;
+                }
+            },
+            .IntegerRange => |r| {
+                const lowText = self.getString(r.lowText);
+                const highText = self.getString(r.highText);
+                const start = self.inputPos;
+                const shortestMatchEnd = @min(start + lowText.len, self.input.len);
+                const longestMatchEnd = @min(start + highText.len, self.input.len);
+
+                var end = longestMatchEnd;
+
+                // Find the longest substring from the start of the input which
+                // parses as an integer, is greater than or equal to r.lowValue and
+                // less than or equal to r.highValue.
+                while (end >= shortestMatchEnd) {
+                    const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
+
+                    if (inputInt) |i| if (r.lowValue <= i and i <= r.highValue) {
+                        self.inputPos = end;
+                        const int = Elem.integer(i, null);
+                        return ParseResult.success(int, start, end);
+                    } else {
+                        end -= 1;
+                    };
                 }
             },
             .CharacterRange => |r| {
                 const start = self.inputPos;
                 const end = start + 1;
 
-                if (self.input.len < end) {
-                    return null;
-                }
+                if (start < self.input.len) {
+                    const c = self.input[start];
 
-                const c = self.input[start];
-                if (r[0] <= c and c <= r[1]) {
-                    self.inputPos = end;
-                    return Success{
-                        .start = start,
-                        .end = end,
-                        .value = json.Value{
-                            .string = try std.fmt.allocPrint(self.arena.allocator(), "{c}", .{c}),
-                        },
-                    };
-                } else {
-                    return null;
-                }
-            },
-            .Integer => |i| {
-                const s = try std.fmt.allocPrint(self.arena.allocator(), "{d}", .{i});
-                const start = self.inputPos;
-                const end = self.inputPos + s.len;
-
-                if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
-                    self.inputPos = end;
-                    return Success{
-                        .start = start,
-                        .end = end,
-                        .value = json.Value{ .integer = i },
-                    };
-                } else {
-                    return null;
-                }
-            },
-            .IntegerRange => |r| {
-                const lowStr = try std.fmt.allocPrint(self.arena.allocator(), "{d}", .{r[0]});
-                const highStr = try std.fmt.allocPrint(self.arena.allocator(), "{d}", .{r[1]});
-
-                const start = self.inputPos;
-                const shortestMatchEnd = @min(start + lowStr.len, self.input.len);
-                const longestMatchEnd = @min(start + highStr.len, self.input.len);
-
-                var end = longestMatchEnd;
-
-                // Find the longest substring from the start of the input which
-                // parses as an integer, is greater than or equal to r[0] and
-                // less than or equal to r[1].
-                while (end >= shortestMatchEnd) {
-                    const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
-
-                    if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
+                    if (r.low <= c and c <= r.high) {
                         self.inputPos = end;
-                        return Success{
-                            .start = start,
-                            .end = end,
-                            .value = json.Value{ .integer = i },
-                        };
-                    } else {
-                        end -= 1;
-                    };
-                }
-                return null;
-            },
-            .Float => |n| {
-                const start = self.inputPos;
-                const end = self.inputPos + n.len;
-
-                if (self.input.len >= end and std.mem.eql(u8, n, self.input[start..end])) {
-                    self.inputPos = end;
-                    return Success{
-                        .start = start,
-                        .end = end,
-                        .value = json.Value{ .number_string = n },
-                    };
-                } else {
-                    return null;
+                        const character = Elem.character(c);
+                        return ParseResult.success(character, start, end);
+                    }
                 }
             },
-            .Success => |s| return s,
-            .Failure => return null,
-            // JSON-only values should only show up in destructure patterns and
-            // return values, so they should not be used as a parser
-            .Pattern, .ReturnValue, .Array, .Object, .True, .False, .Null => unreachable,
-        }
-    }
-
-    fn matchAndMerge(self: *VM, leftSuccess: Success, rhs: Value) !?[]const u8 {
-        if (try self.maybeMatch(rhs)) |rightSuccess| {
-            const merged = (value.mergeJson(self.arena.allocator(), leftSuccess.value, rightSuccess.value)) catch return "Unable to merge mismatched types";
-
-            try self.push(.{
-                .Success = .{
-                    .start = leftSuccess.start,
-                    .end = rightSuccess.end,
-                    .value = merged,
-                },
-            });
-        } else {
-            try self.pushFailure();
+            .True => unreachable,
+            .False => unreachable,
+            .Null => unreachable,
+            .Dyn => unreachable,
         }
 
-        return null;
-    }
-
-    fn patternMerge(self: *VM, leftPattern: json.Value, rhs: Value) !?[]const u8 {
-        if (rhs.toJson()) |rightValue| {
-            const merged = value.mergeJson(self.arena.allocator(), leftPattern, rightValue) catch return "Unable to merge mismatched types";
-            try self.push(.{ .Pattern = merged });
-        } else {
-            return "Not a valid pattern";
-        }
-
-        return null;
-    }
-
-    fn returnValueMerge(self: *VM, leftReturnValue: json.Value, rhs: Value) !?[]const u8 {
-        if (rhs.toJson()) |rightValue| {
-            const merged = value.mergeJson(self.arena.allocator(), leftReturnValue, rightValue) catch return "Unable to merge mismatched types";
-            try self.push(.{ .ReturnValue = merged });
-        } else {
-            return "Not a valid return value";
-        }
-
-        return null;
-    }
-
-    fn mergeStrings(self: *VM, left: []const u8, right: []const u8) ![]const u8 {
-        return try std.fmt.allocPrint(self.arena.allocator(), "{s}{s}", .{ left, right });
+        return ParseResult.failure;
     }
 
     fn readByte(self: *VM) u8 {
@@ -494,25 +329,30 @@ pub const VM = struct {
         return (@as(u16, @intCast(items[self.ip - 2])) << 8) | items[self.ip - 1];
     }
 
-    fn push(self: *VM, parserOrValue: Value) !void {
-        try self.stack.append(parserOrValue);
+    fn pushElem(self: *VM, elem: Elem) !void {
+        try self.elems.append(elem);
     }
 
-    fn pushFailure(self: *VM) !void {
-        try self.stack.append(.{ .Failure = undefined });
+    fn pushParsed(self: *VM, result: ParseResult) !void {
+        try self.parsed.append(result);
     }
 
-    fn pop(self: *VM) Value {
-        return self.stack.pop();
+    fn popElem(self: *VM) Elem {
+        return self.elems.pop();
     }
 
-    fn peek(self: *VM, distance: usize) Value {
-        var len = self.stack.items.len;
-        return self.stack.items[len - 1 - distance];
+    fn popParsed(self: *VM) ParseResult {
+        return self.parsed.pop();
     }
 
-    fn resetStack(self: *VM) void {
-        self.stack.shrinkAndFree(0);
+    fn peekElem(self: *VM, distance: usize) Elem {
+        var len = self.elems.items.len;
+        return self.elems.items[len - 1 - distance];
+    }
+
+    fn peekParsed(self: *VM, distance: usize) ParseResult {
+        var len = self.parsed.items.len;
+        return self.parsed.items[len - 1 - distance];
     }
 
     fn printInput(self: *VM) void {
@@ -520,20 +360,38 @@ pub const VM = struct {
         logger.debug("{s} @ {d}\n", .{ self.input, self.inputPos });
     }
 
-    fn printStack(self: *VM) void {
-        logger.debug("stack   | ", .{});
-        for (self.stack.items, 0..) |v, idx| {
-            v.print();
-            if (idx < self.stack.items.len - 1) logger.debug(" # ", .{});
+    fn printElems(self: *VM) void {
+        logger.debug("Elems   | ", .{});
+        for (self.elems.items, 0..) |e, idx| {
+            e.print(logger.debug, self.stringTable);
+            if (idx < self.elems.items.len - 1) logger.debug(", ", .{});
         }
         logger.debug("\n", .{});
     }
 
-    fn runtimeError(self: *VM, message: []const u8) InterpretResult {
+    fn printParsed(self: *VM) void {
+        logger.debug("Parsed  | ", .{});
+        for (self.parsed.items, 0..) |p, idx| {
+            p.print(logger.debug, self.stringTable);
+            if (idx < self.parsed.items.len - 1) logger.debug(", ", .{});
+        }
+        logger.debug("\n", .{});
+    }
+
+    fn runtimeError(self: *VM, message: []const u8) !void {
         const line = self.chunk.lines.items[self.ip];
-        logger.warn("{s}", .{message});
-        logger.warn("\n[line {d}] in script\n", .{line});
-        self.resetStack();
-        return InterpretResult.RuntimeError;
+        logger.err("{s}", .{message});
+        logger.err("\n[line {d}] in script\n", .{line});
+
+        return error.RuntimeError;
+    }
+
+    fn freeDynList(self: *VM) void {
+        var dyn = self.dynList;
+        while (dyn) |d| {
+            var next = d.next;
+            d.destroy(self);
+            dyn = next;
+        }
     }
 };

@@ -5,7 +5,9 @@ const OpCode = @import("./chunk.zig").OpCode;
 const Token = @import("./token.zig").Token;
 const TokenType = @import("./token.zig").TokenType;
 const logger = @import("./logger.zig");
-const Value = @import("./value.zig").Value;
+const ElemManager = @import("./elem.zig").ElemManager;
+const Elem = @import("./elem.zig").Elem;
+const VM = @import("vm.zig").VM;
 
 pub const Precedence = enum {
     Call,
@@ -66,17 +68,17 @@ pub const Precedence = enum {
 const CompilerError = error{OutOfMemory} || std.os.WriteError;
 
 pub const Parser = struct {
-    scanner: *Scanner,
-    chunk: *Chunk,
+    vm: *VM,
+    scanner: Scanner,
     current: Token,
     previous: Token,
     hadError: bool,
     panicMode: bool,
 
-    pub fn init(scanner: *Scanner, chunk: *Chunk) Parser {
+    pub fn init(vm: *VM, source: []const u8) Parser {
         return Parser{
-            .scanner = scanner,
-            .chunk = chunk,
+            .vm = vm,
+            .scanner = Scanner.init(source),
             .current = undefined,
             .previous = undefined,
             .hadError = false,
@@ -108,7 +110,7 @@ pub const Parser = struct {
 
     fn end(self: *Parser) !void {
         try self.emitOp(.End);
-        if (logger.debugParser) self.chunk.disassemble("code");
+        if (logger.debugParser) self.currentChunk().disassemble(self.vm.stringTable, "code");
     }
 
     fn parsePrecedence(self: *Parser, precedence: Precedence) CompilerError!void {
@@ -127,7 +129,7 @@ pub const Parser = struct {
     fn prefix(self: *Parser, tokenType: TokenType) CompilerError!usize {
         if (logger.debugParser) logger.debug("prefix {}\n", .{tokenType});
 
-        const chunkIndex = self.chunk.code.items.len;
+        const chunkIndex = self.currentChunk().code.items.len;
 
         switch (tokenType) {
             .LeftParen => try self.grouping(),
@@ -158,17 +160,18 @@ pub const Parser = struct {
     }
 
     fn string(self: *Parser) !void {
-        const str1 = stringContents(self.previous.lexeme);
+        const s1 = stringContents(self.previous.lexeme);
 
-        if (str1.len == 1 and self.current.tokenType == .Dot) {
+        if (s1.len == 1 and self.current.tokenType == .Dot) {
             try self.advance();
             if (self.current.tokenType == .Dot) {
                 try self.advance();
                 if (self.current.tokenType == .String) {
                     try self.advance();
-                    const str2 = stringContents(self.previous.lexeme);
-                    if (str2.len == 1) {
-                        try self.emitConstant(.{ .CharacterRange = .{ str1[0], str2[0] } });
+                    const s2 = stringContents(self.previous.lexeme);
+                    if (s2.len == 1) {
+                        try self.emitConstant(Elem.characterRange(s1[0], s2[0]));
+                        try self.emitOp(.RunLiteralParser);
                     } else {
                         try self.err("Expect single character for character range");
                     }
@@ -179,7 +182,9 @@ pub const Parser = struct {
                 try self.err("Expect second period");
             }
         } else {
-            try self.emitConstant(.{ .String = str1 });
+            const sId = try self.vm.addString(s1);
+            try self.emitConstant(Elem.string(sId));
+            try self.emitOp(.RunLiteralParser);
         }
     }
 
@@ -189,6 +194,7 @@ pub const Parser = struct {
 
     fn integer(self: *Parser) !void {
         if (parseInteger(self.previous.lexeme)) |int1| {
+            const s1 = self.previous.lexeme;
             if (self.current.tokenType == .Dot) {
                 try self.advance();
                 if (self.current.tokenType == .Dot) {
@@ -196,7 +202,11 @@ pub const Parser = struct {
                     if (self.current.tokenType == .Integer) {
                         try self.advance();
                         if (parseInteger(self.previous.lexeme)) |int2| {
-                            try self.emitConstant(.{ .IntegerRange = .{ int1, int2 } });
+                            const s2 = self.previous.lexeme;
+                            const sId1 = try self.vm.addString(s1);
+                            const sId2 = try self.vm.addString(s2);
+                            try self.emitConstant(Elem.integerRange(int1, sId1, int2, sId2));
+                            try self.emitOp(.RunLiteralParser);
                         } else {
                             try self.err("Could not parse number");
                         }
@@ -207,7 +217,9 @@ pub const Parser = struct {
                     try self.err("Expect second period");
                 }
             } else {
-                try self.emitConstant(.{ .Integer = int1 });
+                const sId1 = try self.vm.addString(s1);
+                try self.emitConstant(Elem.integer(int1, sId1));
+                try self.emitOp(.RunLiteralParser);
             }
         } else {
             try self.err("Could not parse number");
@@ -223,14 +235,28 @@ pub const Parser = struct {
     }
 
     fn float(self: *Parser) !void {
-        try self.emitConstant(.{ .Float = self.previous.lexeme });
+        if (parseFloat(self.previous.lexeme)) |f| {
+            const sId = try self.vm.addString(self.previous.lexeme);
+            try self.emitConstant(Elem.float(f, sId));
+            try self.emitOp(.RunLiteralParser);
+        } else {
+            try self.err("Could not parse number");
+        }
+    }
+
+    fn parseFloat(lexeme: []const u8) ?f64 {
+        if (std.fmt.parseFloat(f64, lexeme)) |value| {
+            return value;
+        } else |_| {
+            return null;
+        }
     }
 
     fn literal(self: *Parser) !void {
         switch (self.previous.tokenType) {
-            .True => try self.emitConstant(.{ .True = undefined }),
-            .False => try self.emitConstant(.{ .False = undefined }),
-            .Null => try self.emitConstant(.{ .Null = undefined }),
+            .True => try self.emitOp(.True),
+            .False => try self.emitOp(.False),
+            .Null => try self.emitOp(.Null),
             else => unreachable,
         }
     }
@@ -244,9 +270,13 @@ pub const Parser = struct {
         const operatorType = self.previous.tokenType;
         const operatorLine = self.previous.line;
 
+        const jumpIndex = try self.emitJump(.JumpIfSuccess);
+
         try self.parsePrecedence(Precedence.get(operatorType));
 
         try self.emitInfixOp(.Or, operatorLine);
+
+        try self.patchJump(jumpIndex);
     }
 
     fn binaryAnd(self: *Parser) !void {
@@ -258,7 +288,7 @@ pub const Parser = struct {
         try self.parsePrecedence(Precedence.get(operatorType));
 
         switch (operatorType) {
-            .Plus => try self.emitInfixOp(.Merge, operatorLine),
+            .Plus => try self.emitInfixOp(.MergeParsed, operatorLine),
             .Bang => try self.emitInfixOp(.Backtrack, operatorLine),
             .Ampersand => try self.emitInfixOp(.Sequence, operatorLine),
             .GreaterThan => try self.emitInfixOp(.TakeRight, operatorLine),
@@ -274,14 +304,8 @@ pub const Parser = struct {
         const operatorLine = self.previous.line;
 
         const jumpIndex = try self.emitJump(.JumpIfFailure);
-        const rightOperandIndex = self.chunk.nextByteIndex();
 
         try self.parsePrecedence(Precedence.get(operatorType));
-
-        // Update the rhs operand to be a return value instead of something that
-        // could be interpreted as a parser
-        std.debug.assert(self.chunk.code.items[rightOperandIndex] == @intFromEnum(OpCode.Constant));
-        self.chunk.updateOpAt(rightOperandIndex, .ReturnValue);
 
         try self.emitInfixOp(.Return, operatorLine);
 
@@ -289,19 +313,20 @@ pub const Parser = struct {
     }
 
     fn binaryDestructure(self: *Parser, leftOperandIndex: usize) !void {
+        _ = leftOperandIndex;
         const operatorType = self.previous.tokenType;
         const operatorLine = self.previous.line;
 
-        const leftOp: OpCode = @enumFromInt(self.chunk.code.items[leftOperandIndex]);
+        // const leftOp: OpCode = @enumFromInt(self.currentChunk().code.items[leftOperandIndex]);
 
-        // The lhs should be a constant. In some cases it might already be
-        // marked as a pattern, which indicates semantically incorrect code. We
-        // allow this for now and report the error at runtime.
-        std.debug.assert(leftOp == OpCode.Constant or leftOp == OpCode.Pattern);
+        // // The lhs should be a constant. In some cases it might already be
+        // // marked as a pattern, which indicates semantically incorrect code. We
+        // // allow this for now and report the error at runtime.
+        // std.debug.assert(leftOp == OpCode.Constant or leftOp == OpCode.Pattern);
 
-        // Update the lhs operand to be a pattern instead of something that
-        // could be interpreted as a parser
-        self.chunk.updateOpAt(leftOperandIndex, .Pattern);
+        // // Update the lhs operand to be a pattern instead of something that
+        // // could be interpreted as a parser
+        // self.currentChunk().updateOpAt(leftOperandIndex, .Pattern);
 
         try self.parsePrecedence(Precedence.get(operatorType));
 
@@ -313,7 +338,7 @@ pub const Parser = struct {
         // const operatorLine = self.previous.line;
 
         // jump to failure branch if the test branch was a failure
-        const failureJumpIndex = try self.emitJump(.ConditionalJump);
+        const failureJumpIndex = try self.emitJump(.JumpIfFailure);
 
         try self.parsePrecedence(.Conditional);
 
@@ -322,7 +347,7 @@ pub const Parser = struct {
         _ = self.skipWhitespace();
 
         // jump over failure branch if the test branch was a success
-        const successJumpIndex = try self.emitJump(.ConditionalJumpSuccess);
+        const successJumpIndex = try self.emitJump(.JumpIfSuccess);
 
         try self.patchJump(failureJumpIndex);
 
@@ -332,7 +357,7 @@ pub const Parser = struct {
     }
 
     fn currentChunk(self: *Parser) *Chunk {
-        return self.chunk;
+        return &self.vm.chunk;
     }
 
     pub fn advance(self: *Parser) !void {
@@ -447,12 +472,12 @@ pub const Parser = struct {
         try self.emitByte(byte);
     }
 
-    fn emitConstant(self: *Parser, value: Value) !void {
-        try self.emitUnaryOp(.Constant, try self.makeConstant(value));
+    fn emitConstant(self: *Parser, elem: Elem) !void {
+        try self.emitUnaryOp(.Constant, try self.makeConstant(elem));
     }
 
-    fn makeConstant(self: *Parser, value: Value) !u8 {
-        const constant = try self.currentChunk().addConstant(value);
+    fn makeConstant(self: *Parser, elem: Elem) !u8 {
+        const constant = try self.currentChunk().addConstant(elem);
 
         if (constant > std.math.maxInt(u8)) {
             try self.err("Too many constants in one chunk.");

@@ -33,11 +33,15 @@ fn parse(alloc: Allocator, parserSource: cli.Source, inputSource: cli.Source) !v
     var vm = VM.init(alloc);
     defer vm.deinit();
 
-    switch (try vm.interpret(parser, input)) {
-        .ParserSuccess => |s| logger.jsonOut(s.value),
-        .ParserFailure => logger.err("Parser Failure", .{}),
-        .CompileError => logger.err("Compiler Error", .{}),
-        .RuntimeError => logger.err("Runtime Error", .{}),
+    vm.interpret(parser, input) catch |err| switch (err) {
+        error.RuntimeError => logger.err("Runtime Error", .{}),
+        error.CompileError => logger.err("Compiler Error", .{}),
+        else => {},
+    };
+
+    switch (vm.parsed.pop()) {
+        .Success => |s| s.value.print(logger.out),
+        .Failure => logger.err("Parser Failure", .{}),
     }
 }
 
