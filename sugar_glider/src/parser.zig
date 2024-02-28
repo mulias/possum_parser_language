@@ -202,10 +202,7 @@ pub const Parser = struct {
                     if (self.current.tokenType == .Integer) {
                         try self.advance();
                         if (parseInteger(self.previous.lexeme)) |int2| {
-                            const s2 = self.previous.lexeme;
-                            const sId1 = try self.vm.addString(s1);
-                            const sId2 = try self.vm.addString(s2);
-                            try self.emitConstant(Elem.integerRange(int1, sId1, int2, sId2));
+                            try self.emitConstant(Elem.integerRange(int1, int2));
                             try self.emitOp(.RunLiteralParser);
                         } else {
                             try self.err("Could not parse number");
@@ -218,7 +215,7 @@ pub const Parser = struct {
                 }
             } else {
                 const sId1 = try self.vm.addString(s1);
-                try self.emitConstant(Elem.integer(int1, sId1));
+                try self.emitConstant(Elem.integerString(int1, sId1));
                 try self.emitOp(.RunLiteralParser);
             }
         } else {
@@ -237,7 +234,7 @@ pub const Parser = struct {
     fn float(self: *Parser) !void {
         if (parseFloat(self.previous.lexeme)) |f| {
             const sId = try self.vm.addString(self.previous.lexeme);
-            try self.emitConstant(Elem.float(f, sId));
+            try self.emitConstant(Elem.floatString(f, sId));
             try self.emitOp(.RunLiteralParser);
         } else {
             try self.err("Could not parse number");

@@ -236,40 +236,34 @@ pub const VM = struct {
                     return ParseResult.success(elem, start, end);
                 }
             },
-            .Integer => |n| {
-                if (n.text) |sId| {
-                    const s = self.getString(sId);
-                    const start = self.inputPos;
-                    const end = self.inputPos + s.len;
+            .Integer => unreachable,
+            .Float => unreachable,
+            .IntegerString => |n| {
+                const s = self.getString(n.sId);
+                const start = self.inputPos;
+                const end = self.inputPos + s.len;
 
-                    if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
-                        self.inputPos = end;
-                        return ParseResult.success(elem, start, end);
-                    }
-                } else {
-                    unreachable;
+                if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
+                    self.inputPos = end;
+                    return ParseResult.success(elem, start, end);
                 }
             },
-            .Float => |n| {
-                if (n.text) |sId| {
-                    const s = self.getString(sId);
-                    const start = self.inputPos;
-                    const end = self.inputPos + s.len;
+            .FloatString => |n| {
+                const s = self.getString(n.sId);
+                const start = self.inputPos;
+                const end = self.inputPos + s.len;
 
-                    if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
-                        self.inputPos = end;
-                        return ParseResult.success(elem, start, end);
-                    }
-                } else {
-                    unreachable;
+                if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
+                    self.inputPos = end;
+                    return ParseResult.success(elem, start, end);
                 }
             },
             .IntegerRange => |r| {
-                const lowText = self.getString(r.lowText);
-                const highText = self.getString(r.highText);
+                const lowIntLen = intLength(r[0]);
+                const highIntLen = intLength(r[1]);
                 const start = self.inputPos;
-                const shortestMatchEnd = @min(start + lowText.len, self.input.len);
-                const longestMatchEnd = @min(start + highText.len, self.input.len);
+                const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
+                const longestMatchEnd = @min(start + highIntLen, self.input.len);
 
                 var end = longestMatchEnd;
 
@@ -279,9 +273,9 @@ pub const VM = struct {
                 while (end >= shortestMatchEnd) {
                     const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
 
-                    if (inputInt) |i| if (r.lowValue <= i and i <= r.highValue) {
+                    if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
                         self.inputPos = end;
-                        const int = Elem.integer(i, null);
+                        const int = Elem.integer(i);
                         return ParseResult.success(int, start, end);
                     } else {
                         end -= 1;
@@ -295,7 +289,7 @@ pub const VM = struct {
                 if (start < self.input.len) {
                     const c = self.input[start];
 
-                    if (r.low <= c and c <= r.high) {
+                    if (r[0] <= c and c <= r[1]) {
                         self.inputPos = end;
                         const character = Elem.character(c);
                         return ParseResult.success(character, start, end);
@@ -395,3 +389,34 @@ pub const VM = struct {
         }
     }
 };
+
+fn intLength(int: i64) usize {
+    const digits = intLengthLoop(int);
+    if (int < 0) {
+        return digits + 1;
+    } else {
+        return digits;
+    }
+}
+
+fn intLengthLoop(int: i64) usize {
+    comptime var digits: usize = 1;
+    const absInt = std.math.absCast(int);
+
+    inline while (digits < 19) : (digits += 1) {
+        if (absInt < std.math.pow(i64, 10, digits)) return digits;
+    }
+    return digits;
+}
+
+test "intLength" {
+    try std.testing.expectEqual(@as(usize, 1), intLength(0));
+    try std.testing.expectEqual(@as(usize, 1), intLength(5));
+    try std.testing.expectEqual(@as(usize, 2), intLength(10));
+    try std.testing.expectEqual(@as(usize, 3), intLength(-14));
+    try std.testing.expectEqual(@as(usize, 3), intLength(104));
+    try std.testing.expectEqual(@as(usize, 7), intLength(1041348));
+    try std.testing.expectEqual(@as(usize, 8), intLength(-1041348));
+    try std.testing.expectEqual(@as(usize, 19), intLength(std.math.maxInt(i64)));
+    try std.testing.expectEqual(@as(usize, 20), intLength(std.math.minInt(i64)));
+}

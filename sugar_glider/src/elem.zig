@@ -5,14 +5,17 @@ const Chunk = @import("./chunk.zig").Chunk;
 const StringArrayHashMap = std.StringArrayHashMap;
 const StringBuffer = @import("string_buffer.zig").StringBuffer;
 const StringTable = @import("string_table.zig").StringTable;
-const logger = @import("logger.zig");
+const Tuple = std.meta.Tuple;
 const VM = @import("vm.zig").VM;
+const logger = @import("logger.zig");
 
 pub const ElemType = enum {
     Character,
     String,
     Integer,
     Float,
+    IntegerString,
+    FloatString,
     CharacterRange,
     IntegerRange,
     True,
@@ -24,64 +27,47 @@ pub const ElemType = enum {
 pub const Elem = union(ElemType) {
     Character: u8,
     String: StringTable.Id,
-    Integer: Integer,
-    Float: Float,
-    CharacterRange: CharacterRange,
-    IntegerRange: IntegerRange,
+    Integer: i64,
+    Float: f64,
+    IntegerString: struct { value: i64, sId: StringTable.Id },
+    FloatString: struct { value: f64, sId: StringTable.Id },
+    CharacterRange: Tuple(&.{ u8, u8 }),
+    IntegerRange: Tuple(&.{ i64, i64 }),
     True: void,
     False: void,
     Null: void,
     Dyn: *Dyn,
 
-    pub const Integer = struct {
-        value: i64,
-        text: ?StringTable.Id,
-    };
-
-    pub const Float = struct {
-        value: f64,
-        text: ?StringTable.Id,
-    };
-
-    pub const IntegerRange = struct {
-        lowValue: i64,
-        lowText: StringTable.Id,
-        highValue: i64,
-        highText: StringTable.Id,
-    };
-
-    pub const CharacterRange = struct {
-        low: u8,
-        high: u8,
-    };
-
     pub fn character(c: u8) Elem {
         return Elem{ .Character = c };
     }
 
-    pub fn string(str: StringTable.Id) Elem {
-        return Elem{ .String = str };
+    pub fn string(sId: StringTable.Id) Elem {
+        return Elem{ .String = sId };
     }
 
-    pub fn integer(value: i64, text: ?StringTable.Id) Elem {
-        return Elem{ .Integer = .{ .value = value, .text = text } };
+    pub fn integer(value: i64) Elem {
+        return Elem{ .Integer = value };
     }
 
-    pub fn float(value: f64, text: ?StringTable.Id) Elem {
-        return Elem{ .Float = .{ .value = value, .text = text } };
+    pub fn float(value: f64) Elem {
+        return Elem{ .Float = value };
     }
 
-    pub fn integerRange(lowValue: i64, lowText: StringTable.Id, highValue: i64, highText: StringTable.Id) Elem {
-        return Elem{ .IntegerRange = .{
-            .lowValue = lowValue,
-            .lowText = lowText,
-            .highValue = highValue,
-            .highText = highText,
-        } };
+    pub fn integerString(value: i64, sId: StringTable.Id) Elem {
+        return Elem{ .IntegerString = .{ .value = value, .sId = sId } };
+    }
+
+    pub fn floatString(value: f64, sId: StringTable.Id) Elem {
+        return Elem{ .FloatString = .{ .value = value, .sId = sId } };
     }
 
     pub fn characterRange(low: u8, high: u8) Elem {
-        return Elem{ .CharacterRange = .{ .low = low, .high = high } };
+        return Elem{ .CharacterRange = .{ low, high } };
+    }
+
+    pub fn integerRange(low: i64, high: i64) Elem {
+        return Elem{ .IntegerRange = .{ low, high } };
     }
 
     pub const trueConst = Elem{ .True = undefined };
@@ -93,28 +79,13 @@ pub const Elem = union(ElemType) {
     pub fn print(self: Elem, printer: anytype, stringTable: StringTable) void {
         switch (self) {
             .Character => |c| printer("\"{c}\"", .{c}),
-            .String => |sId| {
-                printer("\"{s}\"", .{stringTable.getAssumeExists(sId)});
-            },
-            .Integer => |n| {
-                if (n.text) |sId| {
-                    printer("{s}", .{stringTable.getAssumeExists(sId)});
-                } else {
-                    printer("{d}", .{n.value});
-                }
-            },
-            .Float => |n| {
-                if (n.text) |sId| {
-                    printer("{s}", .{stringTable.getAssumeExists(sId)});
-                } else {
-                    printer("{d}", .{n.value});
-                }
-            },
-            .CharacterRange => |r| printer("\"{c}\"..\"{c}\"", .{ r.low, r.high }),
-            .IntegerRange => |r| printer("{s}..{s}", .{
-                stringTable.getAssumeExists(r.lowText),
-                stringTable.getAssumeExists(r.highText),
-            }),
+            .String => |sId| printer("\"{s}\"", .{stringTable.getAssumeExists(sId)}),
+            .Integer => |n| printer("{d}", .{n}),
+            .Float => |n| printer("{d}", .{n}),
+            .IntegerString => |n| printer("{s}", .{stringTable.getAssumeExists(n.sId)}),
+            .FloatString => |n| printer("{s}", .{stringTable.getAssumeExists(n.sId)}),
+            .CharacterRange => |r| printer("\"{c}\"..\"{c}\"", .{ r[0], r[1] }),
+            .IntegerRange => |r| printer("{d}..{d}", .{ r[0], r[1] }),
             .True => printer("true", .{}),
             .False => printer("false", .{}),
             .Null => printer("null", .{}),
@@ -144,19 +115,39 @@ pub const Elem = union(ElemType) {
                 else => false,
             },
             .Integer => |n1| switch (other) {
-                .Integer => |n2| n1.value == n2.value,
+                .Integer => |n2| n1 == n2,
+                .Float => |n2| @as(f64, @floatFromInt(n1)) == n2,
+                .IntegerString => |n2| n1 == n2.value,
+                .FloatString => |n2| @as(f64, @floatFromInt(n1)) == n2.value,
                 else => false,
             },
             .Float => |n1| switch (other) {
-                .Float => |n2| n1.value == n2.value,
+                .Integer => |n2| n1 == @as(f64, @floatFromInt(n2)),
+                .Float => |n2| n1 == n2,
+                .IntegerString => |n2| n1 == @as(f64, @floatFromInt(n2.value)),
+                .FloatString => |n2| n1 == n2.value,
+                else => false,
+            },
+            .IntegerString => |n1| switch (other) {
+                .Integer => |n2| n1.value == n2,
+                .Float => |n2| @as(f64, @floatFromInt(n1.value)) == n2,
+                .IntegerString => |n2| n1.value == n2.value,
+                .FloatString => |n2| @as(f64, @floatFromInt(n1.value)) == n2.value,
+                else => false,
+            },
+            .FloatString => |n1| switch (other) {
+                .Integer => |n2| n1.value == @as(f64, @floatFromInt(n2)),
+                .Float => |n2| n1.value == n2,
+                .IntegerString => |n2| n1.value == @as(f64, @floatFromInt(n2.value)),
+                .FloatString => |n2| n1.value == n2.value,
                 else => false,
             },
             .IntegerRange => |r1| switch (other) {
-                .IntegerRange => |r2| r1.lowValue == r2.lowValue and r1.highValue == r2.highValue,
+                .IntegerRange => |r2| r1[0] == r2[0] and r1[1] == r2[1],
                 else => false,
             },
             .CharacterRange => |r1| switch (other) {
-                .CharacterRange => |r2| r1.low == r2.low and r1.high == r2.high,
+                .CharacterRange => |r2| r1[0] == r2[0] and r1[1] == r2[1],
                 else => false,
             },
             .True => switch (other) {
@@ -236,13 +227,31 @@ pub const Elem = union(ElemType) {
                 else => null,
             },
             .Integer => |n1| switch (elemB) {
-                .Integer => |n2| integer(n1.value + n2.value, null),
-                .Float => |n2| float(@as(f64, @floatFromInt(n1.value)) + n2.value, null),
+                .Integer => |n2| integer(n1 + n2),
+                .Float => |n2| float(@as(f64, @floatFromInt(n1)) + n2),
+                .IntegerString => |n2| integer(n1 + n2.value),
+                .FloatString => |n2| float(@as(f64, @floatFromInt(n1)) + n2.value),
                 else => null,
             },
             .Float => |n1| switch (elemB) {
-                .Integer => |n2| float(n1.value + @as(f64, @floatFromInt(n2.value)), null),
-                .Float => |n2| float(n1.value + n2.value, null),
+                .Integer => |n2| float(n1 + @as(f64, @floatFromInt(n2))),
+                .Float => |n2| float(n1 + n2),
+                .IntegerString => |n2| float(n1 + @as(f64, @floatFromInt(n2.value))),
+                .FloatString => |n2| float(n1 + n2.value),
+                else => null,
+            },
+            .IntegerString => |n1| switch (elemB) {
+                .Integer => |n2| integer(n1.value + n2),
+                .Float => |n2| float(@as(f64, @floatFromInt(n1.value)) + n2),
+                .IntegerString => |n2| integer(n1.value + n2.value),
+                .FloatString => |n2| float(@as(f64, @floatFromInt(n1.value)) + n2.value),
+                else => null,
+            },
+            .FloatString => |n1| switch (elemB) {
+                .Integer => |n2| float(n1.value + @as(f64, @floatFromInt(n2))),
+                .Float => |n2| float(n1.value + n2),
+                .IntegerString => |n2| float(n1.value + @as(f64, @floatFromInt(n2.value))),
+                .FloatString => |n2| float(n1.value + n2.value),
                 else => null,
             },
             .CharacterRange => unreachable,
@@ -593,7 +602,7 @@ pub const Elem = union(ElemType) {
 };
 
 test "struct alignments" {
-    try std.testing.expectEqual(32, @sizeOf(Elem));
+    try std.testing.expectEqual(24, @sizeOf(Elem));
     try std.testing.expectEqual(16, @sizeOf(Elem.Dyn));
     try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.String));
 }

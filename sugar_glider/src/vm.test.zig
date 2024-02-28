@@ -46,7 +46,7 @@ test "1234 | 5678 | 910" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "56789"),
-            Elem.integer(5678, vm.getStringId("5678")),
+            Elem.integerString(5678, vm.getStringId("5678").?),
             .{ 0, 4 },
         );
     }
@@ -76,7 +76,7 @@ test "1 + 2 + 3" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.integer(6, null),
+            Elem.integer(6),
             .{ 0, 3 },
         );
     }
@@ -91,7 +91,7 @@ test "1.23 + 10" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1.2310"),
-            Elem.float(11.23, null),
+            Elem.float(11.23),
             .{ 0, 6 },
         );
     }
@@ -106,7 +106,7 @@ test "0.1 + 0.2" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0.10.2"),
-            Elem.float(0.30000000000000004, null),
+            Elem.float(0.30000000000000004),
             .{ 0, 6 },
         );
     }
@@ -121,7 +121,7 @@ test "1e57 + 3e-4" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1e573e-4"),
-            Elem.float(1.0e+57, null),
+            Elem.float(1.0e+57),
             .{ 0, 8 },
         );
     }
@@ -195,7 +195,7 @@ test "1000..10000 | 100..1000" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "888"),
-            Elem.integer(888, null),
+            Elem.integer(888),
             .{ 0, 3 },
         );
     }
@@ -210,7 +210,7 @@ test "-100..-1" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "-5"),
-            Elem.integer(-5, null),
+            Elem.integer(-5),
             .{ 0, 2 },
         );
     }
