@@ -427,6 +427,42 @@ test "1 ? 2 & 3 : 4" {
     }
 }
 
+test "1 ? 2 : 3 ? 4 : 5" {
+    const parser =
+        \\1 ? 2 : 3 ? 4 : 5
+    ;
+    {
+        var vm = VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "12"),
+            Elem.integerString(2, vm.strings.getId("2")),
+            .{ 0, 2 },
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "34"),
+            Elem.integerString(4, vm.strings.getId("4")),
+            .{ 0, 2 },
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "5"),
+            Elem.integerString(5, vm.strings.getId("5")),
+            .{ 0, 1 },
+            vm.strings,
+        );
+    }
+}
+
 test "'foo' <- 'foo' <- 'foo'" {
     const parser =
         \\ "foo" <- "foo" <- "foo"

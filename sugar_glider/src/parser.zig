@@ -57,29 +57,58 @@ pub const Parser = struct {
     }
 
     fn statement(self: *Parser) !usize {
-        return try self.parsePrecedence(.Conditional);
+        return try self.parseWithPrecedence(.None);
     }
 
     fn expression(self: *Parser) ParseError!usize {
-        return self.parsePrecedence(.Conditional);
+        return self.parseWithPrecedence(.None);
     }
 
     fn end(self: *Parser) !void {
         self.ast.endLocation = self.previous.loc;
     }
 
-    fn parsePrecedence(self: *Parser, precedence: Precedence) ParseError!usize {
+    fn parseWithPrecedence(self: *Parser, precedence: Precedence) ParseError!usize {
+        if (logger.debugParser) logger.debug("parse with precedence {}\n", .{precedence});
+
         try self.advance();
         _ = self.skipWhitespace();
 
+        // This node var is returned either as an ElemNode if there's no infix,
+        // or an OpNode if updated in the while loop.
         var node = try self.prefix(self.previous.tokenType);
 
         _ = self.skipWhitespace();
 
-        while (precedence.bindingPower().right <= Precedence.get(self.current.tokenType).bindingPower().left) {
+        // Binding power of the operator to the left of `node`. If `node` is
+        // the very start of the code then the precedence is `.None` and
+        // binding power is 1.
+        const leftOpBindingPower = precedence.bindingPower().right;
+
+        // Binding power of the operator to the right of `node`. If `node` is
+        // the very end of the code then the token referenced here will be
+        // `.Eof` which has precedence `.End` and binding power 0.
+        var rightOpBindingPower = operatorPrecedence(self.current.tokenType).bindingPower().left;
+
+        // Iterate over tokens and build up a right-leaning AST, as long as the
+        // right binding power is greater then the left binding power. When
+        // called as `parseWithPrecedence(.None)` we know that all tokens will
+        // be consumed until another token with precedence `.None`/`.End` is
+        // found. This happens when the next token is not an infix operator.
+        //
+        // We also call `parseWithPrecedence` recursively inside of `infix`,
+        // always with a precedence higher than `.None`. While
+        // `parseWithPrecedence` produces right-leaning ASTs, recursive
+        // functions such as `infix` produce left-leaning ASTs.
+        //
+        // The result of this while-loop and recursive call combination is an
+        // AST where the root node has the lowest binding power, while nodes
+        // farther out in the AST have higher binding power.
+        while (leftOpBindingPower < rightOpBindingPower) {
             try self.advance();
             _ = self.skipWhitespace();
             node = try self.infix(self.previous.tokenType, node);
+            rightOpBindingPower = operatorPrecedence(self.current.tokenType).bindingPower().left;
         }
 
         return node;
@@ -113,7 +142,8 @@ pub const Parser = struct {
             .LessThanDash,
             .Plus,
             => try self.binaryOp(leftNode),
-            .QuestionMark => try self.conditionalOp(leftNode),
+            .QuestionMark => try self.conditionalIfThenOp(leftNode),
+            .Colon => try self.conditionalThenElseOp(leftNode),
             else => self.infixError(),
         };
     }
@@ -233,9 +263,11 @@ pub const Parser = struct {
     }
 
     fn binaryOp(self: *Parser, leftNodeId: usize) !usize {
+        if (logger.debugParser) logger.debug("binary op {}\n", .{self.previous.tokenType});
+
         const t = self.previous;
 
-        const rightNodeId = try self.parsePrecedence(Precedence.get(t.tokenType));
+        const rightNodeId = try self.parseWithPrecedence(operatorPrecedence(t.tokenType));
 
         const op: Ast.OpType = switch (t.tokenType) {
             .Ampersand => .Sequence,
@@ -252,23 +284,28 @@ pub const Parser = struct {
         return self.ast.pushOp(op, leftNodeId, rightNodeId, t.loc);
     }
 
-    fn conditionalOp(self: *Parser, ifNode: usize) !usize {
+    fn conditionalIfThenOp(self: *Parser, ifNodeId: usize) !usize {
+        if (logger.debugParser) logger.debug("conditional if/then {}\n", .{self.previous.tokenType});
+
         const ifThenLoc = self.previous.loc;
 
-        const thenNode = try self.parsePrecedence(.Conditional);
+        const thenElseNodeId = try self.parseWithPrecedence(.Conditional);
 
-        _ = self.skipWhitespace();
-        try self.consume(.Colon, "Expect ':' for conditional else branch.");
+        const ifThenNodeId = try self.ast.pushOp(.ConditionalIfThen, ifNodeId, thenElseNodeId, ifThenLoc);
+
+        return ifThenNodeId;
+    }
+
+    fn conditionalThenElseOp(self: *Parser, thenNodeId: usize) !usize {
+        if (logger.debugParser) logger.debug("conditional then/else {}\n", .{self.previous.tokenType});
+
         const thenElseLoc = self.previous.loc;
-        _ = self.skipWhitespace();
 
-        const elseNode = try self.parsePrecedence(.Conditional);
+        const elseNodeId = try self.parseWithPrecedence(.Conditional);
 
-        const thenElseNode = try self.ast.pushOp(.ConditionalThenElse, thenNode, elseNode, thenElseLoc);
+        const thenElseNodeId = try self.ast.pushOp(.ConditionalThenElse, thenNodeId, elseNodeId, thenElseLoc);
 
-        const ifThenNode = try self.ast.pushOp(.ConditionalIfThen, ifNode, thenElseNode, ifThenLoc);
-
-        return ifThenNode;
+        return thenElseNodeId;
     }
 
     pub fn advance(self: *Parser) !void {
@@ -345,56 +382,50 @@ pub const Parser = struct {
 
         return ParseError.UnexpectedInput;
     }
-};
 
-pub const Precedence = enum {
-    Call,
-    Or,
-    TakeRight,
-    TakeLeft,
-    Merge,
-    Backtrack,
-    Destructure,
-    Return,
-    Sequence,
-    Conditional,
-    None,
-
-    pub fn get(tokenType: TokenType) Precedence {
+    fn operatorPrecedence(tokenType: TokenType) Precedence {
         return switch (tokenType) {
-            .LeftParen => .Call,
-            .RightParen => .None,
-            .LeftBrace, .RightBrace => .None,
-            .LeftBracket, .RightBracket => .None,
-            .Comma, .Dot => .None,
-            .Plus => .Merge,
-            .Semicolon => .None,
-            .Bang => .Backtrack,
-            .DollarSign => .Return,
+            .LeftParen => .CallOrDefineFunction,
+            .Comma => .FunctionArgOrParam,
+            .Bang,
+            .Plus,
+            .Bar,
+            .GreaterThan,
+            .LessThan,
+            .LessThanDash,
+            .DollarSign,
+            => .StandardInfix,
             .Ampersand => .Sequence,
-            .QuestionMark => .Conditional,
-            .Equal => unreachable,
-            .GreaterThan => .TakeRight,
-            .Bar => .Or,
-            .LessThan => .TakeLeft,
-            .LessThanDash => .Destructure,
-            .LowercaseIdentifier, .UppercaseIdentifier => .None,
-            .String, .Integer, .Float => .None,
-            .True, .False, .Null => .None,
-            .Whitespace, .WhitespaceWithNewline => .None,
-            .Colon, .Error, .Eof => .None,
+            .QuestionMark,
+            .Colon,
+            => .Conditional,
+            .Equal => .DeclareGlobal,
+            .Eof => .End,
+            else => .None,
         };
     }
 
-    pub fn bindingPower(self: Precedence) struct { left: u4, right: u4 } {
-        return switch (self) {
-            .Or, .TakeRight, .TakeLeft, .Merge, .Backtrack => .{ .left = 5, .right = 6 },
-            .Destructure => .{ .left = 5, .right = 6 },
-            .Return => .{ .left = 5, .right = 6 },
-            .Sequence => .{ .left = 3, .right = 4 },
-            .Conditional => .{ .left = 2, .right = 1 },
-            .Call => .{ .left = 1, .right = 1 },
-            .None => .{ .left = 0, .right = 0 },
-        };
-    }
+    const Precedence = enum {
+        CallOrDefineFunction,
+        FunctionArgOrParam,
+        StandardInfix,
+        Sequence,
+        Conditional,
+        DeclareGlobal,
+        None,
+        End,
+
+        pub fn bindingPower(precedence: Precedence) struct { left: u4, right: u4 } {
+            return switch (precedence) {
+                .CallOrDefineFunction => .{ .left = 11, .right = 12 },
+                .FunctionArgOrParam => .{ .left = 9, .right = 10 },
+                .StandardInfix => .{ .left = 7, .right = 8 },
+                .Sequence => .{ .left = 5, .right = 6 },
+                .Conditional => .{ .left = 4, .right = 3 },
+                .DeclareGlobal => .{ .left = 2, .right = 2 },
+                .None => .{ .left = 1, .right = 1 },
+                .End => .{ .left = 0, .right = 0 },
+            };
+        }
+    };
 };
