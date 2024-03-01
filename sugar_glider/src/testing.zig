@@ -6,8 +6,9 @@ const Chunk = @import("chunk.zig").Chunk;
 const VM = @import("vm.zig").VM;
 const Elem = @import("elem.zig").Elem;
 const ParseResult = @import("parse_result.zig").ParseResult;
+const StringTable = @import("string_table.zig").StringTable;
 
-pub fn expectEqualChunks(expected: *Chunk, actual: *Chunk) !void {
+pub fn expectEqualChunks(expected: *Chunk, actual: *Chunk, strings: StringTable) !void {
     if (!std.mem.eql(u8, expected.code.items, actual.code.items)) {
         std.debug.print("Chunk code does not match.\n", .{});
         expected.disassemble("Expected");
@@ -20,7 +21,7 @@ pub fn expectEqualChunks(expected: *Chunk, actual: *Chunk) !void {
 
     if (matchingConstants) {
         for (expected.constants.items, actual.constants.items) |e, a| {
-            if (!e.isEql(a)) {
+            if (!e.isEql(a, strings)) {
                 matchingConstants = false;
                 break;
             }
@@ -69,14 +70,14 @@ pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {
     try std.testing.expectEqualStrings(expected, str.items);
 }
 
-pub fn expectSuccess(result: ParseResult, value: Elem, range: Tuple(&.{ usize, usize })) !void {
+pub fn expectSuccess(result: ParseResult, value: Elem, range: Tuple(&.{ usize, usize }), strings: StringTable) !void {
     try std.testing.expect(result.isSuccess());
 
     const success = result.asSuccess();
 
     try std.testing.expectEqual(success.start, range[0]);
     try std.testing.expectEqual(success.end, range[1]);
-    try std.testing.expect(success.value.isEql(value));
+    try std.testing.expect(success.value.isEql(value, strings));
 }
 
 pub fn expectFailure(result: ParseResult) !void {

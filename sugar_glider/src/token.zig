@@ -1,5 +1,6 @@
 const std = @import("std");
 const logger = @import("./logger.zig");
+const Location = @import("location.zig").Location;
 
 pub const TokenType = enum {
     LeftParen,
@@ -39,17 +40,27 @@ pub const TokenType = enum {
 pub const Token = struct {
     tokenType: TokenType,
     lexeme: []const u8,
-    line: usize,
-    start: usize,
+    loc: Location,
+
+    pub fn new(tokenType: TokenType, lexeme: []const u8, loc: Location) Token {
+        return Token{ .tokenType = tokenType, .lexeme = lexeme, .loc = loc };
+    }
 
     pub fn isEql(self: Token, other: Token) bool {
         return self.tokenType == other.tokenType and
             std.mem.eql(u8, self.lexeme, other.lexeme) and
-            self.line == other.line and
-            self.start == other.start;
+            self.loc.line == other.loc.line and
+            self.loc.start == other.loc.start and
+            self.loc.length == other.loc.length;
     }
 
-    pub fn printDebug(self: Token) void {
-        logger.debug("{} '{s}' {d}:{d}", .{ self.tokenType, self.lexeme, self.line, self.start });
+    pub fn print(self: Token, printer: anytype) void {
+        printer("{s} '{s}' {d}:{d}-{d}", .{
+            @tagName(self.tokenType),
+            self.lexeme,
+            self.loc.line,
+            self.loc.start,
+            self.loc.start + self.loc.length,
+        });
     }
 };

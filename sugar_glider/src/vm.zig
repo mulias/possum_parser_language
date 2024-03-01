@@ -1,6 +1,5 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayList;
 const Chunk = @import("./chunk.zig").Chunk;
 const Elem = @import("./elem.zig").Elem;
@@ -8,7 +7,7 @@ const OpCode = @import("./chunk.zig").OpCode;
 const ParseResult = @import("parse_result.zig").ParseResult;
 const StringTable = @import("string_table.zig").StringTable;
 const assert = std.debug.assert;
-const compiler = @import("./compiler.zig");
+const Compiler = @import("./compiler.zig").Compiler;
 const json = std.json;
 const logger = @import("./logger.zig");
 
@@ -16,7 +15,7 @@ pub const VM = struct {
     allocator: Allocator,
     chunk: Chunk,
     ip: usize,
-    stringTable: StringTable,
+    strings: StringTable,
     dynList: ?*Elem.Dyn,
     elems: ArrayList(Elem),
     parsed: ArrayList(ParseResult),
@@ -28,7 +27,7 @@ pub const VM = struct {
             .allocator = allocator,
             .chunk = Chunk.init(allocator),
             .ip = 0,
-            .stringTable = StringTable.init(allocator),
+            .strings = StringTable.init(allocator),
             .dynList = null,
             .elems = ArrayList(Elem).init(allocator),
             .parsed = ArrayList(ParseResult).init(allocator),
@@ -39,14 +38,17 @@ pub const VM = struct {
 
     pub fn deinit(self: *VM) void {
         self.chunk.deinit();
-        self.stringTable.deinit();
+        self.strings.deinit();
         self.freeDynList();
         self.elems.deinit();
         self.parsed.deinit();
     }
 
     pub fn interpret(self: *VM, program: []const u8, input: []const u8) !ParseResult {
-        try compiler.compile(self, program);
+        var compiler = Compiler.init(self);
+        defer compiler.deinit();
+
+        try compiler.compile(program);
 
         self.input = input;
 
@@ -81,7 +83,7 @@ pub const VM = struct {
                 const pattern = self.popElem();
                 const parsed = self.popParsed();
 
-                if (parsed.isSuccess() and parsed.asSuccess().value.isEql(pattern)) {
+                if (parsed.isSuccess() and parsed.asSuccess().value.isEql(pattern, self.strings)) {
                     try self.pushParsed(parsed);
                 } else {
                     try self.pushParsed(ParseResult.failure);
@@ -160,26 +162,14 @@ pub const VM = struct {
                 self.runFunctionParser(argCount);
             },
             .RunLiteralParser => {
-                const elem = self.popElem();
-
-                const result = try self.runLiteralParser(elem);
+                const idx = self.readByte();
+                const parser = self.chunk.getConstant(idx);
+                const result = try self.runLiteralParser(parser);
                 try self.pushParsed(result);
             },
-            .Sequence => {
-                const rhs = self.popParsed().asSuccess();
-                const lhs = self.popParsed().asSuccess();
-
-                const result = ParseResult.success(rhs.value, lhs.start, rhs.end);
-                try self.pushParsed(result);
-            },
-            .TakeLeft => {
-                const rhs = self.popParsed().asSuccess();
-                const lhs = self.popParsed().asSuccess();
-
-                const result = ParseResult.success(lhs.value, lhs.start, rhs.end);
-                try self.pushParsed(result);
-            },
-            .TakeRight => {
+            .Sequence,
+            .TakeRight,
+            => {
                 const rhs = self.popParsed();
                 const lhs = self.popParsed().asSuccess();
 
@@ -192,19 +182,18 @@ pub const VM = struct {
                     try self.pushParsed(rhs);
                 }
             },
+            .TakeLeft => {
+                const rhs = self.popParsed().asSuccess();
+                const lhs = self.popParsed().asSuccess();
+
+                const result = ParseResult.success(lhs.value, lhs.start, rhs.end);
+                try self.pushParsed(result);
+            },
         }
     }
 
     pub fn addString(self: *VM, bytes: []const u8) !StringTable.Id {
-        return try self.stringTable.insert(bytes);
-    }
-
-    pub fn getString(self: *VM, sId: StringTable.Id) []const u8 {
-        return self.stringTable.getAssumeExists(sId);
-    }
-
-    pub fn getStringId(self: *VM, string: []const u8) ?StringTable.Id {
-        return self.stringTable.getOffset(string);
+        return try self.strings.insert(bytes);
     }
 
     fn printDebug(self: *VM) void {
@@ -213,7 +202,7 @@ pub const VM = struct {
             self.printInput();
             self.printParsed();
             self.printElems();
-            _ = self.chunk.disassembleInstruction(self.stringTable, self.ip);
+            _ = self.chunk.disassembleInstruction(self.ip, self.strings);
         }
     }
 
@@ -227,7 +216,7 @@ pub const VM = struct {
         switch (elem) {
             .Character => unreachable,
             .String => |sId| {
-                const s = self.getString(sId);
+                const s = self.strings.get(sId);
                 const start = self.inputPos;
                 const end = self.inputPos + s.len;
 
@@ -239,7 +228,7 @@ pub const VM = struct {
             .Integer => unreachable,
             .Float => unreachable,
             .IntegerString => |n| {
-                const s = self.getString(n.sId);
+                const s = self.strings.get(n.sId);
                 const start = self.inputPos;
                 const end = self.inputPos + s.len;
 
@@ -249,7 +238,7 @@ pub const VM = struct {
                 }
             },
             .FloatString => |n| {
-                const s = self.getString(n.sId);
+                const s = self.strings.get(n.sId);
                 const start = self.inputPos;
                 const end = self.inputPos + s.len;
 
@@ -357,7 +346,7 @@ pub const VM = struct {
     fn printElems(self: *VM) void {
         logger.debug("Elems   | ", .{});
         for (self.elems.items, 0..) |e, idx| {
-            e.print(logger.debug, self.stringTable);
+            e.print(logger.debug, self.strings);
             if (idx < self.elems.items.len - 1) logger.debug(", ", .{});
         }
         logger.debug("\n", .{});
@@ -366,16 +355,16 @@ pub const VM = struct {
     fn printParsed(self: *VM) void {
         logger.debug("Parsed  | ", .{});
         for (self.parsed.items, 0..) |p, idx| {
-            p.print(logger.debug, self.stringTable);
+            p.print(logger.debug, self.strings);
             if (idx < self.parsed.items.len - 1) logger.debug(", ", .{});
         }
         logger.debug("\n", .{});
     }
 
     fn runtimeError(self: *VM, message: []const u8) !void {
-        const line = self.chunk.lines.items[self.ip];
-        logger.err("{s}", .{message});
-        logger.err("\n[line {d}] in script\n", .{line});
+        const loc = self.chunk.locations.items[self.ip];
+        loc.print(logger.err);
+        logger.err(" Error: {s}\n", .{message});
 
         return error.RuntimeError;
     }

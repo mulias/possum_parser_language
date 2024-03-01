@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Elem = @import("./elem.zig").Elem;
+const Location = @import("location.zig").Location;
 const StringTable = @import("string_table.zig").StringTable;
 const logger = @import("./logger.zig");
 
@@ -26,7 +27,7 @@ pub const OpCode = enum(u8) {
     TakeRight,
     True,
 
-    pub fn disassemble(self: OpCode, chunk: *Chunk, stringTable: StringTable, offset: usize) usize {
+    pub fn disassemble(self: OpCode, chunk: *Chunk, strings: StringTable, offset: usize) usize {
         switch (self) {
             .Backtrack,
             .Destructure,
@@ -37,7 +38,6 @@ pub const OpCode = enum(u8) {
             .Null,
             .Or,
             .Return,
-            .RunLiteralParser,
             .Sequence,
             .TakeLeft,
             .TakeRight,
@@ -46,11 +46,13 @@ pub const OpCode = enum(u8) {
                 logger.debug("{s}\n", .{@tagName(self)});
                 return offset + 1;
             },
-            .Constant => {
+            .Constant,
+            .RunLiteralParser,
+            => {
                 var constantIdx = chunk.read(offset + 1);
                 var constantElem = chunk.getConstant(constantIdx);
                 logger.debug("{s} {}: ", .{ @tagName(self), constantIdx });
-                constantElem.print(logger.debug, stringTable);
+                constantElem.print(logger.debug, strings);
                 logger.debug("\n", .{});
                 return offset + 2;
             },
@@ -73,25 +75,30 @@ pub const OpCode = enum(u8) {
     }
 };
 
+pub const ChunkError = error{
+    TooManyConstants,
+    ShortOverflow,
+};
+
 pub const Chunk = struct {
     allocator: Allocator,
     code: ArrayList(u8),
     constants: ArrayList(Elem),
-    lines: ArrayList(usize),
+    locations: ArrayList(Location),
 
     pub fn init(allocator: Allocator) Chunk {
         return Chunk{
             .allocator = allocator,
             .code = ArrayList(u8).init(allocator),
             .constants = ArrayList(Elem).init(allocator),
-            .lines = ArrayList(usize).init(allocator),
+            .locations = ArrayList(Location).init(allocator),
         };
     }
 
     pub fn deinit(self: *Chunk) void {
         self.code.deinit();
         self.constants.deinit();
-        self.lines.deinit();
+        self.locations.deinit();
     }
 
     pub fn read(self: *Chunk, pos: usize) u8 {
@@ -110,17 +117,33 @@ pub const Chunk = struct {
         return self.constants.items[idx];
     }
 
-    pub fn write(self: *Chunk, byte: u8, line: usize) !void {
+    pub fn write(self: *Chunk, byte: u8, loc: Location) !void {
         try self.code.append(byte);
-        try self.lines.append(line);
+        try self.locations.append(loc);
     }
 
-    pub fn writeOp(self: *Chunk, op: OpCode, line: usize) !void {
-        try self.write(@intFromEnum(op), line);
+    pub fn writeOp(self: *Chunk, op: OpCode, loc: Location) !void {
+        try self.write(@intFromEnum(op), loc);
+    }
+
+    pub fn writeShort(self: *Chunk, short: u16, loc: Location) !void {
+        try self.write(shortUpperBytes(short), loc);
+        try self.write(shortLowerBytes(short), loc);
     }
 
     pub fn updateAt(self: *Chunk, index: usize, value: u8) void {
         self.code.items[index] = value;
+    }
+
+    pub fn updateShortAt(self: *Chunk, index: usize, value: usize) !void {
+        if (value > std.math.maxInt(u16)) {
+            return ChunkError.ShortOverflow;
+        }
+
+        const short = @as(u16, @intCast(value));
+
+        self.code.items[index] = shortUpperBytes(short);
+        self.code.items[index + 1] = shortLowerBytes(short);
     }
 
     pub fn updateOpAt(self: *Chunk, opIndex: usize, op: OpCode) void {
@@ -128,33 +151,42 @@ pub const Chunk = struct {
     }
 
     pub fn addConstant(self: *Chunk, e: Elem) !u8 {
-        const idx = @as(u8, @intCast(self.constants.items.len));
+        const idx = self.constants.items.len;
+        if (idx > std.math.maxInt(u8)) return ChunkError.TooManyConstants;
         try self.constants.append(e);
-        return idx;
+        return @as(u8, @intCast(idx));
     }
 
-    pub fn disassemble(self: *Chunk, stringTable: StringTable, name: []const u8) void {
+    pub fn disassemble(self: *Chunk, strings: StringTable, name: []const u8) void {
         logger.debug("\n==== {s} ====\n", .{name});
 
         var offset: usize = 0;
         while (offset < self.code.items.len) {
-            offset = self.disassembleInstruction(stringTable, offset);
+            offset = self.disassembleInstruction(offset, strings);
         }
     }
 
-    pub fn disassembleInstruction(self: *Chunk, stringTable: StringTable, offset: usize) usize {
+    pub fn disassembleInstruction(self: *Chunk, offset: usize, strings: StringTable) usize {
         // print address
         logger.debug("{:0>4} ", .{offset});
 
         // print line
-        if (offset > 0 and self.lines.items[offset] == self.lines.items[offset - 1]) {
+        if (offset > 0 and self.locations.items[offset].line == self.locations.items[offset - 1].line) {
             logger.debug("   | ", .{});
         } else {
-            logger.debug("{: >4} ", .{self.lines.items[offset]});
+            logger.debug("{: >4} ", .{self.locations.items[offset].line});
         }
 
         const instruction = self.readOp(offset);
 
-        return instruction.disassemble(self, stringTable, offset);
+        return instruction.disassemble(self, strings, offset);
+    }
+
+    fn shortLowerBytes(short: u16) u8 {
+        return @as(u8, @intCast(short & 0xff));
+    }
+
+    fn shortUpperBytes(short: u16) u8 {
+        return @as(u8, @intCast((short >> 8) & 0xff));
     }
 };

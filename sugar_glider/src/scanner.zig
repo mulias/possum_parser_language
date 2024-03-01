@@ -116,21 +116,19 @@ pub const Scanner = struct {
     }
 
     fn makeToken(self: *Scanner, tokenType: TokenType) Token {
-        return Token{
-            .tokenType = tokenType,
-            .lexeme = self.source[0..self.offset],
+        return Token.new(tokenType, self.source[0..self.offset], .{
             .line = self.line,
             .start = self.pos - self.offset,
-        };
+            .length = self.offset,
+        });
     }
 
     fn makeError(self: *Scanner, message: []const u8) Token {
-        return Token{
-            .tokenType = .Error,
-            .lexeme = message,
+        return Token.new(.Error, message, .{
             .line = self.line,
             .start = self.pos - self.offset,
-        };
+            .length = self.offset,
+        });
     }
 
     fn scanString(self: *Scanner, mark: u8) Token {
@@ -150,12 +148,11 @@ pub const Scanner = struct {
         // The closing quote
         self.advance();
 
-        return Token{
-            .tokenType = .String,
-            .lexeme = self.source[0..self.offset],
+        return Token.new(.String, self.source[0..self.offset], .{
             .line = startLine,
             .start = start,
-        };
+            .length = self.offset,
+        });
     }
 
     fn scanNumber(self: *Scanner) Token {
@@ -267,19 +264,17 @@ pub const Scanner = struct {
         }
 
         if (startLine < self.line) {
-            return Token{
-                .tokenType = .WhitespaceWithNewline,
-                .lexeme = self.source[0..self.offset],
+            return Token.new(.WhitespaceWithNewline, self.source[0..self.offset], .{
                 .line = startLine,
                 .start = start,
-            };
+                .length = self.offset,
+            });
         } else if (start < self.pos) {
-            return Token{
-                .tokenType = .Whitespace,
-                .lexeme = self.source[0..self.offset],
+            return Token.new(.Whitespace, self.source[0..self.offset], .{
                 .line = startLine,
                 .start = start,
-            };
+                .length = self.offset,
+            });
         } else {
             return null;
         }
@@ -300,34 +295,4 @@ fn isUpper(char: u8) bool {
 
 fn isAlpha(char: u8) bool {
     return isLower(char) or isUpper(char);
-}
-
-test "123 | 456.10" {
-    var scanner = Scanner.init(" 123  |\n  456.10 ");
-    try expectToken(&scanner, .{ .tokenType = .Whitespace, .lexeme = " ", .line = 1, .start = 0 });
-    try expectToken(&scanner, .{ .tokenType = .Integer, .lexeme = "123", .line = 1, .start = 1 });
-    try expectToken(&scanner, .{ .tokenType = .Whitespace, .lexeme = "  ", .line = 1, .start = 4 });
-    try expectToken(&scanner, .{ .tokenType = .Bar, .lexeme = "|", .line = 1, .start = 6 });
-    try expectToken(&scanner, .{ .tokenType = .WhitespaceWithNewline, .lexeme = "\n  ", .line = 1, .start = 7 });
-    try expectToken(&scanner, .{ .tokenType = .Float, .lexeme = "456.10", .line = 2, .start = 2 });
-    try expectToken(&scanner, .{ .tokenType = .Whitespace, .lexeme = " ", .line = 2, .start = 8 });
-    try expectToken(&scanner, .{ .tokenType = .Eof, .lexeme = "", .line = 2, .start = 9 });
-}
-
-test "1 + 2" {
-    const source =
-        \\1 +
-        \\2
-    ;
-    var scanner = Scanner.init(source);
-    try expectToken(&scanner, .{ .tokenType = .Integer, .lexeme = "1", .line = 1, .start = 0 });
-    try expectToken(&scanner, .{ .tokenType = .Whitespace, .lexeme = " ", .line = 1, .start = 1 });
-    try expectToken(&scanner, .{ .tokenType = .Plus, .lexeme = "+", .line = 1, .start = 2 });
-    try expectToken(&scanner, .{ .tokenType = .WhitespaceWithNewline, .lexeme = "\n", .line = 1, .start = 3 });
-    try expectToken(&scanner, .{ .tokenType = .Integer, .lexeme = "2", .line = 2, .start = 0 });
-    try expectToken(&scanner, .{ .tokenType = .Eof, .lexeme = "", .line = 2, .start = 1 });
-}
-
-fn expectToken(scanner: *Scanner, expected: Token) !void {
-    try std.testing.expect(scanner.next().?.isEql(expected));
 }

@@ -76,20 +76,20 @@ pub const Elem = union(ElemType) {
 
     pub const nullConst = Elem{ .Null = undefined };
 
-    pub fn print(self: Elem, printer: anytype, stringTable: StringTable) void {
+    pub fn print(self: Elem, printer: anytype, strings: StringTable) void {
         switch (self) {
             .Character => |c| printer("\"{c}\"", .{c}),
-            .String => |sId| printer("\"{s}\"", .{stringTable.getAssumeExists(sId)}),
+            .String => |sId| printer("\"{s}\"", .{strings.get(sId)}),
             .Integer => |n| printer("{d}", .{n}),
             .Float => |n| printer("{d}", .{n}),
-            .IntegerString => |n| printer("{s}", .{stringTable.getAssumeExists(n.sId)}),
-            .FloatString => |n| printer("{s}", .{stringTable.getAssumeExists(n.sId)}),
+            .IntegerString => |n| printer("{s}", .{strings.get(n.sId)}),
+            .FloatString => |n| printer("{s}", .{strings.get(n.sId)}),
             .CharacterRange => |r| printer("\"{c}\"..\"{c}\"", .{ r[0], r[1] }),
             .IntegerRange => |r| printer("{d}..{d}", .{ r[0], r[1] }),
             .True => printer("true", .{}),
             .False => printer("false", .{}),
             .Null => printer("null", .{}),
-            .Dyn => |d| d.print(printer, stringTable),
+            .Dyn => |d| d.print(printer, strings),
         }
     }
 
@@ -104,14 +104,37 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn isEql(self: Elem, other: Elem) bool {
+    pub fn isEql(self: Elem, other: Elem, strings: StringTable) bool {
         return switch (self) {
             .Character => |c1| switch (other) {
                 .Character => |c2| c1 == c2,
+                .String => |sId2| {
+                    const s2 = strings.get(sId2);
+                    return s2.len == 1 and c1 == s2[0];
+                },
+                .Dyn => |d2| {
+                    if (d2.isType(.String)) {
+                        const ds2 = d2.asString();
+                        return ds2.len() == 1 and c1 == ds2.bytes()[0];
+                    }
+                    return false;
+                },
                 else => false,
             },
             .String => |sId1| switch (other) {
+                .Character => |c2| {
+                    const s1 = strings.get(sId1);
+                    return s1.len == 1 and s1[0] == c2;
+                },
                 .String => |sId2| sId1 == sId2,
+                .Dyn => |d2| {
+                    if (d2.isType(.String)) {
+                        const s1 = strings.get(sId1);
+                        const s2 = d2.asString().bytes();
+                        return std.mem.eql(u8, s1, s2);
+                    }
+                    return false;
+                },
                 else => false,
             },
             .Integer => |n1| switch (other) {
@@ -163,7 +186,22 @@ pub const Elem = union(ElemType) {
                 else => false,
             },
             .Dyn => |d1| switch (other) {
-                .Dyn => |d2| d1.isEql(d2),
+                .Character => |c2| {
+                    if (d1.isType(.String)) {
+                        const ds1 = d1.asString();
+                        return ds1.len() == 1 and ds1.bytes()[0] == c2;
+                    }
+                    return false;
+                },
+                .String => |sId2| {
+                    if (d1.isType(.String)) {
+                        const s1 = d1.asString().bytes();
+                        const s2 = strings.get(sId2);
+                        return std.mem.eql(u8, s1, s2);
+                    }
+                    return false;
+                },
+                .Dyn => |d2| d1.isEql(d2, strings),
                 else => false,
             },
         };
@@ -179,7 +217,7 @@ pub const Elem = union(ElemType) {
                     return s.dyn.elem();
                 },
                 .String => |sId2| {
-                    const s2 = vm.getString(sId2);
+                    const s2 = vm.strings.get(sId2);
                     const s = try Elem.Dyn.String.create(vm, 1 + s2.len);
                     try s.concatByte(c1);
                     try s.concatBytes(s2);
@@ -199,15 +237,15 @@ pub const Elem = union(ElemType) {
             },
             .String => |sId1| switch (elemB) {
                 .Character => |c2| {
-                    const s1 = vm.getString(sId1);
+                    const s1 = vm.strings.get(sId1);
                     const s = try Elem.Dyn.String.create(vm, s1.len + 1);
                     try s.concatBytes(s1);
                     try s.concatByte(c2);
                     return s.dyn.elem();
                 },
                 .String => |sId2| {
-                    const s1 = vm.getString(sId1);
-                    const s2 = vm.getString(sId2);
+                    const s1 = vm.strings.get(sId1);
+                    const s2 = vm.strings.get(sId2);
                     const s = try Elem.Dyn.String.create(vm, s1.len + s2.len);
                     try s.concatBytes(s1);
                     try s.concatBytes(s2);
@@ -215,7 +253,7 @@ pub const Elem = union(ElemType) {
                 },
                 .Dyn => |d| switch (d.dynType) {
                     .String => {
-                        const s1 = vm.getString(sId1);
+                        const s1 = vm.strings.get(sId1);
                         const ds2 = d.asString();
                         const s = try Elem.Dyn.String.create(vm, s1.len + ds2.buffer.size);
                         try s.concatBytes(s1);
@@ -268,7 +306,7 @@ pub const Elem = union(ElemType) {
                             return ds1.dyn.elem();
                         },
                         .String => |sId2| {
-                            const s2 = vm.getString(sId2);
+                            const s2 = vm.strings.get(sId2);
                             try ds1.concatBytes(s2);
                             return ds1.dyn.elem();
                         },
@@ -356,20 +394,20 @@ pub const Elem = union(ElemType) {
             return Elem{ .Dyn = self };
         }
 
-        pub fn print(self: *Dyn, printer: anytype, stringTable: StringTable) void {
+        pub fn print(self: *Dyn, printer: anytype, strings: StringTable) void {
             switch (self.dynType) {
                 .String => self.asString().print(printer),
-                .Array => self.asArray().print(printer, stringTable),
-                .Object => self.asObject().print(printer, stringTable),
-                .Function => self.asFunction().print(printer, stringTable),
+                .Array => self.asArray().print(printer, strings),
+                .Object => self.asObject().print(printer, strings),
+                .Function => self.asFunction().print(printer, strings),
             }
         }
 
-        pub fn isEql(self: *Dyn, other: *Dyn) bool {
+        pub fn isEql(self: *Dyn, other: *Dyn, strings: StringTable) bool {
             return switch (self.dynType) {
                 .String => self.asString().isEql(other),
-                .Array => self.asArray().isEql(other),
-                .Object => self.asObject().isEql(other),
+                .Array => self.asArray().isEql(other, strings),
+                .Object => self.asObject().isEql(other, strings),
                 .Function => self.asFunction().isEql(other),
             };
         }
@@ -398,9 +436,9 @@ pub const Elem = union(ElemType) {
             dyn: Dyn,
             buffer: StringBuffer,
 
-            pub fn copy(vm: *VM, bytes: []const u8) !*String {
-                const str = try create(vm, bytes.len);
-                try str.concatBytes(bytes);
+            pub fn copy(vm: *VM, source: []const u8) !*String {
+                const str = try create(vm, source.len);
+                try str.concatBytes(source);
                 return str;
             }
 
@@ -439,12 +477,20 @@ pub const Elem = union(ElemType) {
                 try self.buffer.concat(other.buffer.str());
             }
 
-            pub fn concatByte(self: *String, byte: u8) !void {
-                try self.buffer.concat(&[_]u8{byte});
+            pub fn concatByte(self: *String, other: u8) !void {
+                try self.buffer.concat(&[_]u8{other});
             }
 
-            pub fn concatBytes(self: *String, bytes: []const u8) !void {
-                try self.buffer.concat(bytes);
+            pub fn concatBytes(self: *String, other: []const u8) !void {
+                try self.buffer.concat(other);
+            }
+
+            pub fn len(self: *String) usize {
+                return self.buffer.size;
+            }
+
+            pub fn bytes(self: *String) []const u8 {
+                return self.buffer.str();
             }
         };
 
@@ -472,20 +518,20 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Array, printer: anytype, stringTable: StringTable) void {
+            pub fn print(self: *Array, printer: anytype, strings: StringTable) void {
                 printer("[", .{});
                 for (self.elems.items) |e| {
-                    e.print(printer, stringTable);
+                    e.print(printer, strings);
                     printer(",", .{});
                 }
                 printer("]", .{});
             }
 
-            pub fn isEql(self: *Array, other: *Dyn) bool {
+            pub fn isEql(self: *Array, other: *Dyn, strings: StringTable) bool {
                 if (!other.isType(.Array)) return false;
 
                 for (self.elems.items, other.asArray().elems.items) |a, b| {
-                    if (!a.isEql(b)) return false;
+                    if (!a.isEql(b, strings)) return false;
                 }
 
                 return true;
@@ -520,18 +566,18 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Object, printer: anytype, stringTable: StringTable) void {
+            pub fn print(self: *Object, printer: anytype, strings: StringTable) void {
                 printer("{{", .{});
                 var iterator = self.members.iterator();
                 while (iterator.next()) |entry| {
                     printer("{s}: ", .{entry.key_ptr.*});
-                    entry.value_ptr.*.print(printer, stringTable);
+                    entry.value_ptr.*.print(printer, strings);
                     printer(",", .{});
                 }
                 printer("}}", .{});
             }
 
-            pub fn isEql(self: *Object, other: *Dyn) bool {
+            pub fn isEql(self: *Object, other: *Dyn, strings: StringTable) bool {
                 if (!other.isType(.Object)) return false;
 
                 var otherObject = other.asObject();
@@ -541,7 +587,7 @@ pub const Elem = union(ElemType) {
                 var iterator = self.members.iterator();
                 while (iterator.next()) |entry| {
                     if (otherObject.members.get(entry.key_ptr.*)) |otherVal| {
-                        if (!entry.value_ptr.*.isEql(otherVal)) return false;
+                        if (!entry.value_ptr.*.isEql(otherVal, strings)) return false;
                     } else {
                         return false;
                     }
@@ -589,8 +635,8 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Function, printer: anytype, stringTable: StringTable) void {
-                printer("{s}", .{stringTable.getAssumeExists(self.name)});
+            pub fn print(self: *Function, printer: anytype, strings: StringTable) void {
+                printer("{s}", .{strings.get(self.name)});
             }
 
             pub fn isEql(self: *Function, other: *Dyn) bool {
@@ -601,7 +647,7 @@ pub const Elem = union(ElemType) {
     };
 };
 
-test "struct alignments" {
+test "struct size" {
     try std.testing.expectEqual(24, @sizeOf(Elem));
     try std.testing.expectEqual(16, @sizeOf(Elem.Dyn));
     try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.String));

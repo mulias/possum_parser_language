@@ -55,19 +55,19 @@ pub const StringTable = struct {
         return new_off;
     }
 
-    pub fn getOffset(self: *StringTable, string: []const u8) ?u32 {
-        return self.table.getKeyAdapted(string, StringIndexAdapter{
-            .bytes = &self.buffer,
-        });
-    }
-
-    pub fn get(self: StringTable, off: u32) ?[:0]const u8 {
+    pub fn find(self: StringTable, off: u32) ?[:0]const u8 {
         if (off >= self.buffer.items.len) return null;
         return mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + off)), 0);
     }
 
-    pub fn getAssumeExists(self: StringTable, off: u32) [:0]const u8 {
-        return self.get(off) orelse unreachable;
+    pub fn getId(self: *StringTable, string: []const u8) u32 {
+        return self.table.getKeyAdapted(string, StringIndexAdapter{
+            .bytes = &self.buffer,
+        }) orelse @panic("failed to get interned string id, this should never happen");
+    }
+
+    pub fn get(self: StringTable, off: u32) [:0]const u8 {
+        return self.find(off) orelse @panic("failed to get interned string by id, this should never happen");
     }
 };
 
@@ -79,7 +79,7 @@ test "StringTable.insert copies and interns a string" {
 
     const original = "foo";
     const copyId = try table.insert(original);
-    const copy = table.getAssumeExists(copyId);
+    const copy = table.get(copyId);
 
     try std.testing.expect(original.ptr != copy.ptr);
     try std.testing.expectEqual(@as(usize, 1), table.count);
@@ -94,11 +94,11 @@ test "StringTable.insert does not add a string more than once" {
 
     const original1 = "foo";
     const copyId1 = try table.insert(original1);
-    const copy1 = table.getAssumeExists(copyId1);
+    const copy1 = table.get(copyId1);
 
     const original2 = "foo";
     const copyId2 = try table.insert(original2);
-    const copy2 = table.getAssumeExists(copyId2);
+    const copy2 = table.get(copyId2);
 
     try std.testing.expect(copyId1 == copyId2);
     try std.testing.expectEqual(@as(usize, 1), table.count);

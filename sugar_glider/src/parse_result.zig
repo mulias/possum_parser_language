@@ -37,11 +37,11 @@ pub const ParseResult = union(ParseResultType) {
         return !self.isSuccess();
     }
 
-    pub fn print(self: ParseResult, printer: anytype, stringTable: StringTable) void {
+    pub fn print(self: ParseResult, printer: anytype, strings: StringTable) void {
         switch (self) {
             .Success => |s| {
                 printer("{d}-{d} ", .{ s.start, s.end });
-                s.value.print(printer, stringTable);
+                s.value.print(printer, strings);
             },
             .Failure => printer("Failure", .{}),
         }
