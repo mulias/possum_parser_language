@@ -36,15 +36,15 @@ pub const StringTable = struct {
             .bytes = &self.buffer,
         });
         if (gop.found_existing) {
-            const offset = gop.key_ptr.*;
-            log.debug("reusing string '{s}' at offset 0x{x}", .{ string, offset });
+            // const offset = gop.key_ptr.*;
+            // log.debug("reusing string '{s}' at offset 0x{x}", .{ string, offset });
             return gop.key_ptr.*;
         }
 
         try self.buffer.ensureUnusedCapacity(self.allocator, string.len + 1);
         const new_off = @as(u32, @intCast(self.buffer.items.len));
 
-        log.debug("writing new string '{s}' at offset 0x{x}", .{ string, new_off });
+        // log.debug("writing new string '{s}' at offset 0x{x}", .{ string, new_off });
 
         try self.buffer.appendSlice(self.allocator, string);
         try self.buffer.append(self.allocator, 0);

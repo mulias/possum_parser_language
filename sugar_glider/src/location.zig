@@ -13,7 +13,7 @@ pub const Location = struct {
 
     pub fn print(loc: Location, printer: anytype) void {
         printer(
-            "[{}: {d}-{d}]",
+            "[Line {d}, {d}-{d}]",
             .{ loc.line, loc.start, loc.start + loc.length },
         );
     }

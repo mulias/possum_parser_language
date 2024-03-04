@@ -8,6 +8,7 @@ const logger = @import("./logger.zig");
 
 pub const OpCode = enum(u8) {
     Backtrack,
+    CallFunctionParser,
     Constant,
     Destructure,
     End,
@@ -20,9 +21,10 @@ pub const OpCode = enum(u8) {
     Null,
     Or,
     Return,
-    RunFunctionParser,
-    RunLiteralParser,
+    RunParser,
+    SetGlobal,
     Sequence,
+    SubstituteValue,
     TakeLeft,
     TakeRight,
     True,
@@ -39,6 +41,7 @@ pub const OpCode = enum(u8) {
             .Or,
             .Return,
             .Sequence,
+            .SubstituteValue,
             .TakeLeft,
             .TakeRight,
             .True,
@@ -47,7 +50,8 @@ pub const OpCode = enum(u8) {
                 return offset + 1;
             },
             .Constant,
-            .RunLiteralParser,
+            .RunParser,
+            .SetGlobal,
             => {
                 var constantIdx = chunk.read(offset + 1);
                 var constantElem = chunk.getConstant(constantIdx);
@@ -56,7 +60,7 @@ pub const OpCode = enum(u8) {
                 logger.debug("\n", .{});
                 return offset + 2;
             },
-            .RunFunctionParser => {
+            .CallFunctionParser => {
                 const argCount = chunk.read(offset + 1);
                 logger.debug("{s} {d}\n", .{ @tagName(self), argCount });
                 return offset + 2;

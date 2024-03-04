@@ -11,7 +11,6 @@ const Location = @import("location.zig").Location;
 const ParseError = error{
     OutOfMemory,
     UnexpectedInput,
-    NoProgram,
     PanicMode,
 };
 
@@ -20,6 +19,7 @@ pub const Parser = struct {
     scanner: Scanner,
     current: Token,
     previous: Token,
+    skippedNewline: bool,
     ast: Ast,
     hadError: bool,
     panicMode: bool,
@@ -30,6 +30,7 @@ pub const Parser = struct {
             .scanner = Scanner.init(source),
             .current = undefined,
             .previous = undefined,
+            .skippedNewline = false,
             .ast = Ast.init(vm.allocator),
             .hadError = false,
             .panicMode = false,
@@ -40,24 +41,25 @@ pub const Parser = struct {
         self.ast.deinit();
     }
 
-    pub fn program(self: *Parser) !usize {
+    pub fn program(self: *Parser) !void {
         try self.advance();
-        _ = self.skipWhitespace();
 
-        if (self.check(.Eof)) {
-            try self.end();
-            return ParseError.NoProgram;
+        while (!try self.match(.Eof)) {
+            try self.ast.pushRoot(try self.statement());
         }
 
-        const rootNodeId = try self.statement();
         try self.consume(.Eof, "Expect end of program.");
         try self.end();
-
-        return rootNodeId;
     }
 
     fn statement(self: *Parser) !usize {
-        return try self.parseWithPrecedence(.None);
+        const node = try self.parseWithPrecedence(.None);
+
+        if (self.check(.Eof) or self.skippedNewline or try self.match(.Semicolon)) {
+            return node;
+        }
+
+        return self.errorAtCurrent("Expected newline or semicolon between statements");
     }
 
     fn expression(self: *Parser) ParseError!usize {
@@ -72,22 +74,19 @@ pub const Parser = struct {
         if (logger.debugParser) logger.debug("parse with precedence {}\n", .{precedence});
 
         try self.advance();
-        _ = self.skipWhitespace();
 
         // This node var is returned either as an ElemNode if there's no infix,
         // or an OpNode if updated in the while loop.
         var node = try self.prefix(self.previous.tokenType);
 
-        _ = self.skipWhitespace();
-
         // Binding power of the operator to the left of `node`. If `node` is
         // the very start of the code then the precedence is `.None` and
-        // binding power is 1.
+        // binding power is 0.
         const leftOpBindingPower = precedence.bindingPower().right;
 
         // Binding power of the operator to the right of `node`. If `node` is
         // the very end of the code then the token referenced here will be
-        // `.Eof` which has precedence `.End` and binding power 0.
+        // `.Eof` which has precedence `.None` and binding power 0.
         var rightOpBindingPower = operatorPrecedence(self.current.tokenType).bindingPower().left;
 
         // Iterate over tokens and build up a right-leaning AST, as long as the
@@ -106,7 +105,6 @@ pub const Parser = struct {
         // farther out in the AST have higher binding power.
         while (leftOpBindingPower < rightOpBindingPower) {
             try self.advance();
-            _ = self.skipWhitespace();
             node = try self.infix(self.previous.tokenType, node);
             rightOpBindingPower = operatorPrecedence(self.current.tokenType).bindingPower().left;
         }
@@ -119,8 +117,8 @@ pub const Parser = struct {
 
         return switch (tokenType) {
             .LeftParen => self.grouping(),
-            .LowercaseIdentifier => unreachable,
-            .UppercaseIdentifier => unreachable,
+            .LowercaseIdentifier => self.parserVar(),
+            .UppercaseIdentifier => self.valueVar(),
             .String => self.string(),
             .Integer => self.integer(),
             .Float => self.float(),
@@ -141,11 +139,24 @@ pub const Parser = struct {
             .LessThan,
             .LessThanDash,
             .Plus,
+            .Equal,
             => try self.binaryOp(leftNode),
             .QuestionMark => try self.conditionalIfThenOp(leftNode),
             .Colon => try self.conditionalThenElseOp(leftNode),
             else => self.infixError(),
         };
+    }
+
+    fn parserVar(self: *Parser) !usize {
+        const t = self.previous;
+        const sId = try self.vm.addString(t.lexeme);
+        return self.ast.pushElem(Elem.parserVar(sId), t.loc);
+    }
+
+    fn valueVar(self: *Parser) !usize {
+        const t = self.previous;
+        const sId = try self.vm.addString(t.lexeme);
+        return self.ast.pushElem(Elem.valueVar(sId), t.loc);
     }
 
     fn string(self: *Parser) !usize {
@@ -165,13 +176,13 @@ pub const Parser = struct {
                             Location.new(t1.loc.line, t1.loc.start, 4),
                         );
                     } else {
-                        return self.err("Expect single character for character range");
+                        return self.errorAtPrevious("Expect single character for character range");
                     }
                 } else {
-                    return self.err("Expect second string for character range");
+                    return self.errorAtPrevious("Expect second string for character range");
                 }
             } else {
-                return self.err("Expect second period");
+                return self.errorAtPrevious("Expect second period");
             }
         } else {
             const sId = try self.vm.addString(s1);
@@ -201,13 +212,13 @@ pub const Parser = struct {
                                 Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
                             );
                         } else {
-                            return self.err("Could not parse number");
+                            return self.errorAtPrevious("Could not parse number");
                         }
                     } else {
-                        return self.err("Expect integer");
+                        return self.errorAtPrevious("Expect integer");
                     }
                 } else {
-                    return self.err("Expect second period");
+                    return self.errorAtPrevious("Expect second period");
                 }
             } else {
                 const sId1 = try self.vm.addString(s1);
@@ -278,6 +289,7 @@ pub const Parser = struct {
             .LessThan => .TakeLeft,
             .LessThanDash => .Destructure,
             .Plus => .Merge,
+            .Equal => .DeclareGlobal,
             else => unreachable,
         };
 
@@ -309,21 +321,21 @@ pub const Parser = struct {
     }
 
     pub fn advance(self: *Parser) !void {
+        self.skippedNewline = false;
         self.previous = self.current;
 
         while (self.scanner.next()) |token| {
-            self.current = token;
-            if (!self.check(.Error)) break;
-            return self.errorAtCurrent(self.current.lexeme);
+            if (token.isType(.Error)) {
+                return self.errorAtCurrent(self.current.lexeme);
+            } else if (token.isType(.WhitespaceWithNewline)) {
+                self.skippedNewline = true;
+            } else if (token.isType(.Whitespace)) {
+                // skip
+            } else {
+                self.current = token;
+                break;
+            }
         }
-    }
-
-    fn skipWhitespace(self: *Parser) bool {
-        if (self.current.tokenType == .Whitespace or self.current.tokenType == .WhitespaceWithNewline) {
-            if (self.scanner.next()) |token| self.current = token;
-            return true;
-        }
-        return false;
     }
 
     fn check(self: *Parser, tokenType: TokenType) bool {
@@ -348,16 +360,16 @@ pub const Parser = struct {
         return self.errorAt(&self.current, message);
     }
 
-    fn err(self: *Parser, message: []const u8) ParseError {
+    fn errorAtPrevious(self: *Parser, message: []const u8) ParseError {
         return self.errorAt(&self.previous, message);
     }
 
     fn prefixError(self: *Parser) ParseError {
-        return self.err("Expect expression.");
+        return self.errorAtPrevious("Expect expression.");
     }
 
     fn infixError(self: *Parser) ParseError {
-        return self.err("Expect expression.");
+        return self.errorAtPrevious("Expect expression.");
     }
 
     fn errorAt(self: *Parser, token: *Token, message: []const u8) ParseError {
@@ -400,7 +412,6 @@ pub const Parser = struct {
             .Colon,
             => .Conditional,
             .Equal => .DeclareGlobal,
-            .Eof => .End,
             else => .None,
         };
     }
@@ -413,7 +424,6 @@ pub const Parser = struct {
         Conditional,
         DeclareGlobal,
         None,
-        End,
 
         pub fn bindingPower(precedence: Precedence) struct { left: u4, right: u4 } {
             return switch (precedence) {
@@ -423,8 +433,7 @@ pub const Parser = struct {
                 .Sequence => .{ .left = 5, .right = 6 },
                 .Conditional => .{ .left = 4, .right = 3 },
                 .DeclareGlobal => .{ .left = 2, .right = 2 },
-                .None => .{ .left = 1, .right = 1 },
-                .End => .{ .left = 0, .right = 0 },
+                .None => .{ .left = 0, .right = 0 },
             };
         }
     };

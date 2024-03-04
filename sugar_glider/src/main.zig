@@ -18,33 +18,32 @@ pub fn main() !void {
     }
 }
 
-fn parse(alloc: Allocator, parserSource: cli.Source, inputSource: cli.Source) !void {
-    const parser = switch (parserSource) {
-        .String => |str| str,
-        .Path => |path| try readFile(alloc, path),
-        .Stdin => unreachable,
-    };
-    const input = switch (inputSource) {
-        .String => |str| str,
-        .Path => |path| try readFile(alloc, path),
-        .Stdin => unreachable,
-    };
+fn parse(allocator: Allocator, parserSource: cli.Source, inputSource: cli.Source) !void {
+    const parser = try getBytes(allocator, parserSource);
+    const input = try getBytes(allocator, inputSource);
 
-    var vm = VM.init(alloc);
+    var vm = VM.init(allocator);
     defer vm.deinit();
 
-    vm.interpret(parser, input) catch |err| switch (err) {
-        error.RuntimeError => logger.err("Runtime Error", .{}),
-        error.CompileError => logger.err("Compiler Error", .{}),
-        else => {},
-    };
+    const result = try vm.interpret(parser, input);
 
-    switch (vm.parsed.pop()) {
-        .Success => |s| s.value.print(logger.out),
+    switch (result) {
+        .Success => |s| {
+            s.value.print(logger.out, vm.strings);
+            logger.out("\n", .{});
+        },
         .Failure => logger.err("Parser Failure", .{}),
     }
 }
 
-fn readFile(alloc: Allocator, path: []const u8) ![]const u8 {
-    return try std.fs.cwd().readFileAlloc(alloc, path, 1e10);
+fn getBytes(allocator: Allocator, source: cli.Source) ![]const u8 {
+    return switch (source) {
+        .String => |str| str,
+        .Path => |path| try readFile(allocator, path),
+        .Stdin => @panic("todo"),
+    };
+}
+
+fn readFile(allocator: Allocator, path: []const u8) ![]const u8 {
+    return try std.fs.cwd().readFileAlloc(allocator, path, 1e10);
 }

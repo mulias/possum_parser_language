@@ -477,14 +477,59 @@ test "'foo' <- 'foo' <- 'foo'" {
     }
 }
 
+test "a = 'a' ; a + a" {
+    const parser =
+        \\a = 'a'
+        \\a + a
+    ;
+    {
+        var vm = VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "aa"),
+            (try Elem.Dyn.String.copy(&vm, "aa")).dyn.elem(),
+            .{ 0, 2 },
+            vm.strings,
+        );
+    }
+}
+
+test "Foo = true ; 123 $ Foo" {
+    const parser =
+        \\Foo = true ; 123 $ Foo
+    ;
+    {
+        var vm = VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "123"),
+            Elem.trueConst,
+            .{ 0, 3 },
+            vm.strings,
+        );
+    }
+}
+
 test "empty program" {
     const parser = "";
     {
         var vm = VM.init(allocator);
         defer vm.deinit();
         try std.testing.expectError(
-            error.NoProgram,
+            error.NoMainParser,
             vm.interpret(parser, ""),
+        );
+    }
+}
+
+test "no statement sep" {
+    const parser = "123 456";
+    {
+        var vm = VM.init(allocator);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.UnexpectedInput,
+            vm.interpret(parser, "123456"),
         );
     }
 }

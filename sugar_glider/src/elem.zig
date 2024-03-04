@@ -10,6 +10,8 @@ const VM = @import("vm.zig").VM;
 const logger = @import("logger.zig");
 
 pub const ElemType = enum {
+    ParserVar,
+    ValueVar,
     Character,
     String,
     Integer,
@@ -25,6 +27,8 @@ pub const ElemType = enum {
 };
 
 pub const Elem = union(ElemType) {
+    ParserVar: StringTable.Id,
+    ValueVar: StringTable.Id,
     Character: u8,
     String: StringTable.Id,
     Integer: i64,
@@ -37,6 +41,14 @@ pub const Elem = union(ElemType) {
     False: void,
     Null: void,
     Dyn: *Dyn,
+
+    pub fn parserVar(sId: StringTable.Id) Elem {
+        return Elem{ .ParserVar = sId };
+    }
+
+    pub fn valueVar(sId: StringTable.Id) Elem {
+        return Elem{ .ValueVar = sId };
+    }
 
     pub fn character(c: u8) Elem {
         return Elem{ .Character = c };
@@ -78,6 +90,8 @@ pub const Elem = union(ElemType) {
 
     pub fn print(self: Elem, printer: anytype, strings: StringTable) void {
         switch (self) {
+            .ParserVar => |sId| printer("{s}", .{strings.get(sId)}),
+            .ValueVar => |sId| printer("{s}", .{strings.get(sId)}),
             .Character => |c| printer("\"{c}\"", .{c}),
             .String => |sId| printer("\"{s}\"", .{strings.get(sId)}),
             .Integer => |n| printer("{d}", .{n}),
@@ -106,6 +120,14 @@ pub const Elem = union(ElemType) {
 
     pub fn isEql(self: Elem, other: Elem, strings: StringTable) bool {
         return switch (self) {
+            .ParserVar => |sId1| switch (other) {
+                .ParserVar => |sId2| sId1 == sId2,
+                else => false,
+            },
+            .ValueVar => |sId1| switch (other) {
+                .ValueVar => |sId2| sId1 == sId2,
+                else => false,
+            },
             .Character => |c1| switch (other) {
                 .Character => |c2| c1 == c2,
                 .String => |sId2| {
@@ -209,6 +231,8 @@ pub const Elem = union(ElemType) {
 
     pub fn merge(elemA: Elem, elemB: Elem, vm: *VM) !?Elem {
         return switch (elemA) {
+            .ParserVar => @panic("Attempted to merge an unresolved parser variable, this should never happen."),
+            .ValueVar => @panic("Attempted to merge an unresolved value variable, this should never happen."),
             .Character => |c1| switch (elemB) {
                 .Character => |c2| {
                     const s = try Elem.Dyn.String.create(vm, 2);
@@ -613,17 +637,15 @@ pub const Elem = union(ElemType) {
             name: StringTable.Id,
             functionType: FunctionType,
 
-            pub fn create(vm: *VM, name: []const u8, functionType: FunctionType) !*Function {
+            pub fn create(vm: *VM, name: StringTable.Id, functionType: FunctionType) !*Function {
                 const dyn = try Dyn.allocate(vm, Function, .Function);
                 const function = dyn.asFunction();
-
-                const nameStr = try vm.addString(name);
 
                 function.* = Function{
                     .dyn = dyn.*,
                     .arity = 0,
                     .chunk = Chunk.init(vm.allocator),
-                    .name = nameStr,
+                    .name = name,
                     .functionType = functionType,
                 };
 
@@ -642,6 +664,11 @@ pub const Elem = union(ElemType) {
             pub fn isEql(self: *Function, other: *Dyn) bool {
                 if (!other.isType(.Function)) return false;
                 return self == other.asFunction();
+            }
+
+            pub fn disassemble(self: *Function, strings: StringTable) void {
+                const label = strings.get(self.name);
+                self.chunk.disassemble(strings, label);
             }
         };
     };

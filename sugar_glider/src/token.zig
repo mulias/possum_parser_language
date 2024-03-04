@@ -54,6 +54,10 @@ pub const Token = struct {
             self.loc.length == other.loc.length;
     }
 
+    pub fn isType(self: Token, tokenType: TokenType) bool {
+        return self.tokenType == tokenType;
+    }
+
     pub fn print(self: Token, printer: anytype) void {
         printer("{s} '{s}' {d}:{d}-{d}", .{
             @tagName(self.tokenType),

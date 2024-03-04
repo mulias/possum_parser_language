@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const AutoHashMap = std.AutoHashMap;
 const ArrayList = std.ArrayList;
 const Chunk = @import("./chunk.zig").Chunk;
 const Elem = @import("./elem.zig").Elem;
@@ -11,52 +12,66 @@ const Compiler = @import("./compiler.zig").Compiler;
 const json = std.json;
 const logger = @import("./logger.zig");
 
+const CallFrame = struct {
+    function: *Elem.Dyn.Function,
+    ip: usize,
+    elemsOffset: usize,
+};
+
 pub const VM = struct {
     allocator: Allocator,
-    chunk: Chunk,
-    ip: usize,
     strings: StringTable,
+    globals: AutoHashMap(StringTable.Id, Elem),
     dynList: ?*Elem.Dyn,
     elems: ArrayList(Elem),
     parsed: ArrayList(ParseResult),
+    frames: ArrayList(CallFrame),
     input: []const u8,
     inputPos: usize,
+
+    const Error = error{
+        RuntimeError,
+    };
 
     pub fn init(allocator: Allocator) VM {
         return VM{
             .allocator = allocator,
-            .chunk = Chunk.init(allocator),
-            .ip = 0,
             .strings = StringTable.init(allocator),
+            .globals = AutoHashMap(StringTable.Id, Elem).init(allocator),
             .dynList = null,
             .elems = ArrayList(Elem).init(allocator),
             .parsed = ArrayList(ParseResult).init(allocator),
+            .frames = ArrayList(CallFrame).init(allocator),
             .input = undefined,
             .inputPos = 0,
         };
     }
 
     pub fn deinit(self: *VM) void {
-        self.chunk.deinit();
         self.strings.deinit();
+        self.globals.deinit();
         self.freeDynList();
         self.elems.deinit();
         self.parsed.deinit();
+        self.frames.deinit();
     }
 
     pub fn interpret(self: *VM, program: []const u8, input: []const u8) !ParseResult {
-        var compiler = Compiler.init(self);
+        var compiler = try Compiler.init(self);
         defer compiler.deinit();
 
-        try compiler.compile(program);
+        const function = try compiler.compile(program);
+        try self.pushElem(function.dyn.elem());
+        try self.addFrame(function);
 
         self.input = input;
 
         try self.run();
 
+        assert(self.elems.items.len == 1);
         assert(self.parsed.items.len == 1);
 
-        return self.parsed.pop();
+        return self.parsed.items[0];
     }
 
     pub fn run(self: *VM) !void {
@@ -71,13 +86,23 @@ pub const VM = struct {
 
     fn runOp(self: *VM, opCode: OpCode) !void {
         switch (opCode) {
+            .SetGlobal => {
+                const idx = self.readByte();
+                const name = switch (self.chunk().getConstant(idx)) {
+                    .ParserVar => |sId| sId,
+                    .ValueVar => |sId| sId,
+                    else => @panic("internal error"),
+                };
+
+                try self.globals.put(name, self.popElem());
+            },
             .Backtrack => {
                 const success = self.popParsed().asSuccess();
                 self.inputPos = success.start;
             },
             .Constant => {
                 const idx = self.readByte();
-                try self.pushElem(self.chunk.getConstant(idx));
+                try self.pushElem(self.chunk().getConstant(idx));
             },
             .Destructure => {
                 const pattern = self.popElem();
@@ -95,7 +120,7 @@ pub const VM = struct {
                         // Done
                     },
                     0 => {
-                        return self.runtimeError("No program");
+                        return self.runtimeError("No program", .{});
                     },
                     else => unreachable,
                 }
@@ -105,15 +130,15 @@ pub const VM = struct {
             },
             .Jump => {
                 const offset = self.readShort();
-                self.ip += offset;
+                self.frame().ip += offset;
             },
             .JumpIfFailure => {
                 const offset = self.readShort();
-                if (self.peekParsed(0).isFailure()) self.ip += offset;
+                if (self.peekParsed(0).isFailure()) self.frame().ip += offset;
             },
             .JumpIfSuccess => {
                 const offset = self.readShort();
-                if (self.peekParsed(0).isSuccess()) self.ip += offset;
+                if (self.peekParsed(0).isSuccess()) self.frame().ip += offset;
             },
             .MergeElems => {
                 const rhs = self.popElem();
@@ -122,7 +147,7 @@ pub const VM = struct {
                 if (try Elem.merge(lhs, rhs, self)) |value| {
                     try self.pushElem(value);
                 } else {
-                    return self.runtimeError("Merge type mismatch");
+                    return self.runtimeError("Merge type mismatch", .{});
                 }
             },
             .MergeParsed => {
@@ -133,7 +158,7 @@ pub const VM = struct {
                     const result = ParseResult.success(value, lhs.start, rhs.end);
                     try self.pushParsed(result);
                 } else {
-                    return self.runtimeError("Merge type mismatch");
+                    return self.runtimeError("Merge type mismatch", .{});
                 }
             },
             .Null => try self.pushElem(Elem.nullConst),
@@ -156,16 +181,31 @@ pub const VM = struct {
                 }
             },
             .True => try self.pushElem(Elem.trueConst),
-            .RunFunctionParser => {
+            .CallFunctionParser => {
                 const argCount = self.readByte();
 
                 self.runFunctionParser(argCount);
             },
-            .RunLiteralParser => {
+            .RunParser => {
                 const idx = self.readByte();
-                const parser = self.chunk.getConstant(idx);
-                const result = try self.runLiteralParser(parser);
+                const parser = self.chunk().getConstant(idx);
+                const result = try self.runParser(parser);
                 try self.pushParsed(result);
+            },
+            .SubstituteValue => {
+                const varName = switch (self.popElem()) {
+                    .ValueVar => |name| name,
+                    else => @panic("internal error"),
+                };
+
+                const value = self.globals.get(varName);
+
+                if (value) |elem| {
+                    try self.pushElem(elem);
+                } else {
+                    const varNameStr = self.strings.get(varName);
+                    return self.runtimeError("Unknown variable `{s}`", .{varNameStr});
+                }
             },
             .Sequence,
             .TakeRight,
@@ -202,7 +242,7 @@ pub const VM = struct {
             self.printInput();
             self.printParsed();
             self.printElems();
-            _ = self.chunk.disassembleInstruction(self.ip, self.strings);
+            _ = self.chunk().disassembleInstruction(self.frame().ip, self.strings);
         }
     }
 
@@ -212,8 +252,17 @@ pub const VM = struct {
         unreachable;
     }
 
-    fn runLiteralParser(self: *VM, elem: Elem) !ParseResult {
+    fn runParser(self: *VM, elem: Elem) !ParseResult {
         switch (elem) {
+            .ParserVar => |name| {
+                if (self.globals.get(name)) |varElem| {
+                    return self.runParser(varElem);
+                } else {
+                    const nameStr = self.strings.get(name);
+                    return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
+                }
+            },
+            .ValueVar => @panic("Attempted to run value variable as a parser, this should bever happen."),
             .Character => unreachable,
             .String => |sId| {
                 const s = self.strings.get(sId);
@@ -294,22 +343,38 @@ pub const VM = struct {
         return ParseResult.failure;
     }
 
+    fn frame(self: *VM) *CallFrame {
+        return &self.frames.items[self.frames.items.len - 1];
+    }
+
+    fn chunk(self: *VM) *Chunk {
+        return &self.frame().function.chunk;
+    }
+
+    fn addFrame(self: *VM, function: *Elem.Dyn.Function) !void {
+        try self.frames.append(CallFrame{
+            .function = function,
+            .ip = 0,
+            .elemsOffset = self.elems.items.len - function.arity - 1,
+        });
+    }
+
     fn readByte(self: *VM) u8 {
-        const byte = self.chunk.read(self.ip);
-        self.ip += 1;
+        const byte = self.chunk().read(self.frame().ip);
+        self.frame().ip += 1;
         return byte;
     }
 
     fn readOp(self: *VM) OpCode {
-        const op = self.chunk.readOp(self.ip);
-        self.ip += 1;
+        const op = self.chunk().readOp(self.frame().ip);
+        self.frame().ip += 1;
         return op;
     }
 
     fn readShort(self: *VM) u16 {
-        self.ip += 2;
-        const items = self.chunk.code.items;
-        return (@as(u16, @intCast(items[self.ip - 2])) << 8) | items[self.ip - 1];
+        self.frame().ip += 2;
+        const items = self.chunk().code.items;
+        return (@as(u16, @intCast(items[self.frame().ip - 2])) << 8) | items[self.frame().ip - 1];
     }
 
     fn pushElem(self: *VM, elem: Elem) !void {
@@ -361,12 +426,14 @@ pub const VM = struct {
         logger.debug("\n", .{});
     }
 
-    fn runtimeError(self: *VM, message: []const u8) !void {
-        const loc = self.chunk.locations.items[self.ip];
+    fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
+        const loc = self.chunk().locations.items[self.frame().ip];
         loc.print(logger.err);
-        logger.err(" Error: {s}\n", .{message});
+        logger.err("Error: ", .{});
+        logger.err(message, args);
+        logger.err("\n", .{});
 
-        return error.RuntimeError;
+        return Error.RuntimeError;
     }
 
     fn freeDynList(self: *VM) void {
