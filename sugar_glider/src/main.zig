@@ -13,8 +13,8 @@ pub fn main() !void {
     switch (try cli.run()) {
         .Parse => |args| try parse(alloc, args.parser, args.input),
         .Docs => logger.out("Docs\n", .{}),
-        .Help => logger.out("Help\n", .{}),
-        .Usage => logger.out("Usage\n", .{}),
+        .Help => try cli.printHelp(),
+        .Usage => try cli.printUsage(),
     }
 }
 

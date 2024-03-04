@@ -32,20 +32,20 @@ pub const Mode = union(ModeType) {
     Usage: void,
 };
 
-pub fn run() !Mode {
-    const params = comptime clap.parseParamsComptime(
-        \\-p, --parser <STR>
-        \\-i, --input <STR>
-        \\--no-stdlib
-        \\--import <FILE>...
-        \\--error-format <FORMAT>
-        \\-h, --help
-        \\-v, --version
-        \\--docs <DOCS>
-        \\<FILE>...
-        \\
-    );
+const params = clap.parseParamsComptime(
+    \\-p, --parser <STR>
+    \\-i, --input <STR>
+    \\--no-stdlib
+    \\--import <FILE>...
+    \\--error-format <FORMAT>
+    \\-h, --help
+    \\-v, --version
+    \\--docs <DOCS>
+    \\<FILE>...
+    \\
+);
 
+pub fn run() !Mode {
     const parsers = comptime .{
         .STR = clap.parsers.string,
         .FILE = clap.parsers.string,
@@ -104,6 +104,16 @@ pub fn run() !Mode {
         // need more args
         return .{ .Usage = undefined };
     }
+}
+
+pub fn printHelp() !void {
+    return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
+}
+
+pub fn printUsage() !void {
+    const writer = std.io.getStdErr().writer();
+    try clap.usage(writer, clap.Help, &params);
+    try writer.print("\n", .{});
 }
 
 fn isSingleDash(source: []const u8) bool {
