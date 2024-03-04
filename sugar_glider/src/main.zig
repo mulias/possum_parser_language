@@ -1,5 +1,5 @@
 const std = @import("std");
-const OpCode = @import("./chunk.zig").OpCode;
+const OpCode = @import("./op_code.zig").OpCode;
 const Chunk = @import("./chunk.zig").Chunk;
 const VM = @import("./vm.zig").VM;
 const Allocator = std.mem.Allocator;

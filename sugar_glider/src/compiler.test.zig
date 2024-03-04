@@ -6,7 +6,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const ElemManager = @import("./elem.zig").ElemManager;
 const Elem = @import("elem.zig").Elem;
 const VM = @import("./vm.zig").VM;
-const OpCode = @import("chunk.zig").OpCode;
+const OpCode = @import("op_code.zig").OpCode;
 
 const CompilerTest = struct {
     allocator: Allocator,
