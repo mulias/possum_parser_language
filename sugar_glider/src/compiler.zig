@@ -113,21 +113,22 @@ pub const Compiler = struct {
         const nameLoc = self.ast.getLocation(nameNodeId);
         const bodyLoc = self.ast.getLocation(bodyNodeId);
 
-        const nameConstId = try self.makeConstant(nameElem, nameLoc);
+        const nameConstId = try self.makeConstant(nameElem);
 
         switch (self.ast.getNode(bodyNodeId)) {
             .OpNode => {
                 _ = paramsNodeId;
                 const function = try self.writeFunction(parserName, bodyNodeId);
-                const functionConstId = try self.makeConstant(function.dyn.elem(), nameLoc);
 
-                try self.emitUnaryOp(.Constant, functionConstId, bodyLoc);
+                const functionConstId = try self.makeConstant(function.dyn.elem());
+
+                try self.emitUnaryOp(.LoadConstant, functionConstId, bodyLoc);
                 try self.emitUnaryOp(.SetGlobal, nameConstId, nameLoc);
             },
             .ElemNode => |parserElem| {
-                const parserConstId = try self.makeConstant(parserElem, bodyLoc);
+                const parserConstId = try self.makeConstant(parserElem);
 
-                try self.emitUnaryOp(.Constant, parserConstId, bodyLoc);
+                try self.emitUnaryOp(.LoadConstant, parserConstId, bodyLoc);
                 try self.emitUnaryOp(.SetGlobal, nameConstId, nameLoc);
             },
         }
@@ -144,7 +145,7 @@ pub const Compiler = struct {
 
         const nameLoc = self.ast.getLocation(nameNodeId);
 
-        const nameConstId = try self.makeConstant(nameElem, nameLoc);
+        const nameConstId = try self.makeConstant(nameElem);
 
         try self.writeValue(bodyNodeId);
         try self.emitUnaryOp(.SetGlobal, nameConstId, nameLoc);
@@ -262,7 +263,8 @@ pub const Compiler = struct {
     fn writeParserElem(self: *Compiler, elem: Elem, loc: Location) !void {
         switch (elem) {
             .ParserVar => {
-                try self.emitRunParser(elem, loc);
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.RunParser, constId, loc);
             },
             .ValueVar => {
                 printError("Variable is only valid as a pattern or value", loc);
@@ -273,21 +275,30 @@ pub const Compiler = struct {
             .FloatString,
             .CharacterRange,
             .IntegerRange,
-            => try self.emitRunParser(elem, loc),
+            => {
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.RunParser, constId, loc);
+            },
             .True => {
                 // In this context `true` could be a zero-arg function call
                 const sId = try self.vm.addString("true");
-                try self.emitCallFunctionParser(Elem.parserVar(sId), loc);
+                const constId = try self.makeConstant(Elem.parserVar(sId));
+                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.CallFunctionParser, 0, loc);
             },
             .False => {
                 // In this context `false` could be a zero-arg function call
                 const sId = try self.vm.addString("false");
-                try self.emitCallFunctionParser(Elem.parserVar(sId), loc);
+                const constId = try self.makeConstant(Elem.parserVar(sId));
+                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.CallFunctionParser, 0, loc);
             },
             .Null => {
                 // In this context `null` could be a zero-arg function call
                 const sId = try self.vm.addString("null");
-                try self.emitCallFunctionParser(Elem.parserVar(sId), loc);
+                const constId = try self.makeConstant(Elem.parserVar(sId));
+                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.CallFunctionParser, 0, loc);
             },
             .Character,
             .Integer,
@@ -303,7 +314,11 @@ pub const Compiler = struct {
                     printError("Object literal is only valid as a pattern or value", loc);
                     return Error.InvalidAst;
                 },
-                .Function => try self.emitCallFunctionParser(elem, loc),
+                .Function => {
+                    const constId = try self.makeConstant(elem);
+                    try self.emitUnaryOp(.LoadConstant, constId, loc);
+                    try self.emitUnaryOp(.CallFunctionParser, 0, loc);
+                },
             },
         }
     }
@@ -338,7 +353,10 @@ pub const Compiler = struct {
             .String,
             .IntegerString,
             .FloatString,
-            => try self.emitConstant(.Constant, elem, loc),
+            => {
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.LoadConstant, constId, loc);
+            },
             .True => try self.emitOp(.True, loc),
             .False => try self.emitOp(.False, loc),
             .Null => try self.emitOp(.Null, loc),
@@ -358,7 +376,10 @@ pub const Compiler = struct {
                 .String => unreachable, // not produced by the parser
                 .Array,
                 .Object,
-                => try self.emitConstant(.Constant, elem, loc),
+                => {
+                    const constId = try self.makeConstant(elem);
+                    try self.emitUnaryOp(.LoadConstant, constId, loc);
+                },
                 .Function => {
                     printError("Function is not valid in pattern", loc);
                     return Error.InvalidAst;
@@ -394,13 +415,17 @@ pub const Compiler = struct {
                 return Error.InvalidAst;
             },
             .ValueVar => {
-                try self.emitConstant(.Constant, elem, loc);
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.LoadConstant, constId, loc);
                 try self.emitOp(.SubstituteValue, loc);
             },
             .String,
             .IntegerString,
             .FloatString,
-            => try self.emitConstant(.Constant, elem, loc),
+            => {
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.LoadConstant, constId, loc);
+            },
             .True => try self.emitOp(.True, loc),
             .False => try self.emitOp(.False, loc),
             .Null => try self.emitOp(.Null, loc),
@@ -420,7 +445,10 @@ pub const Compiler = struct {
                 .String => unreachable, // not produced by the parser
                 .Array,
                 .Object,
-                => try self.emitConstant(.Constant, elem, loc),
+                => {
+                    const constId = try self.makeConstant(elem);
+                    try self.emitUnaryOp(.LoadConstant, constId, loc);
+                },
                 .Function => {
                     printError("Function is not valid in value", loc);
                     return Error.InvalidAst;
@@ -468,23 +496,10 @@ pub const Compiler = struct {
         try self.emitByte(byte, loc);
     }
 
-    fn emitCallFunctionParser(self: *Compiler, elem: Elem, loc: Location) !void {
-        try self.emitConstant(.Constant, elem, loc);
-        try self.emitUnaryOp(.CallFunctionParser, 0, loc);
-    }
-
-    fn emitRunParser(self: *Compiler, elem: Elem, loc: Location) !void {
-        try self.emitUnaryOp(.RunParser, try self.makeConstant(elem, loc), loc);
-    }
-
-    fn emitConstant(self: *Compiler, op: OpCode, elem: Elem, loc: Location) !void {
-        try self.emitUnaryOp(op, try self.makeConstant(elem, loc), loc);
-    }
-
-    fn makeConstant(self: *Compiler, elem: Elem, loc: Location) !u8 {
+    fn makeConstant(self: *Compiler, elem: Elem) !u8 {
         return self.chunk().addConstant(elem) catch |err| switch (err) {
             ChunkError.TooManyConstants => {
-                printError("Too many constants in one chunk.", loc);
+                logger.err("Too many constants in one chunk.", .{});
                 return err;
             },
             else => return err,

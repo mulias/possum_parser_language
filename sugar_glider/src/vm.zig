@@ -100,7 +100,7 @@ pub const VM = struct {
                 const success = self.popParsed().asSuccess();
                 self.inputPos = success.start;
             },
-            .Constant => {
+            .LoadConstant => {
                 const idx = self.readByte();
                 try self.pushElem(self.chunk().getConstant(idx));
             },
