@@ -122,13 +122,13 @@ pub const Compiler = struct {
 
                 const functionConstId = try self.makeConstant(function.dyn.elem());
 
-                try self.emitUnaryOp(.LoadConstant, functionConstId, bodyLoc);
+                try self.emitUnaryOp(.GetConstant, functionConstId, bodyLoc);
                 try self.emitUnaryOp(.SetGlobal, nameConstId, nameLoc);
             },
             .ElemNode => |parserElem| {
                 const parserConstId = try self.makeConstant(parserElem);
 
-                try self.emitUnaryOp(.LoadConstant, parserConstId, bodyLoc);
+                try self.emitUnaryOp(.GetConstant, parserConstId, bodyLoc);
                 try self.emitUnaryOp(.SetGlobal, nameConstId, nameLoc);
             },
         }
@@ -276,28 +276,28 @@ pub const Compiler = struct {
             .IntegerRange,
             => {
                 const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
                 try self.emitOp(.RunParser, loc);
             },
             .True => {
                 // In this context `true` could be a zero-arg function call
                 const sId = try self.vm.addString("true");
                 const constId = try self.makeConstant(Elem.parserVar(sId));
-                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
                 try self.emitUnaryOp(.CallFunctionParser, 0, loc);
             },
             .False => {
                 // In this context `false` could be a zero-arg function call
                 const sId = try self.vm.addString("false");
                 const constId = try self.makeConstant(Elem.parserVar(sId));
-                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
                 try self.emitUnaryOp(.CallFunctionParser, 0, loc);
             },
             .Null => {
                 // In this context `null` could be a zero-arg function call
                 const sId = try self.vm.addString("null");
                 const constId = try self.makeConstant(Elem.parserVar(sId));
-                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
                 try self.emitUnaryOp(.CallFunctionParser, 0, loc);
             },
             .Character,
@@ -316,7 +316,7 @@ pub const Compiler = struct {
                 },
                 .Function => {
                     const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.LoadConstant, constId, loc);
+                    try self.emitUnaryOp(.GetConstant, constId, loc);
                     try self.emitUnaryOp(.CallFunctionParser, 0, loc);
                 },
             },
@@ -355,7 +355,7 @@ pub const Compiler = struct {
             .FloatString,
             => {
                 const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
             },
             .True => try self.emitOp(.True, loc),
             .False => try self.emitOp(.False, loc),
@@ -378,7 +378,7 @@ pub const Compiler = struct {
                 .Object,
                 => {
                     const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.LoadConstant, constId, loc);
+                    try self.emitUnaryOp(.GetConstant, constId, loc);
                 },
                 .Function => {
                     printError("Function is not valid in pattern", loc);
@@ -416,7 +416,7 @@ pub const Compiler = struct {
             },
             .ValueVar => {
                 const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
                 try self.emitOp(.SubstituteValue, loc);
             },
             .String,
@@ -424,7 +424,7 @@ pub const Compiler = struct {
             .FloatString,
             => {
                 const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
             },
             .True => try self.emitOp(.True, loc),
             .False => try self.emitOp(.False, loc),
@@ -447,7 +447,7 @@ pub const Compiler = struct {
                 .Object,
                 => {
                     const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.LoadConstant, constId, loc);
+                    try self.emitUnaryOp(.GetConstant, constId, loc);
                 },
                 .Function => {
                     printError("Function is not valid in value", loc);

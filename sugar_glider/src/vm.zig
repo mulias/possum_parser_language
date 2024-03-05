@@ -147,7 +147,7 @@ pub const VM = struct {
                 const offset = self.readShort();
                 if (self.peekParsed(0).isSuccess()) self.frame().ip += offset;
             },
-            .LoadConstant => {
+            .GetConstant => {
                 const idx = self.readByte();
                 try self.pushElem(self.chunk().getConstant(idx));
             },

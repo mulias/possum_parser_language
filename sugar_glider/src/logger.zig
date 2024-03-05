@@ -1,8 +1,8 @@
 const std = @import("std");
 
 pub const debugScanner = false;
-pub const debugParser = false;
-pub const debugCompiler = false;
+pub const debugParser = true;
+pub const debugCompiler = true;
 pub const debugVM = false;
 
 pub fn out(comptime fmt: []const u8, args: anytype) void {

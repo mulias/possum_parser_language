@@ -6,7 +6,7 @@ const logger = @import("./logger.zig");
 pub const OpCode = enum(u8) {
     Backtrack,
     CallFunctionParser,
-    LoadConstant,
+    GetConstant,
     Destructure,
     End,
     False,
@@ -37,6 +37,7 @@ pub const OpCode = enum(u8) {
             .Null,
             .Or,
             .Return,
+            .RunParser,
             .SubstituteValue,
             .TakeLeft,
             .TakeRight,
@@ -45,8 +46,8 @@ pub const OpCode = enum(u8) {
                 logger.debug("{s}\n", .{@tagName(self)});
                 return offset + 1;
             },
-            .LoadConstant,
-            .RunParser,
+            .GetConstant,
+            .GetGlobal,
             .SetGlobal,
             => {
                 var constantIdx = chunk.read(offset + 1);
