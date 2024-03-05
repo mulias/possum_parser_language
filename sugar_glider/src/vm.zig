@@ -86,23 +86,14 @@ pub const VM = struct {
 
     fn runOp(self: *VM, opCode: OpCode) !void {
         switch (opCode) {
-            .SetGlobal => {
-                const idx = self.readByte();
-                const name = switch (self.chunk().getConstant(idx)) {
-                    .ParserVar => |sId| sId,
-                    .ValueVar => |sId| sId,
-                    else => @panic("internal error"),
-                };
-
-                try self.globals.put(name, self.popElem());
-            },
             .Backtrack => {
                 const success = self.popParsed().asSuccess();
                 self.inputPos = success.start;
             },
-            .LoadConstant => {
-                const idx = self.readByte();
-                try self.pushElem(self.chunk().getConstant(idx));
+            .CallFunctionParser => {
+                const argCount = self.readByte();
+
+                self.runFunctionParser(argCount);
             },
             .Destructure => {
                 const pattern = self.popElem();
@@ -128,6 +119,22 @@ pub const VM = struct {
             .False => {
                 try self.pushElem(Elem.falseConst);
             },
+            .GetGlobal => {
+                const idx = self.readByte();
+
+                const varName = switch (self.chunk().getConstant(idx)) {
+                    .ParserVar => |varName| varName,
+                    .ValueVar => |varName| varName,
+                    else => @panic("internal error"),
+                };
+
+                if (self.globals.get(varName)) |varElem| {
+                    try self.pushElem(varElem);
+                } else {
+                    const nameStr = self.strings.get(varName);
+                    return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
+                }
+            },
             .Jump => {
                 const offset = self.readShort();
                 self.frame().ip += offset;
@@ -139,6 +146,10 @@ pub const VM = struct {
             .JumpIfSuccess => {
                 const offset = self.readShort();
                 if (self.peekParsed(0).isSuccess()) self.frame().ip += offset;
+            },
+            .LoadConstant => {
+                const idx = self.readByte();
+                try self.pushElem(self.chunk().getConstant(idx));
             },
             .MergeElems => {
                 const rhs = self.popElem();
@@ -180,17 +191,20 @@ pub const VM = struct {
                     .Failure => try self.pushParsed(parsed),
                 }
             },
-            .True => try self.pushElem(Elem.trueConst),
-            .CallFunctionParser => {
-                const argCount = self.readByte();
-
-                self.runFunctionParser(argCount);
-            },
             .RunParser => {
-                const idx = self.readByte();
-                const parser = self.chunk().getConstant(idx);
+                const parser = self.popElem();
                 const result = try self.runParser(parser);
                 try self.pushParsed(result);
+            },
+            .SetGlobal => {
+                const idx = self.readByte();
+                const name = switch (self.chunk().getConstant(idx)) {
+                    .ParserVar => |sId| sId,
+                    .ValueVar => |sId| sId,
+                    else => @panic("internal error"),
+                };
+
+                try self.globals.put(name, self.popElem());
             },
             .SubstituteValue => {
                 const varName = switch (self.popElem()) {
@@ -207,9 +221,7 @@ pub const VM = struct {
                     return self.runtimeError("Unknown variable `{s}`", .{varNameStr});
                 }
             },
-            .Sequence,
-            .TakeRight,
-            => {
+            .TakeRight => {
                 const rhs = self.popParsed();
                 const lhs = self.popParsed().asSuccess();
 
@@ -229,6 +241,7 @@ pub const VM = struct {
                 const result = ParseResult.success(lhs.value, lhs.start, rhs.end);
                 try self.pushParsed(result);
             },
+            .True => try self.pushElem(Elem.trueConst),
         }
     }
 
@@ -254,16 +267,9 @@ pub const VM = struct {
 
     fn runParser(self: *VM, elem: Elem) !ParseResult {
         switch (elem) {
-            .ParserVar => |name| {
-                if (self.globals.get(name)) |varElem| {
-                    return self.runParser(varElem);
-                } else {
-                    const nameStr = self.strings.get(name);
-                    return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
-                }
-            },
-            .ValueVar => @panic("Attempted to run value variable as a parser, this should bever happen."),
-            .Character => unreachable,
+            .ParserVar => @panic("Internal error"),
+            .ValueVar => @panic("Internal error"),
+            .Character => @panic("Internal error"),
             .String => |sId| {
                 const s = self.strings.get(sId);
                 const start = self.inputPos;
@@ -274,8 +280,8 @@ pub const VM = struct {
                     return ParseResult.success(elem, start, end);
                 }
             },
-            .Integer => unreachable,
-            .Float => unreachable,
+            .Integer => @panic("Internal error"),
+            .Float => @panic("Internal error"),
             .IntegerString => |n| {
                 const s = self.strings.get(n.sId);
                 const start = self.inputPos;
@@ -334,10 +340,10 @@ pub const VM = struct {
                     }
                 }
             },
-            .True => unreachable,
-            .False => unreachable,
-            .Null => unreachable,
-            .Dyn => unreachable,
+            .True => @panic("Internal error"),
+            .False => @panic("Internal error"),
+            .Null => @panic("Internal error"),
+            .Dyn => @panic("Internal error"),
         }
 
         return ParseResult.failure;

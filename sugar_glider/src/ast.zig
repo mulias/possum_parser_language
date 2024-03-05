@@ -23,7 +23,6 @@ pub const Ast = struct {
         Merge,
         Or,
         Return,
-        Sequence,
         TakeLeft,
         TakeRight,
         ConditionalIfThen,

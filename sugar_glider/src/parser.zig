@@ -281,7 +281,7 @@ pub const Parser = struct {
         const rightNodeId = try self.parseWithPrecedence(operatorPrecedence(t.tokenType));
 
         const op: Ast.OpType = switch (t.tokenType) {
-            .Ampersand => .Sequence,
+            .Ampersand => .TakeRight,
             .Bang => .Backtrack,
             .Bar => .Or,
             .DollarSign => .Return,

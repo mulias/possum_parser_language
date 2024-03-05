@@ -185,7 +185,6 @@ pub const Compiler = struct {
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Merge,
-                .Sequence,
                 .TakeLeft,
                 .TakeRight,
                 => {
@@ -247,7 +246,6 @@ pub const Compiler = struct {
             .Merge => .MergeParsed,
             .Or => .Or,
             .Return => .Return,
-            .Sequence => .Sequence,
             .TakeLeft => .TakeLeft,
             .TakeRight => .TakeRight,
             .ConditionalIfThen,
@@ -264,7 +262,8 @@ pub const Compiler = struct {
         switch (elem) {
             .ParserVar => {
                 const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.RunParser, constId, loc);
+                try self.emitUnaryOp(.GetGlobal, constId, loc);
+                try self.emitOp(.RunParser, loc);
             },
             .ValueVar => {
                 printError("Variable is only valid as a pattern or value", loc);
@@ -277,7 +276,8 @@ pub const Compiler = struct {
             .IntegerRange,
             => {
                 const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.RunParser, constId, loc);
+                try self.emitUnaryOp(.LoadConstant, constId, loc);
+                try self.emitOp(.RunParser, loc);
             },
             .True => {
                 // In this context `true` could be a zero-arg function call
