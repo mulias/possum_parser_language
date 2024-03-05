@@ -8,12 +8,6 @@ const VM = @import("vm.zig").VM;
 const logger = @import("./logger.zig");
 const Location = @import("location.zig").Location;
 
-const ParseError = error{
-    OutOfMemory,
-    UnexpectedInput,
-    PanicMode,
-};
-
 pub const Parser = struct {
     vm: *VM,
     scanner: Scanner,
@@ -21,8 +15,11 @@ pub const Parser = struct {
     previous: Token,
     skippedNewline: bool,
     ast: Ast,
-    hadError: bool,
-    panicMode: bool,
+
+    const Error = error{
+        OutOfMemory,
+        UnexpectedInput,
+    };
 
     pub fn init(vm: *VM, source: []const u8) Parser {
         return Parser{
@@ -32,8 +29,6 @@ pub const Parser = struct {
             .previous = undefined,
             .skippedNewline = false,
             .ast = Ast.init(vm.allocator),
-            .hadError = false,
-            .panicMode = false,
         };
     }
 
@@ -62,7 +57,7 @@ pub const Parser = struct {
         return self.errorAtCurrent("Expected newline or semicolon between statements");
     }
 
-    fn expression(self: *Parser) ParseError!usize {
+    fn expression(self: *Parser) Error!usize {
         return self.parseWithPrecedence(.None);
     }
 
@@ -70,7 +65,7 @@ pub const Parser = struct {
         self.ast.endLocation = self.previous.loc;
     }
 
-    fn parseWithPrecedence(self: *Parser, precedence: Precedence) ParseError!usize {
+    fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!usize {
         if (logger.debugParser) logger.debug("parse with precedence {}\n", .{precedence});
 
         try self.advance();
@@ -123,7 +118,7 @@ pub const Parser = struct {
             .Integer => self.integer(),
             .Float => self.float(),
             .True, .False, .Null => self.literal(),
-            else => self.prefixError(),
+            else => self.errorAtPrevious("Expect expression."),
         };
     }
 
@@ -143,7 +138,7 @@ pub const Parser = struct {
             => try self.binaryOp(leftNode),
             .QuestionMark => try self.conditionalIfThenOp(leftNode),
             .Colon => try self.conditionalThenElseOp(leftNode),
-            else => self.infixError(),
+            else => self.errorAtPrevious("Expect expression."),
         };
     }
 
@@ -356,26 +351,15 @@ pub const Parser = struct {
         return true;
     }
 
-    fn errorAtCurrent(self: *Parser, message: []const u8) ParseError {
-        return self.errorAt(&self.current, message);
+    fn errorAtCurrent(self: *Parser, message: []const u8) Error {
+        return errorAt(&self.current, message);
     }
 
-    fn errorAtPrevious(self: *Parser, message: []const u8) ParseError {
-        return self.errorAt(&self.previous, message);
+    fn errorAtPrevious(self: *Parser, message: []const u8) Error {
+        return errorAt(&self.previous, message);
     }
 
-    fn prefixError(self: *Parser) ParseError {
-        return self.errorAtPrevious("Expect expression.");
-    }
-
-    fn infixError(self: *Parser) ParseError {
-        return self.errorAtPrevious("Expect expression.");
-    }
-
-    fn errorAt(self: *Parser, token: *Token, message: []const u8) ParseError {
-        if (self.panicMode) return ParseError.PanicMode;
-        self.panicMode = true;
-
+    fn errorAt(token: *Token, message: []const u8) Error {
         token.loc.print(logger.err);
 
         switch (token.tokenType) {
@@ -390,9 +374,7 @@ pub const Parser = struct {
 
         logger.err(": {s}\n", .{message});
 
-        self.hadError = true;
-
-        return ParseError.UnexpectedInput;
+        return Error.UnexpectedInput;
     }
 
     fn operatorPrecedence(tokenType: TokenType) Precedence {
