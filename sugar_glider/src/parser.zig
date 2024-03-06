@@ -275,7 +275,7 @@ pub const Parser = struct {
 
         const rightNodeId = try self.parseWithPrecedence(operatorPrecedence(t.tokenType));
 
-        const op: Ast.OpType = switch (t.tokenType) {
+        const infixType: Ast.InfixType = switch (t.tokenType) {
             .Ampersand => .TakeRight,
             .Bang => .Backtrack,
             .Bar => .Or,
@@ -288,7 +288,7 @@ pub const Parser = struct {
             else => unreachable,
         };
 
-        return self.ast.pushOp(op, leftNodeId, rightNodeId, t.loc);
+        return self.ast.pushInfix(infixType, leftNodeId, rightNodeId, t.loc);
     }
 
     fn conditionalIfThenOp(self: *Parser, ifNodeId: usize) !usize {
@@ -298,7 +298,7 @@ pub const Parser = struct {
 
         const thenElseNodeId = try self.parseWithPrecedence(.Conditional);
 
-        const ifThenNodeId = try self.ast.pushOp(.ConditionalIfThen, ifNodeId, thenElseNodeId, ifThenLoc);
+        const ifThenNodeId = try self.ast.pushInfix(.ConditionalIfThen, ifNodeId, thenElseNodeId, ifThenLoc);
 
         return ifThenNodeId;
     }
@@ -310,7 +310,7 @@ pub const Parser = struct {
 
         const elseNodeId = try self.parseWithPrecedence(.Conditional);
 
-        const thenElseNodeId = try self.ast.pushOp(.ConditionalThenElse, thenNodeId, elseNodeId, thenElseLoc);
+        const thenElseNodeId = try self.ast.pushInfix(.ConditionalThenElse, thenNodeId, elseNodeId, thenElseLoc);
 
         return thenElseNodeId;
     }

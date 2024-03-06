@@ -10,14 +10,14 @@ pub const Ast = struct {
     locations: ArrayList(Location),
     endLocation: Location,
 
-    pub const NodeType = enum { OpNode, ElemNode };
+    pub const NodeType = enum { InfixNode, ElemNode };
 
     pub const Node = union(NodeType) {
-        OpNode: Op,
+        InfixNode: Infix,
         ElemNode: Elem,
     };
 
-    pub const OpType = enum {
+    pub const InfixType = enum {
         Backtrack,
         Destructure,
         Merge,
@@ -29,10 +29,11 @@ pub const Ast = struct {
         ConditionalThenElse,
         DeclareGlobal,
         CallOrDefineFunction,
+        ParamsOrArgs,
     };
 
-    pub const Op = struct {
-        opType: OpType,
+    pub const Infix = struct {
+        infixType: InfixType,
         left: usize,
         right: usize,
     };
@@ -60,21 +61,21 @@ pub const Ast = struct {
         return self.locations.items[index];
     }
 
-    pub fn getOp(self: Ast, index: usize) ?Op {
+    pub fn getInfix(self: Ast, index: usize) ?Infix {
         return switch (self.getNode(index)) {
-            .OpNode => |op| op,
+            .InfixNode => |infix| infix,
             .ElemNode => null,
         };
     }
 
-    pub fn getOpOfType(self: Ast, index: usize, opType: OpType) ?Op {
-        if (self.getOp(index)) |op| if (op.opType == opType) return op;
+    pub fn getInfixOfType(self: Ast, index: usize, infixType: InfixType) ?Infix {
+        if (self.getInfix(index)) |infix| if (infix.infixType == infixType) return infix;
         return null;
     }
 
     pub fn getElem(self: Ast, index: usize) ?Elem {
         return switch (self.getNode(index)) {
-            .OpNode => null,
+            .InfixNode => null,
             .ElemNode => |elem| elem,
         };
     }
@@ -89,9 +90,9 @@ pub const Ast = struct {
         return self.nodes.items.len - 1;
     }
 
-    pub fn pushOp(self: *Ast, opType: OpType, left: usize, right: usize, loc: Location) !usize {
-        try self.nodes.append(.{ .OpNode = .{
-            .opType = opType,
+    pub fn pushInfix(self: *Ast, infixType: InfixType, left: usize, right: usize, loc: Location) !usize {
+        try self.nodes.append(.{ .InfixNode = .{
+            .infixType = infixType,
             .left = left,
             .right = right,
         } });
@@ -102,5 +103,5 @@ pub const Ast = struct {
 
 test "struct size" {
     try std.testing.expectEqual(32, @sizeOf(Ast.Node));
-    try std.testing.expectEqual(24, @sizeOf(Ast.Op));
+    try std.testing.expectEqual(24, @sizeOf(Ast.Infix));
 }

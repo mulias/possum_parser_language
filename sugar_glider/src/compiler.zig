@@ -53,8 +53,8 @@ pub const Compiler = struct {
         var mainNodeId: ?usize = null;
 
         for (self.ast.roots.items) |nodeId| {
-            if (self.ast.getOpOfType(nodeId, .DeclareGlobal)) |op| {
-                try self.compileGlobalDeclaration(op.left, op.right);
+            if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
+                try self.compileGlobalDeclaration(infix.left, infix.right);
             } else if (mainNodeId == null) {
                 mainNodeId = nodeId;
             } else {
@@ -84,10 +84,10 @@ pub const Compiler = struct {
 
     fn compileGlobalDeclaration(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !void {
         switch (self.ast.getNode(headNodeId)) {
-            .OpNode => |op| switch (op.opType) {
+            .InfixNode => |infix| switch (infix.infixType) {
                 .CallOrDefineFunction => {
-                    const nameNodeId = op.left;
-                    const paramsNodeId = op.right;
+                    const nameNodeId = infix.left;
+                    const paramsNodeId = infix.right;
                     try self.compileGlobalFunction(nameNodeId, paramsNodeId, bodyNodeId);
                 },
                 else => return Error.InvalidAst,
@@ -116,7 +116,7 @@ pub const Compiler = struct {
         const nameConstId = try self.makeConstant(nameElem);
 
         switch (self.ast.getNode(bodyNodeId)) {
-            .OpNode => {
+            .InfixNode => {
                 _ = paramsNodeId;
                 const function = try self.writeFunction(parserName, bodyNodeId);
 
@@ -176,48 +176,48 @@ pub const Compiler = struct {
         const loc = self.ast.getLocation(nodeId);
 
         switch (node) {
-            .OpNode => |op| switch (op.opType) {
+            .InfixNode => |infix| switch (infix.infixType) {
                 .Backtrack => {
-                    try self.writeParser(op.left);
+                    try self.writeParser(infix.left);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
                     try self.emitOp(.Backtrack, loc);
-                    try self.writeParser(op.right);
+                    try self.writeParser(infix.right);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Merge,
                 .TakeLeft,
                 .TakeRight,
                 => {
-                    try self.writeParser(op.left);
+                    try self.writeParser(infix.left);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
-                    try self.writeParser(op.right);
-                    try self.writeParserOp(op.opType, loc);
+                    try self.writeParser(infix.right);
+                    try self.writeParserOp(infix.infixType, loc);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Destructure => {
-                    try self.writePattern(op.left);
-                    try self.writeParser(op.right);
-                    try self.writeParserOp(op.opType, loc);
+                    try self.writePattern(infix.left);
+                    try self.writeParser(infix.right);
+                    try self.writeParserOp(infix.infixType, loc);
                 },
                 .Or => {
-                    try self.writeParser(op.left);
+                    try self.writeParser(infix.left);
                     const jumpIndex = try self.emitJump(.JumpIfSuccess, loc);
-                    try self.writeParser(op.right);
-                    try self.writeParserOp(op.opType, loc);
+                    try self.writeParser(infix.right);
+                    try self.writeParserOp(infix.infixType, loc);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Return => {
-                    try self.writeParser(op.left);
-                    try self.writeValue(op.right);
-                    try self.writeParserOp(op.opType, loc);
+                    try self.writeParser(infix.left);
+                    try self.writeValue(infix.right);
+                    try self.writeParserOp(infix.infixType, loc);
                 },
                 .ConditionalIfThen => {
                     // Then/Else is always the right-side node
-                    const thenElseOp = self.ast.getOpOfType(op.right, .ConditionalThenElse).?;
-                    const thenElseLoc = self.ast.getLocation(op.right);
+                    const thenElseOp = self.ast.getInfixOfType(infix.right, .ConditionalThenElse).?;
+                    const thenElseLoc = self.ast.getLocation(infix.right);
 
                     // Get each part of `ifNodeId ? thenNodeId : elseNodeId`
-                    const ifNodeId = op.left;
+                    const ifNodeId = infix.left;
                     const thenNodeId = thenElseOp.left;
                     const elseNodeId = thenElseOp.right;
 
@@ -328,10 +328,10 @@ pub const Compiler = struct {
         const loc = self.ast.getLocation(nodeId);
 
         switch (node) {
-            .OpNode => |op| switch (op.opType) {
+            .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
-                    try self.writePattern(op.left);
-                    try self.writePattern(op.right);
+                    try self.writePattern(infix.left);
+                    try self.writePattern(infix.right);
                     try self.emitOp(.MergeElems, loc);
                 },
                 else => {
@@ -393,10 +393,10 @@ pub const Compiler = struct {
         const loc = self.ast.getLocation(nodeId);
 
         switch (node) {
-            .OpNode => |op| switch (op.opType) {
+            .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
-                    try self.writeValue(op.left);
-                    try self.writeValue(op.right);
+                    try self.writeValue(infix.left);
+                    try self.writeValue(infix.right);
                     try self.emitOp(.MergeElems, loc);
                 },
                 else => {
