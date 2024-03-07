@@ -13,6 +13,7 @@ pub const Parser = struct {
     scanner: Scanner,
     current: Token,
     previous: Token,
+    skippedWhitespace: bool,
     skippedNewline: bool,
     ast: Ast,
 
@@ -27,6 +28,7 @@ pub const Parser = struct {
             .scanner = Scanner.init(source),
             .current = undefined,
             .previous = undefined,
+            .skippedWhitespace = false,
             .skippedNewline = false,
             .ast = Ast.init(vm.allocator),
         };
@@ -36,7 +38,7 @@ pub const Parser = struct {
         self.ast.deinit();
     }
 
-    pub fn program(self: *Parser) !void {
+    pub fn parse(self: *Parser) !void {
         try self.advance();
 
         while (!try self.match(.Eof)) {
@@ -135,10 +137,18 @@ pub const Parser = struct {
             .LessThanDash,
             .Plus,
             .Equal,
-            => try self.binaryOp(leftNode),
-            .QuestionMark => try self.conditionalIfThenOp(leftNode),
-            .Colon => try self.conditionalThenElseOp(leftNode),
-            else => self.errorAtPrevious("Expect expression."),
+            => self.binaryOp(leftNode),
+            .Comma => self.paramsOrArgs(leftNode),
+            .QuestionMark => self.conditionalIfThenOp(leftNode),
+            .Colon => self.conditionalThenElseOp(leftNode),
+            .LeftParen => {
+                if (!self.skippedWhitespace) {
+                    return self.callOrDefineFunction(leftNode);
+                } else {
+                    return self.errorAtPrevious("Expected infix operator.");
+                }
+            },
+            else => self.errorAtPrevious("Expect infix operator."),
         };
     }
 
@@ -291,6 +301,14 @@ pub const Parser = struct {
         return self.ast.pushInfix(infixType, leftNodeId, rightNodeId, t.loc);
     }
 
+    fn paramsOrArgs(self: *Parser, leftNodeId: usize) !usize {
+        const t = self.previous;
+
+        const rightNodeId = try self.parseWithPrecedence(operatorPrecedence(t.tokenType));
+
+        return self.ast.pushInfix(.ParamsOrArgs, leftNodeId, rightNodeId, t.loc);
+    }
+
     fn conditionalIfThenOp(self: *Parser, ifNodeId: usize) !usize {
         if (logger.debugParser) logger.debug("conditional if/then {}\n", .{self.previous.tokenType});
 
@@ -315,7 +333,26 @@ pub const Parser = struct {
         return thenElseNodeId;
     }
 
+    fn callOrDefineFunction(self: *Parser, functionNameNodeId: usize) !usize {
+        const callOrDefineLoc = self.previous.loc;
+
+        if (try self.match(.RightParen)) {
+            return functionNameNodeId;
+        } else {
+            const paramsOrArgsNodeId = try self.parseWithPrecedence(.None);
+            try self.consume(.RightParen, "Expected closing ')'");
+
+            return self.ast.pushInfix(
+                .CallOrDefineFunction,
+                functionNameNodeId,
+                paramsOrArgsNodeId,
+                callOrDefineLoc,
+            );
+        }
+    }
+
     pub fn advance(self: *Parser) !void {
+        self.skippedWhitespace = false;
         self.skippedNewline = false;
         self.previous = self.current;
 
@@ -323,9 +360,10 @@ pub const Parser = struct {
             if (token.isType(.Error)) {
                 return self.errorAtCurrent(self.current.lexeme);
             } else if (token.isType(.WhitespaceWithNewline)) {
+                self.skippedWhitespace = true;
                 self.skippedNewline = true;
             } else if (token.isType(.Whitespace)) {
-                // skip
+                self.skippedWhitespace = true;
             } else {
                 self.current = token;
                 break;
@@ -410,7 +448,7 @@ pub const Parser = struct {
         pub fn bindingPower(precedence: Precedence) struct { left: u4, right: u4 } {
             return switch (precedence) {
                 .CallOrDefineFunction => .{ .left = 11, .right = 12 },
-                .FunctionArgOrParam => .{ .left = 9, .right = 10 },
+                .FunctionArgOrParam => .{ .left = 10, .right = 9 },
                 .StandardInfix => .{ .left = 7, .right = 8 },
                 .Sequence => .{ .left = 5, .right = 6 },
                 .Conditional => .{ .left = 4, .right = 3 },

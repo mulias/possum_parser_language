@@ -118,6 +118,13 @@ pub const Elem = union(ElemType) {
         };
     }
 
+    pub fn asDyn(self: Elem) *Dyn {
+        return switch (self) {
+            .Dyn => |d| return d,
+            else => @panic("internal error"),
+        };
+    }
+
     pub fn isEql(self: Elem, other: Elem, strings: StringTable) bool {
         return switch (self) {
             .ParserVar => |sId1| switch (other) {
@@ -637,16 +644,16 @@ pub const Elem = union(ElemType) {
             name: StringTable.Id,
             functionType: FunctionType,
 
-            pub fn create(vm: *VM, name: StringTable.Id, functionType: FunctionType) !*Function {
+            pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8 }) !*Function {
                 const dyn = try Dyn.allocate(vm, Function, .Function);
                 const function = dyn.asFunction();
 
                 function.* = Function{
                     .dyn = dyn.*,
-                    .arity = 0,
+                    .arity = fields.arity,
                     .chunk = Chunk.init(vm.allocator),
-                    .name = name,
-                    .functionType = functionType,
+                    .name = fields.name,
+                    .functionType = fields.functionType,
                 };
 
                 return function;

@@ -6,6 +6,46 @@ const logger = @import("./logger.zig");
 const Elem = @import("elem.zig").Elem;
 const allocator = std.testing.allocator;
 
+test "empty program" {
+    const parser = "";
+    {
+        var vm = VM.init(allocator);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.NoMainParser,
+            vm.interpret(parser, ""),
+        );
+    }
+}
+
+test "no statement sep" {
+    const parser = "123 456";
+    {
+        var vm = VM.init(allocator);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.UnexpectedInput,
+            vm.interpret(parser, "123456"),
+        );
+    }
+}
+
+test "empty input" {
+    const parser =
+        \\ "1" | "a" | "a".."z" | ""
+    ;
+    {
+        var vm = VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "\"\""),
+            Elem.string(vm.strings.getId("")),
+            .{ 0, 0 },
+            vm.strings,
+        );
+    }
+}
+
 test "'a' > 'b' > 'c' | 'abz'" {
     const parser =
         \\ 'a' > 'b' > 'c' | 'abz'
@@ -510,41 +550,18 @@ test "Foo = true ; 123 $ Foo" {
     }
 }
 
-test "empty program" {
-    const parser = "";
-    {
-        var vm = VM.init(allocator);
-        defer vm.deinit();
-        try std.testing.expectError(
-            error.NoMainParser,
-            vm.interpret(parser, ""),
-        );
-    }
-}
-
-test "no statement sep" {
-    const parser = "123 456";
-    {
-        var vm = VM.init(allocator);
-        defer vm.deinit();
-        try std.testing.expectError(
-            error.UnexpectedInput,
-            vm.interpret(parser, "123456"),
-        );
-    }
-}
-
-test "empty input" {
+test "double(p) = p + p ; double('a')" {
     const parser =
-        \\ "1" | "a" | "a".."z" | ""
+        \\double(p) = p + p
+        \\double('a')
     ;
     {
         var vm = VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
-            try vm.interpret(parser, "\"\""),
-            Elem.string(vm.strings.getId("")),
-            .{ 0, 0 },
+            try vm.interpret(parser, "aa"),
+            (try Elem.Dyn.String.copy(&vm, "aa")).dyn.elem(),
+            .{ 0, 2 },
             vm.strings,
         );
     }

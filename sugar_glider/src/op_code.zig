@@ -5,12 +5,13 @@ const logger = @import("./logger.zig");
 
 pub const OpCode = enum(u8) {
     Backtrack,
-    CallFunctionParser,
+    CallParser,
     GetConstant,
     Destructure,
     End,
     False,
     GetGlobal,
+    GetLocal,
     Jump,
     JumpIfFailure,
     JumpIfSuccess,
@@ -27,7 +28,7 @@ pub const OpCode = enum(u8) {
     True,
 
     pub fn disassemble(self: OpCode, chunk: *Chunk, strings: StringTable, offset: usize) usize {
-        switch (self) {
+        return switch (self) {
             .Backtrack,
             .Destructure,
             .End,
@@ -42,36 +43,46 @@ pub const OpCode = enum(u8) {
             .TakeLeft,
             .TakeRight,
             .True,
-            => {
-                logger.debug("{s}\n", .{@tagName(self)});
-                return offset + 1;
-            },
+            => self.simpleInstruction(offset),
             .GetConstant,
             .GetGlobal,
             .SetGlobal,
-            => {
-                var constantIdx = chunk.read(offset + 1);
-                var constantElem = chunk.getConstant(constantIdx);
-                logger.debug("{s} {}: ", .{ @tagName(self), constantIdx });
-                constantElem.print(logger.debug, strings);
-                logger.debug("\n", .{});
-                return offset + 2;
-            },
-            .CallFunctionParser => {
-                const argCount = chunk.read(offset + 1);
-                logger.debug("{s} {d}\n", .{ @tagName(self), argCount });
-                return offset + 2;
-            },
+            => self.constantInstruction(chunk, offset, strings),
+            .CallParser,
+            .GetLocal,
+            => self.byteInstruciton(chunk, offset),
             .Jump,
             .JumpIfFailure,
             .JumpIfSuccess,
-            => {
-                var jump = @as(u16, @intCast(chunk.read(offset + 1))) << 8;
-                jump |= chunk.read(offset + 2);
-                const target = @as(isize, @intCast(offset)) + 3 + jump;
-                std.debug.print("{s} {} -> {}\n", .{ @tagName(self), offset, target });
-                return offset + 3;
-            },
-        }
+            => self.jumpInstruction(chunk, offset),
+        };
+    }
+
+    fn simpleInstruction(self: OpCode, offset: usize) usize {
+        logger.debug("{s}\n", .{@tagName(self)});
+        return offset + 1;
+    }
+
+    fn constantInstruction(self: OpCode, chunk: *Chunk, offset: usize, strings: StringTable) usize {
+        var constantIdx = chunk.read(offset + 1);
+        var constantElem = chunk.getConstant(constantIdx);
+        logger.debug("{s} {}: ", .{ @tagName(self), constantIdx });
+        constantElem.print(logger.debug, strings);
+        logger.debug("\n", .{});
+        return offset + 2;
+    }
+
+    fn byteInstruciton(self: OpCode, chunk: *Chunk, offset: usize) usize {
+        const byte = chunk.read(offset + 1);
+        logger.debug("{s} {d}\n", .{ @tagName(self), byte });
+        return offset + 2;
+    }
+
+    fn jumpInstruction(self: OpCode, chunk: *Chunk, offset: usize) usize {
+        var jump = @as(u16, @intCast(chunk.read(offset + 1))) << 8;
+        jump |= chunk.read(offset + 2);
+        const target = @as(isize, @intCast(offset)) + 3 + jump;
+        std.debug.print("{s} {} -> {}\n", .{ @tagName(self), offset, target });
+        return offset + 3;
     }
 };

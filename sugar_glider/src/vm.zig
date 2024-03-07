@@ -6,6 +6,7 @@ const Chunk = @import("./chunk.zig").Chunk;
 const Elem = @import("./elem.zig").Elem;
 const OpCode = @import("./op_code.zig").OpCode;
 const ParseResult = @import("parse_result.zig").ParseResult;
+const Parser = @import("./parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
 const assert = std.debug.assert;
 const Compiler = @import("./compiler.zig").Compiler;
@@ -57,10 +58,15 @@ pub const VM = struct {
     }
 
     pub fn interpret(self: *VM, program: []const u8, input: []const u8) !ParseResult {
-        var compiler = try Compiler.init(self);
+        var parser = Parser.init(self, program);
+        defer parser.deinit();
+
+        try parser.parse();
+
+        var compiler = try Compiler.initMain(self, parser.ast);
         defer compiler.deinit();
 
-        const function = try compiler.compile(program);
+        const function = try compiler.compile();
         try self.pushElem(function.dyn.elem());
         try self.addFrame(function);
 
@@ -82,6 +88,8 @@ pub const VM = struct {
             try self.runOp(opCode);
             if (opCode == .End) break;
         }
+
+        self.printDebug();
     }
 
     fn runOp(self: *VM, opCode: OpCode) !void {
@@ -90,10 +98,9 @@ pub const VM = struct {
                 const success = self.popParsed().asSuccess();
                 self.inputPos = success.start;
             },
-            .CallFunctionParser => {
+            .CallParser => {
                 const argCount = self.readByte();
-
-                self.runFunctionParser(argCount);
+                try self.callParser(self.peekElem(argCount), argCount);
             },
             .Destructure => {
                 const pattern = self.popElem();
@@ -106,15 +113,11 @@ pub const VM = struct {
                 }
             },
             .End => {
-                switch (self.parsed.items.len) {
-                    1 => {
-                        // Done
-                    },
-                    0 => {
-                        return self.runtimeError("No program", .{});
-                    },
-                    else => unreachable,
-                }
+                const prevFrame = self.frames.pop();
+
+                if (self.frames.items.len == 0) return;
+
+                try self.elems.resize(prevFrame.elemsOffset);
             },
             .False => {
                 try self.pushElem(Elem.falseConst);
@@ -134,6 +137,10 @@ pub const VM = struct {
                     const nameStr = self.strings.get(varName);
                     return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
                 }
+            },
+            .GetLocal => {
+                const slot = self.readByte();
+                try self.pushElem(self.getLocal(slot));
             },
             .Jump => {
                 const offset = self.readShort();
@@ -255,14 +262,31 @@ pub const VM = struct {
             self.printInput();
             self.printParsed();
             self.printElems();
-            _ = self.chunk().disassembleInstruction(self.frame().ip, self.strings);
+
+            if (self.frames.items.len > 0) {
+                _ = self.chunk().disassembleInstruction(self.frame().ip, self.strings);
+            }
         }
     }
 
-    fn runFunctionParser(self: *VM, argCount: u8) void {
-        _ = argCount;
-        _ = self;
-        unreachable;
+    fn callParser(self: *VM, callee: Elem, argCount: u8) !void {
+        if (callee.isDynType(.Function)) {
+            var function = callee.asDyn().asFunction();
+
+            if (function.arity == argCount) {
+                try self.addFrame(function);
+            } else {
+                return self.runtimeError("Expected {} arguments but got {}.", .{ function.arity, argCount });
+            }
+        } else {
+            if (argCount == 0) {
+                const result = try self.runParser(callee);
+                try self.pushParsed(result);
+                _ = self.popElem();
+            } else {
+                return self.runtimeError("Can only call functions.", .{});
+            }
+        }
     }
 
     fn runParser(self: *VM, elem: Elem) !ParseResult {
@@ -363,6 +387,10 @@ pub const VM = struct {
             .ip = 0,
             .elemsOffset = self.elems.items.len - function.arity - 1,
         });
+    }
+
+    pub fn getLocal(self: *VM, slot: usize) Elem {
+        return self.elems.items[self.frame().elemsOffset + slot];
     }
 
     fn readByte(self: *VM) u8 {
