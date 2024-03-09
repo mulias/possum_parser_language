@@ -140,19 +140,21 @@ pub const Compiler = struct {
     // elem. The body AST is compiled into the funciton's bytecode. In the main
     // function we then load the function elem as a global.
     fn compileGlobalFunction(self: *Compiler, nameNodeId: usize, paramsNodeId: ?usize, bodyNodeId: usize) !void {
-        const nameElem = switch (self.ast.getNode(nameNodeId)) {
-            .ElemNode => |elem| elem,
-            else => return Error.InvalidAst,
-        };
-        const parserName = switch (nameElem) {
-            .ParserVar => |sId| sId,
+        const globalName = switch (self.ast.getNode(nameNodeId)) {
+            .ElemNode => |elem| switch (elem) {
+                .ParserVar => |sId| sId,
+                .True => try self.vm.strings.insert("true"),
+                .False => try self.vm.strings.insert("false"),
+                .Null => try self.vm.strings.insert("null"),
+                else => return Error.InvalidAst,
+            },
             else => return Error.InvalidAst,
         };
 
         const nameLoc = self.ast.getLocation(nameNodeId);
         const bodyLoc = self.ast.getLocation(bodyNodeId);
 
-        const nameConstId = try self.makeConstant(nameElem);
+        const nameConstId = try self.makeConstant(Elem.parserVar(globalName));
 
         // Simple no-param single elem case
         if (paramsNodeId == null) {
@@ -412,6 +414,9 @@ pub const Compiler = struct {
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => |sId| sId,
                 .ValueVar => |sId| sId,
+                .True => try self.vm.strings.insert("true"),
+                .False => try self.vm.strings.insert("false"),
+                .Null => try self.vm.strings.insert("null"),
                 else => return Error.InvalidAst,
             },
             .InfixNode => return Error.InvalidAst,
