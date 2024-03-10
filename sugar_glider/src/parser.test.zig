@@ -11,13 +11,14 @@ test "'a' > 'b' > 'c' | 'abz'" {
     const source =
         \\'a' > 'b' > 'c' | 'abz'
     ;
-    var vm = VM.init(allocator);
+    var vm = try VM.init(allocator);
     defer vm.deinit();
 
-    var parser = Parser.init(&vm, source);
+    var parser = Parser.init(&vm);
     defer parser.deinit();
 
-    try parser.parse();
+    try parser.parse(source);
+    try parser.end();
     var actual = parser.ast;
 
     var expected = Ast.init(allocator);
@@ -39,13 +40,14 @@ test "foo(a, b, c) = a + b + c" {
     const source =
         \\foo(a, b, c) = a + b + c
     ;
-    var vm = VM.init(allocator);
+    var vm = try VM.init(allocator);
     defer vm.deinit();
 
-    var parser = Parser.init(&vm, source);
+    var parser = Parser.init(&vm);
     defer parser.deinit();
 
-    try parser.parse();
+    try parser.parse(source);
+    try parser.end();
     var actual = parser.ast;
 
     var expected = Ast.init(allocator);

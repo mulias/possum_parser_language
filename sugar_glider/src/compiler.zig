@@ -22,6 +22,7 @@ pub const Compiler = struct {
         ChunkWriteFailure,
         NoMainParser,
         MultipleMainParsers,
+        UnexpectedMainParser,
         MaxFunctionArgs,
         MaxFunctionParams,
         OutOfMemory,
@@ -29,17 +30,17 @@ pub const Compiler = struct {
         ShortOverflow,
     };
 
-    pub fn initMain(vm: *VM, ast: Ast) !Compiler {
+    pub fn init(vm: *VM, ast: Ast) !Compiler {
         var main = try Elem.Dyn.Function.create(vm, .{
             .name = try vm.addString("@main"),
             .functionType = .Main,
             .arity = 0,
         });
 
-        return try init(vm, ast, main);
+        return try initWithFunction(vm, ast, main);
     }
 
-    pub fn init(vm: *VM, ast: Ast, function: *Elem.Dyn.Function) !Compiler {
+    fn initWithFunction(vm: *VM, ast: Ast, function: *Elem.Dyn.Function) !Compiler {
         var locals = ArrayList(StringTable.Id).init(vm.allocator);
 
         // Frame slot 0 is reserved by the VM for the current function value.
@@ -66,7 +67,11 @@ pub const Compiler = struct {
 
         for (self.ast.roots.items) |nodeId| {
             if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
-                try self.compileGlobalDeclaration(infix.left, infix.right);
+                var declared = try self.compileGlobalDeclaration(infix.left, infix.right);
+
+                if (logger.debugCompiler) if (declared) |function| {
+                    function.disassemble(self.vm.strings);
+                };
             } else if (mainNodeId == null) {
                 mainNodeId = nodeId;
             } else {
@@ -76,6 +81,7 @@ pub const Compiler = struct {
 
         if (mainNodeId) |nodeId| {
             try self.compileMainParser(nodeId);
+            if (logger.debugCompiler) self.function.disassemble(self.vm.strings);
         } else {
             return Error.NoMainParser;
         }
@@ -85,31 +91,42 @@ pub const Compiler = struct {
         return self.function;
     }
 
+    pub fn compileLib(self: *Compiler) !void {
+        for (self.ast.roots.items) |nodeId| {
+            if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
+                _ = try self.compileGlobalDeclaration(infix.left, infix.right);
+            } else {
+                return Error.UnexpectedMainParser;
+            }
+        }
+
+        self.ast = undefined;
+    }
+
     fn compileMainParser(self: *Compiler, nodeId: usize) !void {
         try self.writeParser(nodeId);
         try self.emitOp(.End, self.ast.endLocation);
-
-        if (logger.debugCompiler) {
-            self.function.disassemble(self.vm.strings);
-        }
     }
 
-    fn compileGlobalDeclaration(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !void {
-        switch (self.ast.getNode(headNodeId)) {
+    fn compileGlobalDeclaration(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !?*Elem.Dyn.Function {
+        return switch (self.ast.getNode(headNodeId)) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .CallOrDefineFunction => {
                     const nameNodeId = infix.left;
                     const paramsNodeId = infix.right;
-                    try self.compileGlobalFunction(nameNodeId, paramsNodeId, bodyNodeId);
+                    return self.compileGlobalFunction(nameNodeId, paramsNodeId, bodyNodeId);
                 },
-                else => return Error.InvalidAst,
+                else => Error.InvalidAst,
             },
             .ElemNode => |nameElem| switch (nameElem) {
-                .ParserVar => try self.compileGlobalFunction(headNodeId, null, bodyNodeId),
-                .ValueVar => try self.compileGlobalValue(headNodeId, bodyNodeId),
-                else => return Error.InvalidAst,
+                .ParserVar => self.compileGlobalFunction(headNodeId, null, bodyNodeId),
+                .ValueVar => {
+                    try self.compileGlobalValue(headNodeId, bodyNodeId);
+                    return null;
+                },
+                else => Error.InvalidAst,
             },
-        }
+        };
     }
 
     // Create a parser or value in the global namespace. The word "function"
@@ -139,7 +156,7 @@ pub const Compiler = struct {
     // to the elem as the parser/value. Otherwise we create a new function
     // elem. The body AST is compiled into the funciton's bytecode. In the main
     // function we then load the function elem as a global.
-    fn compileGlobalFunction(self: *Compiler, nameNodeId: usize, paramsNodeId: ?usize, bodyNodeId: usize) !void {
+    fn compileGlobalFunction(self: *Compiler, nameNodeId: usize, paramsNodeId: ?usize, bodyNodeId: usize) !?*Elem.Dyn.Function {
         const globalName = switch (self.ast.getNode(nameNodeId)) {
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => |sId| sId,
@@ -151,47 +168,35 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
-        const nameLoc = self.ast.getLocation(nameNodeId);
-        const bodyLoc = self.ast.getLocation(bodyNodeId);
-
-        const nameConstId = try self.makeConstant(Elem.parserVar(globalName));
-
         // Simple no-param single elem case
         if (paramsNodeId == null) {
             if (self.ast.getElem(bodyNodeId)) |bodyElem| {
-                const parserConstId = try self.makeConstant(bodyElem);
-
-                try self.emitUnaryOp(.GetConstant, parserConstId, bodyLoc);
-                try self.emitUnaryOp(.SetGlobal, nameConstId, nameLoc);
-
-                return;
+                try self.vm.globals.put(globalName, bodyElem);
+                return null;
             }
         }
 
         // Otherwise create a new function
-        const function = try self.writeFunction(parserName, paramsNodeId, bodyNodeId);
-
-        const functionConstId = try self.makeConstant(function.dyn.elem());
-
-        try self.emitUnaryOp(.GetConstant, functionConstId, bodyLoc);
-        try self.emitUnaryOp(.SetGlobal, nameConstId, nameLoc);
+        const function = try self.writeFunction(globalName, paramsNodeId, bodyNodeId);
+        try self.vm.globals.put(globalName, function.dyn.elem());
+        return function;
     }
 
     fn compileGlobalValue(self: *Compiler, nameNodeId: usize, bodyNodeId: usize) !void {
-        const nameElem = switch (self.ast.getNode(nameNodeId)) {
+        const globalName = switch (self.ast.getNode(nameNodeId)) {
             .ElemNode => |elem| switch (elem) {
-                .ValueVar => elem,
+                .ValueVar => |sId| sId,
                 else => return Error.InvalidAst,
             },
             else => return Error.InvalidAst,
         };
 
-        const nameLoc = self.ast.getLocation(nameNodeId);
-
-        const nameConstId = try self.makeConstant(nameElem);
-
-        try self.writeValue(bodyNodeId);
-        try self.emitUnaryOp(.SetGlobal, nameConstId, nameLoc);
+        if (self.ast.getElem(bodyNodeId)) |bodyElem| {
+            try self.vm.globals.put(globalName, bodyElem);
+        } else {
+            // Otherwise create a new value function
+            @panic("todo");
+        }
     }
 
     fn writeFunction(self: *Compiler, functionName: StringTable.Id, paramsNodeId: ?usize, bodyNodeId: usize) !*Elem.Dyn.Function {
@@ -201,7 +206,7 @@ pub const Compiler = struct {
             .arity = 0,
         });
 
-        var compiler = try init(self.vm, self.ast, function);
+        var compiler = try initWithFunction(self.vm, self.ast, function);
         defer compiler.deinit();
 
         if (paramsNodeId) |nodeId| {
@@ -244,10 +249,6 @@ pub const Compiler = struct {
         try compiler.writeParser(bodyNodeId);
 
         try compiler.emitOp(.End, compiler.ast.getLocation(bodyNodeId));
-
-        if (logger.debugCompiler) {
-            compiler.function.disassemble(compiler.vm.strings);
-        }
 
         return compiler.function;
     }
@@ -465,12 +466,17 @@ pub const Compiler = struct {
     }
 
     fn writeArgument(self: *Compiler, nodeId: usize) !void {
+        const loc = self.ast.getLocation(nodeId);
+
         switch (self.ast.getNode(nodeId)) {
             .InfixNode => try self.writeAnonymousFunction(nodeId),
-            .ElemNode => |elem| {
-                const loc = self.ast.getLocation(nodeId);
-                const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.GetConstant, constId, loc);
+            .ElemNode => |elem| switch (elem) {
+                .ParserVar => |sId| try self.writeGetParserWithName(sId, loc),
+                .ValueVar => @panic("todo"),
+                else => {
+                    const constId = try self.makeConstant(elem);
+                    try self.emitUnaryOp(.GetConstant, constId, loc);
+                },
             },
         }
     }

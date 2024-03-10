@@ -22,7 +22,7 @@ fn parse(allocator: Allocator, parserSource: cli.Source, inputSource: cli.Source
     const parser = try getBytes(allocator, parserSource);
     const input = try getBytes(allocator, inputSource);
 
-    var vm = VM.init(allocator);
+    var vm = try VM.init(allocator);
     defer vm.deinit();
 
     const result = try vm.interpret(parser, input);

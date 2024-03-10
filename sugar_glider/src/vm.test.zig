@@ -9,7 +9,7 @@ const allocator = std.testing.allocator;
 test "empty program" {
     const parser = "";
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try std.testing.expectError(
             error.NoMainParser,
@@ -21,7 +21,7 @@ test "empty program" {
 test "no statement sep" {
     const parser = "123 456";
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try std.testing.expectError(
             error.UnexpectedInput,
@@ -35,7 +35,7 @@ test "empty input" {
         \\ "1" | "a" | "a".."z" | ""
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "\"\""),
@@ -51,7 +51,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
         \\ 'a' > 'b' > 'c' | 'abz'
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abc"),
@@ -61,7 +61,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
         );
     }
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abzsss"),
@@ -71,7 +71,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
         );
     }
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectFailure(
             try vm.interpret(parser, "ababz"),
@@ -84,7 +84,7 @@ test "1234 | 5678 | 910" {
         \\ 1234 | 5678 | 910
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "56789"),
@@ -100,7 +100,7 @@ test "'foo' + 'bar' + 'baz'" {
         \\ 'foo' + 'bar' + 'baz'
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foobarbaz"),
@@ -116,7 +116,7 @@ test "1 + 2 + 3" {
         \\ 1 + 2 + 3
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -132,7 +132,7 @@ test "1.23 + 10" {
         \\ 1.23 + 10
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1.2310"),
@@ -148,7 +148,7 @@ test "0.1 + 0.2" {
         \\ 0.1 + 0.2
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0.10.2"),
@@ -164,7 +164,7 @@ test "1e57 + 3e-4" {
         \\ 1e57 + 3e-4
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1e573e-4"),
@@ -180,7 +180,7 @@ test "'foo' $ 'bar'" {
         \\ 'foo' $ 'bar'
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
@@ -190,7 +190,7 @@ test "'foo' $ 'bar'" {
         );
     }
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "f"));
     }
@@ -201,7 +201,7 @@ test "1 ! 12 ! 123" {
         \\ 1 ! 12 ! 123
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -217,7 +217,7 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         \\ 'true' ? 'foo' + 'bar' : 'baz'
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "truefoobar"),
@@ -227,7 +227,7 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         );
     }
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "baz"),
@@ -243,7 +243,7 @@ test "1000..10000 | 100..1000" {
         \\ 1000..10000 | 100..1000
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "888"),
@@ -259,7 +259,7 @@ test "-100..-1" {
         \\ -100..-1
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "-5"),
@@ -275,7 +275,7 @@ test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
         \\ 'a'..'z' + 'o'..'o' + 'l'..'q'
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
 
         try testing.expectSuccess(
@@ -292,7 +292,7 @@ test "'true' $ true" {
         \\ 'true' $ true
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
@@ -308,7 +308,7 @@ test "('' $ null) + ('' $ null)" {
         \\ ('' $ null) + ('' $ null)
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
 
         try testing.expectSuccess(
@@ -322,7 +322,7 @@ test "('' $ null) + ('' $ null)" {
 
 // test "('a' $ [1, 2]) + ('b' $ [true, false])" {
 //     var alloc = std.testing.allocator;
-//     var vm = VM.init(allocator);
+//     var vm = try VM.init(allocator);
 //     defer vm.deinit();
 
 //     const parser =
@@ -341,7 +341,7 @@ test "('' $ null) + ('' $ null)" {
 
 // test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
 //     var alloc = std.testing.allocator;
-//     var vm = VM.init(allocator);
+//     var vm = try VM.init(allocator);
 //     defer vm.deinit();
 
 //     const parser =
@@ -363,7 +363,7 @@ test "'f' <- 'a'..'z' & 12 <- 0..100" {
         \\ 'f' <- 'a'..'z' & 12 <- 0..100
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "f12"),
@@ -379,7 +379,7 @@ test "42 <- 42.0" {
         \\ 42 <- 42.0
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
 
         try testing.expectSuccess(
@@ -396,7 +396,7 @@ test "false <- ('' $ true)" {
         \\  false <- ('' $ true)
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "42.0"));
     }
@@ -407,7 +407,7 @@ test "('a' + 'b') <- 'ab'" {
         \\ ('a' + 'b') <- 'ab'
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ab"),
@@ -423,7 +423,7 @@ test "123 & 456 | 789 $ true & 'xyz'" {
         \\ 123 & 456 | 789 $ true & 'xyz'
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123789xyz"),
@@ -433,7 +433,7 @@ test "123 & 456 | 789 $ true & 'xyz'" {
         );
     }
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectFailure(
             try vm.interpret(parser, "12378xyz"),
@@ -446,7 +446,7 @@ test "1 ? 2 & 3 : 4" {
         \\ 1 ? 2 & 3 : 4
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -456,7 +456,7 @@ test "1 ? 2 & 3 : 4" {
         );
     }
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "4"),
@@ -472,7 +472,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         \\1 ? 2 : 3 ? 4 : 5
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
@@ -482,7 +482,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         );
     }
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "34"),
@@ -492,7 +492,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         );
     }
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "5"),
@@ -508,7 +508,7 @@ test "'foo' <- 'foo' <- 'foo'" {
         \\ "foo" <- "foo" <- "foo"
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try std.testing.expectError(
             error.InvalidAst,
@@ -523,7 +523,7 @@ test "a = 'a' ; a + a" {
         \\a + a
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
@@ -539,7 +539,7 @@ test "Foo = true ; 123 $ Foo" {
         \\Foo = true ; 123 $ Foo
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -556,7 +556,7 @@ test "double(p) = p + p ; double('a')" {
         \\double('a')
     ;
     {
-        var vm = VM.init(allocator);
+        var vm = try VM.init(allocator);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),

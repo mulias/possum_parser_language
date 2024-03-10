@@ -1,0 +1,31 @@
+char = " ".."~"
+
+alpha = "a".."z" | "A".."Z"
+
+lower = "a".."z"
+
+upper = "A".."Z"
+
+numeral = "0".."9"
+
+true(t) = t $ true
+
+false(f) = f $ false
+
+boolean(t, f) = true(t) | false(f)
+
+bool = boolean
+
+null(n) = n $ null
+
+succeed = ""
+
+maybe(p) = p | succeed
+
+skip(p) = p $ ""
+
+nullable(p) = p | const(null)
+
+surround(p, fill) = fill > p < fill
+
+scan(p) = p | (char > scan(p))

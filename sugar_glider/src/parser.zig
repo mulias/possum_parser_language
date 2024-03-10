@@ -22,10 +22,10 @@ pub const Parser = struct {
         UnexpectedInput,
     };
 
-    pub fn init(vm: *VM, source: []const u8) Parser {
+    pub fn init(vm: *VM) Parser {
         return Parser{
             .vm = vm,
-            .scanner = Scanner.init(source),
+            .scanner = undefined,
             .current = undefined,
             .previous = undefined,
             .skippedWhitespace = false,
@@ -38,7 +38,9 @@ pub const Parser = struct {
         self.ast.deinit();
     }
 
-    pub fn parse(self: *Parser) !void {
+    pub fn parse(self: *Parser, source: []const u8) !void {
+        self.scanner = Scanner.init(source);
+
         try self.advance();
 
         while (!try self.match(.Eof)) {
@@ -46,7 +48,10 @@ pub const Parser = struct {
         }
 
         try self.consume(.Eof, "Expect end of program.");
-        try self.end();
+    }
+
+    pub fn end(self: *Parser) !void {
+        self.ast.endLocation = self.previous.loc;
     }
 
     fn statement(self: *Parser) !usize {
@@ -61,10 +66,6 @@ pub const Parser = struct {
 
     fn expression(self: *Parser) Error!usize {
         return self.parseWithPrecedence(.None);
-    }
-
-    fn end(self: *Parser) !void {
-        self.ast.endLocation = self.previous.loc;
     }
 
     fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!usize {

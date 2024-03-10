@@ -34,8 +34,8 @@ pub const VM = struct {
         RuntimeError,
     };
 
-    pub fn init(allocator: Allocator) VM {
-        return VM{
+    pub fn init(allocator: Allocator) !VM {
+        var self = VM{
             .allocator = allocator,
             .strings = StringTable.init(allocator),
             .globals = AutoHashMap(StringTable.Id, Elem).init(allocator),
@@ -46,6 +46,10 @@ pub const VM = struct {
             .input = undefined,
             .inputPos = 0,
         };
+
+        try self.loadStdlib();
+
+        return self;
     }
 
     pub fn deinit(self: *VM) void {
@@ -57,13 +61,14 @@ pub const VM = struct {
         self.frames.deinit();
     }
 
-    pub fn interpret(self: *VM, program: []const u8, input: []const u8) !ParseResult {
-        var parser = Parser.init(self, program);
+    pub fn interpret(self: *VM, programSource: []const u8, input: []const u8) !ParseResult {
+        var parser = Parser.init(self);
         defer parser.deinit();
 
-        try parser.parse();
+        try parser.parse(programSource);
+        try parser.end();
 
-        var compiler = try Compiler.initMain(self, parser.ast);
+        var compiler = try Compiler.init(self, parser.ast);
         defer compiler.deinit();
 
         const function = try compiler.compile();
@@ -78,6 +83,19 @@ pub const VM = struct {
         assert(self.parsed.items.len == 1);
 
         return self.parsed.items[0];
+    }
+
+    fn loadStdlib(self: *VM) !void {
+        const stdlibSource = @embedFile("./stdlib.possum");
+        var parser = Parser.init(self);
+        defer parser.deinit();
+
+        try parser.parse(stdlibSource);
+
+        var compiler = try Compiler.init(self, parser.ast);
+        defer compiler.deinit();
+
+        try compiler.compileLib();
     }
 
     pub fn run(self: *VM) !void {
@@ -202,16 +220,6 @@ pub const VM = struct {
                 const parser = self.popElem();
                 const result = try self.runParser(parser);
                 try self.pushParsed(result);
-            },
-            .SetGlobal => {
-                const idx = self.readByte();
-                const name = switch (self.chunk().getConstant(idx)) {
-                    .ParserVar => |sId| sId,
-                    .ValueVar => |sId| sId,
-                    else => @panic("internal error"),
-                };
-
-                try self.globals.put(name, self.popElem());
             },
             .SubstituteValue => {
                 const varName = switch (self.popElem()) {
