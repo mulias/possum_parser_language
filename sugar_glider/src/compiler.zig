@@ -214,26 +214,24 @@ pub const Compiler = struct {
             var paramsNode = compiler.ast.getNode(nodeId);
 
             while (true) {
-                if (function.arity == std.math.maxInt(u8)) {
-                    printError(
-                        std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
-                        self.ast.getLocation(nodeId),
-                    );
-                    return Error.MaxFunctionParams;
-                }
-
                 compiler.function.arity += 1;
 
                 switch (paramsNode) {
                     .ElemNode => |elem| {
                         // This is the last param
-                        try compiler.addLocalElem(elem);
+                        try compiler.addLocal(
+                            elem,
+                            self.ast.getLocation(nodeId),
+                        );
                         break;
                     },
                     .InfixNode => |infix| {
                         if (infix.infixType == .ParamsOrArgs) {
                             if (self.ast.getElem(infix.left)) |leftElem| {
-                                try compiler.addLocalElem(leftElem);
+                                try compiler.addLocal(
+                                    leftElem,
+                                    self.ast.getLocation(infix.left),
+                                );
                             } else {
                                 return Error.InvalidAst;
                             }
@@ -628,17 +626,24 @@ pub const Compiler = struct {
         return &self.function.chunk;
     }
 
-    fn addLocalElem(self: *Compiler, elem: Elem) !void {
-        const sId = switch (elem) {
+    fn addLocal(self: *Compiler, elem: Elem, loc: Location) !void {
+        const name = switch (elem) {
             .ParserVar => |sId| sId,
             .ValueVar => |sId| sId,
             else => return Error.InvalidAst,
         };
 
-        try self.addLocal(sId);
-    }
+        if (self.locals.items.len >= std.math.maxInt(u8)) {
+            printError(
+                std.fmt.comptimePrint(
+                    "Can't have more than {} parameters and local variables.",
+                    .{std.math.maxInt(u8)},
+                ),
+                loc,
+            );
+            return Error.MaxFunctionParams;
+        }
 
-    fn addLocal(self: *Compiler, name: StringTable.Id) !void {
         for (self.locals.items) |local| {
             if (name == local) {
                 return Error.VariableNameUsedInScope;
@@ -648,13 +653,13 @@ pub const Compiler = struct {
         try self.locals.append(name);
     }
 
-    pub fn resolveLocal(self: *Compiler, name: StringTable.Id) ?usize {
+    pub fn resolveLocal(self: *Compiler, name: StringTable.Id) ?u8 {
         var i = self.locals.items.len;
         while (i > 0) {
             i -= 1;
 
             if (self.locals.items[i] == name) {
-                return i;
+                return @as(u8, @intCast(i));
             }
         }
 
