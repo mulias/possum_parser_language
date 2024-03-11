@@ -323,7 +323,7 @@ pub const Compiler = struct {
                 .ConditionalThenElse => @panic("internal error"), // always handled via ConditionalIfThen
                 .DeclareGlobal => unreachable,
                 .CallOrDefineFunction => {
-                    try self.writeGetParser(infix.left);
+                    try self.writeGetVar(infix.left);
                     const argCount = try self.writeArguments(infix.right);
                     if (isTailPosition) {
                         try self.emitUnaryOp(.CallTailParser, argCount, loc);
@@ -343,8 +343,8 @@ pub const Compiler = struct {
         switch (self.ast.getNode(nodeId)) {
             .ElemNode => |elem| {
                 switch (elem) {
-                    .ParserVar => |sId| {
-                        try self.writeGetParserWithName(sId, loc);
+                    .ParserVar => {
+                        try self.writeGetVar(nodeId);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .ValueVar => {
@@ -363,20 +363,17 @@ pub const Compiler = struct {
                     },
                     .True => {
                         // In this context `true` could be a zero-arg function call
-                        const sId = try self.vm.strings.insert("true");
-                        try self.writeGetParserWithName(sId, loc);
+                        try self.writeGetVar(nodeId);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .False => {
                         // In this context `false` could be a zero-arg function call
-                        const sId = try self.vm.strings.insert("false");
-                        try self.writeGetParserWithName(sId, loc);
+                        try self.writeGetVar(nodeId);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .Null => {
                         // In this context `null` could be a zero-arg function call
-                        const sId = try self.vm.strings.insert("null");
-                        try self.writeGetParserWithName(sId, loc);
+                        try self.writeGetVar(nodeId);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .Character,
@@ -401,29 +398,27 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGetParser(self: *Compiler, nodeId: usize) !void {
-        const parserName = switch (self.ast.getNode(nodeId)) {
-            .ElemNode => |elem| switch (elem) {
-                .ParserVar => |sId| sId,
-                .ValueVar => |sId| sId,
-                .True => try self.vm.strings.insert("true"),
-                .False => try self.vm.strings.insert("false"),
-                .Null => try self.vm.strings.insert("null"),
-                else => return Error.InvalidAst,
-            },
+    fn writeGetVar(self: *Compiler, nodeId: usize) !void {
+        const varElem = switch (self.ast.getNode(nodeId)) {
+            .ElemNode => |elem| elem,
             .InfixNode => return Error.InvalidAst,
+        };
+
+        const varName = switch (varElem) {
+            .ParserVar => |sId| sId,
+            .ValueVar => |sId| sId,
+            .True => try self.vm.strings.insert("true"),
+            .False => try self.vm.strings.insert("false"),
+            .Null => try self.vm.strings.insert("null"),
+            else => return Error.InvalidAst,
         };
 
         const loc = self.ast.getLocation(nodeId);
 
-        try self.writeGetParserWithName(parserName, loc);
-    }
-
-    fn writeGetParserWithName(self: *Compiler, parserName: StringTable.Id, loc: Location) !void {
-        if (self.resolveLocal(parserName)) |local| {
-            try self.emitUnaryOp(.GetLocal, @as(u8, @intCast(local)), loc);
+        if (self.resolveLocal(varName)) |local| {
+            try self.emitUnaryOp(.GetLocal, local, loc);
         } else {
-            const constId = try self.makeConstant(Elem.parserVar(parserName));
+            const constId = try self.makeConstant(varElem);
             try self.emitUnaryOp(.GetGlobal, constId, loc);
         }
     }
@@ -466,8 +461,9 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetConstant, constId, loc);
             },
             .ElemNode => |elem| switch (elem) {
-                .ParserVar => |sId| try self.writeGetParserWithName(sId, loc),
-                .ValueVar => @panic("todo"),
+                .ParserVar,
+                .ValueVar,
+                => try self.writeGetVar(nodeId),
                 else => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
