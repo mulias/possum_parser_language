@@ -266,13 +266,18 @@ pub const Compiler = struct {
                     try self.writeParser(infix.right, isTailPosition);
                     try self.patchJump(jumpIndex, loc);
                 },
-                .Merge,
-                .TakeLeft,
-                => {
+                .Merge => {
                     try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
                     try self.writeParser(infix.right, false);
-                    try self.writeParserOp(infix.infixType, loc);
+                    try self.emitOp(.MergeParsed, loc);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .TakeLeft => {
+                    try self.writeParser(infix.left, false);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    try self.writeParser(infix.right, false);
+                    try self.emitOp(.TakeLeft, loc);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .TakeRight => {
@@ -284,7 +289,7 @@ pub const Compiler = struct {
                 .Destructure => {
                     try self.writePattern(infix.left);
                     try self.writeParser(infix.right, false);
-                    try self.writeParserOp(infix.infixType, loc);
+                    try self.emitOp(.Destructure, loc);
                 },
                 .Or => {
                     try self.emitOp(.SetInputMark, loc);
@@ -296,7 +301,7 @@ pub const Compiler = struct {
                 .Return => {
                     try self.writeParser(infix.left, false);
                     try self.writeValue(infix.right);
-                    try self.writeParserOp(infix.infixType, loc);
+                    try self.emitOp(.Return, loc);
                 },
                 .ConditionalIfThen => {
                     // Then/Else is always the right-side node
@@ -331,26 +336,6 @@ pub const Compiler = struct {
             },
             .ElemNode => try self.writeParserElem(nodeId),
         }
-    }
-
-    fn writeParserOp(self: *Compiler, infixType: Ast.InfixType, loc: Location) !void {
-        const opCode: OpCode = switch (infixType) {
-            .Backtrack => .Backtrack,
-            .Destructure => .Destructure,
-            .Merge => .MergeParsed,
-            .Or => .Or,
-            .Return => .Return,
-            .TakeLeft => .TakeLeft,
-            .TakeRight => .TakeRight,
-            .ConditionalIfThen,
-            .ConditionalThenElse,
-            .CallOrDefineFunction,
-            .DeclareGlobal,
-            .ParamsOrArgs,
-            => unreachable, // No eqivalent OpCode
-        };
-
-        try self.emitOp(opCode, loc);
     }
 
     fn writeParserElem(self: *Compiler, nodeId: usize) !void {
