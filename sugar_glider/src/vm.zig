@@ -28,6 +28,7 @@ pub const VM = struct {
     parsed: ArrayList(ParseResult),
     frames: ArrayList(CallFrame),
     input: []const u8,
+    inputMarks: ArrayList(usize),
     inputPos: usize,
 
     const Error = error{
@@ -44,6 +45,7 @@ pub const VM = struct {
             .parsed = ArrayList(ParseResult).init(allocator),
             .frames = ArrayList(CallFrame).init(allocator),
             .input = undefined,
+            .inputMarks = ArrayList(usize).init(allocator),
             .inputPos = 0,
         };
 
@@ -59,6 +61,7 @@ pub const VM = struct {
         self.elems.deinit();
         self.parsed.deinit();
         self.frames.deinit();
+        self.inputMarks.deinit();
     }
 
     pub fn interpret(self: *VM, programSource: []const u8, input: []const u8) !ParseResult {
@@ -80,9 +83,12 @@ pub const VM = struct {
         try self.run();
 
         assert(self.elems.items.len == 1);
-        assert(self.parsed.items.len == 1);
 
-        return self.parsed.items[0];
+        if (self.parsed.items.len > 0) {
+            return self.peekParsed(0);
+        } else {
+            return ParseResult.failure;
+        }
     }
 
     fn loadStdlib(self: *VM) !void {
@@ -104,7 +110,7 @@ pub const VM = struct {
 
             const opCode = self.readOp();
             try self.runOp(opCode);
-            if (opCode == .End) break;
+            if (self.frames.items.len == 0) break;
         }
 
         self.printDebug();
@@ -113,8 +119,10 @@ pub const VM = struct {
     fn runOp(self: *VM, opCode: OpCode) !void {
         switch (opCode) {
             .Backtrack => {
-                const success = self.popParsed().asSuccess();
-                self.inputPos = success.start;
+                const offset = self.readShort();
+                const lhs = self.popParsed();
+                if (lhs.isFailure()) self.frame().ip += offset;
+                self.inputPos = self.popInputMark();
             },
             .CallParser => {
                 const argCount = self.readByte();
@@ -176,6 +184,9 @@ pub const VM = struct {
                 const idx = self.readByte();
                 try self.pushElem(self.chunk().getConstant(idx));
             },
+            .SetInputMark => {
+                try self.pushInputMark();
+            },
             .MergeElems => {
                 const rhs = self.popElem();
                 const lhs = self.popElem();
@@ -191,7 +202,7 @@ pub const VM = struct {
                 const lhs = self.popParsed().asSuccess();
 
                 if (try Elem.merge(lhs.value, rhs.value, self)) |value| {
-                    const result = ParseResult.success(value, lhs.start, rhs.end);
+                    const result = ParseResult.success(value);
                     try self.pushParsed(result);
                 } else {
                     return self.runtimeError("Merge type mismatch", .{});
@@ -199,18 +210,25 @@ pub const VM = struct {
             },
             .Null => try self.pushElem(Elem.nullConst),
             .Or => {
-                const rhs = self.popParsed();
-                _ = self.popParsed();
-
-                try self.pushParsed(rhs);
+                const offset = self.readShort();
+                switch (self.peekParsed(0)) {
+                    .Success => {
+                        self.frame().ip += offset;
+                        _ = self.popInputMark();
+                    },
+                    .Failure => {
+                        self.inputPos = self.popInputMark();
+                        _ = self.popParsed();
+                    },
+                }
             },
             .Return => {
                 const value = self.popElem();
                 const parsed = self.popParsed();
 
                 switch (parsed) {
-                    .Success => |s| {
-                        const result = ParseResult.success(value, s.start, s.end);
+                    .Success => {
+                        const result = ParseResult.success(value);
                         try self.pushParsed(result);
                     },
                     .Failure => try self.pushParsed(parsed),
@@ -238,22 +256,21 @@ pub const VM = struct {
             },
             .TakeRight => {
                 const rhs = self.popParsed();
-                const lhs = self.popParsed().asSuccess();
+                _ = self.popParsed().asSuccess();
 
                 if (rhs.isSuccess()) {
                     const rhss = rhs.asSuccess();
-                    const result = ParseResult.success(rhss.value, lhs.start, rhss.end);
+                    const result = ParseResult.success(rhss.value);
                     try self.pushParsed(result);
                 } else {
-                    self.inputPos = lhs.start;
                     try self.pushParsed(rhs);
                 }
             },
             .TakeLeft => {
-                const rhs = self.popParsed().asSuccess();
+                _ = self.popParsed().asSuccess();
                 const lhs = self.popParsed().asSuccess();
 
-                const result = ParseResult.success(lhs.value, lhs.start, rhs.end);
+                const result = ParseResult.success(lhs.value);
                 try self.pushParsed(result);
             },
             .True => try self.pushElem(Elem.trueConst),
@@ -305,11 +322,11 @@ pub const VM = struct {
             .String => |sId| {
                 const s = self.strings.get(sId);
                 const start = self.inputPos;
-                const end = self.inputPos + s.len;
+                const end = start + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    return ParseResult.success(elem, start, end);
+                    return ParseResult.success(elem);
                 }
             },
             .Integer => @panic("Internal error"),
@@ -317,21 +334,21 @@ pub const VM = struct {
             .IntegerString => |n| {
                 const s = self.strings.get(n.sId);
                 const start = self.inputPos;
-                const end = self.inputPos + s.len;
+                const end = start + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    return ParseResult.success(elem, start, end);
+                    return ParseResult.success(elem);
                 }
             },
             .FloatString => |n| {
                 const s = self.strings.get(n.sId);
                 const start = self.inputPos;
-                const end = self.inputPos + s.len;
+                const end = start + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    return ParseResult.success(elem, start, end);
+                    return ParseResult.success(elem);
                 }
             },
             .IntegerRange => |r| {
@@ -352,7 +369,7 @@ pub const VM = struct {
                     if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
                         self.inputPos = end;
                         const int = Elem.integer(i);
-                        return ParseResult.success(int, start, end);
+                        return ParseResult.success(int);
                     } else {
                         end -= 1;
                     };
@@ -368,7 +385,7 @@ pub const VM = struct {
                     if (r[0] <= c and c <= r[1]) {
                         self.inputPos = end;
                         const character = Elem.character(c);
-                        return ParseResult.success(character, start, end);
+                        return ParseResult.success(character);
                     }
                 }
             },
@@ -443,6 +460,14 @@ pub const VM = struct {
     fn peekParsed(self: *VM, distance: usize) ParseResult {
         var len = self.parsed.items.len;
         return self.parsed.items[len - 1 - distance];
+    }
+
+    fn pushInputMark(self: *VM) !void {
+        try self.inputMarks.append(self.inputPos);
+    }
+
+    fn popInputMark(self: *VM) usize {
+        return self.inputMarks.pop();
     }
 
     fn printInput(self: *VM) void {

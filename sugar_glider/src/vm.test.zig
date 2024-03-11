@@ -40,7 +40,6 @@ test "empty input" {
         try testing.expectSuccess(
             try vm.interpret(parser, "\"\""),
             Elem.string(vm.strings.getId("")),
-            .{ 0, 0 },
             vm.strings,
         );
     }
@@ -56,7 +55,6 @@ test "'a' > 'b' > 'c' | 'abz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "abc"),
             Elem.string(vm.strings.getId("c")),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -66,7 +64,6 @@ test "'a' > 'b' > 'c' | 'abz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "abzsss"),
             Elem.string(vm.strings.getId("abz")),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -89,7 +86,6 @@ test "1234 | 5678 | 910" {
         try testing.expectSuccess(
             try vm.interpret(parser, "56789"),
             Elem.integerString(5678, vm.strings.getId("5678")),
-            .{ 0, 4 },
             vm.strings,
         );
     }
@@ -105,7 +101,6 @@ test "'foo' + 'bar' + 'baz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foobarbaz"),
             (try Elem.Dyn.String.copy(&vm, "foobarbaz")).dyn.elem(),
-            .{ 0, 9 },
             vm.strings,
         );
     }
@@ -121,7 +116,6 @@ test "1 + 2 + 3" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.integer(6),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -137,7 +131,6 @@ test "1.23 + 10" {
         try testing.expectSuccess(
             try vm.interpret(parser, "1.2310"),
             Elem.float(11.23),
-            .{ 0, 6 },
             vm.strings,
         );
     }
@@ -153,7 +146,6 @@ test "0.1 + 0.2" {
         try testing.expectSuccess(
             try vm.interpret(parser, "0.10.2"),
             Elem.float(0.30000000000000004),
-            .{ 0, 6 },
             vm.strings,
         );
     }
@@ -169,7 +161,6 @@ test "1e57 + 3e-4" {
         try testing.expectSuccess(
             try vm.interpret(parser, "1e573e-4"),
             Elem.float(1.0e+57),
-            .{ 0, 8 },
             vm.strings,
         );
     }
@@ -185,7 +176,6 @@ test "'foo' $ 'bar'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
             Elem.string(vm.strings.getId("bar")),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -206,7 +196,6 @@ test "1 ! 12 ! 123" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.integerString(123, vm.strings.getId("123")),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -222,7 +211,6 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "truefoobar"),
             (try Elem.Dyn.String.copy(&vm, "foobar")).dyn.elem(),
-            .{ 0, 10 },
             vm.strings,
         );
     }
@@ -232,7 +220,6 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "baz"),
             Elem.string(vm.strings.getId("baz")),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -248,7 +235,6 @@ test "1000..10000 | 100..1000" {
         try testing.expectSuccess(
             try vm.interpret(parser, "888"),
             Elem.integer(888),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -264,7 +250,6 @@ test "-100..-1" {
         try testing.expectSuccess(
             try vm.interpret(parser, "-5"),
             Elem.integer(-5),
-            .{ 0, 2 },
             vm.strings,
         );
     }
@@ -281,7 +266,6 @@ test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
             (try Elem.Dyn.String.copy(&vm, "foo")).dyn.elem(),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -297,7 +281,6 @@ test "'true' $ true" {
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
             Elem.trueConst,
-            .{ 0, 4 },
             vm.strings,
         );
     }
@@ -314,7 +297,6 @@ test "('' $ null) + ('' $ null)" {
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
             Elem.nullConst,
-            .{ 0, 0 },
             vm.strings,
         );
     }
@@ -368,7 +350,6 @@ test "'f' <- 'a'..'z' & 12 <- 0..100" {
         try testing.expectSuccess(
             try vm.interpret(parser, "f12"),
             Elem.integer(12),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -385,7 +366,6 @@ test "42 <- 42.0" {
         try testing.expectSuccess(
             try vm.interpret(parser, "42.0"),
             Elem.floatString(42.0, vm.strings.getId("42.0")),
-            .{ 0, 4 },
             vm.strings,
         );
     }
@@ -412,7 +392,6 @@ test "('a' + 'b') <- 'ab'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "ab"),
             (try Elem.Dyn.String.copy(&vm, "ab")).dyn.elem(),
-            .{ 0, 2 },
             vm.strings,
         );
     }
@@ -428,7 +407,6 @@ test "123 & 456 | 789 $ true & 'xyz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123789xyz"),
             Elem.string(vm.strings.getId("xyz")),
-            .{ 0, 9 },
             vm.strings,
         );
     }
@@ -451,7 +429,6 @@ test "1 ? 2 & 3 : 4" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.integerString(3, vm.strings.getId("3")),
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -461,7 +438,6 @@ test "1 ? 2 & 3 : 4" {
         try testing.expectSuccess(
             try vm.interpret(parser, "4"),
             Elem.integerString(4, vm.strings.getId("4")),
-            .{ 0, 1 },
             vm.strings,
         );
     }
@@ -477,7 +453,6 @@ test "1 ? 2 : 3 ? 4 : 5" {
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
             Elem.integerString(2, vm.strings.getId("2")),
-            .{ 0, 2 },
             vm.strings,
         );
     }
@@ -487,7 +462,6 @@ test "1 ? 2 : 3 ? 4 : 5" {
         try testing.expectSuccess(
             try vm.interpret(parser, "34"),
             Elem.integerString(4, vm.strings.getId("4")),
-            .{ 0, 2 },
             vm.strings,
         );
     }
@@ -497,7 +471,6 @@ test "1 ? 2 : 3 ? 4 : 5" {
         try testing.expectSuccess(
             try vm.interpret(parser, "5"),
             Elem.integerString(5, vm.strings.getId("5")),
-            .{ 0, 1 },
             vm.strings,
         );
     }
@@ -528,7 +501,6 @@ test "a = 'a' ; a + a" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
             (try Elem.Dyn.String.copy(&vm, "aa")).dyn.elem(),
-            .{ 0, 2 },
             vm.strings,
         );
     }
@@ -544,7 +516,6 @@ test "Foo = true ; 123 $ Foo" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.trueConst,
-            .{ 0, 3 },
             vm.strings,
         );
     }
@@ -561,7 +532,6 @@ test "double(p) = p + p ; double('a')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
             (try Elem.Dyn.String.copy(&vm, "aa")).dyn.elem(),
-            .{ 0, 2 },
             vm.strings,
         );
     }

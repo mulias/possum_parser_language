@@ -9,12 +9,10 @@ pub const ParseResult = union(ParseResultType) {
 
     pub const Success = struct {
         value: Elem,
-        start: usize,
-        end: usize,
     };
 
-    pub fn success(value: Elem, start: usize, end: usize) ParseResult {
-        return .{ .Success = .{ .value = value, .start = start, .end = end } };
+    pub fn success(value: Elem) ParseResult {
+        return .{ .Success = .{ .value = value } };
     }
 
     pub const failure = .{ .Failure = undefined };
@@ -39,10 +37,7 @@ pub const ParseResult = union(ParseResultType) {
 
     pub fn print(self: ParseResult, printer: anytype, strings: StringTable) void {
         switch (self) {
-            .Success => |s| {
-                printer("{d}-{d} ", .{ s.start, s.end });
-                s.value.print(printer, strings);
-            },
+            .Success => |s| s.value.print(printer, strings),
             .Failure => printer("Failure", .{}),
         }
     }
