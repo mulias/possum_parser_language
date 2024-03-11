@@ -260,9 +260,9 @@ pub const Compiler = struct {
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Backtrack => {
+                    try self.emitOp(.SetInputMark, loc);
                     try self.writeParser(infix.left);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
-                    try self.emitOp(.Backtrack, loc);
+                    const jumpIndex = try self.emitJump(.Backtrack, loc);
                     try self.writeParser(infix.right);
                     try self.patchJump(jumpIndex, loc);
                 },
@@ -282,10 +282,10 @@ pub const Compiler = struct {
                     try self.writeParserOp(infix.infixType, loc);
                 },
                 .Or => {
+                    try self.emitOp(.SetInputMark, loc);
                     try self.writeParser(infix.left);
-                    const jumpIndex = try self.emitJump(.JumpIfSuccess, loc);
+                    const jumpIndex = try self.emitJump(.Or, loc);
                     try self.writeParser(infix.right);
-                    try self.writeParserOp(infix.infixType, loc);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Return => {
@@ -310,7 +310,6 @@ pub const Compiler = struct {
                     const successJumpIndex = try self.emitJump(.JumpIfSuccess, thenElseLoc);
                     try self.patchJump(failureJumpIndex, loc);
                     try self.writeParser(elseNodeId);
-                    try self.emitOp(.Or, self.ast.getLocation(elseNodeId));
                     try self.patchJump(successJumpIndex, thenElseLoc);
                 },
                 .ConditionalThenElse => @panic("internal error"), // always handled via ConditionalIfThen

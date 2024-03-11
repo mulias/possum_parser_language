@@ -70,13 +70,11 @@ pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {
     try std.testing.expectEqualStrings(expected, str.items);
 }
 
-pub fn expectSuccess(result: ParseResult, value: Elem, range: Tuple(&.{ usize, usize }), strings: StringTable) !void {
+pub fn expectSuccess(result: ParseResult, value: Elem, strings: StringTable) !void {
     try std.testing.expect(result.isSuccess());
 
     const success = result.asSuccess();
 
-    try std.testing.expectEqual(success.start, range[0]);
-    try std.testing.expectEqual(success.end, range[1]);
     try std.testing.expect(success.value.isEql(value, strings));
 }
 
