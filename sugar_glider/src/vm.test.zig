@@ -536,3 +536,19 @@ test "double(p) = p + p ; double('a')" {
         );
     }
 }
+
+test "scan(p) = p | (char > scan(p)) ; scan('end')" {
+    const parser =
+        \\scan(p) = p | ('a' > scan(p))
+        \\scan('end')
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "aaaaaaaend"),
+            (try Elem.Dyn.String.copy(&vm, "end")).dyn.elem(),
+            vm.strings,
+        );
+    }
+}

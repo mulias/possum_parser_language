@@ -104,7 +104,7 @@ pub const Compiler = struct {
     }
 
     fn compileMainParser(self: *Compiler, nodeId: usize) !void {
-        try self.writeParser(nodeId);
+        try self.writeParser(nodeId, false);
         try self.emitOp(.End, self.ast.endLocation);
     }
 
@@ -246,14 +246,14 @@ pub const Compiler = struct {
             }
         }
 
-        try compiler.writeParser(bodyNodeId);
+        try compiler.writeParser(bodyNodeId, true);
 
         try compiler.emitOp(.End, compiler.ast.getLocation(bodyNodeId));
 
         return compiler.function;
     }
 
-    fn writeParser(self: *Compiler, nodeId: usize) !void {
+    fn writeParser(self: *Compiler, nodeId: usize, isTailPosition: bool) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
@@ -261,40 +261,40 @@ pub const Compiler = struct {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Backtrack => {
                     try self.emitOp(.SetInputMark, loc);
-                    try self.writeParser(infix.left);
+                    try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.Backtrack, loc);
-                    try self.writeParser(infix.right);
+                    try self.writeParser(infix.right, isTailPosition);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Merge,
                 .TakeLeft,
                 => {
-                    try self.writeParser(infix.left);
+                    try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
-                    try self.writeParser(infix.right);
+                    try self.writeParser(infix.right, false);
                     try self.writeParserOp(infix.infixType, loc);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .TakeRight => {
-                    try self.writeParser(infix.left);
+                    try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.TakeRight, loc);
-                    try self.writeParser(infix.right);
+                    try self.writeParser(infix.right, isTailPosition);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Destructure => {
                     try self.writePattern(infix.left);
-                    try self.writeParser(infix.right);
+                    try self.writeParser(infix.right, false);
                     try self.writeParserOp(infix.infixType, loc);
                 },
                 .Or => {
                     try self.emitOp(.SetInputMark, loc);
-                    try self.writeParser(infix.left);
+                    try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.Or, loc);
-                    try self.writeParser(infix.right);
+                    try self.writeParser(infix.right, isTailPosition);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Return => {
-                    try self.writeParser(infix.left);
+                    try self.writeParser(infix.left, false);
                     try self.writeValue(infix.right);
                     try self.writeParserOp(infix.infixType, loc);
                 },
@@ -308,12 +308,12 @@ pub const Compiler = struct {
                     const thenNodeId = thenElseOp.left;
                     const elseNodeId = thenElseOp.right;
 
-                    try self.writeParser(ifNodeId);
+                    try self.writeParser(ifNodeId, false);
                     const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
-                    try self.writeParser(thenNodeId);
+                    try self.writeParser(thenNodeId, isTailPosition);
                     const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseLoc);
                     try self.patchJump(ifThenJumpIndex, loc);
-                    try self.writeParser(elseNodeId);
+                    try self.writeParser(elseNodeId, isTailPosition);
                     try self.patchJump(thenElseJumpIndex, thenElseLoc);
                 },
                 .ConditionalThenElse => @panic("internal error"), // always handled via ConditionalIfThen
@@ -321,7 +321,11 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeGetParser(infix.left);
                     const argCount = try self.writeArguments(infix.right);
-                    try self.emitUnaryOp(.CallParser, argCount, loc);
+                    if (isTailPosition) {
+                        try self.emitUnaryOp(.CallTailParser, argCount, loc);
+                    } else {
+                        try self.emitUnaryOp(.CallParser, argCount, loc);
+                    }
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
             },

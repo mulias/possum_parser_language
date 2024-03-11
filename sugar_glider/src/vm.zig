@@ -126,7 +126,11 @@ pub const VM = struct {
             },
             .CallParser => {
                 const argCount = self.readByte();
-                try self.callParser(self.peekElem(argCount), argCount);
+                try self.callParser(self.peekElem(argCount), argCount, false);
+            },
+            .CallTailParser => {
+                const argCount = self.readByte();
+                try self.callParser(self.peekElem(argCount), argCount, true);
             },
             .ConditionalThen => {
                 const offset = self.readShort();
@@ -288,6 +292,7 @@ pub const VM = struct {
             logger.debug("\n", .{});
             self.printInput();
             self.printParsed();
+            self.printFrames();
             self.printElems();
 
             if (self.frames.items.len > 0) {
@@ -296,11 +301,22 @@ pub const VM = struct {
         }
     }
 
-    fn callParser(self: *VM, callee: Elem, argCount: u8) !void {
+    fn callParser(self: *VM, callee: Elem, argCount: u8, isTailPosition: bool) !void {
         if (callee.isDynType(.Function)) {
             var function = callee.asDyn().asFunction();
 
             if (function.arity == argCount) {
+                if (isTailPosition) {
+                    // Remove the elements belonging to the previous call
+                    // frame. This includes the function itself, and each
+                    // argument the function was called with.
+                    try self.elems.replaceRange(
+                        self.frame().elemsOffset,
+                        self.frame().function.arity + 1,
+                        &[_]Elem{},
+                    );
+                    _ = self.frames.pop();
+                }
                 try self.addFrame(function);
             } else {
                 return self.runtimeError("Expected {} arguments but got {}.", .{ function.arity, argCount });
@@ -482,6 +498,15 @@ pub const VM = struct {
         for (self.elems.items, 0..) |e, idx| {
             e.print(logger.debug, self.strings);
             if (idx < self.elems.items.len - 1) logger.debug(", ", .{});
+        }
+        logger.debug("\n", .{});
+    }
+
+    fn printFrames(self: *VM) void {
+        logger.debug("Frames  | ", .{});
+        for (self.frames.items, 0..) |f, idx| {
+            f.function.print(logger.debug, self.strings);
+            if (idx < self.frames.items.len - 1) logger.debug(", ", .{});
         }
         logger.debug("\n", .{});
     }
