@@ -584,3 +584,19 @@ test "double(p) = p + p ; double('a' + 'b') + double('x' < 'y')" {
         );
     }
 }
+
+test "id(A) = '' $ A ; id(true)" {
+    const parser =
+        \\id(A) = '' $ A
+        \\id(true)
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "ignored"),
+            Elem.trueConst,
+            vm.strings,
+        );
+    }
+}

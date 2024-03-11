@@ -258,21 +258,6 @@ pub const VM = struct {
                 const result = try self.runParser(parser);
                 try self.pushParsed(result);
             },
-            .SubstituteValue => {
-                const varName = switch (self.popElem()) {
-                    .ValueVar => |name| name,
-                    else => @panic("internal error"),
-                };
-
-                const value = self.globals.get(varName);
-
-                if (value) |elem| {
-                    try self.pushElem(elem);
-                } else {
-                    const varNameStr = self.strings.get(varName);
-                    return self.runtimeError("Unknown variable `{s}`", .{varNameStr});
-                }
-            },
             .TakeLeft => {
                 _ = self.popParsed().asSuccess();
             },

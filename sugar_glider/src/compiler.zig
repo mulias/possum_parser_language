@@ -565,54 +565,46 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 },
             },
-            .ElemNode => |elem| try self.writeValueElem(elem, loc),
-        }
-    }
-
-    fn writeValueElem(self: *Compiler, elem: Elem, loc: Location) !void {
-        switch (elem) {
-            .ParserVar => {
-                printError("Parser is not valid in value", loc);
-                return Error.InvalidAst;
-            },
-            .ValueVar => {
-                const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.GetConstant, constId, loc);
-                try self.emitOp(.SubstituteValue, loc);
-            },
-            .String,
-            .IntegerString,
-            .FloatString,
-            => {
-                const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.GetConstant, constId, loc);
-            },
-            .True => try self.emitOp(.True, loc),
-            .False => try self.emitOp(.False, loc),
-            .Null => try self.emitOp(.Null, loc),
-            .Character,
-            .Integer,
-            .Float,
-            => unreachable, // not produced by the parser
-            .CharacterRange => {
-                printError("Character range is not valid in value", loc);
-                return Error.InvalidAst;
-            },
-            .IntegerRange => {
-                printError("Integer range is not valid in value", loc);
-                return Error.InvalidAst;
-            },
-            .Dyn => |d| switch (d.dynType) {
-                .String => unreachable, // not produced by the parser
-                .Array,
-                .Object,
+            .ElemNode => |elem| switch (elem) {
+                .ParserVar => {
+                    printError("Parser is not valid in value", loc);
+                    return Error.InvalidAst;
+                },
+                .ValueVar => try self.writeGetVar(nodeId),
+                .String,
+                .IntegerString,
+                .FloatString,
                 => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
                 },
-                .Function => {
-                    printError("Function is not valid in value", loc);
+                .True => try self.emitOp(.True, loc),
+                .False => try self.emitOp(.False, loc),
+                .Null => try self.emitOp(.Null, loc),
+                .Character,
+                .Integer,
+                .Float,
+                => unreachable, // not produced by the parser
+                .CharacterRange => {
+                    printError("Character range is not valid in value", loc);
                     return Error.InvalidAst;
+                },
+                .IntegerRange => {
+                    printError("Integer range is not valid in value", loc);
+                    return Error.InvalidAst;
+                },
+                .Dyn => |d| switch (d.dynType) {
+                    .String => unreachable, // not produced by the parser
+                    .Array,
+                    .Object,
+                    => {
+                        const constId = try self.makeConstant(elem);
+                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                    },
+                    .Function => {
+                        printError("Function is not valid in value", loc);
+                        return Error.InvalidAst;
+                    },
                 },
             },
         }

@@ -92,11 +92,11 @@ maybe(p) = p | succeed
 
 skip(p) = p $ ""
 
-# nullable(p) = p | const(null)
+nullable(p) = p | const(null)
 
-# default(p, D) = p | const(D)
+default(p, D) = p | const(D)
 
-# const(C) = succeed $ C
+const(C) = succeed $ C
 
 # string_of(p) = V <- p $ StringOf(V)
 
