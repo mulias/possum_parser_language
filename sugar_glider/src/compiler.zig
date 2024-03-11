@@ -462,7 +462,11 @@ pub const Compiler = struct {
         const loc = self.ast.getLocation(nodeId);
 
         switch (self.ast.getNode(nodeId)) {
-            .InfixNode => try self.writeAnonymousFunction(nodeId),
+            .InfixNode => {
+                const function = try self.writeAnonymousFunction(nodeId);
+                const constId = try self.makeConstant(function.dyn.elem());
+                try self.emitUnaryOp(.GetConstant, constId, loc);
+            },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => |sId| try self.writeGetParserWithName(sId, loc),
                 .ValueVar => @panic("todo"),
@@ -474,13 +478,9 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !void {
-        const loc = self.ast.getLocation(nodeId);
-
+    fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !*Elem.Dyn.Function {
         const name = try self.nextAnonFunctionName();
-        const function = try self.writeFunction(name, null, nodeId);
-        try self.vm.globals.put(name, function.dyn.elem());
-        try self.writeGetParserWithName(name, loc);
+        return self.writeFunction(name, null, nodeId);
     }
 
     fn nextAnonFunctionName(self: *Compiler) !StringTable.Id {
