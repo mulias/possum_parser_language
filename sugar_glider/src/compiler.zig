@@ -28,6 +28,7 @@ pub const Compiler = struct {
         OutOfMemory,
         TooManyConstants,
         ShortOverflow,
+        VariableNameUsedInScope,
     };
 
     pub fn init(vm: *VM, ast: Ast) !Compiler {
@@ -474,9 +475,19 @@ pub const Compiler = struct {
     }
 
     fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !void {
-        _ = nodeId;
-        _ = self;
-        @panic("todo");
+        const loc = self.ast.getLocation(nodeId);
+
+        const name = try self.nextAnonFunctionName();
+        const function = try self.writeFunction(name, null, nodeId);
+        try self.vm.globals.put(name, function.dyn.elem());
+        try self.writeGetParserWithName(name, loc);
+    }
+
+    fn nextAnonFunctionName(self: *Compiler) !StringTable.Id {
+        const id = self.vm.nextUniqueId();
+        const name = try std.fmt.allocPrint(self.vm.allocator, "@fn{d}", .{id});
+        defer self.vm.allocator.free(name);
+        return self.vm.strings.insert(name);
     }
 
     fn writePattern(self: *Compiler, nodeId: usize) !void {
@@ -630,7 +641,7 @@ pub const Compiler = struct {
     fn addLocal(self: *Compiler, name: StringTable.Id) !void {
         for (self.locals.items) |local| {
             if (name == local) {
-                return error.VariableNameUsedInScope;
+                return Error.VariableNameUsedInScope;
             }
         }
 

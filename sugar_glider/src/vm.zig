@@ -30,6 +30,7 @@ pub const VM = struct {
     input: []const u8,
     inputMarks: ArrayList(usize),
     inputPos: usize,
+    uniqueIdCount: u64,
 
     const Error = error{
         RuntimeError,
@@ -47,6 +48,7 @@ pub const VM = struct {
             .input = undefined,
             .inputMarks = ArrayList(usize).init(allocator),
             .inputPos = 0,
+            .uniqueIdCount = 0,
         };
 
         try self.loadStdlib();
@@ -281,6 +283,12 @@ pub const VM = struct {
             },
             .True => try self.pushElem(Elem.trueConst),
         }
+    }
+
+    pub fn nextUniqueId(self: *VM) u64 {
+        const id = self.uniqueIdCount;
+        self.uniqueIdCount += 1;
+        return id;
     }
 
     fn printDebug(self: *VM) void {

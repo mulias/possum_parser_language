@@ -552,3 +552,35 @@ test "scan(p) = p | (char > scan(p)) ; scan('end')" {
         );
     }
 }
+
+test "double(p) = p + p ; double('a' + 'b')" {
+    const parser =
+        \\double(p) = p + p
+        \\double('a' + 'b')
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "abab"),
+            (try Elem.Dyn.String.copy(&vm, "abab")).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
+
+test "double(p) = p + p ; double('a' + 'b') + double('x' < 'y')" {
+    const parser =
+        \\double(p) = p + p
+        \\double('a' + 'b') + double('x' < 'y')
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "ababxyxy"),
+            (try Elem.Dyn.String.copy(&vm, "ababxx")).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
