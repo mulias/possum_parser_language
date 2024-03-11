@@ -32,7 +32,7 @@ pub const Compiler = struct {
 
     pub fn init(vm: *VM, ast: Ast) !Compiler {
         var main = try Elem.Dyn.Function.create(vm, .{
-            .name = try vm.addString("@main"),
+            .name = try vm.strings.insert("@main"),
             .functionType = .Main,
             .arity = 0,
         });
@@ -364,19 +364,19 @@ pub const Compiler = struct {
                     },
                     .True => {
                         // In this context `true` could be a zero-arg function call
-                        const sId = try self.vm.addString("true");
+                        const sId = try self.vm.strings.insert("true");
                         try self.writeGetParserWithName(sId, loc);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .False => {
                         // In this context `false` could be a zero-arg function call
-                        const sId = try self.vm.addString("false");
+                        const sId = try self.vm.strings.insert("false");
                         try self.writeGetParserWithName(sId, loc);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .Null => {
                         // In this context `null` could be a zero-arg function call
-                        const sId = try self.vm.addString("null");
+                        const sId = try self.vm.strings.insert("null");
                         try self.writeGetParserWithName(sId, loc);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },

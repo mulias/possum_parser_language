@@ -283,10 +283,6 @@ pub const VM = struct {
         }
     }
 
-    pub fn addString(self: *VM, bytes: []const u8) !StringTable.Id {
-        return try self.strings.insert(bytes);
-    }
-
     fn printDebug(self: *VM) void {
         if (logger.debugVM) {
             logger.debug("\n", .{});

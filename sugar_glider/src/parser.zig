@@ -155,13 +155,13 @@ pub const Parser = struct {
 
     fn parserVar(self: *Parser) !usize {
         const t = self.previous;
-        const sId = try self.vm.addString(t.lexeme);
+        const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.pushElem(Elem.parserVar(sId), t.loc);
     }
 
     fn valueVar(self: *Parser) !usize {
         const t = self.previous;
-        const sId = try self.vm.addString(t.lexeme);
+        const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.pushElem(Elem.valueVar(sId), t.loc);
     }
 
@@ -191,7 +191,7 @@ pub const Parser = struct {
                 return self.errorAtPrevious("Expect second period");
             }
         } else {
-            const sId = try self.vm.addString(s1);
+            const sId = try self.vm.strings.insert(s1);
             return self.ast.pushElem(Elem.string(sId), t1.loc);
         }
     }
@@ -227,7 +227,7 @@ pub const Parser = struct {
                     return self.errorAtPrevious("Expect second period");
                 }
             } else {
-                const sId1 = try self.vm.addString(s1);
+                const sId1 = try self.vm.strings.insert(s1);
                 return self.ast.pushElem(Elem.integerString(int1, sId1), t1.loc);
             }
         } else {
@@ -247,7 +247,7 @@ pub const Parser = struct {
     fn float(self: *Parser) !usize {
         const t = self.previous;
         if (parseFloat(t.lexeme)) |f| {
-            const sId = try self.vm.addString(t.lexeme);
+            const sId = try self.vm.strings.insert(t.lexeme);
             return self.ast.pushElem(Elem.floatString(f, sId), t.loc);
         } else {
             // Already verified this is a float during scanning
