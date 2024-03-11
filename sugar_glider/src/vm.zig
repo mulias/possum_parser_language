@@ -128,6 +128,19 @@ pub const VM = struct {
                 const argCount = self.readByte();
                 try self.callParser(self.peekElem(argCount), argCount);
             },
+            .ConditionalThen => {
+                const offset = self.readShort();
+                const lhs = self.popParsed();
+                if (lhs.isFailure()) self.frame().ip += offset;
+            },
+            .ConditionalElse => {
+                const offset = self.readShort();
+                const lhs = self.popParsed();
+                if (lhs.isSuccess()) {
+                    self.frame().ip += offset;
+                    try self.pushParsed(lhs);
+                }
+            },
             .Destructure => {
                 const pattern = self.popElem();
                 const parsed = self.popParsed();
@@ -254,24 +267,13 @@ pub const VM = struct {
                     return self.runtimeError("Unknown variable `{s}`", .{varNameStr});
                 }
             },
-            .TakeRight => {
-                const rhs = self.popParsed();
-                _ = self.popParsed().asSuccess();
-
-                if (rhs.isSuccess()) {
-                    const rhss = rhs.asSuccess();
-                    const result = ParseResult.success(rhss.value);
-                    try self.pushParsed(result);
-                } else {
-                    try self.pushParsed(rhs);
-                }
-            },
             .TakeLeft => {
                 _ = self.popParsed().asSuccess();
-                const lhs = self.popParsed().asSuccess();
-
-                const result = ParseResult.success(lhs.value);
-                try self.pushParsed(result);
+            },
+            .TakeRight => {
+                const offset = self.readShort();
+                const lhs = self.popParsed();
+                if (lhs.isFailure()) self.frame().ip += offset;
             },
             .True => try self.pushElem(Elem.trueConst),
         }

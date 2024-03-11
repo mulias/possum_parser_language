@@ -6,6 +6,8 @@ const logger = @import("./logger.zig");
 pub const OpCode = enum(u8) {
     Backtrack,
     CallParser,
+    ConditionalThen,
+    ConditionalElse,
     GetConstant,
     Destructure,
     End,
@@ -40,7 +42,6 @@ pub const OpCode = enum(u8) {
             .SetInputMark,
             .SubstituteValue,
             .TakeLeft,
-            .TakeRight,
             .True,
             => self.simpleInstruction(offset),
             .GetConstant,
@@ -50,10 +51,13 @@ pub const OpCode = enum(u8) {
             .GetLocal,
             => self.byteInstruciton(chunk, offset),
             .Backtrack,
+            .ConditionalThen,
+            .ConditionalElse,
             .Or,
             .Jump,
             .JumpIfFailure,
             .JumpIfSuccess,
+            .TakeRight,
             => self.jumpInstruction(chunk, offset),
         };
     }

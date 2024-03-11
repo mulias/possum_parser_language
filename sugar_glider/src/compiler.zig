@@ -268,12 +268,17 @@ pub const Compiler = struct {
                 },
                 .Merge,
                 .TakeLeft,
-                .TakeRight,
                 => {
                     try self.writeParser(infix.left);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
                     try self.writeParser(infix.right);
                     try self.writeParserOp(infix.infixType, loc);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .TakeRight => {
+                    try self.writeParser(infix.left);
+                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    try self.writeParser(infix.right);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Destructure => {
@@ -304,13 +309,12 @@ pub const Compiler = struct {
                     const elseNodeId = thenElseOp.right;
 
                     try self.writeParser(ifNodeId);
-                    const failureJumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
                     try self.writeParser(thenNodeId);
-                    try self.emitOp(.TakeRight, self.ast.getLocation(thenNodeId));
-                    const successJumpIndex = try self.emitJump(.JumpIfSuccess, thenElseLoc);
-                    try self.patchJump(failureJumpIndex, loc);
+                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseLoc);
+                    try self.patchJump(ifThenJumpIndex, loc);
                     try self.writeParser(elseNodeId);
-                    try self.patchJump(successJumpIndex, thenElseLoc);
+                    try self.patchJump(thenElseJumpIndex, thenElseLoc);
                 },
                 .ConditionalThenElse => @panic("internal error"), // always handled via ConditionalIfThen
                 .DeclareGlobal => unreachable,
