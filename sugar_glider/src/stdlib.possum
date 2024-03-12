@@ -1,6 +1,4 @@
-char = " ".."~"
-
-# char = "\u0000".."\U0010FFFF"
+char = "\u0000".."\U10FFFF"
 
 alpha = "a".."z" | "A".."Z"
 
@@ -18,15 +16,15 @@ numeral = "0".."9"
 
 # numerals = many(numeral)
 
-# space = " " | "\t"
+space = " " | "\t"
 
 # spaces = many(space)
 
-# newline = "\n" | "\r\n"
+newline = "\n" | "\r\n"
 
 # newlines = many(newline)
 
-# nl = newline
+nl = newline
 
 # end_of_input = char ? @fail ! succeed
 

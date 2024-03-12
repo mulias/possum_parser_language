@@ -137,9 +137,12 @@ pub const Scanner = struct {
         const startLine = self.line;
 
         while (self.peek() != mark and !self.isAtEnd()) {
-            if (self.peek() == '\\' and self.peekNext() == mark) self.advance();
-            if (self.peek() == '\n' and self.peekNext() == '\r') self.advance();
+            // Accept all possible escape sequences, validate in the compiler.
+            if (self.peek() == '\\') self.advance();
+
             if (self.peek() == '\n') self.line += 1;
+            if (self.peek() == '\n' and self.peekNext() == '\r') self.advance();
+
             self.advance();
         }
 

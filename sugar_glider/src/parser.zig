@@ -1,12 +1,14 @@
 const std = @import("std");
+const unicode = std.unicode;
 const Ast = @import("ast.zig").Ast;
 const Elem = @import("./elem.zig").Elem;
+const Location = @import("location.zig").Location;
 const Scanner = @import("scanner.zig").Scanner;
+const StringTable = @import("string_table.zig").StringTable;
 const Token = @import("./token.zig").Token;
 const TokenType = @import("./token.zig").TokenType;
 const VM = @import("vm.zig").VM;
 const logger = @import("./logger.zig");
-const Location = @import("location.zig").Location;
 
 pub const Parser = struct {
     vm: *VM,
@@ -20,6 +22,8 @@ pub const Parser = struct {
     const Error = error{
         OutOfMemory,
         UnexpectedInput,
+        CodepointTooLarge,
+        Utf8CannotEncodeSurrogateHalf,
     };
 
     pub fn init(vm: *VM) Parser {
@@ -191,13 +195,83 @@ pub const Parser = struct {
                 return self.errorAtPrevious("Expect second period");
             }
         } else {
-            const sId = try self.vm.strings.insert(s1);
+            const s1 = stringContents(t1.lexeme);
+            const sId = try self.internUnescaped(s1);
             return self.ast.pushElem(Elem.string(sId), t1.loc);
         }
     }
 
     fn stringContents(str: []const u8) []const u8 {
         return str[1 .. str.len - 1];
+    }
+
+    fn internUnescaped(self: *Parser, str: []const u8) !StringTable.Id {
+        var buffer = try self.vm.allocator.alloc(u8, str.len);
+        defer self.vm.allocator.free(buffer);
+        var bufferLen: usize = 0;
+        var s = str[0..];
+
+        while (s.len > 0) {
+            if (s[0] == '\\') {
+                if (s[1] == 'u' and str.len > 6) {
+                    // BMP character
+                    if (parseCodepoint(s[2..6])) |c| {
+                        const bytesWritten = try unicode.utf8Encode(c, buffer[bufferLen..]);
+                        bufferLen += bytesWritten;
+                        s = s[6..];
+                    } else {
+                        return self.errorAtPrevious("Invalid escape sequence in string.");
+                    }
+                } else if (s[1] == 'U' and s.len > 10) {
+                    // Non-BMP character
+                    if (parseCodepoint(s[2..10])) |c| {
+                        const bytesWritten = try unicode.utf8Encode(c, buffer[bufferLen..]);
+                        bufferLen += bytesWritten;
+                        s = s[10..];
+                    } else {
+                        return self.errorAtPrevious("Invalid escape sequence in string.");
+                    }
+                } else {
+                    // ascii escape
+                    const byte: u8 = switch (s[1]) {
+                        '0' => 0,
+                        'a' => 7,
+                        'b' => 8,
+                        't' => 9,
+                        'n' => 10,
+                        'v' => 11,
+                        'f' => 12,
+                        'r' => 13,
+                        '"' => 34,
+                        '\'' => 39,
+                        '\\' => 92,
+                        else => return self.errorAtPrevious("Invalid escape sequence in string."),
+                    };
+                    buffer[bufferLen] = byte;
+                    bufferLen += 1;
+                    s = s[2..];
+                }
+            } else {
+                // Otherwise copy the current byte and iterate.
+                buffer[bufferLen] = s[0];
+                bufferLen += 1;
+                s = s[1..];
+            }
+        }
+
+        return self.vm.strings.insert(buffer[0..bufferLen]);
+    }
+
+    fn parseCodepoint(lexeme: []const u8) ?u21 {
+        if (std.fmt.parseInt(u21, lexeme, 16)) |value| {
+            if (unicode.utf8ValidCodepoint(value)) {
+                return value;
+            } else {
+                return null;
+            }
+        } else |_| {
+            return null;
+        }
     }
 
     fn integer(self: *Parser) !usize {

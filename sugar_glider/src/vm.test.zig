@@ -600,3 +600,45 @@ test "id(A) = '' $ A ; id(true)" {
         );
     }
 }
+
+test "n = '\n' ; n > n > n > 'wow!'" {
+    const parser =
+        \\n = '\n'
+        \\n > n > n > "wow!"
+    ;
+    const input =
+        \\
+        \\
+        \\
+        \\wow!
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, input),
+            Elem.string(vm.strings.getId("wow!")),
+            vm.strings,
+        );
+    }
+}
+
+test "'\\n\\'\\\\' > 0" {
+    const parser =
+        \\'\n\'\\' > 0
+    ;
+    const input =
+        \\
+        \\'\0
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, input),
+            Elem.integerString(0, vm.strings.getId("0")),
+            vm.strings,
+        );
+    }
+}
+
