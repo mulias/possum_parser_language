@@ -499,49 +499,45 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 },
             },
-            .ElemNode => |elem| try self.writePatternElem(elem, loc),
-        }
-    }
-
-    fn writePatternElem(self: *Compiler, elem: Elem, loc: Location) !void {
-        switch (elem) {
-            .ParserVar => {
-                printError("parser is not valid in pattern", loc);
-                return Error.InvalidAst;
-            },
-            .ValueVar,
-            .String,
-            .IntegerString,
-            .FloatString,
-            => {
-                const constId = try self.makeConstant(elem);
-                try self.emitUnaryOp(.GetConstant, constId, loc);
-            },
-            .True => try self.emitOp(.True, loc),
-            .False => try self.emitOp(.False, loc),
-            .Null => try self.emitOp(.Null, loc),
-            .Integer,
-            .Float,
-            => unreachable, // not produced by the parser
-            .CharacterRange => {
-                printError("Character range is not valid in pattern", loc);
-                return Error.InvalidAst;
-            },
-            .IntegerRange => {
-                printError("Integer range is not valid in pattern", loc);
-                return Error.InvalidAst;
-            },
-            .Dyn => |d| switch (d.dynType) {
-                .String => unreachable, // not produced by the parser
-                .Array,
-                .Object,
+            .ElemNode => |elem| switch (elem) {
+                .ParserVar => {
+                    printError("parser is not valid in pattern", loc);
+                    return Error.InvalidAst;
+                },
+                .String,
+                .IntegerString,
+                .FloatString,
+                .ValueVar,
                 => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
                 },
-                .Function => {
-                    printError("Function is not valid in pattern", loc);
+                .True => try self.emitOp(.True, loc),
+                .False => try self.emitOp(.False, loc),
+                .Null => try self.emitOp(.Null, loc),
+                .Integer,
+                .Float,
+                => unreachable, // not produced by the parser
+                .CharacterRange => {
+                    printError("Character range is not valid in pattern", loc);
                     return Error.InvalidAst;
+                },
+                .IntegerRange => {
+                    printError("Integer range is not valid in pattern", loc);
+                    return Error.InvalidAst;
+                },
+                .Dyn => |d| switch (d.dynType) {
+                    .String => unreachable, // not produced by the parser
+                    .Array,
+                    .Object,
+                    => {
+                        const constId = try self.makeConstant(elem);
+                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                    },
+                    .Function => {
+                        printError("Function is not valid in pattern", loc);
+                        return Error.InvalidAst;
+                    },
                 },
             },
         }
