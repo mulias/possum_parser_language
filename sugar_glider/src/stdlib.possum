@@ -2,27 +2,27 @@ char = "\u0000".."\U10FFFF"
 
 alpha = "a".."z" | "A".."Z"
 
-# alphas = many(alpha)
+alphas = many(alpha)
 
 lower = "a".."z"
 
-# lowers = many(lower)
+lowers = many(lower)
 
 upper = "A".."Z"
 
-# uppers = many(upper)
+uppers = many(upper)
 
 numeral = "0".."9"
 
-# numerals = many(numeral)
+numerals = many(numeral)
 
 space = " " | "\t"
 
-# spaces = many(space)
+spaces = many(space)
 
 newline = "\n" | "\r\n"
 
-# newlines = many(newline)
+newlines = many(newline)
 
 nl = newline
 
@@ -30,9 +30,9 @@ nl = newline
 
 # end = end_of_input
 
-# whitespace = many(space | newline)
+whitespace = many(space | newline)
 
-# ws = whitespace
+ws = whitespace
 
 # word = until(char, whitespace | end_of_input)
 
@@ -112,6 +112,8 @@ surround(p, fill) = fill > p < fill
 #   Next <- p & _matching_pair_rec(open, p, close, Acc + Next, Depth)
 
 # input(p) = surround(p, maybe(whitespace)) < end_of_input
+
+many(p) = p + (many(p) | "")
 
 # many(p) = First <- p & _many_rec(p, First)
 
