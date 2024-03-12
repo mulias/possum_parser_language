@@ -218,10 +218,12 @@ pub const VM = struct {
                 }
             },
             .MergeParsed => {
-                const rhs = self.popParsed().asSuccess();
+                const rhs = self.popParsed();
                 const lhs = self.popParsed().asSuccess();
 
-                if (try Elem.merge(lhs.value, rhs.value, self)) |value| {
+                if (rhs.isFailure()) {
+                    try self.pushParsed(rhs);
+                } else if (try Elem.merge(lhs.value, rhs.asSuccess().value, self)) |value| {
                     const result = ParseResult.success(value);
                     try self.pushParsed(result);
                 } else {
