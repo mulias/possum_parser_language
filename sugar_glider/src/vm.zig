@@ -85,8 +85,6 @@ pub const VM = struct {
 
         try self.run();
 
-        assert(self.elems.items.len == 1);
-
         if (self.parsed.items.len > 0) {
             return self.peekParsed(0);
         } else {
@@ -163,8 +161,6 @@ pub const VM = struct {
             },
             .End => {
                 const prevFrame = self.frames.pop();
-
-                if (self.frames.items.len == 0) return;
 
                 try self.elems.resize(prevFrame.elemsOffset);
             },
