@@ -209,6 +209,21 @@ pub const Elem = union(ElemType) {
         };
     }
 
+    pub fn isValueMatchingPattern(value: Elem, pattern: Elem, strings: StringTable) bool {
+        // If the pattern is an unbound value variable then the match is always
+        // successful. After pattern matching we'll go back and bind the var to
+        // `value`.
+        switch (pattern) {
+            .ValueVar => return true,
+            else => {},
+        }
+
+        // Otherwise compare.
+        // TODO: once we're matching inside of arrays and objects this will
+        // have to be recursive
+        return value.isEql(pattern, strings);
+    }
+
     pub fn merge(elemA: Elem, elemB: Elem, vm: *VM) !?Elem {
         return switch (elemA) {
             .ParserVar => @panic("Attempted to merge an unresolved parser variable, this should never happen."),
