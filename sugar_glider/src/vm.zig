@@ -123,9 +123,12 @@ pub const VM = struct {
         switch (opCode) {
             .Backtrack => {
                 const offset = self.readShort();
-                const lhs = self.popParsed();
-                if (lhs.isFailure()) self.frame().ip += offset;
-                self.inputPos = self.popInputMark();
+                if (self.peekParsed(0).isSuccess()) {
+                    _ = self.popParsed();
+                    self.inputPos = self.popInputMark();
+                } else {
+                    self.frame().ip += offset;
+                }
             },
             .CallParser => {
                 const argCount = self.readByte();

@@ -119,6 +119,8 @@ many(p) = p + (many(p) | "")
 
 # _many_rec(p, Acc) = Next <- p ? _many_rec(p, Acc + Next) : const(Acc)
 
+until(p, stop) = p + (stop ! "" | until(p, stop))
+
 # until(p, stop) = First <- p & _until_rec(p, stop, First)
 
 # _until_rec(p, stop, Acc) =
