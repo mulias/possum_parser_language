@@ -565,21 +565,21 @@ pub const Parser = struct {
 
     const Precedence = enum {
         CallOrDefineFunction,
-        FunctionArgOrParam,
         StandardInfix,
         Sequence,
         Conditional,
         DeclareGlobal,
+        FunctionArgOrParam,
         None,
 
         pub fn bindingPower(precedence: Precedence) struct { left: u4, right: u4 } {
             return switch (precedence) {
                 .CallOrDefineFunction => .{ .left = 11, .right = 12 },
-                .FunctionArgOrParam => .{ .left = 10, .right = 9 },
                 .StandardInfix => .{ .left = 7, .right = 8 },
                 .Sequence => .{ .left = 5, .right = 6 },
                 .Conditional => .{ .left = 4, .right = 3 },
                 .DeclareGlobal => .{ .left = 2, .right = 2 },
+                .FunctionArgOrParam => .{ .left = 2, .right = 1 },
                 .None => .{ .left = 0, .right = 0 },
             };
         }

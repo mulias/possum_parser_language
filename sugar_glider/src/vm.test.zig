@@ -712,10 +712,10 @@ test "A = 100 ; A <- 100" {
     }
 }
 
-test "eql_to(p, V) = V <- p ; eql_to('foo', 'foo')" {
+test "eql_to(p, V) = V <- p ; eql_to('bar' | 'foo', 'foo')" {
     const parser =
         \\eql_to(p, V) = V <- p
-        \\eql_to('foo', 'foo')
+        \\eql_to('bar' | 'foo', 'foo')
     ;
     {
         var vm = try VM.init(allocator);
@@ -723,6 +723,22 @@ test "eql_to(p, V) = V <- p ; eql_to('foo', 'foo')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
             Elem.string(vm.strings.getId("foo")),
+            vm.strings,
+        );
+    }
+}
+
+test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
+    const parser =
+        \\last(a, b, c) = a > b > c
+        \\last(1, 2, 3)
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "123"),
+            Elem.integerString(3, vm.strings.getId("3")),
             vm.strings,
         );
     }
