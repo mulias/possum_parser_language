@@ -642,3 +642,56 @@ test "'\\n\\'\\\\' > 0" {
     }
 }
 
+test "c = '\\u0000'..'\\U10FFFF' ; c > (c + c) < c" {
+    const parser =
+        \\c = '\u0000'..'\U10FFFF'
+        \\c > (c + c) < c
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "abcd"),
+            (try Elem.Dyn.String.copy(&vm, "bc")).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
+
+test "c = '\\u0001'..'\\U10FFFE' ; c > (c + c) < c" {
+    const parser =
+        \\c = '\u0001'..'\U10FFFE'
+        \\c > (c + c) < c
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "abcd"),
+            (try Elem.Dyn.String.copy(&vm, "bc")).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
+
+test "n = '\n'..'\n' ; n > n > n > 'wow!'" {
+    const parser =
+        \\n = '\n'..'\n'
+        \\n > n > n > "wow!"
+    ;
+    const input =
+        \\
+        \\
+        \\
+        \\wow!
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, input),
+            Elem.string(vm.strings.getId("wow!")),
+            vm.strings,
+        );
+    }
+}

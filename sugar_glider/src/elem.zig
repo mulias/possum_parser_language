@@ -1,4 +1,5 @@
 const std = @import("std");
+const unicode = std.unicode;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Chunk = @import("./chunk.zig").Chunk;
@@ -12,7 +13,6 @@ const logger = @import("logger.zig");
 pub const ElemType = enum {
     ParserVar,
     ValueVar,
-    Character,
     String,
     Integer,
     Float,
@@ -29,13 +29,12 @@ pub const ElemType = enum {
 pub const Elem = union(ElemType) {
     ParserVar: StringTable.Id,
     ValueVar: StringTable.Id,
-    Character: u8,
     String: StringTable.Id,
     Integer: i64,
     Float: f64,
     IntegerString: struct { value: i64, sId: StringTable.Id },
     FloatString: struct { value: f64, sId: StringTable.Id },
-    CharacterRange: Tuple(&.{ u8, u8 }),
+    CharacterRange: struct { low: u21, lowLength: u3, high: u21, highLength: u3 },
     IntegerRange: Tuple(&.{ i64, i64 }),
     True: void,
     False: void,
@@ -48,10 +47,6 @@ pub const Elem = union(ElemType) {
 
     pub fn valueVar(sId: StringTable.Id) Elem {
         return Elem{ .ValueVar = sId };
-    }
-
-    pub fn character(c: u8) Elem {
-        return Elem{ .Character = c };
     }
 
     pub fn string(sId: StringTable.Id) Elem {
@@ -74,8 +69,13 @@ pub const Elem = union(ElemType) {
         return Elem{ .FloatString = .{ .value = value, .sId = sId } };
     }
 
-    pub fn characterRange(low: u8, high: u8) Elem {
-        return Elem{ .CharacterRange = .{ low, high } };
+    pub fn characterRange(low: u21, high: u21) !Elem {
+        return Elem{ .CharacterRange = .{
+            .low = low,
+            .lowLength = try unicode.utf8CodepointSequenceLength(low),
+            .high = high,
+            .highLength = try unicode.utf8CodepointSequenceLength(high),
+        } };
     }
 
     pub fn integerRange(low: i64, high: i64) Elem {
@@ -92,13 +92,12 @@ pub const Elem = union(ElemType) {
         switch (self) {
             .ParserVar => |sId| printer("{s}", .{strings.get(sId)}),
             .ValueVar => |sId| printer("{s}", .{strings.get(sId)}),
-            .Character => |c| printer("\"{c}\"", .{c}),
             .String => |sId| printer("\"{s}\"", .{strings.get(sId)}),
             .Integer => |n| printer("{d}", .{n}),
             .Float => |n| printer("{d}", .{n}),
             .IntegerString => |n| printer("{s}", .{strings.get(n.sId)}),
             .FloatString => |n| printer("{s}", .{strings.get(n.sId)}),
-            .CharacterRange => |r| printer("\"{c}\"..\"{c}\"", .{ r[0], r[1] }),
+            .CharacterRange => |r| printer("\"{u}\"..\"{u}\"", .{ r.low, r.high }),
             .IntegerRange => |r| printer("{d}..{d}", .{ r[0], r[1] }),
             .True => printer("true", .{}),
             .False => printer("false", .{}),
@@ -135,26 +134,7 @@ pub const Elem = union(ElemType) {
                 .ValueVar => |sId2| sId1 == sId2,
                 else => false,
             },
-            .Character => |c1| switch (other) {
-                .Character => |c2| c1 == c2,
-                .String => |sId2| {
-                    const s2 = strings.get(sId2);
-                    return s2.len == 1 and c1 == s2[0];
-                },
-                .Dyn => |d2| {
-                    if (d2.isType(.String)) {
-                        const ds2 = d2.asString();
-                        return ds2.len() == 1 and c1 == ds2.bytes()[0];
-                    }
-                    return false;
-                },
-                else => false,
-            },
             .String => |sId1| switch (other) {
-                .Character => |c2| {
-                    const s1 = strings.get(sId1);
-                    return s1.len == 1 and s1[0] == c2;
-                },
                 .String => |sId2| sId1 == sId2,
                 .Dyn => |d2| {
                     if (d2.isType(.String)) {
@@ -199,7 +179,7 @@ pub const Elem = union(ElemType) {
                 else => false,
             },
             .CharacterRange => |r1| switch (other) {
-                .CharacterRange => |r2| r1[0] == r2[0] and r1[1] == r2[1],
+                .CharacterRange => |r2| r1.low == r2.low and r1.high == r2.high,
                 else => false,
             },
             .True => switch (other) {
@@ -215,13 +195,6 @@ pub const Elem = union(ElemType) {
                 else => false,
             },
             .Dyn => |d1| switch (other) {
-                .Character => |c2| {
-                    if (d1.isType(.String)) {
-                        const ds1 = d1.asString();
-                        return ds1.len() == 1 and ds1.bytes()[0] == c2;
-                    }
-                    return false;
-                },
                 .String => |sId2| {
                     if (d1.isType(.String)) {
                         const s1 = d1.asString().bytes();
@@ -240,40 +213,7 @@ pub const Elem = union(ElemType) {
         return switch (elemA) {
             .ParserVar => @panic("Attempted to merge an unresolved parser variable, this should never happen."),
             .ValueVar => @panic("Attempted to merge an unresolved value variable, this should never happen."),
-            .Character => |c1| switch (elemB) {
-                .Character => |c2| {
-                    const s = try Elem.Dyn.String.create(vm, 2);
-                    try s.concatByte(c1);
-                    try s.concatByte(c2);
-                    return s.dyn.elem();
-                },
-                .String => |sId2| {
-                    const s2 = vm.strings.get(sId2);
-                    const s = try Elem.Dyn.String.create(vm, 1 + s2.len);
-                    try s.concatByte(c1);
-                    try s.concatBytes(s2);
-                    return s.dyn.elem();
-                },
-                .Dyn => |d| switch (d.dynType) {
-                    .String => {
-                        const ds2 = d.asString();
-                        const s = try Elem.Dyn.String.create(vm, 1 + ds2.buffer.size);
-                        try s.concatByte(c1);
-                        try s.concat(ds2);
-                        return s.dyn.elem();
-                    },
-                    else => null,
-                },
-                else => null,
-            },
             .String => |sId1| switch (elemB) {
-                .Character => |c2| {
-                    const s1 = vm.strings.get(sId1);
-                    const s = try Elem.Dyn.String.create(vm, s1.len + 1);
-                    try s.concatBytes(s1);
-                    try s.concatByte(c2);
-                    return s.dyn.elem();
-                },
                 .String => |sId2| {
                     const s1 = vm.strings.get(sId1);
                     const s2 = vm.strings.get(sId2);
@@ -332,10 +272,6 @@ pub const Elem = union(ElemType) {
                 .String => {
                     const ds1 = d1.asString();
                     return switch (elemB) {
-                        .Character => |c2| {
-                            try ds1.concatByte(c2);
-                            return ds1.dyn.elem();
-                        },
                         .String => |sId2| {
                             const s2 = vm.strings.get(sId2);
                             try ds1.concatBytes(s2);

@@ -376,7 +376,6 @@ pub const Compiler = struct {
                         try self.writeGetVar(nodeId);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
-                    .Character,
                     .Integer,
                     .Float,
                     => unreachable, // not produced by the parser
@@ -521,7 +520,6 @@ pub const Compiler = struct {
             .True => try self.emitOp(.True, loc),
             .False => try self.emitOp(.False, loc),
             .Null => try self.emitOp(.Null, loc),
-            .Character,
             .Integer,
             .Float,
             => unreachable, // not produced by the parser
@@ -581,7 +579,6 @@ pub const Compiler = struct {
                 .True => try self.emitOp(.True, loc),
                 .False => try self.emitOp(.False, loc),
                 .Null => try self.emitOp(.Null, loc),
-                .Character,
                 .Integer,
                 .Float,
                 => unreachable, // not produced by the parser

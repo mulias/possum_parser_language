@@ -171,23 +171,35 @@ pub const Parser = struct {
 
     fn string(self: *Parser) !usize {
         const t1 = self.previous;
-        const s1 = stringContents(t1.lexeme);
 
-        if (s1.len == 1 and self.current.tokenType == .Dot) {
+        if (self.current.tokenType == .Dot and !self.skippedWhitespace) {
             try self.advance();
-            if (self.current.tokenType == .Dot) {
+            if (self.current.tokenType == .Dot and !self.skippedWhitespace) {
                 try self.advance();
-                if (self.current.tokenType == .String) {
+                if (self.current.tokenType == .String and !self.skippedWhitespace) {
                     try self.advance();
-                    const s2 = stringContents(self.previous.lexeme);
-                    if (s2.len == 1) {
-                        return self.ast.pushElem(
-                            Elem.characterRange(s1[0], s2[0]),
-                            Location.new(t1.loc.line, t1.loc.start, 4),
-                        );
-                    } else {
-                        return self.errorAtPrevious("Expect single character for character range");
+                    const t2 = self.previous;
+                    const s1 = stringContents(t1.lexeme);
+                    const s2 = stringContents(t2.lexeme);
+
+                    if (characterStringToCodepoint(s1)) |c1| {
+                        if (characterStringToCodepoint(s2)) |c2| {
+                            if (c1 > c2) {
+                                return self.errorAtPrevious("Character range is not ordered");
+                            }
+
+                            return self.ast.pushElem(
+                                try Elem.characterRange(c1, c2),
+                                Location.new(
+                                    t1.loc.line,
+                                    t1.loc.start,
+                                    t1.loc.length + t2.loc.length + 2,
+                                ),
+                            );
+                        }
                     }
+
+                    return self.errorAtPrevious("Expect single character for character range");
                 } else {
                     return self.errorAtPrevious("Expect second string for character range");
                 }
@@ -260,6 +272,46 @@ pub const Parser = struct {
         }
 
         return self.vm.strings.insert(buffer[0..bufferLen]);
+    }
+
+    fn characterStringToCodepoint(str: []const u8) ?u21 {
+        if (str.len == 0) return null; // must be at least one byte long
+
+        // BMP character
+        if (str[0] == '\\' and str[1] == 'u' and str.len == 6) {
+            return parseCodepoint(str[2..6]);
+        }
+
+        // Non-BMP character
+        if (str[0] == '\\' and str[1] == 'U' and str.len == 8) {
+            return parseCodepoint(str[2..8]);
+        }
+
+        // ascii escape
+        if (str[0] == '\\' and str.len == 2) {
+            return switch (str[1]) {
+                '0' => 0x00,
+                'a' => 0x07,
+                'b' => 0x08,
+                't' => 0x09,
+                'n' => 0x0A,
+                'v' => 0x0B,
+                'f' => 0x0C,
+                'r' => 0x0D,
+                '"' => 0x22,
+                '\'' => 0x27,
+                '\\' => 0x5C,
+                else => null,
+            };
+        }
+
+        // Otherwise must be exactly one codepoint
+        const codepointLength = unicode.utf8CodepointSequenceLength(str[0]) catch 1;
+        if (codepointLength == str.len) {
+            return unicode.utf8Decode(str) catch null;
+        }
+
+        return null;
     }
 
     fn parseCodepoint(lexeme: []const u8) ?u21 {

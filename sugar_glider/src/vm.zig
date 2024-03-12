@@ -1,4 +1,5 @@
 const std = @import("std");
+const unicode = std.unicode;
 const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMap;
 const ArrayList = std.ArrayList;
@@ -325,7 +326,6 @@ pub const VM = struct {
         switch (elem) {
             .ParserVar => @panic("Internal error"),
             .ValueVar => @panic("Internal error"),
-            .Character => @panic("Internal error"),
             .String => |sId| {
                 const s = self.strings.get(sId);
                 const start = self.inputPos;
@@ -384,15 +384,18 @@ pub const VM = struct {
             },
             .CharacterRange => |r| {
                 const start = self.inputPos;
-                const end = start + 1;
 
                 if (start < self.input.len) {
-                    const c = self.input[start];
+                    const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
+                    const end = start + bytesLength;
 
-                    if (r[0] <= c and c <= r[1]) {
-                        self.inputPos = end;
-                        const character = Elem.character(c);
-                        return ParseResult.success(character);
+                    if (r.lowLength <= bytesLength and bytesLength <= r.highLength and end <= self.input.len) {
+                        const codepoint = try unicode.utf8Decode(self.input[start..end]);
+                        if (r.low <= codepoint and codepoint <= r.high) {
+                            self.inputPos = end;
+                            const string = try Elem.Dyn.String.copy(self, self.input[start..end]);
+                            return ParseResult.success(string.dyn.elem());
+                        }
                     }
                 }
             },
