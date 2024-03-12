@@ -743,3 +743,34 @@ test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
         );
     }
 }
+
+test "Foo <- 'foo' $ Foo" {
+    const parser =
+        \\Foo <- 'foo' $ Foo
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "foo"),
+            Elem.string(vm.strings.getId("foo")),
+            vm.strings,
+        );
+    }
+}
+
+test "peek(p) = V <- p ! '' $ V ; peek(1) + peek(1) + peek(1)" {
+    const parser =
+        \\peek(p) = V <- p ! '' $ V
+        \\peek(1) + peek(1) + peek(1)
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "1"),
+            Elem.integer(3),
+            vm.strings,
+        );
+    }
+}

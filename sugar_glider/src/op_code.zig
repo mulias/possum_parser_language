@@ -5,6 +5,7 @@ const logger = @import("./logger.zig");
 
 pub const OpCode = enum(u8) {
     Backtrack,
+    BindPatternVar,
     CallParser,
     CallTailParser,
     ConditionalElse,
@@ -47,6 +48,7 @@ pub const OpCode = enum(u8) {
             .GetConstant,
             .GetGlobal,
             => self.constantInstruction(chunk, offset, strings),
+            .BindPatternVar,
             .CallParser,
             .CallTailParser,
             .GetLocal,

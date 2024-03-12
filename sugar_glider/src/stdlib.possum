@@ -84,7 +84,7 @@ null(n) = n $ null
 
 succeed = ""
 
-# peek(p) = (V <- p) ! const(V)
+peek(p) = (V <- p) ! const(V)
 
 maybe(p) = p | succeed
 

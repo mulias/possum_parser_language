@@ -290,6 +290,7 @@ pub const Compiler = struct {
                     try self.writePattern(infix.left);
                     try self.writeParser(infix.right, false);
                     try self.emitOp(.Destructure, loc);
+                    try self.bindPatternVars(nodeId);
                 },
                 .Or => {
                     try self.emitOp(.SetInputMark, loc);
@@ -573,6 +574,24 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.GetConstant, constId, loc);
                         try self.emitUnaryOp(.TryResolveUnboundLocal, local, loc);
                     }
+                },
+                else => {},
+            },
+        }
+    }
+
+    fn bindPatternVars(self: *Compiler, nodeId: usize) !void {
+        const node = self.ast.getNode(nodeId);
+        const loc = self.ast.getLocation(nodeId);
+
+        switch (node) {
+            .InfixNode => |infix| {
+                try self.bindPatternVars(infix.left);
+                try self.bindPatternVars(infix.right);
+            },
+            .ElemNode => |elem| switch (elem) {
+                .ValueVar => |name| if (self.resolveLocal(name)) |local| {
+                    try self.emitUnaryOp(.BindPatternVar, local, loc);
                 },
                 else => {},
             },

@@ -128,6 +128,19 @@ pub const VM = struct {
                     self.frame().ip += offset;
                 }
             },
+            .BindPatternVar => {
+                const slot = self.readByte();
+                const result = self.peekParsed(0);
+
+                if (result.isSuccess()) {
+                    const value = result.asSuccess().value;
+
+                    switch (self.getLocal(slot)) {
+                        .ValueVar => self.setLocal(slot, value),
+                        else => {},
+                    }
+                }
+            },
             .CallParser => {
                 const argCount = self.readByte();
                 try self.callParser(self.peekElem(argCount), argCount, false);
@@ -151,12 +164,15 @@ pub const VM = struct {
             },
             .Destructure => {
                 const pattern = self.popElem();
-                const parsed = self.popParsed();
 
-                if (parsed.isSuccess() and parsed.asSuccess().value.isEql(pattern, self.strings)) {
-                    try self.pushParsed(parsed);
-                } else {
-                    try self.pushParsed(ParseResult.failure);
+                if (self.peekParsed(0).isSuccess()) {
+                    const value = self.popParsed().asSuccess().value;
+
+                    if (value.isValueMatchingPattern(pattern, self.strings)) {
+                        try self.pushParsed(ParseResult.success(value));
+                    } else {
+                        try self.pushParsed(ParseResult.failure);
+                    }
                 }
             },
             .End => {
