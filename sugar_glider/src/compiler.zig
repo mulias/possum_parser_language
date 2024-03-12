@@ -504,10 +504,12 @@ pub const Compiler = struct {
                     printError("parser is not valid in pattern", loc);
                     return Error.InvalidAst;
                 },
+                .ValueVar => {
+                    try self.writeGetVar(nodeId);
+                },
                 .String,
                 .IntegerString,
                 .FloatString,
-                .ValueVar,
                 => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
