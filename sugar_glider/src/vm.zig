@@ -269,6 +269,21 @@ pub const VM = struct {
                 if (lhs.isFailure()) self.frame().ip += offset;
             },
             .True => try self.pushElem(Elem.trueConst),
+            .TryResolveUnboundLocal => {
+                // Get the local at `slot`, it should be unbound. Check to see
+                // if there's a global with the same name, and if so set the
+                // local to the same value as the global.
+                const slot = self.readByte();
+
+                const varName = switch (self.getLocal(slot)) {
+                    .ValueVar => |varName| varName,
+                    else => @panic("internal error"),
+                };
+
+                if (self.globals.get(varName)) |varElem| {
+                    self.setLocal(slot, varElem);
+                }
+            },
         }
     }
 
@@ -427,6 +442,10 @@ pub const VM = struct {
 
     pub fn getLocal(self: *VM, slot: usize) Elem {
         return self.elems.items[self.frame().elemsOffset + slot];
+    }
+
+    pub fn setLocal(self: *VM, slot: usize, elem: Elem) void {
+        self.elems.items[self.frame().elemsOffset + slot] = elem;
     }
 
     fn readByte(self: *VM) u8 {

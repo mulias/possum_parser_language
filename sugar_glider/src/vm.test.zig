@@ -711,3 +711,19 @@ test "A = 100 ; A <- 100" {
         );
     }
 }
+
+test "eql_to(p, V) = V <- p ; eql_to('foo', 'foo')" {
+    const parser =
+        \\eql_to(p, V) = V <- p
+        \\eql_to('foo', 'foo')
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "foo"),
+            Elem.string(vm.strings.getId("foo")),
+            vm.strings,
+        );
+    }
+}
