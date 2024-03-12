@@ -695,3 +695,19 @@ test "n = '\n'..'\n' ; n > n > n > 'wow!'" {
         );
     }
 }
+
+test "A = 100 ; A <- 100" {
+    const parser =
+        \\A = 100
+        \\A <- 100
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "100"),
+            Elem.integerString(100, vm.strings.getId("100")),
+            vm.strings,
+        );
+    }
+}
