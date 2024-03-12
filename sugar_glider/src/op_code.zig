@@ -28,6 +28,7 @@ pub const OpCode = enum(u8) {
     TakeLeft,
     TakeRight,
     True,
+    TryResolveUnboundLocal,
 
     pub fn disassemble(self: OpCode, chunk: *Chunk, strings: StringTable, offset: usize) usize {
         return switch (self) {
@@ -49,6 +50,7 @@ pub const OpCode = enum(u8) {
             .CallParser,
             .CallTailParser,
             .GetLocal,
+            .TryResolveUnboundLocal,
             => self.byteInstruciton(chunk, offset),
             .Backtrack,
             .ConditionalThen,

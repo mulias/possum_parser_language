@@ -286,6 +286,7 @@ pub const Compiler = struct {
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Destructure => {
+                    try self.addPatternLocals(nodeId);
                     try self.writePattern(infix.left);
                     try self.writeParser(infix.right, false);
                     try self.emitOp(.Destructure, loc);
@@ -545,6 +546,39 @@ pub const Compiler = struct {
         }
     }
 
+    fn addPatternLocals(self: *Compiler, nodeId: usize) !void {
+        const node = self.ast.getNode(nodeId);
+        const loc = self.ast.getLocation(nodeId);
+
+        switch (node) {
+            .InfixNode => |infix| {
+                try self.addPatternLocals(infix.left);
+                try self.addPatternLocals(infix.right);
+            },
+            .ElemNode => |elem| switch (elem) {
+                .ValueVar => {
+                    // If the var in the pattern is new to the function scope
+                    // then push the var onto the stack, create a new local for
+                    // it and return the local's stack position. Then check to
+                    // see if there's a global value with the same name, and if
+                    // so update the local.
+                    //
+                    // Alternatively, The pattern var might already be defined
+                    // as a local, for example in `is_eql(p, V) = V <- p` the
+                    // `V` is a function param so the passed arg will already
+                    // be bound to a local. In this case no bytecode is emitted.
+                    const newLocalId = try self.addLocalIfUndefined(elem);
+                    if (newLocalId) |local| {
+                        const constId = try self.makeConstant(elem);
+                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        try self.emitUnaryOp(.TryResolveUnboundLocal, local, loc);
+                    }
+                },
+                else => {},
+            },
+        }
+    }
+
     fn writeValue(self: *Compiler, nodeId: usize) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
@@ -634,6 +668,24 @@ pub const Compiler = struct {
         }
 
         try self.locals.append(name);
+    }
+
+    fn addLocalIfUndefined(self: *Compiler, elem: Elem) !?u8 {
+        const name = switch (elem) {
+            .ParserVar => |sId| sId,
+            .ValueVar => |sId| sId,
+            else => return Error.InvalidAst,
+        };
+
+        for (self.locals.items) |local| {
+            if (name == local) {
+                return null;
+            }
+        }
+
+        try self.locals.append(name);
+
+        return @as(u8, @intCast(self.locals.items.len - 1));
     }
 
     pub fn resolveLocal(self: *Compiler, name: StringTable.Id) ?u8 {
