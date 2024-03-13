@@ -364,7 +364,7 @@ pub const Compiler = struct {
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
-                        try self.emitOp(.RunParser, loc);
+                        try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .True => {
                         // In this context `true` could be a zero-arg function call

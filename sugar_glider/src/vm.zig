@@ -271,11 +271,6 @@ pub const VM = struct {
                     .Failure => try self.pushParsed(parsed),
                 }
             },
-            .RunParser => {
-                const parser = self.popElem();
-                const result = try self.runParser(parser);
-                try self.pushParsed(result);
-            },
             .TakeLeft => {
                 _ = self.popParsed().asSuccess();
             },
@@ -323,74 +318,53 @@ pub const VM = struct {
         }
     }
 
-    fn callParser(self: *VM, callee: Elem, argCount: u8, isTailPosition: bool) !void {
-        if (callee.isDynType(.Function)) {
-            var function = callee.asDyn().asFunction();
-
-            if (function.arity == argCount) {
-                if (isTailPosition) {
-                    // Remove the elements belonging to the previous call
-                    // frame. This includes the function itself, and each
-                    // argument the function was called with.
-                    try self.elems.replaceRange(
-                        self.frame().elemsOffset,
-                        self.frame().function.arity + 1,
-                        &[_]Elem{},
-                    );
-                    _ = self.frames.pop();
-                }
-                try self.addFrame(function);
-            } else {
-                return self.runtimeError("Expected {} arguments but got {}.", .{ function.arity, argCount });
-            }
-        } else {
-            if (argCount == 0) {
-                const result = try self.runParser(callee);
-                try self.pushParsed(result);
-                _ = self.popElem();
-            } else {
-                return self.runtimeError("Can only call functions.", .{});
-            }
-        }
-    }
-
-    fn runParser(self: *VM, elem: Elem) !ParseResult {
+    fn callParser(self: *VM, elem: Elem, argCount: u8, isTailPosition: bool) !void {
         switch (elem) {
-            .ParserVar => @panic("Internal error"),
-            .ValueVar => @panic("Internal error"),
             .String => |sId| {
+                assert(argCount == 0);
+                _ = self.popElem();
                 const s = self.strings.get(sId);
                 const start = self.inputPos;
                 const end = start + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    return ParseResult.success(elem);
+                    try self.pushParsed(ParseResult.success(elem));
+                    return;
                 }
+                try self.pushParsed(ParseResult.failure);
             },
-            .Integer => @panic("Internal error"),
-            .Float => @panic("Internal error"),
             .IntegerString => |n| {
+                assert(argCount == 0);
+                _ = self.popElem();
                 const s = self.strings.get(n.sId);
                 const start = self.inputPos;
                 const end = start + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    return ParseResult.success(elem);
+                    try self.pushParsed(ParseResult.success(elem));
+                    return;
                 }
+                try self.pushParsed(ParseResult.failure);
             },
             .FloatString => |n| {
+                assert(argCount == 0);
+                _ = self.popElem();
                 const s = self.strings.get(n.sId);
                 const start = self.inputPos;
                 const end = start + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    return ParseResult.success(elem);
+                    try self.pushParsed(ParseResult.success(elem));
+                    return;
                 }
+                try self.pushParsed(ParseResult.failure);
             },
             .IntegerRange => |r| {
+                assert(argCount == 0);
+                _ = self.popElem();
                 const lowIntLen = intLength(r[0]);
                 const highIntLen = intLength(r[1]);
                 const start = self.inputPos;
@@ -408,13 +382,17 @@ pub const VM = struct {
                     if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
                         self.inputPos = end;
                         const int = Elem.integer(i);
-                        return ParseResult.success(int);
+                        try self.pushParsed(ParseResult.success(int));
+                        return;
                     } else {
                         end -= 1;
                     };
                 }
+                try self.pushParsed(ParseResult.failure);
             },
             .CharacterRange => |r| {
+                assert(argCount == 0);
+                _ = self.popElem();
                 const start = self.inputPos;
 
                 if (start < self.input.len) {
@@ -426,18 +404,38 @@ pub const VM = struct {
                         if (r.low <= codepoint and codepoint <= r.high) {
                             self.inputPos = end;
                             const string = try Elem.Dyn.String.copy(self, self.input[start..end]);
-                            return ParseResult.success(string.dyn.elem());
+                            try self.pushParsed(ParseResult.success(string.dyn.elem()));
+                            return;
                         }
                     }
                 }
+                try self.pushParsed(ParseResult.failure);
             },
-            .True => @panic("Internal error"),
-            .False => @panic("Internal error"),
-            .Null => @panic("Internal error"),
-            .Dyn => @panic("Internal error"),
-        }
+            .Dyn => |dyn| switch (dyn.dynType) {
+                .Function => {
+                    var function = dyn.asFunction();
 
-        return ParseResult.failure;
+                    if (function.arity == argCount) {
+                        if (isTailPosition) {
+                            // Remove the elements belonging to the previous call
+                            // frame. This includes the function itself, and each
+                            // argument the function was called with.
+                            try self.elems.replaceRange(
+                                self.frame().elemsOffset,
+                                self.frame().function.arity + 1,
+                                &[_]Elem{},
+                            );
+                            _ = self.frames.pop();
+                        }
+                        try self.addFrame(function);
+                    } else {
+                        return self.runtimeError("Expected {} arguments but got {}.", .{ function.arity, argCount });
+                    }
+                },
+                else => @panic("Internal error"),
+            },
+            else => @panic("Internal error"),
+        }
     }
 
     fn frame(self: *VM) *CallFrame {
