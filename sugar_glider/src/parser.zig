@@ -485,7 +485,7 @@ pub const Parser = struct {
 
         while (self.scanner.next()) |token| {
             if (token.isType(.Error)) {
-                return self.errorAtCurrent(self.current.lexeme);
+                return errorAt(token, token.lexeme);
             } else if (token.isType(.WhitespaceWithNewline)) {
                 self.skippedWhitespace = true;
                 self.skippedNewline = true;
@@ -517,14 +517,14 @@ pub const Parser = struct {
     }
 
     fn errorAtCurrent(self: *Parser, message: []const u8) Error {
-        return errorAt(&self.current, message);
+        return errorAt(self.current, message);
     }
 
     fn errorAtPrevious(self: *Parser, message: []const u8) Error {
-        return errorAt(&self.previous, message);
+        return errorAt(self.previous, message);
     }
 
-    fn errorAt(token: *Token, message: []const u8) Error {
+    fn errorAt(token: Token, message: []const u8) Error {
         token.loc.print(logger.err);
 
         switch (token.tokenType) {
