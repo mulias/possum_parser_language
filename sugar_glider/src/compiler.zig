@@ -306,7 +306,10 @@ pub const Compiler = struct {
                 },
                 .ConditionalIfThen => {
                     // Then/Else is always the right-side node
-                    const thenElseOp = self.ast.getInfixOfType(infix.right, .ConditionalThenElse).?;
+                    const thenElseOp = self.ast.getInfixOfType(
+                        infix.right,
+                        .ConditionalThenElse,
+                    ) orelse return Error.InvalidAst;
                     const thenElseLoc = self.ast.getLocation(infix.right);
 
                     // Get each part of `ifNodeId ? thenNodeId : elseNodeId`
