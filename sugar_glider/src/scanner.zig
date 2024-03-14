@@ -25,7 +25,7 @@ pub const Scanner = struct {
         const token = self.scanToken();
         if (logger.debugScanner) {
             logger.debug("Scanned token: ", .{});
-            token.printDebug();
+            token.print(logger.debug);
             logger.debug("\n", .{});
         }
         if (token.tokenType == .Eof) self.atEnd = true;
