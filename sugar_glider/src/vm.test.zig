@@ -450,6 +450,11 @@ test "1 ? 2 : 3 ? 4 : 5" {
     {
         var vm = try VM.init(allocator);
         defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "1"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
             Elem.integerString(2, vm.strings.getId("2")),
@@ -459,11 +464,66 @@ test "1 ? 2 : 3 ? 4 : 5" {
     {
         var vm = try VM.init(allocator);
         defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "13"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "14"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "15"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "2"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "23"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "24"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "25"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "3"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "34"),
             Elem.integerString(4, vm.strings.getId("4")),
             vm.strings,
         );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "35"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "4"));
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(try vm.interpret(parser, "45"));
     }
     {
         var vm = try VM.init(allocator);

@@ -92,10 +92,12 @@ pub const VM = struct {
 
         try self.run();
 
-        if (self.parsed.items.len > 0) {
-            return self.peekParsed(0);
-        } else {
+        assert(self.parsed.items.len == 0 or self.parsed.items.len == 1);
+
+        if (self.parsed.items.len == 0) {
             return Elem.failureConst;
+        } else {
+            return self.popParsed();
         }
     }
 
@@ -162,18 +164,23 @@ pub const VM = struct {
                 try self.callParser(self.peekElem(argCount), argCount, true);
             },
             .ConditionalThen => {
+                // The `condition` parser determines if we enter the "then" or
+                // "else" branch. If `condition` succeeded then keep going, the
+                // next opcode is start of the "then" branch. If `condition`
+                // failed then jump to the start of the "else" bytecode.
                 const offset = self.readShort();
-                if (self.peekParsed(0).isSuccess()) {
-                    _ = self.popParsed();
-                } else {
+                const condition = self.popParsed();
+                if (condition.isFailure()) {
                     self.frame().ip += offset;
                 }
             },
             .ConditionalElse => {
+                // Skip over the "else" branch. This opcode is placed at the
+                // end of the "then" branch, so if the "then" branch was
+                // skipped over to get to the "else" branch it will never be
+                // encountered.
                 const offset = self.readShort();
-                if (self.peekParsed(0).isSuccess()) {
-                    self.frame().ip += offset;
-                }
+                self.frame().ip += offset;
             },
             .Destructure => {
                 const pattern = self.popElem();
