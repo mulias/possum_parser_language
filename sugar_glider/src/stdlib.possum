@@ -26,7 +26,7 @@ newlines = many(newline)
 
 nl = newline
 
-end_of_input = char ? @fail : @succeed
+end_of_input = peek(char) ? @fail : @succeed
 
 end = end_of_input
 
@@ -113,7 +113,7 @@ many(p) = p + (many(p) | @succeed)
 
 # _many_rec(p, Acc) = Next <- p ? _many_rec(p, Acc + Next) : const(Acc)
 
-until(p, stop) = p + (stop ! "" | until(p, stop))
+until(p, stop) = p + (peek(stop) ? @succeed : until(p, stop))
 
 # until(p, stop) = First <- p & _until_rec(p, stop, First)
 
@@ -122,7 +122,7 @@ until(p, stop) = p + (stop ! "" | until(p, stop))
 #   const(Acc) :
 #   Next <- p & _until_rec(p, stop, Acc + Next)
 
-# unless(p, excluded) = excluded ? @fail : p
+unless(p, excluded) = excluded ? @fail : p
 
 # repeat(p, N) =
 #   _assert_positive_integer(N) &
