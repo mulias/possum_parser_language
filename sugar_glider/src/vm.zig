@@ -329,6 +329,16 @@ pub const VM = struct {
 
     fn callParser(self: *VM, elem: Elem, argCount: u8, isTailPosition: bool) Error!void {
         switch (elem) {
+            .ParserVar => |varName| {
+                if (self.globals.get(varName)) |varElem| {
+                    // Swap the var with the thing it's aliasing on the stack
+                    self.elems.items[self.frame().elemsOffset] = varElem;
+                    try self.callParser(varElem, argCount, isTailPosition);
+                } else {
+                    const nameStr = self.strings.get(varName);
+                    return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
+                }
+            },
             .String => |sId| {
                 assert(argCount == 0);
                 _ = self.popElem();

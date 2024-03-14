@@ -787,3 +787,40 @@ test "@fail" {
         );
     }
 }
+
+test "a = b ; b = c ; c = 111 ; a" {
+    const parser =
+        \\a = b
+        \\b = c
+        \\c = 111
+        \\a
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "111"),
+            Elem.integerString(111, vm.strings.getId("111")),
+            vm.strings,
+        );
+    }
+}
+
+test "a = b ; b = c('bar') ; c(a) = d(a, 'foo') ; d(a, b) = a + b; a" {
+    const parser =
+        \\a = b
+        \\b = c('bar')
+        \\c(a) = d(a, 'foo')
+        \\d(a, b) = a + b
+        \\a
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "barfoo"),
+            (try Elem.Dyn.String.copy(&vm, "barfoo")).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
