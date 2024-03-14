@@ -138,7 +138,7 @@ pub const VM = struct {
         switch (opCode) {
             .Backtrack => {
                 const offset = self.readShort();
-                if (self.peekParsed(0).isSuccess()) {
+                if (self.peekParsedIsSuccess()) {
                     _ = self.popParsed();
                     self.inputPos = self.popInputMark();
                 } else {
@@ -185,7 +185,7 @@ pub const VM = struct {
             .Destructure => {
                 const pattern = self.popElem();
 
-                if (self.peekParsed(0).isSuccess()) {
+                if (self.peekParsedIsSuccess()) {
                     const value = self.popParsed();
 
                     if (value.isValueMatchingPattern(pattern, self.strings)) {
@@ -232,11 +232,11 @@ pub const VM = struct {
             },
             .JumpIfFailure => {
                 const offset = self.readShort();
-                if (self.peekParsed(0).isFailure()) self.frame().ip += offset;
+                if (self.peekParsedIsFailure()) self.frame().ip += offset;
             },
             .JumpIfSuccess => {
                 const offset = self.readShort();
-                if (self.peekParsed(0).isSuccess()) self.frame().ip += offset;
+                if (self.peekParsedIsSuccess()) self.frame().ip += offset;
             },
             .GetConstant => {
                 const idx = self.readByte();
@@ -270,7 +270,7 @@ pub const VM = struct {
             },
             .Null => try self.pushElem(Elem.nullConst),
             .NumberOf => {
-                if (self.peekParsed(0).isSuccess()) {
+                if (self.peekParsedIsSuccess()) {
                     const value = self.popParsed();
                     if (value.toNumber(self.strings)) |n| {
                         try self.pushParsed(n);
@@ -281,7 +281,7 @@ pub const VM = struct {
             },
             .Or => {
                 const offset = self.readShort();
-                if (self.peekParsed(0).isSuccess()) {
+                if (self.peekParsedIsSuccess()) {
                     self.frame().ip += offset;
                     _ = self.popInputMark();
                 } else {
@@ -292,7 +292,7 @@ pub const VM = struct {
             .Return => {
                 const value = self.popElem();
 
-                if (self.peekParsed(0).isSuccess()) {
+                if (self.peekParsedIsSuccess()) {
                     _ = self.popParsed();
                     try self.pushParsed(value);
                 }
@@ -539,6 +539,18 @@ pub const VM = struct {
     fn peekParsed(self: *VM, distance: usize) Elem {
         var len = self.parsed.items.len;
         return self.parsed.items[len - 1 - distance];
+    }
+
+    fn peekParsedIsFailure(self: *VM) bool {
+        if (self.parsed.items.len == 0) {
+            return true;
+        } else {
+            return self.peekParsed(0) == .Failure;
+        }
+    }
+
+    fn peekParsedIsSuccess(self: *VM) bool {
+        return !self.peekParsedIsFailure();
     }
 
     fn pushInputMark(self: *VM) !void {
