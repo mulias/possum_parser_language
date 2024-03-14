@@ -15,8 +15,10 @@ pub const Parser = struct {
     scanner: Scanner,
     current: Token,
     previous: Token,
-    skippedWhitespace: bool,
-    skippedNewline: bool,
+    currentSkippedWhitespace: bool,
+    currentSkippedNewline: bool,
+    previousSkippedWhitespace: bool,
+    previousSkippedNewline: bool,
     ast: Ast,
 
     const Error = error{
@@ -32,8 +34,10 @@ pub const Parser = struct {
             .scanner = undefined,
             .current = undefined,
             .previous = undefined,
-            .skippedWhitespace = false,
-            .skippedNewline = false,
+            .currentSkippedWhitespace = false,
+            .currentSkippedNewline = false,
+            .previousSkippedWhitespace = false,
+            .previousSkippedNewline = false,
             .ast = Ast.init(vm.allocator),
         };
     }
@@ -61,7 +65,7 @@ pub const Parser = struct {
     fn statement(self: *Parser) !usize {
         const node = try self.parseWithPrecedence(.None);
 
-        if (self.check(.Eof) or self.skippedNewline or try self.match(.Semicolon)) {
+        if (self.check(.Eof) or self.currentSkippedNewline or try self.match(.Semicolon)) {
             return node;
         }
 
@@ -147,7 +151,7 @@ pub const Parser = struct {
             .QuestionMark => self.conditionalIfThenOp(leftNode),
             .Colon => self.conditionalThenElseOp(leftNode),
             .LeftParen => {
-                if (!self.skippedWhitespace) {
+                if (!self.previousSkippedWhitespace) {
                     return self.callOrDefineFunction(leftNode);
                 } else {
                     return self.errorAtPrevious("Expected infix operator.");
@@ -172,11 +176,11 @@ pub const Parser = struct {
     fn string(self: *Parser) !usize {
         const t1 = self.previous;
 
-        if (self.current.tokenType == .Dot and !self.skippedWhitespace) {
+        if (self.current.tokenType == .Dot and !self.currentSkippedWhitespace) {
             try self.advance();
-            if (self.current.tokenType == .Dot and !self.skippedWhitespace) {
+            if (self.current.tokenType == .Dot and !self.currentSkippedWhitespace) {
                 try self.advance();
-                if (self.current.tokenType == .String and !self.skippedWhitespace) {
+                if (self.current.tokenType == .String and !self.currentSkippedWhitespace) {
                     try self.advance();
                     const t2 = self.previous;
                     const s1 = stringContents(t1.lexeme);
@@ -479,18 +483,20 @@ pub const Parser = struct {
     }
 
     pub fn advance(self: *Parser) !void {
-        self.skippedWhitespace = false;
-        self.skippedNewline = false;
         self.previous = self.current;
+        self.previousSkippedWhitespace = self.currentSkippedWhitespace;
+        self.previousSkippedNewline = self.currentSkippedNewline;
+        self.currentSkippedWhitespace = false;
+        self.currentSkippedNewline = false;
 
         while (self.scanner.next()) |token| {
             if (token.isType(.Error)) {
                 return errorAt(token, token.lexeme);
             } else if (token.isType(.WhitespaceWithNewline)) {
-                self.skippedWhitespace = true;
-                self.skippedNewline = true;
+                self.currentSkippedWhitespace = true;
+                self.currentSkippedNewline = true;
             } else if (token.isType(.Whitespace)) {
-                self.skippedWhitespace = true;
+                self.currentSkippedWhitespace = true;
             } else {
                 self.current = token;
                 break;
