@@ -774,3 +774,16 @@ test "peek(p) = V <- p ! '' $ V ; peek(1) + peek(1) + peek(1)" {
         );
     }
 }
+
+test "@fail" {
+    const parser =
+        \\@fail
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, "sad"),
+        );
+    }
+}

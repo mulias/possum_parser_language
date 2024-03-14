@@ -6,13 +6,13 @@ const ArrayList = std.ArrayList;
 const Chunk = @import("./chunk.zig").Chunk;
 const Elem = @import("./elem.zig").Elem;
 const OpCode = @import("./op_code.zig").OpCode;
-const ParseResult = @import("parse_result.zig").ParseResult;
 const Parser = @import("./parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
 const assert = std.debug.assert;
 const Compiler = @import("./compiler.zig").Compiler;
 const json = std.json;
 const logger = @import("./logger.zig");
+const meta = @import("meta.zig");
 
 const CallFrame = struct {
     function: *Elem.Dyn.Function,
@@ -26,7 +26,7 @@ pub const VM = struct {
     globals: AutoHashMap(StringTable.Id, Elem),
     dynList: ?*Elem.Dyn,
     elems: ArrayList(Elem),
-    parsed: ArrayList(ParseResult),
+    parsed: ArrayList(Elem),
     frames: ArrayList(CallFrame),
     input: []const u8,
     inputMarks: ArrayList(usize),
@@ -35,6 +35,12 @@ pub const VM = struct {
 
     const Error = error{
         RuntimeError,
+        OutOfMemory,
+        Utf8ExpectedContinuation,
+        Utf8OverlongEncoding,
+        Utf8EncodesSurrogateHalf,
+        Utf8CodepointTooLarge,
+        InvalidRange,
     };
 
     pub fn init(allocator: Allocator) !VM {
@@ -44,7 +50,7 @@ pub const VM = struct {
             .globals = AutoHashMap(StringTable.Id, Elem).init(allocator),
             .dynList = null,
             .elems = ArrayList(Elem).init(allocator),
-            .parsed = ArrayList(ParseResult).init(allocator),
+            .parsed = ArrayList(Elem).init(allocator),
             .frames = ArrayList(CallFrame).init(allocator),
             .input = undefined,
             .inputMarks = ArrayList(usize).init(allocator),
@@ -52,6 +58,7 @@ pub const VM = struct {
             .uniqueIdCount = 0,
         };
 
+        try self.loadMetaFunctions();
         try self.loadStdlib();
 
         return self;
@@ -67,7 +74,7 @@ pub const VM = struct {
         self.inputMarks.deinit();
     }
 
-    pub fn interpret(self: *VM, programSource: []const u8, input: []const u8) !ParseResult {
+    pub fn interpret(self: *VM, programSource: []const u8, input: []const u8) !Elem {
         var parser = Parser.init(self);
         defer parser.deinit();
 
@@ -88,7 +95,15 @@ pub const VM = struct {
         if (self.parsed.items.len > 0) {
             return self.peekParsed(0);
         } else {
-            return ParseResult.failure;
+            return Elem.failureConst;
+        }
+    }
+
+    fn loadMetaFunctions(self: *VM) !void {
+        var functions = try meta.functions(self);
+
+        for (functions) |function| {
+            try self.globals.put(function.name, function.dyn.elem());
         }
     }
 
@@ -130,11 +145,8 @@ pub const VM = struct {
             },
             .BindPatternVar => {
                 const slot = self.readByte();
-                const result = self.peekParsed(0);
-
-                if (result.isSuccess()) {
-                    const value = result.asSuccess().value;
-
+                const value = self.peekParsed(0);
+                if (value.isSuccess()) {
                     switch (self.getLocal(slot)) {
                         .ValueVar => self.setLocal(slot, value),
                         else => {},
@@ -151,27 +163,28 @@ pub const VM = struct {
             },
             .ConditionalThen => {
                 const offset = self.readShort();
-                const lhs = self.popParsed();
-                if (lhs.isFailure()) self.frame().ip += offset;
+                if (self.peekParsed(0).isSuccess()) {
+                    _ = self.popParsed();
+                } else {
+                    self.frame().ip += offset;
+                }
             },
             .ConditionalElse => {
                 const offset = self.readShort();
-                const lhs = self.popParsed();
-                if (lhs.isSuccess()) {
+                if (self.peekParsed(0).isSuccess()) {
                     self.frame().ip += offset;
-                    try self.pushParsed(lhs);
                 }
             },
             .Destructure => {
                 const pattern = self.popElem();
 
                 if (self.peekParsed(0).isSuccess()) {
-                    const value = self.popParsed().asSuccess().value;
+                    const value = self.popParsed();
 
                     if (value.isValueMatchingPattern(pattern, self.strings)) {
-                        try self.pushParsed(ParseResult.success(value));
+                        try self.pushParsed(value);
                     } else {
-                        try self.pushParsed(ParseResult.failure);
+                        try self.pushParsed(Elem.failureConst);
                     }
                 }
             },
@@ -179,6 +192,9 @@ pub const VM = struct {
                 const prevFrame = self.frames.pop();
 
                 try self.elems.resize(prevFrame.elemsOffset);
+            },
+            .Fail => {
+                try self.pushParsed(Elem.failureConst);
             },
             .False => {
                 try self.pushElem(Elem.falseConst);
@@ -222,6 +238,9 @@ pub const VM = struct {
             .SetInputMark => {
                 try self.pushInputMark();
             },
+            .Succeed => {
+                try self.pushParsed(Elem.successConst);
+            },
             .MergeElems => {
                 const rhs = self.popElem();
                 const lhs = self.popElem();
@@ -234,13 +253,10 @@ pub const VM = struct {
             },
             .MergeParsed => {
                 const rhs = self.popParsed();
-                const lhs = self.popParsed().asSuccess();
+                const lhs = self.popParsed();
 
-                if (rhs.isFailure()) {
-                    try self.pushParsed(rhs);
-                } else if (try Elem.merge(lhs.value, rhs.asSuccess().value, self)) |value| {
-                    const result = ParseResult.success(value);
-                    try self.pushParsed(result);
+                if (try Elem.merge(lhs, rhs, self)) |value| {
+                    try self.pushParsed(value);
                 } else {
                     return self.runtimeError("Merge type mismatch", .{});
                 }
@@ -248,31 +264,24 @@ pub const VM = struct {
             .Null => try self.pushElem(Elem.nullConst),
             .Or => {
                 const offset = self.readShort();
-                switch (self.peekParsed(0)) {
-                    .Success => {
-                        self.frame().ip += offset;
-                        _ = self.popInputMark();
-                    },
-                    .Failure => {
-                        self.inputPos = self.popInputMark();
-                        _ = self.popParsed();
-                    },
+                if (self.peekParsed(0).isSuccess()) {
+                    self.frame().ip += offset;
+                    _ = self.popInputMark();
+                } else {
+                    self.inputPos = self.popInputMark();
+                    _ = self.popParsed();
                 }
             },
             .Return => {
                 const value = self.popElem();
-                const parsed = self.popParsed();
 
-                switch (parsed) {
-                    .Success => {
-                        const result = ParseResult.success(value);
-                        try self.pushParsed(result);
-                    },
-                    .Failure => try self.pushParsed(parsed),
+                if (self.peekParsed(0).isSuccess()) {
+                    _ = self.popParsed();
+                    try self.pushParsed(value);
                 }
             },
             .TakeLeft => {
-                _ = self.popParsed().asSuccess();
+                _ = self.popParsed();
             },
             .TakeRight => {
                 const offset = self.readShort();
@@ -318,7 +327,7 @@ pub const VM = struct {
         }
     }
 
-    fn callParser(self: *VM, elem: Elem, argCount: u8, isTailPosition: bool) !void {
+    fn callParser(self: *VM, elem: Elem, argCount: u8, isTailPosition: bool) Error!void {
         switch (elem) {
             .String => |sId| {
                 assert(argCount == 0);
@@ -329,10 +338,10 @@ pub const VM = struct {
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    try self.pushParsed(ParseResult.success(elem));
+                    try self.pushParsed(elem);
                     return;
                 }
-                try self.pushParsed(ParseResult.failure);
+                try self.pushParsed(Elem.failureConst);
             },
             .IntegerString => |n| {
                 assert(argCount == 0);
@@ -343,10 +352,10 @@ pub const VM = struct {
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    try self.pushParsed(ParseResult.success(elem));
+                    try self.pushParsed(elem);
                     return;
                 }
-                try self.pushParsed(ParseResult.failure);
+                try self.pushParsed(Elem.failureConst);
             },
             .FloatString => |n| {
                 assert(argCount == 0);
@@ -357,10 +366,10 @@ pub const VM = struct {
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    try self.pushParsed(ParseResult.success(elem));
+                    try self.pushParsed(elem);
                     return;
                 }
-                try self.pushParsed(ParseResult.failure);
+                try self.pushParsed(Elem.failureConst);
             },
             .IntegerRange => |r| {
                 assert(argCount == 0);
@@ -382,13 +391,13 @@ pub const VM = struct {
                     if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
                         self.inputPos = end;
                         const int = Elem.integer(i);
-                        try self.pushParsed(ParseResult.success(int));
+                        try self.pushParsed(int);
                         return;
                     } else {
                         end -= 1;
                     };
                 }
-                try self.pushParsed(ParseResult.failure);
+                try self.pushParsed(Elem.failureConst);
             },
             .CharacterRange => |r| {
                 assert(argCount == 0);
@@ -404,12 +413,12 @@ pub const VM = struct {
                         if (r.low <= codepoint and codepoint <= r.high) {
                             self.inputPos = end;
                             const string = try Elem.Dyn.String.copy(self, self.input[start..end]);
-                            try self.pushParsed(ParseResult.success(string.dyn.elem()));
+                            try self.pushParsed(string.dyn.elem());
                             return;
                         }
                     }
                 }
-                try self.pushParsed(ParseResult.failure);
+                try self.pushParsed(Elem.failureConst);
             },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Function => {
@@ -484,7 +493,7 @@ pub const VM = struct {
         try self.elems.append(elem);
     }
 
-    fn pushParsed(self: *VM, result: ParseResult) !void {
+    fn pushParsed(self: *VM, result: Elem) !void {
         try self.parsed.append(result);
     }
 
@@ -492,7 +501,7 @@ pub const VM = struct {
         return self.elems.pop();
     }
 
-    fn popParsed(self: *VM) ParseResult {
+    fn popParsed(self: *VM) Elem {
         return self.parsed.pop();
     }
 
@@ -501,7 +510,7 @@ pub const VM = struct {
         return self.elems.items[len - 1 - distance];
     }
 
-    fn peekParsed(self: *VM, distance: usize) ParseResult {
+    fn peekParsed(self: *VM, distance: usize) Elem {
         var len = self.parsed.items.len;
         return self.parsed.items[len - 1 - distance];
     }

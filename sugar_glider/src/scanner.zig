@@ -62,6 +62,7 @@ pub const Scanner = struct {
             '|' => self.makeToken(.Bar),
             '"' => self.scanString('"'),
             '\'' => self.scanString('\''),
+            '@' => self.scanAtSignIdentifier(),
             else => |c| {
                 if (isDigit(c) or c == '-') return self.scanNumber();
                 if (isLower(c)) return self.scanLowercaseIdentifier();
@@ -234,6 +235,14 @@ pub const Scanner = struct {
         while (isAlpha(self.peek()) or isDigit(self.peek())) self.advance();
 
         return self.makeToken(.UppercaseIdentifier);
+    }
+
+    fn scanAtSignIdentifier(self: *Scanner) Token {
+        if (isLower(self.peek())) {
+            return self.scanLowercaseIdentifier();
+        } else {
+            return self.scanUppercaseIdentifier();
+        }
     }
 
     fn checkKeyword(self: *Scanner, str: []const u8) bool {

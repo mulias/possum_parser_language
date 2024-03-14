@@ -25,14 +25,15 @@ fn parse(allocator: Allocator, parserSource: cli.Source, inputSource: cli.Source
     var vm = try VM.init(allocator);
     defer vm.deinit();
 
-    const result = try vm.interpret(parser, input);
+    const parsed = try vm.interpret(parser, input);
 
-    switch (result) {
-        .Success => |s| {
-            s.value.print(logger.out, vm.strings);
-            logger.out("\n", .{});
-        },
-        .Failure => logger.err("Parser Failure", .{}),
+    if (parsed == .Success) {
+        logger.out("\n", .{});
+    } else if (parsed == .Failure) {
+        logger.err("Parser Failure\n", .{});
+    } else {
+        parsed.print(logger.out, vm.strings);
+        logger.out("\n", .{});
     }
 }
 

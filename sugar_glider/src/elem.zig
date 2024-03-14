@@ -23,6 +23,8 @@ pub const ElemType = enum {
     True,
     False,
     Null,
+    Success,
+    Failure,
     Dyn,
 };
 
@@ -39,6 +41,8 @@ pub const Elem = union(ElemType) {
     True: void,
     False: void,
     Null: void,
+    Success: void,
+    Failure: void,
     Dyn: *Dyn,
 
     pub fn parserVar(sId: StringTable.Id) Elem {
@@ -88,6 +92,10 @@ pub const Elem = union(ElemType) {
 
     pub const nullConst = Elem{ .Null = undefined };
 
+    pub const successConst = Elem{ .Success = undefined };
+
+    pub const failureConst = Elem{ .Failure = undefined };
+
     pub fn print(self: Elem, printer: anytype, strings: StringTable) void {
         switch (self) {
             .ParserVar => |sId| printer("{s}", .{strings.get(sId)}),
@@ -102,8 +110,18 @@ pub const Elem = union(ElemType) {
             .True => printer("true", .{}),
             .False => printer("false", .{}),
             .Null => printer("null", .{}),
+            .Success => printer("@Success", .{}),
+            .Failure => printer("@Failure", .{}),
             .Dyn => |d| d.print(printer, strings),
         }
+    }
+
+    pub fn isSuccess(self: Elem) bool {
+        return self != .Failure;
+    }
+
+    pub fn isFailure(self: Elem) bool {
+        return self == .Failure;
     }
 
     pub fn isType(self: Elem, elemType: ElemType) bool {
@@ -194,6 +212,14 @@ pub const Elem = union(ElemType) {
                 .Null => true,
                 else => false,
             },
+            .Success => switch (other) {
+                .Success => true,
+                else => false,
+            },
+            .Failure => switch (other) {
+                .Failure => true,
+                else => false,
+            },
             .Dyn => |d1| switch (other) {
                 .String => |sId2| {
                     if (d1.isType(.String)) {
@@ -225,9 +251,17 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn merge(elemA: Elem, elemB: Elem, vm: *VM) !?Elem {
+        if (elemA == .Failure) return Elem.failureConst;
+        if (elemB == .Failure) return Elem.failureConst;
+        if (elemA == .Success) return elemB;
+        if (elemB == .Success) return elemA;
+
         return switch (elemA) {
-            .ParserVar => @panic("Attempted to merge an unresolved parser variable, this should never happen."),
-            .ValueVar => @panic("Attempted to merge an unresolved value variable, this should never happen."),
+            .ParserVar,
+            .ValueVar,
+            .Success,
+            .Failure,
+            => @panic("Internal error"),
             .String => |sId1| switch (elemB) {
                 .String => |sId2| {
                     const s1 = vm.strings.get(sId1);

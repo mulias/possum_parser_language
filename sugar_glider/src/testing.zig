@@ -5,7 +5,6 @@ const Tuple = std.meta.Tuple;
 const Chunk = @import("chunk.zig").Chunk;
 const VM = @import("vm.zig").VM;
 const Elem = @import("elem.zig").Elem;
-const ParseResult = @import("parse_result.zig").ParseResult;
 const StringTable = @import("string_table.zig").StringTable;
 
 pub fn expectEqualChunks(expected: *Chunk, actual: *Chunk, strings: StringTable) !void {
@@ -70,14 +69,10 @@ pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {
     try std.testing.expectEqualStrings(expected, str.items);
 }
 
-pub fn expectSuccess(result: ParseResult, value: Elem, strings: StringTable) !void {
-    try std.testing.expect(result.isSuccess());
-
-    const success = result.asSuccess();
-
-    try std.testing.expect(success.value.isEql(value, strings));
+pub fn expectSuccess(actual: Elem, expected: Elem, strings: StringTable) !void {
+    try std.testing.expect(actual.isEql(expected, strings));
 }
 
-pub fn expectFailure(result: ParseResult) !void {
+pub fn expectFailure(result: Elem) !void {
     try std.testing.expect(result.isFailure());
 }

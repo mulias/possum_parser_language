@@ -383,6 +383,8 @@ pub const Compiler = struct {
                     },
                     .Integer,
                     .Float,
+                    .Success,
+                    .Failure,
                     => unreachable, // not produced by the parser
                     .Dyn => |d| switch (d.dynType) {
                         .String => unreachable, // not produced by the parser
@@ -524,6 +526,8 @@ pub const Compiler = struct {
                 .Null => try self.emitOp(.Null, loc),
                 .Integer,
                 .Float,
+                .Success,
+                .Failure,
                 => unreachable, // not produced by the parser
                 .CharacterRange => {
                     printError("Character range is not valid in pattern", loc);
@@ -635,6 +639,8 @@ pub const Compiler = struct {
                 .Null => try self.emitOp(.Null, loc),
                 .Integer,
                 .Float,
+                .Success,
+                .Failure,
                 => unreachable, // not produced by the parser
                 .CharacterRange => {
                     printError("Character range is not valid in value", loc);
