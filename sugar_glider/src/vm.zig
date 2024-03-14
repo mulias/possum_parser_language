@@ -459,9 +459,6 @@ pub const VM = struct {
                             const frameStart = self.frame().elemsOffset;
                             const frameEnd = self.elems.items.len - function.arity - 1;
                             const length = frameEnd - frameStart;
-                            logger.debug("start: {d}\n", .{frameStart});
-                            logger.debug("end: {d}\n", .{frameEnd});
-                            logger.debug("length: {d}\n", .{length});
                             try self.elems.replaceRange(frameStart, length, &[_]Elem{});
                             _ = self.frames.pop();
                         }
