@@ -824,3 +824,33 @@ test "a = b ; b = c('bar') ; c(a) = d(a, 'foo') ; d(a, b) = a + b; a" {
         );
     }
 }
+
+test "@number_of('123')" {
+    const parser =
+        \\@number_of('123')
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "123"),
+            Elem.integer(123),
+            vm.strings,
+        );
+    }
+}
+
+test "@number_of('123.456')" {
+    const parser =
+        \\@number_of('123.456')
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "123.456"),
+            Elem.float(123.456),
+            vm.strings,
+        );
+    }
+}

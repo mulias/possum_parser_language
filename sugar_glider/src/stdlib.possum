@@ -26,49 +26,47 @@ newlines = many(newline)
 
 nl = newline
 
-# end_of_input = char ? @fail ! succeed
+end_of_input = char ? @fail : @succeed
 
-# end = end_of_input
+end = end_of_input
 
 whitespace = many(space | newline)
 
 ws = whitespace
 
-# word = until(char, whitespace | end_of_input)
+word = until(char, whitespace | end_of_input)
 
-# line = until(char, newline | end_of_input)
+line = until(char, newline | end_of_input)
 
-# digit = number_of(numeral)
+digit = number_of(numeral)
 
-# integer = number_of(_number_integer_part)
+integer = number_of(_number_integer_part)
 
-# int = integer
+int = integer
 
-# float = number_of(_number_integer_part + _number_decimal_part)
+float = number_of(_number_integer_part + _number_decimal_part)
 
-# scientific_integer = number_of(_number_integer_part + _number_exponent_part)
+scientific_integer = number_of(_number_integer_part + _number_exponent_part)
 
-# scientific_float = number_of(
-#   _number_integer_part +
-#   _number_decimal_part +
-#   _number_exponent_part
-# )
+scientific_float = number_of(
+  _number_integer_part +
+  _number_decimal_part +
+  _number_exponent_part
+)
 
-# number = number_of(
-#   _number_integer_part +
-#   maybe(_number_decimal_part) +
-#   maybe(_number_exponent_part)
-# )
+number = number_of(
+  _number_integer_part +
+  maybe(_number_decimal_part) +
+  maybe(_number_exponent_part)
+)
 
-# num = number
+num = number
 
-# _number_integer_part =
-#   (maybe("-") + "1".."9" + numerals) |
-#   (maybe("-") + numeral)
+_number_integer_part = maybe("-") + (("1".."9" + numerals) | numerals)
 
-# _number_decimal_part = "." + numerals
+_number_decimal_part = "." + numerals
 
-# _number_exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
+_number_exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
 
 true(t) = t $ true
 
@@ -80,25 +78,21 @@ bool = boolean
 
 null(n) = n $ null
 
-# fail = @fail
-
-succeed = ""
-
 peek(p) = (V <- p) ! const(V)
 
-maybe(p) = p | succeed
+maybe(p) = p | @succeed
 
-skip(p) = p $ ""
+skip(p) = p > @succeed
 
 nullable(p) = p | const(null)
 
 default(p, D) = p | const(D)
 
-const(C) = succeed $ C
+const(C) = @succeed $ C
 
 # string_of(p) = V <- p $ StringOf(V)
 
-# number_of(p) = V <- p $ NumberOf(V)
+number_of = @number_of
 
 surround(p, fill) = fill > p < fill
 
@@ -111,9 +105,9 @@ surround(p, fill) = fill > p < fill
 #   Open <- open ? _matching_pair_rec(open, p, close, Acc + Open, Depth + 1) :
 #   Next <- p & _matching_pair_rec(open, p, close, Acc + Next, Depth)
 
-# input(p) = surround(p, maybe(whitespace)) < end_of_input
+input(p) = surround(p, maybe(whitespace)) < end_of_input
 
-many(p) = p + (many(p) | "")
+many(p) = p + (many(p) | @succeed)
 
 # many(p) = First <- p & _many_rec(p, First)
 

@@ -262,6 +262,16 @@ pub const VM = struct {
                 }
             },
             .Null => try self.pushElem(Elem.nullConst),
+            .NumberOf => {
+                if (self.peekParsed(0).isSuccess()) {
+                    const value = self.popParsed();
+                    if (value.toNumber(self.strings)) |n| {
+                        try self.pushParsed(n);
+                    } else {
+                        try self.pushParsed(Elem.failureConst);
+                    }
+                }
+            },
             .Or => {
                 const offset = self.readShort();
                 if (self.peekParsed(0).isSuccess()) {

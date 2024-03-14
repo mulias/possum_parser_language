@@ -9,6 +9,7 @@ const StringTable = @import("string_table.zig").StringTable;
 const Tuple = std.meta.Tuple;
 const VM = @import("vm.zig").VM;
 const logger = @import("logger.zig");
+const parsing = @import("parsing.zig");
 
 pub const ElemType = enum {
     ParserVar,
@@ -371,6 +372,40 @@ pub const Elem = union(ElemType) {
                 },
                 .Function => unreachable,
             },
+        };
+    }
+
+    pub fn toNumber(self: Elem, strings: StringTable) ?Elem {
+        return switch (self) {
+            .String => |sId| {
+                const s = strings.get(sId);
+                if (parsing.parseInteger(s)) |i| {
+                    return Elem.integer(i);
+                } else if (parsing.parseFloat(s)) |f| {
+                    return Elem.float(f);
+                } else {
+                    return null;
+                }
+            },
+            .Integer,
+            .Float,
+            .IntegerString,
+            .FloatString,
+            => self,
+            .Dyn => |dyn| switch (dyn.dynType) {
+                .String => {
+                    const s = dyn.asString().buffer.str();
+                    if (parsing.parseInteger(s)) |i| {
+                        return Elem.integer(i);
+                    } else if (parsing.parseFloat(s)) |f| {
+                        return Elem.float(f);
+                    } else {
+                        return null;
+                    }
+                },
+                else => null,
+            },
+            else => null,
         };
     }
 
