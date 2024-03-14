@@ -169,6 +169,10 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
+        if (self.isMetaVar(globalName)) {
+            return Error.InvalidAst;
+        }
+
         // Simple no-param single elem case
         if (paramsNodeId == null) {
             if (self.ast.getElem(bodyNodeId)) |bodyElem| {
@@ -191,6 +195,10 @@ pub const Compiler = struct {
             },
             else => return Error.InvalidAst,
         };
+
+        if (self.isMetaVar(globalName)) {
+            return Error.InvalidAst;
+        }
 
         if (self.ast.getElem(bodyNodeId)) |bodyElem| {
             try self.vm.globals.put(globalName, bodyElem);
@@ -678,6 +686,10 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
+        if (self.isMetaVar(name)) {
+            return Error.InvalidAst;
+        }
+
         if (self.locals.items.len >= std.math.maxInt(u8)) {
             printError(
                 std.fmt.comptimePrint(
@@ -727,6 +739,10 @@ pub const Compiler = struct {
         }
 
         return null;
+    }
+
+    fn isMetaVar(self: *Compiler, sId: StringTable.Id) bool {
+        return self.vm.strings.get(sId)[0] == '@';
     }
 
     fn emitJump(self: *Compiler, op: OpCode, loc: Location) !usize {
