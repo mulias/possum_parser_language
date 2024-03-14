@@ -9,6 +9,7 @@ const Token = @import("./token.zig").Token;
 const TokenType = @import("./token.zig").TokenType;
 const VM = @import("vm.zig").VM;
 const logger = @import("./logger.zig");
+const parsing = @import("parsing.zig");
 
 pub const Parser = struct {
     vm: *VM,
@@ -231,7 +232,7 @@ pub const Parser = struct {
             if (s[0] == '\\') {
                 if (s[1] == 'u' and str.len > 6) {
                     // BMP character
-                    if (parseCodepoint(s[2..6])) |c| {
+                    if (parsing.parseCodepoint(s[2..6])) |c| {
                         const bytesWritten = try unicode.utf8Encode(c, buffer[bufferLen..]);
                         bufferLen += bytesWritten;
                         s = s[6..];
@@ -240,7 +241,7 @@ pub const Parser = struct {
                     }
                 } else if (s[1] == 'U' and s.len > 10) {
                     // Non-BMP character
-                    if (parseCodepoint(s[2..10])) |c| {
+                    if (parsing.parseCodepoint(s[2..10])) |c| {
                         const bytesWritten = try unicode.utf8Encode(c, buffer[bufferLen..]);
                         bufferLen += bytesWritten;
                         s = s[10..];
@@ -283,12 +284,12 @@ pub const Parser = struct {
 
         // BMP character
         if (str[0] == '\\' and str[1] == 'u' and str.len == 6) {
-            return parseCodepoint(str[2..6]);
+            return parsing.parseCodepoint(str[2..6]);
         }
 
         // Non-BMP character
         if (str[0] == '\\' and str[1] == 'U' and str.len == 8) {
-            return parseCodepoint(str[2..8]);
+            return parsing.parseCodepoint(str[2..8]);
         }
 
         // ascii escape
@@ -318,22 +319,10 @@ pub const Parser = struct {
         return null;
     }
 
-    fn parseCodepoint(lexeme: []const u8) ?u21 {
-        if (std.fmt.parseInt(u21, lexeme, 16)) |value| {
-            if (unicode.utf8ValidCodepoint(value)) {
-                return value;
-            } else {
-                return null;
-            }
-        } else |_| {
-            return null;
-        }
-    }
-
     fn integer(self: *Parser) !usize {
         const t1 = self.previous;
         const s1 = t1.lexeme;
-        if (parseInteger(s1)) |int1| {
+        if (parsing.parseInteger(s1)) |int1| {
             if (self.current.tokenType == .Dot) {
                 try self.advance();
                 if (self.current.tokenType == .Dot) {
@@ -342,7 +331,7 @@ pub const Parser = struct {
                         try self.advance();
                         const t2 = self.previous;
                         const s2 = t2.lexeme;
-                        if (parseInteger(s2)) |int2| {
+                        if (parsing.parseInteger(s2)) |int2| {
                             return self.ast.pushElem(
                                 Elem.integerRange(int1, int2),
                                 Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
@@ -366,30 +355,14 @@ pub const Parser = struct {
         }
     }
 
-    fn parseInteger(lexeme: []const u8) ?i64 {
-        if (std.fmt.parseInt(i64, lexeme, 10)) |value| {
-            return value;
-        } else |_| {
-            return null;
-        }
-    }
-
     fn float(self: *Parser) !usize {
         const t = self.previous;
-        if (parseFloat(t.lexeme)) |f| {
+        if (parsing.parseFloat(t.lexeme)) |f| {
             const sId = try self.vm.strings.insert(t.lexeme);
             return self.ast.pushElem(Elem.floatString(f, sId), t.loc);
         } else {
             // Already verified this is a float during scanning
             unreachable;
-        }
-    }
-
-    fn parseFloat(lexeme: []const u8) ?f64 {
-        if (std.fmt.parseFloat(f64, lexeme)) |value| {
-            return value;
-        } else |_| {
-            return null;
         }
     }
 
