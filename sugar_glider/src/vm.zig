@@ -454,13 +454,15 @@ pub const VM = struct {
                     if (function.arity == argCount) {
                         if (isTailPosition) {
                             // Remove the elements belonging to the previous call
-                            // frame. This includes the function itself, and each
-                            // argument the function was called with.
-                            try self.elems.replaceRange(
-                                self.frame().elemsOffset,
-                                self.frame().function.arity + 1,
-                                &[_]Elem{},
-                            );
+                            // frame. This includes the function itself, its
+                            // arguments, and any added local variables.
+                            const frameStart = self.frame().elemsOffset;
+                            const frameEnd = self.elems.items.len - function.arity - 1;
+                            const length = frameEnd - frameStart;
+                            logger.debug("start: {d}\n", .{frameStart});
+                            logger.debug("end: {d}\n", .{frameEnd});
+                            logger.debug("length: {d}\n", .{length});
+                            try self.elems.replaceRange(frameStart, length, &[_]Elem{});
                             _ = self.frames.pop();
                         }
                         try self.addFrame(function);
