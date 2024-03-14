@@ -63,6 +63,7 @@ pub const Scanner = struct {
             '"' => self.scanString('"'),
             '\'' => self.scanString('\''),
             '@' => self.scanAtSignIdentifier(),
+            '_' => self.scanUnderscoreIdentifier(),
             else => |c| {
                 if (isDigit(c) or c == '-') return self.scanNumber();
                 if (isLower(c)) return self.scanLowercaseIdentifier();
@@ -238,6 +239,14 @@ pub const Scanner = struct {
     }
 
     fn scanAtSignIdentifier(self: *Scanner) Token {
+        if (isLower(self.peek())) {
+            return self.scanLowercaseIdentifier();
+        } else {
+            return self.scanUppercaseIdentifier();
+        }
+    }
+
+    fn scanUnderscoreIdentifier(self: *Scanner) Token {
         if (isLower(self.peek())) {
             return self.scanLowercaseIdentifier();
         } else {
