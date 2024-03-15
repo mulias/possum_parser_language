@@ -518,11 +518,15 @@ pub const VM = struct {
     }
 
     pub fn getLocal(self: *VM, slot: usize) Elem {
-        return self.stack.items[self.frame().elemsOffset + slot];
+        // The local slot is at the start of the frame + 1, since the first
+        // elem in the frame is the function getting called.
+        return self.stack.items[self.frame().elemsOffset + slot + 1];
     }
 
     pub fn setLocal(self: *VM, slot: usize, elem: Elem) void {
-        self.stack.items[self.frame().elemsOffset + slot] = elem;
+        // The local slot is at the start of the frame + 1, since the first
+        // elem in the frame is the function getting called.
+        self.stack.items[self.frame().elemsOffset + slot + 1] = elem;
     }
 
     fn readByte(self: *VM) u8 {

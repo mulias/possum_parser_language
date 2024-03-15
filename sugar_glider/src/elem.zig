@@ -663,6 +663,7 @@ pub const Elem = union(ElemType) {
             chunk: Chunk,
             name: StringTable.Id,
             functionType: FunctionType,
+            locals: ArrayList(StringTable.Id),
 
             pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8 }) !*Function {
                 const dyn = try Dyn.allocate(vm, Function, .Function);
@@ -674,6 +675,7 @@ pub const Elem = union(ElemType) {
                     .chunk = Chunk.init(vm.allocator),
                     .name = fields.name,
                     .functionType = fields.functionType,
+                    .locals = ArrayList(StringTable.Id).init(vm.allocator),
                 };
 
                 return function;
@@ -681,6 +683,7 @@ pub const Elem = union(ElemType) {
 
             pub fn destroy(self: *Function, vm: *VM) void {
                 self.chunk.deinit();
+                self.locals.deinit();
                 vm.allocator.destroy(self);
             }
 
@@ -696,6 +699,35 @@ pub const Elem = union(ElemType) {
             pub fn disassemble(self: *Function, strings: StringTable) void {
                 const label = strings.get(self.name);
                 self.chunk.disassemble(strings, label);
+            }
+
+            pub fn addLocal(self: *Function, name: StringTable.Id) !?u8 {
+                if (self.locals.items.len >= std.math.maxInt(u8)) {
+                    return error.MaxFunctionLocals;
+                }
+
+                for (self.locals.items) |local| {
+                    if (name == local) {
+                        return error.VariableNameUsedInScope;
+                    }
+                }
+
+                try self.locals.append(name);
+
+                return @as(u8, @intCast(self.locals.items.len - 1));
+            }
+
+            pub fn resolveLocal(self: *Function, name: StringTable.Id) ?u8 {
+                var i = self.locals.items.len;
+                while (i > 0) {
+                    i -= 1;
+
+                    if (self.locals.items[i] == name) {
+                        return @as(u8, @intCast(i));
+                    }
+                }
+
+                return null;
             }
         };
     };

@@ -54,7 +54,7 @@ pub fn createNumberOf(vm: *VM) !*Function {
     const loc = Location.new(0, 0, 0);
 
     try fun.chunk.writeOp(.GetLocal, loc);
-    try fun.chunk.write(1, loc);
+    try fun.chunk.write(0, loc);
     try fun.chunk.writeOp(.CallParser, loc);
     try fun.chunk.write(0, loc);
     try fun.chunk.writeOp(.NumberOf, loc);

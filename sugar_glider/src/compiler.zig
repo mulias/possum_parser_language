@@ -14,7 +14,6 @@ const logger = @import("./logger.zig");
 pub const Compiler = struct {
     vm: *VM,
     ast: Ast,
-    locals: ArrayList(StringTable.Id),
     function: *Elem.Dyn.Function,
 
     const Error = error{
@@ -24,7 +23,7 @@ pub const Compiler = struct {
         MultipleMainParsers,
         UnexpectedMainParser,
         MaxFunctionArgs,
-        MaxFunctionParams,
+        MaxFunctionLocals,
         OutOfMemory,
         TooManyConstants,
         ShortOverflow,
@@ -42,25 +41,15 @@ pub const Compiler = struct {
     }
 
     fn initWithFunction(vm: *VM, ast: Ast, function: *Elem.Dyn.Function) !Compiler {
-        var locals = ArrayList(StringTable.Id).init(vm.allocator);
-
-        // Frame slot 0 is reserved by the VM for the current function value.
-        // This means we can't store a local in this position. Create a
-        // placeholder local which is never referenced so that locals on the
-        // stack are offset by 1.
-        const placeholderName = try vm.strings.insert("@localPlaceholder");
-        try locals.append(placeholderName);
-
         return Compiler{
             .vm = vm,
             .ast = ast,
-            .locals = locals,
             .function = function,
         };
     }
 
     pub fn deinit(self: *Compiler) void {
-        self.locals.deinit();
+        _ = self;
     }
 
     pub fn compile(self: *Compiler) !*Elem.Dyn.Function {
@@ -215,24 +204,24 @@ pub const Compiler = struct {
             var paramsNode = compiler.ast.getNode(nodeId);
 
             while (true) {
-                compiler.function.arity += 1;
-
                 switch (paramsNode) {
                     .ElemNode => |elem| {
                         // This is the last param
-                        try compiler.addLocal(
+                        _ = try compiler.addLocal(
                             elem,
                             self.ast.getLocation(nodeId),
                         );
+                        compiler.function.arity += 1;
                         break;
                     },
                     .InfixNode => |infix| {
                         if (infix.infixType == .ParamsOrArgs) {
                             if (self.ast.getElem(infix.left)) |leftElem| {
-                                try compiler.addLocal(
+                                _ = try compiler.addLocal(
                                     leftElem,
                                     self.ast.getLocation(infix.left),
                                 );
+                                compiler.function.arity += 1;
                             } else {
                                 return Error.InvalidAst;
                             }
@@ -484,6 +473,7 @@ pub const Compiler = struct {
     fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !*Elem.Dyn.Function {
         const name = try self.nextAnonFunctionName();
         return self.writeFunction(name, null, nodeId);
+        }
     }
 
     fn nextAnonFunctionName(self: *Compiler) !StringTable.Id {
@@ -590,7 +580,7 @@ pub const Compiler = struct {
                         // as a local, for example in `is_eql(p, V) = V <- p` the
                         // `V` is a function param so the passed arg will already
                         // be bound to a local. In this case no bytecode is emitted.
-                        const newLocalId = try self.addLocalIfUndefined(elem);
+                        const newLocalId = try self.addLocalIfUndefined(elem, loc);
                         if (newLocalId) |local| {
                             const constId = try self.makeConstant(elem);
                             try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -687,7 +677,7 @@ pub const Compiler = struct {
         return &self.function.chunk;
     }
 
-    fn addLocal(self: *Compiler, elem: Elem, loc: Location) !void {
+    fn addLocal(self: *Compiler, elem: Elem, loc: Location) !?u8 {
         const name = switch (elem) {
             .ParserVar => |sId| sId,
             .ValueVar => |sId| sId,
@@ -698,55 +688,30 @@ pub const Compiler = struct {
             return Error.InvalidAst;
         }
 
-        if (self.locals.items.len >= std.math.maxInt(u8)) {
-            printError(
-                std.fmt.comptimePrint(
-                    "Can't have more than {} parameters and local variables.",
-                    .{std.math.maxInt(u8)},
-                ),
-                loc,
-            );
-            return Error.MaxFunctionParams;
-        }
-
-        for (self.locals.items) |local| {
-            if (name == local) {
-                return Error.VariableNameUsedInScope;
-            }
-        }
-
-        try self.locals.append(name);
+        return self.function.addLocal(name) catch |err| switch (err) {
+            error.MaxFunctionLocals => {
+                printError(
+                    std.fmt.comptimePrint(
+                        "Can't have more than {} parameters and local variables.",
+                        .{std.math.maxInt(u8)},
+                    ),
+                    loc,
+                );
+                return err;
+            },
+            else => return err,
+        };
     }
 
-    fn addLocalIfUndefined(self: *Compiler, elem: Elem) !?u8 {
-        const name = switch (elem) {
-            .ParserVar => |sId| sId,
-            .ValueVar => |sId| sId,
-            else => return Error.InvalidAst,
+    fn addLocalIfUndefined(self: *Compiler, elem: Elem, loc: Location) !?u8 {
+        return self.addLocal(elem, loc) catch |err| switch (err) {
+            error.VariableNameUsedInScope => return null,
+            else => return err,
         };
-
-        for (self.locals.items) |local| {
-            if (name == local) {
-                return null;
-            }
-        }
-
-        try self.locals.append(name);
-
-        return @as(u8, @intCast(self.locals.items.len - 1));
     }
 
     pub fn resolveLocal(self: *Compiler, name: StringTable.Id) ?u8 {
-        var i = self.locals.items.len;
-        while (i > 0) {
-            i -= 1;
-
-            if (self.locals.items[i] == name) {
-                return @as(u8, @intCast(i));
-            }
-        }
-
-        return null;
+        return self.function.resolveLocal(name);
     }
 
     fn isMetaVar(self: *Compiler, sId: StringTable.Id) bool {
