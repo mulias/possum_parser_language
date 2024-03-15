@@ -292,7 +292,7 @@ pub const Compiler = struct {
                     try self.writePattern(infix.left);
                     try self.writeParser(infix.right, false);
                     try self.emitOp(.Destructure, loc);
-                    try self.bindPatternVars(nodeId);
+                    try self.bindPatternVars(infix.left);
                 },
                 .Or => {
                     try self.emitOp(.SetInputMark, loc);
