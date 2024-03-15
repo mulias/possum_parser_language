@@ -311,7 +311,7 @@ pub const Parser = struct {
         }
 
         // Otherwise must be exactly one codepoint
-        const codepointLength = unicode.utf8CodepointSequenceLength(str[0]) catch 1;
+        const codepointLength = unicode.utf8ByteSequenceLength(str[0]) catch 1;
         if (codepointLength == str.len) {
             return unicode.utf8Decode(str) catch null;
         }
