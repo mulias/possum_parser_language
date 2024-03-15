@@ -137,6 +137,9 @@ pub const VM = struct {
     fn runOp(self: *VM, opCode: OpCode) !void {
         switch (opCode) {
             .Backtrack => {
+                // Infix, lhs on parsed stack.
+                // If lhs succeeded then pop, return to prev input position.
+                // If lhs failed then keep it and jump to skip rhs.
                 const offset = self.readShort();
                 if (self.peekParsedIsSuccess()) {
                     _ = self.popParsed();
@@ -146,6 +149,9 @@ pub const VM = struct {
                 }
             },
             .BindPatternVar => {
+                // Postfix, destructured value on parsed stack.
+                // If destructure succeeded then set local to part/all of value
+                // If destructure failed do nothing.
                 const slot = self.readByte();
                 const value = self.peekParsed(0);
                 if (value.isSuccess()) {
@@ -156,18 +162,22 @@ pub const VM = struct {
                 }
             },
             .CallParser => {
+                // Postfix, function and args on elem stack.
+                // Create new stack frame and continue eval within new function.
                 const argCount = self.readByte();
                 try self.callParser(self.peekElem(argCount), argCount, false);
             },
             .CallTailParser => {
+                // Postfix, function and args on elem stack.
+                // Reuse stack frame and continue eval within new function.
                 const argCount = self.readByte();
                 try self.callParser(self.peekElem(argCount), argCount, true);
             },
             .ConditionalThen => {
-                // The `condition` parser determines if we enter the "then" or
-                // "else" branch. If `condition` succeeded then keep going, the
-                // next opcode is start of the "then" branch. If `condition`
-                // failed then jump to the start of the "else" bytecode.
+                // The `?` part of `condition ? then : else`
+                // Infix, `condition` on parsed stack.
+                // If `condition` succeeded then continue to `then` branch.
+                // If `condition` failed then jump to the start of `else` branch.
                 const offset = self.readShort();
                 const condition = self.popParsed();
                 if (condition.isFailure()) {
@@ -175,14 +185,19 @@ pub const VM = struct {
                 }
             },
             .ConditionalElse => {
-                // Skip over the "else" branch. This opcode is placed at the
-                // end of the "then" branch, so if the "then" branch was
-                // skipped over to get to the "else" branch it will never be
+                // The `:` part of `condition ? then : else`
+                // Infix, `then` on parsed stack.
+                // Skip over the `else` branch. This opcode is placed at the
+                // end of the `then` branch, so if the `then` branch was
+                // skipped over to get to the `else` branch it will never be
                 // encountered.
                 const offset = self.readShort();
                 self.frame().ip += offset;
             },
             .Destructure => {
+                // Postfix, lhs pattern on elem stack, rhs value on parsed stack.
+                // If rhs succeeded then pattern match, either keep rhs or fail.
+                // If rhs failed do nothing.
                 const pattern = self.popElem();
 
                 if (self.peekParsedIsSuccess()) {
@@ -196,14 +211,17 @@ pub const VM = struct {
                 }
             },
             .End => {
+                // End of function cleanup.
                 const prevFrame = self.frames.pop();
 
                 try self.elems.resize(prevFrame.elemsOffset);
             },
             .Fail => {
+                // Push singleton failure value onto elem stack.
                 try self.pushParsed(Elem.failureConst);
             },
             .False => {
+                // Push singleton false value onto elem stack.
                 try self.pushElem(Elem.falseConst);
             },
             .GetGlobal => {
@@ -246,9 +264,13 @@ pub const VM = struct {
                 try self.pushInputMark();
             },
             .Succeed => {
+                // Push singleton success value onto elem stack.
                 try self.pushParsed(Elem.successConst);
             },
             .MergeElems => {
+                // Postfix, lhs and rhs on elem stack.
+                // Pop both elems and merge, push result. If the elems can't
+                // be merged that's a runtime error.
                 const rhs = self.popElem();
                 const lhs = self.popElem();
 
@@ -259,6 +281,10 @@ pub const VM = struct {
                 }
             },
             .MergeParsed => {
+                // Postfix, lhs and rhs on parsed stack.
+                // Pop both elems and merge, push result. If the elems can't
+                // be merged that's a runtime error. If either operand failed
+                // then the merged result will be a failure.
                 const rhs = self.popParsed();
                 const lhs = self.popParsed();
 
@@ -268,7 +294,10 @@ pub const VM = struct {
                     return self.runtimeError("Merge type mismatch", .{});
                 }
             },
-            .Null => try self.pushElem(Elem.nullConst),
+            .Null => {
+                // Push singleton null value onto elem stack.
+                try self.pushElem(Elem.nullConst);
+            },
             .NumberOf => {
                 if (self.peekParsedIsSuccess()) {
                     const value = self.popParsed();
@@ -280,13 +309,16 @@ pub const VM = struct {
                 }
             },
             .Or => {
+                // Infix, lhs on parsed stack.
+                // - If lhs succeeded then jump to skip rhs.
+                // - If lhs fialed then pop, return to prev input position.
                 const offset = self.readShort();
                 if (self.peekParsedIsSuccess()) {
                     self.frame().ip += offset;
                     _ = self.popInputMark();
                 } else {
-                    self.inputPos = self.popInputMark();
                     _ = self.popParsed();
+                    self.inputPos = self.popInputMark();
                 }
             },
             .Return => {
@@ -298,14 +330,30 @@ pub const VM = struct {
                 }
             },
             .TakeLeft => {
-                _ = self.popParsed();
+                // Postfix, lhs and rhs on parsed stack.
+                // - If rhs succeeded then keep lhs
+                // - If rhs failed then pop lhs and fail.
+                const rhs = self.popParsed();
+                if (rhs.isFailure()) {
+                    _ = self.popParsed();
+                    try self.pushParsed(Elem.failureConst);
+                }
             },
             .TakeRight => {
+                // Infix, lhs on parsed stack.
+                // - If lhs succeeded then pop, to be replaced with rhs.
+                // - If lhs failed then keep it and jump to skip rhs.
                 const offset = self.readShort();
-                const lhs = self.popParsed();
-                if (lhs.isFailure()) self.frame().ip += offset;
+                if (self.peekParsedIsSuccess()) {
+                    _ = self.popParsed();
+                } else {
+                    self.frame().ip += offset;
+                }
             },
-            .True => try self.pushElem(Elem.trueConst),
+            .True => {
+                // Push singleton true value onto elem stack.
+                try self.pushElem(Elem.trueConst);
+            },
             .TryResolveUnboundLocal => {
                 // Get the local at `slot`, it should be unbound. Check to see
                 // if there's a global with the same name, and if so set the
@@ -542,11 +590,7 @@ pub const VM = struct {
     }
 
     fn peekParsedIsFailure(self: *VM) bool {
-        if (self.parsed.items.len == 0) {
-            return true;
-        } else {
-            return self.peekParsed(0) == .Failure;
-        }
+        return self.peekParsed(0) == .Failure;
     }
 
     fn peekParsedIsSuccess(self: *VM) bool {
