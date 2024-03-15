@@ -309,8 +309,10 @@ pub const Compiler = struct {
                 },
                 .Return => {
                     try self.writeParser(infix.left, false);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
                     try self.writeValue(infix.right);
                     try self.emitOp(.Return, loc);
+                    try self.patchJump(jumpIndex, loc);
                 },
                 .ConditionalIfThen => {
                     // Then/Else is always the right-side node

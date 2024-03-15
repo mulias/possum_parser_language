@@ -322,6 +322,9 @@ pub const VM = struct {
                 }
             },
             .Return => {
+                // Postfix, lhs on parsed stack, rhs on elems stack.
+                // If lhs succeeded then pop and push rhs onto parsed stack.
+                // If lhs failed then discard rhs.
                 const value = self.popElem();
 
                 if (self.peekParsedIsSuccess()) {
