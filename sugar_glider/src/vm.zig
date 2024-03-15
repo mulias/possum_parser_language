@@ -198,7 +198,7 @@ pub const VM = struct {
                     if (value.isValueMatchingPattern(pattern, self.strings)) {
                         try self.push(value);
                     } else {
-                        try self.push(Elem.failureConst);
+                        try self.pushFailure();
                     }
                 } else {
                     try self.push(value);
@@ -215,7 +215,7 @@ pub const VM = struct {
             },
             .Fail => {
                 // Push singleton failure value.
-                try self.push(Elem.failureConst);
+                try self.pushFailure();
             },
             .False => {
                 // Push singleton false value.
@@ -288,7 +288,7 @@ pub const VM = struct {
                     if (value.toNumber(self.strings)) |n| {
                         try self.push(n);
                     } else {
-                        try self.push(Elem.failureConst);
+                        try self.pushFailure();
                     }
                 }
             },
@@ -322,7 +322,7 @@ pub const VM = struct {
                 const rhs = self.pop();
                 if (rhs.isFailure()) {
                     _ = self.pop();
-                    try self.push(Elem.failureConst);
+                    try self.pushFailure();
                 }
             },
             .TakeRight => {
@@ -401,7 +401,7 @@ pub const VM = struct {
                     try self.push(elem);
                     return;
                 }
-                try self.push(Elem.failureConst);
+                try self.pushFailure();
             },
             .IntegerString => |n| {
                 assert(argCount == 0);
@@ -415,7 +415,7 @@ pub const VM = struct {
                     try self.push(elem);
                     return;
                 }
-                try self.push(Elem.failureConst);
+                try self.pushFailure();
             },
             .FloatString => |n| {
                 assert(argCount == 0);
@@ -429,7 +429,7 @@ pub const VM = struct {
                     try self.push(elem);
                     return;
                 }
-                try self.push(Elem.failureConst);
+                try self.pushFailure();
             },
             .IntegerRange => |r| {
                 assert(argCount == 0);
@@ -457,7 +457,7 @@ pub const VM = struct {
                         end -= 1;
                     };
                 }
-                try self.push(Elem.failureConst);
+                try self.pushFailure();
             },
             .CharacterRange => |r| {
                 assert(argCount == 0);
@@ -478,7 +478,7 @@ pub const VM = struct {
                         }
                     }
                 }
-                try self.push(Elem.failureConst);
+                try self.pushFailure();
             },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Function => {
@@ -550,6 +550,10 @@ pub const VM = struct {
 
     fn push(self: *VM, elem: Elem) !void {
         try self.stack.append(elem);
+    }
+
+    fn pushFailure(self: *VM) !void {
+        try self.push(Elem.failureConst);
     }
 
     fn pop(self: *VM) Elem {
