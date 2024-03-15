@@ -82,6 +82,9 @@ pub const VM = struct {
         defer compiler.deinit();
 
         const function = try compiler.compile();
+
+        if (logger.debugCompiler) function.disassemble(self.strings);
+
         try self.push(function.dyn.elem());
         try self.addFrame(function);
 
@@ -473,6 +476,8 @@ pub const VM = struct {
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Function => {
                     var function = dyn.asFunction();
+
+                    if (logger.debugCompiler) function.disassemble(self.strings);
 
                     if (function.arity == argCount) {
                         if (isTailPosition) {

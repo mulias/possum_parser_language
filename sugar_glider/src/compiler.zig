@@ -68,11 +68,7 @@ pub const Compiler = struct {
 
         for (self.ast.roots.items) |nodeId| {
             if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
-                var declared = try self.compileGlobalDeclaration(infix.left, infix.right);
-
-                if (logger.debugCompiler) if (declared) |function| {
-                    function.disassemble(self.vm.strings);
-                };
+                try self.compileGlobalDeclaration(infix.left, infix.right);
             } else if (mainNodeId == null) {
                 mainNodeId = nodeId;
             } else {
@@ -82,7 +78,6 @@ pub const Compiler = struct {
 
         if (mainNodeId) |nodeId| {
             try self.compileMainParser(nodeId);
-            if (logger.debugCompiler) self.function.disassemble(self.vm.strings);
         } else {
             return Error.NoMainParser;
         }
@@ -95,7 +90,7 @@ pub const Compiler = struct {
     pub fn compileLib(self: *Compiler) !void {
         for (self.ast.roots.items) |nodeId| {
             if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
-                _ = try self.compileGlobalDeclaration(infix.left, infix.right);
+                try self.compileGlobalDeclaration(infix.left, infix.right);
             } else {
                 return Error.UnexpectedMainParser;
             }
@@ -109,25 +104,24 @@ pub const Compiler = struct {
         try self.emitOp(.End, self.ast.endLocation);
     }
 
-    fn compileGlobalDeclaration(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !?*Elem.Dyn.Function {
-        return switch (self.ast.getNode(headNodeId)) {
+    fn compileGlobalDeclaration(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !void {
+        switch (self.ast.getNode(headNodeId)) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .CallOrDefineFunction => {
                     const nameNodeId = infix.left;
                     const paramsNodeId = infix.right;
-                    return self.compileGlobalFunction(nameNodeId, paramsNodeId, bodyNodeId);
+                    try self.compileGlobalFunction(nameNodeId, paramsNodeId, bodyNodeId);
                 },
-                else => Error.InvalidAst,
+                else => return Error.InvalidAst,
             },
             .ElemNode => |nameElem| switch (nameElem) {
-                .ParserVar => self.compileGlobalFunction(headNodeId, null, bodyNodeId),
+                .ParserVar => try self.compileGlobalFunction(headNodeId, null, bodyNodeId),
                 .ValueVar => {
                     try self.compileGlobalValue(headNodeId, bodyNodeId);
-                    return null;
                 },
-                else => Error.InvalidAst,
+                else => return Error.InvalidAst,
             },
-        };
+        }
     }
 
     // Create a parser or value in the global namespace. The word "function"
@@ -157,7 +151,7 @@ pub const Compiler = struct {
     // to the elem as the parser/value. Otherwise we create a new function
     // elem. The body AST is compiled into the funciton's bytecode. In the main
     // function we then load the function elem as a global.
-    fn compileGlobalFunction(self: *Compiler, nameNodeId: usize, paramsNodeId: ?usize, bodyNodeId: usize) !?*Elem.Dyn.Function {
+    fn compileGlobalFunction(self: *Compiler, nameNodeId: usize, paramsNodeId: ?usize, bodyNodeId: usize) !void {
         const globalName = switch (self.ast.getNode(nameNodeId)) {
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => |sId| sId,
@@ -177,14 +171,13 @@ pub const Compiler = struct {
         if (paramsNodeId == null) {
             if (self.ast.getElem(bodyNodeId)) |bodyElem| {
                 try self.vm.globals.put(globalName, bodyElem);
-                return null;
+                return;
             }
         }
 
         // Otherwise create a new function
         const function = try self.writeFunction(globalName, paramsNodeId, bodyNodeId);
         try self.vm.globals.put(globalName, function.dyn.elem());
-        return function;
     }
 
     fn compileGlobalValue(self: *Compiler, nameNodeId: usize, bodyNodeId: usize) !void {

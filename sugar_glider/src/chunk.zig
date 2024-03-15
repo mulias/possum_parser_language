@@ -90,12 +90,14 @@ pub const Chunk = struct {
     }
 
     pub fn disassemble(self: *Chunk, strings: StringTable, name: []const u8) void {
-        logger.debug("\n==== {s} ====\n", .{name});
+        logger.debug("\n{s:=^40}\n", .{name});
 
         var offset: usize = 0;
         while (offset < self.code.items.len) {
             offset = self.disassembleInstruction(offset, strings);
         }
+
+        logger.debug("{s:=^40}\n", .{""});
     }
 
     pub fn disassembleInstruction(self: *Chunk, offset: usize, strings: StringTable) usize {
