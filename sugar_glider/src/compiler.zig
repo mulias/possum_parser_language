@@ -257,6 +257,8 @@ pub const Compiler = struct {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
+        try self.addPatternLocals(nodeId, false);
+
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Backtrack => {
@@ -287,7 +289,6 @@ pub const Compiler = struct {
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Destructure => {
-                    try self.addPatternLocals(nodeId);
                     try self.writePattern(infix.left);
                     try self.writeParser(infix.right, false);
                     try self.emitOp(.Destructure, loc);
@@ -556,35 +557,48 @@ pub const Compiler = struct {
         }
     }
 
-    fn addPatternLocals(self: *Compiler, nodeId: usize) !void {
+    fn addPatternLocals(self: *Compiler, nodeId: usize, isPattern: bool) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
         switch (node) {
-            .InfixNode => |infix| {
-                try self.addPatternLocals(infix.left);
-                try self.addPatternLocals(infix.right);
-            },
-            .ElemNode => |elem| switch (elem) {
-                .ValueVar => {
-                    // If the var in the pattern is new to the function scope
-                    // then push the var onto the stack, create a new local for
-                    // it and return the local's stack position. Then check to
-                    // see if there's a global value with the same name, and if
-                    // so update the local.
-                    //
-                    // Alternatively, The pattern var might already be defined
-                    // as a local, for example in `is_eql(p, V) = V <- p` the
-                    // `V` is a function param so the passed arg will already
-                    // be bound to a local. In this case no bytecode is emitted.
-                    const newLocalId = try self.addLocalIfUndefined(elem);
-                    if (newLocalId) |local| {
-                        const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, loc);
-                        try self.emitUnaryOp(.TryResolveUnboundLocal, local, loc);
-                    }
+            .InfixNode => |infix| switch (infix.infixType) {
+                .Destructure => {
+                    try self.addPatternLocals(infix.left, true);
+                    try self.addPatternLocals(infix.right, false);
                 },
-                else => {},
+                .CallOrDefineFunction => {
+                    // Function call with anon function body creates a new
+                    // scope, any patterns local to the anon function are not
+                    // necessarily local to this parent function.
+                },
+                else => {
+                    try self.addPatternLocals(infix.left, false);
+                    try self.addPatternLocals(infix.right, false);
+                },
+            },
+            .ElemNode => |elem| if (isPattern) {
+                switch (elem) {
+                    .ValueVar => {
+                        // If the var in the pattern is new to the function scope
+                        // then push the var onto the stack, create a new local for
+                        // it and return the local's stack position. Then check to
+                        // see if there's a global value with the same name, and if
+                        // so update the local.
+                        //
+                        // Alternatively, The pattern var might already be defined
+                        // as a local, for example in `is_eql(p, V) = V <- p` the
+                        // `V` is a function param so the passed arg will already
+                        // be bound to a local. In this case no bytecode is emitted.
+                        const newLocalId = try self.addLocalIfUndefined(elem);
+                        if (newLocalId) |local| {
+                            const constId = try self.makeConstant(elem);
+                            try self.emitUnaryOp(.GetConstant, constId, loc);
+                            try self.emitUnaryOp(.TryResolveUnboundLocal, local, loc);
+                        }
+                    },
+                    else => {},
+                }
             },
         }
     }

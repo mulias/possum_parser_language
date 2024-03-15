@@ -929,3 +929,18 @@ test "many('🐀' | skip('🛹'))" {
         );
     }
 }
+
+test "123 + (C <- (B <- 456))" {
+    const parser =
+        \\123 + (C <- (B <- 456))
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "123456"),
+            Elem.integer(579),
+            vm.strings,
+        );
+    }
+}
