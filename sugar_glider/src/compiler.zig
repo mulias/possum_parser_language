@@ -277,7 +277,7 @@ pub const Compiler = struct {
                     try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
                     try self.writeParser(infix.right, false);
-                    try self.emitOp(.MergeParsed, loc);
+                    try self.emitOp(.Merge, loc);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .TakeLeft => {
@@ -509,7 +509,7 @@ pub const Compiler = struct {
                 .Merge => {
                     try self.writePattern(infix.left);
                     try self.writePattern(infix.right);
-                    try self.emitOp(.MergeElems, loc);
+                    try self.emitOp(.Merge, loc);
                 },
                 else => {
                     printError("Invalid infix operator in pattern", loc);
@@ -624,7 +624,7 @@ pub const Compiler = struct {
                 .Merge => {
                     try self.writeValue(infix.left);
                     try self.writeValue(infix.right);
-                    try self.emitOp(.MergeElems, loc);
+                    try self.emitOp(.Merge, loc);
                 },
                 else => {
                     printError("Invalid infix operator in value", loc);

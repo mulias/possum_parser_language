@@ -25,8 +25,7 @@ pub const VM = struct {
     strings: StringTable,
     globals: AutoHashMap(StringTable.Id, Elem),
     dynList: ?*Elem.Dyn,
-    elems: ArrayList(Elem),
-    parsed: ArrayList(Elem),
+    stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
     input: []const u8,
     inputMarks: ArrayList(usize),
@@ -49,8 +48,7 @@ pub const VM = struct {
             .strings = StringTable.init(allocator),
             .globals = AutoHashMap(StringTable.Id, Elem).init(allocator),
             .dynList = null,
-            .elems = ArrayList(Elem).init(allocator),
-            .parsed = ArrayList(Elem).init(allocator),
+            .stack = ArrayList(Elem).init(allocator),
             .frames = ArrayList(CallFrame).init(allocator),
             .input = undefined,
             .inputMarks = ArrayList(usize).init(allocator),
@@ -68,8 +66,7 @@ pub const VM = struct {
         self.strings.deinit();
         self.globals.deinit();
         self.freeDynList();
-        self.elems.deinit();
-        self.parsed.deinit();
+        self.stack.deinit();
         self.frames.deinit();
         self.inputMarks.deinit();
     }
@@ -85,20 +82,16 @@ pub const VM = struct {
         defer compiler.deinit();
 
         const function = try compiler.compile();
-        try self.pushElem(function.dyn.elem());
+        try self.push(function.dyn.elem());
         try self.addFrame(function);
 
         self.input = input;
 
         try self.run();
 
-        assert(self.parsed.items.len == 0 or self.parsed.items.len == 1);
+        assert(self.stack.items.len == 1);
 
-        if (self.parsed.items.len == 0) {
-            return Elem.failureConst;
-        } else {
-            return self.popParsed();
-        }
+        return self.pop();
     }
 
     fn loadMetaFunctions(self: *VM) !void {
@@ -137,23 +130,23 @@ pub const VM = struct {
     fn runOp(self: *VM, opCode: OpCode) !void {
         switch (opCode) {
             .Backtrack => {
-                // Infix, lhs on parsed stack.
+                // Infix, lhs on stack.
                 // If lhs succeeded then pop, return to prev input position.
-                // If lhs failed then keep it and jump to skip rhs.
+                // If lhs failed then keep it and jump to skip rhs ops.
                 const offset = self.readShort();
-                if (self.peekParsedIsSuccess()) {
-                    _ = self.popParsed();
+                if (self.peekIsSuccess()) {
+                    _ = self.pop();
                     self.inputPos = self.popInputMark();
                 } else {
                     self.frame().ip += offset;
                 }
             },
             .BindPatternVar => {
-                // Postfix, destructured value on parsed stack.
-                // If destructure succeeded then set local to part/all of value
+                // Postfix, destructured value on stack.
+                // If destructure succeeded then set local to part/all of value.
                 // If destructure failed do nothing.
                 const slot = self.readByte();
-                const value = self.peekParsed(0);
+                const value = self.peek(0);
                 if (value.isSuccess()) {
                     switch (self.getLocal(slot)) {
                         .ValueVar => self.setLocal(slot, value),
@@ -162,31 +155,31 @@ pub const VM = struct {
                 }
             },
             .CallParser => {
-                // Postfix, function and args on elem stack.
+                // Postfix, function and args on stack.
                 // Create new stack frame and continue eval within new function.
                 const argCount = self.readByte();
-                try self.callParser(self.peekElem(argCount), argCount, false);
+                try self.callParser(self.peek(argCount), argCount, false);
             },
             .CallTailParser => {
-                // Postfix, function and args on elem stack.
+                // Postfix, function and args on stack.
                 // Reuse stack frame and continue eval within new function.
                 const argCount = self.readByte();
-                try self.callParser(self.peekElem(argCount), argCount, true);
+                try self.callParser(self.peek(argCount), argCount, true);
             },
             .ConditionalThen => {
                 // The `?` part of `condition ? then : else`
-                // Infix, `condition` on parsed stack.
+                // Infix, `condition` on stack.
                 // If `condition` succeeded then continue to `then` branch.
                 // If `condition` failed then jump to the start of `else` branch.
                 const offset = self.readShort();
-                const condition = self.popParsed();
+                const condition = self.pop();
                 if (condition.isFailure()) {
                     self.frame().ip += offset;
                 }
             },
             .ConditionalElse => {
                 // The `:` part of `condition ? then : else`
-                // Infix, `then` on parsed stack.
+                // Infix, `then` on stack.
                 // Skip over the `else` branch. This opcode is placed at the
                 // end of the `then` branch, so if the `then` branch was
                 // skipped over to get to the `else` branch it will never be
@@ -195,36 +188,41 @@ pub const VM = struct {
                 self.frame().ip += offset;
             },
             .Destructure => {
-                // Postfix, lhs pattern on elem stack, rhs value on parsed stack.
-                // If rhs succeeded then pattern match, either keep rhs or fail.
-                // If rhs failed do nothing.
-                const pattern = self.popElem();
+                // Postfix, lhs pattern and rhs value on stack.
+                // If rhs succeeded then pattern match, drop lhs, keep rhs or fail.
+                // If rhs failed then drop lhs, keep rhs.
+                const value = self.pop();
+                const pattern = self.pop();
 
-                if (self.peekParsedIsSuccess()) {
-                    const value = self.popParsed();
-
+                if (value.isSuccess()) {
                     if (value.isValueMatchingPattern(pattern, self.strings)) {
-                        try self.pushParsed(value);
+                        try self.push(value);
                     } else {
-                        try self.pushParsed(Elem.failureConst);
+                        try self.push(Elem.failureConst);
                     }
+                } else {
+                    try self.push(value);
                 }
             },
             .End => {
-                // End of function cleanup.
+                // End of function cleanup. Remove everything from the stack
+                // frame except the final function result.
                 const prevFrame = self.frames.pop();
+                const result = self.pop();
 
-                try self.elems.resize(prevFrame.elemsOffset);
+                try self.stack.resize(prevFrame.elemsOffset);
+                try self.push(result);
             },
             .Fail => {
-                // Push singleton failure value onto elem stack.
-                try self.pushParsed(Elem.failureConst);
+                // Push singleton failure value.
+                try self.push(Elem.failureConst);
             },
             .False => {
-                // Push singleton false value onto elem stack.
-                try self.pushElem(Elem.falseConst);
+                // Push singleton false value.
+                try self.push(Elem.falseConst);
             },
             .GetGlobal => {
+                // Fetch an elem in the global scope.
                 const idx = self.readByte();
 
                 const varName = switch (self.chunk().getConstant(idx)) {
@@ -234,7 +232,7 @@ pub const VM = struct {
                 };
 
                 if (self.globals.get(varName)) |varElem| {
-                    try self.pushElem(varElem);
+                    try self.push(varElem);
                 } else {
                     const nameStr = self.strings.get(varName);
                     return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
@@ -242,7 +240,7 @@ pub const VM = struct {
             },
             .GetLocal => {
                 const slot = self.readByte();
-                try self.pushElem(self.getLocal(slot));
+                try self.push(self.getLocal(slot));
             },
             .Jump => {
                 const offset = self.readShort();
@@ -250,112 +248,97 @@ pub const VM = struct {
             },
             .JumpIfFailure => {
                 const offset = self.readShort();
-                if (self.peekParsedIsFailure()) self.frame().ip += offset;
+                if (self.peekIsFailure()) self.frame().ip += offset;
             },
             .JumpIfSuccess => {
                 const offset = self.readShort();
-                if (self.peekParsedIsSuccess()) self.frame().ip += offset;
+                if (self.peekIsSuccess()) self.frame().ip += offset;
             },
             .GetConstant => {
                 const idx = self.readByte();
-                try self.pushElem(self.chunk().getConstant(idx));
+                try self.push(self.chunk().getConstant(idx));
             },
             .SetInputMark => {
                 try self.pushInputMark();
             },
             .Succeed => {
-                // Push singleton success value onto elem stack.
-                try self.pushParsed(Elem.successConst);
+                // Push singleton success value.
+                try self.push(Elem.successConst);
             },
-            .MergeElems => {
-                // Postfix, lhs and rhs on elem stack.
-                // Pop both elems and merge, push result. If the elems can't
-                // be merged that's a runtime error.
-                const rhs = self.popElem();
-                const lhs = self.popElem();
+            .Merge => {
+                // Postfix, lhs and rhs on stack.
+                // Pop both and merge, push result. If the elems can't be
+                // merged then halt with a runtime error.
+                const rhs = self.pop();
+                const lhs = self.pop();
 
                 if (try Elem.merge(lhs, rhs, self)) |value| {
-                    try self.pushElem(value);
-                } else {
-                    return self.runtimeError("Merge type mismatch", .{});
-                }
-            },
-            .MergeParsed => {
-                // Postfix, lhs and rhs on parsed stack.
-                // Pop both elems and merge, push result. If the elems can't
-                // be merged that's a runtime error. If either operand failed
-                // then the merged result will be a failure.
-                const rhs = self.popParsed();
-                const lhs = self.popParsed();
-
-                if (try Elem.merge(lhs, rhs, self)) |value| {
-                    try self.pushParsed(value);
+                    try self.push(value);
                 } else {
                     return self.runtimeError("Merge type mismatch", .{});
                 }
             },
             .Null => {
-                // Push singleton null value onto elem stack.
-                try self.pushElem(Elem.nullConst);
+                // Push singleton null value.
+                try self.push(Elem.nullConst);
             },
             .NumberOf => {
-                if (self.peekParsedIsSuccess()) {
-                    const value = self.popParsed();
+                if (self.peekIsSuccess()) {
+                    const value = self.pop();
                     if (value.toNumber(self.strings)) |n| {
-                        try self.pushParsed(n);
+                        try self.push(n);
                     } else {
-                        try self.pushParsed(Elem.failureConst);
+                        try self.push(Elem.failureConst);
                     }
                 }
             },
             .Or => {
-                // Infix, lhs on parsed stack.
-                // - If lhs succeeded then jump to skip rhs.
-                // - If lhs fialed then pop, return to prev input position.
+                // Infix, lhs on stack.
+                // If lhs succeeded then jump to skip rhs ops.
+                // If lhs failed then pop, return to prev input position.
                 const offset = self.readShort();
-                if (self.peekParsedIsSuccess()) {
+                if (self.peekIsSuccess()) {
                     self.frame().ip += offset;
                     _ = self.popInputMark();
                 } else {
-                    _ = self.popParsed();
+                    _ = self.pop();
                     self.inputPos = self.popInputMark();
                 }
             },
             .Return => {
-                // Postfix, lhs on parsed stack, rhs on elems stack.
-                // If lhs succeeded then pop and push rhs onto parsed stack.
+                // Postfix, lhs and rhs on stack.
+                // If lhs succeeded then pop lhs and push rhs.
                 // If lhs failed then discard rhs.
-                const value = self.popElem();
-
-                if (self.peekParsedIsSuccess()) {
-                    _ = self.popParsed();
-                    try self.pushParsed(value);
+                const value = self.pop();
+                if (self.peekIsSuccess()) {
+                    _ = self.pop();
+                    try self.push(value);
                 }
             },
             .TakeLeft => {
-                // Postfix, lhs and rhs on parsed stack.
-                // - If rhs succeeded then keep lhs
-                // - If rhs failed then pop lhs and fail.
-                const rhs = self.popParsed();
+                // Postfix, lhs and rhs on stack.
+                // If rhs succeeded then discard rhs, keep lhs.
+                // If rhs failed then pop lhs and push failure.
+                const rhs = self.pop();
                 if (rhs.isFailure()) {
-                    _ = self.popParsed();
-                    try self.pushParsed(Elem.failureConst);
+                    _ = self.pop();
+                    try self.push(Elem.failureConst);
                 }
             },
             .TakeRight => {
-                // Infix, lhs on parsed stack.
-                // - If lhs succeeded then pop, to be replaced with rhs.
-                // - If lhs failed then keep it and jump to skip rhs.
+                // Infix, lhs on stack.
+                // If lhs succeeded then pop, to be replaced with rhs.
+                // If lhs failed then keep it and jump to skip rhs ops.
                 const offset = self.readShort();
-                if (self.peekParsedIsSuccess()) {
-                    _ = self.popParsed();
+                if (self.peekIsSuccess()) {
+                    _ = self.pop();
                 } else {
                     self.frame().ip += offset;
                 }
             },
             .True => {
-                // Push singleton true value onto elem stack.
-                try self.pushElem(Elem.trueConst);
+                // Push singleton true value.
+                try self.push(Elem.trueConst);
             },
             .TryResolveUnboundLocal => {
                 // Get the local at `slot`, it should be unbound. Check to see
@@ -385,7 +368,6 @@ pub const VM = struct {
         if (logger.debugVM) {
             logger.debug("\n", .{});
             self.printInput();
-            self.printParsed();
             self.printFrames();
             self.printElems();
 
@@ -400,7 +382,7 @@ pub const VM = struct {
             .ParserVar => |varName| {
                 if (self.globals.get(varName)) |varElem| {
                     // Swap the var with the thing it's aliasing on the stack
-                    self.elems.items[self.frame().elemsOffset] = varElem;
+                    self.stack.items[self.frame().elemsOffset] = varElem;
                     try self.callParser(varElem, argCount, isTailPosition);
                 } else {
                     const nameStr = self.strings.get(varName);
@@ -409,49 +391,49 @@ pub const VM = struct {
             },
             .String => |sId| {
                 assert(argCount == 0);
-                _ = self.popElem();
+                _ = self.pop();
                 const s = self.strings.get(sId);
                 const start = self.inputPos;
                 const end = start + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    try self.pushParsed(elem);
+                    try self.push(elem);
                     return;
                 }
-                try self.pushParsed(Elem.failureConst);
+                try self.push(Elem.failureConst);
             },
             .IntegerString => |n| {
                 assert(argCount == 0);
-                _ = self.popElem();
+                _ = self.pop();
                 const s = self.strings.get(n.sId);
                 const start = self.inputPos;
                 const end = start + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    try self.pushParsed(elem);
+                    try self.push(elem);
                     return;
                 }
-                try self.pushParsed(Elem.failureConst);
+                try self.push(Elem.failureConst);
             },
             .FloatString => |n| {
                 assert(argCount == 0);
-                _ = self.popElem();
+                _ = self.pop();
                 const s = self.strings.get(n.sId);
                 const start = self.inputPos;
                 const end = start + s.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    try self.pushParsed(elem);
+                    try self.push(elem);
                     return;
                 }
-                try self.pushParsed(Elem.failureConst);
+                try self.push(Elem.failureConst);
             },
             .IntegerRange => |r| {
                 assert(argCount == 0);
-                _ = self.popElem();
+                _ = self.pop();
                 const lowIntLen = intLength(r[0]);
                 const highIntLen = intLength(r[1]);
                 const start = self.inputPos;
@@ -469,17 +451,17 @@ pub const VM = struct {
                     if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
                         self.inputPos = end;
                         const int = Elem.integer(i);
-                        try self.pushParsed(int);
+                        try self.push(int);
                         return;
                     } else {
                         end -= 1;
                     };
                 }
-                try self.pushParsed(Elem.failureConst);
+                try self.push(Elem.failureConst);
             },
             .CharacterRange => |r| {
                 assert(argCount == 0);
-                _ = self.popElem();
+                _ = self.pop();
                 const start = self.inputPos;
 
                 if (start < self.input.len) {
@@ -491,12 +473,12 @@ pub const VM = struct {
                         if (r.low <= codepoint and codepoint <= r.high) {
                             self.inputPos = end;
                             const string = try Elem.Dyn.String.copy(self, self.input[start..end]);
-                            try self.pushParsed(string.dyn.elem());
+                            try self.push(string.dyn.elem());
                             return;
                         }
                     }
                 }
-                try self.pushParsed(Elem.failureConst);
+                try self.push(Elem.failureConst);
             },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Function => {
@@ -508,9 +490,9 @@ pub const VM = struct {
                             // frame. This includes the function itself, its
                             // arguments, and any added local variables.
                             const frameStart = self.frame().elemsOffset;
-                            const frameEnd = self.elems.items.len - function.arity - 1;
+                            const frameEnd = self.stack.items.len - function.arity - 1;
                             const length = frameEnd - frameStart;
-                            try self.elems.replaceRange(frameStart, length, &[_]Elem{});
+                            try self.stack.replaceRange(frameStart, length, &[0]Elem{});
                             _ = self.frames.pop();
                         }
                         try self.addFrame(function);
@@ -536,16 +518,16 @@ pub const VM = struct {
         try self.frames.append(CallFrame{
             .function = function,
             .ip = 0,
-            .elemsOffset = self.elems.items.len - function.arity - 1,
+            .elemsOffset = self.stack.items.len - function.arity - 1,
         });
     }
 
     pub fn getLocal(self: *VM, slot: usize) Elem {
-        return self.elems.items[self.frame().elemsOffset + slot];
+        return self.stack.items[self.frame().elemsOffset + slot];
     }
 
     pub fn setLocal(self: *VM, slot: usize, elem: Elem) void {
-        self.elems.items[self.frame().elemsOffset + slot] = elem;
+        self.stack.items[self.frame().elemsOffset + slot] = elem;
     }
 
     fn readByte(self: *VM) u8 {
@@ -566,38 +548,25 @@ pub const VM = struct {
         return (@as(u16, @intCast(items[self.frame().ip - 2])) << 8) | items[self.frame().ip - 1];
     }
 
-    fn pushElem(self: *VM, elem: Elem) !void {
-        try self.elems.append(elem);
+    fn push(self: *VM, elem: Elem) !void {
+        try self.stack.append(elem);
     }
 
-    fn pushParsed(self: *VM, result: Elem) !void {
-        try self.parsed.append(result);
+    fn pop(self: *VM) Elem {
+        return self.stack.pop();
     }
 
-    fn popElem(self: *VM) Elem {
-        return self.elems.pop();
+    fn peek(self: *VM, distance: usize) Elem {
+        var len = self.stack.items.len;
+        return self.stack.items[len - 1 - distance];
     }
 
-    fn popParsed(self: *VM) Elem {
-        return self.parsed.pop();
+    fn peekIsFailure(self: *VM) bool {
+        return self.peek(0) == .Failure;
     }
 
-    fn peekElem(self: *VM, distance: usize) Elem {
-        var len = self.elems.items.len;
-        return self.elems.items[len - 1 - distance];
-    }
-
-    fn peekParsed(self: *VM, distance: usize) Elem {
-        var len = self.parsed.items.len;
-        return self.parsed.items[len - 1 - distance];
-    }
-
-    fn peekParsedIsFailure(self: *VM) bool {
-        return self.peekParsed(0) == .Failure;
-    }
-
-    fn peekParsedIsSuccess(self: *VM) bool {
-        return !self.peekParsedIsFailure();
+    fn peekIsSuccess(self: *VM) bool {
+        return !self.peekIsFailure();
     }
 
     fn pushInputMark(self: *VM) !void {
@@ -614,10 +583,10 @@ pub const VM = struct {
     }
 
     fn printElems(self: *VM) void {
-        logger.debug("Elems   | ", .{});
-        for (self.elems.items, 0..) |e, idx| {
+        logger.debug("Stack   | ", .{});
+        for (self.stack.items, 0..) |e, idx| {
             e.print(logger.debug, self.strings);
-            if (idx < self.elems.items.len - 1) logger.debug(", ", .{});
+            if (idx < self.stack.items.len - 1) logger.debug(", ", .{});
         }
         logger.debug("\n", .{});
     }
@@ -627,15 +596,6 @@ pub const VM = struct {
         for (self.frames.items, 0..) |f, idx| {
             f.function.print(logger.debug, self.strings);
             if (idx < self.frames.items.len - 1) logger.debug(", ", .{});
-        }
-        logger.debug("\n", .{});
-    }
-
-    fn printParsed(self: *VM) void {
-        logger.debug("Parsed  | ", .{});
-        for (self.parsed.items, 0..) |p, idx| {
-            p.print(logger.debug, self.strings);
-            if (idx < self.parsed.items.len - 1) logger.debug(", ", .{});
         }
         logger.debug("\n", .{});
     }
