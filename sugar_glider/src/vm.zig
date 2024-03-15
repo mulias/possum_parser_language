@@ -305,16 +305,6 @@ pub const VM = struct {
                     self.inputPos = self.popInputMark();
                 }
             },
-            .Return => {
-                // Postfix, lhs and rhs on stack.
-                // If lhs succeeded then pop lhs and push rhs.
-                // If lhs failed then discard rhs.
-                const value = self.pop();
-                if (self.peekIsSuccess()) {
-                    _ = self.pop();
-                    try self.push(value);
-                }
-            },
             .TakeLeft => {
                 // Postfix, lhs and rhs on stack.
                 // If rhs succeeded then discard rhs, keep lhs.

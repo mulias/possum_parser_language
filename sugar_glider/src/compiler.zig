@@ -309,9 +309,8 @@ pub const Compiler = struct {
                 },
                 .Return => {
                     try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    const jumpIndex = try self.emitJump(.TakeRight, loc);
                     try self.writeValue(infix.right);
-                    try self.emitOp(.Return, loc);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .ConditionalIfThen => {
