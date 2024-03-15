@@ -914,3 +914,18 @@ test "@number_of('123.456')" {
         );
     }
 }
+
+test "many('🐀' | skip('🛹'))" {
+    const parser =
+        \\many(('🐀' $ 1) | skip('🛹'))
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "🛹🛹🛹🐀🐀🛹🐀🛹🐀🐀"),
+            Elem.integer(5),
+            vm.strings,
+        );
+    }
+}
