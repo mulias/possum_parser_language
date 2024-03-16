@@ -324,14 +324,18 @@ pub const Elem = union(ElemType) {
                     return switch (elemB) {
                         .String => |sId2| {
                             const s2 = vm.strings.get(sId2);
-                            try ds1.concatBytes(s2);
-                            return ds1.dyn.elem();
+                            const s = try Elem.Dyn.String.create(vm, ds1.buffer.size + s2.len);
+                            try s.concat(ds1);
+                            try s.concatBytes(s2);
+                            return s.dyn.elem();
                         },
                         .Dyn => |d2| switch (d2.dynType) {
                             .String => {
                                 const ds2 = d2.asString();
-                                try ds1.concat(ds2);
-                                return ds1.dyn.elem();
+                                const s = try Elem.Dyn.String.create(vm, ds1.buffer.size + ds2.buffer.size);
+                                try s.concat(ds1);
+                                try s.concat(ds2);
+                                return s.dyn.elem();
                             },
                             else => null,
                         },
