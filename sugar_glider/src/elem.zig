@@ -559,6 +559,12 @@ pub const Elem = union(ElemType) {
             dyn: Dyn,
             elems: ArrayList(Elem),
 
+            pub fn copy(vm: *VM, elems: []const Elem) !*Array {
+                const a = try create(vm, elems.len);
+                try a.elems.appendSlice(elems);
+                return a;
+            }
+
             pub fn create(vm: *VM, capacity: usize) !*Array {
                 const dyn = try Dyn.allocate(vm, Array, .Array);
                 const array = dyn.asArray();
@@ -596,6 +602,10 @@ pub const Elem = union(ElemType) {
                 }
 
                 return true;
+            }
+
+            pub fn append(self: *Array, item: Elem) !void {
+                try self.elems.append(item);
             }
 
             pub fn concat(self: *Array, other: *Array) !void {

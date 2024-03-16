@@ -124,6 +124,7 @@ pub const Parser = struct {
 
         return switch (tokenType) {
             .LeftParen => self.grouping(),
+            .LeftBracket => self.array(),
             .LowercaseIdentifier => self.parserVar(),
             .UppercaseIdentifier => self.valueVar(),
             .String => self.string(),
@@ -455,6 +456,42 @@ pub const Parser = struct {
                 .ParamsOrArgs,
                 nodeId,
                 try self.paramsOrArgs(),
+                commaLoc,
+            );
+        } else {
+            return nodeId;
+        }
+    }
+
+    fn array(self: *Parser) !usize {
+        const loc = self.previous.loc;
+        var a = try Elem.Dyn.Array.create(self.vm, 0);
+        const nodeId = try self.ast.pushElem(a.dyn.elem(), loc);
+
+        if (try self.match(.RightBracket)) {
+            return nodeId;
+        } else {
+            const arrayElemsNodeId = try self.arrayElems();
+            try self.consume(.RightBracket, "Expected closing ']'");
+
+            return self.ast.pushInfix(
+                .Array,
+                nodeId,
+                arrayElemsNodeId,
+                loc,
+            );
+        }
+    }
+
+    fn arrayElems(self: *Parser) !usize {
+        const nodeId = try self.expression();
+
+        if (try self.match(.Comma)) {
+            const commaLoc = self.previous.loc;
+            return self.ast.pushInfix(
+                .Array,
+                nodeId,
+                try self.arrayElems(),
                 commaLoc,
             );
         } else {

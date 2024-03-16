@@ -329,6 +329,7 @@ pub const Compiler = struct {
                     }
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
+                .Array => return Error.InvalidAst,
             },
             .ElemNode => try self.writeParserElem(nodeId),
         }
@@ -645,6 +646,15 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right);
                     try self.emitOp(.Merge, loc);
                 },
+                .Array => {
+                    // The first left node is the empty array
+                    var a = self.ast.getElem(infix.left) orelse @panic("Internal Error");
+
+                    const constId = try self.makeConstant(a);
+                    try self.emitUnaryOp(.GetConstant, constId, loc);
+
+                    try self.writeArray(infix.right, a.asDyn().asArray());
+                },
                 else => {
                     printError("Invalid infix operator in value", loc);
                     return Error.InvalidAst;
@@ -694,6 +704,19 @@ pub const Compiler = struct {
                         return Error.InvalidAst;
                     },
                 },
+            },
+        }
+    }
+
+    fn writeArray(self: *Compiler, itemNodeId: usize, a: *Elem.Dyn.Array) !void {
+        switch (self.ast.getNode(itemNodeId)) {
+            .InfixNode => |infix| {
+                const elem = self.ast.getElem(infix.left) orelse @panic("todo");
+                try a.append(elem);
+                try self.writeArray(infix.right, a);
+            },
+            .ElemNode => |elem| {
+                try a.append(elem);
             },
         }
     }
