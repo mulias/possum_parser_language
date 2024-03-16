@@ -8,6 +8,7 @@ pub const OpCode = enum(u8) {
     BindPatternVar,
     CallParser,
     CallTailParser,
+    CaptureLocal,
     ConditionalElse,
     ConditionalThen,
     Destructure,
@@ -17,6 +18,7 @@ pub const OpCode = enum(u8) {
     GetConstant,
     GetGlobal,
     GetLocal,
+    GetBoundLocal,
     Jump,
     JumpIfFailure,
     JumpIfSuccess,
@@ -52,8 +54,10 @@ pub const OpCode = enum(u8) {
             .CallParser,
             .CallTailParser,
             .GetLocal,
+            .GetBoundLocal,
             .TryResolveUnboundLocal,
             => self.byteInstruciton(chunk, offset),
+            .CaptureLocal => self.twoBytesInstruciton(chunk, offset),
             .Backtrack,
             .ConditionalElse,
             .ConditionalThen,
@@ -84,6 +88,13 @@ pub const OpCode = enum(u8) {
         const byte = chunk.read(offset + 1);
         logger.debug("{s} {d}\n", .{ @tagName(self), byte });
         return offset + 2;
+    }
+
+    fn twoBytesInstruciton(self: OpCode, chunk: *Chunk, offset: usize) usize {
+        const byte1 = chunk.read(offset + 1);
+        const byte2 = chunk.read(offset + 2);
+        logger.debug("{s} {d} {d}\n", .{ @tagName(self), byte1, byte2 });
+        return offset + 3;
     }
 
     fn jumpInstruction(self: OpCode, chunk: *Chunk, offset: usize) usize {

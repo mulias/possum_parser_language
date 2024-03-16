@@ -169,6 +169,27 @@ pub const VM = struct {
                 const argCount = self.readByte();
                 try self.callParser(self.peek(argCount), argCount, true);
             },
+            .CaptureLocal => {
+                const fromSlot = self.readByte();
+                const toSlot = self.readByte();
+                switch (self.pop()) {
+                    .Dyn => |dyn| switch (dyn.dynType) {
+                        .Function => {
+                            var function = dyn.asFunction();
+                            var closure = try Elem.Dyn.Closure.create(self, function);
+                            closure.capture(toSlot, self.getLocal(fromSlot));
+                            try self.push(closure.dyn.elem());
+                        },
+                        .Closure => {
+                            var closure = dyn.asClosure();
+                            closure.capture(toSlot, self.getLocal(fromSlot));
+                            try self.push(closure.dyn.elem());
+                        },
+                        else => @panic("Internal error"),
+                    },
+                    else => @panic("Internal error"),
+                }
+            },
             .ConditionalThen => {
                 // The `?` part of `condition ? then : else`
                 // Infix, `condition` on stack.
@@ -244,6 +265,21 @@ pub const VM = struct {
             .GetLocal => {
                 const slot = self.readByte();
                 try self.push(self.getLocal(slot));
+            },
+            .GetBoundLocal => {
+                const slot = self.readByte();
+                const local = self.getLocal(slot);
+                switch (local) {
+                    .ValueVar => |varName| {
+                        const nameStr = self.strings.get(varName);
+                        return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
+                    },
+                    .ParserVar => |varName| {
+                        const nameStr = self.strings.get(varName);
+                        return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
+                    },
+                    else => try self.push(local),
+                }
             },
             .Jump => {
                 const offset = self.readShort();
@@ -344,7 +380,13 @@ pub const VM = struct {
                     else => @panic("internal error"),
                 };
 
-                if (self.globals.get(varName)) |varElem| {
+                var function = self.getFunctionElem().asDyn();
+
+                if (function.isType(.Closure)) {
+                    if (function.asClosure().getCaptured(varName)) |varElem| {
+                        self.setLocal(slot, varElem);
+                    }
+                } else if (self.globals.get(varName)) |varElem| {
                     self.setLocal(slot, varElem);
                 }
             },
@@ -495,6 +537,10 @@ pub const VM = struct {
                         return self.runtimeError("Expected {} arguments but got {}.", .{ function.arity, argCount });
                     }
                 },
+                .Closure => {
+                    var functionElem = dyn.asClosure().function.dyn.elem();
+                    try self.callParser(functionElem, argCount, isTailPosition);
+                },
                 else => @panic("Internal error"),
             },
             else => @panic("Internal error"),
@@ -515,6 +561,10 @@ pub const VM = struct {
             .ip = 0,
             .elemsOffset = self.stack.items.len - function.arity - 1,
         });
+    }
+
+    pub fn getFunctionElem(self: *VM) Elem {
+        return self.stack.items[self.frame().elemsOffset];
     }
 
     pub fn getLocal(self: *VM, slot: usize) Elem {

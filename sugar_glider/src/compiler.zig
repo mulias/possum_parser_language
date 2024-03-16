@@ -320,7 +320,7 @@ pub const Compiler = struct {
                 .ConditionalThenElse => @panic("internal error"), // always handled via ConditionalIfThen
                 .DeclareGlobal => unreachable,
                 .CallOrDefineFunction => {
-                    try self.writeGetVar(infix.left);
+                    try self.writeGetVar(infix.left, .Value);
                     const argCount = try self.writeArguments(infix.right);
                     if (isTailPosition) {
                         try self.emitUnaryOp(.CallTailParser, argCount, loc);
@@ -341,7 +341,7 @@ pub const Compiler = struct {
             .ElemNode => |elem| {
                 switch (elem) {
                     .ParserVar => {
-                        try self.writeGetVar(nodeId);
+                        try self.writeGetVar(nodeId, .Parser);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .ValueVar => {
@@ -360,17 +360,17 @@ pub const Compiler = struct {
                     },
                     .True => {
                         // In this context `true` could be a zero-arg function call
-                        try self.writeGetVar(nodeId);
+                        try self.writeGetVar(nodeId, .Parser);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .False => {
                         // In this context `false` could be a zero-arg function call
-                        try self.writeGetVar(nodeId);
+                        try self.writeGetVar(nodeId, .Parser);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .Null => {
                         // In this context `null` could be a zero-arg function call
-                        try self.writeGetVar(nodeId);
+                        try self.writeGetVar(nodeId, .Parser);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .Integer,
@@ -379,7 +379,9 @@ pub const Compiler = struct {
                     .Failure,
                     => unreachable, // not produced by the parser
                     .Dyn => |d| switch (d.dynType) {
-                        .String => unreachable, // not produced by the parser
+                        .String,
+                        .Closure,
+                        => unreachable, // not produced by the parser
                         .Array => {
                             printError("Array literal is only valid as a pattern or value", loc);
                             return Error.InvalidAst;
@@ -396,7 +398,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGetVar(self: *Compiler, nodeId: usize) !void {
+    fn writeGetVar(self: *Compiler, nodeId: usize, context: enum { Parser, Pattern, Value }) !void {
         const varElem = switch (self.ast.getNode(nodeId)) {
             .ElemNode => |elem| elem,
             .InfixNode => return Error.InvalidAst,
@@ -414,7 +416,11 @@ pub const Compiler = struct {
         const loc = self.ast.getLocation(nodeId);
 
         if (self.resolveLocal(varName)) |local| {
-            try self.emitUnaryOp(.GetLocal, local, loc);
+            if (context == .Pattern) {
+                try self.emitUnaryOp(.GetLocal, local, loc);
+            } else {
+                try self.emitUnaryOp(.GetBoundLocal, local, loc);
+            }
         } else {
             const constId = try self.makeConstant(varElem);
             try self.emitUnaryOp(.GetGlobal, constId, loc);
@@ -457,11 +463,12 @@ pub const Compiler = struct {
                 const function = try self.writeAnonymousFunction(nodeId);
                 const constId = try self.makeConstant(function.dyn.elem());
                 try self.emitUnaryOp(.GetConstant, constId, loc);
+                try self.writeCaptureLocals(function, loc);
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar,
                 .ValueVar,
-                => try self.writeGetVar(nodeId),
+                => try self.writeGetVar(nodeId, .Value),
                 else => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -471,8 +478,29 @@ pub const Compiler = struct {
     }
 
     fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !*Elem.Dyn.Function {
-        const name = try self.nextAnonFunctionName();
-        return self.writeFunction(name, null, nodeId);
+        var function = try Elem.Dyn.Function.create(self.vm, .{
+            .name = try self.nextAnonFunctionName(),
+            .functionType = .AnonFunction,
+            .arity = 0,
+        });
+
+        var compiler = try initWithFunction(self.vm, self.ast, function);
+        defer compiler.deinit();
+
+        try compiler.writeParser(nodeId, true);
+
+        try compiler.emitOp(.End, compiler.ast.getLocation(nodeId));
+
+        return compiler.function;
+    }
+
+    fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.Dyn.Function, loc: Location) !void {
+        for (self.function.locals.items, 0..) |localName, fromSlot| {
+            if (targetFunction.resolveLocal(localName)) |toSlot| {
+                try self.emitOp(.CaptureLocal, loc);
+                try self.emitByte(@as(u8, @intCast(fromSlot)), loc);
+                try self.emitByte(toSlot, loc);
+            }
         }
     }
 
@@ -505,7 +533,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 },
                 .ValueVar => {
-                    try self.writeGetVar(nodeId);
+                    try self.writeGetVar(nodeId, .Pattern);
                 },
                 .String,
                 .IntegerString,
@@ -531,7 +559,9 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 },
                 .Dyn => |d| switch (d.dynType) {
-                    .String => unreachable, // not produced by the parser
+                    .String,
+                    .Closure,
+                    => unreachable, // not produced by the parser
                     .Array,
                     .Object,
                     => {
@@ -557,38 +587,31 @@ pub const Compiler = struct {
                     try self.addPatternLocals(infix.left, true);
                     try self.addPatternLocals(infix.right, false);
                 },
-                .CallOrDefineFunction => {
-                    // Function call with anon function body creates a new
-                    // scope, any patterns local to the anon function are not
-                    // necessarily local to this parent function.
-                },
                 else => {
                     try self.addPatternLocals(infix.left, false);
                     try self.addPatternLocals(infix.right, false);
                 },
             },
-            .ElemNode => |elem| if (isPattern) {
-                switch (elem) {
-                    .ValueVar => {
-                        // If the var in the pattern is new to the function scope
-                        // then push the var onto the stack, create a new local for
-                        // it and return the local's stack position. Then check to
-                        // see if there's a global value with the same name, and if
-                        // so update the local.
-                        //
-                        // Alternatively, The pattern var might already be defined
-                        // as a local, for example in `is_eql(p, V) = V <- p` the
-                        // `V` is a function param so the passed arg will already
-                        // be bound to a local. In this case no bytecode is emitted.
-                        const newLocalId = try self.addLocalIfUndefined(elem, loc);
-                        if (newLocalId) |local| {
-                            const constId = try self.makeConstant(elem);
-                            try self.emitUnaryOp(.GetConstant, constId, loc);
-                            try self.emitUnaryOp(.TryResolveUnboundLocal, local, loc);
-                        }
-                    },
-                    else => {},
-                }
+            .ElemNode => |elem| switch (elem) {
+                .ValueVar => if (isPattern) {
+                    // If the var in the pattern is new to the function scope
+                    // then push the var onto the stack, create a new local for
+                    // it and return the local's stack position. Then check to
+                    // see if there's a global value with the same name, and if
+                    // so update the local.
+                    //
+                    // Alternatively, The pattern var might already be defined
+                    // as a local, for example in `is_eql(p, V) = V <- p` the
+                    // `V` is a function param so the passed arg will already
+                    // be bound to a local. In this case no bytecode is emitted.
+                    const newLocalId = try self.addLocalIfUndefined(elem, loc);
+                    if (newLocalId) |local| {
+                        const constId = try self.makeConstant(elem);
+                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        try self.emitUnaryOp(.TryResolveUnboundLocal, local, loc);
+                    }
+                },
+                else => {},
             },
         }
     }
@@ -632,7 +655,7 @@ pub const Compiler = struct {
                     printError("Parser is not valid in value", loc);
                     return Error.InvalidAst;
                 },
-                .ValueVar => try self.writeGetVar(nodeId),
+                .ValueVar => try self.writeGetVar(nodeId, .Value),
                 .String,
                 .IntegerString,
                 .FloatString,
@@ -657,7 +680,9 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 },
                 .Dyn => |d| switch (d.dynType) {
-                    .String => unreachable, // not produced by the parser
+                    .String,
+                    .Closure,
+                    => unreachable, // not produced by the parser
                     .Array,
                     .Object,
                     => {

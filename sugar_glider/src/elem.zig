@@ -370,7 +370,9 @@ pub const Elem = union(ElemType) {
                         else => null,
                     };
                 },
-                .Function => unreachable,
+                .Function,
+                .Closure,
+                => @panic("Internal error"),
             },
         };
     }
@@ -414,6 +416,7 @@ pub const Elem = union(ElemType) {
         Array,
         Object,
         Function,
+        Closure,
     };
 
     pub const Dyn = struct {
@@ -438,6 +441,7 @@ pub const Elem = union(ElemType) {
                 .Array => self.asArray().destroy(vm),
                 .Object => self.asObject().destroy(vm),
                 .Function => self.asFunction().destroy(vm),
+                .Closure => self.asClosure().destroy(vm),
             }
         }
 
@@ -451,6 +455,7 @@ pub const Elem = union(ElemType) {
                 .Array => self.asArray().print(printer, strings),
                 .Object => self.asObject().print(printer, strings),
                 .Function => self.asFunction().print(printer, strings),
+                .Closure => self.asClosure().print(printer, strings),
             }
         }
 
@@ -460,6 +465,7 @@ pub const Elem = union(ElemType) {
                 .Array => self.asArray().isEql(other, strings),
                 .Object => self.asObject().isEql(other, strings),
                 .Function => self.asFunction().isEql(other),
+                .Closure => self.asClosure().isEql(other),
             };
         }
 
@@ -481,6 +487,10 @@ pub const Elem = union(ElemType) {
 
         pub fn asFunction(self: *Dyn) *Function {
             return @fieldParentPtr(Function, "dyn", self);
+        }
+
+        pub fn asClosure(self: *Dyn) *Closure {
+            return @fieldParentPtr(Closure, "dyn", self);
         }
 
         pub const String = struct {
@@ -727,6 +737,53 @@ pub const Elem = union(ElemType) {
                     }
                 }
 
+                return null;
+            }
+        };
+
+        pub const Closure = struct {
+            dyn: Dyn,
+            function: *Function,
+            captures: []?Elem,
+
+            pub fn create(vm: *VM, function: *Function) !*Closure {
+                const dyn = try Dyn.allocate(vm, Closure, .Closure);
+                const closure = dyn.asClosure();
+
+                var captures = try vm.allocator.alloc(?Elem, function.locals.items.len);
+                @memset(captures, null);
+
+                closure.* = Closure{
+                    .dyn = dyn.*,
+                    .function = function,
+                    .captures = captures,
+                };
+
+                return closure;
+            }
+
+            pub fn destroy(self: *Closure, vm: *VM) void {
+                vm.allocator.free(self.captures);
+                vm.allocator.destroy(self);
+            }
+
+            pub fn print(self: *Closure, printer: anytype, strings: StringTable) void {
+                self.function.print(printer, strings);
+            }
+
+            pub fn isEql(self: *Closure, other: *Dyn) bool {
+                if (!other.isType(.Closure)) return false;
+                return self == other.asClosure();
+            }
+
+            pub fn capture(self: *Closure, index: usize, local: Elem) void {
+                self.captures[index] = local;
+            }
+
+            pub fn getCaptured(self: *Closure, name: StringTable.Id) ?Elem {
+                if (self.function.resolveLocal(name)) |index| {
+                    return self.captures[index];
+                }
                 return null;
             }
         };
