@@ -1180,3 +1180,18 @@ test "'aa' $ [1, 2, 3]" {
         );
     }
 }
+
+test "S <- ('a' + 'b') $ (S + 'c') $ (S + 'd')" {
+    const parser =
+        \\S <- ("a" + "b") $ (S + "c") $ (S + "d")
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "ab"),
+            (try Elem.Dyn.String.copy(&vm, "abd")).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
