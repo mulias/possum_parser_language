@@ -590,12 +590,19 @@ pub const Elem = union(ElemType) {
             }
 
             pub fn print(self: *Array, printer: anytype, strings: StringTable) void {
-                printer("[", .{});
-                for (self.elems.items) |e| {
-                    e.print(printer, strings);
-                    printer(",", .{});
+                if (self.elems.items.len == 0) {
+                    printer("[]", .{});
+                } else {
+                    const lastItemIndex = self.elems.items.len - 1;
+
+                    printer("[", .{});
+                    for (self.elems.items[0..lastItemIndex]) |e| {
+                        e.print(printer, strings);
+                        printer(", ", .{});
+                    }
+                    self.elems.items[lastItemIndex].print(printer, strings);
+                    printer("]", .{});
                 }
-                printer("]", .{});
             }
 
             pub fn isEql(self: *Array, other: *Dyn, strings: StringTable) bool {
