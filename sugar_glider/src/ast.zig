@@ -30,6 +30,7 @@ pub const Ast = struct {
         DeclareGlobal,
         CallOrDefineFunction,
         ParamsOrArgs,
+        Array,
     };
 
     pub const Infix = struct {

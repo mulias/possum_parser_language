@@ -1149,3 +1149,34 @@ test "Max function locals overflow error" {
         );
     }
 }
+
+test "'aa' $ []" {
+    const parser =
+        \\"aa" $ []
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "aa"),
+            (try Elem.Dyn.Array.create(&vm, 0)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
+
+test "'aa' $ [1, 2, 3]" {
+    const parser =
+        \\"aa" $ [1, 2, 3]
+    ;
+    {
+        const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.integer(3) };
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "aa"),
+            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
