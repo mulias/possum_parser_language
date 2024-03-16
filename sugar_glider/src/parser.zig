@@ -148,7 +148,6 @@ pub const Parser = struct {
             .Plus,
             .Equal,
             => self.binaryOp(leftNode),
-            .Comma => self.paramsOrArgs(leftNode),
             .QuestionMark => self.conditionalIfThenOp(leftNode),
             .Colon => self.conditionalThenElseOp(leftNode),
             .LeftParen => {
@@ -405,14 +404,6 @@ pub const Parser = struct {
         return self.ast.pushInfix(infixType, leftNodeId, rightNodeId, t.loc);
     }
 
-    fn paramsOrArgs(self: *Parser, leftNodeId: usize) !usize {
-        const t = self.previous;
-
-        const rightNodeId = try self.parseWithPrecedence(operatorPrecedence(t.tokenType));
-
-        return self.ast.pushInfix(.ParamsOrArgs, leftNodeId, rightNodeId, t.loc);
-    }
-
     fn conditionalIfThenOp(self: *Parser, ifNodeId: usize) !usize {
         if (logger.debugParser) logger.debug("conditional if/then {}\n", .{self.previous.tokenType});
 
@@ -443,7 +434,7 @@ pub const Parser = struct {
         if (try self.match(.RightParen)) {
             return functionNameNodeId;
         } else {
-            const paramsOrArgsNodeId = try self.parseWithPrecedence(.None);
+            const paramsOrArgsNodeId = try self.paramsOrArgs();
             try self.consume(.RightParen, "Expected closing ')'");
 
             return self.ast.pushInfix(
@@ -452,6 +443,22 @@ pub const Parser = struct {
                 paramsOrArgsNodeId,
                 callOrDefineLoc,
             );
+        }
+    }
+
+    fn paramsOrArgs(self: *Parser) !usize {
+        const nodeId = try self.expression();
+
+        if (try self.match(.Comma)) {
+            const commaLoc = self.previous.loc;
+            return self.ast.pushInfix(
+                .ParamsOrArgs,
+                nodeId,
+                try self.paramsOrArgs(),
+                commaLoc,
+            );
+        } else {
+            return nodeId;
         }
     }
 
@@ -524,7 +531,6 @@ pub const Parser = struct {
     fn operatorPrecedence(tokenType: TokenType) Precedence {
         return switch (tokenType) {
             .LeftParen => .CallOrDefineFunction,
-            .Comma => .FunctionArgOrParam,
             .Bang,
             .Plus,
             .Bar,
@@ -548,7 +554,6 @@ pub const Parser = struct {
         Sequence,
         Conditional,
         DeclareGlobal,
-        FunctionArgOrParam,
         None,
 
         pub fn bindingPower(precedence: Precedence) struct { left: u4, right: u4 } {
@@ -558,7 +563,6 @@ pub const Parser = struct {
                 .Sequence => .{ .left = 5, .right = 6 },
                 .Conditional => .{ .left = 4, .right = 3 },
                 .DeclareGlobal => .{ .left = 2, .right = 2 },
-                .FunctionArgOrParam => .{ .left = 2, .right = 1 },
                 .None => .{ .left = 0, .right = 0 },
             };
         }
