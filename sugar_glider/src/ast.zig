@@ -18,19 +18,19 @@ pub const Ast = struct {
     };
 
     pub const InfixType = enum {
+        Array,
         Backtrack,
-        Destructure,
-        Merge,
-        Or,
-        Return,
-        TakeLeft,
-        TakeRight,
+        CallOrDefineFunction,
         ConditionalIfThen,
         ConditionalThenElse,
         DeclareGlobal,
-        CallOrDefineFunction,
+        Destructure,
+        Merge,
+        Or,
         ParamsOrArgs,
-        Array,
+        Return,
+        TakeLeft,
+        TakeRight,
     };
 
     pub const Infix = struct {
