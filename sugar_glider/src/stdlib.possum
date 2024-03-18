@@ -90,20 +90,9 @@ default(p, D) = p | const(D)
 
 const(C) = @succeed $ C
 
-# string_of(p) = V <- p $ StringOf(V)
-
 number_of = @number_of
 
 surround(p, fill) = fill > p < fill
-
-# balanced_pairs(open, p, close) =
-#  Open <- open & _balanced_pairs_rec(open, p, close, Open, 1)
-
-# _balanced_pairs_rec(open, p, close, Acc, Depth) =
-#   0 <- const(Depth) ? const(Acc) :
-#   Close <- close ? _matching_pair_rec(open, p, close, Acc + Close, Depth - 1) :
-#   Open <- open ? _matching_pair_rec(open, p, close, Acc + Open, Depth + 1) :
-#   Next <- p & _matching_pair_rec(open, p, close, Acc + Next, Depth)
 
 input(p) = surround(p, maybe(whitespace)) < end_of_input
 
@@ -123,28 +112,6 @@ until(p, stop) = p + (peek(stop) ? @succeed : until(p, stop))
 #   Next <- p & _until_rec(p, stop, Acc + Next)
 
 unless(p, excluded) = excluded ? @fail : p
-
-# repeat(p, N) =
-#   _assert_positive_integer(N) &
-#   First <- p &
-#   _repeat_rec(p, N - 1, First)
-
-# _repeat_rec(p, N, Acc) =
-#   0 <- const(N) ?
-#   const(Acc) :
-#   Next <- p & _repeat_rec(p, N - 1, Acc + Next)
-
-# repeat_between(p, L, H) =
-#   _assert_positive_integer(L) &
-#   _assert_positive_integer(H) &
-#   _assert_positive_integer(H - L) &
-#   First <- p &
-#   _repeat_between_rec(p, L - 1, H, First)
-
-# _repeat_between_rec(p, L, H, Acc) =
-#   0 <- const(L) & 0 <- const(H) ? const(Acc) :
-#   0 <- const(L) ? Next <- p & _repeat_between_rec(p, L, H - 1, Acc + Next) :
-#   Next <- p & _repeat_between_rec(p, L - 1, H, Acc + Next)
 
 scan(p) = p | (char > scan(p))
 
@@ -194,26 +161,6 @@ pair_sep(elem, sep) = E1 <- elem & sep & E2 <- elem $ [E1, E2]
 
 triple(elem) = E1 <- elem & E2 <- elem & E3 <- elem $ [E1, E2, E3]
 
-
-# tuple(elem, N) =
-#   _assert_positive_integer(N) &
-#   First <- elem &
-#   _tuple_rec(elem, N - 1, [First])
-
-# _tuple_rec(elem, N, Acc) =
-#   0 <- const(N) ?
-#   const(Acc) :
-#   Elem <- elem & _tuple_rec(elem, N - 1, [...Acc, Elem])
-
-# tuple_sep(elem, sep, N) =
-#   _assert_positive_integer(N) &
-#   First <- elem &
-#   _tuple_sep_rec(elem, sep, N - 1, [First])
-
-# _tuple_sep_rec(elem, sep, N, Acc) =
-#   0 <- const(N) ?
-#   const(Acc) :
-#   Elem <- sep > elem & _tuple_sep_rec(elem, sep, N - 1, [...Acc, Elem])
 triple_sep(elem, sep) = E1 <- elem & sep & E2 <- elem & sep & E3 <- elem $ [E1, E2, E3]
 
 # object(key, value) =
@@ -248,51 +195,3 @@ triple_sep(elem, sep) = E1 <- elem & sep & E2 <- elem & sep & E3 <- elem $ [E1, 
 #   default(object_sep(key, pair_sep, value, sep), {})
 
 # label(Key, value) = Value <- value $ {Key: Value}
-
-# json_object = "%({...J})" <- matching_pair("{", char, "}") $ J
-
-# json_array = "%([...J])" <- matching_pair("[", char, "]") $ J
-
-# json_string = '"' > _json_string_rec("")
-
-# _json_string_rec(Acc) =
-#   '"' ?
-#   const(Acc) :
-#   Next <- (
-#     `\"` $ `"` |
-#     `\\` $ `\` |
-#     `\/` $ `/` |
-#     `\b` $ "\b" |
-#     `\f` $ "\f" |
-#     `\n` $ "\n" |
-#     `\r` $ "\r" |
-#     `\t` $ "\t" |
-#     _unicode_escape |
-#     unless(char, `\`)
-#   ) &
-#   _json_string_rec(Acc + Next)
-
-# _unicode_escape = `\u` & H <- _hex + _hex + _hex + _hex $ "\u%(H)"
-
-# _hex = digit | "a".."f" | "A".."F"
-
-# json =
-#   json_object |
-#   json_array |
-#   json_string |
-#   number |
-#   boolean("true", "false") |
-#   null("null")
-
-# _assert_positive_integer(V) =
-#   N <- const(IsNumber(V)) ? (
-#     @run(peek("1".."9") > integer > end, "%(N)") |
-#     @error("Expected a positive integer, got `%(N)`.")
-#   ) :
-#   S <- const(IsString(V)) ?
-#   @error('Expected an integer, got string "%(S)".') :
-#   @error("Expected an integer, got value `%(V)`.")
-
-# StringOf(V) = "%(V)"
-
-# NumberOf(V) = ("%(0 + N)" <- V) | (0 + N <- V) $ V
