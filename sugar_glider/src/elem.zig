@@ -629,7 +629,7 @@ pub const Elem = union(ElemType) {
             members: StringArrayHashMap(Elem),
 
             pub fn create(vm: *VM, capacity: usize) !*Object {
-                const dyn = try Dyn.allocate(vm, Array, .Array);
+                const dyn = try Dyn.allocate(vm, Object, .Object);
                 const object = dyn.asObject();
 
                 var members = StringArrayHashMap(Elem).init(vm.allocator);
