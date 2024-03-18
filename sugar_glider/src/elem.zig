@@ -752,7 +752,19 @@ pub const Elem = union(ElemType) {
             chunk: Chunk,
             name: StringTable.Id,
             functionType: FunctionType,
-            locals: ArrayList(StringTable.Id),
+            locals: ArrayList(Local),
+
+            pub const Local = union(enum) {
+                ParserVar: StringTable.Id,
+                ValueVar: StringTable.Id,
+
+                pub fn name(self: Local) StringTable.Id {
+                    return switch (self) {
+                        .ParserVar => |sId| sId,
+                        .ValueVar => |sId| sId,
+                    };
+                }
+            };
 
             pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8 }) !*Function {
                 const dyn = try Dyn.allocate(vm, Function, .Function);
@@ -764,7 +776,7 @@ pub const Elem = union(ElemType) {
                     .chunk = Chunk.init(vm.allocator),
                     .name = fields.name,
                     .functionType = fields.functionType,
-                    .locals = ArrayList(StringTable.Id).init(vm.allocator),
+                    .locals = ArrayList(Local).init(vm.allocator),
                 };
 
                 return function;
@@ -790,28 +802,28 @@ pub const Elem = union(ElemType) {
                 self.chunk.disassemble(strings, label);
             }
 
-            pub fn addLocal(self: *Function, name: StringTable.Id) !?u8 {
+            pub fn addLocal(self: *Function, local: Local) !?u8 {
                 if (self.locals.items.len >= std.math.maxInt(u8)) {
                     return error.MaxFunctionLocals;
                 }
 
-                for (self.locals.items) |local| {
-                    if (name == local) {
+                for (self.locals.items) |item| {
+                    if (item.name() == local.name()) {
                         return error.VariableNameUsedInScope;
                     }
                 }
 
-                try self.locals.append(name);
+                try self.locals.append(local);
 
                 return @as(u8, @intCast(self.locals.items.len - 1));
             }
 
-            pub fn resolveLocal(self: *Function, name: StringTable.Id) ?u8 {
+            pub fn localSlot(self: *Function, name: StringTable.Id) ?u8 {
                 var i = self.locals.items.len;
                 while (i > 0) {
                     i -= 1;
 
-                    if (self.locals.items[i] == name) {
+                    if (self.locals.items[i].name() == name) {
                         return @as(u8, @intCast(i));
                     }
                 }
@@ -860,8 +872,8 @@ pub const Elem = union(ElemType) {
             }
 
             pub fn getCaptured(self: *Closure, name: StringTable.Id) ?Elem {
-                if (self.function.resolveLocal(name)) |index| {
-                    return self.captures[index];
+                if (self.function.localSlot(name)) |slot| {
+                    return self.captures[slot];
                 }
                 return null;
             }

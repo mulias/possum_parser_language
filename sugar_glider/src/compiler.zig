@@ -413,11 +413,11 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
-        if (self.resolveLocal(varName)) |local| {
+        if (self.localSlot(varName)) |slot| {
             if (context == .Pattern) {
-                try self.emitUnaryOp(.GetLocal, local, loc);
+                try self.emitUnaryOp(.GetLocal, slot, loc);
             } else {
-                try self.emitUnaryOp(.GetBoundLocal, local, loc);
+                try self.emitUnaryOp(.GetBoundLocal, slot, loc);
             }
         } else {
             const constId = try self.makeConstant(elem);
@@ -493,8 +493,8 @@ pub const Compiler = struct {
     }
 
     fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.Dyn.Function, loc: Location) !void {
-        for (self.function.locals.items, 0..) |localName, fromSlot| {
-            if (targetFunction.resolveLocal(localName)) |toSlot| {
+        for (self.function.locals.items, 0..) |local, fromSlot| {
+            if (targetFunction.localSlot(local.name())) |toSlot| {
                 try self.emitOp(.CaptureLocal, loc);
                 try self.emitByte(@as(u8, @intCast(fromSlot)), loc);
                 try self.emitByte(toSlot, loc);
@@ -753,7 +753,7 @@ pub const Compiler = struct {
                 try array.addPatternElem(
                     name,
                     array.elems.items.len,
-                    self.resolveLocal(name).?,
+                    self.localSlot(name).?,
                 );
             },
             else => {},
@@ -766,17 +766,17 @@ pub const Compiler = struct {
     }
 
     fn addLocal(self: *Compiler, elem: Elem, loc: Location) !?u8 {
-        const name = switch (elem) {
-            .ParserVar => |sId| sId,
-            .ValueVar => |sId| sId,
+        const local: Elem.Dyn.Function.Local = switch (elem) {
+            .ParserVar => |sId| .{ .ParserVar = sId },
+            .ValueVar => |sId| .{ .ValueVar = sId },
             else => return Error.InvalidAst,
         };
 
-        if (self.isMetaVar(name)) {
+        if (self.isMetaVar(local.name())) {
             return Error.InvalidAst;
         }
 
-        return self.function.addLocal(name) catch |err| switch (err) {
+        return self.function.addLocal(local) catch |err| switch (err) {
             error.MaxFunctionLocals => {
                 printError(
                     std.fmt.comptimePrint(
@@ -798,8 +798,8 @@ pub const Compiler = struct {
         };
     }
 
-    pub fn resolveLocal(self: *Compiler, name: StringTable.Id) ?u8 {
-        return self.function.resolveLocal(name);
+    pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
+        return self.function.localSlot(name);
     }
 
     fn isMetaVar(self: *Compiler, sId: StringTable.Id) bool {

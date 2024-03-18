@@ -546,7 +546,7 @@ pub const VM = struct {
     fn bindPatternVariables(self: *VM, pattern: Elem) Elem {
         switch (pattern) {
             .ValueVar => |varName| {
-                const slot = self.frame().function.resolveLocal(varName).?;
+                const slot = self.frame().function.localSlot(varName).?;
                 return self.getLocal(slot);
             },
             .Dyn => |dyn| switch (dyn.dynType) {
@@ -574,7 +574,7 @@ pub const VM = struct {
     fn resolveUnboundVars(self: *VM, value: Elem) !Elem {
         switch (value) {
             .ValueVar => |varName| {
-                const slot = self.frame().function.resolveLocal(varName).?;
+                const slot = self.frame().function.localSlot(varName).?;
                 return self.getBoundLocal(slot);
             },
             .Dyn => |dyn| switch (dyn.dynType) {
@@ -602,7 +602,7 @@ pub const VM = struct {
     fn bindLocalVariables(self: *VM, pattern: Elem, value: Elem) void {
         switch (pattern) {
             .ValueVar => |varName| {
-                const slot = self.frame().function.resolveLocal(varName).?;
+                const slot = self.frame().function.localSlot(varName).?;
                 if (self.getLocal(slot).isType(.ValueVar)) {
                     self.setLocal(slot, value);
                 }
