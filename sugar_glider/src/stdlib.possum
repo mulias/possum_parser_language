@@ -186,15 +186,14 @@ scan(p) = p | (char > scan(p))
 # maybe_table_sep(elem, sep, row_sep) =
 #   default(table_sep(elem, sep, row_sep), [[]])
 
-# single(elem) = Elem <- elem $ [Elem]
+single(elem) = Elem <- elem $ [Elem]
 
-# pair(elem) = E1 <- elem & E2 <- elem $ [E1, E2]
+pair(elem) = E1 <- elem & E2 <- elem $ [E1, E2]
 
-# pair_sep(elem, sep) = E1 <- elem & sep & E2 <- elem $ [E1, E2]
+pair_sep(elem, sep) = E1 <- elem & sep & E2 <- elem $ [E1, E2]
 
-# triple(elem) = E1 <- elem & E2 <- elem & E3 <- elem $ [E1, E2, E3]
+triple(elem) = E1 <- elem & E2 <- elem & E3 <- elem $ [E1, E2, E3]
 
-# triple(elem, sep) = E1 <- elem & sep & E2 <- elem & sep & E3 <- elem $ [E1, E2, E3]
 
 # tuple(elem, N) =
 #   _assert_positive_integer(N) &
@@ -215,6 +214,7 @@ scan(p) = p | (char > scan(p))
 #   0 <- const(N) ?
 #   const(Acc) :
 #   Elem <- sep > elem & _tuple_sep_rec(elem, sep, N - 1, [...Acc, Elem])
+triple_sep(elem, sep) = E1 <- elem & sep & E2 <- elem & sep & E3 <- elem $ [E1, E2, E3]
 
 # object(key, value) =
 #   K <- key & V <- value &

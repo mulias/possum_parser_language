@@ -1195,3 +1195,50 @@ test "S <- ('a' + 'b') $ (S + 'c') $ (S + 'd')" {
         );
     }
 }
+
+test "[A, B] <- (@succeed $ [1, 2]) $ [B, A]" {
+    const parser =
+        \\[A, B] <- (@succeed $ [1, 2]) $ [B, A]
+    ;
+    {
+        const array = [_]Elem{ Elem.integer(2), Elem.integer(1) };
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, ""),
+            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
+
+test "[[1,A,3], B, 5] <- (@succeed $ [[1, 2, 3], 4, 5]) $ [A, B]" {
+    const parser =
+        \\[[1,A,3], B, 5] <- (@succeed $ [[1, 2, 3], 4, 5]) $ [A, B]
+    ;
+    {
+        const array = [_]Elem{ Elem.integer(2), Elem.integer(4) };
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, ""),
+            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
+
+test "[[], A] <- (@succeed $ [[], 100]) $ A" {
+    const parser =
+        \\[[], A] <- (@succeed $ [[], 100]) $ A
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, ""),
+            Elem.integerString(100, vm.strings.getId("100")),
+            vm.strings,
+        );
+    }
+}

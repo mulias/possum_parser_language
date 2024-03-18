@@ -18,7 +18,8 @@ pub const Ast = struct {
     };
 
     pub const InfixType = enum {
-        Array,
+        ArrayHead,
+        ArrayCons,
         Backtrack,
         CallOrDefineFunction,
         ConditionalIfThen,
