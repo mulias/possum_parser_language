@@ -144,19 +144,6 @@ pub const VM = struct {
                     self.frame().ip += offset;
                 }
             },
-            .BindPatternVar => {
-                // Postfix, destructured value on stack.
-                // If destructure succeeded then set local to part/all of value.
-                // If destructure failed do nothing.
-                const slot = self.readByte();
-                const value = self.peek(0);
-                if (value.isSuccess()) {
-                    switch (self.getLocal(slot)) {
-                        .ValueVar => self.setLocal(slot, value),
-                        else => {},
-                    }
-                }
-            },
             .CallParser => {
                 // Postfix, function and args on stack.
                 // Create new stack frame and continue eval within new function.
@@ -170,6 +157,7 @@ pub const VM = struct {
                 try self.callParser(self.peek(argCount), argCount, true);
             },
             .CaptureLocal => {
+                // Create or extend a closure around a function.
                 const fromSlot = self.readByte();
                 const toSlot = self.readByte();
                 switch (self.pop()) {
@@ -213,17 +201,32 @@ pub const VM = struct {
             },
             .Destructure => {
                 // Postfix, lhs pattern and rhs value on stack.
+                //
+                // Bind pattern variables: Check if the pattern contains any
+                // variables that are now set in the local scope. If so update
+                // the pattern to match the local's value.
+                //
+                // Pattern match:
                 // If rhs succeeded then pattern match, drop lhs, keep rhs or fail.
                 // If rhs failed then drop lhs, keep rhs.
+                //
+                // Bind local variables: Check if the pattern contains any
+                // variables that are still unbound in the local scope. If so
+                // update each local to match the corresponding part of the
+                // matched value.
                 const value = self.pop();
-                const pattern = self.pop();
+                var pattern = self.pop();
 
                 if (value.isSuccess()) {
+                    pattern = self.bindPatternVariables(pattern);
+
                     if (value.isValueMatchingPattern(pattern, self.strings)) {
                         try self.push(value);
                     } else {
                         try self.pushFailure();
                     }
+
+                    self.bindLocalVariables(pattern, value);
                 } else {
                     try self.push(value);
                 }
@@ -268,18 +271,7 @@ pub const VM = struct {
             },
             .GetBoundLocal => {
                 const slot = self.readByte();
-                const local = self.getLocal(slot);
-                switch (local) {
-                    .ValueVar => |varName| {
-                        const nameStr = self.strings.get(varName);
-                        return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
-                    },
-                    .ParserVar => |varName| {
-                        const nameStr = self.strings.get(varName);
-                        return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
-                    },
-                    else => try self.push(local),
-                }
+                try self.push(try self.getBoundLocal(slot));
             },
             .Jump => {
                 const offset = self.readShort();
@@ -343,6 +335,10 @@ pub const VM = struct {
                     _ = self.pop();
                     self.inputPos = self.popInputMark();
                 }
+            },
+            .ResolveUnboundVars => {
+                const value = self.pop();
+                try self.push(try self.resolveUnboundVars(value));
             },
             .TakeLeft => {
                 // Postfix, lhs and rhs on stack.
@@ -547,6 +543,96 @@ pub const VM = struct {
         }
     }
 
+    fn bindPatternVariables(self: *VM, pattern: Elem) Elem {
+        switch (pattern) {
+            .ValueVar => |varName| {
+                const slot = self.frame().function.resolveLocal(varName).?;
+                return self.getLocal(slot);
+            },
+            .Dyn => |dyn| switch (dyn.dynType) {
+                .Array => {
+                    var array = dyn.asArray();
+
+                    for (array.elems.items) |elem| {
+                        if (elem.isDynType(.Array)) {
+                            _ = self.bindPatternVariables(elem);
+                        }
+                    }
+
+                    for (array.pattern.items) |patternElem| {
+                        array.elems.items[patternElem.index] = self.getLocal(patternElem.slot);
+                    }
+
+                    return array.dyn.elem();
+                },
+                else => return pattern,
+            },
+            else => return pattern,
+        }
+    }
+
+    fn resolveUnboundVars(self: *VM, value: Elem) !Elem {
+        switch (value) {
+            .ValueVar => |varName| {
+                const slot = self.frame().function.resolveLocal(varName).?;
+                return self.getBoundLocal(slot);
+            },
+            .Dyn => |dyn| switch (dyn.dynType) {
+                .Array => {
+                    var array = dyn.asArray();
+
+                    for (array.elems.items) |elem| {
+                        if (elem.isDynType(.Array)) {
+                            _ = self.bindPatternVariables(elem);
+                        }
+                    }
+
+                    for (array.pattern.items) |patternElem| {
+                        array.elems.items[patternElem.index] = try self.getBoundLocal(patternElem.slot);
+                    }
+
+                    return array.dyn.elem();
+                },
+                else => return value,
+            },
+            else => return value,
+        }
+    }
+
+    fn bindLocalVariables(self: *VM, pattern: Elem, value: Elem) void {
+        switch (pattern) {
+            .ValueVar => |varName| {
+                const slot = self.frame().function.resolveLocal(varName).?;
+                if (self.getLocal(slot).isType(.ValueVar)) {
+                    self.setLocal(slot, value);
+                }
+            },
+            .Dyn => |dyn| switch (dyn.dynType) {
+                .Array => {
+                    var patternArray = dyn.asArray();
+                    var valueArray = value.asDyn().asArray();
+
+                    for (patternArray.elems.items, 0..) |elem, index| {
+                        if (elem.isDynType(.Array)) {
+                            self.bindLocalVariables(elem, valueArray.elems.items[index]);
+                        }
+                    }
+
+                    for (patternArray.pattern.items) |patternElem| {
+                        if (self.getLocal(patternElem.slot).isType(.ValueVar)) {
+                            self.setLocal(
+                                patternElem.slot,
+                                valueArray.elems.items[patternElem.index],
+                            );
+                        }
+                    }
+                },
+                else => {},
+            },
+            else => {},
+        }
+    }
+
     fn frame(self: *VM) *CallFrame {
         return &self.frames.items[self.frames.items.len - 1];
     }
@@ -571,6 +657,21 @@ pub const VM = struct {
         // The local slot is at the start of the frame + 1, since the first
         // elem in the frame is the function getting called.
         return self.stack.items[self.frame().elemsOffset + slot + 1];
+    }
+
+    pub fn getBoundLocal(self: *VM, slot: usize) !Elem {
+        const local = self.getLocal(slot);
+        switch (local) {
+            .ValueVar => |varName| {
+                const nameStr = self.strings.get(varName);
+                return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
+            },
+            .ParserVar => |varName| {
+                const nameStr = self.strings.get(varName);
+                return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
+            },
+            else => return local,
+        }
     }
 
     pub fn setLocal(self: *VM, slot: usize, elem: Elem) void {

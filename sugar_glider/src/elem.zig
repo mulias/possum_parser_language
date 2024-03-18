@@ -245,10 +245,51 @@ pub const Elem = union(ElemType) {
             else => {},
         }
 
-        // Otherwise compare.
-        // TODO: once we're matching inside of arrays and objects this will
-        // have to be recursive
-        return value.isEql(pattern, strings);
+        return switch (value) {
+            .String,
+            .Integer,
+            .Float,
+            .IntegerString,
+            .FloatString,
+            .True,
+            .False,
+            .Null,
+            .Success,
+            .Failure,
+            => return value.isEql(pattern, strings),
+            .ValueVar,
+            .ParserVar,
+            .IntegerRange,
+            .CharacterRange,
+            => @panic("Internal error"),
+            .Dyn => |dyn| switch (dyn.dynType) {
+                .String => return value.isEql(pattern, strings),
+                .Array => {
+                    if (pattern.isDynType(.Array)) {
+                        var valueArray = dyn.asArray();
+                        var patternArray = pattern.asDyn().asArray();
+
+                        if (valueArray.elems.items.len != patternArray.elems.items.len) {
+                            return false;
+                        }
+
+                        for (valueArray.elems.items, patternArray.elems.items) |ve, pe| {
+                            if (!ve.isValueMatchingPattern(pe, strings)) {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    } else {
+                        return false;
+                    }
+                },
+                .Object => @panic("todo"),
+                .Function,
+                .Closure,
+                => @panic("internal error"),
+            },
+        };
     }
 
     pub fn merge(elemA: Elem, elemB: Elem, vm: *VM) !?Elem {
@@ -562,6 +603,13 @@ pub const Elem = union(ElemType) {
         pub const Array = struct {
             dyn: Dyn,
             elems: ArrayList(Elem),
+            pattern: ArrayList(PatternElem),
+
+            pub const PatternElem = struct {
+                name: StringTable.Id,
+                slot: u8,
+                index: usize,
+            };
 
             pub fn copy(vm: *VM, elems: []const Elem) !*Array {
                 const a = try create(vm, elems.len);
@@ -579,6 +627,7 @@ pub const Elem = union(ElemType) {
                 array.* = Array{
                     .dyn = dyn.*,
                     .elems = elems,
+                    .pattern = ArrayList(PatternElem).init(vm.allocator),
                 };
 
                 return array;
@@ -586,6 +635,7 @@ pub const Elem = union(ElemType) {
 
             pub fn destroy(self: *Array, vm: *VM) void {
                 self.elems.deinit();
+                self.pattern.deinit();
                 vm.allocator.destroy(self);
             }
 
@@ -621,6 +671,14 @@ pub const Elem = union(ElemType) {
 
             pub fn concat(self: *Array, other: *Array) !void {
                 try self.elems.appendSlice(other.elems.items);
+            }
+
+            pub fn addPatternElem(self: *Array, name: StringTable.Id, index: usize, slot: u8) !void {
+                try self.pattern.append(PatternElem{
+                    .name = name,
+                    .index = index,
+                    .slot = slot,
+                });
             }
         };
 
@@ -815,4 +873,8 @@ test "struct size" {
     try std.testing.expectEqual(24, @sizeOf(Elem));
     try std.testing.expectEqual(16, @sizeOf(Elem.Dyn));
     try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.String));
+    try std.testing.expectEqual(96, @sizeOf(Elem.Dyn.Array));
+    try std.testing.expectEqual(64, @sizeOf(Elem.Dyn.Object));
+    try std.testing.expectEqual(200, @sizeOf(Elem.Dyn.Function));
+    try std.testing.expectEqual(40, @sizeOf(Elem.Dyn.Closure));
 }

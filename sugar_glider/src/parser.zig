@@ -475,7 +475,7 @@ pub const Parser = struct {
             try self.consume(.RightBracket, "Expected closing ']'");
 
             return self.ast.pushInfix(
-                .Array,
+                .ArrayHead,
                 nodeId,
                 arrayElemsNodeId,
                 loc,
@@ -489,7 +489,7 @@ pub const Parser = struct {
         if (try self.match(.Comma)) {
             const commaLoc = self.previous.loc;
             return self.ast.pushInfix(
-                .Array,
+                .ArrayCons,
                 nodeId,
                 try self.arrayElems(),
                 commaLoc,
