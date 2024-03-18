@@ -320,7 +320,10 @@ pub const Compiler = struct {
                 .ConditionalThenElse => @panic("internal error"), // always handled via ConditionalIfThen
                 .DeclareGlobal => unreachable,
                 .CallOrDefineFunction => {
-                    try self.writeGetVar(infix.left, .Value);
+                    // Call a function
+                    const functionNode = self.ast.getElem(infix.left) orelse @panic("internal error");
+                    const functionLoc = self.ast.getLocation(infix.left);
+                    try self.writeGetVar(functionNode, functionLoc, .Value);
                     const argCount = try self.writeArguments(infix.right);
                     if (isTailPosition) {
                         try self.emitUnaryOp(.CallTailParser, argCount, loc);
@@ -342,7 +345,7 @@ pub const Compiler = struct {
             .ElemNode => |elem| {
                 switch (elem) {
                     .ParserVar => {
-                        try self.writeGetVar(nodeId, .Parser);
+                        try self.writeGetVar(elem, loc, .Parser);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .ValueVar => {
@@ -361,17 +364,17 @@ pub const Compiler = struct {
                     },
                     .True => {
                         // In this context `true` could be a zero-arg function call
-                        try self.writeGetVar(nodeId, .Parser);
+                        try self.writeGetVar(elem, loc, .Parser);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .False => {
                         // In this context `false` could be a zero-arg function call
-                        try self.writeGetVar(nodeId, .Parser);
+                        try self.writeGetVar(elem, loc, .Parser);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .Null => {
                         // In this context `null` could be a zero-arg function call
-                        try self.writeGetVar(nodeId, .Parser);
+                        try self.writeGetVar(elem, loc, .Parser);
                         try self.emitUnaryOp(.CallParser, 0, loc);
                     },
                     .Integer,
@@ -399,13 +402,8 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGetVar(self: *Compiler, nodeId: usize, context: enum { Parser, Pattern, Value }) !void {
-        const varElem = switch (self.ast.getNode(nodeId)) {
-            .ElemNode => |elem| elem,
-            .InfixNode => return Error.InvalidAst,
-        };
-
-        const varName = switch (varElem) {
+    fn writeGetVar(self: *Compiler, elem: Elem, loc: Location, context: enum { Parser, Pattern, Value }) !void {
+        const varName = switch (elem) {
             .ParserVar => |sId| sId,
             .ValueVar => |sId| sId,
             .True => try self.vm.strings.insert("true"),
@@ -414,8 +412,6 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
-        const loc = self.ast.getLocation(nodeId);
-
         if (self.resolveLocal(varName)) |local| {
             if (context == .Pattern) {
                 try self.emitUnaryOp(.GetLocal, local, loc);
@@ -423,7 +419,7 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetBoundLocal, local, loc);
             }
         } else {
-            const constId = try self.makeConstant(varElem);
+            const constId = try self.makeConstant(elem);
             try self.emitUnaryOp(.GetGlobal, constId, loc);
         }
     }
@@ -469,7 +465,7 @@ pub const Compiler = struct {
             .ElemNode => |elem| switch (elem) {
                 .ParserVar,
                 .ValueVar,
-                => try self.writeGetVar(nodeId, .Value),
+                => try self.writeGetVar(elem, loc, .Value),
                 else => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -534,7 +530,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 },
                 .ValueVar => {
-                    try self.writeGetVar(nodeId, .Pattern);
+                    try self.writeGetVar(elem, loc, .Pattern);
                 },
                 .String,
                 .IntegerString,
@@ -665,7 +661,7 @@ pub const Compiler = struct {
                     printError("Parser is not valid in value", loc);
                     return Error.InvalidAst;
                 },
-                .ValueVar => try self.writeGetVar(nodeId, .Value),
+                .ValueVar => try self.writeGetVar(elem, loc, .Value),
                 .String,
                 .IntegerString,
                 .FloatString,
