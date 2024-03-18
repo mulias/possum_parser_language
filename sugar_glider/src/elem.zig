@@ -744,7 +744,12 @@ pub const Elem = union(ElemType) {
             }
         };
 
-        pub const FunctionType = enum { NamedFunction, AnonFunction, Main };
+        pub const FunctionType = enum {
+            AnonParser,
+            Main,
+            NamedParser,
+            NamedValue,
+        };
 
         pub const Function = struct {
             dyn: Dyn,

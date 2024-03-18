@@ -15,7 +15,7 @@ pub fn createSucceed(vm: *VM) !*Function {
     const name = try vm.strings.insert("@succeed");
     var fun = try Function.create(vm, .{
         .name = name,
-        .functionType = .NamedFunction,
+        .functionType = .NamedParser,
         .arity = 0,
     });
 
@@ -31,7 +31,7 @@ pub fn createFail(vm: *VM) !*Function {
     const name = try vm.strings.insert("@fail");
     var fun = try Function.create(vm, .{
         .name = name,
-        .functionType = .NamedFunction,
+        .functionType = .NamedParser,
         .arity = 0,
     });
 
@@ -47,7 +47,7 @@ pub fn createNumberOf(vm: *VM) !*Function {
     const name = try vm.strings.insert("@number_of");
     var fun = try Function.create(vm, .{
         .name = name,
-        .functionType = .NamedFunction,
+        .functionType = .NamedParser,
         .arity = 1,
     });
 

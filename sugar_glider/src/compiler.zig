@@ -28,6 +28,10 @@ pub const Compiler = struct {
         TooManyConstants,
         ShortOverflow,
         VariableNameUsedInScope,
+        InvalidGlobalValue,
+        InvalidGlobalParser,
+        AliasCycle,
+        UnknownVariable,
     };
 
     pub fn init(vm: *VM, ast: Ast) !Compiler {
@@ -53,175 +57,140 @@ pub const Compiler = struct {
     }
 
     pub fn compile(self: *Compiler) !*Elem.Dyn.Function {
-        var mainNodeId: ?usize = null;
-
-        for (self.ast.roots.items) |nodeId| {
-            if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
-                try self.compileGlobalDeclaration(infix.left, infix.right);
-            } else if (mainNodeId == null) {
-                mainNodeId = nodeId;
-            } else {
-                return Error.MultipleMainParsers;
-            }
-        }
-
-        if (mainNodeId) |nodeId| {
-            try self.compileMainParser(nodeId);
-        } else {
-            return Error.NoMainParser;
-        }
-
-        self.ast = undefined;
-
+        try self.declareGlobals();
+        try self.validateGlobals();
+        try self.resolveGlobalAliases();
+        try self.compileGlobalFunctions();
+        try self.compileMain();
         return self.function;
     }
 
     pub fn compileLib(self: *Compiler) !void {
+        try self.declareGlobals();
+        try self.validateGlobals();
+        try self.resolveGlobalAliases();
+        try self.compileGlobalFunctions();
+    }
+
+    fn declareGlobals(self: *Compiler) !void {
         for (self.ast.roots.items) |nodeId| {
             if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
-                try self.compileGlobalDeclaration(infix.left, infix.right);
-            } else {
-                return Error.UnexpectedMainParser;
+                try self.declareGlobal(infix.left, infix.right);
+            }
+        }
+    }
+
+    fn validateGlobals(self: *Compiler) !void {
+        for (self.ast.roots.items) |nodeId| {
+            if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
+                try self.validateGlobal(infix.left);
+            }
+        }
+    }
+
+    fn resolveGlobalAliases(self: *Compiler) !void {
+        for (self.ast.roots.items) |nodeId| {
+            if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
+                try self.resolveGlobalAlias(infix.left);
+            }
+        }
+    }
+
+    fn compileGlobalFunctions(self: *Compiler) !void {
+        for (self.ast.roots.items) |nodeId| {
+            if (self.ast.getInfixOfType(nodeId, .DeclareGlobal)) |infix| {
+                try self.compileGlobalFunction(infix.left, infix.right);
+            }
+        }
+    }
+
+    fn compileMain(self: *Compiler) !void {
+        var mainNodeId: ?usize = null;
+
+        for (self.ast.roots.items) |nodeId| {
+            if (self.ast.getInfixOfType(nodeId, .DeclareGlobal) == null) {
+                if (mainNodeId == null) {
+                    mainNodeId = nodeId;
+                } else {
+                    return Error.MultipleMainParsers;
+                }
             }
         }
 
-        self.ast = undefined;
+        if (mainNodeId) |nodeId| {
+            try self.writeParser(nodeId, false);
+            try self.emitOp(.End, self.ast.endLocation);
+        } else {
+            return Error.NoMainParser;
+        }
     }
 
-    fn compileMainParser(self: *Compiler, nodeId: usize) !void {
-        try self.writeParser(nodeId, false);
-        try self.emitOp(.End, self.ast.endLocation);
-    }
-
-    fn compileGlobalDeclaration(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !void {
+    fn declareGlobal(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !void {
         switch (self.ast.getNode(headNodeId)) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .CallOrDefineFunction => {
+                    // A function with params
                     const nameNodeId = infix.left;
                     const paramsNodeId = infix.right;
-                    try self.compileGlobalFunction(nameNodeId, paramsNodeId, bodyNodeId);
+                    try self.declareGlobalFunction(nameNodeId, paramsNodeId);
                 },
                 else => return Error.InvalidAst,
             },
-            .ElemNode => |nameElem| switch (nameElem) {
-                .ParserVar => try self.compileGlobalFunction(headNodeId, null, bodyNodeId),
-                .ValueVar => {
-                    try self.compileGlobalValue(headNodeId, bodyNodeId);
+            .ElemNode => |nameElem| switch (self.ast.getNode(bodyNodeId)) {
+                .InfixNode => {
+                    // A function without params
+                    try self.declareGlobalFunction(headNodeId, null);
                 },
-                else => return Error.InvalidAst,
+                .ElemNode => |bodyElem| {
+                    try self.declareGlobalAlias(nameElem, bodyElem);
+                },
             },
         }
     }
 
-    // Create a parser or value in the global namespace. The word "function"
-    // here is a bit misleading. All globals can be considered as functions,
-    // but not all functions require allocating a function struct with a new
-    // chunk of bytecode.
-    //
-    // ```
-    // # Global string parser "function"
-    // foo = "foo"
-    //
-    // # Global string value "function"
-    // Foo = "foo"
-    //
-    // # Global function, even though param is unused
-    // foo(a) = "foo"
-    //
-    // # Global function, even though it takes 0 params
-    // foobar = "foo" + "bar"
-    //
-    // # Global function
-    // double(p) = p + p
-    // ```
-    //
-    // To compile a global function we first check if both the params node is
-    // null and the body is a single elem. In this case the global var points
-    // to the elem as the parser/value. Otherwise we create a new function
-    // elem. The body AST is compiled into the funciton's bytecode. In the main
-    // function we then load the function elem as a global.
-    fn compileGlobalFunction(self: *Compiler, nameNodeId: usize, paramsNodeId: ?usize, bodyNodeId: usize) !void {
-        const globalName = switch (self.ast.getNode(nameNodeId)) {
-            .ElemNode => |elem| switch (elem) {
-                .ParserVar => |sId| sId,
-                .True => try self.vm.strings.insert("true"),
-                .False => try self.vm.strings.insert("false"),
-                .Null => try self.vm.strings.insert("null"),
-                else => return Error.InvalidAst,
-            },
+    fn declareGlobalFunction(self: *Compiler, nameNodeId: usize, paramsNodeId: ?usize) !void {
+        // Create a new function and add the params to the function struct.
+        // Leave the function's bytecode chunk empty for now.
+        // Add the function to the globals namespace.
+
+        const nameElem = self.ast.getElem(nameNodeId) orelse return Error.InvalidAst;
+        const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
+        const name = switch (nameVar) {
+            .ValueVar => |sId| sId,
+            .ParserVar => |sId| sId,
+            else => return Error.InvalidAst,
+        };
+        const functionType: Elem.Dyn.FunctionType = switch (nameVar) {
+            .ValueVar => .NamedValue,
+            .ParserVar => .NamedParser,
             else => return Error.InvalidAst,
         };
 
-        if (self.isMetaVar(globalName)) {
-            return Error.InvalidAst;
-        }
-
-        // Simple no-param single elem case
-        if (paramsNodeId == null) {
-            if (self.ast.getElem(bodyNodeId)) |bodyElem| {
-                try self.vm.globals.put(globalName, bodyElem);
-                return;
-            }
-        }
-
-        // Otherwise create a new function
-        const function = try self.writeFunction(globalName, paramsNodeId, bodyNodeId);
-        try self.vm.globals.put(globalName, function.dyn.elem());
-    }
-
-    fn compileGlobalValue(self: *Compiler, nameNodeId: usize, bodyNodeId: usize) !void {
-        const globalName = switch (self.ast.getNode(nameNodeId)) {
-            .ElemNode => |elem| switch (elem) {
-                .ValueVar => |sId| sId,
-                else => return Error.InvalidAst,
-            },
-            else => return Error.InvalidAst,
-        };
-
-        if (self.isMetaVar(globalName)) {
-            return Error.InvalidAst;
-        }
-
-        if (self.ast.getElem(bodyNodeId)) |bodyElem| {
-            try self.vm.globals.put(globalName, bodyElem);
-        } else {
-            // Otherwise create a new value function
-            @panic("todo");
-        }
-    }
-
-    fn writeFunction(self: *Compiler, functionName: StringTable.Id, paramsNodeId: ?usize, bodyNodeId: usize) !*Elem.Dyn.Function {
         var function = try Elem.Dyn.Function.create(self.vm, .{
-            .name = functionName,
-            .functionType = .NamedFunction,
+            .name = name,
+            .functionType = functionType,
             .arity = 0,
         });
 
-        var compiler = try initWithFunction(self.vm, self.ast, function);
-        defer compiler.deinit();
+        try self.vm.globals.put(name, function.dyn.elem());
 
-        if (paramsNodeId) |nodeId| {
-            var paramsNode = compiler.ast.getNode(nodeId);
+        var parentFunction = self.function;
+        self.function = function;
+
+        if (paramsNodeId) |firstParamNodeId| {
+            var paramNode = self.ast.getNode(firstParamNodeId);
+            var paramLoc = self.ast.getLocation(firstParamNodeId);
 
             while (true) {
-                switch (paramsNode) {
-                    .ElemNode => |elem| {
-                        // This is the last param
-                        _ = try compiler.addLocal(
-                            elem,
-                            self.ast.getLocation(nodeId),
-                        );
-                        compiler.function.arity += 1;
-                        break;
-                    },
+                switch (paramNode) {
                     .InfixNode => |infix| {
                         if (infix.infixType == .ParamsOrArgs) {
                             if (self.ast.getElem(infix.left)) |leftElem| {
-                                _ = try compiler.addLocal(
+                                _ = try self.addLocal(
                                     leftElem,
                                     self.ast.getLocation(infix.left),
                                 );
-                                compiler.function.arity += 1;
+                                function.arity += 1;
                             } else {
                                 return Error.InvalidAst;
                             }
@@ -229,17 +198,188 @@ pub const Compiler = struct {
                             return Error.InvalidAst;
                         }
 
-                        paramsNode = self.ast.getNode(infix.right);
+                        paramNode = self.ast.getNode(infix.right);
+                        paramLoc = self.ast.getLocation(infix.right);
+                    },
+                    .ElemNode => |elem| {
+                        // This is the last param
+                        _ = try self.addLocal(elem, paramLoc);
+                        function.arity += 1;
+                        break;
                     },
                 }
             }
         }
 
-        try compiler.writeParser(bodyNodeId, true);
+        self.function = parentFunction;
+    }
 
-        try compiler.emitOp(.End, compiler.ast.getLocation(bodyNodeId));
+    fn declareGlobalAlias(self: *Compiler, nameElem: Elem, bodyElem: Elem) !void {
+        // Add an alias to the global namespace. Set the given body element as the alias's value.
+        const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
+        const name = switch (nameVar) {
+            .ValueVar => |sId| sId,
+            .ParserVar => |sId| sId,
+            else => return Error.InvalidAst,
+        };
 
-        return compiler.function;
+        try self.vm.globals.put(name, bodyElem);
+    }
+
+    fn validateGlobal(self: *Compiler, headNodeId: usize) !void {
+        const nameElem = switch (self.ast.getNode(headNodeId)) {
+            .InfixNode => |infix| self.ast.getElem(infix.left) orelse return Error.InvalidAst,
+            .ElemNode => |elem| elem,
+        };
+        const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
+
+        switch (nameVar) {
+            .ValueVar => |name| switch (self.vm.globals.get(name).?) {
+                .ValueVar,
+                .String,
+                .Integer,
+                .Float,
+                .IntegerString,
+                .FloatString,
+                .True,
+                .False,
+                .Null,
+                => {},
+                .ParserVar,
+                .CharacterRange,
+                .IntegerRange,
+                => return Error.InvalidGlobalValue,
+                .Dyn => |dyn| switch (dyn.dynType) {
+                    .String,
+                    .Array,
+                    .Object,
+                    => {},
+                    .Function => {
+                        if (dyn.asFunction().functionType != .NamedValue) {
+                            return Error.InvalidGlobalValue;
+                        }
+                    },
+                    .Closure => @panic("Internal Error"),
+                },
+                .Success,
+                .Failure,
+                => @panic("Internal Error"),
+            },
+            .ParserVar => |name| switch (self.vm.globals.get(name).?) {
+                .ParserVar,
+                .String,
+                .Integer,
+                .Float,
+                .IntegerString,
+                .FloatString,
+                .CharacterRange,
+                .IntegerRange,
+                => {},
+                .ValueVar => return Error.InvalidGlobalParser,
+                .Dyn => |dyn| switch (dyn.dynType) {
+                    .String => {},
+                    .Array,
+                    .Object,
+                    => return Error.InvalidGlobalParser,
+                    .Function => {
+                        if (dyn.asFunction().functionType != .NamedParser) {
+                            return Error.InvalidGlobalParser;
+                        }
+                    },
+                    .Closure => @panic("Internal Error"),
+                },
+                .Success,
+                .Failure,
+                .True,
+                .False,
+                .Null,
+                => @panic("Internal Error"),
+            },
+            else => @panic("Internal Error"),
+        }
+    }
+
+    fn resolveGlobalAlias(self: *Compiler, headNodeId: usize) !void {
+        const globalName = try self.getGlobalName(headNodeId);
+        var aliasName = globalName;
+        var value = self.vm.globals.get(aliasName);
+
+        if (!value.?.isType(.ValueVar) and !value.?.isType(.ParserVar)) {
+            return;
+        }
+
+        var path = ArrayList(StringTable.Id).init(self.vm.allocator);
+        defer path.deinit();
+
+        while (true) {
+            if (value) |foundValue| {
+                try path.append(aliasName);
+
+                aliasName = switch (foundValue) {
+                    .ValueVar => |name| name,
+                    .ParserVar => |name| name,
+                    else => {
+                        try self.vm.globals.put(globalName, foundValue);
+                        break;
+                    },
+                };
+
+                for (path.items) |aliasVisited| {
+                    if (aliasName == aliasVisited) {
+                        return Error.AliasCycle;
+                    }
+                }
+
+                value = self.vm.globals.get(aliasName);
+            } else {
+                return Error.UnknownVariable;
+            }
+        }
+    }
+
+    fn compileGlobalFunction(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !void {
+        const globalName = try self.getGlobalName(headNodeId);
+        const globalVal = self.vm.globals.get(globalName).?;
+
+        // Exit early if the node is an alias, not a function def
+        switch (self.ast.getNode(headNodeId)) {
+            .ElemNode => switch (self.ast.getNode(bodyNodeId)) {
+                .InfixNode => {},
+                .ElemNode => return,
+            },
+            .InfixNode => {},
+        }
+
+        if (globalVal.isDynType(.Function)) {
+            var function = globalVal.asDyn().asFunction();
+
+            var parentFunction = self.function;
+            self.function = function;
+
+            if (function.functionType == .NamedParser) {
+                try self.writeParser(bodyNodeId, true);
+            } else {
+                try self.writeValue(bodyNodeId);
+            }
+
+            try self.emitOp(.End, self.ast.getLocation(bodyNodeId));
+
+            self.function = parentFunction;
+        }
+    }
+
+    fn getGlobalName(self: *Compiler, headNodeId: usize) !StringTable.Id {
+        const nameElem = switch (self.ast.getNode(headNodeId)) {
+            .InfixNode => |infix| self.ast.getElem(infix.left) orelse return Error.InvalidAst,
+            .ElemNode => |elem| elem,
+        };
+        const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
+        const name = switch (nameVar) {
+            .ValueVar => |sId| sId,
+            .ParserVar => |sId| sId,
+            else => return Error.InvalidAst,
+        };
+        return name;
     }
 
     fn writeParser(self: *Compiler, nodeId: usize, isTailPosition: bool) !void {
@@ -425,6 +565,18 @@ pub const Compiler = struct {
         }
     }
 
+    fn elemToVar(self: *Compiler, elem: Elem) !?Elem {
+        return switch (elem) {
+            .ParserVar,
+            .ValueVar,
+            => elem,
+            .True => Elem.parserVar(try self.vm.strings.insert("true")),
+            .False => Elem.parserVar(try self.vm.strings.insert("false")),
+            .Null => Elem.parserVar(try self.vm.strings.insert("null")),
+            else => null,
+        };
+    }
+
     fn writeArguments(self: *Compiler, nodeId: usize) Error!u8 {
         var argCount: u8 = 0;
         var argsNodeId = nodeId;
@@ -478,7 +630,7 @@ pub const Compiler = struct {
     fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !*Elem.Dyn.Function {
         var function = try Elem.Dyn.Function.create(self.vm, .{
             .name = try self.nextAnonFunctionName(),
-            .functionType = .AnonFunction,
+            .functionType = .AnonParser,
             .arity = 0,
         });
 

@@ -1242,3 +1242,45 @@ test "[[], A] <- (@succeed $ [[], 100]) $ A" {
         );
     }
 }
+
+test "a = b ; b = a ; a" {
+    const parser =
+        \\a = b ; b = a ; a
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.AliasCycle,
+            vm.interpret(parser, ""),
+        );
+    }
+}
+
+test "foo = bar ; bar = baz ; baz = bar ; foo" {
+    const parser =
+        \\a = b ; b = a ; a
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.AliasCycle,
+            vm.interpret(parser, ""),
+        );
+    }
+}
+
+test "Foo = 1 ; a = Foo ; a" {
+    const parser =
+        \\Foo = 1 ; a = Foo ; a
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.InvalidGlobalParser,
+            vm.interpret(parser, ""),
+        );
+    }
+}
