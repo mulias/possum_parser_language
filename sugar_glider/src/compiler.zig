@@ -33,6 +33,8 @@ pub const Compiler = struct {
         AliasCycle,
         UnknownVariable,
         UndefinedVariable,
+        FunctionCallTooManyArgs,
+        FunctionCallTooFewArgs,
     };
 
     pub fn init(vm: *VM, ast: Ast) !Compiler {
@@ -483,18 +485,21 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
+        var function: ?*Elem.Dyn.Function = null;
+
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, functionLoc);
         } else {
-            if (self.vm.globals.get(functionName)) |function| {
-                const constId = try self.makeConstant(function);
+            if (self.vm.globals.get(functionName)) |global| {
+                function = global.asDyn().asFunction();
+                const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, functionLoc);
             } else {
                 return Error.UndefinedVariable;
             }
         }
 
-        const argCount = try self.writeArguments(argsNodeId);
+        const argCount = try self.writeArguments(argsNodeId, function);
 
         if (isTailPosition) {
             try self.emitUnaryOp(.CallTailParser, argCount, functionLoc);
@@ -605,9 +610,12 @@ pub const Compiler = struct {
         };
     }
 
-    fn writeArguments(self: *Compiler, nodeId: usize) Error!u8 {
+    const ArgType = enum { Parser, Value, Unspecified };
+
+    fn writeArguments(self: *Compiler, nodeId: usize, function: ?*Elem.Dyn.Function) Error!u8 {
         var argCount: u8 = 0;
         var argsNodeId = nodeId;
+        var argType: ArgType = .Unspecified;
 
         while (true) {
             if (argCount == std.math.maxInt(u8)) {
@@ -620,38 +628,58 @@ pub const Compiler = struct {
 
             argCount += 1;
 
+            if (function) |f| {
+                if (f.arity < argCount) return Error.FunctionCallTooManyArgs;
+
+                const argPos = argCount - 1;
+                switch (f.localVar(argPos)) {
+                    .ParserVar => argType = .Parser,
+                    .ValueVar => argType = .Value,
+                }
+            } else {
+                argType = .Unspecified;
+            }
+
             if (self.ast.getInfixOfType(argsNodeId, .ParamsOrArgs)) |infix| {
-                try self.writeArgument(infix.left);
+                try self.writeArgument(infix.left, argType);
                 argsNodeId = infix.right;
             } else {
                 // This is the last arg
-                try self.writeArgument(argsNodeId);
+                try self.writeArgument(argsNodeId, argType);
                 break;
             }
+        }
+
+        if (function) |f| {
+            if (f.arity != argCount) return Error.FunctionCallTooFewArgs;
         }
 
         return argCount;
     }
 
-    fn writeArgument(self: *Compiler, nodeId: usize) !void {
+    fn writeArgument(self: *Compiler, nodeId: usize, argType: ArgType) !void {
         const loc = self.ast.getLocation(nodeId);
 
-        switch (self.ast.getNode(nodeId)) {
-            .InfixNode => {
-                const function = try self.writeAnonymousFunction(nodeId);
-                const constId = try self.makeConstant(function.dyn.elem());
-                try self.emitUnaryOp(.GetConstant, constId, loc);
-                try self.writeCaptureLocals(function, loc);
-            },
-            .ElemNode => |elem| switch (elem) {
-                .ParserVar,
-                .ValueVar,
-                => try self.writeGetVar(elem, loc, .Value),
-                else => {
-                    const constId = try self.makeConstant(elem);
+        if (argType == .Parser) {
+            switch (self.ast.getNode(nodeId)) {
+                .InfixNode => {
+                    const function = try self.writeAnonymousFunction(nodeId);
+                    const constId = try self.makeConstant(function.dyn.elem());
                     try self.emitUnaryOp(.GetConstant, constId, loc);
+                    try self.writeCaptureLocals(function, loc);
                 },
-            },
+                .ElemNode => |elem| switch (elem) {
+                    .ParserVar => try self.writeGetVar(elem, loc, .Value),
+                    else => {
+                        const constId = try self.makeConstant(elem);
+                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                    },
+                },
+            }
+        } else if (argType == .Value) {
+            try self.writeValue(nodeId);
+        } else {
+            @panic("todo");
         }
     }
 

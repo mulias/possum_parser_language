@@ -835,6 +835,10 @@ pub const Elem = union(ElemType) {
 
                 return null;
             }
+
+            pub fn localVar(self: *Function, slot: u8) Local {
+                return self.locals.items[@as(usize, @intCast(slot))];
+            }
         };
 
         pub const Closure = struct {

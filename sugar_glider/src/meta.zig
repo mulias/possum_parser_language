@@ -51,6 +51,9 @@ pub fn createNumberOf(vm: *VM) !*Function {
         .arity = 1,
     });
 
+    const argName = try vm.strings.insert("p");
+    try fun.locals.append(.{ .ParserVar = argName });
+
     const loc = Location.new(0, 0, 0);
 
     try fun.chunk.writeOp(.GetLocal, loc);

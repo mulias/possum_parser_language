@@ -96,45 +96,41 @@ surround(p, fill) = fill > p < fill
 
 input(p) = surround(p, maybe(whitespace)) < end_of_input
 
-many(p) = p + (many(p) | @succeed)
+many(p) = First <- p & _many(p, First)
 
-# many(p) = First <- p & _many_rec(p, First)
+_many(p, Acc) = Next <- p ? _many(p, Acc + Next) : const(Acc)
 
-# _many_rec(p, Acc) = Next <- p ? _many_rec(p, Acc + Next) : const(Acc)
+until(p, stop) = First <- p & _until(p, stop, First)
 
-until(p, stop) = p + (peek(stop) ? @succeed : until(p, stop))
-
-# until(p, stop) = First <- p & _until_rec(p, stop, First)
-
-# _until_rec(p, stop, Acc) =
-#   peek(stop) ?
-#   const(Acc) :
-#   Next <- p & _until_rec(p, stop, Acc + Next)
+_until(p, stop, Acc) =
+  peek(stop) ?
+  const(Acc) :
+  Next <- p & _until(p, stop, Acc + Next)
 
 unless(p, excluded) = excluded ? @fail : p
 
 scan(p) = p | (char > scan(p))
 
-# array(elem) = First <- elem & _array_rec(elem, [First])
+array(elem) = First <- elem & _array(elem, [First])
 
-# _array_rec(elem, Acc) =
-#   Elem <- elem ?
-#   _array_rec(elem, [...Acc, Elem]) :
-#   const(Acc)
+_array(elem, Acc) =
+  Elem <- elem ?
+  _array(elem, Acc + [Elem]) :
+  const(Acc)
 
-# array_sep(elem, sep) = First <- elem & _array_sep_rec(elem, sep, [First])
+array_sep(elem, sep) = First <- elem & _array_sep(elem, sep, [First])
 
-# _array_sep_rec(elem, sep, Acc) =
-#   Elem <- sep > elem ?
-#   _array_sep_rec(elem, sep, [...Acc, Elem]) :
-#   const(Acc)
+_array_sep(elem, sep, Acc) =
+  Elem <- (sep > elem) ?
+  _array_sep(elem, sep, Acc + [Elem]) :
+  const(Acc)
 
-# array_until(elem, stop) = First <- elem & _array_until_rec(elem, stop, [First])
+array_until(elem, stop) = First <- elem & _array_until(elem, stop, [First])
 
-# _array_until_rec(elem, stop, Acc) =
-#   peek(stop) ?
-#   const(Acc) :
-#   Elem <- elem & _array_until_rec(elem, stop, [...Acc, Elem])
+_array_until(elem, stop, Acc) =
+  peek(stop) ?
+  const(Acc) :
+  Elem <- elem & _array_until(elem, stop, Acc + [Elem])
 
 # maybe_array(elem) = default(array(elem), [])
 
