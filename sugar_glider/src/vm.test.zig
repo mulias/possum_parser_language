@@ -1331,3 +1331,17 @@ test "__1adsf = 1 ; __1adsf" {
         );
     }
 }
+
+test "missing_parser(1,2,3)" {
+    const parser =
+        \\missingParser(1,2,3)
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.UndefinedVariable,
+            vm.interpret(parser, "123"),
+        );
+    }
+}

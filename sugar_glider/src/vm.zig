@@ -248,23 +248,6 @@ pub const VM = struct {
                 // Push singleton false value.
                 try self.push(Elem.falseConst);
             },
-            .GetGlobal => {
-                // Fetch an elem in the global scope.
-                const idx = self.readByte();
-
-                const varName = switch (self.chunk().getConstant(idx)) {
-                    .ParserVar => |varName| varName,
-                    .ValueVar => |varName| varName,
-                    else => @panic("internal error"),
-                };
-
-                if (self.globals.get(varName)) |varElem| {
-                    try self.push(varElem);
-                } else {
-                    const nameStr = self.strings.get(varName);
-                    return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
-                }
-            },
             .GetLocal => {
                 const slot = self.readByte();
                 try self.push(self.getLocal(slot));

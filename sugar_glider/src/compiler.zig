@@ -32,6 +32,7 @@ pub const Compiler = struct {
         InvalidGlobalParser,
         AliasCycle,
         UnknownVariable,
+        UndefinedVariable,
     };
 
     pub fn init(vm: *VM, ast: Ast) !Compiler {
@@ -485,8 +486,12 @@ pub const Compiler = struct {
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, functionLoc);
         } else {
-            const constId = try self.makeConstant(Elem.parserVar(functionName));
-            try self.emitUnaryOp(.GetGlobal, constId, functionLoc);
+            if (self.vm.globals.get(functionName)) |function| {
+                const constId = try self.makeConstant(function);
+                try self.emitUnaryOp(.GetConstant, constId, functionLoc);
+            } else {
+                return Error.UndefinedVariable;
+            }
         }
 
         const argCount = try self.writeArguments(argsNodeId);
@@ -579,8 +584,12 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetBoundLocal, slot, loc);
             }
         } else {
-            const constId = try self.makeConstant(elem);
-            try self.emitUnaryOp(.GetGlobal, constId, loc);
+            if (self.vm.globals.get(varName)) |globalElem| {
+                const constId = try self.makeConstant(globalElem);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
+            } else {
+                return Error.UndefinedVariable;
+            }
         }
     }
 
