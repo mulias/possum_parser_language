@@ -272,6 +272,18 @@ pub const VM = struct {
                 const idx = self.readByte();
                 try self.push(self.chunk().getConstant(idx));
             },
+            .SetClosureCaptures => {
+                var function = self.getFunctionElem().asDyn();
+
+                if (function.isType(.Closure)) {
+                    var closure = function.asClosure();
+                    for (closure.captures, 0..) |capture, slot| {
+                        if (capture) |elem| {
+                            self.setLocal(slot, elem);
+                        }
+                    }
+                }
+            },
             .SetInputMark => {
                 try self.pushInputMark();
             },
@@ -347,27 +359,6 @@ pub const VM = struct {
             .True => {
                 // Push singleton true value.
                 try self.push(Elem.trueConst);
-            },
-            .TryResolveUnboundLocal => {
-                // Get the local at `slot`, it should be unbound. Check to see
-                // if there's a global with the same name, and if so set the
-                // local to the same value as the global.
-                const slot = self.readByte();
-
-                const varName = switch (self.getLocal(slot)) {
-                    .ValueVar => |varName| varName,
-                    else => @panic("internal error"),
-                };
-
-                var function = self.getFunctionElem().asDyn();
-
-                if (function.isType(.Closure)) {
-                    if (function.asClosure().getCaptured(varName)) |varElem| {
-                        self.setLocal(slot, varElem);
-                    }
-                } else if (self.globals.get(varName)) |varElem| {
-                    self.setLocal(slot, varElem);
-                }
             },
         }
     }

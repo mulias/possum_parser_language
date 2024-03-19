@@ -100,6 +100,8 @@ many(p) = First <- p & _many(p, First)
 
 _many(p, Acc) = Next <- p ? _many(p, Acc + Next) : const(Acc)
 
+maybe_many(p) = many(p) | @succeed
+
 until(p, stop) = First <- p & _until(p, stop, First)
 
 _until(p, stop, Acc) =
@@ -132,22 +134,9 @@ _array_until(elem, stop, Acc) =
   const(Acc) :
   Elem <- elem & _array_until(elem, stop, Acc + [Elem])
 
-# maybe_array(elem) = default(array(elem), [])
+maybe_array(elem) = default(array(elem), [])
 
-# maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
-
-# table_sep(elem, sep, row_sep) =
-#   First <- elem & _table_sep_rec(elem, sep, row_sep, [[First]])
-
-# _table_sep_rec(elem, sep, row_sep, Acc) =
-#   NextRow <- row_sep > elem ?
-#   _table_sep_rec(elem, sep, row_sep, ArrayAppend(Acc [NextRow])) :
-#   Elem <- sep > elem ?
-#   _table_sep_rec(elem, sep, TableAppend(Acc, Elem)) :
-#   const(Acc)
-
-# maybe_table_sep(elem, sep, row_sep) =
-#   default(table_sep(elem, sep, row_sep), [[]])
+maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
 
 single(elem) = Elem <- elem $ [Elem]
 

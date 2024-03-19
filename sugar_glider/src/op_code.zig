@@ -25,12 +25,12 @@ pub const OpCode = enum(u8) {
     NumberOf,
     Or,
     ResolveUnboundVars,
+    SetClosureCaptures,
     SetInputMark,
     Succeed,
     TakeLeft,
     TakeRight,
     True,
-    TryResolveUnboundLocal,
 
     pub fn disassemble(self: OpCode, chunk: *Chunk, strings: StringTable, offset: usize) usize {
         return switch (self) {
@@ -42,6 +42,7 @@ pub const OpCode = enum(u8) {
             .Null,
             .NumberOf,
             .ResolveUnboundVars,
+            .SetClosureCaptures,
             .SetInputMark,
             .Succeed,
             .TakeLeft,
@@ -52,7 +53,6 @@ pub const OpCode = enum(u8) {
             .CallTailParser,
             .GetLocal,
             .GetBoundLocal,
-            .TryResolveUnboundLocal,
             => self.byteInstruciton(chunk, offset),
             .CaptureLocal => self.twoBytesInstruciton(chunk, offset),
             .Backtrack,

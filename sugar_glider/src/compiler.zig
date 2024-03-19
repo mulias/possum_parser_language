@@ -120,6 +120,7 @@ pub const Compiler = struct {
         }
 
         if (mainNodeId) |nodeId| {
+            try self.addValueLocals(nodeId);
             try self.writeParser(nodeId, false);
             try self.emitOp(.End, self.ast.endLocation);
         } else {
@@ -357,6 +358,7 @@ pub const Compiler = struct {
             try self.functions.append(function);
 
             if (function.functionType == .NamedParser) {
+                try self.addValueLocals(bodyNodeId);
                 try self.writeParser(bodyNodeId, true);
             } else {
                 try self.writeValue(bodyNodeId);
@@ -385,8 +387,6 @@ pub const Compiler = struct {
     fn writeParser(self: *Compiler, nodeId: usize, isTailPosition: bool) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
-
-        try self.addPatternLocals(nodeId, false);
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
@@ -681,6 +681,8 @@ pub const Compiler = struct {
     }
 
     fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !*Elem.Dyn.Function {
+        const loc = self.ast.getLocation(nodeId);
+
         var function = try Elem.Dyn.Function.create(self.vm, .{
             .name = try self.nextAnonFunctionName(),
             .functionType = .AnonParser,
@@ -689,7 +691,14 @@ pub const Compiler = struct {
 
         try self.functions.append(function);
 
-        try compiler.emitOp(.End, compiler.ast.getLocation(nodeId));
+        try self.addClosureLocals(nodeId);
+
+        if (function.locals.items.len > 0) {
+            try self.emitOp(.SetClosureCaptures, loc);
+        }
+
+        try self.writeParser(nodeId, true);
+        try self.emitOp(.End, loc);
 
         return self.functions.pop();
     }
@@ -781,50 +790,53 @@ pub const Compiler = struct {
         }
     }
 
-    fn addPatternLocals(self: *Compiler, nodeId: usize, isPattern: bool) !void {
+    fn addValueLocals(self: *Compiler, nodeId: usize) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
         switch (node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .Destructure => {
-                    try self.addPatternLocals(infix.left, true);
-                    try self.addPatternLocals(infix.right, false);
-                },
-                .ArrayHead => {
-                    try self.addPatternLocals(infix.right, isPattern);
-                },
-                .ArrayCons,
-                .Merge,
-                => {
-                    try self.addPatternLocals(infix.left, isPattern);
-                    try self.addPatternLocals(infix.right, isPattern);
-                },
-                else => {
-                    try self.addPatternLocals(infix.left, false);
-                    try self.addPatternLocals(infix.right, false);
-                },
+            .InfixNode => |infix| {
+                try self.addValueLocals(infix.left);
+                try self.addValueLocals(infix.right);
             },
             .ElemNode => |elem| switch (elem) {
-                .ValueVar => if (isPattern) {
-                    // If the var in the pattern is new to the function scope
-                    // then push the var onto the stack, create a new local for
-                    // it and return the local's stack position. Then check to
-                    // see if there's a global value with the same name, and if
-                    // so update the local.
-                    //
-                    // Alternatively, The pattern var might already be defined
-                    // as a local, for example in `is_eql(p, V) = V <- p` the
-                    // `V` is a function param so the passed arg will already
-                    // be bound to a local. In this case no bytecode is emitted.
+                .ValueVar => |varName| if (self.vm.globals.get(varName) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, loc);
-                    if (newLocalId) |local| {
+                    if (newLocalId) |_| {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
-                        try self.emitUnaryOp(.TryResolveUnboundLocal, local, loc);
                     }
                 },
                 else => {},
+            },
+        }
+    }
+
+    fn addClosureLocals(self: *Compiler, nodeId: usize) !void {
+        const node = self.ast.getNode(nodeId);
+        const loc = self.ast.getLocation(nodeId);
+
+        switch (node) {
+            .InfixNode => |infix| {
+                try self.addClosureLocals(infix.left);
+                try self.addClosureLocals(infix.right);
+            },
+            .ElemNode => |elem| {
+                const varName = switch (elem) {
+                    .ValueVar => |name| name,
+                    .ParserVar => |name| name,
+                    else => null,
+                };
+
+                if (varName) |name| {
+                    if (self.parentFunction().localSlot(name) != null) {
+                        const newLocalId = try self.addLocalIfUndefined(elem, loc);
+                        if (newLocalId) |_| {
+                            const constId = try self.makeConstant(elem);
+                            try self.emitUnaryOp(.GetConstant, constId, loc);
+                        }
+                    }
+                }
             },
         }
     }
@@ -969,6 +981,17 @@ pub const Compiler = struct {
 
     fn currentFunction(self: *Compiler) *Elem.Dyn.Function {
         return self.functions.items[self.functions.items.len - 1];
+    }
+
+    fn parentFunction(self: *Compiler) *Elem.Dyn.Function {
+        var parentIndex = self.functions.items.len - 2;
+        while (true) {
+            if (self.functions.items[parentIndex].functionType == .AnonParser) {
+                parentIndex -= 1;
+            } else {
+                return self.functions.items[parentIndex];
+            }
+        }
     }
 
     fn addLocal(self: *Compiler, elem: Elem, loc: Location) !?u8 {
