@@ -302,44 +302,6 @@ test "('' $ null) + ('' $ null)" {
     }
 }
 
-// test "('a' $ [1, 2]) + ('b' $ [true, false])" {
-//     var alloc = std.testing.allocator;
-//     var vm = try VM.init(allocator);
-//     defer vm.deinit();
-
-//     const parser =
-//         \\ ('a' $ [1, 2]) + ('b' $ [true, false])
-//     ;
-
-//     const result = try vm.interpret(parser, "abc");
-
-//     var valueString = ArrayList(u8).init(allocator);
-//     defer valueString.deinit();
-
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 2);
-//     try testing.expectJson(alloc, result.ParserSuccess, "[1,2,true,false]");
-// }
-
-// test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
-//     var alloc = std.testing.allocator;
-//     var vm = try VM.init(allocator);
-//     defer vm.deinit();
-
-//     const parser =
-//         \\ ('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})
-//     ;
-
-//     const result = try vm.interpret(parser, "123456");
-
-//     var valueString = ArrayList(u8).init(allocator);
-//     defer valueString.deinit();
-
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 6);
-//     try testing.expectJson(alloc, result.ParserSuccess, "{\"a\":false,\"b\":null}");
-// }
-
 test "'f' <- 'a'..'z' & 12 <- 0..100" {
     const parser =
         \\ 'f' <- 'a'..'z' & 12 <- 0..100
@@ -1181,6 +1143,22 @@ test "'aa' $ [1, 2, 3]" {
     }
 }
 
+test "('a' $ [1, 2]) + ('b' $ [true, false])" {
+    const parser =
+        \\('a' $ [1, 2]) + ('b' $ [true, false])
+    ;
+    {
+        const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.trueConst, Elem.falseConst };
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "abc"),
+            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
+
 test "S <- ('a' + 'b') $ (S + 'c') $ (S + 'd')" {
     const parser =
         \\S <- ("a" + "b") $ (S + "c") $ (S + "d")
@@ -1345,3 +1323,22 @@ test "missing_parser(1,2,3)" {
         );
     }
 }
+
+// test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
+//     var alloc = std.testing.allocator;
+//     var vm = try VM.init(allocator);
+//     defer vm.deinit();
+
+//     const parser =
+//         \\ ('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})
+//     ;
+
+//     const result = try vm.interpret(parser, "123456");
+
+//     var valueString = ArrayList(u8).init(allocator);
+//     defer valueString.deinit();
+
+//     try std.testing.expect(result.ParserSuccess.start == 0);
+//     try std.testing.expect(result.ParserSuccess.end == 6);
+//     try testing.expectJson(alloc, result.ParserSuccess, "{\"a\":false,\"b\":null}");
+// }
