@@ -1284,3 +1284,18 @@ test "Foo = 1 ; a = Foo ; a" {
         );
     }
 }
+
+test "true(t) = t $ true ; true('true')" {
+    const parser =
+        \\true(t) = t $ true ; true('true')
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "true"),
+            Elem.trueConst,
+            vm.strings,
+        );
+    }
+}

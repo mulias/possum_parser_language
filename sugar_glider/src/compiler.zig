@@ -459,16 +459,7 @@ pub const Compiler = struct {
                 .ConditionalThenElse => @panic("internal error"), // always handled via ConditionalIfThen
                 .DeclareGlobal => unreachable,
                 .CallOrDefineFunction => {
-                    // Call a function
-                    const functionNode = self.ast.getElem(infix.left) orelse @panic("internal error");
-                    const functionLoc = self.ast.getLocation(infix.left);
-                    try self.writeGetVar(functionNode, functionLoc, .Value);
-                    const argCount = try self.writeArguments(infix.right);
-                    if (isTailPosition) {
-                        try self.emitUnaryOp(.CallTailParser, argCount, loc);
-                    } else {
-                        try self.emitUnaryOp(.CallParser, argCount, loc);
-                    }
+                    try self.writeParserFunctionCall(infix.left, infix.right, isTailPosition);
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
                 .ArrayHead,
@@ -476,6 +467,34 @@ pub const Compiler = struct {
                 => return Error.InvalidAst,
             },
             .ElemNode => try self.writeParserElem(nodeId),
+        }
+    }
+
+    fn writeParserFunctionCall(self: *Compiler, functionNodeId: usize, argsNodeId: usize, isTailPosition: bool) !void {
+        const functionElem = self.ast.getElem(functionNodeId) orelse @panic("internal error");
+        const functionLoc = self.ast.getLocation(functionNodeId);
+
+        const functionName = switch (functionElem) {
+            .ParserVar => |sId| sId,
+            .True => try self.vm.strings.insert("true"),
+            .False => try self.vm.strings.insert("false"),
+            .Null => try self.vm.strings.insert("null"),
+            else => return Error.InvalidAst,
+        };
+
+        if (self.localSlot(functionName)) |slot| {
+            try self.emitUnaryOp(.GetBoundLocal, slot, functionLoc);
+        } else {
+            const constId = try self.makeConstant(Elem.parserVar(functionName));
+            try self.emitUnaryOp(.GetGlobal, constId, functionLoc);
+        }
+
+        const argCount = try self.writeArguments(argsNodeId);
+
+        if (isTailPosition) {
+            try self.emitUnaryOp(.CallTailParser, argCount, functionLoc);
+        } else {
+            try self.emitUnaryOp(.CallParser, argCount, functionLoc);
         }
     }
 
