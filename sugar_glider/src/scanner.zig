@@ -215,7 +215,7 @@ pub const Scanner = struct {
     }
 
     fn scanLowercaseIdentifier(self: *Scanner) Token {
-        while (isLower(self.peek()) or isDigit(self.peek()) or self.peek() == '_') self.advance();
+        while (isAlpha(self.peek()) or isDigit(self.peek()) or self.peek() == '_') self.advance();
 
         return self.makeToken(self.lowercaseIdentifierType());
     }
@@ -233,7 +233,7 @@ pub const Scanner = struct {
     }
 
     fn scanUppercaseIdentifier(self: *Scanner) Token {
-        while (isAlpha(self.peek()) or isDigit(self.peek())) self.advance();
+        while (isAlpha(self.peek()) or isDigit(self.peek()) or self.peek() == '_') self.advance();
 
         return self.makeToken(.UppercaseIdentifier);
     }
@@ -247,10 +247,18 @@ pub const Scanner = struct {
     }
 
     fn scanUnderscoreIdentifier(self: *Scanner) Token {
+        while (self.peek() == '_') self.advance();
+
         if (isLower(self.peek())) {
             return self.scanLowercaseIdentifier();
-        } else {
+        } else if (isUpper(self.peek())) {
             return self.scanUppercaseIdentifier();
+        } else {
+            // An identifier must start with an upper/lowercase char after the
+            // underscores. If it doesn't then take the rest of the identifier,
+            // but mark it as invalid.
+            while (isAlpha(self.peek()) or isDigit(self.peek()) or self.peek() == '_') self.advance();
+            return self.makeError("Invalid Identifier");
         }
     }
 

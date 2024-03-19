@@ -1299,3 +1299,35 @@ test "true(t) = t $ true ; true('true')" {
         );
     }
 }
+
+test "camelCase = _foo ; _foo = __bar ; __bar = 123 ; camelCase" {
+    const parser =
+        \\camelCase = _foo
+        \\_foo = __bar
+        \\__bar = 123
+        \\camelCase
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "123"),
+            Elem.integerString(123, vm.strings.getId("123")),
+            vm.strings,
+        );
+    }
+}
+
+test "__1adsf = 1 ; __1adsf" {
+    const parser =
+        \\__1adsf = 1 ; __1adsf
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.UnexpectedInput,
+            vm.interpret(parser, "1"),
+        );
+    }
+}
