@@ -868,7 +868,27 @@ pub const Elem = union(ElemType) {
             }
 
             pub fn print(self: *Closure, printer: anytype, strings: StringTable) void {
-                self.function.print(printer, strings);
+                printer("|{s} ", .{strings.get(self.function.name)});
+
+                if (self.captures.len > 0) {
+                    const lastItemIndex = self.captures.len - 1;
+
+                    for (self.captures[0..lastItemIndex]) |maybeElem| {
+                        if (maybeElem) |e| {
+                            e.print(printer, strings);
+                            printer(", ", .{});
+                        } else {
+                            printer("_, ", .{});
+                        }
+                    }
+                    if (self.captures[lastItemIndex]) |e| {
+                        e.print(printer, strings);
+                    } else {
+                        printer("_", .{});
+                    }
+                }
+
+                printer("|", .{});
             }
 
             pub fn isEql(self: *Closure, other: *Dyn) bool {
