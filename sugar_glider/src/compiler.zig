@@ -14,7 +14,7 @@ const logger = @import("./logger.zig");
 pub const Compiler = struct {
     vm: *VM,
     ast: Ast,
-    function: *Elem.Dyn.Function,
+    functions: ArrayList(*Elem.Dyn.Function),
 
     const Error = error{
         InvalidAst,
@@ -44,19 +44,18 @@ pub const Compiler = struct {
             .arity = 0,
         });
 
-        return try initWithFunction(vm, ast, main);
-    }
+        var functions = ArrayList(*Elem.Dyn.Function).init(vm.allocator);
+        try functions.append(main);
 
-    fn initWithFunction(vm: *VM, ast: Ast, function: *Elem.Dyn.Function) !Compiler {
         return Compiler{
             .vm = vm,
             .ast = ast,
-            .function = function,
+            .functions = functions,
         };
     }
 
     pub fn deinit(self: *Compiler) void {
-        _ = self;
+        self.functions.deinit();
     }
 
     pub fn compile(self: *Compiler) !*Elem.Dyn.Function {
@@ -65,7 +64,7 @@ pub const Compiler = struct {
         try self.resolveGlobalAliases();
         try self.compileGlobalFunctions();
         try self.compileMain();
-        return self.function;
+        return self.functions.pop();
     }
 
     pub fn compileLib(self: *Compiler) !void {
@@ -177,8 +176,7 @@ pub const Compiler = struct {
 
         try self.vm.globals.put(name, function.dyn.elem());
 
-        var parentFunction = self.function;
-        self.function = function;
+        try self.functions.append(function);
 
         if (paramsNodeId) |firstParamNodeId| {
             var paramNode = self.ast.getNode(firstParamNodeId);
@@ -214,7 +212,7 @@ pub const Compiler = struct {
             }
         }
 
-        self.function = parentFunction;
+        _ = self.functions.pop();
     }
 
     fn declareGlobalAlias(self: *Compiler, nameElem: Elem, bodyElem: Elem) !void {
@@ -356,8 +354,7 @@ pub const Compiler = struct {
         if (globalVal.isDynType(.Function)) {
             var function = globalVal.asDyn().asFunction();
 
-            var parentFunction = self.function;
-            self.function = function;
+            try self.functions.append(function);
 
             if (function.functionType == .NamedParser) {
                 try self.writeParser(bodyNodeId, true);
@@ -367,7 +364,7 @@ pub const Compiler = struct {
 
             try self.emitOp(.End, self.ast.getLocation(bodyNodeId));
 
-            self.function = parentFunction;
+            _ = self.functions.pop();
         }
     }
 
@@ -690,18 +687,15 @@ pub const Compiler = struct {
             .arity = 0,
         });
 
-        var compiler = try initWithFunction(self.vm, self.ast, function);
-        defer compiler.deinit();
-
-        try compiler.writeParser(nodeId, true);
+        try self.functions.append(function);
 
         try compiler.emitOp(.End, compiler.ast.getLocation(nodeId));
 
-        return compiler.function;
+        return self.functions.pop();
     }
 
     fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.Dyn.Function, loc: Location) !void {
-        for (self.function.locals.items, 0..) |local, fromSlot| {
+        for (self.currentFunction().locals.items, 0..) |local, fromSlot| {
             if (targetFunction.localSlot(local.name())) |toSlot| {
                 try self.emitOp(.CaptureLocal, loc);
                 try self.emitByte(@as(u8, @intCast(fromSlot)), loc);
@@ -970,7 +964,11 @@ pub const Compiler = struct {
     }
 
     fn chunk(self: *Compiler) *Chunk {
-        return &self.function.chunk;
+        return &self.currentFunction().chunk;
+    }
+
+    fn currentFunction(self: *Compiler) *Elem.Dyn.Function {
+        return self.functions.items[self.functions.items.len - 1];
     }
 
     fn addLocal(self: *Compiler, elem: Elem, loc: Location) !?u8 {
@@ -984,7 +982,7 @@ pub const Compiler = struct {
             return Error.InvalidAst;
         }
 
-        return self.function.addLocal(local) catch |err| switch (err) {
+        return self.currentFunction().addLocal(local) catch |err| switch (err) {
             error.MaxFunctionLocals => {
                 printError(
                     std.fmt.comptimePrint(
@@ -1007,7 +1005,7 @@ pub const Compiler = struct {
     }
 
     pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
-        return self.function.localSlot(name);
+        return self.currentFunction().localSlot(name);
     }
 
     fn isMetaVar(self: *Compiler, sId: StringTable.Id) bool {
