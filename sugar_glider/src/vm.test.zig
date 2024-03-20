@@ -1324,6 +1324,101 @@ test "missing_parser(1,2,3)" {
     }
 }
 
+test "Add(A, B) = A + B ; '' $ Add(3, 12)" {
+    const parser =
+        \\Add(A, B) = A + B ; '' $ Add(3, 12)
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "true"),
+            Elem.integer(15),
+            vm.strings,
+        );
+    }
+}
+
+test "A = 1 + 100 ; A <- 101" {
+    const parser =
+        \\A = 1 + 100 ; A <- 101
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "101"),
+            Elem.integer(101),
+            vm.strings,
+        );
+    }
+}
+
+test "fibonacci" {
+    const parser =
+        \\Fib(N) =
+        \\  0 <- N ? 0 :
+        \\  1 <- N ? 1 :
+        \\  Fib(N + -1) + Fib(N + -2)
+        \\
+        \\N <- int $ Fib(N)
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "0"),
+            Elem.integer(0),
+            vm.strings,
+        );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "1"),
+            Elem.integer(1),
+            vm.strings,
+        );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "2"),
+            Elem.integer(1),
+            vm.strings,
+        );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "3"),
+            Elem.integer(2),
+            vm.strings,
+        );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "7"),
+            Elem.integer(13),
+            vm.strings,
+        );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "12"),
+            Elem.integer(144),
+            vm.strings,
+        );
+    }
+}
+
 // test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
 //     var alloc = std.testing.allocator;
 //     var vm = try VM.init(allocator);
