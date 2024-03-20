@@ -1196,6 +1196,10 @@ pub const Compiler = struct {
             return Error.InvalidAst;
         }
 
+        if (self.currentFunction().functionType == .NamedValue and local.isParserVar()) {
+            return Error.InvalidAst;
+        }
+
         return self.currentFunction().addLocal(local) catch |err| switch (err) {
             error.MaxFunctionLocals => {
                 printError(

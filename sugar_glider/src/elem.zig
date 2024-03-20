@@ -823,6 +823,13 @@ pub const Elem = union(ElemType) {
                         .ValueVar => |sId| sId,
                     };
                 }
+
+                pub fn isParserVar(self: Local) bool {
+                    return switch (self) {
+                        .ParserVar => true,
+                        .ValueVar => false,
+                    };
+                }
             };
 
             pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8 }) !*Function {
