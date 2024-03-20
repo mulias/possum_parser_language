@@ -361,7 +361,7 @@ pub const Compiler = struct {
                 try self.addValueLocals(bodyNodeId);
                 try self.writeParser(bodyNodeId, true);
             } else {
-                try self.writeValue(bodyNodeId);
+                try self.writeValue(bodyNodeId, true);
             }
 
             try self.emitOp(.End, self.ast.getLocation(bodyNodeId));
@@ -432,7 +432,7 @@ pub const Compiler = struct {
                 .Return => {
                     try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.TakeRight, loc);
-                    try self.writeValue(infix.right);
+                    try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, loc);
                 },
                 .ConditionalIfThen => {
@@ -496,12 +496,12 @@ pub const Compiler = struct {
             }
         }
 
-        const argCount = try self.writeArguments(argsNodeId, function);
+        const argCount = try self.writeParserFunctionArguments(argsNodeId, function);
 
         if (isTailPosition) {
-            try self.emitUnaryOp(.CallTailParser, argCount, functionLoc);
+            try self.emitUnaryOp(.CallTailFunction, argCount, functionLoc);
         } else {
-            try self.emitUnaryOp(.CallParser, argCount, functionLoc);
+            try self.emitUnaryOp(.CallFunction, argCount, functionLoc);
         }
     }
 
@@ -513,7 +513,7 @@ pub const Compiler = struct {
                 switch (elem) {
                     .ParserVar => {
                         try self.writeGetVar(elem, loc, .Parser);
-                        try self.emitUnaryOp(.CallParser, 0, loc);
+                        try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
                     .ValueVar => {
                         printError("Variable is only valid as a pattern or value", loc);
@@ -527,42 +527,29 @@ pub const Compiler = struct {
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
-                        try self.emitUnaryOp(.CallParser, 0, loc);
+                        try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
                     .True => {
                         // In this context `true` could be a zero-arg function call
                         try self.writeGetVar(elem, loc, .Parser);
-                        try self.emitUnaryOp(.CallParser, 0, loc);
+                        try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
                     .False => {
                         // In this context `false` could be a zero-arg function call
                         try self.writeGetVar(elem, loc, .Parser);
-                        try self.emitUnaryOp(.CallParser, 0, loc);
+                        try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
                     .Null => {
                         // In this context `null` could be a zero-arg function call
                         try self.writeGetVar(elem, loc, .Parser);
-                        try self.emitUnaryOp(.CallParser, 0, loc);
+                        try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
                     .Integer,
                     .Float,
                     .Success,
                     .Failure,
                     => unreachable, // not produced by the parser
-                    .Dyn => |d| switch (d.dynType) {
-                        .String,
-                        .Closure,
-                        => unreachable, // not produced by the parser
-                        .Array => {
-                            printError("Array literal is only valid as a pattern or value", loc);
-                            return Error.InvalidAst;
-                        },
-                        .Object => {
-                            printError("Object literal is only valid as a pattern or value", loc);
-                            return Error.InvalidAst;
-                        },
-                        .Function => @panic("internal error"), // not produced by the parser
-                    },
+                    .Dyn => @panic("internal error"), // not produced by the parser
                 }
             },
             .InfixNode => return Error.InvalidAst,
@@ -609,7 +596,7 @@ pub const Compiler = struct {
 
     const ArgType = enum { Parser, Value, Unspecified };
 
-    fn writeArguments(self: *Compiler, nodeId: usize, function: ?*Elem.Dyn.Function) Error!u8 {
+    fn writeParserFunctionArguments(self: *Compiler, nodeId: usize, function: ?*Elem.Dyn.Function) Error!u8 {
         var argCount: u8 = 0;
         var argsNodeId = nodeId;
         var argType: ArgType = .Unspecified;
@@ -638,11 +625,11 @@ pub const Compiler = struct {
             }
 
             if (self.ast.getInfixOfType(argsNodeId, .ParamsOrArgs)) |infix| {
-                try self.writeArgument(infix.left, argType);
+                try self.writeParserFunctionArgument(infix.left, argType);
                 argsNodeId = infix.right;
             } else {
                 // This is the last arg
-                try self.writeArgument(argsNodeId, argType);
+                try self.writeParserFunctionArgument(argsNodeId, argType);
                 break;
             }
         }
@@ -654,7 +641,7 @@ pub const Compiler = struct {
         return argCount;
     }
 
-    fn writeArgument(self: *Compiler, nodeId: usize, argType: ArgType) !void {
+    fn writeParserFunctionArgument(self: *Compiler, nodeId: usize, argType: ArgType) !void {
         const loc = self.ast.getLocation(nodeId);
 
         if (argType == .Parser) {
@@ -674,7 +661,7 @@ pub const Compiler = struct {
                 },
             }
         } else if (argType == .Value) {
-            try self.writeValue(nodeId);
+            try self.writeValue(nodeId, false);
         } else {
             @panic("todo");
         }
@@ -735,6 +722,9 @@ pub const Compiler = struct {
                     try self.writeArray(infix.left, infix.right);
                 },
                 .ArrayCons => @panic("internal error"),
+                .CallOrDefineFunction => {
+                    try self.writeValueFunctionCall(infix.left, infix.right, false);
+                },
                 else => {
                     printError("Invalid infix operator in pattern", loc);
                     return Error.InvalidAst;
@@ -745,8 +735,18 @@ pub const Compiler = struct {
                     printError("parser is not valid in pattern", loc);
                     return Error.InvalidAst;
                 },
-                .ValueVar => {
-                    try self.writeGetVar(elem, loc, .Pattern);
+                .ValueVar => |name| {
+                    if (self.localSlot(name)) |slot| {
+                        try self.emitUnaryOp(.GetLocal, slot, loc);
+                    } else if (self.vm.globals.get(name)) |globalElem| {
+                        const constId = try self.makeConstant(globalElem);
+                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
+                            try self.emitUnaryOp(.CallFunction, 0, loc);
+                        }
+                    } else {
+                        return Error.UndefinedVariable;
+                    }
                 },
                 .String,
                 .IntegerString,
@@ -773,17 +773,14 @@ pub const Compiler = struct {
                 },
                 .Dyn => |d| switch (d.dynType) {
                     .String,
+                    .Function,
                     .Closure,
-                    => unreachable, // not produced by the parser
+                    => @panic("Internal Error"), // not produced by the parser
                     .Array,
                     .Object,
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
-                    },
-                    .Function => {
-                        printError("Function is not valid in pattern", loc);
-                        return Error.InvalidAst;
                     },
                 },
             },
@@ -841,15 +838,15 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValue(self: *Compiler, nodeId: usize) !void {
+    fn writeValue(self: *Compiler, nodeId: usize, isTailPosition: bool) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
-                    try self.writeValue(infix.left);
-                    try self.writeValue(infix.right);
+                    try self.writeValue(infix.left, false);
+                    try self.writeValue(infix.right, false);
                     try self.emitOp(.Merge, loc);
                 },
                 .ArrayHead => {
@@ -857,6 +854,9 @@ pub const Compiler = struct {
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
                 .ArrayCons => @panic("internal error"),
+                .CallOrDefineFunction => {
+                    try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
+                },
                 else => {
                     printError("Invalid infix operator in value", loc);
                     return Error.InvalidAst;
@@ -867,7 +867,30 @@ pub const Compiler = struct {
                     printError("Parser is not valid in value", loc);
                     return Error.InvalidAst;
                 },
-                .ValueVar => try self.writeGetVar(elem, loc, .Value),
+                .ValueVar => |name| {
+                    if (self.localSlot(name)) |slot| {
+                        // This local will either be a concrete value or
+                        // unbound, it won't be a function. Value functions are
+                        // all defined globally and called immediately. This
+                        // means that if a function takes a value function as
+                        // an arg then the value function will be called before
+                        // the outer function, and the value used when calling
+                        // the outer function will be concrete.
+                        try self.emitUnaryOp(.GetBoundLocal, slot, loc);
+                    } else if (self.vm.globals.get(name)) |globalElem| {
+                        const constId = try self.makeConstant(globalElem);
+                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
+                            if (isTailPosition) {
+                                try self.emitUnaryOp(.CallTailFunction, 0, loc);
+                            } else {
+                                try self.emitUnaryOp(.CallFunction, 0, loc);
+                            }
+                        }
+                    } else {
+                        return Error.UndefinedVariable;
+                    }
+                },
                 .String,
                 .IntegerString,
                 .FloatString,
@@ -893,21 +916,86 @@ pub const Compiler = struct {
                 },
                 .Dyn => |d| switch (d.dynType) {
                     .String,
+                    .Function,
                     .Closure,
-                    => unreachable, // not produced by the parser
+                    => @panic("Internal Error"), // not produced by the parser
                     .Array,
                     .Object,
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
                     },
-                    .Function => {
-                        printError("Function is not valid in value", loc);
-                        return Error.InvalidAst;
-                    },
                 },
             },
         }
+    }
+
+    fn writeValueFunctionCall(self: *Compiler, functionNodeId: usize, argsNodeId: usize, isTailPosition: bool) !void {
+        const functionElem = self.ast.getElem(functionNodeId) orelse @panic("internal error");
+        const functionLoc = self.ast.getLocation(functionNodeId);
+
+        const functionName = switch (functionElem) {
+            .ValueVar => |sId| sId,
+            else => return Error.InvalidAst,
+        };
+
+        var function: ?*Elem.Dyn.Function = null;
+
+        if (self.localSlot(functionName)) |slot| {
+            try self.emitUnaryOp(.GetBoundLocal, slot, functionLoc);
+        } else {
+            if (self.vm.globals.get(functionName)) |global| {
+                function = global.asDyn().asFunction();
+                const constId = try self.makeConstant(global);
+                try self.emitUnaryOp(.GetConstant, constId, functionLoc);
+            } else {
+                return Error.UndefinedVariable;
+            }
+        }
+
+        const argCount = try self.writeValueFunctionArguments(argsNodeId, function);
+
+        if (isTailPosition) {
+            try self.emitUnaryOp(.CallTailFunction, argCount, functionLoc);
+        } else {
+            try self.emitUnaryOp(.CallFunction, argCount, functionLoc);
+        }
+    }
+
+    fn writeValueFunctionArguments(self: *Compiler, nodeId: usize, function: ?*Elem.Dyn.Function) Error!u8 {
+        var argCount: u8 = 0;
+        var argsNodeId = nodeId;
+        var loc: Location = undefined;
+
+        while (true) {
+            loc = self.ast.getLocation(nodeId);
+
+            if (argCount == std.math.maxInt(u8)) {
+                printError(
+                    std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
+                    self.ast.getLocation(nodeId),
+                );
+                return Error.MaxFunctionArgs;
+            }
+
+            argCount += 1;
+
+            if (self.ast.getInfixOfType(argsNodeId, .ParamsOrArgs)) |infix| {
+                try self.writeValue(infix.left, false);
+                argsNodeId = infix.right;
+            } else {
+                // This is the last arg
+                try self.writeValue(argsNodeId, false);
+                break;
+            }
+        }
+
+        if (function) |f| {
+            if (f.arity < argCount) return Error.FunctionCallTooManyArgs;
+            if (f.arity > argCount) return Error.FunctionCallTooFewArgs;
+        }
+
+        return argCount;
     }
 
     fn writeArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {

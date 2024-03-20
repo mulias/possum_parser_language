@@ -144,17 +144,17 @@ pub const VM = struct {
                     self.frame().ip += offset;
                 }
             },
-            .CallParser => {
+            .CallFunction => {
                 // Postfix, function and args on stack.
                 // Create new stack frame and continue eval within new function.
                 const argCount = self.readByte();
-                try self.callParser(self.peek(argCount), argCount, false);
+                try self.callFunction(self.peek(argCount), argCount, false);
             },
-            .CallTailParser => {
+            .CallTailFunction => {
                 // Postfix, function and args on stack.
                 // Reuse stack frame and continue eval within new function.
                 const argCount = self.readByte();
-                try self.callParser(self.peek(argCount), argCount, true);
+                try self.callFunction(self.peek(argCount), argCount, true);
             },
             .CaptureLocal => {
                 // Create or extend a closure around a function.
@@ -382,13 +382,13 @@ pub const VM = struct {
         }
     }
 
-    fn callParser(self: *VM, elem: Elem, argCount: u8, isTailPosition: bool) Error!void {
+    fn callFunction(self: *VM, elem: Elem, argCount: u8, isTailPosition: bool) Error!void {
         switch (elem) {
             .ParserVar => |varName| {
                 if (self.globals.get(varName)) |varElem| {
                     // Swap the var with the thing it's aliasing on the stack
                     self.stack.items[self.frame().elemsOffset] = varElem;
-                    try self.callParser(varElem, argCount, isTailPosition);
+                    try self.callFunction(varElem, argCount, isTailPosition);
                 } else {
                     const nameStr = self.strings.get(varName);
                     return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
@@ -509,7 +509,7 @@ pub const VM = struct {
                 },
                 .Closure => {
                     var functionElem = dyn.asClosure().function.dyn.elem();
-                    try self.callParser(functionElem, argCount, isTailPosition);
+                    try self.callFunction(functionElem, argCount, isTailPosition);
                 },
                 else => @panic("Internal error"),
             },
@@ -628,6 +628,9 @@ pub const VM = struct {
 
                     return array.dyn.elem();
                 },
+                .Function,
+                .Closure,
+                => @panic("Internal Error"),
                 else => return elem,
             },
             else => return elem,
