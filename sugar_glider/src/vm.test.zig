@@ -1354,7 +1354,64 @@ test "A = 1 + 100 ; A <- 101" {
     }
 }
 
-test "fibonacci" {
+test "fibonacci parser function" {
+    const parser =
+        \\fib(N) =
+        \\  0 <- const(N) ? const(0) :
+        \\  1 <- const(N) ? const(1) :
+        \\  N1 <- fib(N - 1) & N2 <- fib(N - 2) $
+        \\  (N1 + N2)
+        \\
+        \\N <- int & fib(N)
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "0"),
+            Elem.integer(0),
+            vm.strings,
+        );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "1"),
+            Elem.integer(1),
+            vm.strings,
+        );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "2"),
+            Elem.integer(1),
+            vm.strings,
+        );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "3"),
+            Elem.integer(2),
+            vm.strings,
+        );
+    }
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "7"),
+            Elem.integer(13),
+            vm.strings,
+        );
+    }
+}
+
+test "fibonacci value function" {
     const parser =
         \\Fib(N) =
         \\  0 <- N ? 0 :
