@@ -462,7 +462,6 @@ pub const Compiler = struct {
                     try self.writeParserFunctionCall(infix.left, infix.right, isTailPosition);
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
-                .ArrayHead,
                 .ArrayCons,
                 .NumberSubtract,
                 => return Error.InvalidAst,
@@ -719,10 +718,9 @@ pub const Compiler = struct {
                     try self.writePattern(infix.right);
                     try self.emitOp(.Merge, loc);
                 },
-                .ArrayHead => {
+                .ArrayCons => {
                     try self.writeArray(infix.left, infix.right);
                 },
-                .ArrayCons => @panic("internal error"),
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
@@ -855,11 +853,10 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, false);
                     try self.emitOp(.Merge, loc);
                 },
-                .ArrayHead => {
+                .ArrayCons => {
                     try self.writeArray(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
-                .ArrayCons => @panic("internal error"),
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
@@ -947,7 +944,7 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ArrayHead => {
+                .ArrayCons => {
                     try self.writeArray(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
@@ -1023,7 +1020,6 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
-                .ArrayCons, // handled by writeArray
                 .ConditionalThenElse, // handled by ConditionalIfThen
                 .DeclareGlobal, // handled by top-level compiler functions
                 .ParamsOrArgs, // handled by CallOrDefineFunction
@@ -1127,7 +1123,7 @@ pub const Compiler = struct {
 
                     switch (self.ast.getNode(infix.left)) {
                         .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                            .ArrayHead => {
+                            .ArrayCons => {
                                 var nestedArray = self.ast.getElem(nestedInfix.left) orelse @panic("Internal Error");
                                 try self.appendArrayElems(
                                     nestedArray.asDyn().asArray(),
@@ -1135,7 +1131,6 @@ pub const Compiler = struct {
                                 );
                                 try self.appendArrayElem(array, nestedArray);
                             },
-                            .ArrayCons => @panic("internal error"),
                             else => @panic("todo"),
                         },
                         .ElemNode => |elem| try self.appendArrayElem(array, elem),

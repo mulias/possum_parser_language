@@ -477,7 +477,7 @@ pub const Parser = struct {
             try self.consume(.RightBracket, "Expected closing ']'");
 
             return self.ast.pushInfix(
-                .ArrayHead,
+                .ArrayCons,
                 nodeId,
                 arrayElemsNodeId,
                 loc,
