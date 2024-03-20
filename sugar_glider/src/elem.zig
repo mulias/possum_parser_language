@@ -422,6 +422,60 @@ pub const Elem = union(ElemType) {
         };
     }
 
+    pub fn numberSubtract(elemA: Elem, elemB: Elem) ?Elem {
+        if (elemA == .Failure) return Elem.failureConst;
+        if (elemB == .Failure) return Elem.failureConst;
+
+        return switch (elemA) {
+            .ParserVar,
+            .ValueVar,
+            .Failure,
+            => @panic("Internal error"),
+            .String => null,
+            .Integer => |n1| switch (elemB) {
+                .Integer => |n2| integer(n1 - n2),
+                .Float => |n2| float(@as(f64, @floatFromInt(n1)) - n2),
+                .IntegerString => |n2| integer(n1 - n2.value),
+                .FloatString => |n2| float(@as(f64, @floatFromInt(n1)) - n2.value),
+                .Success => elemA,
+                else => null,
+            },
+            .Float => |n1| switch (elemB) {
+                .Integer => |n2| float(n1 - @as(f64, @floatFromInt(n2))),
+                .Float => |n2| float(n1 - n2),
+                .IntegerString => |n2| float(n1 - @as(f64, @floatFromInt(n2.value))),
+                .FloatString => |n2| float(n1 - n2.value),
+                .Success => elemA,
+                else => null,
+            },
+            .IntegerString => |n1| switch (elemB) {
+                .Integer => |n2| integer(n1.value - n2),
+                .Float => |n2| float(@as(f64, @floatFromInt(n1.value)) - n2),
+                .IntegerString => |n2| integer(n1.value - n2.value),
+                .FloatString => |n2| float(@as(f64, @floatFromInt(n1.value)) - n2.value),
+                .Success => elemA,
+                else => null,
+            },
+            .FloatString => |n1| switch (elemB) {
+                .Integer => |n2| float(n1.value - @as(f64, @floatFromInt(n2))),
+                .Float => |n2| float(n1.value - n2),
+                .IntegerString => |n2| float(n1.value - @as(f64, @floatFromInt(n2.value))),
+                .FloatString => |n2| float(n1.value - n2.value),
+                .Success => elemA,
+                else => null,
+            },
+            .Success => switch (elemB) {
+                .Integer => |n2| integer(-n2),
+                .Float => |n2| float(-n2),
+                .IntegerString => |n2| integer(-n2.value),
+                .FloatString => |n2| float(-n2.value),
+                .Success => Elem.successConst,
+                else => null,
+            },
+            else => null,
+        };
+    }
+
     pub fn toNumber(self: Elem, strings: StringTable) ?Elem {
         return switch (self) {
             .String => |sId| {

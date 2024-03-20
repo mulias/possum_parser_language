@@ -27,6 +27,7 @@ pub const Ast = struct {
         DeclareGlobal,
         Destructure,
         Merge,
+        NumberSubtract,
         Or,
         ParamsOrArgs,
         Return,

@@ -64,8 +64,9 @@ pub const Scanner = struct {
             '\'' => self.scanString('\''),
             '@' => self.scanAtSignIdentifier(),
             '_' => self.scanUnderscoreIdentifier(),
+            '-' => if (isDigit(self.peek())) self.scanNumber() else self.makeToken(.Minus),
             else => |c| {
-                if (isDigit(c) or c == '-') return self.scanNumber();
+                if (isDigit(c)) return self.scanNumber();
                 if (isLower(c)) return self.scanLowercaseIdentifier();
                 if (isUpper(c)) return self.scanUppercaseIdentifier();
                 return self.makeError("Unexpected character.");

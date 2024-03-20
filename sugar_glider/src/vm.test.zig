@@ -1359,7 +1359,7 @@ test "fibonacci" {
         \\Fib(N) =
         \\  0 <- N ? 0 :
         \\  1 <- N ? 1 :
-        \\  Fib(N + -1) + Fib(N + -2)
+        \\  Fib(N - 1) + Fib(N - 2)
         \\
         \\N <- int $ Fib(N)
     ;

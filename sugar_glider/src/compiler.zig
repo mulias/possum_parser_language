@@ -464,6 +464,7 @@ pub const Compiler = struct {
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
                 .ArrayHead,
                 .ArrayCons,
+                .NumberSubtract,
                 => return Error.InvalidAst,
             },
             .ElemNode => try self.writeParserElem(nodeId),
@@ -725,6 +726,11 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
+                .NumberSubtract => {
+                    try self.writePattern(infix.left);
+                    try self.writePattern(infix.right);
+                    try self.emitOp(.NumberSubtract, loc);
+                },
                 else => {
                     printError("Invalid infix operator in pattern", loc);
                     return Error.InvalidAst;
@@ -857,6 +863,11 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
+                .NumberSubtract => {
+                    try self.writeValue(infix.left, false);
+                    try self.writeValue(infix.right, false);
+                    try self.emitOp(.NumberSubtract, loc);
+                },
                 else => {
                     printError("Invalid infix operator in value", loc);
                     return Error.InvalidAst;
@@ -952,6 +963,11 @@ pub const Compiler = struct {
                     try self.writeValueFunction(infix.right, false);
                     try self.emitOp(.Merge, loc);
                     try self.patchJump(jumpIndex, loc);
+                },
+                .NumberSubtract => {
+                    try self.writeValueFunction(infix.left, false);
+                    try self.writeValueFunction(infix.right, false);
+                    try self.emitOp(.NumberSubtract, loc);
                 },
                 .TakeLeft => {
                     try self.writeValueFunction(infix.left, false);

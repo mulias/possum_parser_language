@@ -318,6 +318,16 @@ pub const VM = struct {
                     }
                 }
             },
+            .NumberSubtract => {
+                const rhs = self.pop();
+                const lhs = self.pop();
+
+                if (Elem.numberSubtract(lhs, rhs)) |value| {
+                    try self.push(value);
+                } else {
+                    return self.runtimeError("Subtraction is only supported for numbers.", .{});
+                }
+            },
             .Or => {
                 // Infix, lhs on stack.
                 // If lhs succeeded then jump to skip rhs ops.

@@ -12,6 +12,7 @@ pub const TokenType = enum {
     Comma,
     Dot,
     Plus,
+    Minus,
     Semicolon,
     Bang,
     DollarSign,
