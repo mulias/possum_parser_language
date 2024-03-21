@@ -462,6 +462,7 @@ pub const Compiler = struct {
                     try self.writeParserFunctionCall(infix.left, infix.right, isTailPosition);
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
+                .ArrayHead,
                 .ArrayCons,
                 .ObjectCons,
                 .ObjectPair,
@@ -720,9 +721,10 @@ pub const Compiler = struct {
                     try self.writePattern(infix.right);
                     try self.emitOp(.Merge, loc);
                 },
-                .ArrayCons => {
+                .ArrayHead => {
                     try self.writeArray(infix.left, infix.right);
                 },
+                .ArrayCons => @panic("internal error"),
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
                 },
@@ -859,10 +861,11 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, false);
                     try self.emitOp(.Merge, loc);
                 },
-                .ArrayCons => {
+                .ArrayHead => {
                     try self.writeArray(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
+                .ArrayCons => @panic("internal error"),
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
@@ -955,7 +958,7 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ArrayCons => {
+                .ArrayHead => {
                     try self.writeArray(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
@@ -1035,6 +1038,7 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
+                .ArrayCons, // handled by writeArray
                 .ConditionalThenElse, // handled by ConditionalIfThen
                 .DeclareGlobal, // handled by top-level compiler functions
                 .ParamsOrArgs, // handled by CallOrDefineFunction
@@ -1115,8 +1119,8 @@ pub const Compiler = struct {
 
     fn writeArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
         // The first left node is the empty array
-        var arrayElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
-        var arrayLoc = self.ast.getLocation(startNodeId);
+        const arrayElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
+        const arrayLoc = self.ast.getLocation(startNodeId);
 
         var array = arrayElem.asDyn().asArray();
 
@@ -1131,33 +1135,30 @@ pub const Compiler = struct {
 
         while (true) {
             switch (self.ast.getNode(nodeId)) {
-                .InfixNode => |infix| {
-                    std.debug.assert(infix.infixType == .ArrayCons);
-
-                    switch (self.ast.getNode(infix.left)) {
-                        .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                            .ArrayCons => {
-                                var nestedArray = self.ast.getElem(nestedInfix.left) orelse @panic("Internal Error");
-                                try self.appendArrayElems(
-                                    nestedArray.asDyn().asArray(),
-                                    nestedInfix.right,
-                                );
-                                try self.appendArrayElem(array, nestedArray);
-                            },
-                            .ObjectCons => {
-                                var nestedObject = self.ast.getElem(nestedInfix.left) orelse @panic("Internal Error");
-                                try self.appendObjectMembers(
-                                    nestedObject.asDyn().asObject(),
-                                    nestedInfix.right,
-                                );
-                                try self.appendArrayElem(array, nestedObject);
-                            },
-                            else => @panic("todo"),
-                        },
-                        .ElemNode => |elem| try self.appendArrayElem(array, elem),
-                    }
-
-                    nodeId = infix.right;
+                .InfixNode => |infix| switch (infix.infixType) {
+                    .ArrayCons => {
+                        try self.appendArrayElems(array, infix.left);
+                        nodeId = infix.right;
+                    },
+                    .ArrayHead => {
+                        var nestedArray = self.ast.getElem(infix.left) orelse @panic("Internal Error");
+                        try self.appendArrayElems(
+                            nestedArray.asDyn().asArray(),
+                            infix.right,
+                        );
+                        try self.appendArrayElem(array, nestedArray);
+                        break;
+                    },
+                    .ObjectCons => {
+                        var nestedObject = self.ast.getElem(infix.left) orelse @panic("Internal Error");
+                        try self.appendObjectMembers(
+                            nestedObject.asDyn().asObject(),
+                            infix.right,
+                        );
+                        try self.appendArrayElem(array, nestedObject);
+                        break;
+                    },
+                    else => @panic("todo"),
                 },
                 .ElemNode => |elem| {
                     // The last array element

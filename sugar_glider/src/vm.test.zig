@@ -1143,6 +1143,24 @@ test "'aa' $ [1, 2, 3]" {
     }
 }
 
+test "A <- 'a' $ [[A]]" {
+    const parser =
+        \\A <- 'a' $ [[A]]
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+
+        const result = try vm.interpret(parser, "a");
+
+        const innerArray = [_]Elem{Elem.string(vm.strings.getId("a"))};
+        const outerArray = [_]Elem{(try Elem.Dyn.Array.copy(&vm, &innerArray)).dyn.elem()};
+        const array = (try Elem.Dyn.Array.copy(&vm, &outerArray)).dyn.elem();
+
+        try testing.expectSuccess(result, array, vm.strings);
+    }
+}
+
 test "('a' $ [1, 2]) + ('b' $ [true, false])" {
     const parser =
         \\('a' $ [1, 2]) + ('b' $ [true, false])
