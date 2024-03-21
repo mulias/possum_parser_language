@@ -148,35 +148,35 @@ triple(elem) = E1 <- elem & E2 <- elem & E3 <- elem $ [E1, E2, E3]
 
 triple_sep(elem, sep) = E1 <- elem & sep & E2 <- elem & sep & E3 <- elem $ [E1, E2, E3]
 
-# object(key, value) =
-#   K <- key & V <- value &
-#   _object_rec(key, value, {K: V})
+object(key, value) =
+  K <- key & V <- value &
+  _object(key, value, {K: V})
 
-# _object_rec(key, value, Acc) =
-#   K <- key & V <- value ?
-#   object(key, value, {...Acc, K: V}) :
-#   const(Acc)
+_object(key, value, Acc) =
+  K <- key & V <- value ?
+  _object(key, value, Acc + {K: V}) :
+  const(Acc)
 
-# object_sep(key, pair_sep, value, sep) =
-#   K <- key & pair_sep & V <- value &
-#   _object_sep_rec(key, pair_sep, value, sep, {K: V})
+object_sep(key, pair_sep, value, sep) =
+  K <- key & pair_sep & V <- value &
+  _object_sep_rec(key, pair_sep, value, sep, {K: V})
 
-# _object_sep_rec(key, pair_sep, value, sep, Acc) =
-#   sep & K <- key & pair_sep & V <- value ?
-#   _object_sep_rec(key, pair_sep, value, sep, {...Acc, K: V}) :
-#   const(Acc)
+_object_sep_rec(key, pair_sep, value, sep, Acc) =
+  sep & K <- key & pair_sep & V <- value ?
+  _object_sep_rec(key, pair_sep, value, sep, Acc + {K: V}) :
+  const(Acc)
 
-# object_until(key, value, stop) =
-#   K <- key & V <- value & _object_until_rec(key, value, stop, {K: V})
+object_until(key, value, stop) =
+  K <- key & V <- value & _object_until_rec(key, value, stop, {K: V})
 
-# _object_until_rec(key, value, stop, Acc) =
-#   peek(stop) ?
-#   const(Acc) :
-#   K <- key & V <- value & _object_until_rec(key, value, stop, {...Acc, K: V})
+_object_until_rec(key, value, stop, Acc) =
+  peek(stop) ?
+  const(Acc) :
+  K <- key & V <- value & _object_until_rec(key, value, stop, Acc + {K: V})
 
-# maybe_object(key, value) = default(object(key, value), {})
+maybe_object(key, value) = default(object(key, value), {})
 
-# maybe_object_sep(key, pair_sep, value, sep) =
-#   default(object_sep(key, pair_sep, value, sep), {})
+maybe_object_sep(key, pair_sep, value, sep) =
+  default(object_sep(key, pair_sep, value, sep), {})
 
-# label(Key, value) = Value <- value $ {Key: Value}
+label(Key, value) = Value <- value $ {Key: Value}

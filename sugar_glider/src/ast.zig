@@ -27,6 +27,8 @@ pub const Ast = struct {
         Destructure,
         Merge,
         NumberSubtract,
+        ObjectCons,
+        ObjectPair,
         Or,
         ParamsOrArgs,
         Return,
@@ -80,6 +82,11 @@ pub const Ast = struct {
             .InfixNode => null,
             .ElemNode => |elem| elem,
         };
+    }
+
+    pub fn getElemOfType(self: Ast, index: usize, elemType: Elem.ElemType) ?Elem {
+        if (self.getElem(index)) |elem| if (elem.isType(elemType)) return elem;
+        return null;
     }
 
     pub fn pushRoot(self: *Ast, rootNodeId: usize) !void {

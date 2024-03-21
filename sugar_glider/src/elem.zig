@@ -3,7 +3,7 @@ const unicode = std.unicode;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Chunk = @import("./chunk.zig").Chunk;
-const StringArrayHashMap = std.StringArrayHashMap;
+const AutoArrayHashMap = std.AutoArrayHashMap;
 const StringBuffer = @import("string_buffer.zig").StringBuffer;
 const StringTable = @import("string_table.zig").StringTable;
 const Tuple = std.meta.Tuple;
@@ -738,18 +738,27 @@ pub const Elem = union(ElemType) {
 
         pub const Object = struct {
             dyn: Dyn,
-            members: StringArrayHashMap(Elem),
+            members: AutoArrayHashMap(StringTable.Id, Elem),
+            pattern: ArrayList(PatternElem),
+
+            pub const PatternElem = struct {
+                name: StringTable.Id,
+                key: StringTable.Id,
+                slot: u8,
+                replace: enum { Key, Value },
+            };
 
             pub fn create(vm: *VM, capacity: usize) !*Object {
                 const dyn = try Dyn.allocate(vm, Object, .Object);
                 const object = dyn.asObject();
 
-                var members = StringArrayHashMap(Elem).init(vm.allocator);
+                var members = AutoArrayHashMap(StringTable.Id, Elem).init(vm.allocator);
                 try members.ensureTotalCapacity(capacity);
 
                 object.* = Object{
                     .dyn = dyn.*,
                     .members = members,
+                    .pattern = ArrayList(PatternElem).init(vm.allocator),
                 };
 
                 return object;
@@ -757,18 +766,28 @@ pub const Elem = union(ElemType) {
 
             pub fn destroy(self: *Object, vm: *VM) void {
                 self.members.deinit();
+                self.pattern.deinit();
                 vm.allocator.destroy(self);
             }
 
             pub fn print(self: *Object, printer: anytype, strings: StringTable) void {
-                printer("{{", .{});
-                var iterator = self.members.iterator();
-                while (iterator.next()) |entry| {
-                    printer("{s}: ", .{entry.key_ptr.*});
-                    entry.value_ptr.*.print(printer, strings);
-                    printer(",", .{});
+                if (self.members.count() == 0) {
+                    printer("{{}}", .{});
+                } else {
+                    const lastMemberIndex = self.members.count() - 1;
+
+                    printer("{{", .{});
+                    var iterator = self.members.iterator();
+                    while (iterator.next()) |entry| {
+                        printer("\"{s}\": ", .{strings.get(entry.key_ptr.*)});
+                        entry.value_ptr.*.print(printer, strings);
+
+                        if (iterator.index <= lastMemberIndex) {
+                            printer(", ", .{});
+                        }
+                    }
+                    printer("}}", .{});
                 }
-                printer("}}", .{});
             }
 
             pub fn isEql(self: *Object, other: *Dyn, strings: StringTable) bool {
@@ -795,6 +814,10 @@ pub const Elem = union(ElemType) {
                 while (iterator.next()) |entry| {
                     try self.members.put(entry.key_ptr.*, entry.value_ptr.*);
                 }
+            }
+
+            pub fn addPatternElem(self: *Object, patternElem: PatternElem) !void {
+                try self.pattern.append(patternElem);
             }
         };
 
@@ -976,7 +999,7 @@ test "struct size" {
     try std.testing.expectEqual(16, @sizeOf(Elem.Dyn));
     try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.String));
     try std.testing.expectEqual(96, @sizeOf(Elem.Dyn.Array));
-    try std.testing.expectEqual(64, @sizeOf(Elem.Dyn.Object));
+    try std.testing.expectEqual(104, @sizeOf(Elem.Dyn.Object));
     try std.testing.expectEqual(200, @sizeOf(Elem.Dyn.Function));
     try std.testing.expectEqual(40, @sizeOf(Elem.Dyn.Closure));
 }

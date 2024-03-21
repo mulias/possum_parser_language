@@ -463,6 +463,8 @@ pub const Compiler = struct {
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
                 .ArrayCons,
+                .ObjectCons,
+                .ObjectPair,
                 .NumberSubtract,
                 => return Error.InvalidAst,
             },
@@ -721,6 +723,10 @@ pub const Compiler = struct {
                 .ArrayCons => {
                     try self.writeArray(infix.left, infix.right);
                 },
+                .ObjectCons => {
+                    try self.writeObject(infix.left, infix.right);
+                },
+                .ObjectPair => @panic("Internal Error"),
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
@@ -857,6 +863,11 @@ pub const Compiler = struct {
                     try self.writeArray(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
+                .ObjectCons => {
+                    try self.writeObject(infix.left, infix.right);
+                    try self.emitOp(.ResolveUnboundVars, loc);
+                },
+                .ObjectPair => @panic("Internal Error"),
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
@@ -948,6 +959,10 @@ pub const Compiler = struct {
                     try self.writeArray(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
+                .ObjectCons => {
+                    try self.writeObject(infix.left, infix.right);
+                    try self.emitOp(.ResolveUnboundVars, loc);
+                },
                 .Backtrack => {
                     try self.writeValueFunction(infix.left, false);
                     const jumpIndex = try self.emitJump(.Backtrack, loc);
@@ -1023,6 +1038,7 @@ pub const Compiler = struct {
                 .ConditionalThenElse, // handled by ConditionalIfThen
                 .DeclareGlobal, // handled by top-level compiler functions
                 .ParamsOrArgs, // handled by CallOrDefineFunction
+                .ObjectPair, // handled by ObjectCons
                 => @panic("internal error"),
             },
             .ElemNode => try self.writeValue(nodeId, isTailPosition),
@@ -1114,9 +1130,6 @@ pub const Compiler = struct {
         var nodeId = itemNodeId;
 
         while (true) {
-            const loc = self.ast.getLocation(nodeId);
-            _ = loc;
-
             switch (self.ast.getNode(nodeId)) {
                 .InfixNode => |infix| {
                     std.debug.assert(infix.infixType == .ArrayCons);
@@ -1130,6 +1143,14 @@ pub const Compiler = struct {
                                     nestedInfix.right,
                                 );
                                 try self.appendArrayElem(array, nestedArray);
+                            },
+                            .ObjectCons => {
+                                var nestedObject = self.ast.getElem(nestedInfix.left) orelse @panic("Internal Error");
+                                try self.appendObjectMembers(
+                                    nestedObject.asDyn().asObject(),
+                                    nestedInfix.right,
+                                );
+                                try self.appendArrayElem(array, nestedObject);
                             },
                             else => @panic("todo"),
                         },
@@ -1159,6 +1180,97 @@ pub const Compiler = struct {
             else => {},
         }
         try array.append(elem);
+    }
+
+    fn writeObject(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
+        // The first left node is the empty array
+        var objectElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
+        var objectLoc = self.ast.getLocation(startNodeId);
+
+        var object = objectElem.asDyn().asObject();
+
+        const constId = try self.makeConstant(objectElem);
+        try self.emitUnaryOp(.GetConstant, constId, objectLoc);
+
+        try self.appendObjectMembers(object, itemNodeId);
+    }
+
+    fn appendObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, itemNodeId: usize) !void {
+        var nodeId = itemNodeId;
+
+        while (true) {
+            switch (self.ast.getNode(nodeId)) {
+                .InfixNode => |infix| switch (infix.infixType) {
+                    .ObjectCons => {
+                        try self.appendObjectPair(object, infix.left);
+                        nodeId = infix.right;
+                    },
+                    .ObjectPair => {
+                        // The last object member
+                        try self.appendObjectPair(object, nodeId);
+                        break;
+                    },
+                    else => @panic("todo"),
+                },
+                .ElemNode => @panic("Internal Error"),
+            }
+        }
+    }
+
+    fn appendObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pairNodeId: usize) Error!void {
+        const pair = self.ast.getInfixOfType(pairNodeId, .ObjectPair) orelse @panic("Internal Error");
+
+        const key = switch (self.ast.getElem(pair.left).?) {
+            .String => |sId| sId,
+            .ValueVar => |varName| blk: {
+                // TODO: Hack!
+                try object.addPatternElem(.{
+                    .name = varName,
+                    .key = varName,
+                    .slot = self.localSlot(varName).?,
+                    .replace = .Key,
+                });
+                break :blk varName;
+            },
+            else => @panic("todo"),
+        };
+
+        switch (self.ast.getNode(pair.right)) {
+            .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
+                .ArrayCons => {
+                    var nestedArray = self.ast.getElem(nestedInfix.left) orelse @panic("Internal Error");
+                    try self.appendArrayElems(
+                        nestedArray.asDyn().asArray(),
+                        nestedInfix.right,
+                    );
+                    try object.members.put(key, nestedArray);
+                },
+                .ObjectCons => {
+                    var nestedObject = self.ast.getElem(nestedInfix.left) orelse @panic("Internal Error");
+                    try self.appendObjectMembers(
+                        nestedObject.asDyn().asObject(),
+                        nestedInfix.right,
+                    );
+                    try object.members.put(key, nestedObject);
+                },
+                else => @panic("todo"),
+            },
+            .ElemNode => |elem| {
+                switch (elem) {
+                    .ValueVar => |name| {
+                        try object.addPatternElem(.{
+                            .name = name,
+                            .key = key,
+                            .slot = self.localSlot(name).?,
+                            .replace = .Value,
+                        });
+                    },
+                    else => {},
+                }
+
+                try object.members.put(key, elem);
+            },
+        }
     }
 
     fn chunk(self: *Compiler) *Chunk {

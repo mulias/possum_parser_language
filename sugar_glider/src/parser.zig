@@ -125,9 +125,10 @@ pub const Parser = struct {
         return switch (tokenType) {
             .LeftParen => self.grouping(),
             .LeftBracket => self.array(),
+            .LeftBrace => self.object(),
             .LowercaseIdentifier => self.parserVar(),
             .UppercaseIdentifier => self.valueVar(),
-            .String => self.string(),
+            .String => self.stringOrCharRange(),
             .Integer => self.integer(),
             .Float => self.float(),
             .True, .False, .Null => self.literal(),
@@ -177,7 +178,13 @@ pub const Parser = struct {
 
     fn string(self: *Parser) !usize {
         const t1 = self.previous;
+        const s1 = stringContents(t1.lexeme);
+        const sId = try self.internUnescaped(s1);
+        return self.ast.pushElem(Elem.string(sId), t1.loc);
+    }
 
+    fn stringOrCharRange(self: *Parser) !usize {
+        const t1 = self.previous;
         if (self.current.tokenType == .Dot and !self.currentSkippedWhitespace) {
             try self.advance();
             if (self.current.tokenType == .Dot and !self.currentSkippedWhitespace) {
@@ -213,9 +220,7 @@ pub const Parser = struct {
                 return self.errorAtPrevious("Expect second period");
             }
         } else {
-            const s1 = stringContents(t1.lexeme);
-            const sId = try self.internUnescaped(s1);
-            return self.ast.pushElem(Elem.string(sId), t1.loc);
+            return self.string();
         }
     }
 
@@ -499,6 +504,65 @@ pub const Parser = struct {
         } else {
             return nodeId;
         }
+    }
+
+    fn object(self: *Parser) !usize {
+        const loc = self.previous.loc;
+        var a = try Elem.Dyn.Object.create(self.vm, 0);
+        const nodeId = try self.ast.pushElem(a.dyn.elem(), loc);
+
+        if (try self.match(.RightBrace)) {
+            return nodeId;
+        } else {
+            const objectMembersNodeId = try self.objectMembers();
+            try self.consume(.RightBrace, "Expected closing '}'");
+
+            return self.ast.pushInfix(
+                .ObjectCons,
+                nodeId,
+                objectMembersNodeId,
+                loc,
+            );
+        }
+    }
+
+    fn objectMembers(self: *Parser) !usize {
+        const nodeId = try self.objectPair();
+
+        if (try self.match(.Comma)) {
+            const commaLoc = self.previous.loc;
+            return self.ast.pushInfix(
+                .ObjectCons,
+                nodeId,
+                try self.objectMembers(),
+                commaLoc,
+            );
+        } else {
+            return nodeId;
+        }
+    }
+
+    fn objectPair(self: *Parser) !usize {
+        const pairLoc = self.current.loc;
+
+        var keyNodeId: usize = undefined;
+        if (try self.match(.UppercaseIdentifier)) {
+            keyNodeId = try self.valueVar();
+        } else {
+            try self.consume(.String, "Expected object member key");
+            keyNodeId = try self.string();
+        }
+
+        try self.consume(.Colon, "Expected ':' after object member key");
+
+        const valNodeId = try self.expression();
+
+        return self.ast.pushInfix(
+            .ObjectPair,
+            keyNodeId,
+            valNodeId,
+            pairLoc,
+        );
     }
 
     pub fn advance(self: *Parser) !void {

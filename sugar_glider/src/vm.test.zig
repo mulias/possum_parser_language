@@ -1476,21 +1476,109 @@ test "fibonacci value function" {
     }
 }
 
-// test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
-//     var alloc = std.testing.allocator;
-//     var vm = try VM.init(allocator);
-//     defer vm.deinit();
+test "'aa' $ {}" {
+    const parser =
+        \\"aa" $ {}
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "aa"),
+            (try Elem.Dyn.Object.create(&vm, 0)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
 
+test "'aa' $ {'a': 1, 'b': 2, 'c': 3}" {
+    const parser =
+        \\'aa' $ {'a': 1, 'b': 2, 'c': 3}
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "aa");
+
+        // Do this after running the VM to make sure strings are interned
+        var object = try Elem.Dyn.Object.create(&vm, 3);
+        try object.members.put(vm.strings.getId("a"), Elem.integer(1));
+        try object.members.put(vm.strings.getId("b"), Elem.integer(2));
+        try object.members.put(vm.strings.getId("c"), Elem.integer(3));
+
+        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+    }
+}
+
+test "A <- 1 & B <- 2 $ {'a': A, 'b': B}" {
+    const parser =
+        \\A <- 1 & B <- 2 $ {'a': A, 'b': B}
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "12");
+
+        // Do this after running the VM to make sure strings are interned
+        var object = try Elem.Dyn.Object.create(&vm, 3);
+        try object.members.put(vm.strings.getId("a"), Elem.integer(1));
+        try object.members.put(vm.strings.getId("b"), Elem.integer(2));
+
+        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+    }
+}
+
+// test "A <- 'Z' $ {A: 1, 'A': 2}" {
 //     const parser =
-//         \\ ('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})
+//         \\A <- 'Z' $ {A: 1, 'A': 2}
 //     ;
+//     {
+//         var vm = try VM.init(allocator);
+//         defer vm.deinit();
+//         const result = try vm.interpret(parser, "Z");
 
-//     const result = try vm.interpret(parser, "123456");
+//         // Do this after running the VM to make sure strings are interned
+//         var object = try Elem.Dyn.Object.create(&vm, 3);
+//         try object.members.put(vm.strings.getId("Z"), Elem.integer(1));
+//         try object.members.put(vm.strings.getId("A"), Elem.integer(2));
 
-//     var valueString = ArrayList(u8).init(allocator);
-//     defer valueString.deinit();
-
-//     try std.testing.expect(result.ParserSuccess.start == 0);
-//     try std.testing.expect(result.ParserSuccess.end == 6);
-//     try testing.expectJson(alloc, result.ParserSuccess, "{\"a\":false,\"b\":null}");
+//         try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+//     }
 // }
+
+test "object(alpha, digit)" {
+    const parser =
+        \\object(alpha, digit)
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "a1b2c3");
+
+        // Do this after running the VM to make sure strings are interned
+        var object = try Elem.Dyn.Object.create(&vm, 3);
+        try object.members.put(vm.strings.getId("a"), Elem.integer(1));
+        try object.members.put(vm.strings.getId("b"), Elem.integer(2));
+        try object.members.put(vm.strings.getId("c"), Elem.integer(3));
+
+        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+    }
+}
+
+test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
+    const parser =
+        \\ ('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})
+    ;
+    {
+        var vm = try VM.init(allocator);
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "123456");
+
+        // Do this after running the VM to make sure strings are interned
+        var object = try Elem.Dyn.Object.create(&vm, 3);
+        try object.members.put(vm.strings.getId("a"), Elem.falseConst);
+        try object.members.put(vm.strings.getId("b"), Elem.nullConst);
+
+        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+    }
+}

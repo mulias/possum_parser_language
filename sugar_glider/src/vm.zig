@@ -577,6 +577,43 @@ pub const VM = struct {
 
                     return array.dyn.elem();
                 },
+                .Object => {
+                    var object = dyn.asObject();
+
+                    // TODO: object pattern matching
+
+                    for (object.pattern.items) |patternElem| {
+                        if (patternElem.replace == .Value) {
+                            try object.members.put(
+                                patternElem.key,
+                                try self.getBoundLocal(patternElem.slot),
+                            );
+                        }
+                    }
+
+                    for (object.pattern.items) |patternElem| {
+                        if (patternElem.replace == .Key) {
+                            if (object.members.fetchOrderedRemove(patternElem.key)) |kv| {
+                                const newKey = switch (try self.getBoundLocal(patternElem.slot)) {
+                                    .String => |sId| sId,
+                                    .Dyn => |keyDyn| switch (keyDyn.dynType) {
+                                        .String => blk: {
+                                            const bytes = keyDyn.asString().buffer.str();
+                                            const sId = try self.strings.insert(bytes);
+                                            break :blk sId;
+                                        },
+                                        else => @panic("Internal Error"),
+                                    },
+                                    else => @panic("todo"),
+                                };
+
+                                try object.members.put(newKey, kv.value);
+                            }
+                        }
+                    }
+
+                    return object.dyn.elem();
+                },
                 else => return value,
             },
             else => return value,
@@ -637,6 +674,16 @@ pub const VM = struct {
                     }
 
                     return array.dyn.elem();
+                },
+                .Object => {
+                    var object = dyn.asObject();
+
+                    var iterator = object.members.iterator();
+                    while (iterator.next()) |entry| {
+                        entry.value_ptr.* = try self.finalizeReturnValue(entry.value_ptr.*);
+                    }
+
+                    return object.dyn.elem();
                 },
                 .Function,
                 .Closure,
