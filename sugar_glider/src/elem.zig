@@ -712,7 +712,11 @@ pub const Elem = union(ElemType) {
             pub fn isEql(self: *Array, other: *Dyn, strings: StringTable) bool {
                 if (!other.isType(.Array)) return false;
 
-                for (self.elems.items, other.asArray().elems.items) |a, b| {
+                var otherArray = other.asArray();
+
+                if (self.elems.items.len != otherArray.elems.items.len) return false;
+
+                for (self.elems.items, otherArray.elems.items) |a, b| {
                     if (!a.isEql(b, strings)) return false;
                 }
 
