@@ -1,3 +1,0 @@
-list = "[" > maybe_array_sep(int | list, ",") < "]"
-pair = L <- list & nl & R <- list $ {"left": L, "right": R}
-array_sep(pair, ws)

@@ -1,9 +1,0 @@
-instruction = input_intruction | binary_instruction ;
-input_intruction = "inp " & Var <- alpha $ {"type": "imp", "variable": Var} ;
-binary_instruction =
-  Type <- word & ' ' &
-  A <- alpha & ' ' &
-  B <- alpha | int $
-  {"type": Type, "a": A, "b": B} ;
-
-array_sep(instruction, newline)

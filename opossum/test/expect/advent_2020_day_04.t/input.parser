@@ -1,3 +1,0 @@
-passport = object_sep(alphas, ":", word, space | nl)
-
-input(array_sep(passport, nl + nl))

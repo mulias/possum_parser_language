@@ -1,1 +1,0 @@
-let () = Opossum.Cli.run

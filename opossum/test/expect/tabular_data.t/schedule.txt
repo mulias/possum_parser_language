@@ -1,7 +1,0 @@
-      Monday      Tuesday       Wednesday
-8am   Dance       Math          Dance
-9am   Math        French        Dance
-10am  Chemistry   Kickboxing    Dance
-11am  French      Nap           Chemistry
-12pm  Geology     Lunch         Dance
-1pm   Lunch       Lunch         Lunch
