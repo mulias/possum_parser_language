@@ -8,8 +8,9 @@ const StringTable = @import("string_table.zig").StringTable;
 const Token = @import("./token.zig").Token;
 const TokenType = @import("./token.zig").TokenType;
 const VM = @import("vm.zig").VM;
-const logger = @import("./logger.zig");
+const VMWriter = @import("./writer.zig").VMWriter;
 const parsing = @import("parsing.zig");
+const debug = @import("debug.zig");
 
 pub const Parser = struct {
     vm: *VM,
@@ -27,7 +28,7 @@ pub const Parser = struct {
         UnexpectedInput,
         CodepointTooLarge,
         Utf8CannotEncodeSurrogateHalf,
-    };
+    } || VMWriter.Error;
 
     pub fn init(vm: *VM) Parser {
         return Parser{
@@ -78,7 +79,7 @@ pub const Parser = struct {
     }
 
     fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!usize {
-        if (logger.debugParser) logger.debug("parse with precedence {}\n", .{precedence});
+        if (debug.parser) debug.print("parse with precedence {}\n", .{precedence});
 
         try self.advance();
 
@@ -120,7 +121,7 @@ pub const Parser = struct {
     }
 
     fn prefix(self: *Parser, tokenType: TokenType) !usize {
-        if (logger.debugParser) logger.debug("prefix {}\n", .{tokenType});
+        if (debug.parser) debug.print("prefix {}\n", .{tokenType});
 
         return switch (tokenType) {
             .LeftParen => self.grouping(),
@@ -137,7 +138,7 @@ pub const Parser = struct {
     }
 
     fn infix(self: *Parser, tokenType: TokenType, leftNode: usize) !usize {
-        if (logger.debugParser) logger.debug("infix {}\n", .{tokenType});
+        if (debug.parser) debug.print("infix {}\n", .{tokenType});
 
         return switch (tokenType) {
             .Ampersand,
@@ -389,7 +390,7 @@ pub const Parser = struct {
     }
 
     fn binaryOp(self: *Parser, leftNodeId: usize) !usize {
-        if (logger.debugParser) logger.debug("binary op {}\n", .{self.previous.tokenType});
+        if (debug.parser) debug.print("binary op {}\n", .{self.previous.tokenType});
 
         const t = self.previous;
 
@@ -413,7 +414,7 @@ pub const Parser = struct {
     }
 
     fn conditionalIfThenOp(self: *Parser, ifNodeId: usize) !usize {
-        if (logger.debugParser) logger.debug("conditional if/then {}\n", .{self.previous.tokenType});
+        if (debug.parser) debug.print("conditional if/then {}\n", .{self.previous.tokenType});
 
         const ifThenLoc = self.previous.loc;
 
@@ -425,7 +426,7 @@ pub const Parser = struct {
     }
 
     fn conditionalThenElseOp(self: *Parser, thenNodeId: usize) !usize {
-        if (logger.debugParser) logger.debug("conditional then/else {}\n", .{self.previous.tokenType});
+        if (debug.parser) debug.print("conditional then/else {}\n", .{self.previous.tokenType});
 
         const thenElseLoc = self.previous.loc;
 
@@ -574,7 +575,7 @@ pub const Parser = struct {
 
         while (self.scanner.next()) |token| {
             if (token.isType(.Error)) {
-                return errorAt(token, token.lexeme);
+                return self.errorAt(token, token.lexeme);
             } else if (token.isType(.WhitespaceWithNewline)) {
                 self.currentSkippedWhitespace = true;
                 self.currentSkippedNewline = true;
@@ -606,27 +607,27 @@ pub const Parser = struct {
     }
 
     fn errorAtCurrent(self: *Parser, message: []const u8) Error {
-        return errorAt(self.current, message);
+        return self.errorAt(self.current, message);
     }
 
     fn errorAtPrevious(self: *Parser, message: []const u8) Error {
-        return errorAt(self.previous, message);
+        return self.errorAt(self.previous, message);
     }
 
-    fn errorAt(token: Token, message: []const u8) Error {
-        token.loc.print(logger.err);
+    fn errorAt(self: *Parser, token: Token, message: []const u8) Error {
+        try token.loc.print(self.vm.errWriter);
 
         switch (token.tokenType) {
             .Eof => {
-                logger.err(" Error at end", .{});
+                try self.vm.errWriter.print(" Error at end", .{});
             },
             .Error => {},
             else => {
-                logger.err(" Error at '{s}'", .{token.lexeme});
+                try self.vm.errWriter.print(" Error at '{s}'", .{token.lexeme});
             },
         }
 
-        logger.err(": {s}\n", .{message});
+        try self.vm.errWriter.print(": {s}\n", .{message});
 
         return Error.UnexpectedInput;
     }

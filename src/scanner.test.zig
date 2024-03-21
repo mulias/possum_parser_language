@@ -1,6 +1,7 @@
 const std = @import("std");
 const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
+const debug = @import("./debug.zig");
 
 test "123 | 456.10" {
     var scanner = Scanner.init(" 123  |\n  456.10 ");
@@ -54,9 +55,9 @@ fn expectToken(scanner: *Scanner, expected: Token) !void {
     if (nextToken) |actual| {
         if (!expected.isEql(actual)) {
             std.debug.print("\nExpected token: ", .{});
-            expected.print(std.debug.print);
+            try expected.print(debug.writer);
             std.debug.print("\nActual token: ", .{});
-            actual.print(std.debug.print);
+            try actual.print(debug.writer);
             std.debug.print("\n", .{});
 
             return error.TestExpectedNextToken;

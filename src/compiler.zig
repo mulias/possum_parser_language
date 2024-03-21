@@ -9,7 +9,7 @@ const OpCode = @import("./op_code.zig").OpCode;
 const Scanner = @import("./scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("./vm.zig").VM;
-const logger = @import("./logger.zig");
+const VMWriter = @import("./writer.zig").VMWriter;
 
 pub const Compiler = struct {
     vm: *VM,
@@ -35,7 +35,7 @@ pub const Compiler = struct {
         UndefinedVariable,
         FunctionCallTooManyArgs,
         FunctionCallTooFewArgs,
-    };
+    } || VMWriter.Error;
 
     pub fn init(vm: *VM, ast: Ast) !Compiler {
         var main = try Elem.Dyn.Function.create(vm, .{
@@ -519,7 +519,7 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
                     .ValueVar => {
-                        printError("Variable is only valid as a pattern or value", loc);
+                        try self.printError("Variable is only valid as a pattern or value", loc);
                         return Error.InvalidAst;
                     },
                     .String,
@@ -606,7 +606,7 @@ pub const Compiler = struct {
 
         while (true) {
             if (argCount == std.math.maxInt(u8)) {
-                printError(
+                try self.printError(
                     std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
                     self.ast.getLocation(nodeId),
                 );
@@ -738,13 +738,13 @@ pub const Compiler = struct {
                     try self.emitOp(.NumberSubtract, loc);
                 },
                 else => {
-                    printError("Invalid infix operator in pattern", loc);
+                    try self.printError("Invalid infix operator in pattern", loc);
                     return Error.InvalidAst;
                 },
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
-                    printError("parser is not valid in pattern", loc);
+                    try self.printError("parser is not valid in pattern", loc);
                     return Error.InvalidAst;
                 },
                 .ValueVar => |name| {
@@ -776,11 +776,11 @@ pub const Compiler = struct {
                 .Failure,
                 => unreachable, // not produced by the parser
                 .CharacterRange => {
-                    printError("Character range is not valid in pattern", loc);
+                    try self.printError("Character range is not valid in pattern", loc);
                     return Error.InvalidAst;
                 },
                 .IntegerRange => {
-                    printError("Integer range is not valid in pattern", loc);
+                    try self.printError("Integer range is not valid in pattern", loc);
                     return Error.InvalidAst;
                 },
                 .Dyn => |d| switch (d.dynType) {
@@ -880,13 +880,13 @@ pub const Compiler = struct {
                     try self.emitOp(.NumberSubtract, loc);
                 },
                 else => {
-                    printError("Invalid infix operator in value", loc);
+                    try self.printError("Invalid infix operator in value", loc);
                     return Error.InvalidAst;
                 },
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
-                    printError("Parser is not valid in value", loc);
+                    try self.printError("Parser is not valid in value", loc);
                     return Error.InvalidAst;
                 },
                 .ValueVar => |name| {
@@ -929,11 +929,11 @@ pub const Compiler = struct {
                 .Failure,
                 => unreachable, // not produced by the parser
                 .CharacterRange => {
-                    printError("Character range is not valid in value", loc);
+                    try self.printError("Character range is not valid in value", loc);
                     return Error.InvalidAst;
                 },
                 .IntegerRange => {
-                    printError("Integer range is not valid in value", loc);
+                    try self.printError("Integer range is not valid in value", loc);
                     return Error.InvalidAst;
                 },
                 .Dyn => |d| switch (d.dynType) {
@@ -1090,7 +1090,7 @@ pub const Compiler = struct {
             loc = self.ast.getLocation(nodeId);
 
             if (argCount == std.math.maxInt(u8)) {
-                printError(
+                try self.printError(
                     std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
                     self.ast.getLocation(nodeId),
                 );
@@ -1310,7 +1310,7 @@ pub const Compiler = struct {
 
         return self.currentFunction().addLocal(local) catch |err| switch (err) {
             error.MaxFunctionLocals => {
-                printError(
+                try self.printError(
                     std.fmt.comptimePrint(
                         "Can't have more than {} parameters and local variables.",
                         .{std.math.maxInt(u8)},
@@ -1353,7 +1353,7 @@ pub const Compiler = struct {
 
         self.chunk().updateShortAt(offset, @as(u16, @intCast(jump))) catch |err| switch (err) {
             ChunkError.ShortOverflow => {
-                printError("Too much code to jump over.", loc);
+                try self.printError("Too much code to jump over.", loc);
                 return err;
             },
             else => return err,
@@ -1376,15 +1376,15 @@ pub const Compiler = struct {
     fn makeConstant(self: *Compiler, elem: Elem) !u8 {
         return self.chunk().addConstant(elem) catch |err| switch (err) {
             ChunkError.TooManyConstants => {
-                logger.err("Too many constants in one chunk.", .{});
+                try self.vm.errWriter.print("Too many constants in one chunk.", .{});
                 return err;
             },
             else => return err,
         };
     }
 
-    fn printError(message: []const u8, loc: Location) void {
-        loc.print(logger.err);
-        logger.err(" Error: {s}\n", .{message});
+    fn printError(self: *Compiler, message: []const u8, loc: Location) !void {
+        try loc.print(self.vm.errWriter);
+        try self.vm.errWriter.print(" Error: {s}\n", .{message});
     }
 };

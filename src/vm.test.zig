@@ -2,14 +2,16 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const testing = @import("testing.zig");
 const VM = @import("vm.zig").VM;
-const logger = @import("./logger.zig");
 const Elem = @import("elem.zig").Elem;
 const allocator = std.testing.allocator;
+
+const stderr = std.io.getStdErr().writer();
 
 test "empty program" {
     const parser = "";
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.NoMainParser,
@@ -21,7 +23,8 @@ test "empty program" {
 test "no statement sep" {
     const parser = "123 456";
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.UnexpectedInput,
@@ -35,7 +38,8 @@ test "empty input" {
         \\ "1" | "a" | "a".."z" | ""
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "\"\""),
@@ -50,7 +54,8 @@ test "'a' > 'b' > 'c' | 'abz'" {
         \\ 'a' > 'b' > 'c' | 'abz'
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abc"),
@@ -59,7 +64,8 @@ test "'a' > 'b' > 'c' | 'abz'" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abzsss"),
@@ -68,7 +74,8 @@ test "'a' > 'b' > 'c' | 'abz'" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(
             try vm.interpret(parser, "ababz"),
@@ -81,7 +88,8 @@ test "1234 | 5678 | 910" {
         \\ 1234 | 5678 | 910
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "56789"),
@@ -96,7 +104,8 @@ test "'foo' + 'bar' + 'baz'" {
         \\ 'foo' + 'bar' + 'baz'
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foobarbaz"),
@@ -111,7 +120,8 @@ test "1 + 2 + 3" {
         \\ 1 + 2 + 3
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -126,7 +136,8 @@ test "1.23 + 10" {
         \\ 1.23 + 10
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1.2310"),
@@ -141,7 +152,8 @@ test "0.1 + 0.2" {
         \\ 0.1 + 0.2
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0.10.2"),
@@ -156,7 +168,8 @@ test "1e57 + 3e-4" {
         \\ 1e57 + 3e-4
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1e573e-4"),
@@ -171,7 +184,8 @@ test "'foo' $ 'bar'" {
         \\ 'foo' $ 'bar'
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
@@ -180,7 +194,8 @@ test "'foo' $ 'bar'" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "f"));
     }
@@ -191,7 +206,8 @@ test "1 ! 12 ! 123" {
         \\ 1 ! 12 ! 123
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -206,7 +222,8 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         \\ 'true' ? 'foo' + 'bar' : 'baz'
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "truefoobar"),
@@ -215,7 +232,8 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "baz"),
@@ -230,7 +248,8 @@ test "1000..10000 | 100..1000" {
         \\ 1000..10000 | 100..1000
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "888"),
@@ -245,7 +264,8 @@ test "-100..-1" {
         \\ -100..-1
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "-5"),
@@ -260,7 +280,8 @@ test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
         \\ 'a'..'z' + 'o'..'o' + 'l'..'q'
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
 
         try testing.expectSuccess(
@@ -276,7 +297,8 @@ test "'true' $ true" {
         \\ 'true' $ true
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
@@ -291,7 +313,8 @@ test "('' $ null) + ('' $ null)" {
         \\ ('' $ null) + ('' $ null)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
 
         try testing.expectSuccess(
@@ -307,7 +330,8 @@ test "'f' <- 'a'..'z' & 12 <- 0..100" {
         \\ 'f' <- 'a'..'z' & 12 <- 0..100
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "f12"),
@@ -322,7 +346,8 @@ test "42 <- 42.0" {
         \\ 42 <- 42.0
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
 
         try testing.expectSuccess(
@@ -338,7 +363,8 @@ test "false <- ('' $ true)" {
         \\  false <- ('' $ true)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "42.0"));
     }
@@ -349,7 +375,8 @@ test "('a' + 'b') <- 'ab'" {
         \\ ('a' + 'b') <- 'ab'
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ab"),
@@ -364,7 +391,8 @@ test "123 & 456 | 789 $ true & 'xyz'" {
         \\ 123 & 456 | 789 $ true & 'xyz'
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123789xyz"),
@@ -373,7 +401,8 @@ test "123 & 456 | 789 $ true & 'xyz'" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(
             try vm.interpret(parser, "12378xyz"),
@@ -386,7 +415,8 @@ test "1 ? 2 & 3 : 4" {
         \\ 1 ? 2 & 3 : 4
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -395,7 +425,8 @@ test "1 ? 2 & 3 : 4" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "4"),
@@ -410,12 +441,14 @@ test "1 ? 2 : 3 ? 4 : 5" {
         \\1 ? 2 : 3 ? 4 : 5
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "1"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
@@ -424,47 +457,56 @@ test "1 ? 2 : 3 ? 4 : 5" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "13"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "14"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "15"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "2"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "23"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "24"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "25"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "3"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "34"),
@@ -473,22 +515,26 @@ test "1 ? 2 : 3 ? 4 : 5" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "35"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "4"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "45"));
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "5"),
@@ -503,7 +549,8 @@ test "'foo' <- 'foo' <- 'foo'" {
         \\ "foo" <- "foo" <- "foo"
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.InvalidAst,
@@ -518,7 +565,8 @@ test "a = 'a' ; a + a" {
         \\a + a
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
@@ -533,7 +581,8 @@ test "Foo = true ; 123 $ Foo" {
         \\Foo = true ; 123 $ Foo
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -549,7 +598,8 @@ test "double(p) = p + p ; double('a')" {
         \\double('a')
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
@@ -565,7 +615,8 @@ test "scan(p) = p | (char > scan(p)) ; scan('end')" {
         \\scan('end')
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aaaaaaaend"),
@@ -581,7 +632,8 @@ test "double(p) = p + p ; double('a' + 'b')" {
         \\double('a' + 'b')
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abab"),
@@ -597,7 +649,8 @@ test "double(p) = p + p ; double('a' + 'b') + double('x' < 'y')" {
         \\double('a' + 'b') + double('x' < 'y')
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ababxyxy"),
@@ -613,7 +666,8 @@ test "id(A) = '' $ A ; id(true)" {
         \\id(true)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ignored"),
@@ -635,7 +689,8 @@ test "n = '\n' ; n > n > n > 'wow!'" {
         \\wow!
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, input),
@@ -654,7 +709,8 @@ test "'\\n\\'\\\\' > 0" {
         \\'\0
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, input),
@@ -670,7 +726,8 @@ test "c = '\\u0000'..'\\U10FFFF' ; c > (c + c) < c" {
         \\c > (c + c) < c
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abcd"),
@@ -686,7 +743,8 @@ test "c = '\\u0001'..'\\U10FFFE' ; c > (c + c) < c" {
         \\c > (c + c) < c
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abcd"),
@@ -708,7 +766,8 @@ test "n = '\n'..'\n' ; n > n > n > 'wow!'" {
         \\wow!
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, input),
@@ -724,7 +783,8 @@ test "A = 100 ; A <- 100" {
         \\A <- 100
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "100"),
@@ -740,7 +800,8 @@ test "eql_to(p, V) = V <- p ; eql_to('bar' | 'foo', 'foo')" {
         \\eql_to('bar' | 'foo', 'foo')
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
@@ -756,7 +817,8 @@ test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
         \\last(1, 2, 3)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -771,7 +833,8 @@ test "Foo <- 'foo' $ Foo" {
         \\Foo <- 'foo' $ Foo
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
@@ -787,7 +850,8 @@ test "peek(p) = V <- p ! '' $ V ; peek(1) + peek(1) + peek(1)" {
         \\peek(1) + peek(1) + peek(1)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
@@ -802,7 +866,8 @@ test "@fail" {
         \\@fail
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(
             try vm.interpret(parser, "sad"),
@@ -818,7 +883,8 @@ test "a = b ; b = c ; c = 111 ; a" {
         \\a
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "111"),
@@ -837,7 +903,8 @@ test "a = b ; b = c('bar') ; c(a) = d(a, 'foo') ; d(a, b) = a + b; a" {
         \\a
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "barfoo"),
@@ -852,7 +919,8 @@ test "@number_of('123')" {
         \\@number_of('123')
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -867,7 +935,8 @@ test "@number_of('123.456')" {
         \\@number_of('123.456')
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123.456"),
@@ -882,7 +951,8 @@ test "many('🐀' | skip('🛹'))" {
         \\many(('🐀' $ 1) | skip('🛹'))
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "🛹🛹🛹🐀🐀🛹🐀🛹🐀🐀"),
@@ -897,7 +967,8 @@ test "123 + (C <- (B <- 456))" {
         \\123 + (C <- (B <- 456))
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123456"),
@@ -913,7 +984,8 @@ test "foo(a) = a + a ; foo('a' + 'a')" {
         \\foo('a' + 'a')
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aaaa"),
@@ -930,7 +1002,8 @@ test "foo(a) = a + a ; bar(p) = p ; foo(bar('a' + 'a'))" {
         \\foo(bar('a' + 'a'))
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aaaa"),
@@ -946,7 +1019,8 @@ test "foo(N) = N <- 12 ; A <- const(12) & foo(A)" {
         \\A <- const(12) & is_twelve(A)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "input"),
@@ -962,7 +1036,8 @@ test "bar(N <- 12) $ N ; bar(p) = p" {
         \\bar(p) = p
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.RuntimeError,
@@ -978,7 +1053,8 @@ test "foo(N) = bar(N <- 12) ; bar(p) = p ; foo(11)" {
         \\foo(11)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "12"));
     }
@@ -991,7 +1067,8 @@ test "foo(N) = bar(bar(bar(N <- 12))) ; bar(p) = p ; foo(11)" {
         \\foo(11)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "12"));
     }
@@ -1004,7 +1081,8 @@ test "foo(N) = bar(bar(N <- 3) + bar(N <- 3)) ; bar(p) = p ; foo(0)" {
         \\foo(0)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectFailure(try vm.interpret(parser, "33"));
     }
@@ -1017,7 +1095,8 @@ test "foo(N) = bar(bar(N <- 3) + bar(N <- 3)) ; bar(p) = p ; foo(3)" {
         \\foo(3)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "33"),
@@ -1060,7 +1139,8 @@ test "Max function locals" {
         \\0
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
@@ -1103,7 +1183,8 @@ test "Max function locals overflow error" {
         \\0
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.MaxFunctionLocals,
@@ -1117,7 +1198,8 @@ test "'aa' $ []" {
         \\"aa" $ []
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
@@ -1133,7 +1215,8 @@ test "'aa' $ [1, 2, 3]" {
     ;
     {
         const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.integer(3) };
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
@@ -1148,7 +1231,8 @@ test "A <- 'a' $ [[A]]" {
         \\A <- 'a' $ [[A]]
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
 
         const result = try vm.interpret(parser, "a");
@@ -1167,7 +1251,8 @@ test "('a' $ [1, 2]) + ('b' $ [true, false])" {
     ;
     {
         const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.trueConst, Elem.falseConst };
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abc"),
@@ -1182,7 +1267,8 @@ test "S <- ('a' + 'b') $ (S + 'c') $ (S + 'd')" {
         \\S <- ("a" + "b") $ (S + "c") $ (S + "d")
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ab"),
@@ -1198,7 +1284,8 @@ test "[A, B] <- (@succeed $ [1, 2]) $ [B, A]" {
     ;
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(1) };
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
@@ -1214,7 +1301,8 @@ test "[[1,A,3], B, 5] <- (@succeed $ [[1, 2, 3], 4, 5]) $ [A, B]" {
     ;
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(4) };
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
@@ -1229,7 +1317,8 @@ test "[[], A] <- (@succeed $ [[], 100]) $ A" {
         \\[[], A] <- (@succeed $ [[], 100]) $ A
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
@@ -1244,7 +1333,8 @@ test "a = b ; b = a ; a" {
         \\a = b ; b = a ; a
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.AliasCycle,
@@ -1258,7 +1348,8 @@ test "foo = bar ; bar = baz ; baz = bar ; foo" {
         \\a = b ; b = a ; a
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.AliasCycle,
@@ -1272,7 +1363,8 @@ test "Foo = 1 ; a = Foo ; a" {
         \\Foo = 1 ; a = Foo ; a
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.InvalidGlobalParser,
@@ -1286,7 +1378,8 @@ test "true(t) = t $ true ; true('true')" {
         \\true(t) = t $ true ; true('true')
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
@@ -1304,7 +1397,8 @@ test "camelCase = _foo ; _foo = __bar ; __bar = 123 ; camelCase" {
         \\camelCase
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
@@ -1319,7 +1413,8 @@ test "__1adsf = 1 ; __1adsf" {
         \\__1adsf = 1 ; __1adsf
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.UnexpectedInput,
@@ -1333,7 +1428,8 @@ test "missing_parser(1,2,3)" {
         \\missingParser(1,2,3)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try std.testing.expectError(
             error.UndefinedVariable,
@@ -1347,7 +1443,8 @@ test "Add(A, B) = A + B ; '' $ Add(3, 12)" {
         \\Add(A, B) = A + B ; '' $ Add(3, 12)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
@@ -1362,7 +1459,8 @@ test "A = 1 + 100 ; A <- 101" {
         \\A = 1 + 100 ; A <- 101
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "101"),
@@ -1383,7 +1481,8 @@ test "fibonacci parser function" {
         \\N <- int & fib(N)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
@@ -1392,7 +1491,8 @@ test "fibonacci parser function" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
@@ -1401,7 +1501,8 @@ test "fibonacci parser function" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "2"),
@@ -1410,7 +1511,8 @@ test "fibonacci parser function" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "3"),
@@ -1419,7 +1521,8 @@ test "fibonacci parser function" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "7"),
@@ -1439,7 +1542,8 @@ test "fibonacci value function" {
         \\N <- int $ Fib(N)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
@@ -1448,7 +1552,8 @@ test "fibonacci value function" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
@@ -1457,7 +1562,8 @@ test "fibonacci value function" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "2"),
@@ -1466,7 +1572,8 @@ test "fibonacci value function" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "3"),
@@ -1475,7 +1582,8 @@ test "fibonacci value function" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "7"),
@@ -1484,7 +1592,8 @@ test "fibonacci value function" {
         );
     }
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
@@ -1499,7 +1608,8 @@ test "'aa' $ {}" {
         \\"aa" $ {}
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
@@ -1514,7 +1624,8 @@ test "'aa' $ {'a': 1, 'b': 2, 'c': 3}" {
         \\'aa' $ {'a': 1, 'b': 2, 'c': 3}
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         const result = try vm.interpret(parser, "aa");
 
@@ -1533,7 +1644,8 @@ test "A <- 1 & B <- 2 $ {'a': A, 'b': B}" {
         \\A <- 1 & B <- 2 $ {'a': A, 'b': B}
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         const result = try vm.interpret(parser, "12");
 
@@ -1551,7 +1663,8 @@ test "A <- 1 & B <- 2 $ {'a': A, 'b': B}" {
 //         \\A <- 'Z' $ {A: 1, 'A': 2}
 //     ;
 //     {
-//         var vm = try VM.init(allocator);
+//         var vm = VM.create();
+//         try vm.init(allocator, stderr);
 //         defer vm.deinit();
 //         const result = try vm.interpret(parser, "Z");
 
@@ -1569,7 +1682,8 @@ test "object(alpha, digit)" {
         \\object(alpha, digit)
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         const result = try vm.interpret(parser, "a1b2c3");
 
@@ -1588,7 +1702,8 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
         \\ ('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})
     ;
     {
-        var vm = try VM.init(allocator);
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
         defer vm.deinit();
         const result = try vm.interpret(parser, "123456");
 

@@ -1,7 +1,7 @@
 const std = @import("std");
-const logger = @import("./logger.zig");
 const Token = @import("./token.zig").Token;
 const TokenType = @import("./token.zig").TokenType;
+const debug = @import("debug.zig");
 
 pub const Scanner = struct {
     source: []const u8,
@@ -23,10 +23,10 @@ pub const Scanner = struct {
     pub fn next(self: *Scanner) ?Token {
         if (self.atEnd) return null;
         const token = self.scanToken();
-        if (logger.debugScanner) {
-            logger.debug("Scanned token: ", .{});
-            token.print(logger.debug);
-            logger.debug("\n", .{});
+        if (debug.scanner) {
+            debug.print("Scanned token: ", .{});
+            token.print(debug.writer) catch {};
+            debug.print("\n", .{});
         }
         if (token.tokenType == .Eof) self.atEnd = true;
         return token;

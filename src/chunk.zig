@@ -5,7 +5,7 @@ const Elem = @import("./elem.zig").Elem;
 const Location = @import("location.zig").Location;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable;
-const logger = @import("./logger.zig");
+const VMWriter = @import("./writer.zig").VMWriter;
 
 pub const ChunkError = error{
     TooManyConstants,
@@ -89,31 +89,31 @@ pub const Chunk = struct {
         return @as(u8, @intCast(idx));
     }
 
-    pub fn disassemble(self: *Chunk, strings: StringTable, name: []const u8) void {
-        logger.debug("\n{s:=^40}\n", .{name});
+    pub fn disassemble(self: *Chunk, strings: StringTable, name: []const u8, writer: VMWriter) !void {
+        try writer.print("\n{s:=^40}\n", .{name});
 
         var offset: usize = 0;
         while (offset < self.code.items.len) {
-            offset = self.disassembleInstruction(offset, strings);
+            offset = try self.disassembleInstruction(offset, strings, writer);
         }
 
-        logger.debug("{s:=^40}\n", .{""});
+        try writer.print("{s:=^40}\n", .{""});
     }
 
-    pub fn disassembleInstruction(self: *Chunk, offset: usize, strings: StringTable) usize {
+    pub fn disassembleInstruction(self: *Chunk, offset: usize, strings: StringTable, writer: VMWriter) !usize {
         // print address
-        logger.debug("{:0>4} ", .{offset});
+        try writer.print("{:0>4} ", .{offset});
 
         // print line
         if (offset > 0 and self.locations.items[offset].line == self.locations.items[offset - 1].line) {
-            logger.debug("   | ", .{});
+            try writer.print("   | ", .{});
         } else {
-            logger.debug("{: >4} ", .{self.locations.items[offset].line});
+            try writer.print("{: >4} ", .{self.locations.items[offset].line});
         }
 
         const instruction = self.readOp(offset);
 
-        return instruction.disassemble(self, strings, offset);
+        return instruction.disassemble(self, strings, offset, writer);
     }
 
     fn shortLowerBytes(short: u16) u8 {

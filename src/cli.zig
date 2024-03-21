@@ -1,6 +1,5 @@
 const clap = @import("clap");
 const std = @import("std");
-const logger = @import("./logger.zig");
 
 const debug = std.debug;
 const io = std.io;

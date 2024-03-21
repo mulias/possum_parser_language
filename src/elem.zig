@@ -8,7 +8,7 @@ const StringBuffer = @import("string_buffer.zig").StringBuffer;
 const StringTable = @import("string_table.zig").StringTable;
 const Tuple = std.meta.Tuple;
 const VM = @import("vm.zig").VM;
-const logger = @import("logger.zig");
+const VMWriter = @import("./writer.zig").VMWriter;
 const parsing = @import("parsing.zig");
 
 pub const ElemType = enum {
@@ -97,24 +97,24 @@ pub const Elem = union(ElemType) {
 
     pub const failureConst = Elem{ .Failure = undefined };
 
-    pub fn print(self: Elem, printer: anytype, strings: StringTable) void {
-        switch (self) {
-            .ParserVar => |sId| printer("{s}", .{strings.get(sId)}),
-            .ValueVar => |sId| printer("{s}", .{strings.get(sId)}),
-            .String => |sId| printer("\"{s}\"", .{strings.get(sId)}),
-            .Integer => |n| printer("{d}", .{n}),
-            .Float => |n| printer("{d}", .{n}),
-            .IntegerString => |n| printer("{s}", .{strings.get(n.sId)}),
-            .FloatString => |n| printer("{s}", .{strings.get(n.sId)}),
-            .CharacterRange => |r| printer("\"{u}\"..\"{u}\"", .{ r.low, r.high }),
-            .IntegerRange => |r| printer("{d}..{d}", .{ r[0], r[1] }),
-            .True => printer("true", .{}),
-            .False => printer("false", .{}),
-            .Null => printer("null", .{}),
-            .Success => printer("@Success", .{}),
-            .Failure => printer("@Failure", .{}),
-            .Dyn => |d| d.print(printer, strings),
-        }
+    pub fn print(self: Elem, writer: VMWriter, strings: StringTable) !void {
+        return switch (self) {
+            .ParserVar => |sId| try writer.print("{s}", .{strings.get(sId)}),
+            .ValueVar => |sId| try writer.print("{s}", .{strings.get(sId)}),
+            .String => |sId| try writer.print("\"{s}\"", .{strings.get(sId)}),
+            .Integer => |n| try writer.print("{d}", .{n}),
+            .Float => |n| try writer.print("{d}", .{n}),
+            .IntegerString => |n| try writer.print("{s}", .{strings.get(n.sId)}),
+            .FloatString => |n| try writer.print("{s}", .{strings.get(n.sId)}),
+            .CharacterRange => |r| try writer.print("\"{u}\"..\"{u}\"", .{ r.low, r.high }),
+            .IntegerRange => |r| try writer.print("{d}..{d}", .{ r[0], r[1] }),
+            .True => try writer.print("true", .{}),
+            .False => try writer.print("false", .{}),
+            .Null => try writer.print("null", .{}),
+            .Success => try writer.print("@Success", .{}),
+            .Failure => try writer.print("@Failure", .{}),
+            .Dyn => |d| d.print(writer, strings),
+        };
     }
 
     pub fn isSuccess(self: Elem) bool {
@@ -548,14 +548,14 @@ pub const Elem = union(ElemType) {
             return Elem{ .Dyn = self };
         }
 
-        pub fn print(self: *Dyn, printer: anytype, strings: StringTable) void {
-            switch (self.dynType) {
-                .String => self.asString().print(printer),
-                .Array => self.asArray().print(printer, strings),
-                .Object => self.asObject().print(printer, strings),
-                .Function => self.asFunction().print(printer, strings),
-                .Closure => self.asClosure().print(printer, strings),
-            }
+        pub fn print(self: *Dyn, writer: VMWriter, strings: StringTable) !void {
+            return switch (self.dynType) {
+                .String => self.asString().print(writer),
+                .Array => self.asArray().print(writer, strings),
+                .Object => self.asObject().print(writer, strings),
+                .Function => self.asFunction().print(writer, strings),
+                .Closure => self.asClosure().print(writer, strings),
+            };
         }
 
         pub fn isEql(self: *Dyn, other: *Dyn, strings: StringTable) bool {
@@ -621,8 +621,8 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *String, printer: anytype) void {
-                printer("\"{s}\"", .{self.buffer.str()});
+            pub fn print(self: *String, writer: VMWriter) !void {
+                try writer.print("\"{s}\"", .{self.buffer.str()});
             }
 
             pub fn isEql(self: *String, other: *Dyn) bool {
@@ -693,19 +693,19 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Array, printer: anytype, strings: StringTable) void {
+            pub fn print(self: *Array, writer: VMWriter, strings: StringTable) VMWriter.Error!void {
                 if (self.elems.items.len == 0) {
-                    printer("[]", .{});
+                    try writer.print("[]", .{});
                 } else {
                     const lastItemIndex = self.elems.items.len - 1;
 
-                    printer("[", .{});
+                    try writer.print("[", .{});
                     for (self.elems.items[0..lastItemIndex]) |e| {
-                        e.print(printer, strings);
-                        printer(", ", .{});
+                        try e.print(writer, strings);
+                        try writer.print(", ", .{});
                     }
-                    self.elems.items[lastItemIndex].print(printer, strings);
-                    printer("]", .{});
+                    try self.elems.items[lastItemIndex].print(writer, strings);
+                    try writer.print("]", .{});
                 }
             }
 
@@ -774,23 +774,23 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Object, printer: anytype, strings: StringTable) void {
+            pub fn print(self: *Object, writer: VMWriter, strings: StringTable) VMWriter.Error!void {
                 if (self.members.count() == 0) {
-                    printer("{{}}", .{});
+                    try writer.print("{{}}", .{});
                 } else {
                     const lastMemberIndex = self.members.count() - 1;
 
-                    printer("{{", .{});
+                    try writer.print("{{", .{});
                     var iterator = self.members.iterator();
                     while (iterator.next()) |entry| {
-                        printer("\"{s}\": ", .{strings.get(entry.key_ptr.*)});
-                        entry.value_ptr.*.print(printer, strings);
+                        try writer.print("\"{s}\": ", .{strings.get(entry.key_ptr.*)});
+                        try entry.value_ptr.*.print(writer, strings);
 
                         if (iterator.index <= lastMemberIndex) {
-                            printer(", ", .{});
+                            try writer.print(", ", .{});
                         }
                     }
-                    printer("}}", .{});
+                    try writer.print("}}", .{});
                 }
             }
 
@@ -881,8 +881,8 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Function, printer: anytype, strings: StringTable) void {
-                printer("{s}", .{strings.get(self.name)});
+            pub fn print(self: *Function, writer: VMWriter, strings: StringTable) !void {
+                try writer.print("{s}", .{strings.get(self.name)});
             }
 
             pub fn isEql(self: *Function, other: *Dyn) bool {
@@ -890,9 +890,9 @@ pub const Elem = union(ElemType) {
                 return self == other.asFunction();
             }
 
-            pub fn disassemble(self: *Function, strings: StringTable) void {
+            pub fn disassemble(self: *Function, strings: StringTable, writer: VMWriter) !void {
                 const label = strings.get(self.name);
-                self.chunk.disassemble(strings, label);
+                try self.chunk.disassemble(strings, label, writer);
             }
 
             pub fn addLocal(self: *Function, local: Local) !?u8 {
@@ -955,28 +955,28 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Closure, printer: anytype, strings: StringTable) void {
-                printer("|{s} ", .{strings.get(self.function.name)});
+            pub fn print(self: *Closure, writer: VMWriter, strings: StringTable) VMWriter.Error!void {
+                try writer.print("|{s} ", .{strings.get(self.function.name)});
 
                 if (self.captures.len > 0) {
                     const lastItemIndex = self.captures.len - 1;
 
                     for (self.captures[0..lastItemIndex]) |maybeElem| {
                         if (maybeElem) |e| {
-                            e.print(printer, strings);
-                            printer(", ", .{});
+                            try e.print(writer, strings);
+                            try writer.print(", ", .{});
                         } else {
-                            printer("_, ", .{});
+                            try writer.print("_, ", .{});
                         }
                     }
                     if (self.captures[lastItemIndex]) |e| {
-                        e.print(printer, strings);
+                        try e.print(writer, strings);
                     } else {
-                        printer("_", .{});
+                        try writer.print("_", .{});
                     }
                 }
 
-                printer("|", .{});
+                try writer.print("|", .{});
             }
 
             pub fn isEql(self: *Closure, other: *Dyn) bool {

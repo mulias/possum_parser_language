@@ -11,8 +11,9 @@ const StringTable = @import("string_table.zig").StringTable;
 const assert = std.debug.assert;
 const Compiler = @import("./compiler.zig").Compiler;
 const json = std.json;
-const logger = @import("./logger.zig");
+const debug = @import("./debug.zig");
 const meta = @import("meta.zig");
+const VMWriter = @import("./writer.zig").VMWriter;
 
 const CallFrame = struct {
     function: *Elem.Dyn.Function,
@@ -31,6 +32,7 @@ pub const VM = struct {
     inputMarks: ArrayList(usize),
     inputPos: usize,
     uniqueIdCount: u64,
+    errWriter: VMWriter,
 
     const Error = error{
         RuntimeError,
@@ -40,26 +42,41 @@ pub const VM = struct {
         Utf8EncodesSurrogateHalf,
         Utf8CodepointTooLarge,
         InvalidRange,
-    };
+    } || VMWriter.Error;
 
-    pub fn init(allocator: Allocator) !VM {
+    pub fn create() VM {
         var self = VM{
-            .allocator = allocator,
-            .strings = StringTable.init(allocator),
-            .globals = AutoHashMap(StringTable.Id, Elem).init(allocator),
-            .dynList = null,
-            .stack = ArrayList(Elem).init(allocator),
-            .frames = ArrayList(CallFrame).init(allocator),
+            .allocator = undefined,
+            .strings = undefined,
+            .globals = undefined,
+            .dynList = undefined,
+            .stack = undefined,
+            .frames = undefined,
             .input = undefined,
-            .inputMarks = ArrayList(usize).init(allocator),
-            .inputPos = 0,
-            .uniqueIdCount = 0,
+            .inputMarks = undefined,
+            .inputPos = undefined,
+            .uniqueIdCount = undefined,
+            .errWriter = undefined,
         };
+
+        return self;
+    }
+
+    pub fn init(self: *VM, allocator: Allocator, errWriter: VMWriter) !void {
+        self.allocator = allocator;
+        self.strings = StringTable.init(allocator);
+        self.globals = AutoHashMap(StringTable.Id, Elem).init(allocator);
+        self.dynList = null;
+        self.stack = ArrayList(Elem).init(allocator);
+        self.frames = ArrayList(CallFrame).init(allocator);
+        self.input = undefined;
+        self.inputMarks = ArrayList(usize).init(allocator);
+        self.inputPos = 0;
+        self.uniqueIdCount = 0;
+        self.errWriter = errWriter;
 
         try self.loadMetaFunctions();
         try self.loadStdlib();
-
-        return self;
     }
 
     pub fn deinit(self: *VM) void {
@@ -83,7 +100,7 @@ pub const VM = struct {
 
         const function = try compiler.compile();
 
-        if (logger.debugCompiler) function.disassemble(self.strings);
+        if (debug.compiler) function.disassemble(self.strings, debug.writer) catch {};
 
         try self.push(function.dyn.elem());
         try self.addFrame(function);
@@ -380,14 +397,14 @@ pub const VM = struct {
     }
 
     fn printDebug(self: *VM) void {
-        if (logger.debugVM) {
-            logger.debug("\n", .{});
+        if (debug.vm) {
+            debug.print("\n", .{});
             self.printInput();
             self.printFrames();
             self.printElems();
 
             if (self.frames.items.len > 0) {
-                _ = self.chunk().disassembleInstruction(self.frame().ip, self.strings);
+                _ = self.chunk().disassembleInstruction(self.frame().ip, self.strings, debug.writer) catch {};
             }
         }
     }
@@ -499,7 +516,7 @@ pub const VM = struct {
                 .Function => {
                     var function = dyn.asFunction();
 
-                    if (logger.debugCompiler) function.disassemble(self.strings);
+                    if (debug.compiler) function.disassemble(self.strings, debug.writer) catch {};
 
                     if (function.arity == argCount) {
                         if (isTailPosition) {
@@ -793,34 +810,34 @@ pub const VM = struct {
     }
 
     fn printInput(self: *VM) void {
-        logger.debug("input   | ", .{});
-        logger.debug("{s} @ {d}\n", .{ self.input, self.inputPos });
+        debug.print("input   | ", .{});
+        debug.print("{s} @ {d}\n", .{ self.input, self.inputPos });
     }
 
     fn printElems(self: *VM) void {
-        logger.debug("Stack   | ", .{});
+        debug.print("Stack   | ", .{});
         for (self.stack.items, 0..) |e, idx| {
-            e.print(logger.debug, self.strings);
-            if (idx < self.stack.items.len - 1) logger.debug(", ", .{});
+            e.print(debug.writer, self.strings) catch {};
+            if (idx < self.stack.items.len - 1) debug.print(", ", .{});
         }
-        logger.debug("\n", .{});
+        debug.print("\n", .{});
     }
 
     fn printFrames(self: *VM) void {
-        logger.debug("Frames  | ", .{});
+        debug.print("Frames  | ", .{});
         for (self.frames.items, 0..) |f, idx| {
-            f.function.print(logger.debug, self.strings);
-            if (idx < self.frames.items.len - 1) logger.debug(", ", .{});
+            f.function.print(debug.writer, self.strings) catch {};
+            if (idx < self.frames.items.len - 1) debug.print(", ", .{});
         }
-        logger.debug("\n", .{});
+        debug.print("\n", .{});
     }
 
     fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
         const loc = self.chunk().locations.items[self.frame().ip];
-        loc.print(logger.err);
-        logger.err("Error: ", .{});
-        logger.err(message, args);
-        logger.err("\n", .{});
+        try loc.print(self.errWriter);
+        try self.errWriter.print("Error: ", .{});
+        try self.errWriter.print(message, args);
+        try self.errWriter.print("\n", .{});
 
         return Error.RuntimeError;
     }

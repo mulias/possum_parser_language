@@ -1,6 +1,6 @@
 const std = @import("std");
-const logger = @import("./logger.zig");
 const Location = @import("location.zig").Location;
+const VMWriter = @import("./writer.zig").VMWriter;
 
 pub const TokenType = enum {
     LeftParen,
@@ -59,8 +59,8 @@ pub const Token = struct {
         return self.tokenType == tokenType;
     }
 
-    pub fn print(self: Token, printer: anytype) void {
-        printer("{s} '{s}' {d}:{d}-{d}", .{
+    pub fn print(self: Token, writer: VMWriter) !void {
+        try writer.print("{s} '{s}' {d}:{d}-{d}", .{
             @tagName(self.tokenType),
             self.lexeme,
             self.loc.line,

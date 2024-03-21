@@ -1,3 +1,5 @@
+const VMWriter = @import("./writer.zig").VMWriter;
+
 pub const Location = struct {
     line: usize,
     start: usize,
@@ -11,8 +13,8 @@ pub const Location = struct {
         };
     }
 
-    pub fn print(loc: Location, printer: anytype) void {
-        printer(
+    pub fn print(loc: Location, writer: VMWriter) !void {
+        try writer.print(
             "[Line {d}, {d}-{d}]",
             .{ loc.line, loc.start, loc.start + loc.length },
         );

@@ -7,11 +7,14 @@ const Ast = @import("ast.zig").Ast;
 const Location = @import("location.zig").Location;
 const loc = Location.new;
 
+const stderr = std.io.getStdErr().writer();
+
 test "'a' > 'b' > 'c' | 'abz'" {
     const source =
         \\'a' > 'b' > 'c' | 'abz'
     ;
-    var vm = try VM.init(allocator);
+    var vm = VM.create();
+    try vm.init(allocator, stderr);
     defer vm.deinit();
 
     var parser = Parser.init(&vm);
@@ -40,7 +43,8 @@ test "foo(a, b, c) = a + b + c" {
     const source =
         \\foo(a, b, c) = a + b + c
     ;
-    var vm = try VM.init(allocator);
+    var vm = VM.create();
+    try vm.init(allocator, stderr);
     defer vm.deinit();
 
     var parser = Parser.init(&vm);

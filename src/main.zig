@@ -3,8 +3,10 @@ const OpCode = @import("./op_code.zig").OpCode;
 const Chunk = @import("./chunk.zig").Chunk;
 const VM = @import("./vm.zig").VM;
 const Allocator = std.mem.Allocator;
-const logger = @import("./logger.zig");
 const cli = @import("cli.zig");
+
+const stdout = std.io.getStdOut().writer();
+const stderr = std.io.getStdErr().writer();
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -12,7 +14,7 @@ pub fn main() !void {
 
     switch (try cli.run()) {
         .Parse => |args| try parse(alloc, args.parser, args.input),
-        .Docs => logger.out("Docs\n", .{}),
+        .Docs => try stdout.print("Docs\n", .{}),
         .Help => try cli.printHelp(),
         .Usage => try cli.printUsage(),
     }
@@ -22,18 +24,17 @@ fn parse(allocator: Allocator, parserSource: cli.Source, inputSource: cli.Source
     const parser = try getBytes(allocator, parserSource);
     const input = try getBytes(allocator, inputSource);
 
-    var vm = try VM.init(allocator);
+    var vm = VM.create();
+    try vm.init(allocator, stderr);
     defer vm.deinit();
 
     const parsed = try vm.interpret(parser, input);
 
-    if (parsed == .Success) {
-        logger.out("\n", .{});
-    } else if (parsed == .Failure) {
-        logger.err("Parser Failure\n", .{});
+    if (parsed == .Failure) {
+        try stderr.print("Parser Failure\n", .{});
     } else {
-        parsed.print(logger.out, vm.strings);
-        logger.out("\n", .{});
+        try parsed.print(stdout, vm.strings);
+        try stdout.print("\n", .{});
     }
 }
 
