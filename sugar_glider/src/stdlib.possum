@@ -159,20 +159,20 @@ _object(key, value, Acc) =
 
 object_sep(key, pair_sep, value, sep) =
   K <- key & pair_sep & V <- value &
-  _object_sep_rec(key, pair_sep, value, sep, {K: V})
+  _object_sep(key, pair_sep, value, sep, {K: V})
 
-_object_sep_rec(key, pair_sep, value, sep, Acc) =
+_object_sep(key, pair_sep, value, sep, Acc) =
   sep & K <- key & pair_sep & V <- value ?
-  _object_sep_rec(key, pair_sep, value, sep, Acc + {K: V}) :
+  _object_sep(key, pair_sep, value, sep, Acc + {K: V}) :
   const(Acc)
 
 object_until(key, value, stop) =
-  K <- key & V <- value & _object_until_rec(key, value, stop, {K: V})
+  K <- key & V <- value & _object_until(key, value, stop, {K: V})
 
-_object_until_rec(key, value, stop, Acc) =
+_object_until(key, value, stop, Acc) =
   peek(stop) ?
   const(Acc) :
-  K <- key & V <- value & _object_until_rec(key, value, stop, Acc + {K: V})
+  K <- key & V <- value & _object_until(key, value, stop, Acc + {K: V})
 
 maybe_object(key, value) = default(object(key, value), {})
 
