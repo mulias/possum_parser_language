@@ -1,0 +1,32 @@
+NAME
+       possum - A tiny text parsing language
+
+SYNOPSIS
+        possum [PARSER_FILE] [INPUT_FILE] [OPTIONS]
+
+ARGUMENTS
+        PARSER_FILE
+            A parser program file to run on the input. This argument can be
+            omitted if the -p or --parser flag is used instead. When PARSER_FILE
+            is - read the parser from standard input.
+
+        INPUT_FILE
+           An input file to parse. This argument can be omitted if the -i or
+           --input flag is used instead. When INPUT_FILE is - read the input
+           from standard input.
+
+OPTIONS
+        -p PARSER, --parser=PARSER
+            Parser program to run on the input, used in place of a parser file.
+
+        -i INPUT, --input=INPUT
+            Text to parse, used in place of an input file.
+
+       --help
+           Show this help text.
+
+       --version
+           Show version information.
+
+BUGS
+        Report bugs to https://github.com/mulias/possum_parser_language/issues
