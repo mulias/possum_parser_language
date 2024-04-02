@@ -581,6 +581,7 @@ pub const VM = struct {
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Array => {
                     var array = dyn.asArray();
+                    var boundArray = try Elem.Dyn.Array.copy(self, array.elems.items);
 
                     for (array.elems.items) |elem| {
                         if (elem.isDynType(.Array)) {
@@ -589,19 +590,21 @@ pub const VM = struct {
                     }
 
                     for (array.pattern.items) |patternElem| {
-                        array.elems.items[patternElem.index] = try self.getBoundLocal(patternElem.slot);
+                        boundArray.elems.items[patternElem.index] = try self.getBoundLocal(patternElem.slot);
                     }
 
-                    return array.dyn.elem();
+                    return boundArray.dyn.elem();
                 },
                 .Object => {
                     var object = dyn.asObject();
+                    var boundObject = try Elem.Dyn.Object.create(self, object.members.count());
+                    try boundObject.concat(object);
 
                     // TODO: object pattern matching
 
                     for (object.pattern.items) |patternElem| {
                         if (patternElem.replace == .Value) {
-                            try object.members.put(
+                            try boundObject.members.put(
                                 patternElem.key,
                                 try self.getBoundLocal(patternElem.slot),
                             );
@@ -610,7 +613,7 @@ pub const VM = struct {
 
                     for (object.pattern.items) |patternElem| {
                         if (patternElem.replace == .Key) {
-                            if (object.members.fetchOrderedRemove(patternElem.key)) |kv| {
+                            if (boundObject.members.fetchOrderedRemove(patternElem.key)) |kv| {
                                 const newKey = switch (try self.getBoundLocal(patternElem.slot)) {
                                     .String => |sId| sId,
                                     .Dyn => |keyDyn| switch (keyDyn.dynType) {
@@ -624,12 +627,12 @@ pub const VM = struct {
                                     else => @panic("todo"),
                                 };
 
-                                try object.members.put(newKey, kv.value);
+                                try boundObject.members.put(newKey, kv.value);
                             }
                         }
                     }
 
-                    return object.dyn.elem();
+                    return boundObject.dyn.elem();
                 },
                 else => return value,
             },
