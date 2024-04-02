@@ -67,23 +67,27 @@ pub fn run() !Mode {
     if (result.args.parser != null) requiredArgsCount += 1;
     if (result.args.input != null) requiredArgsCount += 1;
 
+    var positionalArg: usize = 0;
+
     if (requiredArgsCount == 2) {
         var parser: Source = undefined;
         if (result.args.parser) |parserStr| {
             parser = .{ .String = parserStr };
-        } else if (isSingleDash(result.positionals[0])) {
+        } else if (isSingleDash(result.positionals[positionalArg])) {
+            positionalArg += 1;
             parser = .{ .Stdin = undefined };
         } else {
+            positionalArg += 1;
             parser = .{ .Path = result.positionals[0] };
         }
 
         var input: Source = undefined;
         if (result.args.input) |inputStr| {
             input = .{ .String = inputStr };
-        } else if (isSingleDash(result.positionals[0])) {
+        } else if (isSingleDash(result.positionals[positionalArg])) {
             input = .{ .Stdin = undefined };
         } else {
-            input = .{ .Path = result.positionals[1] };
+            input = .{ .Path = result.positionals[positionalArg] };
         }
 
         return .{
