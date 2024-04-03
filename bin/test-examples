@@ -4,6 +4,7 @@ set -e
 
 zig build
 
+# Make executable available in cram's child shell
 POSSUM="$(pwd)/zig-out/bin/possum"
 TMPFILE=$(mktemp)
 echo "possum() { $POSSUM \"\$@\"; }" >> $TMPFILE
