@@ -1,0 +1,10 @@
+"target area: x=" &
+XMin <- int &
+".." &
+XMax <- int &
+", y=" &
+YMin <- int &
+".." &
+YMax <- int &
+ws & end $
+{"xmin": XMin, "xmax": XMax, "ymin": YMin, "ymax": YMax}

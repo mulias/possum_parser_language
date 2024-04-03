@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+
+set -e
+
+zig build
+
+POSSUM="$(pwd)/zig-out/bin/possum"
+TMPFILE=$(mktemp)
+echo "possum() { $POSSUM \"\$@\"; }" >> $TMPFILE
+
+export BASH_ENV=$TMPFILE
+
+cram --shell='bash' $@

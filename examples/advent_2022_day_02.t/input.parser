@@ -1,0 +1,19 @@
+array_sep(round, nl)
+
+round = P1 <- player_1 & ws & P2 <- player_2 $ [P1, P2]
+
+player_1 = hand_shape
+
+player_2 = peek(hand_shape) + end_goal
+
+hand_shape = label("hand_shape", rock | paper | scissors)
+
+end_goal = label("end_goal", lose | win | draw)
+
+rock = "A" | "X" $ "rock"
+paper = "B" | "Y" $ "paper"
+scissors = "C" | "Z" $ "scissors"
+
+lose = "X" $ "lose"
+draw = "Y" $ "draw"
+win = "Z" $ "win"

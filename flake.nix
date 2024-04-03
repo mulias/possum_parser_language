@@ -13,7 +13,11 @@
     {
       devShells = forEachSupportedSystem ({ pkgs }: {
         default = pkgs.mkShell {
-          packages = with pkgs; [ zig_0_11 zls ];
+          packages = with pkgs; [
+            zig_0_11
+            zls
+            python311Packages.cram
+          ];
           shellHook = ''
             export NVIM_ZIG_LSP=true
           '';

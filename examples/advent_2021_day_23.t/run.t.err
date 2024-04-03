@@ -1,0 +1,47 @@
+Advent of Code 2021 Day 23
+https://adventofcode.com/2021/day/23
+
+  $ possum $TESTDIR/input.parser $TESTDIR/input.txt
+  thread 29304 panic: todo
+  /home/elias/src/possum_parser_lang/src/compiler.zig:1261:25: 0x262736 in appendObjectPair (possum)
+                  else => @panic("todo"),
+                          ^
+  /home/elias/src/possum_parser_lang/src/compiler.zig:1210:50: 0x261f5b in appendObjectMembers (possum)
+                          try self.appendObjectPair(object, infix.left);
+                                                   ^
+  /home/elias/src/possum_parser_lang/src/compiler.zig:1200:37: 0x2632e1 in writeObject (possum)
+          try self.appendObjectMembers(object, itemNodeId);
+                                      ^
+  /home/elias/src/possum_parser_lang/src/compiler.zig:871:41: 0x264d13 in writeValue (possum)
+                      try self.writeObject(infix.left, infix.right);
+                                          ^
+  /home/elias/src/possum_parser_lang/src/compiler.zig:435:40: 0x26799a in writeParser (possum)
+                      try self.writeValue(infix.right, true);
+                                         ^
+  /home/elias/src/possum_parser_lang/src/compiler.zig:124:33: 0x26a3e3 in compileMain (possum)
+              try self.writeParser(nodeId, false);
+                                  ^
+  /home/elias/src/possum_parser_lang/src/compiler.zig:66:29: 0x26a651 in compile (possum)
+          try self.compileMain();
+                              ^
+  /home/elias/src/possum_parser_lang/src/vm.zig:101:46: 0x27a656 in interpret (possum)
+          const function = try compiler.compile();
+                                               ^
+  /home/elias/src/possum_parser_lang/src/main.zig:31:36: 0x27dad9 in parse (possum)
+      const parsed = try vm.interpret(parser, input);
+                                     ^
+  /home/elias/src/possum_parser_lang/src/main.zig:16:35: 0x27ea6e in main (possum)
+          .Parse => |args| try parse(alloc, args.parser, args.input),
+                                    ^
+  /nix/store/c6ddcmrgzdhfh23y0j5pmqpj1ilfwi8a-zig-0.11.0/lib/zig/std/start.zig:574:37: 0x25143e in posixCallMainAndExit (possum)
+              const result = root.main() catch |err| {
+                                      ^
+  /nix/store/c6ddcmrgzdhfh23y0j5pmqpj1ilfwi8a-zig-0.11.0/lib/zig/std/start.zig:243:5: 0x250f21 in _start (possum)
+      asm volatile (switch (native_arch) {
+      ^
+  ???:?:?: 0x2 in ??? (???)
+  Unwind information for `???:0x2` was not available, trace may be incomplete
+  
+  /tmp/nix-shell.bVU3bw/tmp.XNS6RIQ9jp: line 1: 29304 Aborted                 (core dumped) /home/elias/src/possum_parser_lang/zig-out/bin/possum "$@"
+  [134]
+

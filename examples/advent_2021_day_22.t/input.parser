@@ -1,0 +1,9 @@
+range = Min <- int & ".." & Max <- int $ [Min, Max]
+step =
+  State <- word & " " &
+  XRange <- ("x=" > range) & "," &
+  YRange <- ("y=" > range) & "," &
+  ZRange <- ("z=" > range) $
+  {"state": State, "x": XRange, "y": YRange, "z": ZRange}
+
+input(array_sep(step, newline))
