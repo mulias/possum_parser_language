@@ -9,6 +9,9 @@ POSSUM="$(pwd)/zig-out/bin/possum"
 TMPFILE=$(mktemp)
 echo "possum() { $POSSUM \"\$@\"; }" >> $TMPFILE
 
+clean_up () { rm -f $TMPFILE; }
+trap clean_up EXIT
+
 export BASH_ENV=$TMPFILE
 
 cram --shell='bash' $@
