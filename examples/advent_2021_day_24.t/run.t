@@ -4,8 +4,8 @@ https://adventofcode.com/2021/day/24
   $ possum $TESTDIR/input.parser $TESTDIR/input.txt
   [
     {
-      "type": "imp",
-      "variable": "w"
+      "type": "inp",
+      "var": "w"
     },
     {
       "type": "add",

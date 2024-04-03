@@ -1,10 +1,6 @@
-"target area: x=" &
-XMin <- int &
-".." &
-XMax <- int &
-", y=" &
-YMin <- int &
-".." &
-YMax <- int &
-ws & end $
+range = pair_sep(int, "..")
+
+# TODO: Investigate error when parens are removed
+[XMin, XMax] <- (scan("x=") > range) &
+[YMin, YMax] <- (scan("y=") > range) $
 {"xmin": XMin, "xmax": XMax, "ymin": YMin, "ymax": YMax}

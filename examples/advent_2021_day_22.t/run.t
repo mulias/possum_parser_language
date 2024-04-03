@@ -4,7 +4,7 @@ https://adventofcode.com/2021/day/22
   $ possum $TESTDIR/input.parser $TESTDIR/input.txt
   [
     {
-      "state": "on",
+      "isOn": true,
       "x": [
         10,
         12
@@ -19,7 +19,7 @@ https://adventofcode.com/2021/day/22
       ]
     },
     {
-      "state": "on",
+      "isOn": true,
       "x": [
         11,
         13
@@ -34,7 +34,7 @@ https://adventofcode.com/2021/day/22
       ]
     },
     {
-      "state": "off",
+      "isOn": false,
       "x": [
         9,
         11
@@ -49,7 +49,7 @@ https://adventofcode.com/2021/day/22
       ]
     },
     {
-      "state": "on",
+      "isOn": true,
       "x": [
         10,
         10
