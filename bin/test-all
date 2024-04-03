@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+set -e
+
+zig test src/tests.zig
+
+./bin/test-examples ./examples/
