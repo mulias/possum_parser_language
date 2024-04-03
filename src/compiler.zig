@@ -448,6 +448,7 @@ pub const Compiler = struct {
                     const thenNodeId = thenElseOp.left;
                     const elseNodeId = thenElseOp.right;
 
+                    try self.emitOp(.SetInputMark, loc);
                     try self.writeParser(ifNodeId, false);
                     const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
                     try self.writeParser(thenNodeId, isTailPosition);
@@ -967,6 +968,7 @@ pub const Compiler = struct {
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
                 .Backtrack => {
+                    try self.emitOp(.SetInputMark, loc);
                     try self.writeValueFunction(infix.left, false);
                     const jumpIndex = try self.emitJump(.Backtrack, loc);
                     try self.writeValueFunction(infix.right, isTailPosition);
@@ -1003,6 +1005,7 @@ pub const Compiler = struct {
                     try self.emitOp(.Destructure, loc);
                 },
                 .Or => {
+                    try self.emitOp(.SetInputMark, loc);
                     try self.writeValueFunction(infix.left, false);
                     const jumpIndex = try self.emitJump(.Or, loc);
                     try self.writeValueFunction(infix.right, isTailPosition);
@@ -1027,6 +1030,7 @@ pub const Compiler = struct {
                     const thenNodeId = thenElseOp.left;
                     const elseNodeId = thenElseOp.right;
 
+                    try self.emitOp(.SetInputMark, loc);
                     try self.writeValueFunction(ifNodeId, false);
                     const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
                     try self.writeValueFunction(thenNodeId, isTailPosition);

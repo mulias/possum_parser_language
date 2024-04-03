@@ -154,9 +154,10 @@ pub const VM = struct {
                 // If lhs succeeded then pop, return to prev input position.
                 // If lhs failed then keep it and jump to skip rhs ops.
                 const offset = self.readShort();
+                const resetPos = self.popInputMark();
                 if (self.peekIsSuccess()) {
                     _ = self.pop();
-                    self.inputPos = self.popInputMark();
+                    self.inputPos = resetPos;
                 } else {
                     self.frame().ip += offset;
                 }
@@ -202,7 +203,9 @@ pub const VM = struct {
                 // If `condition` failed then jump to the start of `else` branch.
                 const offset = self.readShort();
                 const condition = self.pop();
+                const resetPos = self.popInputMark();
                 if (condition.isFailure()) {
+                    self.inputPos = resetPos;
                     self.frame().ip += offset;
                 }
             },
@@ -350,12 +353,12 @@ pub const VM = struct {
                 // If lhs succeeded then jump to skip rhs ops.
                 // If lhs failed then pop, return to prev input position.
                 const offset = self.readShort();
+                const resetPos = self.popInputMark();
                 if (self.peekIsSuccess()) {
                     self.frame().ip += offset;
-                    _ = self.popInputMark();
                 } else {
                     _ = self.pop();
-                    self.inputPos = self.popInputMark();
+                    self.inputPos = resetPos;
                 }
             },
             .ResolveUnboundVars => {
