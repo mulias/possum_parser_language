@@ -1,4 +1,5 @@
 const std = @import("std");
+const json = std.json;
 const unicode = std.unicode;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
@@ -508,6 +509,76 @@ pub const Elem = union(ElemType) {
             },
             else => null,
         };
+    }
+
+    pub fn toJson(self: Elem, allocator: Allocator, strings: StringTable) !json.Value {
+        return switch (self) {
+            .String => |sId| {
+                const s = strings.get(sId);
+                return .{ .string = s };
+            },
+            .Integer => |i| .{ .integer = i },
+            .Float => |f| .{ .float = f },
+            .IntegerString => |i| {
+                const s = strings.get(i.sId);
+                return .{ .number_string = s };
+            },
+            .FloatString => |f| {
+                const s = strings.get(f.sId);
+                return .{ .number_string = s };
+            },
+            .True => .{ .bool = true },
+            .False => .{ .bool = false },
+            .Null => .{ .null = undefined },
+            .Dyn => |dyn| switch (dyn.dynType) {
+                .String => {
+                    const s = dyn.asString().buffer.str();
+                    return .{ .string = s };
+                },
+                .Array => {
+                    var array = dyn.asArray();
+                    var jsonArray = ArrayList(json.Value).init(allocator);
+                    try jsonArray.ensureTotalCapacity(array.elems.items.len);
+
+                    for (array.elems.items) |item| {
+                        try jsonArray.append(try item.toJson(allocator, strings));
+                    }
+
+                    return .{ .array = jsonArray };
+                },
+                .Object => {
+                    var object = dyn.asObject();
+                    var jsonObject = std.StringArrayHashMap(json.Value).init(allocator);
+                    try jsonObject.ensureTotalCapacity(object.members.count());
+
+                    var iterator = object.members.iterator();
+                    while (iterator.next()) |entry| {
+                        const key = strings.get(entry.key_ptr.*);
+                        const value = try entry.value_ptr.*.toJson(allocator, strings);
+                        try jsonObject.put(key, value);
+                    }
+
+                    return .{ .object = jsonObject };
+                },
+                .Function,
+                .Closure,
+                => @panic("Internal Error"),
+            },
+            .ParserVar,
+            .ValueVar,
+            .CharacterRange,
+            .IntegerRange,
+            .Success,
+            .Failure,
+            => @panic("Internal Error"),
+        };
+    }
+
+    pub fn printJson(self: Elem, allocator: Allocator, writer: VMWriter, strings: StringTable) !void {
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const jsonValue = try self.toJson(arena.allocator(), strings);
+        try json.stringify(jsonValue, .{ .whitespace = .indent_2 }, writer);
     }
 
     pub const DynType = enum {
