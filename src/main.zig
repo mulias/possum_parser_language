@@ -33,7 +33,7 @@ fn parse(allocator: Allocator, parserSource: cli.Source, inputSource: cli.Source
     if (parsed == .Failure) {
         try stderr.print("Parser Failure\n", .{});
     } else {
-        try parsed.printJson(allocator, stdout, vm.strings);
+        try parsed.printJson(.{ .whitespace = .indent_2 }, allocator, stdout, vm.strings);
         try stdout.print("\n", .{});
     }
 }

@@ -574,11 +574,11 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn printJson(self: Elem, allocator: Allocator, writer: VMWriter, strings: StringTable) !void {
+    pub fn printJson(self: Elem, opts: json.StringifyOptions, allocator: Allocator, writer: VMWriter, strings: StringTable) !void {
         var arena = std.heap.ArenaAllocator.init(allocator);
         defer arena.deinit();
         const jsonValue = try self.toJson(arena.allocator(), strings);
-        try json.stringify(jsonValue, .{ .whitespace = .indent_2 }, writer);
+        try json.stringify(jsonValue, opts, writer);
     }
 
     pub const DynType = enum {
