@@ -347,8 +347,18 @@ pub const Elem = union(ElemType) {
             },
             .CharacterRange => unreachable,
             .IntegerRange => unreachable,
-            .True => if (elemB.isType(.True)) elemA else null,
-            .False => if (elemB.isType(.False)) elemA else null,
+            .True => if (elemB.isType(.True)) {
+                return trueConst;
+            } else if (elemB.isType(.False)) {
+                return falseConst;
+            } else {
+                return null;
+            },
+            .False => if (elemB.isType(.True) or elemB.isType(.False)) {
+                return falseConst;
+            } else {
+                return null;
+            },
             .Dyn => |d1| switch (d1.dynType) {
                 .String => {
                     const ds1 = d1.asString();

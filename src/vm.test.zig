@@ -179,6 +179,52 @@ test "1e57 + 3e-4" {
     }
 }
 
+test "bool(1,0) + bool(1,0)" {
+    const parser =
+        \\bool(1,0) + bool(1,0)
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "11"),
+            Elem.trueConst,
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "10"),
+            Elem.falseConst,
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "01"),
+            Elem.falseConst,
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "00"),
+            Elem.falseConst,
+            vm.strings,
+        );
+    }
+}
+
 test "'foo' $ 'bar'" {
     const parser =
         \\ 'foo' $ 'bar'
