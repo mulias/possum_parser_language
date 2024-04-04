@@ -26,7 +26,7 @@ newlines = many(newline)
 
 nl = newline
 
-end_of_input = peek(char) ? @fail : @succeed
+end_of_input = peek(char) ? @fail : succeed
 
 end = end_of_input
 
@@ -80,15 +80,15 @@ null(n) = n $ null
 
 peek(p) = (V <- p) ! const(V)
 
-maybe(p) = p | @succeed
+maybe(p) = p | succeed
 
-skip(p) = p > @succeed
+skip(p) = null(p)
 
-nullable(p) = p | const(null)
+succeed = const(null)
 
 default(p, D) = p | const(D)
 
-const(C) = @succeed $ C
+const(C) = "" $ C
 
 number_of = @number_of
 
@@ -100,7 +100,7 @@ many(p) = First <- p & _many(p, First)
 
 _many(p, Acc) = Next <- p ? _many(p, Acc + Next) : const(Acc)
 
-maybe_many(p) = many(p) | @succeed
+maybe_many(p) = many(p) | succeed
 
 until(p, stop) = First <- p & _until(p, stop, First)
 

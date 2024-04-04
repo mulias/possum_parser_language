@@ -1278,9 +1278,9 @@ test "S <- ('a' + 'b') $ (S + 'c') $ (S + 'd')" {
     }
 }
 
-test "[A, B] <- (@succeed $ [1, 2]) $ [B, A]" {
+test "[A, B] <- (succeed $ [1, 2]) $ [B, A]" {
     const parser =
-        \\[A, B] <- (@succeed $ [1, 2]) $ [B, A]
+        \\[A, B] <- (succeed $ [1, 2]) $ [B, A]
     ;
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(1) };
@@ -1295,9 +1295,9 @@ test "[A, B] <- (@succeed $ [1, 2]) $ [B, A]" {
     }
 }
 
-test "[[1,A,3], B, 5] <- (@succeed $ [[1, 2, 3], 4, 5]) $ [A, B]" {
+test "[[1,A,3], B, 5] <- (succeed $ [[1, 2, 3], 4, 5]) $ [A, B]" {
     const parser =
-        \\[[1,A,3], B, 5] <- (@succeed $ [[1, 2, 3], 4, 5]) $ [A, B]
+        \\[[1,A,3], B, 5] <- (succeed $ [[1, 2, 3], 4, 5]) $ [A, B]
     ;
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(4) };
@@ -1312,9 +1312,9 @@ test "[[1,A,3], B, 5] <- (@succeed $ [[1, 2, 3], 4, 5]) $ [A, B]" {
     }
 }
 
-test "[[], A] <- (@succeed $ [[], 100]) $ A" {
+test "[[], A] <- (succeed $ [[], 100]) $ A" {
     const parser =
-        \\[[], A] <- (@succeed $ [[], 100]) $ A
+        \\[[], A] <- (succeed $ [[], 100]) $ A
     ;
     {
         var vm = VM.create();

@@ -263,9 +263,7 @@ pub const Compiler = struct {
                     },
                     .Closure => @panic("Internal Error"),
                 },
-                .Success,
-                .Failure,
-                => @panic("Internal Error"),
+                .Failure => @panic("Internal Error"),
             },
             .ParserVar => |name| switch (self.vm.globals.get(name).?) {
                 .ParserVar,
@@ -290,7 +288,6 @@ pub const Compiler = struct {
                     },
                     .Closure => @panic("Internal Error"),
                 },
-                .Success,
                 .Failure,
                 .True,
                 .False,
@@ -550,7 +547,6 @@ pub const Compiler = struct {
                     },
                     .Integer,
                     .Float,
-                    .Success,
                     .Failure,
                     => unreachable, // not produced by the parser
                     .Dyn => @panic("internal error"), // not produced by the parser
@@ -773,7 +769,6 @@ pub const Compiler = struct {
                 .Null => try self.emitOp(.Null, loc),
                 .Integer,
                 .Float,
-                .Success,
                 .Failure,
                 => unreachable, // not produced by the parser
                 .CharacterRange => {
@@ -926,7 +921,6 @@ pub const Compiler = struct {
                 .Null => try self.emitOp(.Null, loc),
                 .Integer,
                 .Float,
-                .Success,
                 .Failure,
                 => unreachable, // not produced by the parser
                 .CharacterRange => {

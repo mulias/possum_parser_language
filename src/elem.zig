@@ -25,7 +25,6 @@ pub const ElemType = enum {
     True,
     False,
     Null,
-    Success,
     Failure,
     Dyn,
 };
@@ -43,7 +42,6 @@ pub const Elem = union(ElemType) {
     True: void,
     False: void,
     Null: void,
-    Success: void,
     Failure: void,
     Dyn: *Dyn,
 
@@ -94,8 +92,6 @@ pub const Elem = union(ElemType) {
 
     pub const nullConst = Elem{ .Null = undefined };
 
-    pub const successConst = Elem{ .Success = undefined };
-
     pub const failureConst = Elem{ .Failure = undefined };
 
     pub fn print(self: Elem, writer: VMWriter, strings: StringTable) !void {
@@ -112,7 +108,6 @@ pub const Elem = union(ElemType) {
             .True => try writer.print("true", .{}),
             .False => try writer.print("false", .{}),
             .Null => try writer.print("null", .{}),
-            .Success => try writer.print("@Success", .{}),
             .Failure => try writer.print("@Failure", .{}),
             .Dyn => |d| d.print(writer, strings),
         };
@@ -214,10 +209,6 @@ pub const Elem = union(ElemType) {
                 .Null => true,
                 else => false,
             },
-            .Success => switch (other) {
-                .Success => true,
-                else => false,
-            },
             .Failure => switch (other) {
                 .Failure => true,
                 else => false,
@@ -255,7 +246,6 @@ pub const Elem = union(ElemType) {
             .True,
             .False,
             .Null,
-            .Success,
             .Failure,
             => return value.isEql(pattern, strings),
             .ValueVar,
@@ -296,14 +286,14 @@ pub const Elem = union(ElemType) {
     pub fn merge(elemA: Elem, elemB: Elem, vm: *VM) !?Elem {
         if (elemA == .Failure) return Elem.failureConst;
         if (elemB == .Failure) return Elem.failureConst;
-        if (elemA == .Success) return elemB;
-        if (elemB == .Success) return elemA;
+        if (elemA == .Null) return elemB;
+        if (elemB == .Null) return elemA;
 
         return switch (elemA) {
             .ParserVar,
             .ValueVar,
-            .Success,
             .Failure,
+            .Null,
             => @panic("Internal error"),
             .String => |sId1| switch (elemB) {
                 .String => |sId2| {
@@ -359,7 +349,6 @@ pub const Elem = union(ElemType) {
             .IntegerRange => unreachable,
             .True => if (elemB.isType(.True)) elemA else null,
             .False => if (elemB.isType(.False)) elemA else null,
-            .Null => if (elemB.isType(.Null)) elemA else null,
             .Dyn => |d1| switch (d1.dynType) {
                 .String => {
                     const ds1 = d1.asString();
@@ -438,7 +427,7 @@ pub const Elem = union(ElemType) {
                 .Float => |n2| float(@as(f64, @floatFromInt(n1)) - n2),
                 .IntegerString => |n2| integer(n1 - n2.value),
                 .FloatString => |n2| float(@as(f64, @floatFromInt(n1)) - n2.value),
-                .Success => elemA,
+                .Null => elemA,
                 else => null,
             },
             .Float => |n1| switch (elemB) {
@@ -446,7 +435,7 @@ pub const Elem = union(ElemType) {
                 .Float => |n2| float(n1 - n2),
                 .IntegerString => |n2| float(n1 - @as(f64, @floatFromInt(n2.value))),
                 .FloatString => |n2| float(n1 - n2.value),
-                .Success => elemA,
+                .Null => elemA,
                 else => null,
             },
             .IntegerString => |n1| switch (elemB) {
@@ -454,7 +443,7 @@ pub const Elem = union(ElemType) {
                 .Float => |n2| float(@as(f64, @floatFromInt(n1.value)) - n2),
                 .IntegerString => |n2| integer(n1.value - n2.value),
                 .FloatString => |n2| float(@as(f64, @floatFromInt(n1.value)) - n2.value),
-                .Success => elemA,
+                .Null => elemA,
                 else => null,
             },
             .FloatString => |n1| switch (elemB) {
@@ -462,15 +451,15 @@ pub const Elem = union(ElemType) {
                 .Float => |n2| float(n1.value - n2),
                 .IntegerString => |n2| float(n1.value - @as(f64, @floatFromInt(n2.value))),
                 .FloatString => |n2| float(n1.value - n2.value),
-                .Success => elemA,
+                .Null => elemA,
                 else => null,
             },
-            .Success => switch (elemB) {
+            .Null => switch (elemB) {
                 .Integer => |n2| integer(-n2),
                 .Float => |n2| float(-n2),
                 .IntegerString => |n2| integer(-n2.value),
                 .FloatString => |n2| float(-n2.value),
-                .Success => Elem.successConst,
+                .Null => Elem.nullConst,
                 else => null,
             },
             else => null,
@@ -568,7 +557,6 @@ pub const Elem = union(ElemType) {
             .ValueVar,
             .CharacterRange,
             .IntegerRange,
-            .Success,
             .Failure,
             => @panic("Internal Error"),
         };

@@ -111,7 +111,7 @@ pub const VM = struct {
 
         assert(self.stack.items.len == 1);
 
-        return self.finalizeReturnValue(self.pop());
+        return self.pop();
     }
 
     fn loadMetaFunctions(self: *VM) !void {
@@ -306,10 +306,6 @@ pub const VM = struct {
             },
             .SetInputMark => {
                 try self.pushInputMark();
-            },
-            .Succeed => {
-                // Push singleton success value.
-                try self.push(Elem.successConst);
             },
             .Merge => {
                 // Postfix, lhs and rhs on stack.
@@ -674,46 +670,6 @@ pub const VM = struct {
                 else => {},
             },
             else => {},
-        }
-    }
-
-    fn finalizeReturnValue(self: *VM, elem: Elem) !Elem {
-        switch (elem) {
-            .ParserVar,
-            .ValueVar,
-            .CharacterRange,
-            .IntegerRange,
-            => @panic("Internal Error"),
-            .Success => {
-                const emptyStr = try self.strings.insert("");
-                return Elem.string(emptyStr);
-            },
-            .Dyn => |dyn| switch (dyn.dynType) {
-                .Array => {
-                    var array = dyn.asArray();
-
-                    for (array.elems.items, 0..) |item, index| {
-                        array.elems.items[index] = try self.finalizeReturnValue(item);
-                    }
-
-                    return array.dyn.elem();
-                },
-                .Object => {
-                    var object = dyn.asObject();
-
-                    var iterator = object.members.iterator();
-                    while (iterator.next()) |entry| {
-                        entry.value_ptr.* = try self.finalizeReturnValue(entry.value_ptr.*);
-                    }
-
-                    return object.dyn.elem();
-                },
-                .Function,
-                .Closure,
-                => @panic("Internal Error"),
-                else => return elem,
-            },
-            else => return elem,
         }
     }
 
