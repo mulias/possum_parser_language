@@ -148,10 +148,10 @@ table_sep(elem, sep, row_sep) =
   First <- elem & _table_sep(elem, sep, row_sep, [First], [])
 
 _table_sep(elem, sep, row_sep, AccRow, AccRows) =
-  NextRow <- (row_sep > elem) ?
-  _table_sep(elem, sep, row_sep, [NextRow], AccRows + [AccRow]) :
   Elem <- (sep > elem) ?
   _table_sep(elem, sep, row_sep, AccRow + [Elem], AccRows) :
+  NextRow <- (row_sep > elem) ?
+  _table_sep(elem, sep, row_sep, [NextRow], AccRows + [AccRow]) :
   const(AccRows + [AccRow])
 
 maybe_table_sep(elem, sep, row_sep) =
