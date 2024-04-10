@@ -18,11 +18,11 @@ numeral = "0".."9"
 
 numerals = many(numeral)
 
-space = " " | "\t"
+space = " " | "\t" | "\u00A0" | "\u2000".."\u200A" | "\u202F" | "\u205F" | "\u3000"
 
 spaces = many(space)
 
-newline = "\n" | "\r\n"
+newline = "\r\n" | "\u000A".."\u000D" | "\u0085" | "\u2028" | "\u2029"
 
 newlines = many(newline)
 
