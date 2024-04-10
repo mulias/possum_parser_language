@@ -1,5 +1,7 @@
 char = "\u0000".."\U10FFFF"
 
+ascii = "\u0000".."\u007F"
+
 alpha = "a".."z" | "A".."Z"
 
 alphas = many(alpha)
