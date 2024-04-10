@@ -237,7 +237,7 @@ pub const Parser = struct {
 
         while (s.len > 0) {
             if (s[0] == '\\') {
-                if (s[1] == 'u' and str.len > 6) {
+                if (s[1] == 'u' and s.len >= 6) {
                     // BMP character
                     if (parsing.parseCodepoint(s[2..6])) |c| {
                         const bytesWritten = try unicode.utf8Encode(c, buffer[bufferLen..]);
@@ -246,7 +246,7 @@ pub const Parser = struct {
                     } else {
                         return self.errorAtPrevious("Invalid escape sequence in string.");
                     }
-                } else if (s[1] == 'U' and s.len > 10) {
+                } else if (s[1] == 'U' and s.len >= 10) {
                     // Non-BMP character
                     if (parsing.parseCodepoint(s[2..10])) |c| {
                         const bytesWritten = try unicode.utf8Encode(c, buffer[bufferLen..]);
