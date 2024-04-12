@@ -40,7 +40,9 @@ whitespace = many(space | newline)
 
 ws = whitespace
 
-word = until(char, whitespace | end_of_input)
+token = until(char, whitespace | end_of_input)
+
+word = many(alnum | "_" | "-")
 
 line = until(char, newline | end_of_input)
 

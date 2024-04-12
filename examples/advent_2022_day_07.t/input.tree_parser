@@ -2,7 +2,7 @@ input(dir)
 
 dir =
   "$ cd" & ws &
-  Name <- word & nl &
+  Name <- token & nl &
   "$ ls" & nl &
   Files <- files & nl &
   Subdirs <- child_dirs &
@@ -24,6 +24,6 @@ files = array_sep(
   maybe(dir_listings) $ []
 )
 
-dir_listings = array_sep("dir " > word, nl)
+dir_listings = array_sep("dir " > token, nl)
 
-file_listing = Size <- number & ws & Name <- word $ {"name": Name, "size": Size}
+file_listing = Size <- number & ws & Name <- token $ {"name": Name, "size": Size}

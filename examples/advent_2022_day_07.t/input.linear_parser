@@ -1,8 +1,8 @@
 cmd = cd | ls
-cd = "$ cd" & ws & Dir <- word $ {"cmd": "cd", "dir": Dir}
+cd = "$ cd" & ws & Dir <- token $ {"cmd": "cd", "dir": Dir}
 ls = "$ ls" & ws & Out <- dir_content $ {"cmd": "ls", "output": Out}
 dir_content = array_sep(file | dir, nl)
-file = Size <- number & ws & Name <- word $ {"type": "file", "size": Size, "name": Name}
-dir = "dir" & ws & Name <- word $ {"type": "dir", "name": Name}
+file = Size <- number & ws & Name <- token $ {"type": "file", "size": Size, "name": Name}
+dir = "dir" & ws & Name <- token $ {"type": "dir", "name": Name}
 
 array_sep(cmd, nl)

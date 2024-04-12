@@ -18,6 +18,6 @@ monkey =
 
 operation =
   Left <- (int | word) & ws &
-  Op <- word & ws &
+  Op <- token & ws &
   Right <- (int | word) $
   {"left": Left, "operator": Op, "right": Right}
