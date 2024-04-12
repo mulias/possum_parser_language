@@ -476,14 +476,14 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn toNumber(self: Elem, strings: StringTable) ?Elem {
+    pub fn toNumber(self: Elem, strings: *StringTable) !?Elem {
         return switch (self) {
             .String => |sId| {
                 const s = strings.get(sId);
                 if (parsing.parseInteger(s)) |i| {
-                    return Elem.integer(i);
+                    return Elem.integerString(i, sId);
                 } else if (parsing.parseFloat(s)) |f| {
-                    return Elem.float(f);
+                    return Elem.floatString(f, sId);
                 } else {
                     return null;
                 }
@@ -497,9 +497,11 @@ pub const Elem = union(ElemType) {
                 .String => {
                     const s = dyn.asString().buffer.str();
                     if (parsing.parseInteger(s)) |i| {
-                        return Elem.integer(i);
+                        const sId = try strings.insert(s);
+                        return Elem.integerString(i, sId);
                     } else if (parsing.parseFloat(s)) |f| {
-                        return Elem.float(f);
+                        const sId = try strings.insert(s);
+                        return Elem.floatString(f, sId);
                     } else {
                         return null;
                     }

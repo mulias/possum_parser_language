@@ -327,7 +327,7 @@ pub const VM = struct {
             .NumberOf => {
                 if (self.peekIsSuccess()) {
                     const value = self.pop();
-                    if (value.toNumber(self.strings)) |n| {
+                    if (try value.toNumber(&self.strings)) |n| {
                         try self.push(n);
                     } else {
                         try self.pushFailure();
