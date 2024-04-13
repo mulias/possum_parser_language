@@ -42,7 +42,7 @@ whitespace = many(space | newline)
 
 ws = whitespace
 
-token = until(char, whitespace | end_of_input)
+token = until(unless(char, whitespace), whitespace | end_of_input)
 
 word = many(alnum | "_" | "-")
 
