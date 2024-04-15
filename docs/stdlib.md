@@ -36,9 +36,11 @@ needed parsers, or even create a whole new alternative standard library.
 | `token` | One or more non-whitespace characters | Matched string |
 | `word` | One or more alphanumeric characters, "_", or "-" | Matched string |
 | `line` | Match all characters until a newline or end of input, which is not consumed | Matched string |
-| `digit` | One Arabic numeral, "0" to "9" | Number between `0` and `9` |
-| `integer` | Valid JSON integer | Number |
+| `digit` | One Arabic numeral, "0" to "9" | Integer number between 0 and 9 |
+| `integer` | Valid JSON integer | Integer number |
 | `int`  | Alias for `integer` | As above |
+| `non_negative_integer` | Valid JSON integer without a leading minus sign | Integer number greater than or equal to zero |
+| `negative_integer` | Valid JSON integer with a leading minus sign | Integer number less than or equal to `-0` |
 | `float` | Valid JSON number with an integer and fractional part | Number |
 | `scientific_integer` | Valid JSON number with an integer and exponent part | Number |
 | `scientific_float` | Valid JSON number with an integer, fractional, and exponent part | Number |

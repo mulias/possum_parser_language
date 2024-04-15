@@ -54,6 +54,10 @@ integer = number_of(_number_integer_part)
 
 int = integer
 
+non_negative_integer = number_of(_number_non_negative_integer_part)
+
+negative_integer = number_of("-" + _number_non_negative_integer_part)
+
 float = number_of(_number_integer_part + _number_decimal_part)
 
 scientific_integer = number_of(_number_integer_part + _number_exponent_part)
@@ -72,7 +76,9 @@ number = number_of(
 
 num = number
 
-_number_integer_part = maybe("-") + (("1".."9" + numerals) | numerals)
+_number_integer_part = maybe("-") + _number_non_negative_integer_part
+
+_number_non_negative_integer_part = (("1".."9" + numerals) | numeral)
 
 _number_decimal_part = "." + numerals
 
