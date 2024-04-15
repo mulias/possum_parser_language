@@ -28,9 +28,9 @@ spaces = many(space)
 
 newline = "\r\n" | "\u000A".."\u000D" | "\u0085" | "\u2028" | "\u2029"
 
-newlines = many(newline)
-
 nl = newline
+
+newlines = many(newline)
 
 nls = newlines
 
@@ -42,14 +42,11 @@ whitespace = many(space | newline)
 
 ws = whitespace
 
-token = until(
-  unless(char, whitespace),
-  whitespace | end_of_input
-)
+token = many(unless(char, whitespace))
 
 word = many(alnum | "_" | "-")
 
-line = until(char, newline | end_of_input)
+line = many_until(char, newline | end_of_input)
 
 digit = number_of(numeral)
 
@@ -95,7 +92,11 @@ peek(p) = (V <- p) ! const(V)
 
 maybe(p) = p | succeed
 
+unless(p, excluded) = excluded ? @fail : p
+
 skip(p) = null(p)
+
+scan(p) = p | (char > scan(p))
 
 succeed = const(null)
 
@@ -113,18 +114,23 @@ many(p) = First <- p & _many(p, First)
 
 _many(p, Acc) = Next <- p ? _many(p, Acc + Next) : const(Acc)
 
-maybe_many(p) = many(p) | succeed
+many_sep(p, sep) = First <- p & _many_sep(p, sep, First)
 
-until(p, stop) = First <- p & _until(p, stop, First)
+_many_sep(p, sep, Acc) =
+  Next <- (sep > p) ?
+  _many_sep(p, sep, Acc + Next) :
+  const(Acc)
 
-_until(p, stop, Acc) =
+many_until(p, stop) = First <- unless(p, stop) & _many_until(p, stop, First)
+
+_many_until(p, stop, Acc) =
   peek(stop) ?
   const(Acc) :
-  Next <- p & _until(p, stop, Acc + Next)
+  Next <- p & _many_until(p, stop, Acc + Next)
 
-unless(p, excluded) = excluded ? @fail : p
+maybe_many(p) = many(p) | succeed
 
-scan(p) = p | (char > scan(p))
+maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
 
 array(elem) = First <- elem & _array(elem, [First])
 
@@ -151,6 +157,16 @@ maybe_array(elem) = default(array(elem), [])
 
 maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
 
+single(elem) = Elem <- elem $ [Elem]
+
+pair(elem) = E1 <- elem & E2 <- elem $ [E1, E2]
+
+pair_sep(elem, sep) = E1 <- elem & sep & E2 <- elem $ [E1, E2]
+
+triple(elem) = E1 <- elem & E2 <- elem & E3 <- elem $ [E1, E2, E3]
+
+triple_sep(elem, sep) = E1 <- elem & sep & E2 <- elem & sep & E3 <- elem $ [E1, E2, E3]
+
 table_sep(elem, sep, row_sep) =
   First <- elem & _table_sep(elem, sep, row_sep, [First], [])
 
@@ -163,16 +179,6 @@ _table_sep(elem, sep, row_sep, AccRow, AccRows) =
 
 maybe_table_sep(elem, sep, row_sep) =
   default(table_sep(elem, sep, row_sep), [[]])
-
-single(elem) = Elem <- elem $ [Elem]
-
-pair(elem) = E1 <- elem & E2 <- elem $ [E1, E2]
-
-pair_sep(elem, sep) = E1 <- elem & sep & E2 <- elem $ [E1, E2]
-
-triple(elem) = E1 <- elem & E2 <- elem & E3 <- elem $ [E1, E2, E3]
-
-triple_sep(elem, sep) = E1 <- elem & sep & E2 <- elem & sep & E3 <- elem $ [E1, E2, E3]
 
 object(key, value) =
   K <- key & V <- value &
@@ -193,7 +199,9 @@ _object_sep(key, pair_sep, value, sep, Acc) =
   const(Acc)
 
 object_until(key, value, stop) =
-  K <- key & V <- value & _object_until(key, value, stop, {K: V})
+  K <- unless(key, stop) &
+  V <- value &
+  _object_until(key, value, stop, {K: V})
 
 _object_until(key, value, stop, Acc) =
   peek(stop) ?
