@@ -59,19 +59,19 @@ non_negative_integer = number_of(_number_non_negative_integer_part)
 
 negative_integer = number_of("-" + _number_non_negative_integer_part)
 
-float = number_of(_number_integer_part + _number_decimal_part)
+float = number_of(_number_integer_part + _number_fraction_part)
 
 scientific_integer = number_of(_number_integer_part + _number_exponent_part)
 
 scientific_float = number_of(
   _number_integer_part +
-  _number_decimal_part +
+  _number_fraction_part +
   _number_exponent_part
 )
 
 number = number_of(
   _number_integer_part +
-  maybe(_number_decimal_part) +
+  maybe(_number_fraction_part) +
   maybe(_number_exponent_part)
 )
 
@@ -81,7 +81,7 @@ _number_integer_part = maybe("-") + _number_non_negative_integer_part
 
 _number_non_negative_integer_part = (("1".."9" + numerals) | numeral)
 
-_number_decimal_part = "." + numerals
+_number_fraction_part = "." + numerals
 
 _number_exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
 
