@@ -59,6 +59,10 @@ pub const Token = struct {
         return self.tokenType == tokenType;
     }
 
+    pub fn isBacktickString(self: Token) bool {
+        return self.isType(.String) and self.lexeme.len > 0 and self.lexeme[0] == '`';
+    }
+
     pub fn print(self: Token, writer: VMWriter) !void {
         try writer.print("{s} '{s}' {d}:{d}-{d}", .{
             @tagName(self.tokenType),

@@ -180,7 +180,15 @@ pub const Parser = struct {
     fn string(self: *Parser) !usize {
         const t1 = self.previous;
         const s1 = stringContents(t1.lexeme);
-        const sId = try self.internUnescaped(s1);
+
+        var sId: StringTable.Id = undefined;
+
+        if (t1.isBacktickString()) {
+            sId = try self.vm.strings.insert(s1);
+        } else {
+            sId = try self.internUnescaped(s1);
+        }
+
         return self.ast.pushElem(Elem.string(sId), t1.loc);
     }
 
@@ -193,11 +201,9 @@ pub const Parser = struct {
                 if (self.current.tokenType == .String and !self.currentSkippedWhitespace) {
                     try self.advance();
                     const t2 = self.previous;
-                    const s1 = stringContents(t1.lexeme);
-                    const s2 = stringContents(t2.lexeme);
 
-                    if (characterStringToCodepoint(s1)) |c1| {
-                        if (characterStringToCodepoint(s2)) |c2| {
+                    if (characterStringToCodepoint(t1)) |c1| {
+                        if (characterStringToCodepoint(t2)) |c2| {
                             if (c1 > c2) {
                                 return self.errorAtPrevious("Character range is not ordered");
                             }
@@ -286,8 +292,15 @@ pub const Parser = struct {
         return self.vm.strings.insert(buffer[0..bufferLen]);
     }
 
-    fn characterStringToCodepoint(str: []const u8) ?u21 {
+    fn characterStringToCodepoint(strToken: Token) ?u21 {
+        const str = stringContents(strToken.lexeme);
+
         if (str.len == 0) return null; // must be at least one byte long
+
+        if (strToken.isBacktickString()) {
+            if (str.len == 1) return @as(u21, @intCast(str[1]));
+            return null;
+        }
 
         // BMP character
         if (str[0] == '\\' and str[1] == 'u' and str.len == 6) {

@@ -62,6 +62,7 @@ pub const Scanner = struct {
             '|' => self.makeToken(.Bar),
             '"' => self.scanString('"'),
             '\'' => self.scanString('\''),
+            '`' => self.scanBacktickString(),
             '@' => self.scanAtSignIdentifier(),
             '_' => self.scanUnderscoreIdentifier(),
             '-' => if (isDigit(self.peek())) self.scanNumber() else self.makeToken(.Minus),
@@ -144,7 +145,29 @@ pub const Scanner = struct {
             if (self.peek() == '\\') self.advance();
 
             if (self.peek() == '\n') self.line += 1;
-            if (self.peek() == '\n' and self.peekNext() == '\r') self.advance();
+
+            self.advance();
+        }
+
+        if (self.isAtEnd()) return self.makeError("Unterminated string.");
+
+        // The closing quote
+        self.advance();
+
+        return Token.new(.String, self.source[0..self.offset], .{
+            .line = startLine,
+            .start = start,
+            .length = self.offset,
+        });
+    }
+
+    fn scanBacktickString(self: *Scanner) Token {
+        // if we've already consumed input then assume it was string
+        const start = self.pos - self.offset;
+        const startLine = self.line;
+
+        while (self.peek() != '`' and !self.isAtEnd()) {
+            if (self.peek() == '\n') self.line += 1;
 
             self.advance();
         }
