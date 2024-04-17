@@ -49,7 +49,7 @@ word = many(alnum | "_" | "-")
 
 line = many_until(char, newline | end_of_input)
 
-digit = number_of(numeral)
+digit = 0..9
 
 integer = number_of(_number_integer_part)
 

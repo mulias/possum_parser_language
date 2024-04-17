@@ -484,9 +484,8 @@ pub const VM = struct {
                         const int = Elem.integer(i);
                         try self.push(int);
                         return;
-                    } else {
-                        end -= 1;
                     };
+                    end -= 1;
                 }
                 try self.pushFailure();
             },
