@@ -1,124 +1,102 @@
-const clap = @import("clap");
 const std = @import("std");
+const OpCode = @import("./op_code.zig").OpCode;
+const Chunk = @import("./chunk.zig").Chunk;
+const VM = @import("./vm.zig").VM;
+const Allocator = std.mem.Allocator;
+const cli_config = @import("cli_config.zig");
+const Writer = std.fs.File.Writer;
 
-const debug = std.debug;
-const io = std.io;
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub const Format = enum { plain, json };
+    const cli = CLI.init(
+        gpa.allocator(),
+        std.io.getStdOut().writer(),
+        std.io.getStdErr().writer(),
+    );
 
-pub const Docs = enum { overview, advanced, language, cli, stdlib };
+    return cli.run();
+}
 
-pub const SourceType = enum { String, Path, Stdin };
+pub const CLI = struct {
+    allocator: Allocator,
+    outWriter: Writer,
+    errWriter: Writer,
 
-pub const Source = union(SourceType) {
-    String: []const u8,
-    Path: []const u8,
-    Stdin: void,
-};
-
-pub const ModeType = enum { Parse, Docs, Help, Usage };
-
-pub const Mode = union(ModeType) {
-    Parse: struct {
-        parser: Source,
-        input: Source,
-        stdlib: bool,
-        import: []const []const u8,
-        errorFormat: Format,
-    },
-    Docs: Docs,
-    Help: void,
-    Usage: void,
-};
-
-const params = clap.parseParamsComptime(
-    \\-p, --parser <STR>
-    \\-i, --input <STR>
-    \\--no-stdlib
-    \\--import <FILE>...
-    \\--error-format <FORMAT>
-    \\-h, --help
-    \\-v, --version
-    \\--docs <DOCS>
-    \\<FILE>...
-    \\
-);
-
-pub fn run() !Mode {
-    const parsers = comptime .{
-        .STR = clap.parsers.string,
-        .FILE = clap.parsers.string,
-        .FORMAT = clap.parsers.enumeration(Format),
-        .DOCS = clap.parsers.enumeration(Docs),
-    };
-
-    var result = try clap.parse(clap.Help, &params, parsers, .{});
-    defer result.deinit();
-
-    // Prioritize --help
-    if (result.args.help != 0) return .{ .Help = undefined };
-
-    // Prioritize --docs
-    if (result.args.docs) |docs| return .{ .Docs = docs };
-
-    // For Parse mode require one parser param and one input param, either
-    // named or positional
-    var requiredArgsCount = result.positionals.len;
-    if (result.args.parser != null) requiredArgsCount += 1;
-    if (result.args.input != null) requiredArgsCount += 1;
-
-    var positionalArg: usize = 0;
-
-    if (requiredArgsCount == 2) {
-        var parser: Source = undefined;
-        if (result.args.parser) |parserStr| {
-            parser = .{ .String = parserStr };
-        } else if (isSingleDash(result.positionals[positionalArg])) {
-            positionalArg += 1;
-            parser = .{ .Stdin = undefined };
-        } else {
-            positionalArg += 1;
-            parser = .{ .Path = result.positionals[0] };
-        }
-
-        var input: Source = undefined;
-        if (result.args.input) |inputStr| {
-            input = .{ .String = inputStr };
-        } else if (isSingleDash(result.positionals[positionalArg])) {
-            input = .{ .Stdin = undefined };
-        } else {
-            input = .{ .Path = result.positionals[positionalArg] };
-        }
-
-        return .{
-            .Parse = .{
-                .parser = parser,
-                .input = input,
-                .stdlib = @field(result.args, "no-stdlib") == 0,
-                .import = result.args.import,
-                .errorFormat = @field(result.args, "error-format") orelse .plain,
-            },
+    pub fn init(allocator: Allocator, outWriter: Writer, errWriter: Writer) CLI {
+        return CLI{
+            .allocator = allocator,
+            .outWriter = outWriter,
+            .errWriter = errWriter,
         };
-    } else if (requiredArgsCount > 2) {
-        try clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
-        // too many args
-        return .{ .Usage = undefined };
-    } else {
-        // need more args
-        return .{ .Usage = undefined };
     }
-}
 
-pub fn printHelp() !void {
-    return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
-}
+    pub fn run(self: CLI) !void {
+        switch (try cli_config.run()) {
+            .Parse => |args| try self.parse(args.parser, args.input),
+            .Docs => try self.outWriter.print("Docs\n", .{}),
+            .Help => try cli_config.printHelp(),
+            .Usage => try cli_config.printUsage(),
+        }
+    }
 
-pub fn printUsage() !void {
-    const writer = std.io.getStdErr().writer();
-    try clap.usage(writer, clap.Help, &params);
-    try writer.print("\n", .{});
-}
+    fn parse(self: CLI, parserSource: cli_config.Source, inputSource: cli_config.Source) !void {
+        const parser = switch (parserSource) {
+            .String => |str| str,
+            .Path => |path| try self.readFile(path),
+            .Stdin => try self.readStdin("parser"),
+        };
 
-fn isSingleDash(source: []const u8) bool {
-    return std.mem.eql(u8, "-", source);
-}
+        const input = switch (inputSource) {
+            .String => |str| str,
+            .Path => |path| try self.readFile(path),
+            .Stdin => try self.readStdin("input"),
+        };
+
+        var vm = VM.create();
+        try vm.init(self.allocator, self.errWriter);
+        defer vm.deinit();
+
+        const parsed = try vm.interpret(parser, input);
+
+        if (parsed == .Failure) {
+            try self.errWriter.print("Parser Failure\n", .{});
+        } else {
+            try parsed.printJson(.{ .whitespace = .indent_2 }, self.allocator, self.outWriter, vm.strings);
+            try self.outWriter.print("\n", .{});
+        }
+    }
+
+    fn readFile(self: CLI, path: []const u8) ![]const u8 {
+        return try std.fs.cwd().readFileAlloc(self.allocator, path, 1e10);
+    }
+
+    fn readStdin(self: CLI, argName: []const u8) ![]const u8 {
+        const stdin = std.io.getStdIn();
+        const stat = try stdin.stat();
+
+        const isUserInput = stat.kind != std.fs.File.Kind.named_pipe;
+
+        if (isUserInput) try self.outWriter.print("Reading {s} (press ctrl-d twice to end):\n", .{argName});
+
+        const reader = stdin.reader();
+        const input = self.readStreamAlloc(reader);
+
+        if (isUserInput) try self.outWriter.print("\n\n", .{});
+
+        return input;
+    }
+
+    pub fn readStreamAlloc(self: CLI, streamReader: anytype) anyerror![]u8 {
+        var input = std.ArrayList(u8).init(self.allocator);
+
+        streamReader.streamUntilDelimiter(input.writer(), 0, null) catch |err| switch (err) {
+            error.EndOfStream => {
+                // This is expected
+            },
+            else => |e| return e,
+        };
+
+        return input.items;
+    }
+};
