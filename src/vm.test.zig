@@ -1761,3 +1761,56 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
         try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
     }
 }
+
+test "{'a': true} <- const({'a': true})" {
+    const parser =
+        \\{'a': true} <- const({'a': true})
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "");
+
+        // Do this after running the VM to make sure strings are interned
+        var object = try Elem.Dyn.Object.create(&vm, 1);
+        try object.members.put(vm.strings.getId("a"), Elem.trueConst);
+
+        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+    }
+}
+
+test "{'a': false} <- const({'a': true})" {
+    const parser =
+        \\{'a': false} <- const({'a': true})
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, ""),
+        );
+    }
+}
+
+test "{'a': A} <- const({'a': 123})" {
+    const parser =
+        \\{'a': A} <- const({'a': 123})
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "");
+
+        // Do this after running the VM to make sure strings are interned
+        var object = try Elem.Dyn.Object.create(&vm, 1);
+        try object.members.put(
+            vm.strings.getId("a"),
+            Elem.integerString(123, vm.strings.getId("123")),
+        );
+
+        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+    }
+}

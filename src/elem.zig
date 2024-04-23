@@ -275,7 +275,31 @@ pub const Elem = union(ElemType) {
                         return false;
                     }
                 },
-                .Object => @panic("todo"),
+                .Object => {
+                    if (pattern.isDynType(.Object)) {
+                        var valueObject = dyn.asObject();
+                        var patternObject = pattern.asDyn().asObject();
+
+                        if (valueObject.members.count() != patternObject.members.count()) {
+                            return false;
+                        }
+
+                        var iterator = valueObject.members.iterator();
+                        while (iterator.next()) |valueEntry| {
+                            if (patternObject.members.get(valueEntry.key_ptr.*)) |patternMember| {
+                                if (!valueEntry.value_ptr.*.isValueMatchingPattern(patternMember, strings)) {
+                                    return false;
+                                }
+                            } else {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    } else {
+                        return false;
+                    }
+                },
                 .Function,
                 .Closure,
                 => @panic("internal error"),
