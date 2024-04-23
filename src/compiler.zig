@@ -644,8 +644,8 @@ pub const Compiler = struct {
     fn writeParserFunctionArgument(self: *Compiler, nodeId: usize, argType: ArgType) !void {
         const loc = self.ast.getLocation(nodeId);
 
-        if (argType == .Parser) {
-            switch (self.ast.getNode(nodeId)) {
+        switch (argType) {
+            .Parser => switch (self.ast.getNode(nodeId)) {
                 .InfixNode => {
                     const function = try self.writeAnonymousFunction(nodeId);
                     const constId = try self.makeConstant(function.dyn.elem());
@@ -659,11 +659,19 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.GetConstant, constId, loc);
                     },
                 },
-            }
-        } else if (argType == .Value) {
-            try self.writeValue(nodeId, false);
-        } else {
-            @panic("todo");
+            },
+            .Value => try self.writeValue(nodeId, false),
+            .Unspecified => {
+                // In this case we don't know the arg type because the function
+                // will be passed in as a variable and is not yet known. Things
+                // we could do:
+                // - Find all places the var is assigned and monomoprphise
+                // - Defer logic to runtime
+                // - For each arg determine if the arg must be a parser or
+                //   value. If it could be either then fail with a message
+                //   asking the user to extract a variable to specify.
+                @panic("todo");
+            },
         }
     }
 
