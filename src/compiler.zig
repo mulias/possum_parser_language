@@ -1187,7 +1187,7 @@ pub const Compiler = struct {
                         try self.appendArrayElem(array, nestedObject);
                         break;
                     },
-                    else => @panic("todo"),
+                    else => @panic("Internal Error"),
                 },
                 .ElemNode => |elem| {
                     // The last array element
@@ -1240,7 +1240,7 @@ pub const Compiler = struct {
                         try self.appendObjectPair(object, nodeId);
                         break;
                     },
-                    else => @panic("todo"),
+                    else => @panic("Internal Error"),
                 },
                 .ElemNode => @panic("Internal Error"),
             }
@@ -1262,12 +1262,12 @@ pub const Compiler = struct {
                 });
                 break :blk varName;
             },
-            else => @panic("todo"),
+            else => @panic("Internal Error"),
         };
 
         switch (self.ast.getNode(pair.right)) {
             .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                .ArrayCons => {
+                .ArrayHead => {
                     var nestedArray = self.ast.getElem(nestedInfix.left) orelse @panic("Internal Error");
                     try self.appendArrayElems(
                         nestedArray.asDyn().asArray(),
@@ -1283,7 +1283,7 @@ pub const Compiler = struct {
                     );
                     try object.members.put(key, nestedObject);
                 },
-                else => @panic("todo"),
+                else => @panic("Internal Error"),
             },
             .ElemNode => |elem| {
                 switch (elem) {
