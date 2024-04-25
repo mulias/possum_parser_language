@@ -1794,9 +1794,9 @@ test "{'a': false} <- const({'a': true})" {
     }
 }
 
-test "{'a': A} <- const({'a': 123})" {
+test "{'a': A} <- const({'a': 123}) $ A" {
     const parser =
-        \\{'a': A} <- const({'a': 123})
+        \\{'a': A} <- const({'a': 123}) $ A
     ;
     {
         var vm = VM.create();
@@ -1804,13 +1804,10 @@ test "{'a': A} <- const({'a': 123})" {
         defer vm.deinit();
         const result = try vm.interpret(parser, "");
 
-        // Do this after running the VM to make sure strings are interned
-        var object = try Elem.Dyn.Object.create(&vm, 1);
-        try object.members.put(
-            vm.strings.getId("a"),
+        try testing.expectSuccess(
+            result,
             Elem.integerString(123, vm.strings.getId("123")),
+            vm.strings,
         );
-
-        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
     }
 }

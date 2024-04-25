@@ -235,12 +235,12 @@ pub const VM = struct {
                 // update each local to match the corresponding part of the
                 // matched value.
                 const value = self.pop();
-                var pattern = self.pop();
+                const pattern = self.pop();
 
                 if (value.isSuccess()) {
-                    pattern = self.bindPatternVariables(pattern);
+                    const boundPattern = try self.bindVars(pattern, false);
 
-                    if (value.isValueMatchingPattern(pattern, self.strings)) {
+                    if (value.isValueMatchingPattern(boundPattern, self.strings)) {
                         try self.push(value);
                     } else {
                         try self.pushFailure();
@@ -359,7 +359,7 @@ pub const VM = struct {
             },
             .ResolveUnboundVars => {
                 const value = self.pop();
-                try self.push(try self.resolveUnboundVars(value));
+                try self.push(try self.bindVars(value, true));
             },
             .TakeLeft => {
                 // Postfix, lhs and rhs on stack.
@@ -542,53 +542,26 @@ pub const VM = struct {
         }
     }
 
-    fn bindPatternVariables(self: *VM, pattern: Elem) Elem {
-        switch (pattern) {
+    fn bindVars(self: *VM, patternOrValue: Elem, failIfUnbound: bool) !Elem {
+        switch (patternOrValue) {
             .ValueVar => |varName| {
                 const slot = self.frame().function.localSlot(varName).?;
-                return self.getLocal(slot);
-            },
-            .Dyn => |dyn| switch (dyn.dynType) {
-                .Array => {
-                    var array = dyn.asArray();
-
-                    for (array.elems.items) |elem| {
-                        if (elem.isDynType(.Array)) {
-                            _ = self.bindPatternVariables(elem);
-                        }
-                    }
-
-                    for (array.pattern.items) |patternElem| {
-                        array.elems.items[patternElem.index] = self.getLocal(patternElem.slot);
-                    }
-
-                    return array.dyn.elem();
-                },
-                else => return pattern,
-            },
-            else => return pattern,
-        }
-    }
-
-    fn resolveUnboundVars(self: *VM, value: Elem) !Elem {
-        switch (value) {
-            .ValueVar => |varName| {
-                const slot = self.frame().function.localSlot(varName).?;
-                return self.getBoundLocal(slot);
+                const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
+                return local;
             },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Array => {
                     var array = dyn.asArray();
                     var boundArray = try Elem.Dyn.Array.copy(self, array.elems.items);
 
-                    for (array.elems.items) |elem| {
-                        if (elem.isDynType(.Array)) {
-                            _ = self.bindPatternVariables(elem);
-                        }
+                    for (array.pattern.items) |patternElem| {
+                        const slot = patternElem.slot;
+                        const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
+                        boundArray.elems.items[patternElem.index] = local;
                     }
 
-                    for (array.pattern.items) |patternElem| {
-                        boundArray.elems.items[patternElem.index] = try self.getBoundLocal(patternElem.slot);
+                    for (boundArray.elems.items, 0..) |elem, index| {
+                        boundArray.elems.items[index] = try self.bindVars(elem, failIfUnbound);
                     }
 
                     return boundArray.dyn.elem();
@@ -598,21 +571,21 @@ pub const VM = struct {
                     var boundObject = try Elem.Dyn.Object.create(self, object.members.count());
                     try boundObject.concat(object);
 
-                    // TODO: object pattern matching
-
                     for (object.pattern.items) |patternElem| {
                         if (patternElem.replace == .Value) {
-                            try boundObject.members.put(
-                                patternElem.key,
-                                try self.getBoundLocal(patternElem.slot),
-                            );
+                            const slot = patternElem.slot;
+                            const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
+
+                            try boundObject.members.put(patternElem.key, local);
                         }
                     }
 
                     for (object.pattern.items) |patternElem| {
                         if (patternElem.replace == .Key) {
                             if (boundObject.members.fetchOrderedRemove(patternElem.key)) |kv| {
-                                const newKey = switch (try self.getBoundLocal(patternElem.slot)) {
+                                const slot = patternElem.slot;
+                                const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
+                                const newKey = switch (local) {
                                     .String => |sId| sId,
                                     .Dyn => |keyDyn| switch (keyDyn.dynType) {
                                         .String => blk: {
@@ -630,11 +603,16 @@ pub const VM = struct {
                         }
                     }
 
+                    var iterator = boundObject.members.iterator();
+                    while (iterator.next()) |entry| {
+                        entry.value_ptr.* = try self.bindVars(entry.value_ptr.*, failIfUnbound);
+                    }
+
                     return boundObject.dyn.elem();
                 },
-                else => return value,
+                else => return patternOrValue,
             },
-            else => return value,
+            else => return patternOrValue,
         }
     }
 
@@ -652,9 +630,7 @@ pub const VM = struct {
                     var valueArray = value.asDyn().asArray();
 
                     for (patternArray.elems.items, 0..) |elem, index| {
-                        if (elem.isDynType(.Array)) {
-                            self.bindLocalVariables(elem, valueArray.elems.items[index]);
-                        }
+                        self.bindLocalVariables(elem, valueArray.elems.items[index]);
                     }
 
                     for (patternArray.pattern.items) |patternElem| {
@@ -664,6 +640,18 @@ pub const VM = struct {
                                 valueArray.elems.items[patternElem.index],
                             );
                         }
+                    }
+                },
+                .Object => {
+                    var patternObject = dyn.asObject();
+                    var valueObject = value.asDyn().asObject();
+
+                    var iterator = patternObject.members.iterator();
+                    while (iterator.next()) |entry| {
+                        self.bindLocalVariables(
+                            entry.value_ptr.*,
+                            valueObject.members.get(entry.key_ptr.*).?,
+                        );
                     }
                 },
                 else => {},
