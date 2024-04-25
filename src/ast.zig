@@ -3,6 +3,8 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Elem = @import("elem.zig").Elem;
 const Location = @import("location.zig").Location;
+const VMWriter = @import("./writer.zig").VMWriter;
+const StringTable = @import("string_table.zig").StringTable;
 
 pub const Ast = struct {
     roots: ArrayList(usize),
@@ -33,6 +35,8 @@ pub const Ast = struct {
         Or,
         ParamsOrArgs,
         Return,
+        StringTemplate,
+        StringTemplateCons,
         TakeLeft,
         TakeRight,
     };
@@ -108,6 +112,17 @@ pub const Ast = struct {
         } });
         try self.locations.append(loc);
         return self.nodes.items.len - 1;
+    }
+
+    pub fn printNodes(self: *Ast, writer: VMWriter, strings: StringTable) !void {
+        for (self.nodes.items, 0..) |node, index| {
+            try writer.print("node {d}: ", .{index});
+            switch (node) {
+                .InfixNode => |infix| try writer.print("{s} {d} {d}", .{ @tagName(infix.infixType), infix.left, infix.right }),
+                .ElemNode => |elem| try elem.print(writer, strings),
+            }
+            try writer.print("\n", .{});
+        }
     }
 };
 

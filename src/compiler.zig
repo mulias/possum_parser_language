@@ -253,6 +253,7 @@ pub const Compiler = struct {
                 => return Error.InvalidGlobalValue,
                 .Dyn => |dyn| switch (dyn.dynType) {
                     .String,
+                    .StringTemplate,
                     .Array,
                     .Object,
                     => {},
@@ -277,7 +278,9 @@ pub const Compiler = struct {
                 => {},
                 .ValueVar => return Error.InvalidGlobalParser,
                 .Dyn => |dyn| switch (dyn.dynType) {
-                    .String => {},
+                    .String,
+                    .StringTemplate,
+                    => {},
                     .Array,
                     .Object,
                     => return Error.InvalidGlobalParser,
@@ -465,6 +468,8 @@ pub const Compiler = struct {
                 .ObjectCons,
                 .ObjectPair,
                 .NumberSubtract,
+                .StringTemplate,
+                .StringTemplateCons,
                 => return Error.InvalidAst,
             },
             .ElemNode => try self.writeParserElem(nodeId),
@@ -729,11 +734,12 @@ pub const Compiler = struct {
                 .ArrayHead => {
                     try self.writeArray(infix.left, infix.right);
                 },
-                .ArrayCons => @panic("internal error"),
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
                 },
-                .ObjectPair => @panic("Internal Error"),
+                .StringTemplate => {
+                    try self.writeStringTemplate(infix.left, infix.right);
+                },
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
@@ -742,6 +748,10 @@ pub const Compiler = struct {
                     try self.writePattern(infix.right);
                     try self.emitOp(.NumberSubtract, loc);
                 },
+                .ArrayCons,
+                .ObjectPair,
+                .StringTemplateCons,
+                => @panic("Internal Error"),
                 else => {
                     try self.printError("Invalid infix operator in pattern", loc);
                     return Error.InvalidAst;
@@ -794,6 +804,7 @@ pub const Compiler = struct {
                     => @panic("Internal Error"), // not produced by the parser
                     .Array,
                     .Object,
+                    .StringTemplate,
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -869,12 +880,14 @@ pub const Compiler = struct {
                     try self.writeArray(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
-                .ArrayCons => @panic("internal error"),
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
-                .ObjectPair => @panic("Internal Error"),
+                .StringTemplate => {
+                    try self.writeStringTemplate(infix.left, infix.right);
+                    try self.emitOp(.ResolveUnboundVars, loc);
+                },
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
@@ -883,6 +896,10 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, false);
                     try self.emitOp(.NumberSubtract, loc);
                 },
+                .ArrayCons,
+                .ObjectPair,
+                .StringTemplateCons,
+                => @panic("Internal Error"),
                 else => {
                     try self.printError("Invalid infix operator in value", loc);
                     return Error.InvalidAst;
@@ -946,6 +963,7 @@ pub const Compiler = struct {
                     => @panic("Internal Error"), // not produced by the parser
                     .Array,
                     .Object,
+                    .StringTemplate,
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -967,6 +985,10 @@ pub const Compiler = struct {
                 },
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
+                    try self.emitOp(.ResolveUnboundVars, loc);
+                },
+                .StringTemplate => {
+                    try self.writeStringTemplate(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
                 .Backtrack => {
@@ -1049,6 +1071,7 @@ pub const Compiler = struct {
                 .DeclareGlobal, // handled by top-level compiler functions
                 .ParamsOrArgs, // handled by CallOrDefineFunction
                 .ObjectPair, // handled by ObjectCons
+                .StringTemplateCons, // handled by StringTemplate
                 => @panic("internal error"),
             },
             .ElemNode => try self.writeValue(nodeId, isTailPosition),
@@ -1278,6 +1301,13 @@ pub const Compiler = struct {
                 try object.members.put(key, elem);
             },
         }
+    }
+
+    fn writeStringTemplate(self: *Compiler, startNodeId: usize, partsNodeId: usize) Error!void {
+        _ = startNodeId;
+        _ = partsNodeId;
+        _ = self;
+        return;
     }
 
     fn chunk(self: *Compiler) *Chunk {

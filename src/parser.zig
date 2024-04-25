@@ -31,6 +31,11 @@ pub const Parser = struct {
     } || VMWriter.Error;
 
     pub fn init(vm: *VM) Parser {
+        var ast = Ast.init(vm.allocator);
+        return initWithAst(vm, ast);
+    }
+
+    fn initWithAst(vm: *VM, ast: Ast) Parser {
         return Parser{
             .vm = vm,
             .scanner = undefined,
@@ -40,7 +45,7 @@ pub const Parser = struct {
             .currentSkippedNewline = false,
             .previousSkippedWhitespace = false,
             .previousSkippedNewline = false,
-            .ast = Ast.init(vm.allocator),
+            .ast = ast,
         };
     }
 
@@ -62,6 +67,12 @@ pub const Parser = struct {
 
     pub fn end(self: *Parser) !void {
         self.ast.endLocation = self.previous.loc;
+    }
+
+    fn parseExpression(self: *Parser, source: []const u8) !usize {
+        self.scanner = Scanner.init(source);
+        try self.advance();
+        return self.expression();
     }
 
     fn statement(self: *Parser) !usize {
@@ -181,15 +192,83 @@ pub const Parser = struct {
         const t1 = self.previous;
         const s1 = stringContents(t1.lexeme);
 
-        var sId: StringTable.Id = undefined;
-
         if (t1.isBacktickString()) {
-            sId = try self.vm.strings.insert(s1);
-        } else {
-            sId = try self.internUnescaped(s1);
+            const sId = try self.vm.strings.insert(s1);
+            return self.ast.pushElem(Elem.string(sId), t1.loc);
         }
 
-        return self.ast.pushElem(Elem.string(sId), t1.loc);
+        const result = try self.internUnescaped(s1);
+        const nodeId = try self.ast.pushElem(Elem.string(result.sId), t1.loc);
+
+        if (result.rest.len == 0) {
+            return nodeId;
+        } else {
+            return self.stringTemplate(nodeId, result.rest);
+        }
+    }
+
+    fn stringTemplate(self: *Parser, firstPartNodeId: usize, rest: []const u8) !usize {
+        // Empty string template struct
+        const loc = self.previous.loc;
+        const st = try Elem.Dyn.StringTemplate.create(self.vm);
+        const nodeId = try self.ast.pushElem(st.dyn.elem(), loc);
+
+        // Don't deinit, we want the shared ast to persist
+        var templateParser = initWithAst(self.vm, self.ast);
+
+        // There will be at least one more template part
+        const templatePartsRestNodeId = try templateParser.stringTemplateParts(rest);
+
+        self.ast = templateParser.ast;
+
+        // All template parts
+        const templatePartsNodeId = try self.ast.pushInfix(
+            .StringTemplateCons,
+            firstPartNodeId,
+            templatePartsRestNodeId,
+            loc,
+        );
+
+        return self.ast.pushInfix(
+            .StringTemplate,
+            nodeId,
+            templatePartsNodeId,
+            loc,
+        );
+    }
+
+    fn stringTemplateParts(templateParser: *Parser, str: []const u8) !usize {
+        const loc = templateParser.previous.loc;
+        var nodeId: usize = undefined;
+        var rest: []const u8 = undefined;
+
+        if (str[0] == '%' and str[1] == '(') {
+            // Next template part is an expression
+            nodeId = try templateParser.parseExpression(str[2..]);
+            debug.print("template node {d}\n", .{nodeId});
+            try templateParser.consume(.RightParen, "Expect ')' after expression.");
+            rest = templateParser.scanner.source;
+            debug.print("rest '{s}'\n", .{rest});
+        } else {
+            // Next template part is a string
+            const result = try templateParser.internUnescaped(str);
+            nodeId = try templateParser.ast.pushElem(Elem.string(result.sId), loc);
+            rest = result.rest;
+        }
+
+        if (rest.len == 0) {
+            debug.print("done\n", .{});
+            return nodeId;
+        } else {
+            const restNodeId = try templateParser.stringTemplateParts(rest);
+
+            return templateParser.ast.pushInfix(
+                .StringTemplateCons,
+                nodeId,
+                restNodeId,
+                loc,
+            );
+        }
     }
 
     fn stringOrCharRange(self: *Parser) !usize {
@@ -235,7 +314,12 @@ pub const Parser = struct {
         return str[1 .. str.len - 1];
     }
 
-    fn internUnescaped(self: *Parser, str: []const u8) !StringTable.Id {
+    const InternUnescapedResult = struct {
+        sId: StringTable.Id,
+        rest: []const u8,
+    };
+
+    fn internUnescaped(self: *Parser, str: []const u8) !InternUnescapedResult {
         var buffer = try self.vm.allocator.alloc(u8, str.len);
         defer self.vm.allocator.free(buffer);
         var bufferLen: usize = 0;
@@ -281,6 +365,9 @@ pub const Parser = struct {
                     bufferLen += 1;
                     s = s[2..];
                 }
+            } else if (s[0] == '%' and s[1] == '(') {
+                // Start of a string interpolation template.
+                break;
             } else {
                 // Otherwise copy the current byte and iterate.
                 buffer[bufferLen] = s[0];
@@ -289,7 +376,10 @@ pub const Parser = struct {
             }
         }
 
-        return self.vm.strings.insert(buffer[0..bufferLen]);
+        return .{
+            .sId = try self.vm.strings.insert(buffer[0..bufferLen]),
+            .rest = s,
+        };
     }
 
     fn characterStringToCodepoint(strToken: Token) ?u21 {
