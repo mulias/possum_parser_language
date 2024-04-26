@@ -1307,7 +1307,7 @@ pub const Compiler = struct {
         _ = startNodeId;
         _ = partsNodeId;
         _ = self;
-        return;
+        @panic("todo");
     }
 
     fn chunk(self: *Compiler) *Chunk {
