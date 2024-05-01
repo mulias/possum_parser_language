@@ -750,7 +750,8 @@ pub const Compiler = struct {
                 .NumberSubtract => {
                     try self.writePattern(infix.left);
                     try self.writePattern(infix.right);
-                    try self.emitOp(.NumberSubtract, loc);
+                    try self.emitOp(.NegateNumber, loc);
+                    try self.emitOp(.Merge, loc);
                 },
                 .ArrayCons,
                 .ObjectPair,
@@ -898,7 +899,8 @@ pub const Compiler = struct {
                 .NumberSubtract => {
                     try self.writeValue(infix.left, false);
                     try self.writeValue(infix.right, false);
-                    try self.emitOp(.NumberSubtract, loc);
+                    try self.emitOp(.NegateNumber, loc);
+                    try self.emitOp(.Merge, loc);
                 },
                 .ArrayCons,
                 .ObjectPair,
@@ -1012,7 +1014,8 @@ pub const Compiler = struct {
                 .NumberSubtract => {
                     try self.writeValueFunction(infix.left, false);
                     try self.writeValueFunction(infix.right, false);
-                    try self.emitOp(.NumberSubtract, loc);
+                    try self.emitOp(.NegateNumber, loc);
+                    try self.emitOp(.Merge, loc);
                 },
                 .TakeLeft => {
                     try self.writeValueFunction(infix.left, false);
@@ -1204,7 +1207,9 @@ pub const Compiler = struct {
                     );
                     try array.append(nestedObject);
                 },
-                .Merge => {
+                .Merge,
+                .NumberSubtract,
+                => {
                     const loc = self.ast.getLocation(nodeId);
                     try self.writeValue(nodeId, false);
                     try self.emitUnaryOp(.InsertAtIndex, index, loc);

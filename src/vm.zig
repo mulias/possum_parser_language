@@ -328,6 +328,15 @@ pub const VM = struct {
                     return self.runtimeError("Merge type mismatch", .{});
                 }
             },
+            .NegateNumber => {
+                const num = self.pop();
+
+                if (Elem.negateNumber(num)) |value| {
+                    try self.push(value);
+                } else {
+                    return self.runtimeError("Subtraction is only supported for numbers.", .{});
+                }
+            },
             .Null => {
                 // Push singleton null value.
                 try self.push(Elem.nullConst);
@@ -340,16 +349,6 @@ pub const VM = struct {
                     } else {
                         try self.pushFailure();
                     }
-                }
-            },
-            .NumberSubtract => {
-                const rhs = self.pop();
-                const lhs = self.pop();
-
-                if (Elem.numberSubtract(lhs, rhs)) |value| {
-                    try self.push(value);
-                } else {
-                    return self.runtimeError("Subtraction is only supported for numbers.", .{});
                 }
             },
             .Or => {
