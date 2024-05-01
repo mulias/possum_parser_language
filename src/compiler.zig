@@ -47,6 +47,10 @@ pub const Compiler = struct {
         var functions = ArrayList(*Elem.Dyn.Function).init(vm.allocator);
         try functions.append(main);
 
+        // Ensure that the strings table includes the placeholder var, which
+        // might be useed directly by the compiler.
+        _ = try vm.strings.insert("_");
+
         return Compiler{
             .vm = vm,
             .ast = ast,
@@ -1161,55 +1165,68 @@ pub const Compiler = struct {
 
     fn appendArrayElems(self: *Compiler, array: *Elem.Dyn.Array, itemNodeId: usize) !void {
         var nodeId = itemNodeId;
+        var index: u8 = 0;
 
         while (true) {
             switch (self.ast.getNode(nodeId)) {
                 .InfixNode => |infix| switch (infix.infixType) {
                     .ArrayCons => {
-                        try self.appendArrayElems(array, infix.left);
+                        try self.appendArrayElem(array, infix.left, index);
                         nodeId = infix.right;
+                        index += 1;
                     },
-                    .ArrayHead => {
-                        var nestedArray = self.ast.getElem(infix.left) orelse @panic("Internal Error");
-                        try self.appendArrayElems(
-                            nestedArray.asDyn().asArray(),
-                            infix.right,
-                        );
-                        try self.appendArrayElem(array, nestedArray);
-                        break;
-                    },
-                    .ObjectCons => {
-                        var nestedObject = self.ast.getElem(infix.left) orelse @panic("Internal Error");
-                        try self.appendObjectMembers(
-                            nestedObject.asDyn().asObject(),
-                            infix.right,
-                        );
-                        try self.appendArrayElem(array, nestedObject);
-                        break;
-                    },
-                    else => @panic("Internal Error"),
+                    else => break,
                 },
-                .ElemNode => |elem| {
-                    // The last array element
-                    try self.appendArrayElem(array, elem);
-                    break;
-                },
+                .ElemNode => break,
             }
         }
+
+        // The last array element
+        try self.appendArrayElem(array, nodeId, index);
     }
 
-    fn appendArrayElem(self: *Compiler, array: *Elem.Dyn.Array, elem: Elem) !void {
-        switch (elem) {
-            .ValueVar => |name| {
-                try array.addPatternElem(
-                    name,
-                    array.elems.items.len,
-                    self.localSlot(name).?,
-                );
+    fn appendArrayElem(self: *Compiler, array: *Elem.Dyn.Array, nodeId: usize, index: u8) Error!void {
+        switch (self.ast.getNode(nodeId)) {
+            .InfixNode => |infix| switch (infix.infixType) {
+                .ArrayHead => {
+                    var nestedArray = self.ast.getElem(infix.left) orelse @panic("Internal Error");
+                    try self.appendArrayElems(
+                        nestedArray.asDyn().asArray(),
+                        infix.right,
+                    );
+                    try array.append(nestedArray);
+                },
+                .ObjectCons => {
+                    var nestedObject = self.ast.getElem(infix.left) orelse @panic("Internal Error");
+                    try self.appendObjectMembers(
+                        nestedObject.asDyn().asObject(),
+                        infix.right,
+                    );
+                    try array.append(nestedObject);
+                },
+                .Merge => {
+                    const loc = self.ast.getLocation(nodeId);
+                    try self.writeValue(nodeId, false);
+                    try self.emitUnaryOp(.InsertAtIndex, index, loc);
+
+                    try array.append(self.placeholderVar());
+                },
+                else => @panic("Internal Error"),
             },
-            else => {},
+            .ElemNode => |elem| {
+                switch (elem) {
+                    .ValueVar => |name| {
+                        try array.addPatternElem(
+                            name,
+                            array.elems.items.len,
+                            self.localSlot(name).?,
+                        );
+                    },
+                    else => {},
+                }
+                try array.append(elem);
+            },
         }
-        try array.append(elem);
     }
 
     fn writeObject(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
@@ -1308,6 +1325,11 @@ pub const Compiler = struct {
         _ = partsNodeId;
         _ = self;
         @panic("todo");
+    }
+
+    fn placeholderVar(self: *Compiler) Elem {
+        const sId = self.vm.strings.getId("_");
+        return Elem.valueVar(sId);
     }
 
     fn chunk(self: *Compiler) *Chunk {

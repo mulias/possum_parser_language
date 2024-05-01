@@ -1811,3 +1811,27 @@ test "{'a': A} <- const({'a': 123}) $ A" {
         );
     }
 }
+
+test "const([1, 2, 3 + 10, 4])" {
+    const parser =
+        \\const([1, 2, 3 + 10, 4])
+    ;
+    {
+        const array = [_]Elem{
+            Elem.integer(1),
+            Elem.integer(2),
+            Elem.integer(13),
+            Elem.integer(4),
+        };
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "");
+
+        try testing.expectSuccess(
+            result,
+            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}

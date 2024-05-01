@@ -276,6 +276,14 @@ pub const VM = struct {
                 const slot = self.readByte();
                 try self.push(try self.getBoundLocal(slot));
             },
+            .InsertAtIndex => {
+                const index = self.readByte();
+                const elem = self.pop();
+                const array = self.pop().asDyn().asArray();
+                var copy = try Elem.Dyn.Array.copy(self, array.elems.items);
+                copy.elems.items[index] = elem;
+                try self.push(copy.dyn.elem());
+            },
             .Jump => {
                 const offset = self.readShort();
                 self.frame().ip += offset;
