@@ -38,7 +38,7 @@ pub const Compiler = struct {
     } || VMWriter.Error;
 
     pub fn init(vm: *VM, ast: Ast) !Compiler {
-        var main = try Elem.Dyn.Function.create(vm, .{
+        const main = try Elem.Dyn.Function.create(vm, .{
             .name = try vm.strings.insert("@main"),
             .functionType = .Main,
             .arity = 0,
@@ -357,7 +357,7 @@ pub const Compiler = struct {
         }
 
         if (globalVal.isDynType(.Function)) {
-            var function = globalVal.asDyn().asFunction();
+            const function = globalVal.asDyn().asFunction();
 
             try self.functions.append(function);
 
@@ -687,7 +687,7 @@ pub const Compiler = struct {
     fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !*Elem.Dyn.Function {
         const loc = self.ast.getLocation(nodeId);
 
-        var function = try Elem.Dyn.Function.create(self.vm, .{
+        const function = try Elem.Dyn.Function.create(self.vm, .{
             .name = try self.nextAnonFunctionName(),
             .functionType = .AnonParser,
             .arity = 0,
@@ -1158,7 +1158,7 @@ pub const Compiler = struct {
         const arrayElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
         const arrayLoc = self.ast.getLocation(startNodeId);
 
-        var array = arrayElem.asDyn().asArray();
+        const array = arrayElem.asDyn().asArray();
 
         const constId = try self.makeConstant(arrayElem);
         try self.emitUnaryOp(.GetConstant, constId, arrayLoc);
@@ -1237,9 +1237,9 @@ pub const Compiler = struct {
     fn writeObject(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
         // The first left node is the empty array
         var objectElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
-        var objectLoc = self.ast.getLocation(startNodeId);
+        const objectLoc = self.ast.getLocation(startNodeId);
 
-        var object = objectElem.asDyn().asObject();
+        const object = objectElem.asDyn().asObject();
 
         const constId = try self.makeConstant(objectElem);
         try self.emitUnaryOp(.GetConstant, constId, objectLoc);

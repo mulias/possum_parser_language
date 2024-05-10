@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe.addModule("clap", clap_module);
+    exe.root_module.addImport("clap", clap_module);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

@@ -31,7 +31,7 @@ pub const Parser = struct {
     } || VMWriter.Error;
 
     pub fn init(vm: *VM) Parser {
-        var ast = Ast.init(vm.allocator);
+        const ast = Ast.init(vm.allocator);
         return initWithAst(vm, ast);
     }
 

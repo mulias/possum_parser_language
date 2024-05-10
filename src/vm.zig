@@ -45,7 +45,7 @@ pub const VM = struct {
     } || VMWriter.Error;
 
     pub fn create() VM {
-        var self = VM{
+        const self = VM{
             .allocator = undefined,
             .strings = undefined,
             .globals = undefined,
@@ -115,7 +115,7 @@ pub const VM = struct {
     }
 
     fn loadMetaFunctions(self: *VM) !void {
-        var functions = try meta.functions(self);
+        const functions = try meta.functions(self);
 
         for (functions) |function| {
             try self.globals.put(function.name, function.dyn.elem());
@@ -181,7 +181,7 @@ pub const VM = struct {
                 switch (self.pop()) {
                     .Dyn => |dyn| switch (dyn.dynType) {
                         .Function => {
-                            var function = dyn.asFunction();
+                            const function = dyn.asFunction();
                             var closure = try Elem.Dyn.Closure.create(self, function);
                             closure.capture(toSlot, self.getLocal(fromSlot));
                             try self.push(closure.dyn.elem());
@@ -304,7 +304,7 @@ pub const VM = struct {
                 var function = self.getFunctionElem().asDyn();
 
                 if (function.isType(.Closure)) {
-                    var closure = function.asClosure();
+                    const closure = function.asClosure();
                     for (closure.captures, 0..) |capture, slot| {
                         if (capture) |elem| {
                             self.setLocal(slot, elem);
@@ -540,7 +540,7 @@ pub const VM = struct {
                     }
                 },
                 .Closure => {
-                    var functionElem = dyn.asClosure().function.dyn.elem();
+                    const functionElem = dyn.asClosure().function.dyn.elem();
                     try self.callFunction(functionElem, argCount, isTailPosition);
                 },
                 else => @panic("Internal error"),
@@ -558,7 +558,7 @@ pub const VM = struct {
             },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Array => {
-                    var array = dyn.asArray();
+                    const array = dyn.asArray();
                     var boundArray = try Elem.Dyn.Array.copy(self, array.elems.items);
 
                     for (array.pattern.items) |patternElem| {
@@ -633,8 +633,8 @@ pub const VM = struct {
             },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Array => {
-                    var patternArray = dyn.asArray();
-                    var valueArray = value.asDyn().asArray();
+                    const patternArray = dyn.asArray();
+                    const valueArray = value.asDyn().asArray();
 
                     for (patternArray.elems.items, 0..) |elem, index| {
                         self.bindLocalVariables(elem, valueArray.elems.items[index]);
@@ -745,7 +745,7 @@ pub const VM = struct {
     }
 
     fn peek(self: *VM, distance: usize) Elem {
-        var len = self.stack.items.len;
+        const len = self.stack.items.len;
         return self.stack.items[len - 1 - distance];
     }
 
@@ -801,7 +801,7 @@ pub const VM = struct {
     fn freeDynList(self: *VM) void {
         var dyn = self.dynList;
         while (dyn) |d| {
-            var next = d.next;
+            const next = d.next;
             d.destroy(self);
             dyn = next;
         }
@@ -819,10 +819,9 @@ fn intLength(int: i64) usize {
 
 fn intLengthLoop(int: i64) usize {
     comptime var digits: usize = 1;
-    const absInt = std.math.absCast(int);
 
     inline while (digits < 19) : (digits += 1) {
-        if (absInt < std.math.pow(i64, 10, digits)) return digits;
+        if (@abs(int) < std.math.pow(i64, 10, digits)) return digits;
     }
     return digits;
 }

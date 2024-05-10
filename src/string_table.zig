@@ -72,7 +72,7 @@ pub const StringTable = struct {
 };
 
 test "StringTable.insert copies and interns a string" {
-    var allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
 
     var table = StringTable.init(allocator);
     defer table.deinit();
@@ -87,7 +87,7 @@ test "StringTable.insert copies and interns a string" {
 }
 
 test "StringTable.insert does not add a string more than once" {
-    var allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
 
     var table = StringTable.init(allocator);
     defer table.deinit();
@@ -107,7 +107,7 @@ test "StringTable.insert does not add a string more than once" {
 }
 
 test "StringTable.insert can add multiple strings" {
-    var allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
 
     var table = StringTable.init(allocator);
     defer table.deinit();

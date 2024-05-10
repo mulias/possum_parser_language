@@ -257,8 +257,8 @@ pub const Elem = union(ElemType) {
                 .String => return value.isEql(pattern, strings),
                 .Array => {
                     if (pattern.isDynType(.Array)) {
-                        var valueArray = dyn.asArray();
-                        var patternArray = pattern.asDyn().asArray();
+                        const valueArray = dyn.asArray();
+                        const patternArray = pattern.asDyn().asArray();
 
                         if (valueArray.elems.items.len != patternArray.elems.items.len) {
                             return false;
@@ -527,7 +527,7 @@ pub const Elem = union(ElemType) {
                     return .{ .string = s };
                 },
                 .Array => {
-                    var array = dyn.asArray();
+                    const array = dyn.asArray();
                     var jsonArray = ArrayList(json.Value).init(allocator);
                     try jsonArray.ensureTotalCapacity(array.elems.items.len);
 
@@ -639,27 +639,27 @@ pub const Elem = union(ElemType) {
         }
 
         pub fn asString(self: *Dyn) *String {
-            return @fieldParentPtr(String, "dyn", self);
+            return @fieldParentPtr("dyn", self);
         }
 
         pub fn asStringTemplate(self: *Dyn) *StringTemplate {
-            return @fieldParentPtr(StringTemplate, "dyn", self);
+            return @fieldParentPtr("dyn", self);
         }
 
         pub fn asArray(self: *Dyn) *Array {
-            return @fieldParentPtr(Array, "dyn", self);
+            return @fieldParentPtr("dyn", self);
         }
 
         pub fn asObject(self: *Dyn) *Object {
-            return @fieldParentPtr(Object, "dyn", self);
+            return @fieldParentPtr("dyn", self);
         }
 
         pub fn asFunction(self: *Dyn) *Function {
-            return @fieldParentPtr(Function, "dyn", self);
+            return @fieldParentPtr("dyn", self);
         }
 
         pub fn asClosure(self: *Dyn) *Closure {
-            return @fieldParentPtr(Closure, "dyn", self);
+            return @fieldParentPtr("dyn", self);
         }
 
         pub const String = struct {
@@ -762,7 +762,7 @@ pub const Elem = union(ElemType) {
             pub fn isEql(self: *StringTemplate, other: *Dyn, strings: StringTable) bool {
                 if (!other.isType(.StringTemplate)) return false;
 
-                var otherString = other.asStringTemplate();
+                const otherString = other.asStringTemplate();
 
                 if (self.parts.items.len != otherString.parts.items.len) return false;
 
@@ -832,7 +832,7 @@ pub const Elem = union(ElemType) {
             pub fn isEql(self: *Array, other: *Dyn, strings: StringTable) bool {
                 if (!other.isType(.Array)) return false;
 
-                var otherArray = other.asArray();
+                const otherArray = other.asArray();
 
                 if (self.elems.items.len != otherArray.elems.items.len) return false;
 
@@ -1058,7 +1058,7 @@ pub const Elem = union(ElemType) {
                 const dyn = try Dyn.allocate(vm, Closure, .Closure);
                 const closure = dyn.asClosure();
 
-                var captures = try vm.allocator.alloc(?Elem, function.locals.items.len);
+                const captures = try vm.allocator.alloc(?Elem, function.locals.items.len);
                 @memset(captures, null);
 
                 closure.* = Closure{
@@ -1123,7 +1123,7 @@ test "struct size" {
     try std.testing.expectEqual(16, @sizeOf(Elem.Dyn));
     try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.String));
     try std.testing.expectEqual(96, @sizeOf(Elem.Dyn.Array));
-    try std.testing.expectEqual(104, @sizeOf(Elem.Dyn.Object));
+    try std.testing.expectEqual(112, @sizeOf(Elem.Dyn.Object));
     try std.testing.expectEqual(200, @sizeOf(Elem.Dyn.Function));
     try std.testing.expectEqual(40, @sizeOf(Elem.Dyn.Closure));
 }

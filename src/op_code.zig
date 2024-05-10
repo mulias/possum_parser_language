@@ -75,7 +75,7 @@ pub const OpCode = enum(u8) {
     }
 
     fn constantInstruction(self: OpCode, chunk: *Chunk, offset: usize, strings: StringTable, writer: VMWriter) !usize {
-        var constantIdx = chunk.read(offset + 1);
+        const constantIdx = chunk.read(offset + 1);
         var constantElem = chunk.getConstant(constantIdx);
         try writer.print("{s} {}: ", .{ @tagName(self), constantIdx });
         try constantElem.print(writer, strings);

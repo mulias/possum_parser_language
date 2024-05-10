@@ -32,7 +32,7 @@ pub const CLI = struct {
     }
 
     pub fn run(self: CLI) !void {
-        switch (try cli_config.run()) {
+        switch (try cli_config.run(self.allocator)) {
             .Parse => |args| try self.parse(args.parser, args.input),
             .Docs => try self.outWriter.print("Docs\n", .{}),
             .Help => try cli_config.printHelp(),

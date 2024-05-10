@@ -14,7 +14,7 @@
       devShells = forEachSupportedSystem ({ pkgs }: {
         default = pkgs.mkShell {
           packages = with pkgs; [
-            zig_0_11
+            zig_0_12
             zls
             python311Packages.cram
           ];

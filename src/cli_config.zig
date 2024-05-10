@@ -1,5 +1,6 @@
 const clap = @import("clap");
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const debug = std.debug;
 const io = std.io;
@@ -44,7 +45,7 @@ const params = clap.parseParamsComptime(
     \\
 );
 
-pub fn run() !Mode {
+pub fn run(allocator: Allocator) !Mode {
     const parsers = comptime .{
         .STR = clap.parsers.string,
         .FILE = clap.parsers.string,
@@ -52,7 +53,7 @@ pub fn run() !Mode {
         .DOCS = clap.parsers.enumeration(Docs),
     };
 
-    var result = try clap.parse(clap.Help, &params, parsers, .{});
+    var result = try clap.parse(clap.Help, &params, parsers, .{ .allocator = allocator });
     defer result.deinit();
 
     // Prioritize --help
