@@ -1859,3 +1859,30 @@ test "const([1, 2, 3 - 10, 4])" {
         );
     }
 }
+
+test "'' $ [1, 2, [1+1+1]]" {
+    const parser =
+        \\'' $ [1, 2, [1+1+1]]
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr);
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "");
+
+        const innerArray = [_]Elem{
+            Elem.integer(3),
+        };
+        const array = [_]Elem{
+            Elem.integer(1),
+            Elem.integer(2),
+            (try Elem.Dyn.Array.copy(&vm, &innerArray)).dyn.elem(),
+        };
+
+        try testing.expectSuccess(
+            result,
+            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}

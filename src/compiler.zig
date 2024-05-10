@@ -736,7 +736,7 @@ pub const Compiler = struct {
                     try self.emitOp(.Merge, loc);
                 },
                 .ArrayHead => {
-                    try self.writeArray(infix.left, infix.right);
+                    try self.writePatternArray(infix.left, infix.right);
                 },
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
@@ -882,7 +882,7 @@ pub const Compiler = struct {
                     try self.emitOp(.Merge, loc);
                 },
                 .ArrayHead => {
-                    try self.writeArray(infix.left, infix.right);
+                    try self.writeValueArray(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
                 .ObjectCons => {
@@ -986,7 +986,7 @@ pub const Compiler = struct {
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
-                    try self.writeArray(infix.left, infix.right);
+                    try self.writeValueArray(infix.left, infix.right);
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
                 .ObjectCons => {
@@ -1153,7 +1153,7 @@ pub const Compiler = struct {
         return argCount;
     }
 
-    fn writeArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
+    fn writeValueArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
         // The first left node is the empty array
         const arrayElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
         const arrayLoc = self.ast.getLocation(startNodeId);
@@ -1163,10 +1163,10 @@ pub const Compiler = struct {
         const constId = try self.makeConstant(arrayElem);
         try self.emitUnaryOp(.GetConstant, constId, arrayLoc);
 
-        try self.appendArrayElems(array, itemNodeId);
+        try self.appendValueArrayElems(array, itemNodeId);
     }
 
-    fn appendArrayElems(self: *Compiler, array: *Elem.Dyn.Array, itemNodeId: usize) !void {
+    fn appendValueArrayElems(self: *Compiler, array: *Elem.Dyn.Array, itemNodeId: usize) !void {
         var nodeId = itemNodeId;
         var index: u8 = 0;
 
@@ -1174,7 +1174,7 @@ pub const Compiler = struct {
             switch (self.ast.getNode(nodeId)) {
                 .InfixNode => |infix| switch (infix.infixType) {
                     .ArrayCons => {
-                        try self.appendArrayElem(array, infix.left, index);
+                        try self.appendValueArrayElem(array, infix.left, index);
                         nodeId = infix.right;
                         index += 1;
                     },
@@ -1185,15 +1185,82 @@ pub const Compiler = struct {
         }
 
         // The last array element
-        try self.appendArrayElem(array, nodeId, index);
+        try self.appendValueArrayElem(array, nodeId, index);
     }
 
-    fn appendArrayElem(self: *Compiler, array: *Elem.Dyn.Array, nodeId: usize, index: u8) Error!void {
+    fn appendValueArrayElem(self: *Compiler, array: *Elem.Dyn.Array, nodeId: usize, index: u8) Error!void {
+        switch (self.ast.getNode(nodeId)) {
+            .InfixNode => |infix| switch (infix.infixType) {
+                .ArrayHead,
+                .ObjectCons,
+                .Merge,
+                .NumberSubtract,
+                => {
+                    const loc = self.ast.getLocation(nodeId);
+                    try self.writeValue(nodeId, false);
+                    try self.emitUnaryOp(.InsertAtIndex, index, loc);
+
+                    try array.append(self.placeholderVar());
+                },
+                else => @panic("Internal Error"),
+            },
+            .ElemNode => |elem| {
+                switch (elem) {
+                    .ValueVar => |name| {
+                        try array.addPatternElem(
+                            name,
+                            array.elems.items.len,
+                            self.localSlot(name).?,
+                        );
+                    },
+                    else => {},
+                }
+                try array.append(elem);
+            },
+        }
+    }
+
+    fn writePatternArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
+        // The first left node is the empty array
+        const arrayElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
+        const arrayLoc = self.ast.getLocation(startNodeId);
+
+        const array = arrayElem.asDyn().asArray();
+
+        const constId = try self.makeConstant(arrayElem);
+        try self.emitUnaryOp(.GetConstant, constId, arrayLoc);
+
+        try self.appendPatternArrayElems(array, itemNodeId);
+    }
+
+    fn appendPatternArrayElems(self: *Compiler, array: *Elem.Dyn.Array, itemNodeId: usize) !void {
+        var nodeId = itemNodeId;
+        var index: u8 = 0;
+
+        while (true) {
+            switch (self.ast.getNode(nodeId)) {
+                .InfixNode => |infix| switch (infix.infixType) {
+                    .ArrayCons => {
+                        try self.appendPatternArrayElem(array, infix.left, index);
+                        nodeId = infix.right;
+                        index += 1;
+                    },
+                    else => break,
+                },
+                .ElemNode => break,
+            }
+        }
+
+        // The last array element
+        try self.appendPatternArrayElem(array, nodeId, index);
+    }
+
+    fn appendPatternArrayElem(self: *Compiler, array: *Elem.Dyn.Array, nodeId: usize, index: u8) Error!void {
         switch (self.ast.getNode(nodeId)) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
                     var nestedArray = self.ast.getElem(infix.left) orelse @panic("Internal Error");
-                    try self.appendArrayElems(
+                    try self.appendPatternArrayElems(
                         nestedArray.asDyn().asArray(),
                         infix.right,
                     );
@@ -1291,7 +1358,8 @@ pub const Compiler = struct {
             .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
                 .ArrayHead => {
                     var nestedArray = self.ast.getElem(nestedInfix.left) orelse @panic("Internal Error");
-                    try self.appendArrayElems(
+                    // TODO
+                    try self.appendPatternArrayElems(
                         nestedArray.asDyn().asArray(),
                         nestedInfix.right,
                     );
