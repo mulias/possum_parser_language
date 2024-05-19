@@ -372,14 +372,14 @@ pub const Elem = union(ElemType) {
             },
             .CharacterRange => unreachable,
             .IntegerRange => unreachable,
-            .True => if (elemB.isType(.True)) {
+            .True => if (elemB.isType(.True) or elemB.isType(.False)) {
                 return trueConst;
-            } else if (elemB.isType(.False)) {
-                return falseConst;
             } else {
                 return null;
             },
-            .False => if (elemB.isType(.True) or elemB.isType(.False)) {
+            .False => if (elemB.isType(.True)) {
+                return trueConst;
+            } else if (elemB.isType(.False)) {
                 return falseConst;
             } else {
                 return null;

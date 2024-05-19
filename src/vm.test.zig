@@ -199,7 +199,7 @@ test "bool(1,0) + bool(1,0)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "10"),
-            Elem.falseConst,
+            Elem.trueConst,
             vm.strings,
         );
     }
@@ -209,7 +209,7 @@ test "bool(1,0) + bool(1,0)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "01"),
-            Elem.falseConst,
+            Elem.trueConst,
             vm.strings,
         );
     }
