@@ -1,7 +1,7 @@
 Advent of Code 2021 Day 21
 https://adventofcode.com/2021/day/21
 
-  $ possum -p 'array_sep(line,nl);line=label("id",scan(int))+label("pos",scan(int))' $TESTDIR/input.txt
+  $ possum -p 'array(record2("id", scan(int), "pos", scan(int)))' $TESTDIR/input.txt
   [
     {
       "id": 1,

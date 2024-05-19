@@ -155,18 +155,22 @@ maybe_array(elem) = default(array(elem), [])
 
 maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
 
-single(elem) =  elem -> Elem $ [Elem]
+tuple1(elem) =  elem -> Elem $ [Elem]
 
-pair(elem) = elem -> E1 & elem -> E2 $ [E1, E2]
+tuple2(elem1, elem2) = elem1 -> E1 & elem2 -> E2 $ [E1, E2]
 
-pair_sep(elem, sep) = elem -> E1 & sep & elem -> E2 $ [E1, E2]
+tuple2_sep(elem1, sep, elem2) = elem1 -> E1 & sep & elem2 -> E2 $ [E1, E2]
 
-triple(elem) = elem -> E1 & elem -> E2 & elem -> E3 $ [E1, E2, E3]
+tuple3(elem1, elem2, elem3) =
+  elem1 -> E1 &
+  elem2 -> E2 &
+  elem3 -> E3 $
+  [E1, E2, E3]
 
-triple_sep(elem, sep) =
-  elem -> E1 & sep &
-  elem -> E2 & sep &
-  elem -> E3 $
+tuple3_sep(elem1, sep1, elem2, sep2, elem3) =
+  elem1 -> E1 & sep1 &
+  elem2 -> E2 & sep2 &
+  elem3 -> E3 $
   [E1, E2, E3]
 
 table_sep(elem, sep, row_sep) =
@@ -210,4 +214,26 @@ maybe_object(key, value) = default(object(key, value), {})
 maybe_object_sep(key, pair_sep, value, sep) =
   default(object_sep(key, pair_sep, value, sep), {})
 
-label(Key, value) = value -> Value $ {Key: Value}
+record1(Key, value) = value -> Value $ {Key: Value}
+
+record2(Key1, value1, Key2, value2) =
+  value1 -> V1 &
+  value2 -> V2 $
+  {Key1: V1, Key2: V2}
+
+record2_sep(Key1, value1, sep, Key2, value2) =
+  value1 -> V1 & sep &
+  value2 -> V2 $
+  {Key1: V1, Key2: V2}
+
+record3(Key1, value1, Key2, value2, Key3, value3) =
+  value1 -> V1 &
+  value2 -> V2 &
+  value3 -> V3 $
+  {Key1: V1, Key2: V2, Key3: V3}
+
+record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3) =
+  value1 -> V1 & sep1 &
+  value2 -> V2 & sep2 &
+  value3 -> V3 $
+  {Key1: V1, Key2: V2, Key3: V3}

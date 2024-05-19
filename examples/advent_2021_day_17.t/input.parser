@@ -1,4 +1,4 @@
-range = pair_sep(int, "..")
+range = tuple2_sep(int, "..", int)
 
 scan("x=") > range -> [XMin, XMax] &
 scan("y=") > range -> [YMin, YMax] $

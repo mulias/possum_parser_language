@@ -8,7 +8,7 @@ dir =
   child_dirs -> Subdirs & dir_end $
   {"name": Name, "contains": Cont, "subdirs": Subdirs}
 
-child_dirs = peek(dir_end) ? const([]) : single(dir) + child_dirs
+child_dirs = peek(dir_end) ? const([]) : tuple1(dir) + child_dirs
 
 contents = array_sep(dir_listing | file_listing, nl)
 

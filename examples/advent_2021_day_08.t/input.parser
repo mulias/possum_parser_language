@@ -1,7 +1,7 @@
 signal_patterns = array_sep(alphas, space)
 
 pattern =
-  label("unique", signal_patterns) + skip(" | ") +
-  label("output", signal_patterns)
+  record1("unique", signal_patterns) + skip(" | ") +
+  record1("output", signal_patterns)
 
 array_sep(pattern, newline)

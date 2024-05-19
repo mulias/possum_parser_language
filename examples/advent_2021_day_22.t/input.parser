@@ -1,6 +1,6 @@
-range = pair_sep(int, "..")
+range = tuple2_sep(int, "..", int)
 step =
-  label("isOn", bool("on", "off")) +
+  record1("isOn", bool("on", "off")) +
   skip(ws) +
   object_sep(alphas, "=", range, ",")
 

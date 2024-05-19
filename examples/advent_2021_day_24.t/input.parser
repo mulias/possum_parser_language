@@ -1,8 +1,9 @@
-unary_intruction = label("type", "inp") + skip(space) + label("var", alpha)
+unary_intruction = record2_sep("type", "inp", space, "var", alpha)
 
-binary_instruction =
-  label("type", "add" | "mod" | "div") + skip(space) +
-  label("a", alpha) + skip(space) +
-  label("b", alpha | int)
+binary_instruction = record3_sep(
+  "type", "add" | "mod" | "div", space,
+  "a", alpha, space,
+  "b", alpha | int
+)
 
 array_sep(unary_intruction | binary_instruction, nl)

@@ -1,2 +1,2 @@
-command = word -> D & ws & int -> M $ {"direction": D, "magnitude": M}
+command = record2_sep("direction", word, ws, "magnitude", int)
 input(array_sep(command, newline))

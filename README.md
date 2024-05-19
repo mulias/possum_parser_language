@@ -55,8 +55,8 @@ Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
 
 
   $ cat lines_parser.possum
-  point = pair_sep(int, ",")
-  line = point -> P1 & " -> " & point -> P2 $ {"from": P1, "to": P2}
+  point = tuple2_sep(int, ",", int)
+  line = record2_sep("from", point, " -> ", "to", point)
   array_sep(line, nl)
 
 
