@@ -1,6 +1,6 @@
 scan =
-  Id <- ("--- scanner " > int < " ---" < nl) &
-  Coords <- table_sep(int, ",", nl) $
+  "--- scanner " > int < " ---" < nl -> Id &
+  table_sep(int, ",", nl) -> Coords $
   {"id": Id, "beacons": Coords}
 
 input(array_sep(scan, ws))

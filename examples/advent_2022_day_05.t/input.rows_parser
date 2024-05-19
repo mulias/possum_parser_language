@@ -3,12 +3,12 @@ no_crate = "   " $ null
 cargo = crate | no_crate
 
 move =
-  "move" & ws & Count <- number  & ws &
-  "from" & ws & From  <- numeral & ws &
-  "to"   & ws & To    <- numeral & ws $
+  "move" & ws & number  -> Count & ws &
+  "from" & ws & numeral -> From  & ws &
+  "to"   & ws & numeral -> To    & ws $
   {"count": Count, "from": From, "to": To}
 
-CargoRows <- table_sep(cargo, " ", nl) &
-_Labels <- (ws > array_sep(numeral, ws) < ws) &
-Steps <- array(move) $
+table_sep(cargo, " ", nl) -> CargoRows &
+ws > array_sep(numeral, ws) < ws -> _Labels &
+array(move) -> Steps $
 {"cargo_rows": CargoRows, "steps": Steps}

@@ -1,6 +1,5 @@
 range = pair_sep(int, "..")
 
-# TODO: Investigate error when parens are removed
-[XMin, XMax] <- (scan("x=") > range) &
-[YMin, YMax] <- (scan("y=") > range) $
+scan("x=") > range -> [XMin, XMax] &
+scan("y=") > range -> [YMin, YMax] $
 {"xmin": XMin, "xmax": XMax, "ymin": YMin, "ymax": YMax}

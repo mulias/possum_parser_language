@@ -234,8 +234,8 @@ pub const VM = struct {
                 // variables that are still unbound in the local scope. If so
                 // update each local to match the corresponding part of the
                 // matched value.
-                const value = self.pop();
                 const pattern = self.pop();
+                const value = self.pop();
 
                 if (value.isSuccess()) {
                     const boundPattern = try self.bindVars(pattern, false);

@@ -1,7 +1,7 @@
-fold = "fold along " & D <- alpha & "=" & P <- int $ {"direction": D, "position": P}
+fold = "fold along " & alpha -> D & "=" & int -> P $ {"direction": D, "position": P}
 
 input(
-  Dots <- table_sep(int, ",", nl) & ws &
-  Folds <- array_sep(fold, nl) $
+  table_sep(int, ",", nl) -> Dots & ws &
+  array_sep(fold, nl) -> Folds $
   {"dots": Dots, "folds": Folds}
 )

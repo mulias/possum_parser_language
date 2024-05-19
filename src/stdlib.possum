@@ -95,7 +95,7 @@ bool = boolean
 
 null(n) = n $ null
 
-peek(p) = (V <- p) ! const(V)
+peek(p) = p -> V ! const(V)
 
 maybe(p) = p | succeed
 
@@ -117,65 +117,65 @@ surround(p, fill) = fill > p < fill
 
 input(p) = surround(p, maybe(whitespace)) < end_of_input
 
-many(p) = First <- p & _many(p, First)
+many(p) = p -> First & _many(p, First)
 
-_many(p, Acc) = Next <- p ? _many(p, Acc + Next) : const(Acc)
+_many(p, Acc) = p -> Next ? _many(p, Acc + Next) : const(Acc)
 
-many_sep(p, sep) = First <- p & _many(sep > p, First)
+many_sep(p, sep) = p -> First & _many(sep > p, First)
 
-many_until(p, stop) = First <- unless(p, stop) & _many_until(p, stop, First)
+many_until(p, stop) = unless(p, stop) -> First & _many_until(p, stop, First)
 
 _many_until(p, stop, Acc) =
   peek(stop) ?
   const(Acc) :
-  Next <- p & _many_until(p, stop, Acc + Next)
+  p -> Next & _many_until(p, stop, Acc + Next)
 
 maybe_many(p) = many(p) | succeed
 
 maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
 
-array(elem) = First <- elem & _array(elem, [First])
+array(elem) = elem -> First & _array(elem, [First])
 
 _array(elem, Acc) =
-  Elem <- elem ?
+  elem -> Elem ?
   _array(elem, Acc + [Elem]) :
   const(Acc)
 
-array_sep(elem, sep) = First <- elem & _array(sep > elem, [First])
+array_sep(elem, sep) = elem -> First & _array(sep > elem, [First])
 
 array_until(elem, stop) =
-  First <- unless(elem, stop) & _array_until(elem, stop, [First])
+  unless(elem, stop) -> First & _array_until(elem, stop, [First])
 
 _array_until(elem, stop, Acc) =
   peek(stop) ?
   const(Acc) :
-  Elem <- elem & _array_until(elem, stop, Acc + [Elem])
+  elem -> Elem & _array_until(elem, stop, Acc + [Elem])
 
 maybe_array(elem) = default(array(elem), [])
 
 maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
 
-single(elem) = Elem <- elem $ [Elem]
+single(elem) =  elem -> Elem $ [Elem]
 
-pair(elem) = E1 <- elem & E2 <- elem $ [E1, E2]
+pair(elem) = elem -> E1 & elem -> E2 $ [E1, E2]
 
-pair_sep(elem, sep) = E1 <- elem & sep & E2 <- elem $ [E1, E2]
+pair_sep(elem, sep) = elem -> E1 & sep & elem -> E2 $ [E1, E2]
 
-triple(elem) = E1 <- elem & E2 <- elem & E3 <- elem $ [E1, E2, E3]
+triple(elem) = elem -> E1 & elem -> E2 & elem -> E3 $ [E1, E2, E3]
 
 triple_sep(elem, sep) =
-  E1 <- elem & sep &
-  E2 <- elem & sep &
-  E3 <- elem $
+  elem -> E1 & sep &
+  elem -> E2 & sep &
+  elem -> E3 $
   [E1, E2, E3]
 
 table_sep(elem, sep, row_sep) =
-  First <- elem & _table_sep(elem, sep, row_sep, [First], [])
+  elem -> First & _table_sep(elem, sep, row_sep, [First], [])
 
 _table_sep(elem, sep, row_sep, AccRow, AccRows) =
-  Elem <- (sep > elem) ?
+  sep > elem -> Elem ?
   _table_sep(elem, sep, row_sep, AccRow + [Elem], AccRows) :
-  NextRow <- (row_sep > elem) ?
+  row_sep > elem -> NextRow ?
   _table_sep(elem, sep, row_sep, [NextRow], AccRows + [AccRow]) :
   const(AccRows + [AccRow])
 
@@ -183,31 +183,31 @@ maybe_table_sep(elem, sep, row_sep) =
   default(table_sep(elem, sep, row_sep), [[]])
 
 object(key, value) =
-  K <- key & V <- value &
+  key -> K & value -> V &
   _object(key, value, {K: V})
 
 _object(key, value, Acc) =
-  K <- key & V <- value ?
+  key -> K & value -> V ?
   _object(key, value, Acc + {K: V}) :
   const(Acc)
 
 object_sep(key, pair_sep, value, sep) =
-  K <- key & pair_sep & V <- value &
+  key -> K & pair_sep & value -> V &
   _object(sep > key, pair_sep > value, {K: V})
 
 object_until(key, value, stop) =
-  K <- unless(key, stop) &
-  V <- value &
+  unless(key, stop) -> K &
+  value -> V &
   _object_until(key, value, stop, {K: V})
 
 _object_until(key, value, stop, Acc) =
   peek(stop) ?
   const(Acc) :
-  K <- key & V <- value & _object_until(key, value, stop, Acc + {K: V})
+  key -> K & value -> V & _object_until(key, value, stop, Acc + {K: V})
 
 maybe_object(key, value) = default(object(key, value), {})
 
 maybe_object_sep(key, pair_sep, value, sep) =
   default(object_sep(key, pair_sep, value, sep), {})
 
-label(Key, value) = Value <- value $ {Key: Value}
+label(Key, value) = value -> Value $ {Key: Value}

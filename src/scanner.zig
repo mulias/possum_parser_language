@@ -57,7 +57,7 @@ pub const Scanner = struct {
             '?' => self.makeToken(.QuestionMark),
             ':' => self.makeToken(.Colon),
             '=' => self.makeToken(.Equal),
-            '<' => self.makeToken(if (self.match('-')) TokenType.LessThanDash else TokenType.LessThan),
+            '<' => self.makeToken(.LessThan),
             '>' => self.makeToken(.GreaterThan),
             '|' => self.makeToken(.Bar),
             '"' => self.scanString('"'),
@@ -65,7 +65,12 @@ pub const Scanner = struct {
             '`' => self.scanBacktickString(),
             '@' => self.scanAtSignIdentifier(),
             '_' => self.scanUnderscoreIdentifier(),
-            '-' => if (isDigit(self.peek())) self.scanNumber() else self.makeToken(.Minus),
+            '-' => if (isDigit(self.peek()))
+                self.scanNumber()
+            else if (self.match('>'))
+                self.makeToken(.DashGreaterThan)
+            else
+                self.makeToken(.Minus),
             else => |c| {
                 if (isDigit(c)) return self.scanNumber();
                 if (isLower(c)) return self.scanLowercaseIdentifier();

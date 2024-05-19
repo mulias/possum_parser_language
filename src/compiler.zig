@@ -422,8 +422,8 @@ pub const Compiler = struct {
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Destructure => {
-                    try self.writePattern(infix.left);
-                    try self.writeParser(infix.right, false);
+                    try self.writeParser(infix.left, false);
+                    try self.writePattern(infix.right);
                     try self.emitOp(.Destructure, loc);
                 },
                 .Or => {
@@ -1031,8 +1031,8 @@ pub const Compiler = struct {
                     try self.patchJump(jumpIndex, loc);
                 },
                 .Destructure => {
-                    try self.writePattern(infix.left);
-                    try self.writeValueFunction(infix.right, false);
+                    try self.writeValueFunction(infix.left, false);
+                    try self.writePattern(infix.right);
                     try self.emitOp(.Destructure, loc);
                 },
                 .Or => {

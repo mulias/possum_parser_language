@@ -45,7 +45,7 @@ Infix operators compose parsers in order to create more complex parsers.
 | `p1 < p2`      | Take Left   | 5 / 6         | Match `p1` and then `p2`, return the result of `p1` |
 | `p1 + p2`      | Merge       | 5 / 6         | Match `p1` and then `p2`, if both return values of the same type then return a merged result |
 | `p1 ! p2`      | Backtrack   | 5 / 6         | Match `p1` and then go back in the input and match `p2` instead, return the result of `p2` |
-| `P <- p`       | Destructure | 7 / 6         | Match `p`, destructure the resulting value against the pattern `P` |
+| `p -> P`       | Destructure | 7 / 6         | Match `p`, destructure the resulting value against the pattern `P` |
 | `p $ V`        | Return      | 5 / 8         | Match `p` and then return the value `V` |
 | `p1 & p2`      | Sequence    | 3 / 4         | Match `p1` and then `p2`, returning the result of `p2` |
 | `p1 ? p2 : p3` | Conditional | 2 / 1         | Match `p1`, if successful then match `p2` next. If `p1` fails then try `p2` instead. |

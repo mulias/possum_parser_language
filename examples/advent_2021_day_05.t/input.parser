@@ -1,4 +1,4 @@
 point = pair_sep(int, ",")
-line = P1 <- point & " -> " & P2 <- point $ {"from": P1, "to": P2}
+line = point -> P1 & " -> " & point -> P2 $ {"from": P1, "to": P2}
 
 input(array_sep(line, nl))

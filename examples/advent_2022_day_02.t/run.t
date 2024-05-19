@@ -1,7 +1,7 @@
 Advent of Code 2022 Day 2
 https://adventofcode.com/2022/day/2
 
-  $ possum -p 'array_sep(P1<-char&ws&P2<-char$[P1,P2],nl)' $TESTDIR/input.txt
+  $ possum -p 'array_sep(char->P1&ws&char->P2$[P1,P2],nl)' $TESTDIR/input.txt
   [
     [
       "A",

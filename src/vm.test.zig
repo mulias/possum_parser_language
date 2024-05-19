@@ -371,9 +371,9 @@ test "('' $ null) + ('' $ null)" {
     }
 }
 
-test "'f' <- 'a'..'z' & 12 <- 0..100" {
+test "'a'..'z' -> 'f' & 0..100 -> 12" {
     const parser =
-        \\ 'f' <- 'a'..'z' & 12 <- 0..100
+        \\'a'..'z' -> 'f' & 0..100 -> 12
     ;
     {
         var vm = VM.create();
@@ -387,9 +387,9 @@ test "'f' <- 'a'..'z' & 12 <- 0..100" {
     }
 }
 
-test "42 <- 42.0" {
+test "42.0 -> 42" {
     const parser =
-        \\ 42 <- 42.0
+        \\42.0 -> 42
     ;
     {
         var vm = VM.create();
@@ -404,9 +404,9 @@ test "42 <- 42.0" {
     }
 }
 
-test "false <- ('' $ true)" {
+test "'' $ true -> false" {
     const parser =
-        \\  false <- ('' $ true)
+        \\'' $ true -> false
     ;
     {
         var vm = VM.create();
@@ -416,9 +416,9 @@ test "false <- ('' $ true)" {
     }
 }
 
-test "('a' + 'b') <- 'ab'" {
+test "'ab' -> ('a' + 'b')" {
     const parser =
-        \\ ('a' + 'b') <- 'ab'
+        \\'ab' -> ('a' + 'b')
     ;
     {
         var vm = VM.create();
@@ -590,17 +590,18 @@ test "1 ? 2 : 3 ? 4 : 5" {
     }
 }
 
-test "'foo' <- 'foo' <- 'foo'" {
+test "'foo' -> 'foo' -> 'foo'" {
     const parser =
-        \\ "foo" <- "foo" <- "foo"
+        \\ "foo" -> "foo" -> "foo"
     ;
     {
         var vm = VM.create();
         try vm.init(allocator, stderr);
         defer vm.deinit();
-        try std.testing.expectError(
-            error.InvalidAst,
-            vm.interpret(parser, "foofoo"),
+        try testing.expectSuccess(
+            try vm.interpret(parser, "foofoo"),
+            Elem.string(vm.strings.getId("foo")),
+            vm.strings,
         );
     }
 }
@@ -823,10 +824,10 @@ test "n = '\n'..'\n' ; n > n > n > 'wow!'" {
     }
 }
 
-test "A = 100 ; A <- 100" {
+test "A = 100 ; 100 -> A" {
     const parser =
         \\A = 100
-        \\A <- 100
+        \\100 -> A
     ;
     {
         var vm = VM.create();
@@ -840,9 +841,9 @@ test "A = 100 ; A <- 100" {
     }
 }
 
-test "eql_to(p, V) = V <- p ; eql_to('bar' | 'foo', 'foo')" {
+test "eql_to(p, V) = p -> V ; eql_to('bar' | 'foo', 'foo')" {
     const parser =
-        \\eql_to(p, V) = V <- p
+        \\eql_to(p, V) = p -> V
         \\eql_to('bar' | 'foo', 'foo')
     ;
     {
@@ -874,9 +875,9 @@ test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
     }
 }
 
-test "Foo <- 'foo' $ Foo" {
+test "'foo' -> Foo $ Foo" {
     const parser =
-        \\Foo <- 'foo' $ Foo
+        \\'foo' -> Foo $ Foo
     ;
     {
         var vm = VM.create();
@@ -890,9 +891,9 @@ test "Foo <- 'foo' $ Foo" {
     }
 }
 
-test "peek(p) = V <- p ! '' $ V ; peek(1) + peek(1) + peek(1)" {
+test "peek(p) = p -> V ! '' $ V ; peek(1) + peek(1) + peek(1)" {
     const parser =
-        \\peek(p) = V <- p ! '' $ V
+        \\peek(p) = p -> V ! '' $ V
         \\peek(1) + peek(1) + peek(1)
     ;
     {
@@ -1008,9 +1009,9 @@ test "many('🐀' | skip('🛹'))" {
     }
 }
 
-test "123 + (C <- (B <- 456))" {
+test "123 + ((456 -> B) -> C)" {
     const parser =
-        \\123 + (C <- (B <- 456))
+        \\123 + ((456 -> B) -> C)
     ;
     {
         var vm = VM.create();
@@ -1059,10 +1060,10 @@ test "foo(a) = a + a ; bar(p) = p ; foo(bar('a' + 'a'))" {
     }
 }
 
-test "foo(N) = N <- 12 ; A <- const(12) & foo(A)" {
+test "foo(N) = 12 -> N ; const(12) -> A & foo(A)" {
     const parser =
-        \\is_twelve(N) = 12 <- const(N)
-        \\A <- const(12) & is_twelve(A)
+        \\is_twelve(N) = const(N) -> 12
+        \\const(12) -> A & is_twelve(A)
     ;
     {
         var vm = VM.create();
@@ -1076,9 +1077,9 @@ test "foo(N) = N <- 12 ; A <- const(12) & foo(A)" {
     }
 }
 
-test "bar(N <- 12) $ N ; bar(p) = p" {
+test "bar(12 -> N) $ N ; bar(p) = p" {
     const parser =
-        \\bar(N <- 12) $ N
+        \\bar(12 -> N) $ N
         \\bar(p) = p
     ;
     {
@@ -1092,9 +1093,9 @@ test "bar(N <- 12) $ N ; bar(p) = p" {
     }
 }
 
-test "foo(N) = bar(N <- 12) ; bar(p) = p ; foo(11)" {
+test "foo(N) = bar(12 -> N) ; bar(p) = p ; foo(11)" {
     const parser =
-        \\foo(N) = bar(N <- 12)
+        \\foo(N) = bar(12 -> N)
         \\bar(p) = p
         \\foo(11)
     ;
@@ -1106,9 +1107,9 @@ test "foo(N) = bar(N <- 12) ; bar(p) = p ; foo(11)" {
     }
 }
 
-test "foo(N) = bar(bar(bar(N <- 12))) ; bar(p) = p ; foo(11)" {
+test "foo(N) = bar(bar(bar(12 -> N))) ; bar(p) = p ; foo(11)" {
     const parser =
-        \\foo(N) = bar(bar(bar(N <- 12)))
+        \\foo(N) = bar(bar(bar(12 -> N)))
         \\bar(p) = p
         \\foo(11)
     ;
@@ -1120,9 +1121,9 @@ test "foo(N) = bar(bar(bar(N <- 12))) ; bar(p) = p ; foo(11)" {
     }
 }
 
-test "foo(N) = bar(bar(N <- 3) + bar(N <- 3)) ; bar(p) = p ; foo(0)" {
+test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo(0)" {
     const parser =
-        \\foo(N) = bar(bar(N <- 3) + bar(N <- 3))
+        \\foo(N) = bar(bar(3 -> N) + bar(3 -> N))
         \\bar(p) = p
         \\foo(0)
     ;
@@ -1134,9 +1135,9 @@ test "foo(N) = bar(bar(N <- 3) + bar(N <- 3)) ; bar(p) = p ; foo(0)" {
     }
 }
 
-test "foo(N) = bar(bar(N <- 3) + bar(N <- 3)) ; bar(p) = p ; foo(3)" {
+test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo(3)" {
     const parser =
-        \\foo(N) = bar(bar(N <- 3) + bar(N <- 3))
+        \\foo(N) = bar(bar(3 -> N) + bar(3 -> N))
         \\bar(p) = p
         \\foo(3)
     ;
@@ -1272,9 +1273,9 @@ test "'aa' $ [1, 2, 3]" {
     }
 }
 
-test "A <- 'a' $ [[A]]" {
+test "'a' -> A $ [[A]]" {
     const parser =
-        \\A <- 'a' $ [[A]]
+        \\'a' -> A $ [[A]]
     ;
     {
         var vm = VM.create();
@@ -1308,9 +1309,9 @@ test "('a' $ [1, 2]) + ('b' $ [true, false])" {
     }
 }
 
-test "S <- ('a' + 'b') $ (S + 'c') $ (S + 'd')" {
+test "('a' + 'b') -> S $ (S + 'c') $ (S + 'd')" {
     const parser =
-        \\S <- ("a" + "b") $ (S + "c") $ (S + "d")
+        \\("a" + "b") -> S $ (S + "c") $ (S + "d")
     ;
     {
         var vm = VM.create();
@@ -1324,9 +1325,9 @@ test "S <- ('a' + 'b') $ (S + 'c') $ (S + 'd')" {
     }
 }
 
-test "[A, B] <- (succeed $ [1, 2]) $ [B, A]" {
+test "const([1, 2]) -> [A, B] $ [B, A]" {
     const parser =
-        \\[A, B] <- (succeed $ [1, 2]) $ [B, A]
+        \\const([1, 2]) -> [A, B] $ [B, A]
     ;
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(1) };
@@ -1341,9 +1342,9 @@ test "[A, B] <- (succeed $ [1, 2]) $ [B, A]" {
     }
 }
 
-test "[[1,A,3], B, 5] <- (succeed $ [[1, 2, 3], 4, 5]) $ [A, B]" {
+test "const([[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]" {
     const parser =
-        \\[[1,A,3], B, 5] <- (succeed $ [[1, 2, 3], 4, 5]) $ [A, B]
+        \\const([[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]
     ;
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(4) };
@@ -1358,9 +1359,9 @@ test "[[1,A,3], B, 5] <- (succeed $ [[1, 2, 3], 4, 5]) $ [A, B]" {
     }
 }
 
-test "[[], A] <- (succeed $ [[], 100]) $ A" {
+test "const([[], 100]) -> [[], A] $ A" {
     const parser =
-        \\[[], A] <- (succeed $ [[], 100]) $ A
+        \\const([[], 100]) -> [[], A] $ A
     ;
     {
         var vm = VM.create();
@@ -1500,9 +1501,9 @@ test "Add(A, B) = A + B ; '' $ Add(3, 12)" {
     }
 }
 
-test "A = 1 + 100 ; A <- 101" {
+test "A = 1 + 100 ; 101 -> A" {
     const parser =
-        \\A = 1 + 100 ; A <- 101
+        \\A = 1 + 100 ; 101 -> A
     ;
     {
         var vm = VM.create();
@@ -1519,12 +1520,12 @@ test "A = 1 + 100 ; A <- 101" {
 test "fibonacci parser function" {
     const parser =
         \\fib(N) =
-        \\  0 <- const(N) ? const(0) :
-        \\  1 <- const(N) ? const(1) :
-        \\  N1 <- fib(N - 1) & N2 <- fib(N - 2) $
+        \\  const(N) -> 0 ? const(0) :
+        \\  const(N) -> 1 ? const(1) :
+        \\  fib(N - 1) -> N1 & fib(N - 2) -> N2 $
         \\  (N1 + N2)
         \\
-        \\N <- int & fib(N)
+        \\int -> N & fib(N)
     ;
     {
         var vm = VM.create();
@@ -1581,11 +1582,11 @@ test "fibonacci parser function" {
 test "fibonacci value function" {
     const parser =
         \\Fib(N) =
-        \\  0 <- N ? 0 :
-        \\  1 <- N ? 1 :
+        \\  N -> 0 ? 0 :
+        \\  N -> 1 ? 1 :
         \\  Fib(N - 1) + Fib(N - 2)
         \\
-        \\N <- int $ Fib(N)
+        \\int -> N $ Fib(N)
     ;
     {
         var vm = VM.create();
@@ -1685,9 +1686,9 @@ test "'aa' $ {'a': 1, 'b': 2, 'c': 3}" {
     }
 }
 
-test "A <- 1 & B <- 2 $ {'a': A, 'b': B}" {
+test "1 -> A & 2 -> B $ {'a': A, 'b': B}" {
     const parser =
-        \\A <- 1 & B <- 2 $ {'a': A, 'b': B}
+        \\1 -> A & 2 -> B $ {'a': A, 'b': B}
     ;
     {
         var vm = VM.create();
@@ -1704,9 +1705,9 @@ test "A <- 1 & B <- 2 $ {'a': A, 'b': B}" {
     }
 }
 
-// test "A <- 'Z' $ {A: 1, 'A': 2}" {
+// test "'Z' -> A $ {A: 1, 'A': 2}" {
 //     const parser =
-//         \\A <- 'Z' $ {A: 1, 'A': 2}
+//         \\'Z' -> A $ {A: 1, 'A': 2}
 //     ;
 //     {
 //         var vm = VM.create();
@@ -1762,9 +1763,9 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
     }
 }
 
-test "{'a': true} <- const({'a': true})" {
+test "const({'a': true}) -> {'a': true}" {
     const parser =
-        \\{'a': true} <- const({'a': true})
+        \\const({'a': true}) -> {'a': true}
     ;
     {
         var vm = VM.create();
@@ -1780,9 +1781,9 @@ test "{'a': true} <- const({'a': true})" {
     }
 }
 
-test "{'a': false} <- const({'a': true})" {
+test "const({'a': true}) -> {'a': false}" {
     const parser =
-        \\{'a': false} <- const({'a': true})
+        \\const({'a': true}) -> {'a': false}
     ;
     {
         var vm = VM.create();
@@ -1794,9 +1795,9 @@ test "{'a': false} <- const({'a': true})" {
     }
 }
 
-test "{'a': A} <- const({'a': 123}) $ A" {
+test "const({'a': 123}) -> {'a': A} $ A" {
     const parser =
-        \\{'a': A} <- const({'a': 123}) $ A
+        \\const({'a': 123}) -> {'a': A} $ A
     ;
     {
         var vm = VM.create();

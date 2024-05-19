@@ -2,28 +2,20 @@ input(dir)
 
 dir =
   "$ cd" & ws &
-  Name <- token & nl &
+  token -> Name & nl &
   "$ ls" & nl &
-  Files <- files & nl &
-  Subdirs <- child_dirs &
-  ("$ cd .." < nl) | end $
-  {"name": Name, "files": Files, "subdirs": Subdirs}
+  contents -> Cont & nl &
+  child_dirs -> Subdirs & dir_end $
+  {"name": Name, "contains": Cont, "subdirs": Subdirs}
 
-child_dirs = (
-  peek("$ cd .." | end) $ []
-) | (
-  Dir <- dir &
-  Rest <- child_dirs $
-  ([Dir] + Rest)
-)
+child_dirs = peek(dir_end) ? const([]) : single(dir) + child_dirs
 
-files = array_sep(
-  maybe(dir_listings > nl) > file_listing < maybe(nl > dir_listings),
-  nl
-) | (
-  maybe(dir_listings) $ []
-)
+contents = array_sep(dir_listing | file_listing, nl)
 
-dir_listings = array_sep("dir " > token, nl)
+dir_listing = "dir" & ws & token -> Name $
+  {"type": "dir", "name": Name}
 
-file_listing = Size <- number & ws & Name <- token $ {"name": Name, "size": Size}
+file_listing = number -> Size & ws & token -> Name $
+  {"type": "file", "name": Name, "size": Size}
+
+dir_end = "$ cd .." < nl | end

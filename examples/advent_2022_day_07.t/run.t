@@ -114,29 +114,46 @@ https://adventofcode.com/2022/day/7
   $ possum $TESTDIR/input.tree_parser $TESTDIR/input.txt
   {
     "name": "/",
-    "files": [
+    "contains": [
       {
+        "type": "dir",
+        "name": "a"
+      },
+      {
+        "type": "file",
         "name": "b.txt",
         "size": 14848514
       },
       {
+        "type": "file",
         "name": "c.dat",
         "size": 8504156
+      },
+      {
+        "type": "dir",
+        "name": "d"
       }
     ],
     "subdirs": [
       {
         "name": "a",
-        "files": [
+        "contains": [
           {
+            "type": "dir",
+            "name": "e"
+          },
+          {
+            "type": "file",
             "name": "f",
             "size": 29116
           },
           {
+            "type": "file",
             "name": "g",
             "size": 2557
           },
           {
+            "type": "file",
             "name": "h.lst",
             "size": 62596
           }
@@ -144,8 +161,9 @@ https://adventofcode.com/2022/day/7
         "subdirs": [
           {
             "name": "e",
-            "files": [
+            "contains": [
               {
+                "type": "file",
                 "name": "i",
                 "size": 584
               }
@@ -156,20 +174,24 @@ https://adventofcode.com/2022/day/7
       },
       {
         "name": "d",
-        "files": [
+        "contains": [
           {
+            "type": "file",
             "name": "j",
             "size": 4060174
           },
           {
+            "type": "file",
             "name": "d.log",
             "size": 8033020
           },
           {
+            "type": "file",
             "name": "d.ext",
             "size": 5626152
           },
           {
+            "type": "file",
             "name": "k",
             "size": 7214296
           }

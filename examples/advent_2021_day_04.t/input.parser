@@ -1,5 +1,5 @@
 bingo_board = table_sep(maybe(spaces) > int, spaces, nl)
 
-Numbers <- array_sep(int, ',') & ws &
-Boards <- array_sep(bingo_board, nl + nl) $
+array_sep(int, ',') -> Numbers & ws &
+array_sep(bingo_board, nl + nl) -> Boards $
 {'numbers': Numbers, 'boards': Boards}

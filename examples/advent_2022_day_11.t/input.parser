@@ -1,12 +1,12 @@
 array_sep(monkey, ws)
 
 monkey =
-  "Monkey " & Id <- int & ":" & ws &
-  "Starting items: " & Items <- array_sep(int, ", ") & ws &
-  "Operation: new = " & Operation <- operation & ws &
-  "Test: divisible by " & Test <- int & ws &
-  "If true: throw to monkey " & IfTrue <- int & ws &
-  "If false: throw to monkey " & IfFalse <- int $
+  "Monkey " & int -> Id & ":" & ws &
+  "Starting items: " & array_sep(int, ", ") -> Items & ws &
+  "Operation: new = " & operation -> Operation & ws &
+  "Test: divisible by " & int -> Test & ws &
+  "If true: throw to monkey " & int -> IfTrue  & ws &
+  "If false: throw to monkey " & int -> IfFalse $
   {
     "id": Id,
     "starting_items": Items,
@@ -17,7 +17,7 @@ monkey =
   }
 
 operation =
-  Left <- (int | word) & ws &
-  Op <- token & ws &
-  Right <- (int | word) $
+  int | word -> Left & ws &
+  token -> Op & ws &
+  int | word -> Right $
   {"left": Left, "operator": Op, "right": Right}

@@ -56,7 +56,7 @@ Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
 
   $ cat lines_parser.possum
   point = pair_sep(int, ",")
-  line = P1 <- point & " -> " & P2 <- point $ {"from": P1, "to": P2}
+  line = point -> P1 & " -> " & point -> P2 $ {"from": P1, "to": P2}
   array_sep(line, nl)
 
 
@@ -101,7 +101,7 @@ Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
 
   string = '"' > maybe(until(char, '"')) < '"'
 
-  node(Type, p) = Value <- p $ {"type": Type, "value": Value}
+  node(Type, p) = p -> Value $ {"type": Type, "value": Value}
 
 
   $ possum lisp_parser.possum fibonacci.rkt
@@ -141,11 +141,11 @@ Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
 ```
   $ cat fibonacci.possum
   Fib(N) =
-    0 <- N ? 0 :
-    1 <- N ? 1 :
+    N -> 0 ? 0 :
+    N -> 1 ? 1 :
     Fib(N - 1) + Fib(N - 2)
 
-  N <- int $ Fib(N)
+  int -> N $ Fib(N)
 
 
   $ possum fibonacci.possum --input=10

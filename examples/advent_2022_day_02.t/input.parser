@@ -1,6 +1,6 @@
 array_sep(round, nl)
 
-round = P1 <- player_1 & ws & P2 <- player_2 $ [P1, P2]
+round = player_1 -> P1 & ws & player_2 -> P2 $ [P1, P2]
 
 player_1 = hand_shape
 
