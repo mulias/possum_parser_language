@@ -72,11 +72,11 @@ needed parsers, or even create a whole new alternative standard library.
 | `array_until(elem, stop)` | One or more `elem`, must be followed by `stop` which is not consumed | Array of values parsed by `elem` |
 | `maybe_array(elem)` | Zero or more `elem` | Array of values parsed by `elem`, maybe empty |
 | `maybe_array_sep(elem, sep)` | Zero or more `elem`, interspersed with `sep` | Array of values parsed by `elem`, maybe empty |
-| `single(elem)` | Parses `elem` once | Result of `elem` wrapped in an array |
-| `pair(elem)` | Parses `elem` twice | Array of values returned by `elem` |
-| `pair_sep(elem, sep)` | Parses `elem` twice, interspersed with `sep` | Array of values returned by `elem` |
-| `triple(elem)` | Parses `elem` three times | Array of values returned by `elem` |
-| `triple_sep(elem, sep)` | Parses `elem` three times, interspersed with `sep` | Array of values returned by `elem` |
+| `tuple1(elem)` | Parses `elem` | Array of length 1 continuing result of `elem` |
+| `tuple2(elem1, elem2)` | Parses `elem1` and then `elem2` | Array of length 2 containing parsed elements |
+| `tuple2_sep(elem1, sep, elem2)` | Parses `elem1`, `sep`, and then `elem2` | Array of length 2 containing parsed elements |
+| `tuple3(elem1, elem2, elem3)` | Runs three element parsers in order | Array of length 3 containing parsed elements |
+| `tuple3_sep(elem1, sep1, elem2, sep2, elem3)` | Runs three element parsers, interspersed with `sep` | Array of length 3 containing parsed elements |
 | `table_sep(elem, sep, row_sep)` | One or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem` |
 | `maybe_table_sep(elem, sep, row_sep)` | Zero or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem`, maybe empty |
 | `object(key, value)` | Both `key` and `value` together one or more times | Object of key/value pairs |
@@ -84,7 +84,11 @@ needed parsers, or even create a whole new alternative standard library.
 | `object_until(key, value, stop)` | One or more `key`/`value` pairs, must be followed by `stop` which is not consumed | Object of key/value pairs |
 | `maybe_object(key, value)` | Both `key` and `value` together zero or more times | Object of key/value pairs, maybe empty |
 | `maybe_object_sep(key, pair_sep, value, sep)` | Parses `key`, `pair_sep`, and `value` together zero or more times, interspersed with `sep` | Object of key/value pairs, maybe empty|
-| `label(Key, value)` | Parses `value` | Parsed `Value` wrapped in a `{Key: Value}` object |
+| `record1(Key, value)` | Parses `value` | Object with `Key` associated to the parsed `value` |
+| `record2(Key1, value1, Key2, value2)` | Parses `value1` and then `value2` | Object with `Key1` associated to the parsed `value1`, etc |
+| `record2_sep(Key1, value1, sep, Key2, value2)` | Parses `value1`, `sep`, and then `value2` | Object with `Key1` associated to the parsed `value1`, etc |
+| `record3(Key1, value1, Key2, value2, Key3, value3)` | Runs three value parsers in order | Object with `Key1` associated to the parsed `value1`, etc |
+| `record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3)` | Runs three value parsers, interspersed with `sep` | Object with `Key1` associated to the parsed `value1`, etc |
 
 ### Values
 

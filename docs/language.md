@@ -114,8 +114,8 @@ Both parsers and constructed values can use an infix `+` to merge their result.
 If both parsers return values of the same type, or if both values are of the
 same type, then the merged value will be a combination of the two values. If the
 two values have different types then the operation will throw a runtime error.
-Note that in JSON `true` and `false` are distinct constants and therefore can't
-be merged.
+The one exception is `null`, which can merge with any other type and acts as the
+identity of that type.
 
 | `V1` and `V2` Are Both | `V1 + V2` Behavior  |
 | ---------------------- | ------------------- |
@@ -123,8 +123,7 @@ be merged.
 | Arrays                 | Concatenate arrays  |
 | Objects                | Combine objects, adding fields from the right-side object to the left-side object, possibly replacing existing values |
 | Numbers                | Sum numbers         |
-| `true`                 | `true`              |
-| `false`                | `false`             |
+| Booleans               | Logical or          |
 | `null`                 | `null`              |
 
 ## Destructuring Values
