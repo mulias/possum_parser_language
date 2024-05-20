@@ -14,6 +14,7 @@ const json = std.json;
 const debug = @import("./debug.zig");
 const meta = @import("meta.zig");
 const VMWriter = @import("./writer.zig").VMWriter;
+const Env = @import("env.zig").Env;
 
 const CallFrame = struct {
     function: *Elem.Dyn.Function,
@@ -33,6 +34,7 @@ pub const VM = struct {
     inputPos: usize,
     uniqueIdCount: u64,
     errWriter: VMWriter,
+    env: Env,
 
     const Error = error{
         RuntimeError,
@@ -42,6 +44,7 @@ pub const VM = struct {
         Utf8EncodesSurrogateHalf,
         Utf8CodepointTooLarge,
         InvalidRange,
+        NoMainParser,
     } || VMWriter.Error;
 
     pub fn create() VM {
@@ -57,12 +60,13 @@ pub const VM = struct {
             .inputPos = undefined,
             .uniqueIdCount = undefined,
             .errWriter = undefined,
+            .env = undefined,
         };
 
         return self;
     }
 
-    pub fn init(self: *VM, allocator: Allocator, errWriter: VMWriter) !void {
+    pub fn init(self: *VM, allocator: Allocator, errWriter: VMWriter, env: Env) !void {
         self.allocator = allocator;
         self.strings = StringTable.init(allocator);
         self.globals = AutoHashMap(StringTable.Id, Elem).init(allocator);
@@ -74,6 +78,7 @@ pub const VM = struct {
         self.inputPos = 0;
         self.uniqueIdCount = 0;
         self.errWriter = errWriter;
+        self.env = env;
 
         try self.loadMetaFunctions();
         try self.loadStdlib();
@@ -89,29 +94,30 @@ pub const VM = struct {
     }
 
     pub fn interpret(self: *VM, programSource: []const u8, input: []const u8) !Elem {
+        self.input = input;
+        try self.compile(programSource);
+        try self.run();
+        assert(self.stack.items.len == 1);
+
+        return self.pop();
+    }
+
+    pub fn compile(self: *VM, programSource: []const u8) !void {
         var parser = Parser.init(self);
         defer parser.deinit();
 
         try parser.parse(programSource);
         try parser.end();
 
-        var compiler = try Compiler.init(self, parser.ast);
+        var compiler = try Compiler.init(self, parser.ast, self.env.printCompiledBytecode);
         defer compiler.deinit();
 
         const function = try compiler.compile();
 
-        if (debug.compiler) function.disassemble(self.strings, debug.writer) catch {};
-
-        try self.push(function.dyn.elem());
-        try self.addFrame(function);
-
-        self.input = input;
-
-        try self.run();
-
-        assert(self.stack.items.len == 1);
-
-        return self.pop();
+        if (function) |main| {
+            try self.push(main.dyn.elem());
+            try self.addFrame(main);
+        }
     }
 
     fn loadMetaFunctions(self: *VM) !void {
@@ -129,13 +135,21 @@ pub const VM = struct {
 
         try parser.parse(stdlibSource);
 
-        var compiler = try Compiler.init(self, parser.ast);
+        var compiler = try Compiler.init(self, parser.ast, false);
         defer compiler.deinit();
 
-        try compiler.compileLib();
+        _ = try compiler.compile();
     }
 
     pub fn run(self: *VM) !void {
+        if (self.frames.items.len == 0) {
+            return Error.NoMainParser;
+        }
+
+        if (self.env.printExecutedBytecode) {
+            try self.frame().function.disassemble(self.strings, self.errWriter);
+        }
+
         while (true) {
             self.printDebug();
 
@@ -403,7 +417,7 @@ pub const VM = struct {
     }
 
     fn printDebug(self: *VM) void {
-        if (debug.vm) {
+        if (self.env.printVM) {
             debug.print("\n", .{});
             self.printInput();
             self.printFrames();
@@ -521,7 +535,9 @@ pub const VM = struct {
                 .Function => {
                     var function = dyn.asFunction();
 
-                    if (debug.compiler) function.disassemble(self.strings, debug.writer) catch {};
+                    if (self.env.printExecutedBytecode) {
+                        try function.disassemble(self.strings, debug.writer);
+                    }
 
                     if (function.arity == argCount) {
                         if (isTailPosition) {

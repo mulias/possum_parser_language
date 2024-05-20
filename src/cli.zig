@@ -5,6 +5,7 @@ const VM = @import("./vm.zig").VM;
 const Allocator = std.mem.Allocator;
 const cli_config = @import("cli_config.zig");
 const Writer = std.fs.File.Writer;
+const Env = @import("env.zig").Env;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -41,6 +42,8 @@ pub const CLI = struct {
     }
 
     fn parse(self: CLI, parserSource: cli_config.Source, inputSource: cli_config.Source) !void {
+        const env = try Env.fromOS(self.allocator);
+
         const parser = switch (parserSource) {
             .String => |str| str,
             .Path => |path| try self.readFile(path),
@@ -54,16 +57,20 @@ pub const CLI = struct {
         };
 
         var vm = VM.create();
-        try vm.init(self.allocator, self.errWriter);
+        try vm.init(self.allocator, self.errWriter, env);
         defer vm.deinit();
 
-        const parsed = try vm.interpret(parser, input);
+        if (env.runVM) {
+            const parsed = try vm.interpret(parser, input);
 
-        if (parsed == .Failure) {
-            try self.errWriter.print("Parser Failure\n", .{});
+            if (parsed == .Failure) {
+                try self.errWriter.print("Parser Failure\n", .{});
+            } else {
+                try parsed.printJson(.{ .whitespace = .indent_2 }, self.allocator, self.outWriter, vm.strings);
+                try self.outWriter.print("\n", .{});
+            }
         } else {
-            try parsed.printJson(.{ .whitespace = .indent_2 }, self.allocator, self.outWriter, vm.strings);
-            try self.outWriter.print("\n", .{});
+            try vm.compile(parser);
         }
     }
 

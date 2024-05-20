@@ -10,16 +10,17 @@ const Scanner = @import("./scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("./vm.zig").VM;
 const VMWriter = @import("./writer.zig").VMWriter;
+const debug = @import("./debug.zig");
 
 pub const Compiler = struct {
     vm: *VM,
     ast: Ast,
     functions: ArrayList(*Elem.Dyn.Function),
+    printBytecode: bool,
 
     const Error = error{
         InvalidAst,
         ChunkWriteFailure,
-        NoMainParser,
         MultipleMainParsers,
         UnexpectedMainParser,
         MaxFunctionArgs,
@@ -37,7 +38,7 @@ pub const Compiler = struct {
         FunctionCallTooFewArgs,
     } || VMWriter.Error;
 
-    pub fn init(vm: *VM, ast: Ast) !Compiler {
+    pub fn init(vm: *VM, ast: Ast, printBytecode: bool) !Compiler {
         const main = try Elem.Dyn.Function.create(vm, .{
             .name = try vm.strings.insert("@main"),
             .functionType = .Main,
@@ -55,6 +56,7 @@ pub const Compiler = struct {
             .vm = vm,
             .ast = ast,
             .functions = functions,
+            .printBytecode = printBytecode,
         };
     }
 
@@ -62,20 +64,12 @@ pub const Compiler = struct {
         self.functions.deinit();
     }
 
-    pub fn compile(self: *Compiler) !*Elem.Dyn.Function {
+    pub fn compile(self: *Compiler) !?*Elem.Dyn.Function {
         try self.declareGlobals();
         try self.validateGlobals();
         try self.resolveGlobalAliases();
         try self.compileGlobalFunctions();
-        try self.compileMain();
-        return self.functions.pop();
-    }
-
-    pub fn compileLib(self: *Compiler) !void {
-        try self.declareGlobals();
-        try self.validateGlobals();
-        try self.resolveGlobalAliases();
-        try self.compileGlobalFunctions();
+        return self.compileMain();
     }
 
     fn declareGlobals(self: *Compiler) !void {
@@ -110,7 +104,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileMain(self: *Compiler) !void {
+    fn compileMain(self: *Compiler) !?*Elem.Dyn.Function {
         var mainNodeId: ?usize = null;
 
         for (self.ast.roots.items) |nodeId| {
@@ -127,8 +121,16 @@ pub const Compiler = struct {
             try self.addValueLocals(nodeId);
             try self.writeParser(nodeId, false);
             try self.emitOp(.End, self.ast.endLocation);
+
+            const main = self.functions.pop();
+
+            if (self.printBytecode) {
+                try main.disassemble(self.vm.strings, debug.writer);
+            }
+
+            return main;
         } else {
-            return Error.NoMainParser;
+            return null;
         }
     }
 
@@ -369,6 +371,10 @@ pub const Compiler = struct {
             }
 
             try self.emitOp(.End, self.ast.getLocation(bodyNodeId));
+
+            if (self.printBytecode) {
+                try function.disassemble(self.vm.strings, debug.writer);
+            }
 
             _ = self.functions.pop();
         }
@@ -703,6 +709,10 @@ pub const Compiler = struct {
 
         try self.writeParser(nodeId, true);
         try self.emitOp(.End, loc);
+
+        if (self.printBytecode) {
+            try function.disassemble(self.vm.strings, debug.writer);
+        }
 
         return self.functions.pop();
     }
