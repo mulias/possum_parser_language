@@ -1889,3 +1889,18 @@ test "'' $ [1, 2, [1+1+1]]" {
         );
     }
 }
+
+test "Foo = (1 -> 2) + 1 ; '' $ [Foo]" {
+    const parser =
+        \\Foo = (1 -> 2) + 1 ; "" $ [Foo]
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, Env.init());
+        defer vm.deinit();
+
+        try testing.expectFailure(
+            try vm.interpret(parser, ""),
+        );
+    }
+}

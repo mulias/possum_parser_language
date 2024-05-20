@@ -294,9 +294,14 @@ pub const VM = struct {
                 const index = self.readByte();
                 const elem = self.pop();
                 const array = self.pop().asDyn().asArray();
-                var copy = try Elem.Dyn.Array.copy(self, array.elems.items);
-                copy.elems.items[index] = elem;
-                try self.push(copy.dyn.elem());
+
+                if (elem.isFailure()) {
+                    try self.pushFailure();
+                } else {
+                    var copy = try Elem.Dyn.Array.copy(self, array.elems.items);
+                    copy.elems.items[index] = elem;
+                    try self.push(copy.dyn.elem());
+                }
             },
             .Jump => {
                 const offset = self.readShort();
