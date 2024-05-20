@@ -367,6 +367,7 @@ pub const Compiler = struct {
                 try self.addValueLocals(bodyNodeId);
                 try self.writeParser(bodyNodeId, true);
             } else {
+                try self.addValueLocals(bodyNodeId);
                 try self.writeValueFunction(bodyNodeId, true);
             }
 

@@ -98,3 +98,31 @@
   0020    | InsertAtIndex 0
   0022    | End
   ========================================
+
+  $ possum -p 'Foo = 1 -> A & A + A ; "" $ [Foo]' -i ''
+  
+  ==================Foo===================
+  0000    1 GetConstant 0: A
+  0002    | GetConstant 1: 1
+  0004    | GetLocal 0
+  0006    | Destructure
+  0007    | TakeRight 7 -> 18
+  0010    | GetBoundLocal 0
+  0012    | JumpIfFailure 12 -> 18
+  0015    | GetBoundLocal 0
+  0017    | Merge
+  0018    | End
+  ========================================
+  
+  =================@main==================
+  0000    1 GetConstant 0: ""
+  0002    | CallFunction 0
+  0004    | TakeRight 4 -> 15
+  0007    | GetConstant 1: [_]
+  0009    | GetConstant 2: Foo
+  0011    | CallFunction 0
+  0013    | InsertAtIndex 0
+  0015    | End
+  ========================================
+
+
