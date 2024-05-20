@@ -893,7 +893,6 @@ pub const Compiler = struct {
                 },
                 .ArrayHead => {
                     try self.writeValueArray(infix.left, infix.right);
-                    try self.emitOp(.ResolveUnboundVars, loc);
                 },
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
@@ -997,7 +996,6 @@ pub const Compiler = struct {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
                     try self.writeValueArray(infix.left, infix.right);
-                    try self.emitOp(.ResolveUnboundVars, loc);
                 },
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
@@ -1216,16 +1214,16 @@ pub const Compiler = struct {
             },
             .ElemNode => |elem| {
                 switch (elem) {
-                    .ValueVar => |name| {
-                        try array.addPatternElem(
-                            name,
-                            array.elems.items.len,
-                            self.localSlot(name).?,
-                        );
+                    .ValueVar => {
+                        const loc = self.ast.getLocation(nodeId);
+                        try self.writeValue(nodeId, false);
+                        try self.emitUnaryOp(.InsertAtIndex, index, loc);
+                        try array.append(self.placeholderVar());
                     },
-                    else => {},
+                    else => {
+                        try array.append(elem);
+                    },
                 }
-                try array.append(elem);
             },
         }
     }

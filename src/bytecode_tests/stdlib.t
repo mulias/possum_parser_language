@@ -671,13 +671,14 @@
   0004    | CallFunction 0
   0006    | GetLocal 1
   0008    | Destructure
-  0009    | TakeRight 9 -> 21
+  0009    | TakeRight 9 -> 24
   0012    | GetConstant 1: _array
   0014    | GetBoundLocal 0
-  0016    | GetConstant 2: [First]
-  0018    | ResolveUnboundVars
-  0019    | CallTailFunction 2
-  0021    | End
+  0016    | GetConstant 2: [_]
+  0018    | GetBoundLocal 1
+  0020    | InsertAtIndex 0
+  0022    | CallTailFunction 2
+  0024    | End
   ========================================
   
   =================_array=================
@@ -687,19 +688,20 @@
   0005    | CallFunction 0
   0007    | GetLocal 2
   0009    | Destructure
-  0010    | ConditionalThen 10 -> 28
+  0010    | ConditionalThen 10 -> 31
   0013  141 GetConstant 1: _array
   0015    | GetBoundLocal 0
   0017    | GetBoundLocal 1
-  0019    | GetConstant 2: [Elem]
-  0021    | ResolveUnboundVars
-  0022    | Merge
-  0023    | CallTailFunction 2
-  0025    | ConditionalElse 25 -> 34
-  0028  142 GetConstant 3: const
-  0030    | GetBoundLocal 1
-  0032    | CallTailFunction 1
-  0034  140 End
+  0019    | GetConstant 2: [_]
+  0021    | GetBoundLocal 2
+  0023    | InsertAtIndex 0
+  0025    | Merge
+  0026    | CallTailFunction 2
+  0028    | ConditionalElse 28 -> 37
+  0031  142 GetConstant 3: const
+  0033    | GetBoundLocal 1
+  0035    | CallTailFunction 1
+  0037  140 End
   ========================================
   
   =================@fn32==================
@@ -720,15 +722,16 @@
   0004    | CallFunction 0
   0006    | GetLocal 2
   0008    | Destructure
-  0009    | TakeRight 9 -> 27
+  0009    | TakeRight 9 -> 30
   0012    | GetConstant 1: _array
   0014    | GetConstant 2: @fn32
   0016    | CaptureLocal 0 1
   0019    | CaptureLocal 1 0
-  0022    | GetConstant 3: [First]
-  0024    | ResolveUnboundVars
-  0025    | CallTailFunction 2
-  0027    | End
+  0022    | GetConstant 3: [_]
+  0024    | GetBoundLocal 2
+  0026    | InsertAtIndex 0
+  0028    | CallTailFunction 2
+  0030    | End
   ========================================
   
   ==============array_until===============
@@ -739,14 +742,15 @@
   0008    | CallFunction 2
   0010    | GetLocal 2
   0012    | Destructure
-  0013    | TakeRight 13 -> 27
+  0013    | TakeRight 13 -> 30
   0016    | GetConstant 2: _array_until
   0018    | GetBoundLocal 0
   0020    | GetBoundLocal 1
-  0022    | GetConstant 3: [First]
-  0024    | ResolveUnboundVars
-  0025    | CallTailFunction 3
-  0027    | End
+  0022    | GetConstant 3: [_]
+  0024    | GetBoundLocal 2
+  0026    | InsertAtIndex 0
+  0028    | CallTailFunction 3
+  0030    | End
   ========================================
   
   ==============_array_until==============
@@ -759,21 +763,22 @@
   0012  151 GetConstant 2: const
   0014    | GetBoundLocal 2
   0016    | CallTailFunction 1
-  0018    | ConditionalElse 18 -> 45
+  0018    | ConditionalElse 18 -> 48
   0021  152 GetBoundLocal 0
   0023    | CallFunction 0
   0025    | GetLocal 3
   0027    | Destructure
-  0028    | TakeRight 28 -> 45
+  0028    | TakeRight 28 -> 48
   0031    | GetConstant 3: _array_until
   0033    | GetBoundLocal 0
   0035    | GetBoundLocal 1
   0037    | GetBoundLocal 2
-  0039    | GetConstant 4: [Elem]
-  0041    | ResolveUnboundVars
-  0042    | Merge
-  0043    | CallTailFunction 3
-  0045  150 End
+  0039    | GetConstant 4: [_]
+  0041    | GetBoundLocal 3
+  0043    | InsertAtIndex 0
+  0045    | Merge
+  0046    | CallTailFunction 3
+  0048  150 End
   ========================================
   
   =================@fn33==================
@@ -821,10 +826,11 @@
   0004    | CallFunction 0
   0006    | GetLocal 1
   0008    | Destructure
-  0009    | TakeRight 9 -> 15
-  0012    | GetConstant 1: [Elem]
-  0014    | ResolveUnboundVars
-  0015    | End
+  0009    | TakeRight 9 -> 18
+  0012    | GetConstant 1: [_]
+  0014    | GetBoundLocal 1
+  0016    | InsertAtIndex 0
+  0018    | End
   ========================================
   
   =================tuple2=================
@@ -834,15 +840,18 @@
   0006    | CallFunction 0
   0008    | GetLocal 2
   0010    | Destructure
-  0011    | TakeRight 11 -> 27
+  0011    | TakeRight 11 -> 34
   0014    | GetBoundLocal 1
   0016    | CallFunction 0
   0018    | GetLocal 3
   0020    | Destructure
-  0021    | TakeRight 21 -> 27
-  0024    | GetConstant 2: [E1, E2]
-  0026    | ResolveUnboundVars
-  0027    | End
+  0021    | TakeRight 21 -> 34
+  0024    | GetConstant 2: [_, _]
+  0026    | GetBoundLocal 2
+  0028    | InsertAtIndex 0
+  0030    | GetBoundLocal 3
+  0032    | InsertAtIndex 1
+  0034    | End
   ========================================
   
   ===============tuple2_sep===============
@@ -855,15 +864,18 @@
   0011    | TakeRight 11 -> 18
   0014    | GetBoundLocal 1
   0016    | CallFunction 0
-  0018    | TakeRight 18 -> 34
+  0018    | TakeRight 18 -> 41
   0021    | GetBoundLocal 2
   0023    | CallFunction 0
   0025    | GetLocal 4
   0027    | Destructure
-  0028    | TakeRight 28 -> 34
-  0031    | GetConstant 2: [E1, E2]
-  0033    | ResolveUnboundVars
-  0034    | End
+  0028    | TakeRight 28 -> 41
+  0031    | GetConstant 2: [_, _]
+  0033    | GetBoundLocal 3
+  0035    | InsertAtIndex 0
+  0037    | GetBoundLocal 4
+  0039    | InsertAtIndex 1
+  0041    | End
   ========================================
   
   =================tuple3=================
@@ -879,15 +891,20 @@
   0018    | CallFunction 0
   0020    | GetLocal 4
   0022    | Destructure
-  0023    | TakeRight 23 -> 39
+  0023    | TakeRight 23 -> 50
   0026  167 GetBoundLocal 2
   0028    | CallFunction 0
   0030    | GetLocal 5
   0032    | Destructure
-  0033    | TakeRight 33 -> 39
-  0036  168 GetConstant 3: [E1, E2, E3]
-  0038    | ResolveUnboundVars
-  0039  166 End
+  0033    | TakeRight 33 -> 50
+  0036  168 GetConstant 3: [_, _, _]
+  0038    | GetBoundLocal 3
+  0040    | InsertAtIndex 0
+  0042    | GetBoundLocal 4
+  0044    | InsertAtIndex 1
+  0046    | GetBoundLocal 5
+  0048    | InsertAtIndex 2
+  0050  166 End
   ========================================
   
   ===============tuple3_sep===============
@@ -909,15 +926,20 @@
   0030    | TakeRight 30 -> 37
   0033    | GetBoundLocal 3
   0035    | CallFunction 0
-  0037    | TakeRight 37 -> 53
+  0037    | TakeRight 37 -> 64
   0040  173 GetBoundLocal 4
   0042    | CallFunction 0
   0044    | GetLocal 7
   0046    | Destructure
-  0047    | TakeRight 47 -> 53
-  0050  174 GetConstant 3: [E1, E2, E3]
-  0052    | ResolveUnboundVars
-  0053  172 End
+  0047    | TakeRight 47 -> 64
+  0050  174 GetConstant 3: [_, _, _]
+  0052    | GetBoundLocal 5
+  0054    | InsertAtIndex 0
+  0056    | GetBoundLocal 6
+  0058    | InsertAtIndex 1
+  0060    | GetBoundLocal 7
+  0062    | InsertAtIndex 2
+  0064  172 End
   ========================================
   
   ===============table_sep================
@@ -926,16 +948,17 @@
   0004    | CallFunction 0
   0006    | GetLocal 3
   0008    | Destructure
-  0009    | TakeRight 9 -> 27
+  0009    | TakeRight 9 -> 30
   0012    | GetConstant 1: _table_sep
   0014    | GetBoundLocal 0
   0016    | GetBoundLocal 1
   0018    | GetBoundLocal 2
-  0020    | GetConstant 2: [First]
-  0022    | ResolveUnboundVars
-  0023    | GetConstant 3: []
-  0025    | CallTailFunction 5
-  0027    | End
+  0020    | GetConstant 2: [_]
+  0022    | GetBoundLocal 3
+  0024    | InsertAtIndex 0
+  0026    | GetConstant 3: []
+  0028    | CallTailFunction 5
+  0030    | End
   ========================================
   
   ===============_table_sep===============
@@ -949,46 +972,50 @@
   0014    | CallFunction 0
   0016    | GetLocal 5
   0018    | Destructure
-  0019    | ConditionalThen 19 -> 43
+  0019    | ConditionalThen 19 -> 46
   0022  181 GetConstant 2: _table_sep
   0024    | GetBoundLocal 0
   0026    | GetBoundLocal 1
   0028    | GetBoundLocal 2
   0030    | GetBoundLocal 3
-  0032    | GetConstant 3: [Elem]
-  0034    | ResolveUnboundVars
-  0035    | Merge
-  0036    | GetBoundLocal 4
-  0038    | CallTailFunction 5
-  0040    | ConditionalElse 40 -> 93
-  0043  182 SetInputMark
-  0044    | GetBoundLocal 2
-  0046    | CallFunction 0
-  0048    | TakeRight 48 -> 55
-  0051    | GetBoundLocal 0
-  0053    | CallFunction 0
-  0055    | GetLocal 6
-  0057    | Destructure
-  0058    | ConditionalThen 58 -> 83
-  0061  183 GetConstant 4: _table_sep
-  0063    | GetBoundLocal 0
-  0065    | GetBoundLocal 1
-  0067    | GetBoundLocal 2
-  0069    | GetConstant 5: [NextRow]
-  0071    | ResolveUnboundVars
-  0072    | GetBoundLocal 4
-  0074    | GetConstant 6: [AccRow]
-  0076    | ResolveUnboundVars
-  0077    | Merge
-  0078    | CallTailFunction 5
-  0080    | ConditionalElse 80 -> 93
-  0083  184 GetConstant 7: const
-  0085    | GetBoundLocal 4
-  0087    | GetConstant 8: [AccRow]
-  0089    | ResolveUnboundVars
-  0090    | Merge
-  0091    | CallTailFunction 1
-  0093  180 End
+  0032    | GetConstant 3: [_]
+  0034    | GetBoundLocal 5
+  0036    | InsertAtIndex 0
+  0038    | Merge
+  0039    | GetBoundLocal 4
+  0041    | CallTailFunction 5
+  0043    | ConditionalElse 43 -> 105
+  0046  182 SetInputMark
+  0047    | GetBoundLocal 2
+  0049    | CallFunction 0
+  0051    | TakeRight 51 -> 58
+  0054    | GetBoundLocal 0
+  0056    | CallFunction 0
+  0058    | GetLocal 6
+  0060    | Destructure
+  0061    | ConditionalThen 61 -> 92
+  0064  183 GetConstant 4: _table_sep
+  0066    | GetBoundLocal 0
+  0068    | GetBoundLocal 1
+  0070    | GetBoundLocal 2
+  0072    | GetConstant 5: [_]
+  0074    | GetBoundLocal 6
+  0076    | InsertAtIndex 0
+  0078    | GetBoundLocal 4
+  0080    | GetConstant 6: [_]
+  0082    | GetBoundLocal 3
+  0084    | InsertAtIndex 0
+  0086    | Merge
+  0087    | CallTailFunction 5
+  0089    | ConditionalElse 89 -> 105
+  0092  184 GetConstant 7: const
+  0094    | GetBoundLocal 4
+  0096    | GetConstant 8: [_]
+  0098    | GetBoundLocal 3
+  0100    | InsertAtIndex 0
+  0102    | Merge
+  0103    | CallTailFunction 1
+  0105  180 End
   ========================================
   
   =================@fn35==================
@@ -1011,9 +1038,8 @@
   0007    | CaptureLocal 1 1
   0010    | CaptureLocal 2 2
   0013    | GetConstant 2: [[]]
-  0015    | ResolveUnboundVars
-  0016    | CallTailFunction 2
-  0018    | End
+  0015    | CallTailFunction 2
+  0017    | End
   ========================================
   
   =================object=================
