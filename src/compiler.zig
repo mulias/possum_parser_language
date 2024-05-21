@@ -430,7 +430,7 @@ pub const Compiler = struct {
                 },
                 .Destructure => {
                     try self.writeParser(infix.left, false);
-                    try self.writePattern(infix.right);
+                    try self.writeDestructurePattern(infix.right);
                 },
                 .Or => {
                     try self.emitOp(.SetInputMark, loc);
@@ -734,6 +734,27 @@ pub const Compiler = struct {
         return self.vm.strings.insert(name);
     }
 
+    fn writeDestructurePattern(self: *Compiler, nodeId: usize) !void {
+        const node = self.ast.getNode(nodeId);
+        const loc = self.ast.getLocation(nodeId);
+
+        switch (node) {
+            .InfixNode => |infix| switch (infix.infixType) {
+                .ArrayHead => {
+                    try self.writePattern(nodeId);
+                },
+                else => {
+                    try self.writePattern(nodeId);
+                    try self.emitOp(.Destructure, loc);
+                },
+            },
+            else => {
+                try self.writePattern(nodeId);
+                try self.emitOp(.Destructure, loc);
+            },
+        }
+    }
+
     fn writePattern(self: *Compiler, nodeId: usize) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
@@ -741,33 +762,27 @@ pub const Compiler = struct {
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
-                    @panic("TODO");
-                    // try self.writePattern(infix.left);
-                    // try self.writePattern(infix.right);
-                    // try self.emitOp(.Merge, loc);
-                    // try self.emitOp(.Destructure, loc);
+                    try self.writePattern(infix.left);
+                    try self.writePattern(infix.right);
+                    try self.emitOp(.Merge, loc);
                 },
                 .ArrayHead => {
                     try self.writeArray(infix.left, infix.right, .Pattern);
                 },
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
-                    try self.emitOp(.Destructure, loc);
                 },
                 .StringTemplate => {
                     try self.writeStringTemplate(infix.left, infix.right);
-                    try self.emitOp(.Destructure, loc);
                 },
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
-                    try self.emitOp(.Destructure, loc);
                 },
                 .NumberSubtract => {
                     try self.writePattern(infix.left);
                     try self.writePattern(infix.right);
                     try self.emitOp(.NegateNumber, loc);
                     try self.emitOp(.Merge, loc);
-                    try self.emitOp(.Destructure, loc);
                 },
                 .ArrayCons,
                 .ObjectPair,
@@ -786,14 +801,12 @@ pub const Compiler = struct {
                 .ValueVar => |name| {
                     if (self.localSlot(name)) |slot| {
                         try self.emitUnaryOp(.GetLocal, slot, loc);
-                        try self.emitOp(.Destructure, loc);
                     } else if (self.vm.globals.get(name)) |globalElem| {
                         const constId = try self.makeConstant(globalElem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
                         if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
                             try self.emitUnaryOp(.CallFunction, 0, loc);
                         }
-                        try self.emitOp(.Destructure, loc);
                     } else {
                         return Error.UndefinedVariable;
                     }
@@ -804,19 +817,15 @@ pub const Compiler = struct {
                 => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
-                    try self.emitOp(.Destructure, loc);
                 },
                 .True => {
                     try self.emitOp(.True, loc);
-                    try self.emitOp(.Destructure, loc);
                 },
                 .False => {
                     try self.emitOp(.False, loc);
-                    try self.emitOp(.Destructure, loc);
                 },
                 .Null => {
                     try self.emitOp(.Null, loc);
-                    try self.emitOp(.Destructure, loc);
                 },
                 .Integer,
                 .Float,
@@ -841,7 +850,6 @@ pub const Compiler = struct {
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
-                        try self.emitOp(.Destructure, loc);
                     },
                 },
             },
@@ -1059,7 +1067,7 @@ pub const Compiler = struct {
                 },
                 .Destructure => {
                     try self.writeValueFunction(infix.left, false);
-                    try self.writePattern(infix.right);
+                    try self.writeDestructurePattern(infix.right);
                 },
                 .Or => {
                     try self.emitOp(.SetInputMark, loc);
@@ -1259,7 +1267,7 @@ pub const Compiler = struct {
             },
             .Pattern => {
                 try self.emitUnaryOp(.GetAtIndex, index, loc);
-                try self.writePattern(nodeId);
+                try self.writeDestructurePattern(nodeId);
                 try self.emitOp(.Pop, loc);
             },
         }
