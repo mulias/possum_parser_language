@@ -282,6 +282,15 @@ pub const VM = struct {
                 // Push singleton false value.
                 try self.push(Elem.falseConst);
             },
+            .GetAtIndex => {
+                const index = self.readByte();
+                const elem = self.peek(0);
+
+                if (elem.isSuccess()) {
+                    const array = elem.asDyn().asArray();
+                    try self.push(array.elems.items[index]);
+                }
+            },
             .GetLocal => {
                 const slot = self.readByte();
                 try self.push(self.getLocal(slot));
@@ -382,6 +391,9 @@ pub const VM = struct {
                     _ = self.pop();
                     self.inputPos = resetPos;
                 }
+            },
+            .Pop => {
+                _ = self.pop();
             },
             .ResolveUnboundVars => {
                 const value = self.pop();
@@ -572,10 +584,14 @@ pub const VM = struct {
 
     fn bindVars(self: *VM, patternOrValue: Elem, failIfUnbound: bool) !Elem {
         switch (patternOrValue) {
-            .ValueVar => |varName| {
-                const slot = self.frame().function.localSlot(varName).?;
-                const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
-                return local;
+            .ValueVar => |varId| {
+                if (varId == self.strings.getId("_")) {
+                    return patternOrValue;
+                } else {
+                    const slot = self.frame().function.localSlot(varId).?;
+                    const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
+                    return local;
+                }
             },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Array => {
@@ -646,8 +662,10 @@ pub const VM = struct {
 
     fn bindLocalVariables(self: *VM, pattern: Elem, value: Elem) void {
         switch (pattern) {
-            .ValueVar => |varName| {
-                const slot = self.frame().function.localSlot(varName).?;
+            .ValueVar => |varId| {
+                if (varId == self.strings.getId("_")) return;
+
+                const slot = self.frame().function.localSlot(varId).?;
                 if (self.getLocal(slot).isType(.ValueVar)) {
                     self.setLocal(slot, value);
                 }

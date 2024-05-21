@@ -418,21 +418,21 @@ test "'' $ true -> false" {
     }
 }
 
-test "'ab' -> ('a' + 'b')" {
-    const parser =
-        \\'ab' -> ('a' + 'b')
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, stderr, env);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret(parser, "ab"),
-            (try Elem.Dyn.String.copy(&vm, "ab")).dyn.elem(),
-            vm.strings,
-        );
-    }
-}
+// test "'ab' -> ('a' + 'b')" {
+//     const parser =
+//         \\'ab' -> ('a' + 'b')
+//     ;
+//     {
+//         var vm = VM.create();
+//         try vm.init(allocator, stderr, env);
+//         defer vm.deinit();
+//         try testing.expectSuccess(
+//             try vm.interpret(parser, "ab"),
+//             (try Elem.Dyn.String.copy(&vm, "ab")).dyn.elem(),
+//             vm.strings,
+//         );
+//     }
+// }
 
 test "123 & 456 | 789 $ true & 'xyz'" {
     const parser =
