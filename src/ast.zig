@@ -114,7 +114,13 @@ pub const Ast = struct {
         return self.nodes.items.len - 1;
     }
 
-    pub fn printNodes(self: *Ast, writer: VMWriter, strings: StringTable) !void {
+    pub fn print(self: *Ast, writer: VMWriter, strings: StringTable) !void {
+        try writer.print("roots:", .{});
+        for (self.roots.items) |nodeId| {
+            try writer.print(" {d}", .{nodeId});
+        }
+        try writer.print("\n", .{});
+
         for (self.nodes.items, 0..) |node, index| {
             try writer.print("node {d}: ", .{index});
             switch (node) {

@@ -7,6 +7,7 @@ pub const IS_WASM_FREESTANDING = builtin.target.isWasm() and builtin.target.os.t
 pub const Env = struct {
     printScanner: bool,
     printParser: bool,
+    printAst: bool,
     printCompiledBytecode: bool,
     printExecutedBytecode: bool,
     printVM: bool,
@@ -16,6 +17,7 @@ pub const Env = struct {
         return Env{
             .printScanner = false,
             .printParser = false,
+            .printAst = false,
             .printCompiledBytecode = false,
             .printExecutedBytecode = false,
             .printVM = false,
@@ -27,6 +29,7 @@ pub const Env = struct {
         return Env{
             .printScanner = try getFlag(allocator, "PRINT_SCANNER", false),
             .printParser = try getFlag(allocator, "PRINT_PARSER", false),
+            .printAst = try getFlag(allocator, "PRINT_AST", false),
             .printCompiledBytecode = try getFlag(allocator, "PRINT_COMPILED_BYTECODE", false),
             .printExecutedBytecode = try getFlag(allocator, "PRINT_EXECUTED_BYTECODE", false),
             .printVM = try getFlag(allocator, "PRINT_VM", false),

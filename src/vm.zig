@@ -109,6 +109,10 @@ pub const VM = struct {
         try parser.parse(programSource);
         try parser.end();
 
+        if (self.env.printAst) {
+            try parser.ast.print(debug.writer, self.strings);
+        }
+
         var compiler = try Compiler.init(self, parser.ast, self.env.printCompiledBytecode);
         defer compiler.deinit();
 
