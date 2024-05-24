@@ -516,8 +516,8 @@ pub const VM = struct {
 
                 // Find the longest substring from the start of the input which
                 // parses as an integer, is greater than or equal to r.lowValue and
-                // less than or equal to r.highValue.
-                while (end >= shortestMatchEnd) {
+                // less than or equal to r.highValue, and is at least one char long.
+                while (end >= shortestMatchEnd and end > start) {
                     const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
 
                     if (inputInt) |i| if (r[0] <= i and i <= r[1]) {

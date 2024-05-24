@@ -1915,6 +1915,15 @@ test "array(digit) -> [A, B]" {
         defer vm.deinit();
 
         try testing.expectFailure(
+            try vm.interpret(parser, ""),
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, Env.init());
+        defer vm.deinit();
+
+        try testing.expectFailure(
             try vm.interpret(parser, "1"),
         );
     }
