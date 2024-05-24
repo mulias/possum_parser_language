@@ -259,14 +259,13 @@ pub const VM = struct {
                     const boundPattern = try self.bindVars(pattern, false);
 
                     if (value.isValueMatchingPattern(boundPattern, self.strings)) {
+                        self.bindLocalVariables(pattern, value);
                         try self.push(value);
                     } else {
                         try self.pushFailure();
                     }
-
-                    self.bindLocalVariables(pattern, value);
                 } else {
-                    try self.push(value);
+                    try self.pushFailure();
                 }
             },
             .End => {

@@ -1904,3 +1904,44 @@ test "Foo = (1 -> 2) + 1 ; '' $ [Foo]" {
         );
     }
 }
+
+test "array(digit) -> [A, B]" {
+    const parser =
+        \\array(digit) -> [A, B]
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, Env.init());
+        defer vm.deinit();
+
+        try testing.expectFailure(
+            try vm.interpret(parser, "1"),
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, Env.init());
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "12");
+
+        const array = [_]Elem{
+            Elem.integer(1),
+            Elem.integer(2),
+        };
+
+        try testing.expectSuccess(
+            result,
+            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, Env.init());
+        defer vm.deinit();
+
+        try testing.expectFailure(
+            try vm.interpret(parser, "123"),
+        );
+    }
+}

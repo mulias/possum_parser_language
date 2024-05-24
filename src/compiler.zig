@@ -767,7 +767,7 @@ pub const Compiler = struct {
                     try self.emitOp(.Merge, loc);
                 },
                 .ArrayHead => {
-                    try self.writeArray(infix.left, infix.right, .Pattern);
+                    try self.writePatternArray(infix.left, infix.right);
                 },
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
@@ -919,7 +919,7 @@ pub const Compiler = struct {
                     try self.emitOp(.Merge, loc);
                 },
                 .ArrayHead => {
-                    try self.writeArray(infix.left, infix.right, .Value);
+                    try self.writeValueArray(infix.left, infix.right);
                 },
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
@@ -1022,7 +1022,7 @@ pub const Compiler = struct {
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
-                    try self.writeArray(infix.left, infix.right, .Value);
+                    try self.writeValueArray(infix.left, infix.right);
                 },
                 .ObjectCons => {
                     try self.writeObject(infix.left, infix.right);
@@ -1187,7 +1187,41 @@ pub const Compiler = struct {
         return argCount;
     }
 
-    const ArrayContext = enum { Pattern, Value };
+    const ArrayContext = union(enum) {
+        Pattern: *ArrayList(usize),
+        Value: void,
+
+        pub fn emitPatternJumpIfFailure(self: ArrayContext, compiler: *Compiler, loc: Location) !void {
+            switch (self) {
+                .Pattern => |jumpList| {
+                    const index = try compiler.emitJump(.JumpIfFailure, loc);
+                    try jumpList.append(index);
+                },
+                .Value => {},
+            }
+        }
+
+        pub fn patchPatternJumps(self: ArrayContext, compiler: *Compiler, loc: Location) !void {
+            switch (self) {
+                .Pattern => |jumpList| {
+                    for (jumpList.items) |index| {
+                        try compiler.patchJump(index, loc);
+                    }
+                },
+                .Value => {},
+            }
+        }
+    };
+
+    fn writePatternArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
+        var jumpList = ArrayList(usize).init(self.vm.allocator);
+        defer jumpList.deinit();
+        try self.writeArray(startNodeId, itemNodeId, ArrayContext{ .Pattern = &jumpList });
+    }
+
+    fn writeValueArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
+        try self.writeArray(startNodeId, itemNodeId, ArrayContext{ .Value = undefined });
+    }
 
     fn writeArray(self: *Compiler, startNodeId: usize, itemNodeId: usize, context: ArrayContext) !void {
         // The first left node is the empty array
@@ -1195,13 +1229,16 @@ pub const Compiler = struct {
         const arrayLoc = self.ast.getLocation(startNodeId);
 
         const array = arrayElem.asDyn().asArray();
-
         const constId = try self.makeConstant(arrayElem);
+
+        try context.emitPatternJumpIfFailure(self, arrayLoc);
         try self.emitUnaryOp(.GetConstant, constId, arrayLoc);
 
         if (context == .Pattern) try self.emitOp(.Destructure, arrayLoc);
 
         try self.appendArrayElems(array, itemNodeId, context);
+
+        try context.patchPatternJumps(self, arrayLoc);
     }
 
     fn appendArrayElems(self: *Compiler, array: *Elem.Dyn.Array, itemNodeId: usize, context: ArrayContext) !void {
@@ -1266,24 +1303,12 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.InsertAtIndex, index, loc);
             },
             .Pattern => {
+                try context.emitPatternJumpIfFailure(self, loc);
                 try self.emitUnaryOp(.GetAtIndex, index, loc);
                 try self.writeDestructurePattern(nodeId);
                 try self.emitOp(.Pop, loc);
             },
         }
-    }
-
-    fn writePatternArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
-        // The first left node is the empty array
-        const arrayElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
-        const arrayLoc = self.ast.getLocation(startNodeId);
-
-        const array = arrayElem.asDyn().asArray();
-
-        const constId = try self.makeConstant(arrayElem);
-        try self.emitUnaryOp(.GetConstant, constId, arrayLoc);
-
-        try self.appendPatternArrayElems(array, itemNodeId);
     }
 
     fn appendPatternArrayElems(self: *Compiler, array: *Elem.Dyn.Array, itemNodeId: usize) !void {
