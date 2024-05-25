@@ -402,6 +402,12 @@ pub const VM = struct {
                 const value = self.pop();
                 try self.push(try self.bindVars(value, true));
             },
+            .Swap => {
+                const a = self.pop();
+                const b = self.pop();
+                try self.push(a);
+                try self.push(b);
+            },
             .TakeLeft => {
                 // Postfix, lhs and rhs on stack.
                 // If rhs succeeded then discard rhs, keep lhs.

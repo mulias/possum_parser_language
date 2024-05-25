@@ -1231,14 +1231,26 @@ pub const Compiler = struct {
         const array = arrayElem.asDyn().asArray();
         const constId = try self.makeConstant(arrayElem);
 
-        try context.emitPatternJumpIfFailure(self, arrayLoc);
         try self.emitUnaryOp(.GetConstant, constId, arrayLoc);
 
-        if (context == .Pattern) try self.emitOp(.Destructure, arrayLoc);
+        if (context == .Pattern) {
+            try self.emitOp(.Destructure, arrayLoc);
+            const failureJumpIndex = try self.emitJump(.JumpIfFailure, arrayLoc);
 
-        try self.appendArrayElems(array, itemNodeId, context);
+            try self.appendArrayElems(array, itemNodeId, context);
 
-        try context.patchPatternJumps(self, arrayLoc);
+            const successJumpIndex = try self.emitJump(.JumpIfSuccess, arrayLoc);
+
+            try context.patchPatternJumps(self, arrayLoc);
+
+            try self.emitOp(.Swap, arrayLoc);
+            try self.emitOp(.Pop, arrayLoc);
+
+            try self.patchJump(failureJumpIndex, arrayLoc);
+            try self.patchJump(successJumpIndex, arrayLoc);
+        } else {
+            try self.appendArrayElems(array, itemNodeId, context);
+        }
     }
 
     fn appendArrayElems(self: *Compiler, array: *Elem.Dyn.Array, itemNodeId: usize, context: ArrayContext) !void {
@@ -1303,9 +1315,9 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.InsertAtIndex, index, loc);
             },
             .Pattern => {
-                try context.emitPatternJumpIfFailure(self, loc);
                 try self.emitUnaryOp(.GetAtIndex, index, loc);
                 try self.writeDestructurePattern(nodeId);
+                try context.emitPatternJumpIfFailure(self, loc);
                 try self.emitOp(.Pop, loc);
             },
         }
