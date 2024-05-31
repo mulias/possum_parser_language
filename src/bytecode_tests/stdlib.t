@@ -688,20 +688,22 @@
   0005    | CallFunction 0
   0007    | GetLocal 2
   0009    | Destructure
-  0010    | ConditionalThen 10 -> 31
+  0010    | ConditionalThen 10 -> 34
   0013  141 GetConstant 1: _array
   0015    | GetBoundLocal 0
-  0017    | GetBoundLocal 1
-  0019    | GetConstant 2: [_]
-  0021    | GetBoundLocal 2
-  0023    | InsertAtIndex 0
-  0025    | Merge
-  0026    | CallTailFunction 2
-  0028    | ConditionalElse 28 -> 37
-  0031  142 GetConstant 3: const
-  0033    | GetBoundLocal 1
-  0035    | CallTailFunction 1
-  0037  140 End
+  0017    | GetConstant 2: []
+  0019    | GetBoundLocal 1
+  0021    | Merge
+  0022    | GetConstant 3: [_]
+  0024    | GetBoundLocal 2
+  0026    | InsertAtIndex 0
+  0028    | Merge
+  0029    | CallTailFunction 2
+  0031    | ConditionalElse 31 -> 40
+  0034  142 GetConstant 4: const
+  0036    | GetBoundLocal 1
+  0038    | CallTailFunction 1
+  0040  140 End
   ========================================
   
   =================@fn32==================
@@ -763,22 +765,24 @@
   0012  151 GetConstant 2: const
   0014    | GetBoundLocal 2
   0016    | CallTailFunction 1
-  0018    | ConditionalElse 18 -> 48
+  0018    | ConditionalElse 18 -> 51
   0021  152 GetBoundLocal 0
   0023    | CallFunction 0
   0025    | GetLocal 3
   0027    | Destructure
-  0028    | TakeRight 28 -> 48
+  0028    | TakeRight 28 -> 51
   0031    | GetConstant 3: _array_until
   0033    | GetBoundLocal 0
   0035    | GetBoundLocal 1
-  0037    | GetBoundLocal 2
-  0039    | GetConstant 4: [_]
-  0041    | GetBoundLocal 3
-  0043    | InsertAtIndex 0
-  0045    | Merge
-  0046    | CallTailFunction 3
-  0048  150 End
+  0037    | GetConstant 4: []
+  0039    | GetBoundLocal 2
+  0041    | Merge
+  0042    | GetConstant 5: [_]
+  0044    | GetBoundLocal 3
+  0046    | InsertAtIndex 0
+  0048    | Merge
+  0049    | CallTailFunction 3
+  0051  150 End
   ========================================
   
   =================@fn33==================
@@ -972,50 +976,56 @@
   0014    | CallFunction 0
   0016    | GetLocal 5
   0018    | Destructure
-  0019    | ConditionalThen 19 -> 46
+  0019    | ConditionalThen 19 -> 49
   0022  181 GetConstant 2: _table_sep
   0024    | GetBoundLocal 0
   0026    | GetBoundLocal 1
   0028    | GetBoundLocal 2
-  0030    | GetBoundLocal 3
-  0032    | GetConstant 3: [_]
-  0034    | GetBoundLocal 5
-  0036    | InsertAtIndex 0
-  0038    | Merge
-  0039    | GetBoundLocal 4
-  0041    | CallTailFunction 5
-  0043    | ConditionalElse 43 -> 105
-  0046  182 SetInputMark
-  0047    | GetBoundLocal 2
-  0049    | CallFunction 0
-  0051    | TakeRight 51 -> 58
-  0054    | GetBoundLocal 0
-  0056    | CallFunction 0
-  0058    | GetLocal 6
-  0060    | Destructure
-  0061    | ConditionalThen 61 -> 92
-  0064  183 GetConstant 4: _table_sep
-  0066    | GetBoundLocal 0
-  0068    | GetBoundLocal 1
-  0070    | GetBoundLocal 2
-  0072    | GetConstant 5: [_]
-  0074    | GetBoundLocal 6
-  0076    | InsertAtIndex 0
-  0078    | GetBoundLocal 4
-  0080    | GetConstant 6: [_]
-  0082    | GetBoundLocal 3
-  0084    | InsertAtIndex 0
-  0086    | Merge
-  0087    | CallTailFunction 5
-  0089    | ConditionalElse 89 -> 105
-  0092  184 GetConstant 7: const
-  0094    | GetBoundLocal 4
-  0096    | GetConstant 8: [_]
-  0098    | GetBoundLocal 3
-  0100    | InsertAtIndex 0
-  0102    | Merge
-  0103    | CallTailFunction 1
-  0105  180 End
+  0030    | GetConstant 3: []
+  0032    | GetBoundLocal 3
+  0034    | Merge
+  0035    | GetConstant 4: [_]
+  0037    | GetBoundLocal 5
+  0039    | InsertAtIndex 0
+  0041    | Merge
+  0042    | GetBoundLocal 4
+  0044    | CallTailFunction 5
+  0046    | ConditionalElse 46 -> 114
+  0049  182 SetInputMark
+  0050    | GetBoundLocal 2
+  0052    | CallFunction 0
+  0054    | TakeRight 54 -> 61
+  0057    | GetBoundLocal 0
+  0059    | CallFunction 0
+  0061    | GetLocal 6
+  0063    | Destructure
+  0064    | ConditionalThen 64 -> 98
+  0067  183 GetConstant 5: _table_sep
+  0069    | GetBoundLocal 0
+  0071    | GetBoundLocal 1
+  0073    | GetBoundLocal 2
+  0075    | GetConstant 6: [_]
+  0077    | GetBoundLocal 6
+  0079    | InsertAtIndex 0
+  0081    | GetConstant 7: []
+  0083    | GetBoundLocal 4
+  0085    | Merge
+  0086    | GetConstant 8: [_]
+  0088    | GetBoundLocal 3
+  0090    | InsertAtIndex 0
+  0092    | Merge
+  0093    | CallTailFunction 5
+  0095    | ConditionalElse 95 -> 114
+  0098  184 GetConstant 9: const
+  0100    | GetConstant 10: []
+  0102    | GetBoundLocal 4
+  0104    | Merge
+  0105    | GetConstant 11: [_]
+  0107    | GetBoundLocal 3
+  0109    | InsertAtIndex 0
+  0111    | Merge
+  0112    | CallTailFunction 1
+  0114  180 End
   ========================================
   
   =================@fn35==================

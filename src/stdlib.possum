@@ -138,7 +138,7 @@ array(elem) = elem -> First & _array(elem, [First])
 
 _array(elem, Acc) =
   elem -> Elem ?
-  _array(elem, Acc + [Elem]) :
+  _array(elem, [...Acc, Elem]) :
   const(Acc)
 
 array_sep(elem, sep) = elem -> First & _array(sep > elem, [First])
@@ -149,7 +149,7 @@ array_until(elem, stop) =
 _array_until(elem, stop, Acc) =
   peek(stop) ?
   const(Acc) :
-  elem -> Elem & _array_until(elem, stop, Acc + [Elem])
+  elem -> Elem & _array_until(elem, stop, [...Acc, Elem])
 
 maybe_array(elem) = default(array(elem), [])
 
@@ -178,10 +178,10 @@ table_sep(elem, sep, row_sep) =
 
 _table_sep(elem, sep, row_sep, AccRow, AccRows) =
   sep > elem -> Elem ?
-  _table_sep(elem, sep, row_sep, AccRow + [Elem], AccRows) :
+  _table_sep(elem, sep, row_sep, [...AccRow, Elem], AccRows) :
   row_sep > elem -> NextRow ?
-  _table_sep(elem, sep, row_sep, [NextRow], AccRows + [AccRow]) :
-  const(AccRows + [AccRow])
+  _table_sep(elem, sep, row_sep, [NextRow], [...AccRows, AccRow]) :
+  const([...AccRows, AccRow])
 
 maybe_table_sep(elem, sep, row_sep) =
   default(table_sep(elem, sep, row_sep), [[]])
