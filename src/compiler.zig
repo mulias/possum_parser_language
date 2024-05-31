@@ -249,8 +249,7 @@ pub const Compiler = struct {
                 .Float,
                 .IntegerString,
                 .FloatString,
-                .True,
-                .False,
+                .Boolean,
                 .Null,
                 => {},
                 .ParserVar,
@@ -298,8 +297,7 @@ pub const Compiler = struct {
                     .Closure => @panic("Internal Error"),
                 },
                 .Failure,
-                .True,
-                .False,
+                .Boolean,
                 .Null,
                 => @panic("Internal Error"),
             },
@@ -492,8 +490,7 @@ pub const Compiler = struct {
 
         const functionName = switch (functionElem) {
             .ParserVar => |sId| sId,
-            .True => try self.vm.strings.insert("true"),
-            .False => try self.vm.strings.insert("false"),
+            .Boolean => |b| try self.vm.strings.insert(if (b) "true" else "false"),
             .Null => try self.vm.strings.insert("null"),
             else => return Error.InvalidAst,
         };
@@ -545,13 +542,8 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.GetConstant, constId, loc);
                         try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
-                    .True => {
-                        // In this context `true` could be a zero-arg function call
-                        try self.writeGetVar(elem, loc, .Parser);
-                        try self.emitUnaryOp(.CallFunction, 0, loc);
-                    },
-                    .False => {
-                        // In this context `false` could be a zero-arg function call
+                    .Boolean => {
+                        // In this context `true`/`false` could be a zero-arg function call
                         try self.writeGetVar(elem, loc, .Parser);
                         try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
@@ -575,8 +567,7 @@ pub const Compiler = struct {
         const varName = switch (elem) {
             .ParserVar => |sId| sId,
             .ValueVar => |sId| sId,
-            .True => try self.vm.strings.insert("true"),
-            .False => try self.vm.strings.insert("false"),
+            .Boolean => |b| try self.vm.strings.insert(if (b) "true" else "false"),
             .Null => try self.vm.strings.insert("null"),
             else => return Error.InvalidAst,
         };
@@ -602,8 +593,7 @@ pub const Compiler = struct {
             .ParserVar,
             .ValueVar,
             => elem,
-            .True => Elem.parserVar(try self.vm.strings.insert("true")),
-            .False => Elem.parserVar(try self.vm.strings.insert("false")),
+            .Boolean => |b| Elem.parserVar(try self.vm.strings.insert(if (b) "true" else "false")),
             .Null => Elem.parserVar(try self.vm.strings.insert("null")),
             else => null,
         };
@@ -815,12 +805,7 @@ pub const Compiler = struct {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
                 },
-                .True => {
-                    try self.emitOp(.True, loc);
-                },
-                .False => {
-                    try self.emitOp(.False, loc);
-                },
+                .Boolean => |b| try self.emitOp(if (b) .True else .False, loc),
                 .Null => {
                     try self.emitOp(.Null, loc);
                 },
@@ -1066,8 +1051,7 @@ pub const Compiler = struct {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
                 },
-                .True => try self.emitOp(.True, loc),
-                .False => try self.emitOp(.False, loc),
+                .Boolean => |b| try self.emitOp(if (b) .True else .False, loc),
                 .Null => try self.emitOp(.Null, loc),
                 .Integer,
                 .Float,

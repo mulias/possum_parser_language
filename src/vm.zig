@@ -283,7 +283,7 @@ pub const VM = struct {
             },
             .False => {
                 // Push singleton false value.
-                try self.push(Elem.falseConst);
+                try self.push(Elem.boolean(false));
             },
             .GetAtIndex => {
                 const index = self.readByte();
@@ -442,7 +442,7 @@ pub const VM = struct {
             },
             .True => {
                 // Push singleton true value.
-                try self.push(Elem.trueConst);
+                try self.push(Elem.boolean(true));
             },
         }
     }
@@ -794,11 +794,9 @@ pub const VM = struct {
 
                     context.Number.acc = (try context.Number.acc.merge(segment, self)).?;
                 },
-                .True,
-                .False,
-                => {
+                .Boolean => {
                     if (context == .Unknown) {
-                        context = .{ .Boolean = .{ .acc = Elem.falseConst } };
+                        context = .{ .Boolean = .{ .acc = Elem.boolean(false) } };
                     } else if (context != .Boolean) {
                         return self.runtimeError("Merge type mismatch in pattern", .{});
                     }
@@ -902,27 +900,29 @@ pub const VM = struct {
                 }
             },
             .Boolean => |bc| {
-                if (value == .False) {
-                    // To successfully destructure, all pattern
-                    // segments must be false.
-                    for (patternSegments) |_| {
-                        try self.push(Elem.falseConst);
-                    }
-                } else if (value == .True) {
-                    var i: usize = patternSegments.len;
-                    while (i > 0) {
-                        i -= 1;
-                        if (patternSegments[i] == .ValueVar) {
-                            // Only assign the unbound variable to true if it
-                            // has to be true to make the pattern match.
-                            // Otherwise default to false, the identity value.
-                            if (bc.acc == .True) {
-                                try self.push(Elem.falseConst);
+                if (value == .Boolean) {
+                    if (value.Boolean) {
+                        var i: usize = patternSegments.len;
+                        while (i > 0) {
+                            i -= 1;
+                            if (patternSegments[i] == .ValueVar) {
+                                // Only assign the unbound variable to true if it
+                                // has to be true to make the pattern match.
+                                // Otherwise default to false, the identity value.
+                                if (bc.acc.Boolean) {
+                                    try self.push(Elem.boolean(false));
+                                } else {
+                                    try self.push(Elem.boolean(true));
+                                }
                             } else {
-                                try self.push(Elem.trueConst);
+                                try self.push(patternSegments[i]);
                             }
-                        } else {
-                            try self.push(patternSegments[i]);
+                        }
+                    } else {
+                        // To successfully destructure, all pattern
+                        // segments must be false.
+                        for (patternSegments) |_| {
+                            try self.push(Elem.boolean(false));
                         }
                     }
                 } else {

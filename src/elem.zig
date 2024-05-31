@@ -22,8 +22,7 @@ pub const ElemType = enum {
     FloatString,
     CharacterRange,
     IntegerRange,
-    True,
-    False,
+    Boolean,
     Null,
     Failure,
     Dyn,
@@ -39,8 +38,7 @@ pub const Elem = union(ElemType) {
     FloatString: struct { value: f64, sId: StringTable.Id },
     CharacterRange: struct { low: u21, lowLength: u3, high: u21, highLength: u3 },
     IntegerRange: Tuple(&.{ i64, i64 }),
-    True: void,
-    False: void,
+    Boolean: bool,
     Null: void,
     Failure: void,
     Dyn: *Dyn,
@@ -86,9 +84,9 @@ pub const Elem = union(ElemType) {
         return Elem{ .IntegerRange = .{ low, high } };
     }
 
-    pub const trueConst = Elem{ .True = undefined };
-
-    pub const falseConst = Elem{ .False = undefined };
+    pub fn boolean(b: bool) Elem {
+        return Elem{ .Boolean = b };
+    }
 
     pub const nullConst = Elem{ .Null = undefined };
 
@@ -105,8 +103,7 @@ pub const Elem = union(ElemType) {
             .FloatString => |n| try writer.print("{s}", .{strings.get(n.sId)}),
             .CharacterRange => |r| try writer.print("\"{u}\"..\"{u}\"", .{ r.low, r.high }),
             .IntegerRange => |r| try writer.print("{d}..{d}", .{ r[0], r[1] }),
-            .True => try writer.print("true", .{}),
-            .False => try writer.print("false", .{}),
+            .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
             .Null => try writer.print("null", .{}),
             .Failure => try writer.print("@Failure", .{}),
             .Dyn => |d| d.print(writer, strings),
@@ -197,12 +194,8 @@ pub const Elem = union(ElemType) {
                 .CharacterRange => |r2| r1.low == r2.low and r1.high == r2.high,
                 else => false,
             },
-            .True => switch (other) {
-                .True => true,
-                else => false,
-            },
-            .False => switch (other) {
-                .False => true,
+            .Boolean => |b1| switch (other) {
+                .Boolean => |b2| b1 == b2,
                 else => false,
             },
             .Null => switch (other) {
@@ -243,8 +236,7 @@ pub const Elem = union(ElemType) {
             .Float,
             .IntegerString,
             .FloatString,
-            .True,
-            .False,
+            .Boolean,
             .Null,
             .Failure,
             => return value.isEql(pattern, strings),
@@ -372,17 +364,9 @@ pub const Elem = union(ElemType) {
             },
             .CharacterRange => unreachable,
             .IntegerRange => unreachable,
-            .True => if (elemB.isType(.True) or elemB.isType(.False)) {
-                return trueConst;
-            } else {
-                return null;
-            },
-            .False => if (elemB.isType(.True)) {
-                return trueConst;
-            } else if (elemB.isType(.False)) {
-                return falseConst;
-            } else {
-                return null;
+            .Boolean => |b1| switch (elemB) {
+                .Boolean => |b2| boolean(b1 or b2),
+                else => null,
             },
             .Dyn => |d1| switch (d1.dynType) {
                 .String => {
@@ -518,8 +502,7 @@ pub const Elem = union(ElemType) {
                 const s = strings.get(f.sId);
                 return .{ .number_string = s };
             },
-            .True => .{ .bool = true },
-            .False => .{ .bool = false },
+            .Boolean => |b| .{ .bool = b },
             .Null => .{ .null = undefined },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .String => {

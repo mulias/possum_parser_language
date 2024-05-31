@@ -191,7 +191,7 @@ test "bool(1,0) + bool(1,0)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "11"),
-            Elem.trueConst,
+            Elem.boolean(true),
             vm.strings,
         );
     }
@@ -201,7 +201,7 @@ test "bool(1,0) + bool(1,0)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "10"),
-            Elem.trueConst,
+            Elem.boolean(true),
             vm.strings,
         );
     }
@@ -211,7 +211,7 @@ test "bool(1,0) + bool(1,0)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "01"),
-            Elem.trueConst,
+            Elem.boolean(true),
             vm.strings,
         );
     }
@@ -221,7 +221,7 @@ test "bool(1,0) + bool(1,0)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "00"),
-            Elem.falseConst,
+            Elem.boolean(false),
             vm.strings,
         );
     }
@@ -350,7 +350,7 @@ test "'true' $ true" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
-            Elem.trueConst,
+            Elem.boolean(true),
             vm.strings,
         );
     }
@@ -619,7 +619,7 @@ test "Foo = true ; 123 $ Foo" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.trueConst,
+            Elem.boolean(true),
             vm.strings,
         );
     }
@@ -704,7 +704,7 @@ test "id(A) = '' $ A ; id(true)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ignored"),
-            Elem.trueConst,
+            Elem.boolean(true),
             vm.strings,
         );
     }
@@ -1283,7 +1283,7 @@ test "('a' $ [1, 2]) + ('b' $ [true, false])" {
         \\('a' $ [1, 2]) + ('b' $ [true, false])
     ;
     {
-        const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.trueConst, Elem.falseConst };
+        const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.boolean(true), Elem.boolean(false) };
         var vm = VM.create();
         try vm.init(allocator, stderr, env);
         defer vm.deinit();
@@ -1416,7 +1416,7 @@ test "true(t) = t $ true ; true('true')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
-            Elem.trueConst,
+            Elem.boolean(true),
             vm.strings,
         );
     }
@@ -1742,7 +1742,7 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.Dyn.Object.create(&vm, 3);
-        try object.members.put(vm.strings.getId("a"), Elem.falseConst);
+        try object.members.put(vm.strings.getId("a"), Elem.boolean(false));
         try object.members.put(vm.strings.getId("b"), Elem.nullConst);
 
         try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
@@ -1761,7 +1761,7 @@ test "const({'a': true}) -> {'a': true}" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.Dyn.Object.create(&vm, 1);
-        try object.members.put(vm.strings.getId("a"), Elem.trueConst);
+        try object.members.put(vm.strings.getId("a"), Elem.boolean(true));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
     }
@@ -1989,7 +1989,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "tt"),
-            Elem.falseConst,
+            Elem.boolean(false),
             vm.strings,
         );
     }
@@ -1999,7 +1999,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ff"),
-            Elem.falseConst,
+            Elem.boolean(false),
             vm.strings,
         );
     }
@@ -2017,7 +2017,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ft"),
-            Elem.trueConst,
+            Elem.boolean(true),
             vm.strings,
         );
     }

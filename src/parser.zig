@@ -471,8 +471,8 @@ pub const Parser = struct {
     fn literal(self: *Parser) !usize {
         const t = self.previous;
         return switch (t.tokenType) {
-            .True => try self.ast.pushElem(Elem.trueConst, t.loc),
-            .False => try self.ast.pushElem(Elem.falseConst, t.loc),
+            .True => try self.ast.pushElem(Elem.boolean(true), t.loc),
+            .False => try self.ast.pushElem(Elem.boolean(false), t.loc),
             .Null => try self.ast.pushElem(Elem.nullConst, t.loc),
             else => unreachable,
         };
