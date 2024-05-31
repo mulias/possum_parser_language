@@ -346,3 +346,34 @@
   0046    | GetBoundLocal 0
   0048    | End
   ========================================
+
+  $ possum -p 'const([1,2,3]) -> [1, ...Rest] $ Rest' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: Rest
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: [1, 2, 3]
+  0006    | CallFunction 1
+  0008    | GetConstant 3: [1]
+  0010    | GetLocal 0
+  0012    | PrepareMergePattern 2
+  0014    | JumpIfFailure 14 -> 44
+  0017    | GetConstant 4: [1]
+  0019    | Destructure
+  0020    | JumpIfFailure 20 -> 28
+  0023    | JumpIfSuccess 23 -> 28
+  0026    | Swap
+  0027    | Pop
+  0028    | JumpIfFailure 28 -> 42
+  0031    | Pop
+  0032    | GetLocal 0
+  0034    | Destructure
+  0035    | JumpIfFailure 35 -> 42
+  0038    | Pop
+  0039    | JumpIfSuccess 39 -> 44
+  0042    | Swap
+  0043    | Pop
+  0044    | TakeRight 44 -> 49
+  0047    | GetBoundLocal 0
+  0049    | End
+  ========================================

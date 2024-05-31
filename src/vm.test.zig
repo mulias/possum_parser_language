@@ -2055,3 +2055,28 @@ test "'foobar' -> ('fo' + Ob + 'ar') $ Ob" {
         );
     }
 }
+
+test "const([1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]" {
+    const parser =
+        \\const([1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+
+        const array = [_]Elem{
+            Elem.integer(2),
+            Elem.integer(3),
+            Elem.integer(100),
+            Elem.integer(2),
+            Elem.integer(3),
+        };
+
+        try testing.expectSuccess(
+            try vm.interpret(parser, "a"),
+            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}

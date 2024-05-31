@@ -108,6 +108,8 @@ pub const Parser = struct {
         // `.Eof` which has precedence `.None` and binding power 0.
         var rightOpBindingPower = operatorPrecedence(self.current.tokenType).bindingPower().left;
 
+        if (debug.parser) debug.print("Binding power {d} < {d}\n", .{ leftOpBindingPower, rightOpBindingPower });
+
         // Iterate over tokens and build up a right-leaning AST, as long as the
         // right binding power is greater then the left binding power. When
         // called as `parseWithPrecedence(.None)` we know that all tokens will
@@ -273,37 +275,32 @@ pub const Parser = struct {
 
     fn stringOrCharRange(self: *Parser) !usize {
         const t1 = self.previous;
-        if (self.current.tokenType == .Dot and !self.currentSkippedWhitespace) {
+        if (self.current.tokenType == .DotDot and !self.currentSkippedWhitespace) {
             try self.advance();
-            if (self.current.tokenType == .Dot and !self.currentSkippedWhitespace) {
+            if (self.current.tokenType == .String and !self.currentSkippedWhitespace) {
                 try self.advance();
-                if (self.current.tokenType == .String and !self.currentSkippedWhitespace) {
-                    try self.advance();
-                    const t2 = self.previous;
+                const t2 = self.previous;
 
-                    if (characterStringToCodepoint(t1)) |c1| {
-                        if (characterStringToCodepoint(t2)) |c2| {
-                            if (c1 > c2) {
-                                return self.errorAtPrevious("Character range is not ordered");
-                            }
-
-                            return self.ast.pushElem(
-                                try Elem.characterRange(c1, c2),
-                                Location.new(
-                                    t1.loc.line,
-                                    t1.loc.start,
-                                    t1.loc.length + t2.loc.length + 2,
-                                ),
-                            );
+                if (characterStringToCodepoint(t1)) |c1| {
+                    if (characterStringToCodepoint(t2)) |c2| {
+                        if (c1 > c2) {
+                            return self.errorAtPrevious("Character range is not ordered");
                         }
-                    }
 
-                    return self.errorAtPrevious("Expect single character for character range");
-                } else {
-                    return self.errorAtPrevious("Expect second string for character range");
+                        return self.ast.pushElem(
+                            try Elem.characterRange(c1, c2),
+                            Location.new(
+                                t1.loc.line,
+                                t1.loc.start,
+                                t1.loc.length + t2.loc.length + 2,
+                            ),
+                        );
+                    }
                 }
+
+                return self.errorAtPrevious("Expect single character for character range");
             } else {
-                return self.errorAtPrevious("Expect second period");
+                return self.errorAtPrevious("Expect second string for character range");
             }
         } else {
             return self.string();
@@ -433,27 +430,22 @@ pub const Parser = struct {
         const t1 = self.previous;
         const s1 = t1.lexeme;
         if (parsing.parseInteger(s1)) |int1| {
-            if (self.current.tokenType == .Dot) {
+            if (self.current.tokenType == .DotDot and !self.currentSkippedWhitespace) {
                 try self.advance();
-                if (self.current.tokenType == .Dot) {
+                if (self.current.tokenType == .Integer and !self.currentSkippedWhitespace) {
                     try self.advance();
-                    if (self.current.tokenType == .Integer) {
-                        try self.advance();
-                        const t2 = self.previous;
-                        const s2 = t2.lexeme;
-                        if (parsing.parseInteger(s2)) |int2| {
-                            return self.ast.pushElem(
-                                Elem.integerRange(int1, int2),
-                                Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
-                            );
-                        } else {
-                            return self.errorAtPrevious("Could not parse number");
-                        }
+                    const t2 = self.previous;
+                    const s2 = t2.lexeme;
+                    if (parsing.parseInteger(s2)) |int2| {
+                        return self.ast.pushElem(
+                            Elem.integerRange(int1, int2),
+                            Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
+                        );
                     } else {
-                        return self.errorAtPrevious("Expect integer");
+                        return self.errorAtPrevious("Could not parse number");
                     }
                 } else {
-                    return self.errorAtPrevious("Expect second period");
+                    return self.errorAtPrevious("Expect integer");
                 }
             } else {
                 const sId1 = try self.vm.strings.insert(s1);
@@ -574,30 +566,61 @@ pub const Parser = struct {
         }
     }
 
-    fn array(self: *Parser) !usize {
+    fn array(self: *Parser) Error!usize {
         const loc = self.previous.loc;
         var a = try Elem.Dyn.Array.create(self.vm, 0);
         const nodeId = try self.ast.pushElem(a.dyn.elem(), loc);
 
         if (try self.match(.RightBracket)) {
             return nodeId;
+        } else if (try self.match(.DotDotDot)) {
+            return self.arraySpread(nodeId);
         } else {
-            const arrayElemsNodeId = try self.arrayElems();
-            try self.consume(.RightBracket, "Expected closing ']'");
+            return self.arrayNonEmpty(nodeId);
+        }
+    }
 
-            return self.ast.pushInfix(
-                .ArrayHead,
-                nodeId,
-                arrayElemsNodeId,
-                loc,
-            );
+    fn arrayNonEmpty(self: *Parser, headNodeId: usize) !usize {
+        const loc = self.previous.loc;
+        const arrayElemsNodeId = try self.arrayElems();
+
+        const leftArrayNodeId = try self.ast.pushInfix(
+            .ArrayHead,
+            headNodeId,
+            arrayElemsNodeId,
+            loc,
+        );
+
+        if (try self.match(.DotDotDot)) {
+            return try self.arraySpread(leftArrayNodeId);
+        } else {
+            try self.consume(.RightBracket, "Expected closing ']'");
+            return leftArrayNodeId;
+        }
+    }
+
+    fn arraySpread(self: *Parser, leftNodeId: usize) !usize {
+        const loc = self.previous.loc;
+        const spreadNodeId = try self.expression();
+
+        const leftMergeNodeId = try self.ast.pushInfix(.Merge, leftNodeId, spreadNodeId, loc);
+
+        if (try self.match(.Comma)) {
+            const commaLoc = self.previous.loc;
+            const rightArrayNodeId = try self.array();
+
+            return self.ast.pushInfix(.Merge, leftMergeNodeId, rightArrayNodeId, commaLoc);
+        } else {
+            try self.consume(.RightBracket, "Expected closing ']'");
+            return leftMergeNodeId;
         }
     }
 
     fn arrayElems(self: *Parser) !usize {
         const nodeId = try self.expression();
 
-        if (try self.match(.Comma)) {
+        // There's another array element and it's not a spread
+        if (try self.match(.Comma) and !self.check(.DotDotDot)) {
             const commaLoc = self.previous.loc;
             return self.ast.pushInfix(
                 .ArrayCons,

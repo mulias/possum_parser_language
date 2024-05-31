@@ -48,7 +48,10 @@ pub const Scanner = struct {
             '[' => self.makeToken(.LeftBracket),
             ']' => self.makeToken(.RightBracket),
             ',' => self.makeToken(.Comma),
-            '.' => self.makeToken(.Dot),
+            '.' => if (self.match('.'))
+                if (self.match('.')) self.makeToken(.DotDotDot) else self.makeToken(.DotDot)
+            else
+                return self.makeError("Unexpected character."),
             '+' => self.makeToken(.Plus),
             ';' => self.makeToken(.Semicolon),
             '!' => self.makeToken(.Bang),
