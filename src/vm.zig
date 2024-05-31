@@ -1096,7 +1096,7 @@ pub const VM = struct {
 
     fn peek(self: *VM, distance: usize) Elem {
         const len = self.stack.items.len;
-        return self.stack.items[len - 1 - distance];
+        return self.stack.items[(len - 1) - distance];
     }
 
     fn peekIsFailure(self: *VM) bool {
