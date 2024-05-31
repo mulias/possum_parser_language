@@ -847,7 +847,6 @@ pub const VM = struct {
                             return self.runtimeError("Merge type mismatch in pattern", .{});
                         }
                     },
-                    .StringTemplate => @panic("todo"),
                     .Function,
                     .Closure,
                     => @panic("internal error"),

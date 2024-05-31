@@ -258,7 +258,6 @@ pub const Compiler = struct {
                 => return Error.InvalidGlobalValue,
                 .Dyn => |dyn| switch (dyn.dynType) {
                     .String,
-                    .StringTemplate,
                     .Array,
                     .Object,
                     => {},
@@ -284,7 +283,6 @@ pub const Compiler = struct {
                 .ValueVar => return Error.InvalidGlobalParser,
                 .Dyn => |dyn| switch (dyn.dynType) {
                     .String,
-                    .StringTemplate,
                     => {},
                     .Array,
                     .Object,
@@ -828,7 +826,6 @@ pub const Compiler = struct {
                     => @panic("Internal Error"), // not produced by the parser
                     .Array,
                     .Object,
-                    .StringTemplate,
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -1072,7 +1069,6 @@ pub const Compiler = struct {
                     => @panic("Internal Error"), // not produced by the parser
                     .Array,
                     .Object,
-                    .StringTemplate,
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);

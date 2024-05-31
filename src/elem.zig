@@ -292,7 +292,6 @@ pub const Elem = union(ElemType) {
                         return false;
                     }
                 },
-                .StringTemplate => @panic("todo"),
                 .Function,
                 .Closure,
                 => @panic("internal error"),
@@ -426,7 +425,6 @@ pub const Elem = union(ElemType) {
                 },
                 .Function,
                 .Closure,
-                .StringTemplate,
                 => @panic("Internal error"),
             },
         };
@@ -536,7 +534,6 @@ pub const Elem = union(ElemType) {
                 },
                 .Function,
                 .Closure,
-                .StringTemplate,
                 => @panic("Internal Error"),
             },
             .ParserVar,
@@ -557,7 +554,6 @@ pub const Elem = union(ElemType) {
 
     pub const DynType = enum {
         String,
-        StringTemplate,
         Array,
         Object,
         Function,
@@ -583,7 +579,6 @@ pub const Elem = union(ElemType) {
         pub fn destroy(self: *Dyn, vm: *VM) void {
             switch (self.dynType) {
                 .String => self.asString().destroy(vm),
-                .StringTemplate => self.asStringTemplate().destroy(vm),
                 .Array => self.asArray().destroy(vm),
                 .Object => self.asObject().destroy(vm),
                 .Function => self.asFunction().destroy(vm),
@@ -598,7 +593,6 @@ pub const Elem = union(ElemType) {
         pub fn print(self: *Dyn, writer: VMWriter, strings: StringTable) !void {
             return switch (self.dynType) {
                 .String => self.asString().print(writer),
-                .StringTemplate => self.asStringTemplate().print(writer, strings),
                 .Array => self.asArray().print(writer, strings),
                 .Object => self.asObject().print(writer, strings),
                 .Function => self.asFunction().print(writer, strings),
@@ -609,7 +603,6 @@ pub const Elem = union(ElemType) {
         pub fn isEql(self: *Dyn, other: *Dyn, strings: StringTable) bool {
             return switch (self.dynType) {
                 .String => self.asString().isEql(other),
-                .StringTemplate => self.asStringTemplate().isEql(other, strings),
                 .Array => self.asArray().isEql(other, strings),
                 .Object => self.asObject().isEql(other, strings),
                 .Function => self.asFunction().isEql(other),
@@ -622,10 +615,6 @@ pub const Elem = union(ElemType) {
         }
 
         pub fn asString(self: *Dyn) *String {
-            return @fieldParentPtr("dyn", self);
-        }
-
-        pub fn asStringTemplate(self: *Dyn) *StringTemplate {
             return @fieldParentPtr("dyn", self);
         }
 
@@ -704,56 +693,6 @@ pub const Elem = union(ElemType) {
 
             pub fn bytes(self: *String) []const u8 {
                 return self.buffer.str();
-            }
-        };
-
-        pub const StringTemplate = struct {
-            dyn: Dyn,
-            parts: ArrayList(Elem),
-
-            pub fn create(vm: *VM) !*StringTemplate {
-                const dyn = try Dyn.allocate(vm, StringTemplate, .StringTemplate);
-                const str = dyn.asStringTemplate();
-
-                str.* = StringTemplate{
-                    .dyn = dyn.*,
-                    .parts = ArrayList(Elem).init(vm.allocator),
-                };
-
-                return str;
-            }
-
-            pub fn destroy(self: *StringTemplate, vm: *VM) void {
-                self.parts.deinit();
-                vm.allocator.destroy(self);
-            }
-
-            pub fn print(self: *StringTemplate, writer: VMWriter, strings: StringTable) VMWriter.Error!void {
-                try writer.print("\"", .{});
-                for (self.parts.items) |part| {
-                    if (part.isType(.String)) {
-                        try part.print(writer, strings);
-                    } else {
-                        try writer.print("%(", .{});
-                        try part.print(writer, strings);
-                        try writer.print(")", .{});
-                    }
-                }
-                try writer.print("\"", .{});
-            }
-
-            pub fn isEql(self: *StringTemplate, other: *Dyn, strings: StringTable) bool {
-                if (!other.isType(.StringTemplate)) return false;
-
-                const otherString = other.asStringTemplate();
-
-                if (self.parts.items.len != otherString.parts.items.len) return false;
-
-                for (self.parts.items, otherString.parts.items) |a, b| {
-                    if (!a.isEql(b, strings)) return false;
-                }
-
-                return true;
             }
         };
 

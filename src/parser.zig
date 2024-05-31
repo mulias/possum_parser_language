@@ -210,10 +210,7 @@ pub const Parser = struct {
     }
 
     fn stringTemplate(self: *Parser, firstPartNodeId: usize, rest: []const u8) !usize {
-        // Empty string template struct
         const loc = self.previous.loc;
-        const st = try Elem.Dyn.StringTemplate.create(self.vm);
-        const nodeId = try self.ast.pushElem(st.dyn.elem(), loc);
 
         // Don't deinit, we want the shared ast to persist
         var templateParser = initWithAst(self.vm, self.ast);
@@ -223,18 +220,10 @@ pub const Parser = struct {
 
         self.ast = templateParser.ast;
 
-        // All template parts
-        const templatePartsNodeId = try self.ast.pushInfix(
-            .StringTemplateCons,
-            firstPartNodeId,
-            templatePartsRestNodeId,
-            loc,
-        );
-
         return self.ast.pushInfix(
             .StringTemplate,
-            nodeId,
-            templatePartsNodeId,
+            firstPartNodeId,
+            templatePartsRestNodeId,
             loc,
         );
     }
