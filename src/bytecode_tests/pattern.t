@@ -137,3 +137,212 @@
   0086    | End
   ========================================
 
+  $ possum -p 'const(3) -> (2 + B)' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: B
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: 3
+  0006    | CallFunction 1
+  0008    | GetConstant 3: 2
+  0010    | GetLocal 0
+  0012    | PrepareMergePattern 2
+  0014    | JumpIfFailure 14 -> 36
+  0017    | GetConstant 4: 2
+  0019    | Destructure
+  0020    | JumpIfFailure 20 -> 34
+  0023    | Pop
+  0024    | GetLocal 0
+  0026    | Destructure
+  0027    | JumpIfFailure 27 -> 34
+  0030    | Pop
+  0031    | JumpIfSuccess 31 -> 36
+  0034    | Swap
+  0035    | Pop
+  0036    | End
+  ========================================
+
+  $ possum -p 'const([1,2,3]) -> [A, 1 + 1, 3]' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: A
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: [1, 2, 3]
+  0006    | CallFunction 1
+  0008    | GetConstant 3: [_, _, 3]
+  0010    | Destructure
+  0011    | JumpIfFailure 11 -> 62
+  0014    | GetAtIndex 0
+  0016    | GetLocal 0
+  0018    | Destructure
+  0019    | JumpIfFailure 19 -> 60
+  0022    | Pop
+  0023    | GetAtIndex 1
+  0025    | GetConstant 4: 1
+  0027    | GetConstant 5: 1
+  0029    | PrepareMergePattern 2
+  0031    | JumpIfFailure 31 -> 53
+  0034    | GetConstant 6: 1
+  0036    | Destructure
+  0037    | JumpIfFailure 37 -> 51
+  0040    | Pop
+  0041    | GetConstant 7: 1
+  0043    | Destructure
+  0044    | JumpIfFailure 44 -> 51
+  0047    | Pop
+  0048    | JumpIfSuccess 48 -> 53
+  0051    | Swap
+  0052    | Pop
+  0053    | JumpIfFailure 53 -> 60
+  0056    | Pop
+  0057    | JumpIfSuccess 57 -> 62
+  0060    | Swap
+  0061    | Pop
+  0062    | End
+  ========================================
+
+  $ possum -p 'const([1,2]) -> ([1] + [2])' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: const
+  0002    | GetConstant 1: [1, 2]
+  0004    | CallFunction 1
+  0006    | GetConstant 2: [1]
+  0008    | GetConstant 3: [2]
+  0010    | PrepareMergePattern 2
+  0012    | JumpIfFailure 12 -> 50
+  0015    | GetConstant 4: [1]
+  0017    | Destructure
+  0018    | JumpIfFailure 18 -> 26
+  0021    | JumpIfSuccess 21 -> 26
+  0024    | Swap
+  0025    | Pop
+  0026    | JumpIfFailure 26 -> 48
+  0029    | Pop
+  0030    | GetConstant 5: [2]
+  0032    | Destructure
+  0033    | JumpIfFailure 33 -> 41
+  0036    | JumpIfSuccess 36 -> 41
+  0039    | Swap
+  0040    | Pop
+  0041    | JumpIfFailure 41 -> 48
+  0044    | Pop
+  0045    | JumpIfSuccess 45 -> 50
+  0048    | Swap
+  0049    | Pop
+  0050    | End
+  ========================================
+
+  $ possum -p 'const([1,2,3]) -> ([1] + B + [3])' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: B
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: [1, 2, 3]
+  0006    | CallFunction 1
+  0008    | GetConstant 3: [1]
+  0010    | GetLocal 0
+  0012    | GetConstant 4: [3]
+  0014    | PrepareMergePattern 3
+  0016    | JumpIfFailure 16 -> 61
+  0019    | GetConstant 5: [1]
+  0021    | Destructure
+  0022    | JumpIfFailure 22 -> 30
+  0025    | JumpIfSuccess 25 -> 30
+  0028    | Swap
+  0029    | Pop
+  0030    | JumpIfFailure 30 -> 59
+  0033    | Pop
+  0034    | GetLocal 0
+  0036    | Destructure
+  0037    | JumpIfFailure 37 -> 59
+  0040    | Pop
+  0041    | GetConstant 6: [3]
+  0043    | Destructure
+  0044    | JumpIfFailure 44 -> 52
+  0047    | JumpIfSuccess 47 -> 52
+  0050    | Swap
+  0051    | Pop
+  0052    | JumpIfFailure 52 -> 59
+  0055    | Pop
+  0056    | JumpIfSuccess 56 -> 61
+  0059    | Swap
+  0060    | Pop
+  0061    | End
+  ========================================
+
+  $ possum -p 'const([1,[2],2,3]) -> ([1,A] + A + [3])' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: A
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: [1, _, 2, 3]
+  0006    | GetConstant 3: [2]
+  0008    | InsertAtIndex 1
+  0010    | CallFunction 1
+  0012    | GetConstant 4: [1, _]
+  0014    | GetLocal 0
+  0016    | GetConstant 5: [3]
+  0018    | PrepareMergePattern 3
+  0020    | JumpIfFailure 20 -> 74
+  0023    | GetConstant 6: [1, _]
+  0025    | Destructure
+  0026    | JumpIfFailure 26 -> 43
+  0029    | GetAtIndex 1
+  0031    | GetLocal 0
+  0033    | Destructure
+  0034    | JumpIfFailure 34 -> 41
+  0037    | Pop
+  0038    | JumpIfSuccess 38 -> 43
+  0041    | Swap
+  0042    | Pop
+  0043    | JumpIfFailure 43 -> 72
+  0046    | Pop
+  0047    | GetLocal 0
+  0049    | Destructure
+  0050    | JumpIfFailure 50 -> 72
+  0053    | Pop
+  0054    | GetConstant 7: [3]
+  0056    | Destructure
+  0057    | JumpIfFailure 57 -> 65
+  0060    | JumpIfSuccess 60 -> 65
+  0063    | Swap
+  0064    | Pop
+  0065    | JumpIfFailure 65 -> 72
+  0068    | Pop
+  0069    | JumpIfSuccess 69 -> 74
+  0072    | Swap
+  0073    | Pop
+  0074    | End
+  ========================================
+
+  $ possum -p '"foobar" -> ("fo" + Ob + "ar") $ Ob' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: Ob
+  0002    | GetConstant 1: "foobar"
+  0004    | CallFunction 0
+  0006    | GetConstant 2: "fo"
+  0008    | GetLocal 0
+  0010    | GetConstant 3: "ar"
+  0012    | PrepareMergePattern 3
+  0014    | JumpIfFailure 14 -> 43
+  0017    | GetConstant 4: "fo"
+  0019    | Destructure
+  0020    | JumpIfFailure 20 -> 41
+  0023    | Pop
+  0024    | GetLocal 0
+  0026    | Destructure
+  0027    | JumpIfFailure 27 -> 41
+  0030    | Pop
+  0031    | GetConstant 5: "ar"
+  0033    | Destructure
+  0034    | JumpIfFailure 34 -> 41
+  0037    | Pop
+  0038    | JumpIfSuccess 38 -> 43
+  0041    | Swap
+  0042    | Pop
+  0043    | TakeRight 43 -> 48
+  0046    | GetBoundLocal 0
+  0048    | End
+  ========================================

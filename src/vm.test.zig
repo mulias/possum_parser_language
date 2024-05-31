@@ -418,22 +418,6 @@ test "'' $ true -> false" {
     }
 }
 
-test "'ab' -> ('a' + 'b')" {
-    const parser =
-        \\'ab' -> ('a' + 'b')
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, stderr, env);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret(parser, "ab"),
-            (try Elem.Dyn.String.copy(&vm, "ab")).dyn.elem(),
-            vm.strings,
-        );
-    }
-}
-
 test "123 & 456 | 789 $ true & 'xyz'" {
     const parser =
         \\ 123 & 456 | 789 $ true & 'xyz'
@@ -1951,6 +1935,123 @@ test "array(digit) -> [A, B]" {
 
         try testing.expectFailure(
             try vm.interpret(parser, "123"),
+        );
+    }
+}
+
+test "'ab' -> ('a' + 'b')" {
+    const parser =
+        \\'ab' -> ('a' + 'b')
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "ab"),
+            (try Elem.Dyn.String.copy(&vm, "ab")).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
+
+test "int -> (2 + N) $ N" {
+    const parser =
+        \\int -> (2 + N) $ N
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "123"),
+            Elem.integer(121),
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, "foo"),
+        );
+    }
+}
+
+test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
+    const parser =
+        \\bool('t','f') -> A & bool('t','f') -> (A + B) $ B
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "tt"),
+            Elem.falseConst,
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "ff"),
+            Elem.falseConst,
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, "tf"),
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "ft"),
+            Elem.trueConst,
+            vm.strings,
+        );
+    }
+}
+
+test "const([1,[2],2,3]) -> ([1,A] + A + [3]) $ A" {
+    const parser =
+        \\const([1,[2],2,3]) -> ([1,A] + A + [3]) $ A
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        const array = [_]Elem{Elem.integer(2)};
+        try testing.expectSuccess(
+            try vm.interpret(parser, "a"),
+            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            vm.strings,
+        );
+    }
+}
+
+test "'foobar' -> ('fo' + Ob + 'ar') $ Ob" {
+    const parser =
+        \\'foobar' -> ('fo' + Ob + 'ar') $ Ob
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "foobar"),
+            (try Elem.Dyn.String.copy(&vm, "ob")).dyn.elem(),
+            vm.strings,
         );
     }
 }

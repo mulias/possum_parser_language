@@ -398,6 +398,17 @@ pub const VM = struct {
             .Pop => {
                 _ = self.pop();
             },
+            .PrepareMergePattern => {
+                // Set up the stack for destructuring each part of a merge pattern.
+                // Pop `count` number of elems off the stack, these are the
+                // pattern segments to destructure against. Do some analysis
+                // and then push `count` new elements back onto the stack.
+                // These elements are sub-values of the destructure value, which
+                // will each get destructured separately.
+                const count = self.readByte();
+
+                try self.prepareMergePattern(count);
+            },
             .ResolveUnboundVars => {
                 const value = self.pop();
                 try self.push(try self.bindVars(value, true));
@@ -712,6 +723,297 @@ pub const VM = struct {
                 else => {},
             },
             else => {},
+        }
+    }
+
+    const PatternMergeContext = union(enum) {
+        Array: struct {
+            preVarLength: usize,
+            postVarLength: usize,
+        },
+        Boolean: struct {
+            acc: Elem,
+        },
+        Number: struct {
+            acc: Elem,
+        },
+        Object: void,
+        String: struct {
+            preVarLength: usize,
+            postVarLength: usize,
+        },
+        Unknown: void,
+    };
+
+    fn prepareMergePattern(self: *VM, count: u8) !void {
+        var patternSegments = try self.allocator.alloc(Elem, count);
+        defer self.allocator.free(patternSegments);
+
+        var foundUnboundVar = false;
+        var context = PatternMergeContext{ .Unknown = undefined };
+
+        // Iterate BACKWARDS by poping pattern segments off the stack
+        for (0..count) |offset| {
+            const index = count - offset - 1;
+            const segment = self.pop();
+            patternSegments[index] = segment;
+
+            switch (segment) {
+                .ValueVar => {
+                    if (foundUnboundVar) {
+                        return self.runtimeError("Pattern may only contain one unbound variable.", .{});
+                    } else {
+                        foundUnboundVar = true;
+                    }
+                },
+                .String => |sId| {
+                    if (context == .Unknown) {
+                        context = .{ .String = .{ .preVarLength = 0, .postVarLength = 0 } };
+                    } else if (context != .String) {
+                        return self.runtimeError("Merge type mismatch in pattern", .{});
+                    }
+
+                    // Post happends before pre because backwards
+                    const strLen = self.strings.get(sId).len;
+                    if (foundUnboundVar) {
+                        context.String.preVarLength += strLen;
+                    } else {
+                        context.String.postVarLength += strLen;
+                    }
+                },
+                .Integer,
+                .Float,
+                .IntegerString,
+                .FloatString,
+                => {
+                    if (context == .Unknown) {
+                        context = .{ .Number = .{ .acc = Elem.integer(0) } };
+                    } else if (context != .Number) {
+                        return self.runtimeError("Merge type mismatch in pattern", .{});
+                    }
+
+                    context.Number.acc = (try context.Number.acc.merge(segment, self)).?;
+                },
+                .True,
+                .False,
+                => {
+                    if (context == .Unknown) {
+                        context = .{ .Boolean = .{ .acc = Elem.falseConst } };
+                    } else if (context != .Boolean) {
+                        return self.runtimeError("Merge type mismatch in pattern", .{});
+                    }
+
+                    context.Boolean.acc = (try context.Boolean.acc.merge(segment, self)).?;
+                },
+                .Null => {},
+                .ParserVar,
+                .CharacterRange,
+                .IntegerRange,
+                .Failure,
+                => @panic("Internal Error"),
+                .Dyn => |dyn| switch (dyn.dynType) {
+                    .String => {
+                        if (context == .Unknown) {
+                            context = .{ .String = .{ .preVarLength = 0, .postVarLength = 0 } };
+                        } else if (context != .String) {
+                            return self.runtimeError("Merge type mismatch in pattern", .{});
+                        }
+
+                        // Post happends before pre because backwards
+                        const strLen = dyn.asString().len();
+                        if (foundUnboundVar) {
+                            context.String.preVarLength += strLen;
+                        } else {
+                            context.String.postVarLength += strLen;
+                        }
+                    },
+                    .Array => {
+                        if (context == .Unknown) {
+                            context = .{ .Array = .{ .preVarLength = 0, .postVarLength = 0 } };
+                        } else if (context != .Array) {
+                            return self.runtimeError("Merge type mismatch in pattern", .{});
+                        }
+
+                        // Post happends before pre because backwards
+                        const len = dyn.asArray().elems.items.len;
+                        if (foundUnboundVar) {
+                            context.Array.preVarLength += len;
+                        } else {
+                            context.Array.postVarLength += len;
+                        }
+                    },
+                    .Object => {
+                        if (context == .Unknown) {
+                            context = .{ .Object = undefined };
+                        } else if (context != .Object) {
+                            return self.runtimeError("Merge type mismatch in pattern", .{});
+                        }
+                    },
+                    .StringTemplate => @panic("todo"),
+                    .Function,
+                    .Closure,
+                    => @panic("internal error"),
+                },
+            }
+        }
+
+        const value = self.peek(0);
+
+        switch (context) {
+            .Array => |ac| {
+                if (value.isDynType(.Array)) {
+                    const valueArray = value.asDyn().asArray();
+                    const valueLength = valueArray.elems.items.len;
+                    const patternMinLength = ac.preVarLength + ac.postVarLength;
+
+                    if ((foundUnboundVar and valueLength >= patternMinLength) or valueLength == patternMinLength) {
+                        var valueIndex: usize = 0;
+                        for (patternSegments, 0..) |segment, i| {
+                            if (segment == .ValueVar) {
+                                assert(valueIndex == ac.preVarLength);
+
+                                const length = valueLength - ac.preVarLength - ac.postVarLength;
+                                const subarray = try valueArray.subarray(self, valueIndex, length);
+
+                                valueIndex += length;
+                                patternSegments[i] = subarray.dyn.elem();
+                            } else {
+                                const segmentArray = segment.asDyn().asArray();
+
+                                const subarray = try valueArray.subarray(self, valueIndex, segmentArray.len());
+
+                                valueIndex += subarray.len();
+                                patternSegments[i] = subarray.dyn.elem();
+                            }
+                        }
+
+                        var i = patternSegments.len;
+                        while (i > 0) {
+                            i -= 1;
+                            try self.push(patternSegments[i]);
+                        }
+                    } else {
+                        _ = self.pop();
+                        try self.pushFailure();
+                    }
+                } else {
+                    _ = self.pop();
+                    try self.pushFailure();
+                }
+            },
+            .Boolean => |bc| {
+                if (value == .False) {
+                    // To successfully destructure, all pattern
+                    // segments must be false.
+                    for (patternSegments) |_| {
+                        try self.push(Elem.falseConst);
+                    }
+                } else if (value == .True) {
+                    var i: usize = patternSegments.len;
+                    while (i > 0) {
+                        i -= 1;
+                        if (patternSegments[i] == .ValueVar) {
+                            // Only assign the unbound variable to true if it
+                            // has to be true to make the pattern match.
+                            // Otherwise default to false, the identity value.
+                            if (bc.acc == .True) {
+                                try self.push(Elem.falseConst);
+                            } else {
+                                try self.push(Elem.trueConst);
+                            }
+                        } else {
+                            try self.push(patternSegments[i]);
+                        }
+                    }
+                } else {
+                    _ = self.pop();
+                    try self.pushFailure();
+                }
+            },
+            .Number => |nc| {
+                if (try value.merge(nc.acc.negateNumber().?, self)) |diff| {
+                    var i: usize = patternSegments.len;
+                    while (i > 0) {
+                        i -= 1;
+                        if (patternSegments[i] == .ValueVar) {
+                            try self.push(diff);
+                        } else {
+                            try self.push(patternSegments[i]);
+                        }
+                    }
+                } else {
+                    _ = self.pop();
+                    try self.pushFailure();
+                }
+            },
+            .Object => {},
+            .String => |sc| {
+                const valueAsString = switch (value) {
+                    .String => |sId| self.strings.get(sId),
+                    .Dyn => |dyn| switch (dyn.dynType) {
+                        .String => dyn.asString().bytes(),
+                        else => null,
+                    },
+                    else => null,
+                };
+
+                if (valueAsString) |valueString| {
+                    const valueLength = valueString.len;
+                    const patternMinLength = sc.preVarLength + sc.postVarLength;
+
+                    if ((foundUnboundVar and valueLength >= patternMinLength) or valueLength == patternMinLength) {
+                        var valueIndex: usize = 0;
+                        for (patternSegments, 0..) |segment, i| {
+                            if (segment == .ValueVar) {
+                                assert(valueIndex == sc.preVarLength);
+
+                                const length = valueLength - sc.preVarLength - sc.postVarLength;
+                                const substring = try Elem.Dyn.String.copy(self, valueString[valueIndex..(valueIndex + length)]);
+
+                                valueIndex += length;
+                                patternSegments[i] = substring.dyn.elem();
+                            } else {
+                                const segmentString = if (segment == .String)
+                                    self.strings.get(segment.String)
+                                else
+                                    segment.asDyn().asString().bytes();
+
+                                const substring = try Elem.Dyn.String.copy(self, valueString[valueIndex..(valueIndex + segmentString.len)]);
+
+                                valueIndex += substring.len();
+                                patternSegments[i] = substring.dyn.elem();
+                            }
+                        }
+
+                        var i = patternSegments.len;
+                        while (i > 0) {
+                            i -= 1;
+                            try self.push(patternSegments[i]);
+                        }
+                    } else {
+                        _ = self.pop();
+                        try self.pushFailure();
+                    }
+                } else {
+                    _ = self.pop();
+                    try self.pushFailure();
+                }
+            },
+            .Unknown => {
+                // This can only happen if the merge pattern is made up
+                // of unbound variables and nulls. If there's an
+                // unbound variable it should get bound to the full
+                // value.
+                var i: usize = patternSegments.len;
+                while (i > 0) {
+                    i -= 1;
+                    if (patternSegments[i] == .ValueVar) {
+                        try self.push(value);
+                    } else {
+                        try self.push(patternSegments[i]);
+                    }
+                }
+            },
         }
     }
 

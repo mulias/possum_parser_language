@@ -563,8 +563,8 @@ pub const Compiler = struct {
                     .Integer,
                     .Float,
                     .Failure,
-                    => unreachable, // not produced by the parser
-                    .Dyn => @panic("internal error"), // not produced by the parser
+                    .Dyn,
+                    => @panic("Internal Error"),
                 }
             },
             .InfixNode => return Error.InvalidAst,
@@ -741,14 +741,20 @@ pub const Compiler = struct {
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
-                    try self.writePattern(nodeId);
+                    try self.writePatternArray(infix.left, infix.right);
+                },
+                .Merge => {
+                    try self.writePatternMerge(nodeId);
+                },
+                .NumberSubtract => {
+                    @panic("TODO");
                 },
                 else => {
                     try self.writePattern(nodeId);
                     try self.emitOp(.Destructure, loc);
                 },
             },
-            else => {
+            .ElemNode => {
                 try self.writePattern(nodeId);
                 try self.emitOp(.Destructure, loc);
             },
@@ -761,11 +767,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .Merge => {
-                    try self.writePattern(infix.left);
-                    try self.writePattern(infix.right);
-                    try self.emitOp(.Merge, loc);
-                },
                 .ArrayHead => {
                     try self.writePatternArray(infix.left, infix.right);
                 },
@@ -778,12 +779,8 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
-                .NumberSubtract => {
-                    try self.writePattern(infix.left);
-                    try self.writePattern(infix.right);
-                    try self.emitOp(.NegateNumber, loc);
-                    try self.emitOp(.Merge, loc);
-                },
+                .Merge,
+                .NumberSubtract,
                 .ArrayCons,
                 .ObjectPair,
                 .StringTemplateCons,
@@ -854,6 +851,92 @@ pub const Compiler = struct {
                 },
             },
         }
+    }
+
+    fn writePatternMerge(self: *Compiler, nodeId: usize) !void {
+        const loc = self.ast.getLocation(nodeId);
+
+        var jumpList = ArrayList(usize).init(self.vm.allocator);
+        defer jumpList.deinit();
+
+        const count = try self.writePrepareMergePattern(nodeId, 0);
+        try self.emitUnaryOp(.PrepareMergePattern, count, loc);
+        const failureJumpIndex = try self.emitJump(.JumpIfFailure, loc);
+
+        try self.writeMergePattern(nodeId, &jumpList);
+
+        const successJumpIndex = try self.emitJump(.JumpIfSuccess, loc);
+
+        for (jumpList.items) |jumpIndex| {
+            try self.patchJump(jumpIndex, loc);
+        }
+
+        try self.emitOp(.Swap, loc);
+        try self.emitOp(.Pop, loc);
+
+        try self.patchJump(failureJumpIndex, loc);
+        try self.patchJump(successJumpIndex, loc);
+    }
+
+    fn writePrepareMergePattern(self: *Compiler, nodeId: usize, count: u8) !u8 {
+        switch (self.ast.getNode(nodeId)) {
+            .InfixNode => |infix| switch (infix.infixType) {
+                .Merge => {
+                    const totalCount = try self.writePrepareMergePattern(infix.left, count + 1);
+                    try self.writePrepareMergePatternPart(infix.right);
+                    return totalCount;
+                },
+                else => {},
+            },
+            .ElemNode => {},
+        }
+        try self.writePrepareMergePatternPart(nodeId);
+        return count + 1;
+    }
+
+    fn writePrepareMergePatternPart(self: *Compiler, nodeId: usize) Error!void {
+        switch (self.ast.getNode(nodeId)) {
+            .InfixNode => |infix| switch (infix.infixType) {
+                .ArrayHead, .ObjectCons => {
+                    // At this point the array/object is empty, but in a
+                    // later step we'll mutate to add elements.
+                    const elem = self.ast.getElem(infix.left) orelse @panic("Internal Error");
+                    const loc = self.ast.getLocation(infix.left);
+                    const constId = try self.makeConstant(elem);
+                    try self.emitUnaryOp(.GetConstant, constId, loc);
+                },
+                else => {
+                    try self.writePattern(nodeId);
+                },
+            },
+            .ElemNode => {
+                try self.writePattern(nodeId);
+            },
+        }
+    }
+
+    fn writeMergePattern(self: *Compiler, nodeId: usize, jumpList: *ArrayList(usize)) Error!void {
+        const loc = self.ast.getLocation(nodeId);
+
+        switch (self.ast.getNode(nodeId)) {
+            .InfixNode => |infix| switch (infix.infixType) {
+                .Merge => {
+                    try self.writeMergePattern(infix.left, jumpList);
+                    try self.writeDestructurePattern(infix.right);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    try self.emitOp(.Pop, loc);
+                    try jumpList.append(jumpIndex);
+                    return;
+                },
+                else => {},
+            },
+            .ElemNode => {},
+        }
+
+        try self.writeDestructurePattern(nodeId);
+        const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+        try self.emitOp(.Pop, loc);
+        try jumpList.append(jumpIndex);
     }
 
     fn addValueLocals(self: *Compiler, nodeId: usize) !void {

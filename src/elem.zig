@@ -858,6 +858,15 @@ pub const Elem = union(ElemType) {
                     .slot = slot,
                 });
             }
+
+            pub fn len(self: *Array) usize {
+                return self.elems.items.len;
+            }
+
+            pub fn subarray(self: *Array, vm: *VM, startIndex: usize, length: usize) !*Array {
+                std.debug.assert(startIndex + length <= self.len());
+                return try copy(vm, self.elems.items[startIndex..(startIndex + length)]);
+            }
         };
 
         pub const Object = struct {
