@@ -545,6 +545,11 @@ pub const Elem = union(ElemType) {
         };
     }
 
+    pub fn writeJson(self: Elem, allocator: Allocator, strings: StringTable, outstream: anytype) !void {
+        const j = try self.toJson(allocator, strings);
+        try json.stringify(j, .{}, outstream);
+    }
+
     pub fn printJson(self: Elem, opts: json.StringifyOptions, allocator: Allocator, writer: VMWriter, strings: StringTable) !void {
         var arena = std.heap.ArenaAllocator.init(allocator);
         defer arena.deinit();

@@ -236,10 +236,15 @@ pub const Parser = struct {
         if (str[0] == '%' and str[1] == '(') {
             // Next template part is an expression
             nodeId = try templateParser.parseExpression(str[2..]);
-            debug.print("template node {d}\n", .{nodeId});
-            try templateParser.consume(.RightParen, "Expect ')' after expression.");
+
+            // Make sure not to strip whitespace after the template part
+            if (templateParser.check(.RightParen)) {
+                try templateParser.advanceKeepWhitespace();
+            } else {
+                return templateParser.errorAtCurrent("Expect ')' after expression.");
+            }
+
             rest = templateParser.scanner.source;
-            debug.print("rest '{s}'\n", .{rest});
         } else {
             // Next template part is a string
             const result = try templateParser.internUnescaped(str);
@@ -248,7 +253,6 @@ pub const Parser = struct {
         }
 
         if (rest.len == 0) {
-            debug.print("done\n", .{});
             return nodeId;
         } else {
             const restNodeId = try templateParser.stringTemplateParts(rest);
@@ -699,6 +703,17 @@ pub const Parser = struct {
             } else {
                 self.current = token;
                 break;
+            }
+        }
+    }
+
+    pub fn advanceKeepWhitespace(self: *Parser) !void {
+        self.previous = self.current;
+        if (self.scanner.next()) |token| {
+            if (token.isType(.Error)) {
+                return self.errorAt(token, token.lexeme);
+            } else {
+                self.current = token;
             }
         }
     }

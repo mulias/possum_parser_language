@@ -2080,3 +2080,43 @@ test "const([1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]" {
         );
     }
 }
+
+test "'Hello %(word)!'" {
+    const parser =
+        \\'Hello %(word)!'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "Hello World!"),
+            (try Elem.Dyn.String.copy(&vm, "Hello World!")).dyn.elem(),
+            vm.strings,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, "Hello World?"),
+        );
+    }
+}
+
+test "A = 1 ; B = 2 ; const('%(A) + %(A) = %(B)')" {
+    const parser =
+        \\A = 1 ; B = 2 ; const('%(A) + %(A) = %(B)')
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, stderr, env);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, ""),
+            (try Elem.Dyn.String.copy(&vm, "1 + 1 = 2")).dyn.elem(),
+            vm.strings,
+        );
+    }
+}

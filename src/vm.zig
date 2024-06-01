@@ -359,6 +359,44 @@ pub const VM = struct {
                     return self.runtimeError("Merge type mismatch", .{});
                 }
             },
+            .MergeAsString => {
+                const rhs = self.pop();
+                const lhs = self.pop();
+
+                if (lhs.isSuccess() and rhs.isSuccess()) {
+                    var value: *Elem.Dyn.String = undefined;
+
+                    if (lhs.isDynType(.String)) {
+                        value = lhs.asDyn().asString();
+                    } else if (lhs.isType(.String)) {
+                        const bytes = self.strings.get(lhs.String);
+                        value = try Elem.Dyn.String.copy(self, bytes);
+                    } else {
+                        var bytes = ArrayList(u8).init(self.allocator);
+                        try lhs.writeJson(self.allocator, self.strings, bytes.writer());
+                        defer bytes.deinit();
+
+                        value = try Elem.Dyn.String.copy(self, bytes.items);
+                    }
+
+                    if (rhs.isDynType(.String)) {
+                        try value.concat(rhs.asDyn().asString());
+                    } else if (rhs.isType(.String)) {
+                        const bytes = self.strings.get(rhs.String);
+                        try value.concatBytes(bytes);
+                    } else {
+                        var bytes = ArrayList(u8).init(self.allocator);
+                        try rhs.writeJson(self.allocator, self.strings, bytes.writer());
+                        defer bytes.deinit();
+
+                        try value.concatBytes(bytes.items);
+                    }
+
+                    try self.push(value.dyn.elem());
+                } else {
+                    try self.push(Elem.failureConst);
+                }
+            },
             .NegateNumber => {
                 const num = self.pop();
 

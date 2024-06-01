@@ -148,13 +148,47 @@ pub const Scanner = struct {
         const start = self.pos - self.offset;
         const startLine = self.line;
 
-        while (self.peek() != mark and !self.isAtEnd()) {
-            // Accept all possible escape sequences, validate in the compiler.
-            if (self.peek() == '\\') self.advance();
+        var p = self.peek();
+        var templateParenDepth: u64 = 0;
 
-            if (self.peek() == '\n') self.line += 1;
+        while ((p != mark or templateParenDepth > 0) and !self.isAtEnd()) {
+            switch (p) {
+                '\\' => {
+                    // Assume next char is an sequences, validate in the compiler.
+                    self.advance();
+                    self.advance();
+                },
+                '\n' => {
+                    self.advance();
+                    self.line += 1;
+                },
+                '(' => if (templateParenDepth > 0) {
+                    self.advance();
+                    templateParenDepth += 1;
+                },
+                ')' => if (templateParenDepth > 0) {
+                    self.advance();
+                    templateParenDepth -= 1;
+                },
+                '%' => if (self.peekNext() == '(' and templateParenDepth == 0) {
+                    self.advance();
+                    self.advance();
+                    templateParenDepth = 1;
+                },
+                '"' => if (templateParenDepth > 0) {
+                    self.advance();
+                    _ = self.scanString('"');
+                },
+                '\'' => if (templateParenDepth > 0) {
+                    self.advance();
+                    _ = self.scanString('\'');
+                },
+                else => {
+                    self.advance();
+                },
+            }
 
-            self.advance();
+            p = self.peek();
         }
 
         if (self.isAtEnd()) return self.makeError("Unterminated string.");

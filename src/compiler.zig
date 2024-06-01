@@ -411,6 +411,9 @@ pub const Compiler = struct {
                     try self.emitOp(.Merge, loc);
                     try self.patchJump(jumpIndex, loc);
                 },
+                .StringTemplate => {
+                    try self.writeStringTemplate(infix.left, infix.right, .Parser);
+                },
                 .TakeLeft => {
                     try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
@@ -474,7 +477,6 @@ pub const Compiler = struct {
                 .ObjectCons,
                 .ObjectPair,
                 .NumberSubtract,
-                .StringTemplate,
                 .StringTemplateCons,
                 => return Error.InvalidAst,
             },
@@ -762,7 +764,7 @@ pub const Compiler = struct {
                     try self.writeObject(infix.left, infix.right);
                 },
                 .StringTemplate => {
-                    try self.writeStringTemplate(infix.left, infix.right);
+                    @panic("todo");
                 },
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
@@ -991,8 +993,7 @@ pub const Compiler = struct {
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
                 .StringTemplate => {
-                    try self.writeStringTemplate(infix.left, infix.right);
-                    try self.emitOp(.ResolveUnboundVars, loc);
+                    try self.writeStringTemplate(infix.left, infix.right, .Value);
                 },
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
@@ -1092,8 +1093,7 @@ pub const Compiler = struct {
                     try self.emitOp(.ResolveUnboundVars, loc);
                 },
                 .StringTemplate => {
-                    try self.writeStringTemplate(infix.left, infix.right);
-                    try self.emitOp(.ResolveUnboundVars, loc);
+                    try self.writeStringTemplate(infix.left, infix.right, .Value);
                 },
                 .Backtrack => {
                     try self.emitOp(.SetInputMark, loc);
@@ -1546,11 +1546,44 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeStringTemplate(self: *Compiler, startNodeId: usize, partsNodeId: usize) Error!void {
-        _ = startNodeId;
-        _ = partsNodeId;
-        _ = self;
-        @panic("todo");
+    const StringTemplateContext = enum { Parser, Value };
+
+    fn writeStringTemplate(self: *Compiler, startNodeId: usize, restNodeId: usize, context: StringTemplateContext) Error!void {
+        const loc = self.ast.getLocation(startNodeId);
+
+        try self.writeStringTemplatePart(startNodeId, context);
+
+        var nodeId = restNodeId;
+
+        while (true) {
+            switch (self.ast.getNode(nodeId)) {
+                .InfixNode => |infix| switch (infix.infixType) {
+                    .StringTemplateCons => {
+                        try self.writeStringTemplatePart(infix.left, context);
+                        try self.emitOp(.MergeAsString, loc);
+
+                        nodeId = infix.right;
+                    },
+                    else => {
+                        try self.writeStringTemplatePart(nodeId, context);
+                        try self.emitOp(.MergeAsString, loc);
+                        break;
+                    },
+                },
+                .ElemNode => {
+                    try self.writeStringTemplatePart(nodeId, context);
+                    try self.emitOp(.MergeAsString, loc);
+                    break;
+                },
+            }
+        }
+    }
+
+    fn writeStringTemplatePart(self: *Compiler, nodeId: usize, context: StringTemplateContext) !void {
+        switch (context) {
+            .Parser => try self.writeParser(nodeId, false),
+            .Value => try self.writeValue(nodeId, false),
+        }
     }
 
     fn placeholderVar(self: *Compiler) Elem {
