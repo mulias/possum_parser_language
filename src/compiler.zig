@@ -247,8 +247,6 @@ pub const Compiler = struct {
                 .String,
                 .Integer,
                 .Float,
-                .IntegerString,
-                .FloatString,
                 .Boolean,
                 .Null,
                 => {},
@@ -275,8 +273,6 @@ pub const Compiler = struct {
                 .String,
                 .Integer,
                 .Float,
-                .IntegerString,
-                .FloatString,
                 .CharacterRange,
                 .IntegerRange,
                 => {},
@@ -533,8 +529,8 @@ pub const Compiler = struct {
                         return Error.InvalidAst;
                     },
                     .String,
-                    .IntegerString,
-                    .FloatString,
+                    .Integer,
+                    .Float,
                     .CharacterRange,
                     .IntegerRange,
                     => {
@@ -552,8 +548,6 @@ pub const Compiler = struct {
                         try self.writeGetVar(elem, loc, .Parser);
                         try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
-                    .Integer,
-                    .Float,
                     .Failure,
                     .Dyn,
                     => @panic("Internal Error"),
@@ -799,8 +793,8 @@ pub const Compiler = struct {
                     }
                 },
                 .String,
-                .IntegerString,
-                .FloatString,
+                .Integer,
+                .Float,
                 => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -809,8 +803,6 @@ pub const Compiler = struct {
                 .Null => {
                     try self.emitOp(.Null, loc);
                 },
-                .Integer,
-                .Float,
                 .Failure,
                 => unreachable, // not produced by the parser
                 .CharacterRange => {
@@ -1043,16 +1035,14 @@ pub const Compiler = struct {
                     }
                 },
                 .String,
-                .IntegerString,
-                .FloatString,
+                .Integer,
+                .Float,
                 => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
                 },
                 .Boolean => |b| try self.emitOp(if (b) .True else .False, loc),
                 .Null => try self.emitOp(.Null, loc),
-                .Integer,
-                .Float,
                 .Failure,
                 => unreachable, // not produced by the parser
                 .CharacterRange => {

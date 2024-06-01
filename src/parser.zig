@@ -442,7 +442,7 @@ pub const Parser = struct {
                 }
             } else {
                 const sId1 = try self.vm.strings.insert(s1);
-                return self.ast.pushElem(Elem.integerString(int1, sId1), t1.loc);
+                return self.ast.pushElem(Elem.integer(int1, sId1), t1.loc);
             }
         } else {
             // Already verified this is an int during scanning
@@ -454,7 +454,7 @@ pub const Parser = struct {
         const t = self.previous;
         if (parsing.parseFloat(t.lexeme)) |f| {
             const sId = try self.vm.strings.insert(t.lexeme);
-            return self.ast.pushElem(Elem.floatString(f, sId), t.loc);
+            return self.ast.pushElem(Elem.float(f, sId), t.loc);
         } else {
             // Already verified this is a float during scanning
             unreachable;

@@ -95,7 +95,7 @@ test "1234 | 5678 | 910" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "56789"),
-            Elem.integerString(5678, vm.strings.getId("5678")),
+            Elem.integer(5678, vm.strings.getId("5678")),
             vm.strings,
         );
     }
@@ -127,7 +127,7 @@ test "1 + 2 + 3" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.integer(6),
+            Elem.integer(6, null),
             vm.strings,
         );
     }
@@ -143,7 +143,7 @@ test "1.23 + 10" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1.2310"),
-            Elem.float(11.23),
+            Elem.float(11.23, null),
             vm.strings,
         );
     }
@@ -159,7 +159,7 @@ test "0.1 + 0.2" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0.10.2"),
-            Elem.float(0.30000000000000004),
+            Elem.float(0.30000000000000004, null),
             vm.strings,
         );
     }
@@ -175,7 +175,7 @@ test "1e57 + 3e-4" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1e573e-4"),
-            Elem.float(1.0e+57),
+            Elem.float(1.0e+57, null),
             vm.strings,
         );
     }
@@ -259,7 +259,7 @@ test "1 ! 12 ! 123" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.integerString(123, vm.strings.getId("123")),
+            Elem.integer(123, vm.strings.getId("123")),
             vm.strings,
         );
     }
@@ -301,7 +301,7 @@ test "1000..10000 | 100..1000" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "888"),
-            Elem.integer(888),
+            Elem.integer(888, null),
             vm.strings,
         );
     }
@@ -317,7 +317,7 @@ test "-100..-1" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "-5"),
-            Elem.integer(-5),
+            Elem.integer(-5, null),
             vm.strings,
         );
     }
@@ -383,7 +383,7 @@ test "'a'..'z' -> 'f' & 0..100 -> 12" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "f12"),
-            Elem.integer(12),
+            Elem.integer(12, null),
             vm.strings,
         );
     }
@@ -400,7 +400,7 @@ test "42.0 -> 42" {
 
         try testing.expectSuccess(
             try vm.interpret(parser, "42.0"),
-            Elem.floatString(42.0, vm.strings.getId("42.0")),
+            Elem.float(42.0, vm.strings.getId("42.0")),
             vm.strings,
         );
     }
@@ -452,7 +452,7 @@ test "1 ? 2 & 3 : 4" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.integerString(3, vm.strings.getId("3")),
+            Elem.integer(3, vm.strings.getId("3")),
             vm.strings,
         );
     }
@@ -462,7 +462,7 @@ test "1 ? 2 & 3 : 4" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "4"),
-            Elem.integerString(4, vm.strings.getId("4")),
+            Elem.integer(4, vm.strings.getId("4")),
             vm.strings,
         );
     }
@@ -484,7 +484,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
-            Elem.integerString(2, vm.strings.getId("2")),
+            Elem.integer(2, vm.strings.getId("2")),
             vm.strings,
         );
     }
@@ -542,7 +542,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "34"),
-            Elem.integerString(4, vm.strings.getId("4")),
+            Elem.integer(4, vm.strings.getId("4")),
             vm.strings,
         );
     }
@@ -570,7 +570,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "5"),
-            Elem.integerString(5, vm.strings.getId("5")),
+            Elem.integer(5, vm.strings.getId("5")),
             vm.strings,
         );
     }
@@ -747,7 +747,7 @@ test "'\\n\\'\\\\' > 0" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, input),
-            Elem.integerString(0, vm.strings.getId("0")),
+            Elem.integer(0, vm.strings.getId("0")),
             vm.strings,
         );
     }
@@ -821,7 +821,7 @@ test "A = 100 ; 100 -> A" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "100"),
-            Elem.integerString(100, vm.strings.getId("100")),
+            Elem.integer(100, vm.strings.getId("100")),
             vm.strings,
         );
     }
@@ -855,7 +855,7 @@ test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.integerString(3, vm.strings.getId("3")),
+            Elem.integer(3, vm.strings.getId("3")),
             vm.strings,
         );
     }
@@ -888,7 +888,7 @@ test "peek(p) = p -> V ! '' $ V ; peek(1) + peek(1) + peek(1)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
-            Elem.integer(3),
+            Elem.integer(3, null),
             vm.strings,
         );
     }
@@ -921,7 +921,7 @@ test "a = b ; b = c ; c = 111 ; a" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "111"),
-            Elem.integerString(111, vm.strings.getId("111")),
+            Elem.integer(111, vm.strings.getId("111")),
             vm.strings,
         );
     }
@@ -957,7 +957,7 @@ test "@number_of('123')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.integer(123),
+            Elem.integer(123, null),
             vm.strings,
         );
     }
@@ -973,7 +973,7 @@ test "@number_of('123.456')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123.456"),
-            Elem.float(123.456),
+            Elem.float(123.456, null),
             vm.strings,
         );
     }
@@ -989,7 +989,7 @@ test "many('🐀' | skip('🛹'))" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "🛹🛹🛹🐀🐀🛹🐀🛹🐀🐀"),
-            Elem.integer(5),
+            Elem.integer(5, null),
             vm.strings,
         );
     }
@@ -1005,7 +1005,7 @@ test "123 + ((456 -> B) -> C)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123456"),
-            Elem.integer(579),
+            Elem.integer(579, null),
             vm.strings,
         );
     }
@@ -1057,7 +1057,7 @@ test "foo(N) = 12 -> N ; const(12) -> A & foo(A)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "input"),
-            Elem.integer(12),
+            Elem.integer(12, null),
             vm.strings,
         );
     }
@@ -1133,7 +1133,7 @@ test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo(3)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "33"),
-            Elem.integer(6),
+            Elem.integer(6, null),
             vm.strings,
         );
     }
@@ -1177,7 +1177,7 @@ test "Max function locals" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            Elem.integerString(0, vm.strings.getId("0")),
+            Elem.integer(0, vm.strings.getId("0")),
             vm.strings,
         );
     }
@@ -1247,7 +1247,7 @@ test "'aa' $ [1, 2, 3]" {
         \\"aa" $ [1, 2, 3]
     ;
     {
-        const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.integer(3) };
+        const array = [_]Elem{ Elem.integer(1, null), Elem.integer(2, null), Elem.integer(3, null) };
         var vm = VM.create();
         try vm.init(allocator, stderr, env);
         defer vm.deinit();
@@ -1283,7 +1283,7 @@ test "('a' $ [1, 2]) + ('b' $ [true, false])" {
         \\('a' $ [1, 2]) + ('b' $ [true, false])
     ;
     {
-        const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.boolean(true), Elem.boolean(false) };
+        const array = [_]Elem{ Elem.integer(1, null), Elem.integer(2, null), Elem.boolean(true), Elem.boolean(false) };
         var vm = VM.create();
         try vm.init(allocator, stderr, env);
         defer vm.deinit();
@@ -1316,7 +1316,7 @@ test "const([1, 2]) -> [A, B] $ [B, A]" {
         \\const([1, 2]) -> [A, B] $ [B, A]
     ;
     {
-        const array = [_]Elem{ Elem.integer(2), Elem.integer(1) };
+        const array = [_]Elem{ Elem.integer(2, null), Elem.integer(1, null) };
         var vm = VM.create();
         try vm.init(allocator, stderr, env);
         defer vm.deinit();
@@ -1333,7 +1333,7 @@ test "const([[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]" {
         \\const([[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]
     ;
     {
-        const array = [_]Elem{ Elem.integer(2), Elem.integer(4) };
+        const array = [_]Elem{ Elem.integer(2, null), Elem.integer(4, null) };
         var vm = VM.create();
         try vm.init(allocator, stderr, env);
         defer vm.deinit();
@@ -1355,7 +1355,7 @@ test "const([[], 100]) -> [[], A] $ A" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
-            Elem.integerString(100, vm.strings.getId("100")),
+            Elem.integer(100, vm.strings.getId("100")),
             vm.strings,
         );
     }
@@ -1435,7 +1435,7 @@ test "camelCase = _foo ; _foo = __bar ; __bar = 123 ; camelCase" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.integerString(123, vm.strings.getId("123")),
+            Elem.integer(123, vm.strings.getId("123")),
             vm.strings,
         );
     }
@@ -1481,7 +1481,7 @@ test "Add(A, B) = A + B ; '' $ Add(3, 12)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
-            Elem.integer(15),
+            Elem.integer(15, null),
             vm.strings,
         );
     }
@@ -1497,7 +1497,7 @@ test "A = 1 + 100 ; 101 -> A" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "101"),
-            Elem.integer(101),
+            Elem.integer(101, null),
             vm.strings,
         );
     }
@@ -1519,7 +1519,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            Elem.integer(0),
+            Elem.integer(0, null),
             vm.strings,
         );
     }
@@ -1529,7 +1529,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
-            Elem.integer(1),
+            Elem.integer(1, null),
             vm.strings,
         );
     }
@@ -1539,7 +1539,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "2"),
-            Elem.integer(1),
+            Elem.integer(1, null),
             vm.strings,
         );
     }
@@ -1549,7 +1549,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "3"),
-            Elem.integer(2),
+            Elem.integer(2, null),
             vm.strings,
         );
     }
@@ -1559,7 +1559,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "7"),
-            Elem.integer(13),
+            Elem.integer(13, null),
             vm.strings,
         );
     }
@@ -1580,7 +1580,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            Elem.integer(0),
+            Elem.integer(0, null),
             vm.strings,
         );
     }
@@ -1590,7 +1590,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
-            Elem.integer(1),
+            Elem.integer(1, null),
             vm.strings,
         );
     }
@@ -1600,7 +1600,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "2"),
-            Elem.integer(1),
+            Elem.integer(1, null),
             vm.strings,
         );
     }
@@ -1610,7 +1610,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "3"),
-            Elem.integer(2),
+            Elem.integer(2, null),
             vm.strings,
         );
     }
@@ -1620,7 +1620,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "7"),
-            Elem.integer(13),
+            Elem.integer(13, null),
             vm.strings,
         );
     }
@@ -1630,7 +1630,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
-            Elem.integer(144),
+            Elem.integer(144, null),
             vm.strings,
         );
     }
@@ -1664,9 +1664,9 @@ test "'aa' $ {'a': 1, 'b': 2, 'c': 3}" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.Dyn.Object.create(&vm, 3);
-        try object.members.put(vm.strings.getId("a"), Elem.integer(1));
-        try object.members.put(vm.strings.getId("b"), Elem.integer(2));
-        try object.members.put(vm.strings.getId("c"), Elem.integer(3));
+        try object.members.put(vm.strings.getId("a"), Elem.integer(1, null));
+        try object.members.put(vm.strings.getId("b"), Elem.integer(2, null));
+        try object.members.put(vm.strings.getId("c"), Elem.integer(3, null));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
     }
@@ -1684,8 +1684,8 @@ test "1 -> A & 2 -> B $ {'a': A, 'b': B}" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.Dyn.Object.create(&vm, 3);
-        try object.members.put(vm.strings.getId("a"), Elem.integer(1));
-        try object.members.put(vm.strings.getId("b"), Elem.integer(2));
+        try object.members.put(vm.strings.getId("a"), Elem.integer(1, null));
+        try object.members.put(vm.strings.getId("b"), Elem.integer(2, null));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
     }
@@ -1703,8 +1703,8 @@ test "1 -> A & 2 -> B $ {'a': A, 'b': B}" {
 
 //         // Do this after running the VM to make sure strings are interned
 //         var object = try Elem.Dyn.Object.create(&vm, 3);
-//         try object.members.put(vm.strings.getId("Z"), Elem.integer(1));
-//         try object.members.put(vm.strings.getId("A"), Elem.integer(2));
+//         try object.members.put(vm.strings.getId("Z"), Elem.integer(1, null));
+//         try object.members.put(vm.strings.getId("A"), Elem.integer(2, null));
 
 //         try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
 //     }
@@ -1722,9 +1722,9 @@ test "object(alpha, digit)" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.Dyn.Object.create(&vm, 3);
-        try object.members.put(vm.strings.getId("a"), Elem.integer(1));
-        try object.members.put(vm.strings.getId("b"), Elem.integer(2));
-        try object.members.put(vm.strings.getId("c"), Elem.integer(3));
+        try object.members.put(vm.strings.getId("a"), Elem.integer(1, null));
+        try object.members.put(vm.strings.getId("b"), Elem.integer(2, null));
+        try object.members.put(vm.strings.getId("c"), Elem.integer(3, null));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
     }
@@ -1793,7 +1793,7 @@ test "const({'a': 123}) -> {'a': A} $ A" {
 
         try testing.expectSuccess(
             result,
-            Elem.integerString(123, vm.strings.getId("123")),
+            Elem.integer(123, vm.strings.getId("123")),
             vm.strings,
         );
     }
@@ -1805,10 +1805,10 @@ test "const([1, 2, 3 + 10, 4])" {
     ;
     {
         const array = [_]Elem{
-            Elem.integer(1),
-            Elem.integer(2),
-            Elem.integer(13),
-            Elem.integer(4),
+            Elem.integer(1, null),
+            Elem.integer(2, null),
+            Elem.integer(13, null),
+            Elem.integer(4, null),
         };
         var vm = VM.create();
         try vm.init(allocator, stderr, env);
@@ -1829,10 +1829,10 @@ test "const([1, 2, 3 - 10, 4])" {
     ;
     {
         const array = [_]Elem{
-            Elem.integer(1),
-            Elem.integer(2),
-            Elem.integer(-7),
-            Elem.integer(4),
+            Elem.integer(1, null),
+            Elem.integer(2, null),
+            Elem.integer(-7, null),
+            Elem.integer(4, null),
         };
         var vm = VM.create();
         try vm.init(allocator, stderr, env);
@@ -1858,11 +1858,11 @@ test "'' $ [1, 2, [1+1+1]]" {
         const result = try vm.interpret(parser, "");
 
         const innerArray = [_]Elem{
-            Elem.integer(3),
+            Elem.integer(3, null),
         };
         const array = [_]Elem{
-            Elem.integer(1),
-            Elem.integer(2),
+            Elem.integer(1, null),
+            Elem.integer(2, null),
             (try Elem.Dyn.Array.copy(&vm, &innerArray)).dyn.elem(),
         };
 
@@ -1918,8 +1918,8 @@ test "array(digit) -> [A, B]" {
         const result = try vm.interpret(parser, "12");
 
         const array = [_]Elem{
-            Elem.integer(1),
-            Elem.integer(2),
+            Elem.integer(1, null),
+            Elem.integer(2, null),
         };
 
         try testing.expectSuccess(
@@ -1965,7 +1965,7 @@ test "int -> (2 + N) $ N" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.integer(121),
+            Elem.integer(121, null),
             vm.strings,
         );
     }
@@ -2031,7 +2031,7 @@ test "const([1,[2],2,3]) -> ([1,A] + A + [3]) $ A" {
         var vm = VM.create();
         try vm.init(allocator, stderr, env);
         defer vm.deinit();
-        const array = [_]Elem{Elem.integer(2)};
+        const array = [_]Elem{Elem.integer(2, null)};
         try testing.expectSuccess(
             try vm.interpret(parser, "a"),
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
@@ -2066,11 +2066,11 @@ test "const([1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]" {
         defer vm.deinit();
 
         const array = [_]Elem{
-            Elem.integer(2),
-            Elem.integer(3),
-            Elem.integer(100),
-            Elem.integer(2),
-            Elem.integer(3),
+            Elem.integer(2, null),
+            Elem.integer(3, null),
+            Elem.integer(100, null),
+            Elem.integer(2, null),
+            Elem.integer(3, null),
         };
 
         try testing.expectSuccess(

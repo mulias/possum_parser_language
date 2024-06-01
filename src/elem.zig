@@ -18,8 +18,6 @@ pub const ElemType = enum {
     String,
     Integer,
     Float,
-    IntegerString,
-    FloatString,
     CharacterRange,
     IntegerRange,
     Boolean,
@@ -32,10 +30,8 @@ pub const Elem = union(ElemType) {
     ParserVar: StringTable.Id,
     ValueVar: StringTable.Id,
     String: StringTable.Id,
-    Integer: i64,
-    Float: f64,
-    IntegerString: struct { value: i64, sId: StringTable.Id },
-    FloatString: struct { value: f64, sId: StringTable.Id },
+    Integer: struct { value: i64, sId: ?StringTable.Id },
+    Float: struct { value: f64, sId: ?StringTable.Id },
     CharacterRange: struct { low: u21, lowLength: u3, high: u21, highLength: u3 },
     IntegerRange: Tuple(&.{ i64, i64 }),
     Boolean: bool,
@@ -55,20 +51,12 @@ pub const Elem = union(ElemType) {
         return Elem{ .String = sId };
     }
 
-    pub fn integer(value: i64) Elem {
-        return Elem{ .Integer = value };
+    pub fn integer(value: i64, sId: ?StringTable.Id) Elem {
+        return Elem{ .Integer = .{ .value = value, .sId = sId } };
     }
 
-    pub fn float(value: f64) Elem {
-        return Elem{ .Float = value };
-    }
-
-    pub fn integerString(value: i64, sId: StringTable.Id) Elem {
-        return Elem{ .IntegerString = .{ .value = value, .sId = sId } };
-    }
-
-    pub fn floatString(value: f64, sId: StringTable.Id) Elem {
-        return Elem{ .FloatString = .{ .value = value, .sId = sId } };
+    pub fn float(value: f64, sId: ?StringTable.Id) Elem {
+        return Elem{ .Float = .{ .value = value, .sId = sId } };
     }
 
     pub fn characterRange(low: u21, high: u21) !Elem {
@@ -97,10 +85,16 @@ pub const Elem = union(ElemType) {
             .ParserVar => |sId| try writer.print("{s}", .{strings.get(sId)}),
             .ValueVar => |sId| try writer.print("{s}", .{strings.get(sId)}),
             .String => |sId| try writer.print("\"{s}\"", .{strings.get(sId)}),
-            .Integer => |n| try writer.print("{d}", .{n}),
-            .Float => |n| try writer.print("{d}", .{n}),
-            .IntegerString => |n| try writer.print("{s}", .{strings.get(n.sId)}),
-            .FloatString => |n| try writer.print("{s}", .{strings.get(n.sId)}),
+            .Integer => |n| if (n.sId) |sId| {
+                try writer.print("{s}", .{strings.get(sId)});
+            } else {
+                try writer.print("{d}", .{n.value});
+            },
+            .Float => |n| if (n.sId) |sId| {
+                try writer.print("{s}", .{strings.get(sId)});
+            } else {
+                try writer.print("{d}", .{n.value});
+            },
             .CharacterRange => |r| try writer.print("\"{u}\"..\"{u}\"", .{ r.low, r.high }),
             .IntegerRange => |r| try writer.print("{d}..{d}", .{ r[0], r[1] }),
             .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
@@ -159,31 +153,13 @@ pub const Elem = union(ElemType) {
                 else => false,
             },
             .Integer => |n1| switch (other) {
-                .Integer => |n2| n1 == n2,
-                .Float => |n2| @as(f64, @floatFromInt(n1)) == n2,
-                .IntegerString => |n2| n1 == n2.value,
-                .FloatString => |n2| @as(f64, @floatFromInt(n1)) == n2.value,
+                .Integer => |n2| n1.value == n2.value,
+                .Float => |n2| @as(f64, @floatFromInt(n1.value)) == n2.value,
                 else => false,
             },
             .Float => |n1| switch (other) {
-                .Integer => |n2| n1 == @as(f64, @floatFromInt(n2)),
-                .Float => |n2| n1 == n2,
-                .IntegerString => |n2| n1 == @as(f64, @floatFromInt(n2.value)),
-                .FloatString => |n2| n1 == n2.value,
-                else => false,
-            },
-            .IntegerString => |n1| switch (other) {
-                .Integer => |n2| n1.value == n2,
-                .Float => |n2| @as(f64, @floatFromInt(n1.value)) == n2,
-                .IntegerString => |n2| n1.value == n2.value,
-                .FloatString => |n2| @as(f64, @floatFromInt(n1.value)) == n2.value,
-                else => false,
-            },
-            .FloatString => |n1| switch (other) {
-                .Integer => |n2| n1.value == @as(f64, @floatFromInt(n2)),
-                .Float => |n2| n1.value == n2,
-                .IntegerString => |n2| n1.value == @as(f64, @floatFromInt(n2.value)),
-                .FloatString => |n2| n1.value == n2.value,
+                .Integer => |n2| n1.value == @as(f64, @floatFromInt(n2.value)),
+                .Float => |n2| n1.value == n2.value,
                 else => false,
             },
             .IntegerRange => |r1| switch (other) {
@@ -234,8 +210,6 @@ pub const Elem = union(ElemType) {
             .String,
             .Integer,
             .Float,
-            .IntegerString,
-            .FloatString,
             .Boolean,
             .Null,
             .Failure,
@@ -334,31 +308,13 @@ pub const Elem = union(ElemType) {
                 else => null,
             },
             .Integer => |n1| switch (elemB) {
-                .Integer => |n2| integer(n1 + n2),
-                .Float => |n2| float(@as(f64, @floatFromInt(n1)) + n2),
-                .IntegerString => |n2| integer(n1 + n2.value),
-                .FloatString => |n2| float(@as(f64, @floatFromInt(n1)) + n2.value),
+                .Integer => |n2| integer(n1.value + n2.value, null),
+                .Float => |n2| float(@as(f64, @floatFromInt(n1.value)) + n2.value, null),
                 else => null,
             },
             .Float => |n1| switch (elemB) {
-                .Integer => |n2| float(n1 + @as(f64, @floatFromInt(n2))),
-                .Float => |n2| float(n1 + n2),
-                .IntegerString => |n2| float(n1 + @as(f64, @floatFromInt(n2.value))),
-                .FloatString => |n2| float(n1 + n2.value),
-                else => null,
-            },
-            .IntegerString => |n1| switch (elemB) {
-                .Integer => |n2| integer(n1.value + n2),
-                .Float => |n2| float(@as(f64, @floatFromInt(n1.value)) + n2),
-                .IntegerString => |n2| integer(n1.value + n2.value),
-                .FloatString => |n2| float(@as(f64, @floatFromInt(n1.value)) + n2.value),
-                else => null,
-            },
-            .FloatString => |n1| switch (elemB) {
-                .Integer => |n2| float(n1.value + @as(f64, @floatFromInt(n2))),
-                .Float => |n2| float(n1.value + n2),
-                .IntegerString => |n2| float(n1.value + @as(f64, @floatFromInt(n2.value))),
-                .FloatString => |n2| float(n1.value + n2.value),
+                .Integer => |n2| float(n1.value + @as(f64, @floatFromInt(n2.value)), null),
+                .Float => |n2| float(n1.value + n2.value, null),
                 else => null,
             },
             .CharacterRange => unreachable,
@@ -439,11 +395,9 @@ pub const Elem = union(ElemType) {
             .Failure,
             => @panic("Internal error"),
             .String => null,
-            .Integer => |n| integer(n * -1),
-            .Float => |n| float(n * -1),
-            .IntegerString => |n| integer(n.value * -1),
-            .FloatString => |n| float(n.value * -1),
-            .Null => integer(0),
+            .Integer => |n| integer(n.value * -1, null),
+            .Float => |n| float(n.value * -1, null),
+            .Null => integer(0, null),
             else => null,
         };
     }
@@ -453,27 +407,25 @@ pub const Elem = union(ElemType) {
             .String => |sId| {
                 const s = strings.get(sId);
                 if (parsing.parseInteger(s)) |i| {
-                    return Elem.integerString(i, sId);
+                    return Elem.integer(i, sId);
                 } else if (parsing.parseFloat(s)) |f| {
-                    return Elem.floatString(f, sId);
+                    return Elem.float(f, sId);
                 } else {
                     return null;
                 }
             },
             .Integer,
             .Float,
-            .IntegerString,
-            .FloatString,
             => self,
             .Dyn => |dyn| switch (dyn.dynType) {
                 .String => {
                     const s = dyn.asString().buffer.str();
                     if (parsing.parseInteger(s)) |i| {
                         const sId = try strings.insert(s);
-                        return Elem.integerString(i, sId);
+                        return Elem.integer(i, sId);
                     } else if (parsing.parseFloat(s)) |f| {
                         const sId = try strings.insert(s);
-                        return Elem.floatString(f, sId);
+                        return Elem.float(f, sId);
                     } else {
                         return null;
                     }
@@ -490,15 +442,17 @@ pub const Elem = union(ElemType) {
                 const s = strings.get(sId);
                 return .{ .string = s };
             },
-            .Integer => |i| .{ .integer = i },
-            .Float => |f| .{ .float = f },
-            .IntegerString => |i| {
-                const s = strings.get(i.sId);
+            .Integer => |i| if (i.sId) |sId| {
+                const s = strings.get(sId);
                 return .{ .number_string = s };
+            } else {
+                return .{ .integer = i.value };
             },
-            .FloatString => |f| {
-                const s = strings.get(f.sId);
+            .Float => |f| if (f.sId) |sId| {
+                const s = strings.get(sId);
                 return .{ .number_string = s };
+            } else {
+                return .{ .float = f.value };
             },
             .Boolean => |b| .{ .bool = b },
             .Null => .{ .null = undefined },

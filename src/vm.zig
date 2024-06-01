@@ -530,10 +530,10 @@ pub const VM = struct {
                 }
                 try self.pushFailure();
             },
-            .IntegerString => |n| {
+            .Integer => |n| {
                 assert(argCount == 0);
                 _ = self.pop();
-                const s = self.strings.get(n.sId);
+                const s = self.strings.get(n.sId.?);
                 const start = self.inputPos;
                 const end = start + s.len;
 
@@ -544,10 +544,10 @@ pub const VM = struct {
                 }
                 try self.pushFailure();
             },
-            .FloatString => |n| {
+            .Float => |n| {
                 assert(argCount == 0);
                 _ = self.pop();
-                const s = self.strings.get(n.sId);
+                const s = self.strings.get(n.sId.?);
                 const start = self.inputPos;
                 const end = start + s.len;
 
@@ -577,7 +577,7 @@ pub const VM = struct {
 
                     if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
                         self.inputPos = end;
-                        const int = Elem.integer(i);
+                        const int = Elem.integer(i, null);
                         try self.push(int);
                         return;
                     };
@@ -821,11 +821,9 @@ pub const VM = struct {
                 },
                 .Integer,
                 .Float,
-                .IntegerString,
-                .FloatString,
                 => {
                     if (context == .Unknown) {
-                        context = .{ .Number = .{ .acc = Elem.integer(0) } };
+                        context = .{ .Number = .{ .acc = Elem.integer(0, null) } };
                     } else if (context != .Number) {
                         return self.runtimeError("Merge type mismatch in pattern", .{});
                     }
