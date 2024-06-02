@@ -1,12 +1,12 @@
 array_sep(monkey, ws)
 
 monkey =
-  "Monkey " & int -> Id & ":" & ws &
-  "Starting items: " & array_sep(int, ", ") -> Items & ws &
-  "Operation: new = " & operation -> Operation & ws &
-  "Test: divisible by " & int -> Test & ws &
-  "If true: throw to monkey " & int -> IfTrue  & ws &
-  "If false: throw to monkey " & int -> IfFalse $
+"Monkey %(int->Id):
+  Starting items: %(array_sep(int, ", ")->Items)
+  Operation: new = %(operation->Operation)
+  Test: divisible by %(int->Test)
+    If true: throw to monkey %(int->IfTrue)
+    If false: throw to monkey %(int->IfFalse)" $
   {
     "id": Id,
     "starting_items": Items,

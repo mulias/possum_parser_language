@@ -12,10 +12,9 @@ child_dirs = peek(dir_end) ? const([]) : tuple1(dir) + child_dirs
 
 contents = array_sep(dir_listing | file_listing, nl)
 
-dir_listing = "dir" & ws & token -> Name $
-  {"type": "dir", "name": Name}
+dir_listing = "dir %(token->Name)" $ {"type": "dir", "name": Name}
 
-file_listing = number -> Size & ws & token -> Name $
+file_listing = number -> Size & space & token -> Name $
   {"type": "file", "name": Name, "size": Size}
 
 dir_end = "$ cd .." < nl | end

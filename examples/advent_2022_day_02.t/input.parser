@@ -1,6 +1,6 @@
 array_sep(round, nl)
 
-round = player_1 -> P1 & ws & player_2 -> P2 $ [P1, P2]
+round = tuple2_sep(player_1, ws, player_2)
 
 player_1 = hand_shape
 
