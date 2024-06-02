@@ -113,6 +113,8 @@ const(C) = "" $ C
 
 number_of = @number_of
 
+string_of(p) = "%(p)"
+
 surround(p, fill) = fill > p < fill
 
 input(p) = surround(p, maybe(whitespace)) < end_of_input

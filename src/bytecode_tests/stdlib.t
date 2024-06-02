@@ -504,8 +504,17 @@
   0009    | End
   ========================================
   
+  ===============string_of================
+  0000  116 GetConstant 0: ""
+  0002    | CallFunction 0
+  0004    1 GetBoundLocal 0
+  0006    | CallFunction 0
+  0008  116 MergeAsString
+  0009    | End
+  ========================================
+  
   ================surround================
-  0000  116 GetBoundLocal 1
+  0000  118 GetBoundLocal 1
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 11
   0007    | GetBoundLocal 0
@@ -518,14 +527,14 @@
   ========================================
   
   =================@fn30==================
-  0000  118 GetConstant 0: maybe
+  0000  120 GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
   =================input==================
-  0000  118 GetConstant 0: surround
+  0000  120 GetConstant 0: surround
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: @fn30
   0006    | CallFunction 2
@@ -537,7 +546,7 @@
   ========================================
   
   ==================many==================
-  0000  120 GetConstant 0: First
+  0000  122 GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
   0006    | GetLocal 1
@@ -551,7 +560,7 @@
   ========================================
   
   =================_many==================
-  0000  122 GetConstant 0: Next
+  0000  124 GetConstant 0: Next
   0002    | SetInputMark
   0003    | GetBoundLocal 0
   0005    | CallFunction 0
@@ -572,7 +581,7 @@
   ========================================
   
   =================@fn31==================
-  0000  124 GetConstant 0: sep
+  0000  126 GetConstant 0: sep
   0002    | GetConstant 1: p
   0004    | SetClosureCaptures
   0005    | GetBoundLocal 0
@@ -584,7 +593,7 @@
   ========================================
   
   ================many_sep================
-  0000  124 GetConstant 0: First
+  0000  126 GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
   0006    | GetLocal 2
@@ -600,7 +609,7 @@
   ========================================
   
   ===============many_until===============
-  0000  126 GetConstant 0: First
+  0000  128 GetConstant 0: First
   0002    | GetConstant 1: unless
   0004    | GetBoundLocal 0
   0006    | GetBoundLocal 1
@@ -617,17 +626,17 @@
   ========================================
   
   ==============_many_until===============
-  0000  131 GetConstant 0: Next
-  0002  129 SetInputMark
+  0000  133 GetConstant 0: Next
+  0002  131 SetInputMark
   0003    | GetConstant 1: peek
   0005    | GetBoundLocal 1
   0007    | CallFunction 1
   0009    | ConditionalThen 9 -> 21
-  0012  130 GetConstant 2: const
+  0012  132 GetConstant 2: const
   0014    | GetBoundLocal 2
   0016    | CallTailFunction 1
   0018    | ConditionalElse 18 -> 44
-  0021  131 GetBoundLocal 0
+  0021  133 GetBoundLocal 0
   0023    | CallFunction 0
   0025    | GetLocal 3
   0027    | Destructure
@@ -639,11 +648,11 @@
   0039    | GetBoundLocal 3
   0041    | Merge
   0042    | CallTailFunction 3
-  0044  129 End
+  0044  131 End
   ========================================
   
   ===============maybe_many===============
-  0000  133 SetInputMark
+  0000  135 SetInputMark
   0001    | GetConstant 0: many
   0003    | GetBoundLocal 0
   0005    | CallFunction 1
@@ -654,7 +663,7 @@
   ========================================
   
   =============maybe_many_sep=============
-  0000  135 SetInputMark
+  0000  137 SetInputMark
   0001    | GetConstant 0: many_sep
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
@@ -666,7 +675,7 @@
   ========================================
   
   =================array==================
-  0000  137 GetConstant 0: First
+  0000  139 GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
   0006    | GetLocal 1
@@ -682,14 +691,14 @@
   ========================================
   
   =================_array=================
-  0000  140 GetConstant 0: Elem
+  0000  142 GetConstant 0: Elem
   0002    | SetInputMark
   0003    | GetBoundLocal 0
   0005    | CallFunction 0
   0007    | GetLocal 2
   0009    | Destructure
   0010    | ConditionalThen 10 -> 34
-  0013  141 GetConstant 1: _array
+  0013  143 GetConstant 1: _array
   0015    | GetBoundLocal 0
   0017    | GetConstant 2: []
   0019    | GetBoundLocal 1
@@ -700,14 +709,14 @@
   0028    | Merge
   0029    | CallTailFunction 2
   0031    | ConditionalElse 31 -> 40
-  0034  142 GetConstant 4: const
+  0034  144 GetConstant 4: const
   0036    | GetBoundLocal 1
   0038    | CallTailFunction 1
-  0040  140 End
+  0040  142 End
   ========================================
   
   =================@fn32==================
-  0000  144 GetConstant 0: sep
+  0000  146 GetConstant 0: sep
   0002    | GetConstant 1: elem
   0004    | SetClosureCaptures
   0005    | GetBoundLocal 0
@@ -719,7 +728,7 @@
   ========================================
   
   ===============array_sep================
-  0000  144 GetConstant 0: First
+  0000  146 GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
   0006    | GetLocal 2
@@ -737,7 +746,7 @@
   ========================================
   
   ==============array_until===============
-  0000  147 GetConstant 0: First
+  0000  149 GetConstant 0: First
   0002    | GetConstant 1: unless
   0004    | GetBoundLocal 0
   0006    | GetBoundLocal 1
@@ -756,17 +765,17 @@
   ========================================
   
   ==============_array_until==============
-  0000  152 GetConstant 0: Elem
-  0002  150 SetInputMark
+  0000  154 GetConstant 0: Elem
+  0002  152 SetInputMark
   0003    | GetConstant 1: peek
   0005    | GetBoundLocal 1
   0007    | CallFunction 1
   0009    | ConditionalThen 9 -> 21
-  0012  151 GetConstant 2: const
+  0012  153 GetConstant 2: const
   0014    | GetBoundLocal 2
   0016    | CallTailFunction 1
   0018    | ConditionalElse 18 -> 51
-  0021  152 GetBoundLocal 0
+  0021  154 GetBoundLocal 0
   0023    | CallFunction 0
   0025    | GetLocal 3
   0027    | Destructure
@@ -782,11 +791,11 @@
   0046    | InsertAtIndex 0
   0048    | Merge
   0049    | CallTailFunction 3
-  0051  150 End
+  0051  152 End
   ========================================
   
   =================@fn33==================
-  0000  154 GetConstant 0: elem
+  0000  156 GetConstant 0: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 1: array
   0005    | GetBoundLocal 0
@@ -795,7 +804,7 @@
   ========================================
   
   ==============maybe_array===============
-  0000  154 GetConstant 0: default
+  0000  156 GetConstant 0: default
   0002    | GetConstant 1: @fn33
   0004    | CaptureLocal 0 0
   0007    | GetConstant 2: []
@@ -804,7 +813,7 @@
   ========================================
   
   =================@fn34==================
-  0000  156 GetConstant 0: elem
+  0000  158 GetConstant 0: elem
   0002    | GetConstant 1: sep
   0004    | SetClosureCaptures
   0005    | GetConstant 2: array_sep
@@ -815,7 +824,7 @@
   ========================================
   
   ============maybe_array_sep=============
-  0000  156 GetConstant 0: default
+  0000  158 GetConstant 0: default
   0002    | GetConstant 1: @fn34
   0004    | CaptureLocal 0 0
   0007    | CaptureLocal 1 1
@@ -825,7 +834,7 @@
   ========================================
   
   =================tuple1=================
-  0000  158 GetConstant 0: Elem
+  0000  160 GetConstant 0: Elem
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
   0006    | GetLocal 1
@@ -838,7 +847,7 @@
   ========================================
   
   =================tuple2=================
-  0000  160 GetConstant 0: E1
+  0000  162 GetConstant 0: E1
   0002    | GetConstant 1: E2
   0004    | GetBoundLocal 0
   0006    | CallFunction 0
@@ -859,7 +868,7 @@
   ========================================
   
   ===============tuple2_sep===============
-  0000  162 GetConstant 0: E1
+  0000  164 GetConstant 0: E1
   0002    | GetConstant 1: E2
   0004    | GetBoundLocal 0
   0006    | CallFunction 0
@@ -883,39 +892,39 @@
   ========================================
   
   =================tuple3=================
-  0000  165 GetConstant 0: E1
-  0002  166 GetConstant 1: E2
-  0004  167 GetConstant 2: E3
-  0006  165 GetBoundLocal 0
+  0000  167 GetConstant 0: E1
+  0002  168 GetConstant 1: E2
+  0004  169 GetConstant 2: E3
+  0006  167 GetBoundLocal 0
   0008    | CallFunction 0
   0010    | GetLocal 3
   0012    | Destructure
   0013    | TakeRight 13 -> 23
-  0016  166 GetBoundLocal 1
+  0016  168 GetBoundLocal 1
   0018    | CallFunction 0
   0020    | GetLocal 4
   0022    | Destructure
   0023    | TakeRight 23 -> 50
-  0026  167 GetBoundLocal 2
+  0026  169 GetBoundLocal 2
   0028    | CallFunction 0
   0030    | GetLocal 5
   0032    | Destructure
   0033    | TakeRight 33 -> 50
-  0036  168 GetConstant 3: [_, _, _]
+  0036  170 GetConstant 3: [_, _, _]
   0038    | GetBoundLocal 3
   0040    | InsertAtIndex 0
   0042    | GetBoundLocal 4
   0044    | InsertAtIndex 1
   0046    | GetBoundLocal 5
   0048    | InsertAtIndex 2
-  0050  166 End
+  0050  168 End
   ========================================
   
   ===============tuple3_sep===============
-  0000  171 GetConstant 0: E1
-  0002  172 GetConstant 1: E2
-  0004  173 GetConstant 2: E3
-  0006  171 GetBoundLocal 0
+  0000  173 GetConstant 0: E1
+  0002  174 GetConstant 1: E2
+  0004  175 GetConstant 2: E3
+  0006  173 GetBoundLocal 0
   0008    | CallFunction 0
   0010    | GetLocal 5
   0012    | Destructure
@@ -923,7 +932,7 @@
   0016    | GetBoundLocal 1
   0018    | CallFunction 0
   0020    | TakeRight 20 -> 30
-  0023  172 GetBoundLocal 2
+  0023  174 GetBoundLocal 2
   0025    | CallFunction 0
   0027    | GetLocal 6
   0029    | Destructure
@@ -931,23 +940,23 @@
   0033    | GetBoundLocal 3
   0035    | CallFunction 0
   0037    | TakeRight 37 -> 64
-  0040  173 GetBoundLocal 4
+  0040  175 GetBoundLocal 4
   0042    | CallFunction 0
   0044    | GetLocal 7
   0046    | Destructure
   0047    | TakeRight 47 -> 64
-  0050  174 GetConstant 3: [_, _, _]
+  0050  176 GetConstant 3: [_, _, _]
   0052    | GetBoundLocal 5
   0054    | InsertAtIndex 0
   0056    | GetBoundLocal 6
   0058    | InsertAtIndex 1
   0060    | GetBoundLocal 7
   0062    | InsertAtIndex 2
-  0064  172 End
+  0064  174 End
   ========================================
   
   ===============table_sep================
-  0000  177 GetConstant 0: First
+  0000  179 GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
   0006    | GetLocal 3
@@ -966,9 +975,9 @@
   ========================================
   
   ===============_table_sep===============
-  0000  180 GetConstant 0: Elem
-  0002  182 GetConstant 1: NextRow
-  0004  180 SetInputMark
+  0000  182 GetConstant 0: Elem
+  0002  184 GetConstant 1: NextRow
+  0004  182 SetInputMark
   0005    | GetBoundLocal 1
   0007    | CallFunction 0
   0009    | TakeRight 9 -> 16
@@ -977,7 +986,7 @@
   0016    | GetLocal 5
   0018    | Destructure
   0019    | ConditionalThen 19 -> 49
-  0022  181 GetConstant 2: _table_sep
+  0022  183 GetConstant 2: _table_sep
   0024    | GetBoundLocal 0
   0026    | GetBoundLocal 1
   0028    | GetBoundLocal 2
@@ -991,7 +1000,7 @@
   0042    | GetBoundLocal 4
   0044    | CallTailFunction 5
   0046    | ConditionalElse 46 -> 114
-  0049  182 SetInputMark
+  0049  184 SetInputMark
   0050    | GetBoundLocal 2
   0052    | CallFunction 0
   0054    | TakeRight 54 -> 61
@@ -1000,7 +1009,7 @@
   0061    | GetLocal 6
   0063    | Destructure
   0064    | ConditionalThen 64 -> 98
-  0067  183 GetConstant 5: _table_sep
+  0067  185 GetConstant 5: _table_sep
   0069    | GetBoundLocal 0
   0071    | GetBoundLocal 1
   0073    | GetBoundLocal 2
@@ -1016,7 +1025,7 @@
   0092    | Merge
   0093    | CallTailFunction 5
   0095    | ConditionalElse 95 -> 114
-  0098  184 GetConstant 9: const
+  0098  186 GetConstant 9: const
   0100    | GetConstant 10: []
   0102    | GetBoundLocal 4
   0104    | Merge
@@ -1025,11 +1034,11 @@
   0109    | InsertAtIndex 0
   0111    | Merge
   0112    | CallTailFunction 1
-  0114  180 End
+  0114  182 End
   ========================================
   
   =================@fn35==================
-  0000  187 GetConstant 0: elem
+  0000  189 GetConstant 0: elem
   0002    | GetConstant 1: sep
   0004    | GetConstant 2: row_sep
   0006    | SetClosureCaptures
@@ -1042,7 +1051,7 @@
   ========================================
   
   ============maybe_table_sep=============
-  0000  187 GetConstant 0: default
+  0000  189 GetConstant 0: default
   0002    | GetConstant 1: @fn35
   0004    | CaptureLocal 0 0
   0007    | CaptureLocal 1 1
@@ -1053,7 +1062,7 @@
   ========================================
   
   =================object=================
-  0000  190 GetConstant 0: K
+  0000  192 GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | GetBoundLocal 0
   0006    | CallFunction 0
@@ -1065,17 +1074,17 @@
   0018    | GetLocal 3
   0020    | Destructure
   0021    | TakeRight 21 -> 35
-  0024  191 GetConstant 2: _object
+  0024  193 GetConstant 2: _object
   0026    | GetBoundLocal 0
   0028    | GetBoundLocal 1
   0030    | GetConstant 3: {"K": V}
   0032    | ResolveUnboundVars
   0033    | CallTailFunction 3
-  0035  190 End
+  0035  192 End
   ========================================
   
   ================_object=================
-  0000  194 GetConstant 0: K
+  0000  196 GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | SetInputMark
   0005    | GetBoundLocal 0
@@ -1088,7 +1097,7 @@
   0019    | GetLocal 4
   0021    | Destructure
   0022    | ConditionalThen 22 -> 42
-  0025  195 GetConstant 2: _object
+  0025  197 GetConstant 2: _object
   0027    | GetBoundLocal 0
   0029    | GetBoundLocal 1
   0031    | GetBoundLocal 2
@@ -1097,14 +1106,14 @@
   0036    | Merge
   0037    | CallTailFunction 3
   0039    | ConditionalElse 39 -> 48
-  0042  196 GetConstant 4: const
+  0042  198 GetConstant 4: const
   0044    | GetBoundLocal 2
   0046    | CallTailFunction 1
-  0048  194 End
+  0048  196 End
   ========================================
   
   =================@fn36==================
-  0000  200 GetConstant 0: sep
+  0000  202 GetConstant 0: sep
   0002    | GetConstant 1: key
   0004    | SetClosureCaptures
   0005    | GetBoundLocal 0
@@ -1116,7 +1125,7 @@
   ========================================
   
   =================@fn37==================
-  0000  200 GetConstant 0: pair_sep
+  0000  202 GetConstant 0: pair_sep
   0002    | GetConstant 1: value
   0004    | SetClosureCaptures
   0005    | GetBoundLocal 0
@@ -1128,7 +1137,7 @@
   ========================================
   
   ===============object_sep===============
-  0000  199 GetConstant 0: K
+  0000  201 GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | GetBoundLocal 0
   0006    | CallFunction 0
@@ -1143,7 +1152,7 @@
   0025    | GetLocal 5
   0027    | Destructure
   0028    | TakeRight 28 -> 54
-  0031  200 GetConstant 2: _object
+  0031  202 GetConstant 2: _object
   0033    | GetConstant 3: @fn36
   0035    | CaptureLocal 0 1
   0038    | CaptureLocal 3 0
@@ -1153,47 +1162,47 @@
   0049    | GetConstant 5: {"K": V}
   0051    | ResolveUnboundVars
   0052    | CallTailFunction 3
-  0054  199 End
+  0054  201 End
   ========================================
   
   ==============object_until==============
-  0000  203 GetConstant 0: K
-  0002  204 GetConstant 1: V
-  0004  203 GetConstant 2: unless
+  0000  205 GetConstant 0: K
+  0002  206 GetConstant 1: V
+  0004  205 GetConstant 2: unless
   0006    | GetBoundLocal 0
   0008    | GetBoundLocal 2
   0010    | CallFunction 2
   0012    | GetLocal 3
   0014    | Destructure
   0015    | TakeRight 15 -> 25
-  0018  204 GetBoundLocal 1
+  0018  206 GetBoundLocal 1
   0020    | CallFunction 0
   0022    | GetLocal 4
   0024    | Destructure
   0025    | TakeRight 25 -> 41
-  0028  205 GetConstant 3: _object_until
+  0028  207 GetConstant 3: _object_until
   0030    | GetBoundLocal 0
   0032    | GetBoundLocal 1
   0034    | GetBoundLocal 2
   0036    | GetConstant 4: {"K": V}
   0038    | ResolveUnboundVars
   0039    | CallTailFunction 4
-  0041  204 End
+  0041  206 End
   ========================================
   
   =============_object_until==============
-  0000  210 GetConstant 0: K
+  0000  212 GetConstant 0: K
   0002    | GetConstant 1: V
-  0004  208 SetInputMark
+  0004  210 SetInputMark
   0005    | GetConstant 2: peek
   0007    | GetBoundLocal 2
   0009    | CallFunction 1
   0011    | ConditionalThen 11 -> 23
-  0014  209 GetConstant 3: const
+  0014  211 GetConstant 3: const
   0016    | GetBoundLocal 3
   0018    | CallTailFunction 1
   0020    | ConditionalElse 20 -> 59
-  0023  210 GetBoundLocal 0
+  0023  212 GetBoundLocal 0
   0025    | CallFunction 0
   0027    | GetLocal 4
   0029    | Destructure
@@ -1212,11 +1221,11 @@
   0055    | ResolveUnboundVars
   0056    | Merge
   0057    | CallTailFunction 4
-  0059  208 End
+  0059  210 End
   ========================================
   
   =================@fn38==================
-  0000  212 GetConstant 0: key
+  0000  214 GetConstant 0: key
   0002    | GetConstant 1: value
   0004    | SetClosureCaptures
   0005    | GetConstant 2: object
@@ -1227,7 +1236,7 @@
   ========================================
   
   ==============maybe_object==============
-  0000  212 GetConstant 0: default
+  0000  214 GetConstant 0: default
   0002    | GetConstant 1: @fn38
   0004    | CaptureLocal 0 0
   0007    | CaptureLocal 1 1
@@ -1237,7 +1246,7 @@
   ========================================
   
   =================@fn39==================
-  0000  215 GetConstant 0: key
+  0000  217 GetConstant 0: key
   0002    | GetConstant 1: pair_sep
   0004    | GetConstant 2: value
   0006    | GetConstant 3: sep
@@ -1252,7 +1261,7 @@
   ========================================
   
   ============maybe_object_sep============
-  0000  215 GetConstant 0: default
+  0000  217 GetConstant 0: default
   0002    | GetConstant 1: @fn39
   0004    | CaptureLocal 0 0
   0007    | CaptureLocal 1 1
@@ -1264,7 +1273,7 @@
   ========================================
   
   ================record1=================
-  0000  217 GetConstant 0: Value
+  0000  219 GetConstant 0: Value
   0002    | GetBoundLocal 1
   0004    | CallFunction 0
   0006    | GetLocal 2
@@ -1276,27 +1285,27 @@
   ========================================
   
   ================record2=================
-  0000  220 GetConstant 0: V1
-  0002  221 GetConstant 1: V2
-  0004  220 GetBoundLocal 1
+  0000  222 GetConstant 0: V1
+  0002  223 GetConstant 1: V2
+  0004  222 GetBoundLocal 1
   0006    | CallFunction 0
   0008    | GetLocal 4
   0010    | Destructure
   0011    | TakeRight 11 -> 27
-  0014  221 GetBoundLocal 3
+  0014  223 GetBoundLocal 3
   0016    | CallFunction 0
   0018    | GetLocal 5
   0020    | Destructure
   0021    | TakeRight 21 -> 27
-  0024  222 GetConstant 2: {"Key1": V1, "Key2": V2}
+  0024  224 GetConstant 2: {"Key1": V1, "Key2": V2}
   0026    | ResolveUnboundVars
-  0027  220 End
+  0027  222 End
   ========================================
   
   ==============record2_sep===============
-  0000  225 GetConstant 0: V1
-  0002  226 GetConstant 1: V2
-  0004  225 GetBoundLocal 1
+  0000  227 GetConstant 0: V1
+  0002  228 GetConstant 1: V2
+  0004  227 GetBoundLocal 1
   0006    | CallFunction 0
   0008    | GetLocal 5
   0010    | Destructure
@@ -1304,45 +1313,45 @@
   0014    | GetBoundLocal 2
   0016    | CallFunction 0
   0018    | TakeRight 18 -> 34
-  0021  226 GetBoundLocal 4
+  0021  228 GetBoundLocal 4
   0023    | CallFunction 0
   0025    | GetLocal 6
   0027    | Destructure
   0028    | TakeRight 28 -> 34
-  0031  227 GetConstant 2: {"Key1": V1, "Key2": V2}
+  0031  229 GetConstant 2: {"Key1": V1, "Key2": V2}
   0033    | ResolveUnboundVars
-  0034  225 End
+  0034  227 End
   ========================================
   
   ================record3=================
-  0000  230 GetConstant 0: V1
-  0002  231 GetConstant 1: V2
-  0004  232 GetConstant 2: V3
-  0006  230 GetBoundLocal 1
+  0000  232 GetConstant 0: V1
+  0002  233 GetConstant 1: V2
+  0004  234 GetConstant 2: V3
+  0006  232 GetBoundLocal 1
   0008    | CallFunction 0
   0010    | GetLocal 6
   0012    | Destructure
   0013    | TakeRight 13 -> 23
-  0016  231 GetBoundLocal 3
+  0016  233 GetBoundLocal 3
   0018    | CallFunction 0
   0020    | GetLocal 7
   0022    | Destructure
   0023    | TakeRight 23 -> 39
-  0026  232 GetBoundLocal 5
+  0026  234 GetBoundLocal 5
   0028    | CallFunction 0
   0030    | GetLocal 8
   0032    | Destructure
   0033    | TakeRight 33 -> 39
-  0036  233 GetConstant 3: {"Key1": V1, "Key2": V2, "Key3": V3}
+  0036  235 GetConstant 3: {"Key1": V1, "Key2": V2, "Key3": V3}
   0038    | ResolveUnboundVars
-  0039  231 End
+  0039  233 End
   ========================================
   
   ==============record3_sep===============
-  0000  236 GetConstant 0: V1
-  0002  237 GetConstant 1: V2
-  0004  238 GetConstant 2: V3
-  0006  236 GetBoundLocal 1
+  0000  238 GetConstant 0: V1
+  0002  239 GetConstant 1: V2
+  0004  240 GetConstant 2: V3
+  0006  238 GetBoundLocal 1
   0008    | CallFunction 0
   0010    | GetLocal 8
   0012    | Destructure
@@ -1350,7 +1359,7 @@
   0016    | GetBoundLocal 2
   0018    | CallFunction 0
   0020    | TakeRight 20 -> 30
-  0023  237 GetBoundLocal 4
+  0023  239 GetBoundLocal 4
   0025    | CallFunction 0
   0027    | GetLocal 9
   0029    | Destructure
@@ -1358,13 +1367,13 @@
   0033    | GetBoundLocal 5
   0035    | CallFunction 0
   0037    | TakeRight 37 -> 53
-  0040  238 GetBoundLocal 7
+  0040  240 GetBoundLocal 7
   0042    | CallFunction 0
   0044    | GetLocal 10
   0046    | Destructure
   0047    | TakeRight 47 -> 53
-  0050  239 GetConstant 3: {"Key1": V1, "Key2": V2, "Key3": V3}
+  0050  241 GetConstant 3: {"Key1": V1, "Key2": V2, "Key3": V3}
   0052    | ResolveUnboundVars
-  0053  237 End
+  0053  239 End
   ========================================
 
