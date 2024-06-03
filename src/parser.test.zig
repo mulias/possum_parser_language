@@ -6,9 +6,10 @@ const Parser = @import("parser.zig").Parser;
 const Ast = @import("ast.zig").Ast;
 const Location = @import("location.zig").Location;
 const loc = Location.new;
+const Writers = @import("writer.zig").Writers;
 const Env = @import("env.zig").Env;
 
-const stderr = std.io.getStdErr().writer();
+const writers = Writers.initStdIo();
 const env = Env.init();
 
 test "'a' > 'b' > 'c' | 'abz'" {
@@ -16,7 +17,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
         \\'a' > 'b' > 'c' | 'abz'
     ;
     var vm = VM.create();
-    try vm.init(allocator, stderr, env);
+    try vm.init(allocator, writers, env);
     defer vm.deinit();
 
     var parser = Parser.init(&vm);
@@ -46,7 +47,7 @@ test "foo(a, b, c) = a + b + c" {
         \\foo(a, b, c) = a + b + c
     ;
     var vm = VM.create();
-    try vm.init(allocator, stderr, env);
+    try vm.init(allocator, writers, env);
     defer vm.deinit();
 
     var parser = Parser.init(&vm);

@@ -4,38 +4,32 @@ const Chunk = @import("./chunk.zig").Chunk;
 const VM = @import("./vm.zig").VM;
 const Allocator = std.mem.Allocator;
 const cli_config = @import("cli_config.zig");
-const Writer = std.fs.File.Writer;
 const Env = @import("env.zig").Env;
+const Writers = @import("writer.zig").Writers;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
-    const cli = CLI.init(
-        gpa.allocator(),
-        std.io.getStdOut().writer(),
-        std.io.getStdErr().writer(),
-    );
+    const writers = Writers.initStdIo();
+    const cli = CLI.init(gpa.allocator(), writers);
 
     return cli.run();
 }
 
 pub const CLI = struct {
     allocator: Allocator,
-    outWriter: Writer,
-    errWriter: Writer,
+    writers: Writers,
 
-    pub fn init(allocator: Allocator, outWriter: Writer, errWriter: Writer) CLI {
+    pub fn init(allocator: Allocator, writers: Writers) CLI {
         return CLI{
             .allocator = allocator,
-            .outWriter = outWriter,
-            .errWriter = errWriter,
+            .writers = writers,
         };
     }
 
     pub fn run(self: CLI) !void {
         switch (try cli_config.run(self.allocator)) {
             .Parse => |args| try self.parse(args.parser, args.input),
-            .Docs => try self.outWriter.print("Docs\n", .{}),
+            .Docs => try self.writers.out.print("Docs\n", .{}),
             .Help => try cli_config.printHelp(),
             .Usage => try cli_config.printUsage(),
         }
@@ -57,17 +51,17 @@ pub const CLI = struct {
         };
 
         var vm = VM.create();
-        try vm.init(self.allocator, self.errWriter, env);
+        try vm.init(self.allocator, self.writers, env);
         defer vm.deinit();
 
         if (env.runVM) {
             const parsed = try vm.interpret(parser, input);
 
             if (parsed == .Failure) {
-                try self.errWriter.print("Parser Failure\n", .{});
+                try self.writers.err.print("Parser Failure\n", .{});
             } else {
-                try parsed.printJson(.{ .whitespace = .indent_2 }, self.allocator, self.outWriter, vm.strings);
-                try self.outWriter.print("\n", .{});
+                try parsed.printJson(.{ .whitespace = .indent_2 }, self.allocator, self.writers.out, vm.strings);
+                try self.writers.out.print("\n", .{});
             }
         } else {
             try vm.compile(parser);
@@ -84,12 +78,12 @@ pub const CLI = struct {
 
         const isUserInput = stat.kind != std.fs.File.Kind.named_pipe;
 
-        if (isUserInput) try self.outWriter.print("Reading {s} (press ctrl-d twice to end):\n", .{argName});
+        if (isUserInput) try self.writers.out.print("Reading {s} (press ctrl-d twice to end):\n", .{argName});
 
         const reader = stdin.reader();
         const input = self.readStreamAlloc(reader);
 
-        if (isUserInput) try self.outWriter.print("\n\n", .{});
+        if (isUserInput) try self.writers.out.print("\n\n", .{});
 
         return input;
     }

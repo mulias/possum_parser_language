@@ -25,3 +25,21 @@ pub const ExternalWriter = struct {
 };
 
 pub const VMWriter = if (env.IS_WASM_FREESTANDING) ExternalWriter.Writer else File.Writer;
+
+pub const Writers = struct {
+    out: VMWriter,
+    err: VMWriter,
+    debug: VMWriter,
+
+    pub fn initStdIo() Writers {
+        return Writers{
+            .out = std.io.getStdOut().writer(),
+            .err = std.io.getStdErr().writer(),
+            .debug = std.io.getStdErr().writer(),
+        };
+    }
+
+    pub fn debugPrint(self: Writers, comptime format: []const u8, args: anytype) void {
+        self.debug.print(format, args) catch {};
+    }
+};

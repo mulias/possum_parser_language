@@ -9,13 +9,15 @@ const OpCode = @import("./op_code.zig").OpCode;
 const Scanner = @import("./scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("./vm.zig").VM;
-const VMWriter = @import("./writer.zig").VMWriter;
+const Writers = @import("writer.zig").Writers;
+const WriterError = @import("writer.zig").VMWriter.Error;
 const debug = @import("./debug.zig");
 
 pub const Compiler = struct {
     vm: *VM,
     ast: Ast,
     functions: ArrayList(*Elem.Dyn.Function),
+    writers: Writers,
     printBytecode: bool,
 
     const Error = error{
@@ -36,7 +38,7 @@ pub const Compiler = struct {
         UndefinedVariable,
         FunctionCallTooManyArgs,
         FunctionCallTooFewArgs,
-    } || VMWriter.Error;
+    } || WriterError;
 
     pub fn init(vm: *VM, ast: Ast, printBytecode: bool) !Compiler {
         const main = try Elem.Dyn.Function.create(vm, .{
@@ -56,6 +58,7 @@ pub const Compiler = struct {
             .vm = vm,
             .ast = ast,
             .functions = functions,
+            .writers = vm.writers,
             .printBytecode = printBytecode,
         };
     }
@@ -125,7 +128,7 @@ pub const Compiler = struct {
             const main = self.functions.pop();
 
             if (self.printBytecode) {
-                try main.disassemble(self.vm.strings, self.vm.errWriter);
+                try main.disassemble(self.vm.strings, self.writers.debug);
             }
 
             return main;
@@ -366,7 +369,7 @@ pub const Compiler = struct {
             try self.emitOp(.End, self.ast.getLocation(bodyNodeId));
 
             if (self.printBytecode) {
-                try function.disassemble(self.vm.strings, self.vm.errWriter);
+                try function.disassemble(self.vm.strings, self.writers.debug);
             }
 
             _ = self.functions.pop();
@@ -695,7 +698,7 @@ pub const Compiler = struct {
         try self.emitOp(.End, loc);
 
         if (self.printBytecode) {
-            try function.disassemble(self.vm.strings, self.vm.errWriter);
+            try function.disassemble(self.vm.strings, self.writers.debug);
         }
 
         return self.functions.pop();
@@ -1683,7 +1686,7 @@ pub const Compiler = struct {
     fn makeConstant(self: *Compiler, elem: Elem) !u8 {
         return self.chunk().addConstant(elem) catch |err| switch (err) {
             ChunkError.TooManyConstants => {
-                try self.vm.errWriter.print("Too many constants in one chunk.", .{});
+                try self.writers.err.print("Too many constants in one chunk.", .{});
                 return err;
             },
             else => return err,
@@ -1691,7 +1694,7 @@ pub const Compiler = struct {
     }
 
     fn printError(self: *Compiler, message: []const u8, loc: Location) !void {
-        try loc.print(self.vm.errWriter);
-        try self.vm.errWriter.print(" Error: {s}\n", .{message});
+        try loc.print(self.writers.err);
+        try self.writers.err.print(" Error: {s}\n", .{message});
     }
 };

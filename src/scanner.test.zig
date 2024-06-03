@@ -1,10 +1,13 @@
 const std = @import("std");
+const Writers = @import("writer.zig").Writers;
 const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
 const debug = @import("./debug.zig");
 
+const writers = Writers.initStdIo();
+
 test "123 | 456.10" {
-    var scanner = Scanner.init(" 123  |\n  456.10 ");
+    var scanner = Scanner.init(" 123  |\n  456.10 ", writers);
     try expectToken(&scanner, Token.new(.Whitespace, " ", .{ .line = 1, .start = 0, .length = 1 }));
     try expectToken(&scanner, Token.new(.Integer, "123", .{ .line = 1, .start = 1, .length = 3 }));
     try expectToken(&scanner, Token.new(.Whitespace, "  ", .{ .line = 1, .start = 4, .length = 2 }));
@@ -20,7 +23,7 @@ test "1 + 2" {
         \\1 +
         \\2
     ;
-    var scanner = Scanner.init(source);
+    var scanner = Scanner.init(source, writers);
     try expectToken(&scanner, Token.new(.Integer, "1", .{ .line = 1, .start = 0, .length = 1 }));
     try expectToken(&scanner, Token.new(.Whitespace, " ", .{ .line = 1, .start = 1, .length = 1 }));
     try expectToken(&scanner, Token.new(.Plus, "+", .{ .line = 1, .start = 2, .length = 1 }));
@@ -34,7 +37,7 @@ test "Foo = 'a' ; bar = 100" {
         \\Foo = 'a'
         \\bar = 100
     ;
-    var scanner = Scanner.init(source);
+    var scanner = Scanner.init(source, writers);
     try expectToken(&scanner, Token.new(.UppercaseIdentifier, "Foo", .{ .line = 1, .start = 0, .length = 3 }));
     try expectToken(&scanner, Token.new(.Whitespace, " ", .{ .line = 1, .start = 3, .length = 1 }));
     try expectToken(&scanner, Token.new(.Equal, "=", .{ .line = 1, .start = 4, .length = 1 }));
