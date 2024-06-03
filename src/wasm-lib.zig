@@ -2,9 +2,9 @@ const std = @import("std");
 const io = std.io;
 const process = std.process;
 const Allocator = std.mem.Allocator;
-
-const VM = @import("./vm.zig").VM;
-const ExternalWriter = @import("./writer.zig").ExternalWriter;
+const Env = @import("env.zig").Env;
+const VM = @import("vm.zig").VM;
+const ExternalWriter = @import("writer.zig").ExternalWriter;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = general_purpose_allocator.allocator();
@@ -23,15 +23,16 @@ fn writeErrSlice(bytes: []const u8) void {
 
 fn createVMPtr() !*VM {
     const errWriter = ExternalWriter.init(writeErrSlice).writer();
+    const env = Env.init();
 
     var vm = try allocator.create(VM);
     vm.* = VM.create();
-    try vm.init(allocator, errWriter);
+    try vm.init(allocator, errWriter, env);
     return vm;
 }
 
 export fn createVM() usize {
-    var vm = createVMPtr() catch return 0;
+    const vm = createVMPtr() catch return 0;
     return @intFromPtr(vm);
 }
 
@@ -61,13 +62,13 @@ export fn interpret(vm: *VM, parser_ptr: [*]const u8, parser_len: usize, input_p
 }
 
 export fn run(parser_ptr: [*]const u8, parser_len: usize, input_ptr: [*]const u8, input_len: usize) usize {
-    var vm = createVMPtr() catch return 1;
+    const vm = createVMPtr() catch return 1;
     defer destroyVM(vm);
     return interpret(vm, parser_ptr, parser_len, input_ptr, input_len);
 }
 
 pub export fn alloc(len: usize) usize {
-    var buf = allocator.alloc(u8, len) catch return 0;
+    const buf = allocator.alloc(u8, len) catch return 0;
     return @intFromPtr(buf.ptr);
 }
 

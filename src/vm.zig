@@ -110,7 +110,7 @@ pub const VM = struct {
         try parser.end();
 
         if (self.env.printAst) {
-            try parser.ast.print(debug.writer, self.strings);
+            try parser.ast.print(self.errWriter, self.strings);
         }
 
         var compiler = try Compiler.init(self, parser.ast, self.env.printCompiledBytecode);
@@ -155,14 +155,14 @@ pub const VM = struct {
         }
 
         while (true) {
-            self.printDebug();
+            try self.printDebug();
 
             const opCode = self.readOp();
             try self.runOp(opCode);
             if (self.frames.items.len == 0) break;
         }
 
-        self.printDebug();
+        try self.printDebug();
     }
 
     fn runOp(self: *VM, opCode: OpCode) !void {
@@ -491,15 +491,15 @@ pub const VM = struct {
         return id;
     }
 
-    fn printDebug(self: *VM) void {
+    fn printDebug(self: *VM) !void {
         if (self.env.printVM) {
-            debug.print("\n", .{});
-            self.printInput();
-            self.printFrames();
-            self.printElems();
+            try self.errWriter.print("\n", .{});
+            try self.printInput();
+            try self.printFrames();
+            try self.printElems();
 
             if (self.frames.items.len > 0) {
-                _ = self.chunk().disassembleInstruction(self.frame().ip, self.strings, debug.writer) catch {};
+                _ = try self.chunk().disassembleInstruction(self.frame().ip, self.strings, self.errWriter);
             }
         }
     }
@@ -611,7 +611,7 @@ pub const VM = struct {
                     var function = dyn.asFunction();
 
                     if (self.env.printExecutedBytecode) {
-                        try function.disassemble(self.strings, debug.writer);
+                        try function.disassemble(self.strings, self.errWriter);
                     }
 
                     if (function.arity == argCount) {
@@ -1150,27 +1150,27 @@ pub const VM = struct {
         return self.inputMarks.pop();
     }
 
-    fn printInput(self: *VM) void {
-        debug.print("input   | ", .{});
-        debug.print("{s} @ {d}\n", .{ self.input, self.inputPos });
+    fn printInput(self: *VM) !void {
+        try self.errWriter.print("input   | ", .{});
+        try self.errWriter.print("{s} @ {d}\n", .{ self.input, self.inputPos });
     }
 
-    fn printElems(self: *VM) void {
-        debug.print("Stack   | ", .{});
+    fn printElems(self: *VM) !void {
+        try self.errWriter.print("Stack   | ", .{});
         for (self.stack.items, 0..) |e, idx| {
-            e.print(debug.writer, self.strings) catch {};
-            if (idx < self.stack.items.len - 1) debug.print(", ", .{});
+            e.print(self.errWriter, self.strings) catch {};
+            if (idx < self.stack.items.len - 1) try self.errWriter.print(", ", .{});
         }
-        debug.print("\n", .{});
+        try self.errWriter.print("\n", .{});
     }
 
-    fn printFrames(self: *VM) void {
-        debug.print("Frames  | ", .{});
+    fn printFrames(self: *VM) !void {
+        try self.errWriter.print("Frames  | ", .{});
         for (self.frames.items, 0..) |f, idx| {
-            f.function.print(debug.writer, self.strings) catch {};
-            if (idx < self.frames.items.len - 1) debug.print(", ", .{});
+            f.function.print(self.errWriter, self.strings) catch {};
+            if (idx < self.frames.items.len - 1) try self.errWriter.print(", ", .{});
         }
-        debug.print("\n", .{});
+        try self.errWriter.print("\n", .{});
     }
 
     fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {

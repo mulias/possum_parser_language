@@ -125,7 +125,7 @@ pub const Compiler = struct {
             const main = self.functions.pop();
 
             if (self.printBytecode) {
-                try main.disassemble(self.vm.strings, debug.writer);
+                try main.disassemble(self.vm.strings, self.vm.errWriter);
             }
 
             return main;
@@ -366,7 +366,7 @@ pub const Compiler = struct {
             try self.emitOp(.End, self.ast.getLocation(bodyNodeId));
 
             if (self.printBytecode) {
-                try function.disassemble(self.vm.strings, debug.writer);
+                try function.disassemble(self.vm.strings, self.vm.errWriter);
             }
 
             _ = self.functions.pop();
@@ -695,7 +695,7 @@ pub const Compiler = struct {
         try self.emitOp(.End, loc);
 
         if (self.printBytecode) {
-            try function.disassemble(self.vm.strings, debug.writer);
+            try function.disassemble(self.vm.strings, self.vm.errWriter);
         }
 
         return self.functions.pop();
