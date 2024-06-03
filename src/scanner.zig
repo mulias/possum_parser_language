@@ -165,26 +165,28 @@ pub const Scanner = struct {
                     self.advance();
                     self.line += 1;
                 },
-                '(' => if (templateParenDepth > 0) {
+                '(' => {
                     self.advance();
-                    templateParenDepth += 1;
+                    if (templateParenDepth > 0) templateParenDepth += 1;
                 },
-                ')' => if (templateParenDepth > 0) {
+                ')' => {
                     self.advance();
-                    templateParenDepth -= 1;
+                    if (templateParenDepth > 0) templateParenDepth -= 1;
                 },
                 '%' => if (self.peekNext() == '(' and templateParenDepth == 0) {
                     self.advance();
                     self.advance();
                     templateParenDepth = 1;
-                },
-                '"' => if (templateParenDepth > 0) {
+                } else {
                     self.advance();
-                    _ = self.scanString('"');
                 },
-                '\'' => if (templateParenDepth > 0) {
+                '"' => {
                     self.advance();
-                    _ = self.scanString('\'');
+                    if (templateParenDepth > 0) _ = self.scanString('"');
+                },
+                '\'' => {
+                    self.advance();
+                    if (templateParenDepth > 0) _ = self.scanString('\'');
                 },
                 else => {
                     self.advance();
