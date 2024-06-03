@@ -60,6 +60,7 @@ needed parsers, or even create a whole new alternative standard library.
 | `default(p, D)` | Parses `p` or succeeds with no match | Result of `p`, or `D` if `p` fails |
 | `const(C)` | Succeeds with no match | Value `C` |
 | `number_of(p)` | Parses `p`, succeeds if the value is a valid JSON number or string encoding of a number | Number |
+| `string_of(p)` | Parses `p` | Compact encoding of the parsed value as a JSON string |
 | `surround(p, fill)` | Parses `fill`, then `p`, then `fill` again | Result of `p` |
 | `input(p)` | Strips leading and trailing whitespace, succeeds if `p` parses to end of input | Result of `p` |
 | `many(p)` | One or more `p` | Merged values parsed by `p` |
