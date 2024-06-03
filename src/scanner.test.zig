@@ -57,16 +57,16 @@ fn expectToken(scanner: *Scanner, expected: Token) !void {
 
     if (nextToken) |actual| {
         if (!expected.isEql(actual)) {
-            std.debug.print("\nExpected token: ", .{});
-            try expected.print(debug.writer);
-            std.debug.print("\nActual token: ", .{});
-            try actual.print(debug.writer);
-            std.debug.print("\n", .{});
+            writers.debugPrint("\nExpected token: ", .{});
+            try expected.print(writers.debug);
+            writers.debugPrint("\nActual token: ", .{});
+            try actual.print(writers.debug);
+            writers.debugPrint("\n", .{});
 
             return error.TestExpectedNextToken;
         }
     } else {
-        std.debug.print("Expected an {s} token, got null", .{@tagName(expected.tokenType)});
+        writers.debugPrint("Expected an {s} token, got null", .{@tagName(expected.tokenType)});
         return error.TestExpectedNextToken;
     }
 }
