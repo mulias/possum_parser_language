@@ -35,7 +35,7 @@ newlines = many(newline)
 
 nls = newlines
 
-end_of_input = peek(char) ? @fail : succeed
+end_of_input = char ? @fail : succeed
 
 end = end_of_input
 

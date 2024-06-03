@@ -128,16 +128,15 @@
   
   ==============end_of_input==============
   0000   38 SetInputMark
-  0001    | GetConstant 0: peek
-  0003    | GetConstant 1: "\x00".."\xf4\x8f\xbf\xbf" (esc)
-  0005    | CallFunction 1
-  0007    | ConditionalThen 7 -> 17
-  0010    | GetConstant 2: @fail
-  0012    | CallFunction 0
-  0014    | ConditionalElse 14 -> 21
-  0017    | GetConstant 3: succeed
-  0019    | CallFunction 0
-  0021    | End
+  0001    | GetConstant 0: "\x00".."\xf4\x8f\xbf\xbf" (esc)
+  0003    | CallFunction 0
+  0005    | ConditionalThen 5 -> 15
+  0008    | GetConstant 1: @fail
+  0010    | CallFunction 0
+  0012    | ConditionalElse 12 -> 19
+  0015    | GetConstant 2: succeed
+  0017    | CallFunction 0
+  0019    | End
   ========================================
   
   =================@fn20==================
