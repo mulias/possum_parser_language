@@ -2,7 +2,6 @@ const std = @import("std");
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
 const Writers = @import("writer.zig").Writers;
-const debug = @import("debug.zig");
 
 pub const Scanner = struct {
     source: []const u8,
@@ -11,8 +10,9 @@ pub const Scanner = struct {
     pos: usize,
     atEnd: bool,
     writers: Writers,
+    printDebug: bool,
 
-    pub fn init(source: []const u8, writers: Writers) Scanner {
+    pub fn init(source: []const u8, writers: Writers, printDebug: bool) Scanner {
         return Scanner{
             .source = source,
             .offset = 0,
@@ -20,13 +20,14 @@ pub const Scanner = struct {
             .pos = 0,
             .atEnd = false,
             .writers = writers,
+            .printDebug = printDebug,
         };
     }
 
     pub fn next(self: *Scanner) ?Token {
         if (self.atEnd) return null;
         const token = self.scanToken();
-        if (debug.scanner) {
+        if (self.printDebug) {
             self.writers.debugPrint("Scanned token: ", .{});
             token.print(self.writers.debug) catch {};
             self.writers.debugPrint("\n", .{});

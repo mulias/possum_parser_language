@@ -10,7 +10,6 @@ const TokenType = @import("token.zig").TokenType;
 const VM = @import("vm.zig").VM;
 const WriterError = @import("writer.zig").VMWriter.Error;
 const Writers = @import("writer.zig").Writers;
-const debug = @import("debug.zig");
 const parsing = @import("parsing.zig");
 
 pub const Parser = struct {
@@ -24,6 +23,7 @@ pub const Parser = struct {
     previousSkippedNewline: bool,
     ast: Ast,
     writers: Writers,
+    printDebug: bool,
 
     const Error = error{
         OutOfMemory,
@@ -49,6 +49,7 @@ pub const Parser = struct {
             .previousSkippedNewline = false,
             .ast = ast,
             .writers = vm.writers,
+            .printDebug = vm.env.printParser,
         };
     }
 
@@ -57,7 +58,7 @@ pub const Parser = struct {
     }
 
     pub fn parse(self: *Parser, source: []const u8) !void {
-        self.scanner = Scanner.init(source, self.writers);
+        self.scanner = Scanner.init(source, self.writers, self.vm.env.printScanner);
 
         try self.advance();
 
@@ -73,7 +74,7 @@ pub const Parser = struct {
     }
 
     fn parseExpression(self: *Parser, source: []const u8) !usize {
-        self.scanner = Scanner.init(source, self.writers);
+        self.scanner = Scanner.init(source, self.writers, self.vm.env.printScanner);
         try self.advance();
         return self.expression();
     }
@@ -93,7 +94,7 @@ pub const Parser = struct {
     }
 
     fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!usize {
-        if (debug.parser) self.writers.debugPrint("parse with precedence {}\n", .{precedence});
+        if (self.printDebug) self.writers.debugPrint("parse with precedence {}\n", .{precedence});
 
         try self.advance();
 
@@ -111,7 +112,7 @@ pub const Parser = struct {
         // `.Eof` which has precedence `.None` and binding power 0.
         var rightOpBindingPower = operatorPrecedence(self.current.tokenType).bindingPower().left;
 
-        if (debug.parser) self.writers.debugPrint("Binding power {d} < {d}\n", .{ leftOpBindingPower, rightOpBindingPower });
+        if (self.printDebug) self.writers.debugPrint("Binding power {d} < {d}\n", .{ leftOpBindingPower, rightOpBindingPower });
 
         // Iterate over tokens and build up a right-leaning AST, as long as the
         // right binding power is greater then the left binding power. When
@@ -137,7 +138,7 @@ pub const Parser = struct {
     }
 
     fn prefix(self: *Parser, tokenType: TokenType) !usize {
-        if (debug.parser) self.writers.debugPrint("prefix {}\n", .{tokenType});
+        if (self.printDebug) self.writers.debugPrint("prefix {}\n", .{tokenType});
 
         return switch (tokenType) {
             .LeftParen => self.grouping(),
@@ -154,7 +155,7 @@ pub const Parser = struct {
     }
 
     fn infix(self: *Parser, tokenType: TokenType, leftNode: usize) !usize {
-        if (debug.parser) self.writers.debugPrint("infix {}\n", .{tokenType});
+        if (self.printDebug) self.writers.debugPrint("infix {}\n", .{tokenType});
 
         return switch (tokenType) {
             .Ampersand,
@@ -481,7 +482,7 @@ pub const Parser = struct {
     }
 
     fn binaryOp(self: *Parser, leftNodeId: usize) !usize {
-        if (debug.parser) self.writers.debugPrint("binary op {}\n", .{self.previous.tokenType});
+        if (self.printDebug) self.writers.debugPrint("binary op {}\n", .{self.previous.tokenType});
 
         const t = self.previous;
 
@@ -505,7 +506,7 @@ pub const Parser = struct {
     }
 
     fn conditionalIfThenOp(self: *Parser, ifNodeId: usize) !usize {
-        if (debug.parser) self.writers.debugPrint("conditional if/then {}\n", .{self.previous.tokenType});
+        if (self.printDebug) self.writers.debugPrint("conditional if/then {}\n", .{self.previous.tokenType});
 
         const ifThenLoc = self.previous.loc;
 
@@ -517,7 +518,7 @@ pub const Parser = struct {
     }
 
     fn conditionalThenElseOp(self: *Parser, thenNodeId: usize) !usize {
-        if (debug.parser) self.writers.debugPrint("conditional then/else {}\n", .{self.previous.tokenType});
+        if (self.printDebug) self.writers.debugPrint("conditional then/else {}\n", .{self.previous.tokenType});
 
         const thenElseLoc = self.previous.loc;
 
