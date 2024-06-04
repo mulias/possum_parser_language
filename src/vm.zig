@@ -16,6 +16,7 @@ const meta = @import("meta.zig");
 const Writers = @import("writer.zig").Writers;
 const WriterError = @import("writer.zig").VMWriter.Error;
 const Env = @import("env.zig").Env;
+const parsing = @import("parsing.zig");
 
 const CallFrame = struct {
     function: *Elem.Dyn.Function,
@@ -562,8 +563,8 @@ pub const VM = struct {
             .IntegerRange => |r| {
                 assert(argCount == 0);
                 _ = self.pop();
-                const lowIntLen = intLength(r[0]);
-                const highIntLen = intLength(r[1]);
+                const lowIntLen = parsing.intAsStringLen(r[0]);
+                const highIntLen = parsing.intAsStringLen(r[1]);
                 const start = self.inputPos;
                 const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
                 const longestMatchEnd = @min(start + highIntLen, self.input.len);
@@ -1193,33 +1194,3 @@ pub const VM = struct {
         }
     }
 };
-
-fn intLength(int: i64) usize {
-    const digits = intLengthLoop(int);
-    if (int < 0) {
-        return digits + 1;
-    } else {
-        return digits;
-    }
-}
-
-fn intLengthLoop(int: i64) usize {
-    comptime var digits: usize = 1;
-
-    inline while (digits < 19) : (digits += 1) {
-        if (@abs(int) < std.math.pow(i64, 10, digits)) return digits;
-    }
-    return digits;
-}
-
-test "intLength" {
-    try std.testing.expectEqual(@as(usize, 1), intLength(0));
-    try std.testing.expectEqual(@as(usize, 1), intLength(5));
-    try std.testing.expectEqual(@as(usize, 2), intLength(10));
-    try std.testing.expectEqual(@as(usize, 3), intLength(-14));
-    try std.testing.expectEqual(@as(usize, 3), intLength(104));
-    try std.testing.expectEqual(@as(usize, 7), intLength(1041348));
-    try std.testing.expectEqual(@as(usize, 8), intLength(-1041348));
-    try std.testing.expectEqual(@as(usize, 19), intLength(std.math.maxInt(i64)));
-    try std.testing.expectEqual(@as(usize, 20), intLength(std.math.minInt(i64)));
-}
