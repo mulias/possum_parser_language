@@ -50,7 +50,7 @@ pub const Compiler = struct {
         try functions.append(main);
 
         // Ensure that the strings table includes the placeholder var, which
-        // might be useed directly by the compiler.
+        // might be used directly by the compiler.
         _ = try vm.strings.insert("_");
 
         return Compiler{

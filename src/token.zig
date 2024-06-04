@@ -34,6 +34,7 @@ pub const TokenType = enum {
     Semicolon,
     String,
     True,
+    UnderscoreIdentifier,
     UppercaseIdentifier,
     Whitespace,
     WhitespaceWithNewline,

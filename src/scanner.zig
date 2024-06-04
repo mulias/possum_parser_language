@@ -326,11 +326,7 @@ pub const Scanner = struct {
         } else if (isUpper(self.peek())) {
             return self.scanUppercaseIdentifier();
         } else {
-            // An identifier must start with an upper/lowercase char after the
-            // underscores. If it doesn't then take the rest of the identifier,
-            // but mark it as invalid.
-            while (isAlpha(self.peek()) or isDigit(self.peek()) or self.peek() == '_') self.advance();
-            return self.makeError("Invalid Identifier");
+            return self.makeToken(.UnderscoreIdentifier);
         }
     }
 
