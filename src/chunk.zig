@@ -1,11 +1,11 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
-const Elem = @import("./elem.zig").Elem;
+const Elem = @import("elem.zig").Elem;
 const Location = @import("location.zig").Location;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable;
-const VMWriter = @import("./writer.zig").VMWriter;
+const VMWriter = @import("writer.zig").VMWriter;
 
 pub const ChunkError = error{
     TooManyConstants,

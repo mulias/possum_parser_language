@@ -1,11 +1,11 @@
 const std = @import("std");
-const OpCode = @import("./op_code.zig").OpCode;
-const Chunk = @import("./chunk.zig").Chunk;
-const VM = @import("./vm.zig").VM;
 const Allocator = std.mem.Allocator;
-const cli_config = @import("cli_config.zig");
+const Chunk = @import("chunk.zig").Chunk;
 const Env = @import("env.zig").Env;
+const OpCode = @import("op_code.zig").OpCode;
+const VM = @import("vm.zig").VM;
 const Writers = @import("writer.zig").Writers;
+const cli_config = @import("cli_config.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

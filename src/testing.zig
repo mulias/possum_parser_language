@@ -3,9 +3,9 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Tuple = std.meta.Tuple;
 const Chunk = @import("chunk.zig").Chunk;
-const VM = @import("vm.zig").VM;
 const Elem = @import("elem.zig").Elem;
 const StringTable = @import("string_table.zig").StringTable;
+const VM = @import("vm.zig").VM;
 
 pub fn expectEqualChunks(expected: *Chunk, actual: *Chunk, strings: StringTable) !void {
     if (!std.mem.eql(u8, expected.code.items, actual.code.items)) {

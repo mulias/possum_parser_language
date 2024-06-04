@@ -1,4 +1,4 @@
-const VMWriter = @import("./writer.zig").VMWriter;
+const VMWriter = @import("writer.zig").VMWriter;
 
 pub const Location = struct {
     line: usize,

@@ -1,6 +1,6 @@
 const std = @import("std");
 const Location = @import("location.zig").Location;
-const VMWriter = @import("./writer.zig").VMWriter;
+const VMWriter = @import("writer.zig").VMWriter;
 
 pub const TokenType = enum {
     Ampersand,

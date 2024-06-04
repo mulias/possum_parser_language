@@ -3,9 +3,9 @@ const io = std.io;
 const process = std.process;
 const Allocator = std.mem.Allocator;
 const Env = @import("env.zig").Env;
+const ExternalWriter = @import("writer.zig").ExternalWriter;
 const VM = @import("vm.zig").VM;
 const Writers = @import("writer.zig").Writers;
-const ExternalWriter = @import("writer.zig").ExternalWriter;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = general_purpose_allocator.allocator();

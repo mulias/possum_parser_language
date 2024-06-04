@@ -1,6 +1,6 @@
 const std = @import("std");
 const File = std.fs.File;
-const env = @import("./env.zig");
+const env = @import("env.zig");
 
 pub const ExternalWriter = struct {
     pub const WriteFnType = *const fn (bytes: []const u8) void;

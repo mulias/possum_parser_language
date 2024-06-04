@@ -1,15 +1,15 @@
 const std = @import("std");
-const json = std.json;
-const unicode = std.unicode;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
-const Chunk = @import("./chunk.zig").Chunk;
 const AutoArrayHashMap = std.AutoArrayHashMap;
+const Tuple = std.meta.Tuple;
+const json = std.json;
+const unicode = std.unicode;
+const Chunk = @import("chunk.zig").Chunk;
 const StringBuffer = @import("string_buffer.zig").StringBuffer;
 const StringTable = @import("string_table.zig").StringTable;
-const Tuple = std.meta.Tuple;
 const VM = @import("vm.zig").VM;
-const VMWriter = @import("./writer.zig").VMWriter;
+const VMWriter = @import("writer.zig").VMWriter;
 const parsing = @import("parsing.zig");
 
 pub const ElemType = enum {

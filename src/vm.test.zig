@@ -1,11 +1,10 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
-const testing = @import("testing.zig");
-const VM = @import("vm.zig").VM;
-const Elem = @import("elem.zig").Elem;
 const allocator = std.testing.allocator;
-const Writers = @import("writer.zig").Writers;
+const Elem = @import("elem.zig").Elem;
 const Env = @import("env.zig").Env;
+const VM = @import("vm.zig").VM;
+const Writers = @import("writer.zig").Writers;
+const testing = @import("testing.zig");
 
 const writers = Writers.initStdIo();
 const env = Env.init();

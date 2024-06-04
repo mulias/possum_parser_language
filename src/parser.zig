@@ -1,17 +1,17 @@
 const std = @import("std");
 const unicode = std.unicode;
 const Ast = @import("ast.zig").Ast;
-const Elem = @import("./elem.zig").Elem;
+const Elem = @import("elem.zig").Elem;
 const Location = @import("location.zig").Location;
 const Scanner = @import("scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
-const Token = @import("./token.zig").Token;
-const TokenType = @import("./token.zig").TokenType;
+const Token = @import("token.zig").Token;
+const TokenType = @import("token.zig").TokenType;
 const VM = @import("vm.zig").VM;
-const Writers = @import("writer.zig").Writers;
 const WriterError = @import("writer.zig").VMWriter.Error;
-const parsing = @import("parsing.zig");
+const Writers = @import("writer.zig").Writers;
 const debug = @import("debug.zig");
+const parsing = @import("parsing.zig");
 
 pub const Parser = struct {
     vm: *VM,

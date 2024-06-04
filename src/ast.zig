@@ -3,8 +3,8 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Elem = @import("elem.zig").Elem;
 const Location = @import("location.zig").Location;
-const VMWriter = @import("./writer.zig").VMWriter;
 const StringTable = @import("string_table.zig").StringTable;
+const VMWriter = @import("writer.zig").VMWriter;
 
 pub const Ast = struct {
     roots: ArrayList(usize),

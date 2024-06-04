@@ -1,14 +1,14 @@
 const std = @import("std");
 const allocator = std.testing.allocator;
-const VM = @import("vm.zig").VM;
-const Elem = @import("elem.zig").Elem;
-const Parser = @import("parser.zig").Parser;
 const Ast = @import("ast.zig").Ast;
-const Location = @import("location.zig").Location;
-const loc = Location.new;
-const Writers = @import("writer.zig").Writers;
+const Elem = @import("elem.zig").Elem;
 const Env = @import("env.zig").Env;
+const Location = @import("location.zig").Location;
+const Parser = @import("parser.zig").Parser;
+const VM = @import("vm.zig").VM;
+const Writers = @import("writer.zig").Writers;
 
+const loc = Location.new;
 const writers = Writers.initStdIo();
 const env = Env.init();
 

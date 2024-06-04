@@ -1,7 +1,6 @@
 const clap = @import("clap");
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-
 const debug = std.debug;
 const io = std.io;
 

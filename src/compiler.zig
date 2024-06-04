@@ -1,17 +1,16 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
 const Ast = @import("ast.zig").Ast;
-const Chunk = @import("./chunk.zig").Chunk;
-const ChunkError = @import("./chunk.zig").ChunkError;
-const Elem = @import("./elem.zig").Elem;
+const Chunk = @import("chunk.zig").Chunk;
+const ChunkError = @import("chunk.zig").ChunkError;
+const Elem = @import("elem.zig").Elem;
 const Location = @import("location.zig").Location;
-const OpCode = @import("./op_code.zig").OpCode;
-const Scanner = @import("./scanner.zig").Scanner;
+const OpCode = @import("op_code.zig").OpCode;
+const Scanner = @import("scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
-const VM = @import("./vm.zig").VM;
-const Writers = @import("writer.zig").Writers;
+const VM = @import("vm.zig").VM;
 const WriterError = @import("writer.zig").VMWriter.Error;
-const debug = @import("./debug.zig");
+const Writers = @import("writer.zig").Writers;
 
 pub const Compiler = struct {
     vm: *VM,

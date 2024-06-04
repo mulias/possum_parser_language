@@ -1,7 +1,7 @@
 const std = @import("std");
-const VM = @import("vm.zig").VM;
 const Function = @import("elem.zig").Elem.Dyn.Function;
 const Location = @import("location.zig").Location;
+const VM = @import("vm.zig").VM;
 
 pub fn functions(vm: *VM) ![2]*Function {
     return [2]*Function{

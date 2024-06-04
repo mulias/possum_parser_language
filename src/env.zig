@@ -1,6 +1,6 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
+const builtin = @import("builtin");
 
 pub const IS_WASM_FREESTANDING = builtin.target.isWasm() and builtin.target.os.tag == .freestanding;
 

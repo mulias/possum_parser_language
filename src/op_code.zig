@@ -1,7 +1,7 @@
 const std = @import("std");
 const Chunk = @import("chunk.zig").Chunk;
 const StringTable = @import("string_table.zig").StringTable;
-const VMWriter = @import("./writer.zig").VMWriter;
+const VMWriter = @import("writer.zig").VMWriter;
 
 pub const OpCode = enum(u8) {
     Backtrack,

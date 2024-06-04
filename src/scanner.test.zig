@@ -1,8 +1,7 @@
 const std = @import("std");
-const Writers = @import("writer.zig").Writers;
 const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
-const debug = @import("./debug.zig");
+const Writers = @import("writer.zig").Writers;
 
 const writers = Writers.initStdIo();
 
