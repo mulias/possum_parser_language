@@ -1346,7 +1346,12 @@ pub const Compiler = struct {
 
                     try array.append(self.placeholderVar());
                 },
-                else => @panic("Internal Error"),
+                .CallOrDefineFunction => {
+                    @panic("todo");
+                },
+                else => {
+                    @panic("Internal Error");
+                },
             },
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => {
@@ -1518,7 +1523,12 @@ pub const Compiler = struct {
                     );
                     try object.members.put(key, nestedObject);
                 },
-                else => @panic("Internal Error"),
+                .CallOrDefineFunction => {
+                    @panic("todo");
+                },
+                else => {
+                    @panic("Internal Error");
+                },
             },
             .ElemNode => |elem| {
                 switch (elem) {

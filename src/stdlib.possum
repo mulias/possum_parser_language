@@ -239,3 +239,49 @@ record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3) =
   value2 -> V2 & sep2 &
   value3 -> V3 $
   {Key1: V1, Key2: V2, Key3: V3}
+
+ZipIntoObject(Keys, Values) = _ZipIntoObject(Keys, Values, {})
+
+_ZipIntoObject(Keys, Values, Acc) =
+  Keys -> [K, ...KeysRest] & Values -> [V, ...ValuesRest] ?
+  _ZipIntoObject(KeysRest, ValuesRest, Acc + {K: V}) :
+  Acc
+
+Map(Fn, Array) = _Map(Fn, Array, [])
+
+_Map(Fn, Array, Acc) =
+  Array -> [First, ...Rest] ?
+  Fn(First) -> Mapped & _Map(Fn, Rest, [...Acc, Mapped]) :
+  Acc
+
+ArrayFirst(Array) = Array -> [F, ..._] & F
+
+ArrayRest(Array) = Array -> [_, ...R] & R
+
+Transpose(Table) = _Transpose(Table, [])
+
+_Transpose(Table, Acc) =
+  Map(ArrayFirst, Table) -> FirstPerRow &
+  Map(ArrayRest, Table) -> RestPerRow ?
+  _Transpose(RestPerRow, [...Acc, FirstPerRow]) :
+  Acc
+
+RotateTableClockwise(Table) = Map(Reverse, Transpose(Table))
+
+Reverse(Array) = _Reverse(Array, [])
+
+_Reverse(Array, Acc) =
+  Array -> [First, ...Rest] ?
+  _Reverse(Rest, [...Acc, First]) :
+  Acc
+
+Reject(Pred, Array) = _Reject(Pred, Array, [])
+
+_Reject(Pred, Array, Acc) =
+  Array -> [First, ...Rest] ? (
+    (Pred(First) ? Acc : [...Acc, First]) -> NextAcc &
+    _Reject(Pred, Rest, NextAcc)
+  ) :
+  Acc
+
+IsNull(V) = V -> null
