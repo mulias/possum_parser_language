@@ -565,18 +565,19 @@
   0005    | CallFunction 0
   0007    | GetLocal 2
   0009    | Destructure
-  0010    | ConditionalThen 10 -> 27
+  0010    | ConditionalThen 10 -> 30
   0013    | GetConstant 1: _many
   0015    | GetBoundLocal 0
   0017    | GetBoundLocal 1
-  0019    | GetBoundLocal 2
-  0021    | Merge
-  0022    | CallTailFunction 2
-  0024    | ConditionalElse 24 -> 33
-  0027    | GetConstant 2: const
-  0029    | GetBoundLocal 1
-  0031    | CallTailFunction 1
-  0033    | End
+  0019    | JumpIfFailure 19 -> 25
+  0022    | GetBoundLocal 2
+  0024    | Merge
+  0025    | CallTailFunction 2
+  0027    | ConditionalElse 27 -> 36
+  0030    | GetConstant 2: const
+  0032    | GetBoundLocal 1
+  0034    | CallTailFunction 1
+  0036    | End
   ========================================
   
   =================@fn31==================
@@ -634,20 +635,21 @@
   0012  132 GetConstant 2: const
   0014    | GetBoundLocal 2
   0016    | CallTailFunction 1
-  0018    | ConditionalElse 18 -> 44
+  0018    | ConditionalElse 18 -> 47
   0021  133 GetBoundLocal 0
   0023    | CallFunction 0
   0025    | GetLocal 3
   0027    | Destructure
-  0028    | TakeRight 28 -> 44
+  0028    | TakeRight 28 -> 47
   0031    | GetConstant 3: _many_until
   0033    | GetBoundLocal 0
   0035    | GetBoundLocal 1
   0037    | GetBoundLocal 2
-  0039    | GetBoundLocal 3
-  0041    | Merge
-  0042    | CallTailFunction 3
-  0044  131 End
+  0039    | JumpIfFailure 39 -> 45
+  0042    | GetBoundLocal 3
+  0044    | Merge
+  0045    | CallTailFunction 3
+  0047  131 End
   ========================================
   
   ===============maybe_many===============
@@ -696,22 +698,24 @@
   0005    | CallFunction 0
   0007    | GetLocal 2
   0009    | Destructure
-  0010    | ConditionalThen 10 -> 34
+  0010    | ConditionalThen 10 -> 40
   0013  143 GetConstant 1: _array
   0015    | GetBoundLocal 0
   0017    | GetConstant 2: []
-  0019    | GetBoundLocal 1
-  0021    | Merge
-  0022    | GetConstant 3: [_]
-  0024    | GetBoundLocal 2
-  0026    | InsertAtIndex 0
-  0028    | Merge
-  0029    | CallTailFunction 2
-  0031    | ConditionalElse 31 -> 40
-  0034  144 GetConstant 4: const
-  0036    | GetBoundLocal 1
-  0038    | CallTailFunction 1
-  0040  142 End
+  0019    | JumpIfFailure 19 -> 25
+  0022    | GetBoundLocal 1
+  0024    | Merge
+  0025    | JumpIfFailure 25 -> 35
+  0028    | GetConstant 3: [_]
+  0030    | GetBoundLocal 2
+  0032    | InsertAtIndex 0
+  0034    | Merge
+  0035    | CallTailFunction 2
+  0037    | ConditionalElse 37 -> 46
+  0040  144 GetConstant 4: const
+  0042    | GetBoundLocal 1
+  0044    | CallTailFunction 1
+  0046  142 End
   ========================================
   
   =================@fn32==================
@@ -773,24 +777,26 @@
   0012  153 GetConstant 2: const
   0014    | GetBoundLocal 2
   0016    | CallTailFunction 1
-  0018    | ConditionalElse 18 -> 51
+  0018    | ConditionalElse 18 -> 57
   0021  154 GetBoundLocal 0
   0023    | CallFunction 0
   0025    | GetLocal 3
   0027    | Destructure
-  0028    | TakeRight 28 -> 51
+  0028    | TakeRight 28 -> 57
   0031    | GetConstant 3: _array_until
   0033    | GetBoundLocal 0
   0035    | GetBoundLocal 1
   0037    | GetConstant 4: []
-  0039    | GetBoundLocal 2
-  0041    | Merge
-  0042    | GetConstant 5: [_]
-  0044    | GetBoundLocal 3
-  0046    | InsertAtIndex 0
-  0048    | Merge
-  0049    | CallTailFunction 3
-  0051  152 End
+  0039    | JumpIfFailure 39 -> 45
+  0042    | GetBoundLocal 2
+  0044    | Merge
+  0045    | JumpIfFailure 45 -> 55
+  0048    | GetConstant 5: [_]
+  0050    | GetBoundLocal 3
+  0052    | InsertAtIndex 0
+  0054    | Merge
+  0055    | CallTailFunction 3
+  0057  152 End
   ========================================
   
   =================@fn33==================
@@ -984,56 +990,62 @@
   0014    | CallFunction 0
   0016    | GetLocal 5
   0018    | Destructure
-  0019    | ConditionalThen 19 -> 49
+  0019    | ConditionalThen 19 -> 55
   0022  183 GetConstant 2: _table_sep
   0024    | GetBoundLocal 0
   0026    | GetBoundLocal 1
   0028    | GetBoundLocal 2
   0030    | GetConstant 3: []
-  0032    | GetBoundLocal 3
-  0034    | Merge
-  0035    | GetConstant 4: [_]
-  0037    | GetBoundLocal 5
-  0039    | InsertAtIndex 0
-  0041    | Merge
-  0042    | GetBoundLocal 4
-  0044    | CallTailFunction 5
-  0046    | ConditionalElse 46 -> 114
-  0049  184 SetInputMark
-  0050    | GetBoundLocal 2
-  0052    | CallFunction 0
-  0054    | TakeRight 54 -> 61
-  0057    | GetBoundLocal 0
-  0059    | CallFunction 0
-  0061    | GetLocal 6
-  0063    | Destructure
-  0064    | ConditionalThen 64 -> 98
-  0067  185 GetConstant 5: _table_sep
-  0069    | GetBoundLocal 0
-  0071    | GetBoundLocal 1
-  0073    | GetBoundLocal 2
-  0075    | GetConstant 6: [_]
-  0077    | GetBoundLocal 6
-  0079    | InsertAtIndex 0
-  0081    | GetConstant 7: []
-  0083    | GetBoundLocal 4
-  0085    | Merge
-  0086    | GetConstant 8: [_]
-  0088    | GetBoundLocal 3
-  0090    | InsertAtIndex 0
-  0092    | Merge
-  0093    | CallTailFunction 5
-  0095    | ConditionalElse 95 -> 114
-  0098  186 GetConstant 9: const
-  0100    | GetConstant 10: []
-  0102    | GetBoundLocal 4
+  0032    | JumpIfFailure 32 -> 38
+  0035    | GetBoundLocal 3
+  0037    | Merge
+  0038    | JumpIfFailure 38 -> 48
+  0041    | GetConstant 4: [_]
+  0043    | GetBoundLocal 5
+  0045    | InsertAtIndex 0
+  0047    | Merge
+  0048    | GetBoundLocal 4
+  0050    | CallTailFunction 5
+  0052    | ConditionalElse 52 -> 132
+  0055  184 SetInputMark
+  0056    | GetBoundLocal 2
+  0058    | CallFunction 0
+  0060    | TakeRight 60 -> 67
+  0063    | GetBoundLocal 0
+  0065    | CallFunction 0
+  0067    | GetLocal 6
+  0069    | Destructure
+  0070    | ConditionalThen 70 -> 110
+  0073  185 GetConstant 5: _table_sep
+  0075    | GetBoundLocal 0
+  0077    | GetBoundLocal 1
+  0079    | GetBoundLocal 2
+  0081    | GetConstant 6: [_]
+  0083    | GetBoundLocal 6
+  0085    | InsertAtIndex 0
+  0087    | GetConstant 7: []
+  0089    | JumpIfFailure 89 -> 95
+  0092    | GetBoundLocal 4
+  0094    | Merge
+  0095    | JumpIfFailure 95 -> 105
+  0098    | GetConstant 8: [_]
+  0100    | GetBoundLocal 3
+  0102    | InsertAtIndex 0
   0104    | Merge
-  0105    | GetConstant 11: [_]
-  0107    | GetBoundLocal 3
-  0109    | InsertAtIndex 0
-  0111    | Merge
-  0112    | CallTailFunction 1
-  0114  182 End
+  0105    | CallTailFunction 5
+  0107    | ConditionalElse 107 -> 132
+  0110  186 GetConstant 9: const
+  0112    | GetConstant 10: []
+  0114    | JumpIfFailure 114 -> 120
+  0117    | GetBoundLocal 4
+  0119    | Merge
+  0120    | JumpIfFailure 120 -> 130
+  0123    | GetConstant 11: [_]
+  0125    | GetBoundLocal 3
+  0127    | InsertAtIndex 0
+  0129    | Merge
+  0130    | CallTailFunction 1
+  0132  182 End
   ========================================
   
   =================@fn35==================
@@ -1095,20 +1107,21 @@
   0017    | CallFunction 0
   0019    | GetLocal 4
   0021    | Destructure
-  0022    | ConditionalThen 22 -> 42
+  0022    | ConditionalThen 22 -> 45
   0025  197 GetConstant 2: _object
   0027    | GetBoundLocal 0
   0029    | GetBoundLocal 1
   0031    | GetBoundLocal 2
-  0033    | GetConstant 3: {"K": V}
-  0035    | ResolveUnboundVars
-  0036    | Merge
-  0037    | CallTailFunction 3
-  0039    | ConditionalElse 39 -> 48
-  0042  198 GetConstant 4: const
-  0044    | GetBoundLocal 2
-  0046    | CallTailFunction 1
-  0048  196 End
+  0033    | JumpIfFailure 33 -> 40
+  0036    | GetConstant 3: {"K": V}
+  0038    | ResolveUnboundVars
+  0039    | Merge
+  0040    | CallTailFunction 3
+  0042    | ConditionalElse 42 -> 51
+  0045  198 GetConstant 4: const
+  0047    | GetBoundLocal 2
+  0049    | CallTailFunction 1
+  0051  196 End
   ========================================
   
   =================@fn36==================
@@ -1200,7 +1213,7 @@
   0014  211 GetConstant 3: const
   0016    | GetBoundLocal 3
   0018    | CallTailFunction 1
-  0020    | ConditionalElse 20 -> 59
+  0020    | ConditionalElse 20 -> 62
   0023  212 GetBoundLocal 0
   0025    | CallFunction 0
   0027    | GetLocal 4
@@ -1210,17 +1223,18 @@
   0035    | CallFunction 0
   0037    | GetLocal 5
   0039    | Destructure
-  0040    | TakeRight 40 -> 59
+  0040    | TakeRight 40 -> 62
   0043    | GetConstant 4: _object_until
   0045    | GetBoundLocal 0
   0047    | GetBoundLocal 1
   0049    | GetBoundLocal 2
   0051    | GetBoundLocal 3
-  0053    | GetConstant 5: {"K": V}
-  0055    | ResolveUnboundVars
-  0056    | Merge
-  0057    | CallTailFunction 4
-  0059  210 End
+  0053    | JumpIfFailure 53 -> 60
+  0056    | GetConstant 5: {"K": V}
+  0058    | ResolveUnboundVars
+  0059    | Merge
+  0060    | CallTailFunction 4
+  0062  210 End
   ========================================
   
   =================@fn38==================
@@ -1442,18 +1456,19 @@
   0101    | JumpIfSuccess 101 -> 106
   0104    | Swap
   0105    | Pop
-  0106    | ConditionalThen 106 -> 126
+  0106    | ConditionalThen 106 -> 129
   0109  247 GetConstant 8: _ZipIntoObject
   0111    | GetBoundLocal 4
   0113    | GetBoundLocal 6
   0115    | GetBoundLocal 2
-  0117    | GetConstant 9: {"K": V}
-  0119    | ResolveUnboundVars
-  0120    | Merge
-  0121    | CallTailFunction 3
-  0123    | ConditionalElse 123 -> 128
-  0126  248 GetBoundLocal 2
-  0128  246 End
+  0117    | JumpIfFailure 117 -> 124
+  0120    | GetConstant 9: {"K": V}
+  0122    | ResolveUnboundVars
+  0123    | Merge
+  0124    | CallTailFunction 3
+  0126    | ConditionalElse 126 -> 131
+  0129  248 GetBoundLocal 2
+  0131  246 End
   ========================================
   
   ==================Map===================
@@ -1494,23 +1509,25 @@
   0047    | JumpIfSuccess 47 -> 52
   0050    | Swap
   0051    | Pop
-  0052    | ConditionalThen 52 -> 82
+  0052    | ConditionalThen 52 -> 88
   0055  254 GetConstant 4: _Map
   0057    | GetBoundLocal 0
   0059    | GetBoundLocal 4
   0061    | GetConstant 5: []
-  0063    | GetBoundLocal 2
-  0065    | Merge
-  0066    | GetConstant 6: [_]
-  0068    | GetBoundLocal 0
-  0070    | GetBoundLocal 3
-  0072    | CallFunction 1
-  0074    | InsertAtIndex 0
-  0076    | Merge
-  0077    | CallTailFunction 3
-  0079    | ConditionalElse 79 -> 84
-  0082  255 GetBoundLocal 2
-  0084  253 End
+  0063    | JumpIfFailure 63 -> 69
+  0066    | GetBoundLocal 2
+  0068    | Merge
+  0069    | JumpIfFailure 69 -> 83
+  0072    | GetConstant 6: [_]
+  0074    | GetBoundLocal 0
+  0076    | GetBoundLocal 3
+  0078    | CallFunction 1
+  0080    | InsertAtIndex 0
+  0082    | Merge
+  0083    | CallTailFunction 3
+  0085    | ConditionalElse 85 -> 90
+  0088  255 GetBoundLocal 2
+  0090  253 End
   ========================================
   
   ===============ArrayFirst===============
@@ -1604,20 +1621,22 @@
   0025    | CallFunction 2
   0027    | GetLocal 3
   0029    | Destructure
-  0030    | ConditionalThen 30 -> 54
+  0030    | ConditionalThen 30 -> 60
   0033  266 GetConstant 6: _Transpose
   0035    | GetBoundLocal 3
   0037    | GetConstant 7: []
-  0039    | GetBoundLocal 1
-  0041    | Merge
-  0042    | GetConstant 8: [_]
-  0044    | GetBoundLocal 2
-  0046    | InsertAtIndex 0
-  0048    | Merge
-  0049    | CallTailFunction 2
-  0051    | ConditionalElse 51 -> 56
-  0054  267 GetBoundLocal 1
-  0056  265 End
+  0039    | JumpIfFailure 39 -> 45
+  0042    | GetBoundLocal 1
+  0044    | Merge
+  0045    | JumpIfFailure 45 -> 55
+  0048    | GetConstant 8: [_]
+  0050    | GetBoundLocal 2
+  0052    | InsertAtIndex 0
+  0054    | Merge
+  0055    | CallTailFunction 2
+  0057    | ConditionalElse 57 -> 62
+  0060  267 GetBoundLocal 1
+  0062  265 End
   ========================================
   
   ==========RotateTableClockwise==========
@@ -1667,20 +1686,22 @@
   0047    | JumpIfSuccess 47 -> 52
   0050    | Swap
   0051    | Pop
-  0052    | ConditionalThen 52 -> 76
+  0052    | ConditionalThen 52 -> 82
   0055  275 GetConstant 4: _Reverse
   0057    | GetBoundLocal 3
   0059    | GetConstant 5: []
-  0061    | GetBoundLocal 1
-  0063    | Merge
-  0064    | GetConstant 6: [_]
-  0066    | GetBoundLocal 2
-  0068    | InsertAtIndex 0
-  0070    | Merge
-  0071    | CallTailFunction 2
-  0073    | ConditionalElse 73 -> 78
-  0076  276 GetBoundLocal 1
-  0078  274 End
+  0061    | JumpIfFailure 61 -> 67
+  0064    | GetBoundLocal 1
+  0066    | Merge
+  0067    | JumpIfFailure 67 -> 77
+  0070    | GetConstant 6: [_]
+  0072    | GetBoundLocal 2
+  0074    | InsertAtIndex 0
+  0076    | Merge
+  0077    | CallTailFunction 2
+  0079    | ConditionalElse 79 -> 84
+  0082  276 GetBoundLocal 1
+  0084  274 End
   ========================================
   
   =================Reject=================

@@ -362,7 +362,7 @@ pub const Compiler = struct {
                 try self.writeParser(bodyNodeId, true);
             } else {
                 try self.addValueLocals(bodyNodeId);
-                try self.writeValueFunction(bodyNodeId, true);
+                try self.writeValue(bodyNodeId, true);
             }
 
             try self.emitOp(.End, self.ast.getLocation(bodyNodeId));
@@ -974,11 +974,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .Merge => {
-                    try self.writeValue(infix.left, false);
-                    try self.writeValue(infix.right, false);
-                    try self.emitOp(.Merge, loc);
-                },
                 .ArrayHead => {
                     try self.writeValueArray(infix.left, infix.right);
                 },
@@ -989,8 +984,19 @@ pub const Compiler = struct {
                 .StringTemplate => {
                     try self.writeStringTemplate(infix.left, infix.right, .Value);
                 },
-                .CallOrDefineFunction => {
-                    try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
+                .Backtrack => {
+                    try self.emitOp(.SetInputMark, loc);
+                    try self.writeValue(infix.left, false);
+                    const jumpIndex = try self.emitJump(.Backtrack, loc);
+                    try self.writeValue(infix.right, isTailPosition);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .Merge => {
+                    try self.writeValue(infix.left, false);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    try self.writeValue(infix.right, false);
+                    try self.emitOp(.Merge, loc);
+                    try self.patchJump(jumpIndex, loc);
                 },
                 .NumberSubtract => {
                     try self.writeValue(infix.left, false);
@@ -998,14 +1004,68 @@ pub const Compiler = struct {
                     try self.emitOp(.NegateNumber, loc);
                     try self.emitOp(.Merge, loc);
                 },
-                .ArrayCons,
-                .ObjectPair,
-                .StringTemplateCons,
-                => @panic("Internal Error"),
-                else => {
-                    try self.printError("Invalid infix operator in value", loc);
-                    return Error.InvalidAst;
+                .TakeLeft => {
+                    try self.writeValue(infix.left, false);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    try self.writeValue(infix.right, false);
+                    try self.emitOp(.TakeLeft, loc);
+                    try self.patchJump(jumpIndex, loc);
                 },
+                .TakeRight => {
+                    try self.writeValue(infix.left, false);
+                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    try self.writeValue(infix.right, isTailPosition);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .Destructure => {
+                    try self.writeValue(infix.left, false);
+                    try self.writeDestructurePattern(infix.right);
+                },
+                .Or => {
+                    try self.emitOp(.SetInputMark, loc);
+                    try self.writeValue(infix.left, false);
+                    const jumpIndex = try self.emitJump(.Or, loc);
+                    try self.writeValue(infix.right, isTailPosition);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .Return => {
+                    try self.writeValue(infix.left, false);
+                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    try self.writeValue(infix.right, true);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .ConditionalIfThen => {
+                    // Then/Else is always the right-side node
+                    const thenElseOp = self.ast.getInfixOfType(
+                        infix.right,
+                        .ConditionalThenElse,
+                    ) orelse return Error.InvalidAst;
+                    const thenElseLoc = self.ast.getLocation(infix.right);
+
+                    // Get each part of `ifNodeId ? thenNodeId : elseNodeId`
+                    const ifNodeId = infix.left;
+                    const thenNodeId = thenElseOp.left;
+                    const elseNodeId = thenElseOp.right;
+
+                    try self.emitOp(.SetInputMark, loc);
+                    try self.writeValue(ifNodeId, false);
+                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
+                    try self.writeValue(thenNodeId, isTailPosition);
+                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseLoc);
+                    try self.patchJump(ifThenJumpIndex, loc);
+                    try self.writeValue(elseNodeId, isTailPosition);
+                    try self.patchJump(thenElseJumpIndex, thenElseLoc);
+                },
+                .CallOrDefineFunction => {
+                    try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
+                },
+                .ArrayCons, // handled by writeArray
+                .ConditionalThenElse, // handled by ConditionalIfThen
+                .DeclareGlobal, // handled by top-level compiler functions
+                .ParamsOrArgs, // handled by CallOrDefineFunction
+                .ObjectPair, // handled by ObjectCons
+                .StringTemplateCons, // handled by StringTemplate
+                => @panic("internal error"),
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
@@ -1068,109 +1128,6 @@ pub const Compiler = struct {
                     },
                 },
             },
-        }
-    }
-
-    fn writeValueFunction(self: *Compiler, nodeId: usize, isTailPosition: bool) !void {
-        const node = self.ast.getNode(nodeId);
-        const loc = self.ast.getLocation(nodeId);
-
-        switch (node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .ArrayHead => {
-                    try self.writeValueArray(infix.left, infix.right);
-                },
-                .ObjectCons => {
-                    try self.writeObject(infix.left, infix.right);
-                    try self.emitOp(.ResolveUnboundVars, loc);
-                },
-                .StringTemplate => {
-                    try self.writeStringTemplate(infix.left, infix.right, .Value);
-                },
-                .Backtrack => {
-                    try self.emitOp(.SetInputMark, loc);
-                    try self.writeValueFunction(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Backtrack, loc);
-                    try self.writeValueFunction(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
-                },
-                .Merge => {
-                    try self.writeValueFunction(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
-                    try self.writeValueFunction(infix.right, false);
-                    try self.emitOp(.Merge, loc);
-                    try self.patchJump(jumpIndex, loc);
-                },
-                .NumberSubtract => {
-                    try self.writeValueFunction(infix.left, false);
-                    try self.writeValueFunction(infix.right, false);
-                    try self.emitOp(.NegateNumber, loc);
-                    try self.emitOp(.Merge, loc);
-                },
-                .TakeLeft => {
-                    try self.writeValueFunction(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
-                    try self.writeValueFunction(infix.right, false);
-                    try self.emitOp(.TakeLeft, loc);
-                    try self.patchJump(jumpIndex, loc);
-                },
-                .TakeRight => {
-                    try self.writeValueFunction(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, loc);
-                    try self.writeValueFunction(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
-                },
-                .Destructure => {
-                    try self.writeValueFunction(infix.left, false);
-                    try self.writeDestructurePattern(infix.right);
-                },
-                .Or => {
-                    try self.emitOp(.SetInputMark, loc);
-                    try self.writeValueFunction(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Or, loc);
-                    try self.writeValueFunction(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
-                },
-                .Return => {
-                    try self.writeValueFunction(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, loc);
-                    try self.writeValueFunction(infix.right, true);
-                    try self.patchJump(jumpIndex, loc);
-                },
-                .ConditionalIfThen => {
-                    // Then/Else is always the right-side node
-                    const thenElseOp = self.ast.getInfixOfType(
-                        infix.right,
-                        .ConditionalThenElse,
-                    ) orelse return Error.InvalidAst;
-                    const thenElseLoc = self.ast.getLocation(infix.right);
-
-                    // Get each part of `ifNodeId ? thenNodeId : elseNodeId`
-                    const ifNodeId = infix.left;
-                    const thenNodeId = thenElseOp.left;
-                    const elseNodeId = thenElseOp.right;
-
-                    try self.emitOp(.SetInputMark, loc);
-                    try self.writeValueFunction(ifNodeId, false);
-                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
-                    try self.writeValueFunction(thenNodeId, isTailPosition);
-                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseLoc);
-                    try self.patchJump(ifThenJumpIndex, loc);
-                    try self.writeValueFunction(elseNodeId, isTailPosition);
-                    try self.patchJump(thenElseJumpIndex, thenElseLoc);
-                },
-                .CallOrDefineFunction => {
-                    try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
-                },
-                .ArrayCons, // handled by writeArray
-                .ConditionalThenElse, // handled by ConditionalIfThen
-                .DeclareGlobal, // handled by top-level compiler functions
-                .ParamsOrArgs, // handled by CallOrDefineFunction
-                .ObjectPair, // handled by ObjectCons
-                .StringTemplateCons, // handled by StringTemplate
-                => @panic("internal error"),
-            },
-            .ElemNode => try self.writeValue(nodeId, isTailPosition),
         }
     }
 

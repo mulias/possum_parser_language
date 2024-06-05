@@ -5,17 +5,19 @@
   =================@main==================
   0000    1 GetConstant 0: ""
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 23
+  0004    | TakeRight 4 -> 29
   0007    | GetConstant 1: [1, 2, _]
   0009    | GetConstant 2: [_]
   0011    | GetConstant 3: 1
-  0013    | GetConstant 4: 1
-  0015    | Merge
-  0016    | GetConstant 5: 1
+  0013    | JumpIfFailure 13 -> 19
+  0016    | GetConstant 4: 1
   0018    | Merge
-  0019    | InsertAtIndex 0
-  0021    | InsertAtIndex 2
-  0023    | End
+  0019    | JumpIfFailure 19 -> 25
+  0022    | GetConstant 5: 1
+  0024    | Merge
+  0025    | InsertAtIndex 0
+  0027    | InsertAtIndex 2
+  0029    | End
   ========================================
 
   $ possum -p '1 -> A $ A' -i ''
@@ -135,14 +137,17 @@
   =================@main==================
   0000    1 GetConstant 0: const
   0002    | GetConstant 1: []
-  0004    | GetConstant 2: A
-  0006    | CallFunction 0
-  0008    | Merge
-  0009    | GetConstant 3: []
-  0011    | GetConstant 4: A
-  0013    | CallFunction 0
-  0015    | Merge
-  0016    | Merge
-  0017    | CallFunction 1
-  0019    | End
+  0004    | JumpIfFailure 4 -> 12
+  0007    | GetConstant 2: A
+  0009    | CallFunction 0
+  0011    | Merge
+  0012    | JumpIfFailure 12 -> 26
+  0015    | GetConstant 3: []
+  0017    | JumpIfFailure 17 -> 25
+  0020    | GetConstant 4: A
+  0022    | CallFunction 0
+  0024    | Merge
+  0025    | Merge
+  0026    | CallFunction 1
+  0028    | End
   ========================================
