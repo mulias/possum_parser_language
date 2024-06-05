@@ -1716,65 +1716,60 @@
   ================_Reject=================
   0000  281 GetConstant 0: First
   0002    | GetConstant 1: Rest
-  0004  282 GetConstant 2: NextAcc
-  0006  281 SetInputMark
-  0007    | GetBoundLocal 1
-  0009    | GetConstant 3: [_]
-  0011    | GetLocal 4
-  0013    | PrepareMergePattern 2
-  0015    | JumpIfFailure 15 -> 54
-  0018    | GetConstant 4: [_]
-  0020    | Destructure
-  0021    | JumpIfFailure 21 -> 38
-  0024    | GetAtIndex 0
-  0026    | GetLocal 3
-  0028    | Destructure
-  0029    | JumpIfFailure 29 -> 36
-  0032    | Pop
-  0033    | JumpIfSuccess 33 -> 38
-  0036    | Swap
-  0037    | Pop
-  0038    | JumpIfFailure 38 -> 52
-  0041    | Pop
-  0042    | GetLocal 4
-  0044    | Destructure
-  0045    | JumpIfFailure 45 -> 52
-  0048    | Pop
-  0049    | JumpIfSuccess 49 -> 54
-  0052    | Swap
-  0053    | Pop
-  0054    | ConditionalThen 54 -> 109
-  0057  282 SetInputMark
-  0058    | GetBoundLocal 0
-  0060    | GetBoundLocal 3
-  0062    | CallFunction 1
-  0064    | ConditionalThen 64 -> 72
-  0067    | GetBoundLocal 2
-  0069    | ConditionalElse 69 -> 90
-  0072    | GetConstant 5: []
-  0074    | JumpIfFailure 74 -> 80
-  0077    | GetBoundLocal 2
-  0079    | Merge
-  0080    | JumpIfFailure 80 -> 90
-  0083    | GetConstant 6: [_]
-  0085    | GetBoundLocal 3
-  0087    | InsertAtIndex 0
-  0089    | Merge
-  0090    | GetLocal 5
-  0092    | Destructure
-  0093    | TakeRight 93 -> 106
-  0096  283 GetConstant 7: _Reject
-  0098    | GetBoundLocal 0
-  0100    | GetBoundLocal 4
-  0102    | GetBoundLocal 5
-  0104    | CallTailFunction 3
-  0106  284 ConditionalElse 106 -> 111
-  0109  285 GetBoundLocal 2
-  0111  281 End
+  0004    | SetInputMark
+  0005    | GetBoundLocal 1
+  0007    | GetConstant 2: [_]
+  0009    | GetLocal 4
+  0011    | PrepareMergePattern 2
+  0013    | JumpIfFailure 13 -> 52
+  0016    | GetConstant 3: [_]
+  0018    | Destructure
+  0019    | JumpIfFailure 19 -> 36
+  0022    | GetAtIndex 0
+  0024    | GetLocal 3
+  0026    | Destructure
+  0027    | JumpIfFailure 27 -> 34
+  0030    | Pop
+  0031    | JumpIfSuccess 31 -> 36
+  0034    | Swap
+  0035    | Pop
+  0036    | JumpIfFailure 36 -> 50
+  0039    | Pop
+  0040    | GetLocal 4
+  0042    | Destructure
+  0043    | JumpIfFailure 43 -> 50
+  0046    | Pop
+  0047    | JumpIfSuccess 47 -> 52
+  0050    | Swap
+  0051    | Pop
+  0052    | ConditionalThen 52 -> 99
+  0055  282 GetConstant 4: _Reject
+  0057    | GetBoundLocal 0
+  0059    | GetBoundLocal 4
+  0061    | SetInputMark
+  0062    | GetBoundLocal 0
+  0064    | GetBoundLocal 3
+  0066    | CallFunction 1
+  0068    | ConditionalThen 68 -> 76
+  0071    | GetBoundLocal 2
+  0073    | ConditionalElse 73 -> 94
+  0076    | GetConstant 5: []
+  0078    | JumpIfFailure 78 -> 84
+  0081    | GetBoundLocal 2
+  0083    | Merge
+  0084    | JumpIfFailure 84 -> 94
+  0087    | GetConstant 6: [_]
+  0089    | GetBoundLocal 3
+  0091    | InsertAtIndex 0
+  0093    | Merge
+  0094    | CallTailFunction 3
+  0096    | ConditionalElse 96 -> 101
+  0099  283 GetBoundLocal 2
+  0101  281 End
   ========================================
   
   =================IsNull=================
-  0000  287 GetBoundLocal 0
+  0000  285 GetBoundLocal 0
   0002    | Null
   0003    | Destructure
   0004    | End

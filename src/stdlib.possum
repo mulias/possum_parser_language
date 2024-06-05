@@ -278,10 +278,8 @@ _Reverse(Array, Acc) =
 Reject(Pred, Array) = _Reject(Pred, Array, [])
 
 _Reject(Pred, Array, Acc) =
-  Array -> [First, ...Rest] ? (
-    (Pred(First) ? Acc : [...Acc, First]) -> NextAcc &
-    _Reject(Pred, Rest, NextAcc)
-  ) :
+  Array -> [First, ...Rest] ?
+  _Reject(Pred, Rest, Pred(First) ? Acc : [...Acc, First]) :
   Acc
 
 IsNull(V) = V -> null
