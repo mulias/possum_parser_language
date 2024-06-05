@@ -79,6 +79,7 @@ pub const VM = struct {
         self.uniqueIdCount = 0;
         self.writers = writers;
         self.env = env;
+        errdefer self.deinit();
 
         try self.loadMetaFunctions();
         try self.loadStdlib();
