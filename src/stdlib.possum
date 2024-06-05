@@ -251,7 +251,7 @@ Map(Fn, Array) = _Map(Fn, Array, [])
 
 _Map(Fn, Array, Acc) =
   Array -> [First, ...Rest] ?
-  Fn(First) -> Mapped & _Map(Fn, Rest, [...Acc, Mapped]) :
+  _Map(Fn, Rest, [...Acc, Fn(First)]) :
   Acc
 
 ArrayFirst(Array) = Array -> [F, ..._] & F

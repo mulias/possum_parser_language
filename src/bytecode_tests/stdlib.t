@@ -1468,54 +1468,49 @@
   ==================_Map==================
   0000  253 GetConstant 0: First
   0002    | GetConstant 1: Rest
-  0004  254 GetConstant 2: Mapped
-  0006  253 SetInputMark
-  0007    | GetBoundLocal 1
-  0009    | GetConstant 3: [_]
-  0011    | GetLocal 4
-  0013    | PrepareMergePattern 2
-  0015    | JumpIfFailure 15 -> 54
-  0018    | GetConstant 4: [_]
-  0020    | Destructure
-  0021    | JumpIfFailure 21 -> 38
-  0024    | GetAtIndex 0
-  0026    | GetLocal 3
-  0028    | Destructure
-  0029    | JumpIfFailure 29 -> 36
-  0032    | Pop
-  0033    | JumpIfSuccess 33 -> 38
-  0036    | Swap
-  0037    | Pop
-  0038    | JumpIfFailure 38 -> 52
-  0041    | Pop
-  0042    | GetLocal 4
-  0044    | Destructure
-  0045    | JumpIfFailure 45 -> 52
-  0048    | Pop
-  0049    | JumpIfSuccess 49 -> 54
-  0052    | Swap
-  0053    | Pop
-  0054    | ConditionalThen 54 -> 92
-  0057  254 GetBoundLocal 0
-  0059    | GetBoundLocal 3
-  0061    | CallFunction 1
-  0063    | GetLocal 5
-  0065    | Destructure
-  0066    | TakeRight 66 -> 89
-  0069    | GetConstant 5: _Map
-  0071    | GetBoundLocal 0
-  0073    | GetBoundLocal 4
-  0075    | GetConstant 6: []
-  0077    | GetBoundLocal 2
-  0079    | Merge
-  0080    | GetConstant 7: [_]
-  0082    | GetBoundLocal 5
-  0084    | InsertAtIndex 0
-  0086    | Merge
-  0087    | CallTailFunction 3
-  0089    | ConditionalElse 89 -> 94
-  0092  255 GetBoundLocal 2
-  0094  253 End
+  0004    | SetInputMark
+  0005    | GetBoundLocal 1
+  0007    | GetConstant 2: [_]
+  0009    | GetLocal 4
+  0011    | PrepareMergePattern 2
+  0013    | JumpIfFailure 13 -> 52
+  0016    | GetConstant 3: [_]
+  0018    | Destructure
+  0019    | JumpIfFailure 19 -> 36
+  0022    | GetAtIndex 0
+  0024    | GetLocal 3
+  0026    | Destructure
+  0027    | JumpIfFailure 27 -> 34
+  0030    | Pop
+  0031    | JumpIfSuccess 31 -> 36
+  0034    | Swap
+  0035    | Pop
+  0036    | JumpIfFailure 36 -> 50
+  0039    | Pop
+  0040    | GetLocal 4
+  0042    | Destructure
+  0043    | JumpIfFailure 43 -> 50
+  0046    | Pop
+  0047    | JumpIfSuccess 47 -> 52
+  0050    | Swap
+  0051    | Pop
+  0052    | ConditionalThen 52 -> 82
+  0055  254 GetConstant 4: _Map
+  0057    | GetBoundLocal 0
+  0059    | GetBoundLocal 4
+  0061    | GetConstant 5: []
+  0063    | GetBoundLocal 2
+  0065    | Merge
+  0066    | GetConstant 6: [_]
+  0068    | GetBoundLocal 0
+  0070    | GetBoundLocal 3
+  0072    | CallFunction 1
+  0074    | InsertAtIndex 0
+  0076    | Merge
+  0077    | CallTailFunction 3
+  0079    | ConditionalElse 79 -> 84
+  0082  255 GetBoundLocal 2
+  0084  253 End
   ========================================
   
   ===============ArrayFirst===============

@@ -1335,7 +1335,6 @@ pub const Compiler = struct {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
                     try self.writeArrayElem(nodeId, index, context);
-
                     try array.append(self.placeholderVar());
                 },
                 .ObjectCons,
@@ -1343,11 +1342,15 @@ pub const Compiler = struct {
                 .NumberSubtract,
                 => {
                     try self.writeArrayElem(nodeId, index, context);
-
                     try array.append(self.placeholderVar());
                 },
                 .CallOrDefineFunction => {
-                    @panic("todo");
+                    if (context == .Value) {
+                        try self.writeArrayElem(nodeId, index, context);
+                        try array.append(self.placeholderVar());
+                    } else {
+                        @panic("todo");
+                    }
                 },
                 else => {
                     @panic("Internal Error");
@@ -1356,7 +1359,6 @@ pub const Compiler = struct {
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => {
                     try self.writeArrayElem(nodeId, index, context);
-
                     try array.append(self.placeholderVar());
                 },
                 else => {
