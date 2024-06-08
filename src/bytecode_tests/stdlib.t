@@ -1484,7 +1484,7 @@
   0000  253 GetConstant 0: First
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
-  0005    | GetBoundLocal 1
+  0005    | GetBoundLocal 0
   0007    | GetConstant 2: [_]
   0009    | GetLocal 4
   0011    | PrepareMergePattern 2
@@ -1511,15 +1511,15 @@
   0051    | Pop
   0052    | ConditionalThen 52 -> 88
   0055  254 GetConstant 4: _Map
-  0057    | GetBoundLocal 0
-  0059    | GetBoundLocal 4
+  0057    | GetBoundLocal 4
+  0059    | GetBoundLocal 1
   0061    | GetConstant 5: []
   0063    | JumpIfFailure 63 -> 69
   0066    | GetBoundLocal 2
   0068    | Merge
   0069    | JumpIfFailure 69 -> 83
   0072    | GetConstant 6: [_]
-  0074    | GetBoundLocal 0
+  0074    | GetBoundLocal 1
   0076    | GetBoundLocal 3
   0078    | CallFunction 1
   0080    | InsertAtIndex 0
@@ -1609,15 +1609,15 @@
   0002  265 GetConstant 1: RestPerRow
   0004    | SetInputMark
   0005  264 GetConstant 2: Map
-  0007    | GetConstant 3: ArrayFirst
-  0009    | GetBoundLocal 0
+  0007    | GetBoundLocal 0
+  0009    | GetConstant 3: ArrayFirst
   0011    | CallFunction 2
   0013    | GetLocal 2
   0015    | Destructure
   0016    | TakeRight 16 -> 30
   0019  265 GetConstant 4: Map
-  0021    | GetConstant 5: ArrayRest
-  0023    | GetBoundLocal 0
+  0021    | GetBoundLocal 0
+  0023    | GetConstant 5: ArrayRest
   0025    | CallFunction 2
   0027    | GetLocal 3
   0029    | Destructure
@@ -1641,10 +1641,10 @@
   
   ==========RotateTableClockwise==========
   0000  269 GetConstant 0: Map
-  0002    | GetConstant 1: Reverse
-  0004    | GetConstant 2: Transpose
-  0006    | GetBoundLocal 0
-  0008    | CallFunction 1
+  0002    | GetConstant 1: Transpose
+  0004    | GetBoundLocal 0
+  0006    | CallFunction 1
+  0008    | GetConstant 2: Reverse
   0010    | CallTailFunction 2
   0012    | End
   ========================================
@@ -1717,7 +1717,7 @@
   0000  281 GetConstant 0: First
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
-  0005    | GetBoundLocal 1
+  0005    | GetBoundLocal 0
   0007    | GetConstant 2: [_]
   0009    | GetLocal 4
   0011    | PrepareMergePattern 2
@@ -1744,10 +1744,10 @@
   0051    | Pop
   0052    | ConditionalThen 52 -> 99
   0055  282 GetConstant 4: _Reject
-  0057    | GetBoundLocal 0
-  0059    | GetBoundLocal 4
+  0057    | GetBoundLocal 4
+  0059    | GetBoundLocal 1
   0061    | SetInputMark
-  0062    | GetBoundLocal 0
+  0062    | GetBoundLocal 1
   0064    | GetBoundLocal 3
   0066    | CallFunction 1
   0068    | ConditionalThen 68 -> 76

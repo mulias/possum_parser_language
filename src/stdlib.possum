@@ -247,11 +247,11 @@ _ZipIntoObject(Keys, Values, Acc) =
   _ZipIntoObject(KeysRest, ValuesRest, Acc + {K: V}) :
   Acc
 
-Map(Fn, Array) = _Map(Fn, Array, [])
+Map(Array, Fn) = _Map(Array, Fn, [])
 
-_Map(Fn, Array, Acc) =
+_Map(Array, Fn, Acc) =
   Array -> [First, ...Rest] ?
-  _Map(Fn, Rest, [...Acc, Fn(First)]) :
+  _Map(Rest, Fn, [...Acc, Fn(First)]) :
   Acc
 
 ArrayFirst(Array) = Array -> [F, ..._] & F
@@ -261,12 +261,12 @@ ArrayRest(Array) = Array -> [_, ...R] & R
 Transpose(Table) = _Transpose(Table, [])
 
 _Transpose(Table, Acc) =
-  Map(ArrayFirst, Table) -> FirstPerRow &
-  Map(ArrayRest, Table) -> RestPerRow ?
+  Map(Table, ArrayFirst) -> FirstPerRow &
+  Map(Table, ArrayRest) -> RestPerRow ?
   _Transpose(RestPerRow, [...Acc, FirstPerRow]) :
   Acc
 
-RotateTableClockwise(Table) = Map(Reverse, Transpose(Table))
+RotateTableClockwise(Table) = Map(Transpose(Table), Reverse)
 
 Reverse(Array) = _Reverse(Array, [])
 
@@ -275,11 +275,11 @@ _Reverse(Array, Acc) =
   _Reverse(Rest, [...Acc, First]) :
   Acc
 
-Reject(Pred, Array) = _Reject(Pred, Array, [])
+Reject(Array, Pred) = _Reject(Array, Pred, [])
 
-_Reject(Pred, Array, Acc) =
+_Reject(Array, Pred, Acc) =
   Array -> [First, ...Rest] ?
-  _Reject(Pred, Rest, Pred(First) ? Acc : [...Acc, First]) :
+  _Reject(Rest, Pred, Pred(First) ? Acc : [...Acc, First]) :
   Acc
 
 IsNull(V) = V -> null

@@ -6,11 +6,11 @@ move =
   "move %(number -> C) from %(numeral -> F) to %(numeral -> T)" $
   {"count": C, "from": F, "to": T} ;
 
-RejectNull(Array) = Reject(IsNull, Array)
+RejectNull(Array) = Reject(Array, IsNull)
 
 CrateStacks(Labels, CargoRows) =
   RotateTableClockwise(CargoRows) -> CargoCols &
-  Map(RejectNull, CargoCols) -> CrateCols &
+  Map(CargoCols, RejectNull) -> CrateCols &
   ZipIntoObject(Labels, CrateCols)
 
 table_sep(cargo, " ", nl) -> CargoRows &
