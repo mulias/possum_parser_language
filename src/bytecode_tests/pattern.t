@@ -392,3 +392,30 @@
   0047    | GetBoundLocal 0
   0049    | End
   ========================================
+
+  $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, "b": 2}' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: const
+  0002    | GetConstant 1: {"a": 1, "b": 2}
+  0004    | ResolveUnboundVars
+  0005    | CallFunction 1
+  0007    | GetConstant 2: {"a": 1, "b": 2}
+  0009    | Destructure
+  0010    | End
+  ========================================
+
+  $ possum -p 'const({"a": 1, "b": 2}) -> {"a": A, "b": B}' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: A
+  0002    | GetConstant 1: B
+  0004    | GetConstant 2: const
+  0006    | GetConstant 3: {"a": 1, "b": 2}
+  0008    | ResolveUnboundVars
+  0009    | CallFunction 1
+  0011    | GetConstant 4: {"a": A, "b": B}
+  0013    | Destructure
+  0014    | End
+  ========================================
+
