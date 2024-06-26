@@ -1,5 +1,20 @@
   $ export PRINT_COMPILED_BYTECODE=true RUN_VM=false
 
+  $ possum -p 'const([1,2,3]) -> [1,2,3]' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: const
+  0002    | GetConstant 1: [1, 2, 3]
+  0004    | CallFunction 1
+  0006    | GetConstant 2: [1, 2, 3]
+  0008    | Destructure
+  0009    | JumpIfFailure 9 -> 17
+  0012    | JumpIfSuccess 12 -> 17
+  0015    | Swap
+  0016    | Pop
+  0017    | End
+  ========================================
+
   $ possum -p 'const([1,2,3]) -> [A,B,C]' -i ''
   
   =================@main==================
