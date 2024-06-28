@@ -3,12 +3,10 @@ no_crate = "   " $ null
 cargo = crate | no_crate
 
 move =
-  "move" & ws & number  -> Count & ws &
-  "from" & ws & numeral -> From  & ws &
-  "to"   & ws & numeral -> To    & ws $
-  {"count": Count, "from": From, "to": To}
+  "move %(number -> C) from %(numeral -> F) to %(numeral -> T)" $
+  {"count": C, "from": F, "to": T}
 
-table_sep(cargo, " ", nl) -> CargoRows &
-ws > array_sep(numeral, ws) < ws -> _Labels &
-array(move) -> Steps $
+table_sep(cargo, space, nl) -> CargoRows & ws &
+array_sep(numeral, ws) -> _Labels & ws &
+array_sep(move, nl) -> Steps $
 {"cargo_rows": CargoRows, "steps": Steps}

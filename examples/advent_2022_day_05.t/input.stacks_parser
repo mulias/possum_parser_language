@@ -1,10 +1,10 @@
-crate = "[" > char < "]" ;
-no_crate = "   " $ null ;
-cargo = crate | no_crate ;
+crate = "[" > char < "]"
+no_crate = "   " $ null
+cargo = crate | no_crate
 
 move =
   "move %(number -> C) from %(numeral -> F) to %(numeral -> T)" $
-  {"count": C, "from": F, "to": T} ;
+  {"count": C, "from": F, "to": T}
 
 RejectNull(Array) = Reject(Array, IsNull)
 
@@ -13,8 +13,7 @@ CrateStacks(Labels, CargoRows) =
   Map(CargoCols, RejectNull) -> CrateCols &
   ZipIntoObject(Labels, CrateCols)
 
-table_sep(cargo, " ", nl) -> CargoRows &
-ws > array_sep(numeral, ws) < ws -> Labels &
-array_sep(move, nl) -> Steps &
-const(CrateStacks(Labels, CargoRows)) -> Stacks $
-{"stacks": Stacks, "steps": Steps}
+table_sep(cargo, space, nl) -> CargoRows & ws &
+array_sep(numeral, ws) -> Labels & ws &
+array_sep(move, nl) -> Steps $
+{"stacks": CrateStacks(Labels, CargoRows), "steps": Steps}
