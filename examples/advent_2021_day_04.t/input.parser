@@ -1,5 +1,6 @@
 bingo_board = table_sep(maybe(spaces) > int, spaces, nl)
 
-array_sep(int, ',') -> Numbers & ws &
-array_sep(bingo_board, nl + nl) -> Boards $
-{'numbers': Numbers, 'boards': Boards}
+record2_sep(
+  "numbers", array_sep(int, ','), ws,
+  "boards", array_sep(bingo_board, nl + nl)
+)
