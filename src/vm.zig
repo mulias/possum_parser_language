@@ -240,27 +240,14 @@ pub const VM = struct {
             },
             .Destructure => {
                 // Postfix, lhs pattern and rhs value on stack.
-                //
-                // Bind pattern variables: Check if the pattern contains any
-                // variables that are now set in the local scope. If so update
-                // the pattern to match the local's value.
-                //
-                // Pattern match:
-                // If rhs succeeded then pattern match, drop lhs, keep rhs or fail.
-                // If rhs failed then drop lhs, keep rhs.
-                //
-                // Bind local variables: Check if the pattern contains any
-                // variables that are still unbound in the local scope. If so
-                // update each local to match the corresponding part of the
-                // matched value.
                 const pattern = self.pop();
                 const value = self.pop();
 
                 if (value.isSuccess()) {
-                    const boundPattern = try self.bindVars(pattern, false);
-
-                    if (value.isValueMatchingPattern(boundPattern, self.strings)) {
-                        self.bindLocalVariables(pattern, value);
+                    if (pattern == .ValueVar) {
+                        self.bindLocalVariable(value, pattern);
+                        try self.push(value);
+                    } else if (Elem.isValueMatchingPattern(value, pattern, self.strings)) {
                         try self.push(value);
                     } else {
                         try self.pushFailure();
@@ -295,6 +282,19 @@ pub const VM = struct {
                     try self.push(array.elems.items[index]);
                 }
             },
+            .GetAtKey => {
+                const idx = self.readByte();
+                const key = switch (self.chunk().getConstant(idx)) {
+                    .String => |sId| sId,
+                    else => @panic("Internal Error"),
+                };
+                const elem = self.peek(0);
+
+                if (elem.isSuccess()) {
+                    const object = elem.asDyn().asObject();
+                    try self.push(object.members.get(key).?);
+                }
+            },
             .GetLocal => {
                 const slot = self.readByte();
                 try self.push(self.getLocal(slot));
@@ -313,6 +313,54 @@ pub const VM = struct {
                 } else {
                     var copy = try Elem.Dyn.Array.copy(self, array.elems.items);
                     copy.elems.items[index] = elem;
+                    try self.push(copy.dyn.elem());
+                }
+            },
+            .InsertAtKey => {
+                const idx = self.readByte();
+                const keyElem = self.chunk().getConstant(idx);
+                const val = self.pop();
+                const object = self.pop().asDyn().asObject();
+
+                if (val.isFailure()) {
+                    try self.pushFailure();
+                } else {
+                    const key = switch (keyElem) {
+                        .String => |sId| sId,
+                        else => @panic("Internal Error"),
+                    };
+                    var copy = try Elem.Dyn.Object.create(self, object.members.count());
+                    try copy.concat(object);
+                    try copy.members.put(key, val);
+                    try self.push(copy.dyn.elem());
+                }
+            },
+            .InsertKeyVal => {
+                const val = self.pop();
+                const keyElem = self.pop();
+                const object = self.pop().asDyn().asObject();
+
+                if (val.isFailure() or keyElem.isFailure()) {
+                    try self.pushFailure();
+                } else {
+                    var key: StringTable.Id = undefined;
+                    switch (keyElem) {
+                        .String => |sId| {
+                            key = sId;
+                        },
+                        .Dyn => |dyn| switch (dyn.dynType) {
+                            .String => {
+                                const s = dyn.asString().buffer.str();
+                                key = try self.strings.insert(s);
+                            },
+                            else => return self.runtimeError("Object key must be a string", .{}),
+                        },
+                        else => return self.runtimeError("Object key must be a string", .{}),
+                    }
+
+                    var copy = try Elem.Dyn.Object.create(self, object.members.count());
+                    try copy.concat(object);
+                    try copy.members.put(key, val);
                     try self.push(copy.dyn.elem());
                 }
             },
@@ -447,10 +495,6 @@ pub const VM = struct {
                 const count = self.readByte();
 
                 try self.prepareMergePattern(count);
-            },
-            .ResolveUnboundVars => {
-                const value = self.pop();
-                try self.push(try self.bindVars(value, true));
             },
             .Swap => {
                 const a = self.pop();
@@ -641,85 +685,7 @@ pub const VM = struct {
         }
     }
 
-    fn bindVars(self: *VM, patternOrValue: Elem, failIfUnbound: bool) !Elem {
-        switch (patternOrValue) {
-            .ValueVar => |varId| {
-                if (varId == self.strings.getId("_")) {
-                    return patternOrValue;
-                } else {
-                    const slot = self.frame().function.localSlot(varId).?;
-                    const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
-                    return local;
-                }
-            },
-            .Dyn => |dyn| switch (dyn.dynType) {
-                .Array => {
-                    const array = dyn.asArray();
-                    var boundArray = try Elem.Dyn.Array.copy(self, array.elems.items);
-
-                    for (array.pattern.items) |patternElem| {
-                        const slot = patternElem.slot;
-                        const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
-                        boundArray.elems.items[patternElem.index] = local;
-                    }
-
-                    for (boundArray.elems.items, 0..) |elem, index| {
-                        boundArray.elems.items[index] = try self.bindVars(elem, failIfUnbound);
-                    }
-
-                    return boundArray.dyn.elem();
-                },
-                .Object => {
-                    var object = dyn.asObject();
-                    var boundObject = try Elem.Dyn.Object.create(self, object.members.count());
-                    try boundObject.concat(object);
-
-                    for (object.pattern.items) |patternElem| {
-                        if (patternElem.replace == .Value) {
-                            const slot = patternElem.slot;
-                            const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
-
-                            try boundObject.members.put(patternElem.key, local);
-                        }
-                    }
-
-                    for (object.pattern.items) |patternElem| {
-                        if (patternElem.replace == .Key) {
-                            if (boundObject.members.fetchOrderedRemove(patternElem.key)) |kv| {
-                                const slot = patternElem.slot;
-                                const local = if (failIfUnbound) try self.getBoundLocal(slot) else self.getLocal(slot);
-                                const newKey = switch (local) {
-                                    .String => |sId| sId,
-                                    .Dyn => |keyDyn| switch (keyDyn.dynType) {
-                                        .String => blk: {
-                                            const bytes = keyDyn.asString().buffer.str();
-                                            const sId = try self.strings.insert(bytes);
-                                            break :blk sId;
-                                        },
-                                        else => @panic("Internal Error"),
-                                    },
-                                    else => @panic("todo"),
-                                };
-
-                                try boundObject.members.put(newKey, kv.value);
-                            }
-                        }
-                    }
-
-                    var iterator = boundObject.members.iterator();
-                    while (iterator.next()) |entry| {
-                        entry.value_ptr.* = try self.bindVars(entry.value_ptr.*, failIfUnbound);
-                    }
-
-                    return boundObject.dyn.elem();
-                },
-                else => return patternOrValue,
-            },
-            else => return patternOrValue,
-        }
-    }
-
-    fn bindLocalVariables(self: *VM, pattern: Elem, value: Elem) void {
+    fn bindLocalVariable(self: *VM, value: Elem, pattern: Elem) void {
         switch (pattern) {
             .ValueVar => |varId| {
                 if (varId == self.strings.getId("_")) return;
@@ -729,39 +695,7 @@ pub const VM = struct {
                     self.setLocal(slot, value);
                 }
             },
-            .Dyn => |dyn| switch (dyn.dynType) {
-                .Array => {
-                    const patternArray = dyn.asArray();
-                    const valueArray = value.asDyn().asArray();
-
-                    for (patternArray.elems.items, 0..) |elem, index| {
-                        self.bindLocalVariables(elem, valueArray.elems.items[index]);
-                    }
-
-                    for (patternArray.pattern.items) |patternElem| {
-                        if (self.getLocal(patternElem.slot).isType(.ValueVar)) {
-                            self.setLocal(
-                                patternElem.slot,
-                                valueArray.elems.items[patternElem.index],
-                            );
-                        }
-                    }
-                },
-                .Object => {
-                    var patternObject = dyn.asObject();
-                    var valueObject = value.asDyn().asObject();
-
-                    var iterator = patternObject.members.iterator();
-                    while (iterator.next()) |entry| {
-                        self.bindLocalVariables(
-                            entry.value_ptr.*,
-                            valueObject.members.get(entry.key_ptr.*).?,
-                        );
-                    }
-                },
-                else => {},
-            },
-            else => {},
+            else => @panic("Internal Error"),
         }
     }
 

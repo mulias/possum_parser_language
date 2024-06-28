@@ -398,11 +398,14 @@
   =================@main==================
   0000    1 GetConstant 0: const
   0002    | GetConstant 1: {"a": 1, "b": 2}
-  0004    | ResolveUnboundVars
-  0005    | CallFunction 1
-  0007    | GetConstant 2: {"a": 1, "b": 2}
-  0009    | Destructure
-  0010    | End
+  0004    | CallFunction 1
+  0006    | GetConstant 2: {"a": 1, "b": 2}
+  0008    | Destructure
+  0009    | JumpIfFailure 9 -> 17
+  0012    | JumpIfSuccess 12 -> 17
+  0015    | Swap
+  0016    | Pop
+  0017    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": A, "b": B}' -i ''
@@ -412,10 +415,23 @@
   0002    | GetConstant 1: B
   0004    | GetConstant 2: const
   0006    | GetConstant 3: {"a": 1, "b": 2}
-  0008    | ResolveUnboundVars
-  0009    | CallFunction 1
-  0011    | GetConstant 4: {"a": A, "b": B}
-  0013    | Destructure
-  0014    | End
+  0008    | CallFunction 1
+  0010    | GetConstant 4: {"a": _, "b": _}
+  0012    | Destructure
+  0013    | JumpIfFailure 13 -> 39
+  0016    | GetAtKey 5: "a"
+  0018    | GetLocal 0
+  0020    | Destructure
+  0021    | JumpIfFailure 21 -> 37
+  0024    | Pop
+  0025    | GetAtKey 6: "b"
+  0027    | GetLocal 1
+  0029    | Destructure
+  0030    | JumpIfFailure 30 -> 37
+  0033    | Pop
+  0034    | JumpIfSuccess 34 -> 39
+  0037    | Swap
+  0038    | Pop
+  0039    | End
   ========================================
 

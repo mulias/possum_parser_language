@@ -1084,14 +1084,16 @@
   0016    | CallFunction 0
   0018    | GetLocal 3
   0020    | Destructure
-  0021    | TakeRight 21 -> 35
+  0021    | TakeRight 21 -> 39
   0024  193 GetConstant 2: _object
   0026    | GetBoundLocal 0
   0028    | GetBoundLocal 1
-  0030    | GetConstant 3: {"K": V}
-  0032    | ResolveUnboundVars
-  0033    | CallTailFunction 3
-  0035  192 End
+  0030    | GetConstant 3: {}
+  0032    | GetBoundLocal 2
+  0034    | GetBoundLocal 3
+  0036    | InsertKeyVal
+  0037    | CallTailFunction 3
+  0039  192 End
   ========================================
   
   ================_object=================
@@ -1107,21 +1109,23 @@
   0017    | CallFunction 0
   0019    | GetLocal 4
   0021    | Destructure
-  0022    | ConditionalThen 22 -> 45
+  0022    | ConditionalThen 22 -> 49
   0025  197 GetConstant 2: _object
   0027    | GetBoundLocal 0
   0029    | GetBoundLocal 1
   0031    | GetBoundLocal 2
-  0033    | JumpIfFailure 33 -> 40
-  0036    | GetConstant 3: {"K": V}
-  0038    | ResolveUnboundVars
-  0039    | Merge
-  0040    | CallTailFunction 3
-  0042    | ConditionalElse 42 -> 51
-  0045  198 GetConstant 4: const
-  0047    | GetBoundLocal 2
-  0049    | CallTailFunction 1
-  0051  196 End
+  0033    | JumpIfFailure 33 -> 44
+  0036    | GetConstant 3: {}
+  0038    | GetBoundLocal 3
+  0040    | GetBoundLocal 4
+  0042    | InsertKeyVal
+  0043    | Merge
+  0044    | CallTailFunction 3
+  0046    | ConditionalElse 46 -> 55
+  0049  198 GetConstant 4: const
+  0051    | GetBoundLocal 2
+  0053    | CallTailFunction 1
+  0055  196 End
   ========================================
   
   =================@fn36==================
@@ -1163,7 +1167,7 @@
   0023    | CallFunction 0
   0025    | GetLocal 5
   0027    | Destructure
-  0028    | TakeRight 28 -> 54
+  0028    | TakeRight 28 -> 58
   0031  202 GetConstant 2: _object
   0033    | GetConstant 3: @fn36
   0035    | CaptureLocal 0 1
@@ -1171,10 +1175,12 @@
   0041    | GetConstant 4: @fn37
   0043    | CaptureLocal 1 0
   0046    | CaptureLocal 2 1
-  0049    | GetConstant 5: {"K": V}
-  0051    | ResolveUnboundVars
-  0052    | CallTailFunction 3
-  0054  201 End
+  0049    | GetConstant 5: {}
+  0051    | GetBoundLocal 4
+  0053    | GetBoundLocal 5
+  0055    | InsertKeyVal
+  0056    | CallTailFunction 3
+  0058  201 End
   ========================================
   
   ==============object_until==============
@@ -1191,15 +1197,17 @@
   0020    | CallFunction 0
   0022    | GetLocal 4
   0024    | Destructure
-  0025    | TakeRight 25 -> 41
+  0025    | TakeRight 25 -> 45
   0028  207 GetConstant 3: _object_until
   0030    | GetBoundLocal 0
   0032    | GetBoundLocal 1
   0034    | GetBoundLocal 2
-  0036    | GetConstant 4: {"K": V}
-  0038    | ResolveUnboundVars
-  0039    | CallTailFunction 4
-  0041  206 End
+  0036    | GetConstant 4: {}
+  0038    | GetBoundLocal 3
+  0040    | GetBoundLocal 4
+  0042    | InsertKeyVal
+  0043    | CallTailFunction 4
+  0045  206 End
   ========================================
   
   =============_object_until==============
@@ -1213,7 +1221,7 @@
   0014  211 GetConstant 3: const
   0016    | GetBoundLocal 3
   0018    | CallTailFunction 1
-  0020    | ConditionalElse 20 -> 62
+  0020    | ConditionalElse 20 -> 66
   0023  212 GetBoundLocal 0
   0025    | CallFunction 0
   0027    | GetLocal 4
@@ -1223,18 +1231,20 @@
   0035    | CallFunction 0
   0037    | GetLocal 5
   0039    | Destructure
-  0040    | TakeRight 40 -> 62
+  0040    | TakeRight 40 -> 66
   0043    | GetConstant 4: _object_until
   0045    | GetBoundLocal 0
   0047    | GetBoundLocal 1
   0049    | GetBoundLocal 2
   0051    | GetBoundLocal 3
-  0053    | JumpIfFailure 53 -> 60
-  0056    | GetConstant 5: {"K": V}
-  0058    | ResolveUnboundVars
-  0059    | Merge
-  0060    | CallTailFunction 4
-  0062  210 End
+  0053    | JumpIfFailure 53 -> 64
+  0056    | GetConstant 5: {}
+  0058    | GetBoundLocal 4
+  0060    | GetBoundLocal 5
+  0062    | InsertKeyVal
+  0063    | Merge
+  0064    | CallTailFunction 4
+  0066  210 End
   ========================================
   
   =================@fn38==================
@@ -1291,10 +1301,12 @@
   0004    | CallFunction 0
   0006    | GetLocal 2
   0008    | Destructure
-  0009    | TakeRight 9 -> 15
-  0012    | GetConstant 1: {"Key": Value}
-  0014    | ResolveUnboundVars
-  0015    | End
+  0009    | TakeRight 9 -> 19
+  0012    | GetConstant 1: {}
+  0014    | GetBoundLocal 0
+  0016    | GetBoundLocal 2
+  0018    | InsertKeyVal
+  0019    | End
   ========================================
   
   ================record2=================
@@ -1304,15 +1316,20 @@
   0006    | CallFunction 0
   0008    | GetLocal 4
   0010    | Destructure
-  0011    | TakeRight 11 -> 27
+  0011    | TakeRight 11 -> 36
   0014  223 GetBoundLocal 3
   0016    | CallFunction 0
   0018    | GetLocal 5
   0020    | Destructure
-  0021    | TakeRight 21 -> 27
-  0024  224 GetConstant 2: {"Key1": V1, "Key2": V2}
-  0026    | ResolveUnboundVars
-  0027  222 End
+  0021    | TakeRight 21 -> 36
+  0024  224 GetConstant 2: {}
+  0026    | GetBoundLocal 0
+  0028    | GetBoundLocal 4
+  0030    | InsertKeyVal
+  0031    | GetBoundLocal 2
+  0033    | GetBoundLocal 5
+  0035    | InsertKeyVal
+  0036  222 End
   ========================================
   
   ==============record2_sep===============
@@ -1325,15 +1342,20 @@
   0011    | TakeRight 11 -> 18
   0014    | GetBoundLocal 2
   0016    | CallFunction 0
-  0018    | TakeRight 18 -> 34
+  0018    | TakeRight 18 -> 43
   0021  228 GetBoundLocal 4
   0023    | CallFunction 0
   0025    | GetLocal 6
   0027    | Destructure
-  0028    | TakeRight 28 -> 34
-  0031  229 GetConstant 2: {"Key1": V1, "Key2": V2}
-  0033    | ResolveUnboundVars
-  0034  227 End
+  0028    | TakeRight 28 -> 43
+  0031  229 GetConstant 2: {}
+  0033    | GetBoundLocal 0
+  0035    | GetBoundLocal 5
+  0037    | InsertKeyVal
+  0038    | GetBoundLocal 3
+  0040    | GetBoundLocal 6
+  0042    | InsertKeyVal
+  0043  227 End
   ========================================
   
   ================record3=================
@@ -1349,15 +1371,23 @@
   0018    | CallFunction 0
   0020    | GetLocal 7
   0022    | Destructure
-  0023    | TakeRight 23 -> 39
+  0023    | TakeRight 23 -> 53
   0026  234 GetBoundLocal 5
   0028    | CallFunction 0
   0030    | GetLocal 8
   0032    | Destructure
-  0033    | TakeRight 33 -> 39
-  0036  235 GetConstant 3: {"Key1": V1, "Key2": V2, "Key3": V3}
-  0038    | ResolveUnboundVars
-  0039  233 End
+  0033    | TakeRight 33 -> 53
+  0036  235 GetConstant 3: {}
+  0038    | GetBoundLocal 0
+  0040    | GetBoundLocal 6
+  0042    | InsertKeyVal
+  0043    | GetBoundLocal 2
+  0045    | GetBoundLocal 7
+  0047    | InsertKeyVal
+  0048    | GetBoundLocal 4
+  0050    | GetBoundLocal 8
+  0052    | InsertKeyVal
+  0053  233 End
   ========================================
   
   ==============record3_sep===============
@@ -1379,15 +1409,23 @@
   0030    | TakeRight 30 -> 37
   0033    | GetBoundLocal 5
   0035    | CallFunction 0
-  0037    | TakeRight 37 -> 53
+  0037    | TakeRight 37 -> 67
   0040  240 GetBoundLocal 7
   0042    | CallFunction 0
   0044    | GetLocal 10
   0046    | Destructure
-  0047    | TakeRight 47 -> 53
-  0050  241 GetConstant 3: {"Key1": V1, "Key2": V2, "Key3": V3}
-  0052    | ResolveUnboundVars
-  0053  239 End
+  0047    | TakeRight 47 -> 67
+  0050  241 GetConstant 3: {}
+  0052    | GetBoundLocal 0
+  0054    | GetBoundLocal 8
+  0056    | InsertKeyVal
+  0057    | GetBoundLocal 3
+  0059    | GetBoundLocal 9
+  0061    | InsertKeyVal
+  0062    | GetBoundLocal 6
+  0064    | GetBoundLocal 10
+  0066    | InsertKeyVal
+  0067  239 End
   ========================================
   
   =============ZipIntoObject==============
@@ -1456,19 +1494,21 @@
   0101    | JumpIfSuccess 101 -> 106
   0104    | Swap
   0105    | Pop
-  0106    | ConditionalThen 106 -> 129
+  0106    | ConditionalThen 106 -> 133
   0109  247 GetConstant 8: _ZipIntoObject
   0111    | GetBoundLocal 4
   0113    | GetBoundLocal 6
   0115    | GetBoundLocal 2
-  0117    | JumpIfFailure 117 -> 124
-  0120    | GetConstant 9: {"K": V}
-  0122    | ResolveUnboundVars
-  0123    | Merge
-  0124    | CallTailFunction 3
-  0126    | ConditionalElse 126 -> 131
-  0129  248 GetBoundLocal 2
-  0131  246 End
+  0117    | JumpIfFailure 117 -> 128
+  0120    | GetConstant 9: {}
+  0122    | GetBoundLocal 3
+  0124    | GetBoundLocal 5
+  0126    | InsertKeyVal
+  0127    | Merge
+  0128    | CallTailFunction 3
+  0130    | ConditionalElse 130 -> 135
+  0133  248 GetBoundLocal 2
+  0135  246 End
   ========================================
   
   ==================Map===================

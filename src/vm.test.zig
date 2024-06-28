@@ -1691,24 +1691,24 @@ test "1 -> A & 2 -> B $ {'a': A, 'b': B}" {
     }
 }
 
-// test "'Z' -> A $ {A: 1, 'A': 2}" {
-//     const parser =
-//         \\'Z' -> A $ {A: 1, 'A': 2}
-//     ;
-//     {
-//         var vm = VM.create();
-//         try vm.init(allocator, writers, env);
-//         defer vm.deinit();
-//         const result = try vm.interpret(parser, "Z");
+test "'Z' -> A $ {A: 1, 'A': 2}" {
+    const parser =
+        \\'Z' -> A $ {A: 1, 'A': 2}
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, env);
+        defer vm.deinit();
+        const result = try vm.interpret(parser, "Z");
 
-//         // Do this after running the VM to make sure strings are interned
-//         var object = try Elem.Dyn.Object.create(&vm, 3);
-//         try object.members.put(vm.strings.getId("Z"), Elem.integer(1, null));
-//         try object.members.put(vm.strings.getId("A"), Elem.integer(2, null));
+        // Do this after running the VM to make sure strings are interned
+        var object = try Elem.Dyn.Object.create(&vm, 3);
+        try object.members.put(vm.strings.getId("Z"), Elem.integer(1, null));
+        try object.members.put(vm.strings.getId("A"), Elem.integer(2, null));
 
-//         try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
-//     }
-// }
+        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+    }
+}
 
 test "object(alpha, digit)" {
     const parser =

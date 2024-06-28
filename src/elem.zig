@@ -658,13 +658,6 @@ pub const Elem = union(ElemType) {
         pub const Array = struct {
             dyn: Dyn,
             elems: ArrayList(Elem),
-            pattern: ArrayList(PatternElem),
-
-            pub const PatternElem = struct {
-                name: StringTable.Id,
-                slot: u8,
-                index: usize,
-            };
 
             pub fn copy(vm: *VM, elems: []const Elem) !*Array {
                 const a = try create(vm, elems.len);
@@ -682,7 +675,6 @@ pub const Elem = union(ElemType) {
                 array.* = Array{
                     .dyn = dyn.*,
                     .elems = elems,
-                    .pattern = ArrayList(PatternElem).init(vm.allocator),
                 };
 
                 return array;
@@ -690,7 +682,6 @@ pub const Elem = union(ElemType) {
 
             pub fn destroy(self: *Array, vm: *VM) void {
                 self.elems.deinit();
-                self.pattern.deinit();
                 vm.allocator.destroy(self);
             }
 
@@ -732,14 +723,6 @@ pub const Elem = union(ElemType) {
                 try self.elems.appendSlice(other.elems.items);
             }
 
-            pub fn addPatternElem(self: *Array, name: StringTable.Id, index: usize, slot: u8) !void {
-                try self.pattern.append(PatternElem{
-                    .name = name,
-                    .index = index,
-                    .slot = slot,
-                });
-            }
-
             pub fn len(self: *Array) usize {
                 return self.elems.items.len;
             }
@@ -753,14 +736,6 @@ pub const Elem = union(ElemType) {
         pub const Object = struct {
             dyn: Dyn,
             members: AutoArrayHashMap(StringTable.Id, Elem),
-            pattern: ArrayList(PatternElem),
-
-            pub const PatternElem = struct {
-                name: StringTable.Id,
-                key: StringTable.Id,
-                slot: u8,
-                replace: enum { Key, Value },
-            };
 
             pub fn create(vm: *VM, capacity: usize) !*Object {
                 const dyn = try Dyn.allocate(vm, Object, .Object);
@@ -772,7 +747,6 @@ pub const Elem = union(ElemType) {
                 object.* = Object{
                     .dyn = dyn.*,
                     .members = members,
-                    .pattern = ArrayList(PatternElem).init(vm.allocator),
                 };
 
                 return object;
@@ -780,7 +754,6 @@ pub const Elem = union(ElemType) {
 
             pub fn destroy(self: *Object, vm: *VM) void {
                 self.members.deinit();
-                self.pattern.deinit();
                 vm.allocator.destroy(self);
             }
 
@@ -828,10 +801,6 @@ pub const Elem = union(ElemType) {
                 while (iterator.next()) |entry| {
                     try self.members.put(entry.key_ptr.*, entry.value_ptr.*);
                 }
-            }
-
-            pub fn addPatternElem(self: *Object, patternElem: PatternElem) !void {
-                try self.pattern.append(patternElem);
             }
         };
 
@@ -1012,8 +981,8 @@ test "struct size" {
     try std.testing.expectEqual(24, @sizeOf(Elem));
     try std.testing.expectEqual(16, @sizeOf(Elem.Dyn));
     try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.String));
-    try std.testing.expectEqual(96, @sizeOf(Elem.Dyn.Array));
-    try std.testing.expectEqual(112, @sizeOf(Elem.Dyn.Object));
+    try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.Array));
+    try std.testing.expectEqual(72, @sizeOf(Elem.Dyn.Object));
     try std.testing.expectEqual(200, @sizeOf(Elem.Dyn.Function));
     try std.testing.expectEqual(40, @sizeOf(Elem.Dyn.Closure));
 }

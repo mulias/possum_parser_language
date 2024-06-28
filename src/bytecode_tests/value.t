@@ -151,3 +151,56 @@
   0026    | CallFunction 1
   0028    | End
   ========================================
+
+  $ possum -p '1 -> A & 2 -> B $ {"a": A, "b": B}' -i '12'
+  
+  =================@main==================
+  0000    1 GetConstant 0: A
+  0002    | GetConstant 1: B
+  0004    | GetConstant 2: 1
+  0006    | CallFunction 0
+  0008    | GetLocal 0
+  0010    | Destructure
+  0011    | TakeRight 11 -> 34
+  0014    | GetConstant 3: 2
+  0016    | CallFunction 0
+  0018    | GetLocal 1
+  0020    | Destructure
+  0021    | TakeRight 21 -> 34
+  0024    | GetConstant 4: {}
+  0026    | GetBoundLocal 0
+  0028    | InsertAtKey 5: "a"
+  0030    | GetBoundLocal 1
+  0032    | InsertAtKey 6: "b"
+  0034    | End
+  ========================================
+
+  $ possum -p 'const({"a": 1 + 2 + 3})' -i '12'
+  
+  =================@main==================
+  0000    1 GetConstant 0: const
+  0002    | GetConstant 1: {}
+  0004    | GetConstant 3: 1
+  0006    | JumpIfFailure 6 -> 12
+  0009    | GetConstant 4: 2
+  0011    | Merge
+  0012    | JumpIfFailure 12 -> 18
+  0015    | GetConstant 5: 3
+  0017    | Merge
+  0018    | InsertAtKey 2: "a"
+  0020    | CallFunction 1
+  0022    | End
+  ========================================
+
+  $ possum -p 'const({"a": [{"b": "foo"}]})' -i '12'
+  
+  =================@main==================
+  0000    1 GetConstant 0: const
+  0002    | GetConstant 1: {}
+  0004    | GetConstant 3: [_]
+  0006    | GetConstant 4: {"b": "foo"}
+  0008    | InsertAtIndex 0
+  0010    | InsertAtKey 2: "a"
+  0012    | CallFunction 1
+  0014    | End
+  ========================================
