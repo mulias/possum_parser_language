@@ -6,6 +6,7 @@ const OpCode = @import("op_code.zig").OpCode;
 const VM = @import("vm.zig").VM;
 const Writers = @import("writer.zig").Writers;
 const cli_config = @import("cli_config.zig");
+const build_options = @import("build_options");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -30,8 +31,9 @@ pub const CLI = struct {
         switch (try cli_config.run(self.allocator)) {
             .Parse => |args| try self.parse(args.parser, args.input),
             .Docs => try self.writers.out.print("Docs\n", .{}),
-            .Help => try cli_config.printHelp(),
-            .Usage => try cli_config.printUsage(),
+            .Help => try self.printHelp(),
+            .Version => try self.printVersion(),
+            .UsageError => |err| try self.printUsageError(err),
         }
     }
 
@@ -99,5 +101,24 @@ pub const CLI = struct {
         };
 
         return input.items;
+    }
+
+    fn printHelp(self: CLI) !void {
+        const helpDocs = @embedFile("docs/cli.txt");
+        try self.writers.out.print("{s}\n", .{helpDocs});
+    }
+
+    fn printVersion(self: CLI) !void {
+        try self.writers.out.print("{s}\n", .{build_options.version});
+    }
+
+    fn printUsageError(self: CLI, err: cli_config.UsageErrorType) !void {
+        const message = switch (err) {
+            .TooManyArgs => "CLI Argument Error: expected one parser and one input arg, got more than expected.",
+            .MissingArgs => "CLI Argument Error: expected one parser and one input arg, got fewer than expected.",
+        };
+        const usage = "Usage: possum [PARSER_FILE] [INPUT_FILE] [-p PARSER] [-i INPUT] [-hv]\n";
+
+        try self.writers.err.print("{s}\n{s}\n", .{ message, usage });
     }
 };

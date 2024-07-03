@@ -16,7 +16,9 @@ pub const Source = union(SourceType) {
     Stdin: void,
 };
 
-pub const ModeType = enum { Parse, Docs, Help, Usage };
+pub const UsageErrorType = enum { TooManyArgs, MissingArgs };
+
+pub const ModeType = enum { Parse, Docs, Help, Version, UsageError };
 
 pub const Mode = union(ModeType) {
     Parse: struct {
@@ -28,7 +30,8 @@ pub const Mode = union(ModeType) {
     },
     Docs: Docs,
     Help: void,
-    Usage: void,
+    Version: void,
+    UsageError: UsageErrorType,
 };
 
 const params = clap.parseParamsComptime(
@@ -55,10 +58,8 @@ pub fn run(allocator: Allocator) !Mode {
     var result = try clap.parse(clap.Help, &params, parsers, .{ .allocator = allocator });
     defer result.deinit();
 
-    // Prioritize --help
     if (result.args.help != 0) return .{ .Help = undefined };
-
-    // Prioritize --docs
+    if (result.args.version != 0) return .{ .Version = undefined };
     if (result.args.docs) |docs| return .{ .Docs = docs };
 
     // For Parse mode require one parser param and one input param, either
@@ -100,22 +101,10 @@ pub fn run(allocator: Allocator) !Mode {
             },
         };
     } else if (requiredArgsCount > 2) {
-        // too many args
-        return .{ .Usage = undefined };
+        return .{ .UsageError = .TooManyArgs };
     } else {
-        // need more args
-        return .{ .Usage = undefined };
+        return .{ .UsageError = .MissingArgs };
     }
-}
-
-pub fn printHelp() !void {
-    return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
-}
-
-pub fn printUsage() !void {
-    const writer = std.io.getStdErr().writer();
-    try clap.usage(writer, clap.Help, &params);
-    try writer.print("\n", .{});
 }
 
 fn isSingleDash(source: []const u8) bool {

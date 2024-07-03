@@ -1,7 +1,12 @@
 const std = @import("std");
 const Build = std.Build;
+const SemanticVersion = std.SemanticVersion;
+
+const version: SemanticVersion = .{ .major = 0, .minor = 4, .patch = 0 };
 
 pub fn build(b: *Build) void {
+    const version_string = b.fmt("{d}.{d}.{d}", .{ version.major, version.minor, version.patch });
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -25,6 +30,13 @@ pub fn build(b: *Build) void {
         .optimize = optimize,
     });
     cli.root_module.addImport("clap", clap_module);
+    cli.root_module.addAnonymousImport("docs/cli.txt", .{
+        .root_source_file = .{ .path = "docs/cli.txt" },
+    });
+
+    const cli_options = b.addOptions();
+    cli.root_module.addOptions("build_options", cli_options);
+    cli_options.addOption([]const u8, "version", version_string);
 
     const run_cli = b.addRunArtifact(cli);
     run_cli.step.dependOn(b.getInstallStep());
