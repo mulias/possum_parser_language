@@ -1636,15 +1636,15 @@
   0056    | End
   ========================================
   
-  ===============Transpose================
-  0000  261 GetConstant 0: _Transpose
+  =============TransposeTable=============
+  0000  261 GetConstant 0: _TransposeTable
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: []
   0006    | CallTailFunction 2
   0008    | End
   ========================================
   
-  ===============_Transpose===============
+  ============_TransposeTable=============
   0000  264 GetConstant 0: FirstPerRow
   0002  265 GetConstant 1: RestPerRow
   0004    | SetInputMark
@@ -1662,7 +1662,7 @@
   0027    | GetLocal 3
   0029    | Destructure
   0030    | ConditionalThen 30 -> 60
-  0033  266 GetConstant 6: _Transpose
+  0033  266 GetConstant 6: _TransposeTable
   0035    | GetBoundLocal 3
   0037    | GetConstant 7: []
   0039    | JumpIfFailure 39 -> 45
@@ -1681,7 +1681,7 @@
   
   ==========RotateTableClockwise==========
   0000  269 GetConstant 0: Map
-  0002    | GetConstant 1: Transpose
+  0002    | GetConstant 1: TransposeTable
   0004    | GetBoundLocal 0
   0006    | CallFunction 1
   0008    | GetConstant 2: Reverse

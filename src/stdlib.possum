@@ -258,15 +258,15 @@ ArrayFirst(Array) = Array -> [F, ..._] & F
 
 ArrayRest(Array) = Array -> [_, ...R] & R
 
-Transpose(Table) = _Transpose(Table, [])
+TransposeTable(T) = _TransposeTable(T, [])
 
-_Transpose(Table, Acc) =
-  Map(Table, ArrayFirst) -> FirstPerRow &
-  Map(Table, ArrayRest) -> RestPerRow ?
-  _Transpose(RestPerRow, [...Acc, FirstPerRow]) :
+_TransposeTable(T, Acc) =
+  Map(T, ArrayFirst) -> FirstPerRow &
+  Map(T, ArrayRest) -> RestPerRow ?
+  _TransposeTable(RestPerRow, [...Acc, FirstPerRow]) :
   Acc
 
-RotateTableClockwise(Table) = Map(Transpose(Table), Reverse)
+RotateTableClockwise(T) = Map(TransposeTable(T), Reverse)
 
 Reverse(Array) = _Reverse(Array, [])
 
