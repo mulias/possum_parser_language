@@ -242,11 +242,14 @@ pub const Scanner = struct {
         // Look for a fractional/scientific part
         const hasDecimalPart = self.scanDecimalPart();
         const hasScientificPart = self.scanScientificPart();
-        if (hasDecimalPart or hasScientificPart) {
-            return self.makeToken(.Float);
-        }
 
-        return self.makeToken(.Integer);
+        if (self.tokenHasExtraLeadingZero()) {
+            return self.makeError("Invalid number.");
+        } else if (hasDecimalPart or hasScientificPart) {
+            return self.makeToken(.Float);
+        } else {
+            return self.makeToken(.Integer);
+        }
     }
 
     fn scanDecimalPart(self: *Scanner) bool {
@@ -284,6 +287,12 @@ pub const Scanner = struct {
         } else {
             return false;
         }
+    }
+
+    fn tokenHasExtraLeadingZero(self: *Scanner) bool {
+        const lexeme = self.source[0..self.offset];
+        const number = if (lexeme[0] == '-') lexeme[1..] else lexeme;
+        return number.len >= 2 and number[0] == '0' and isDigit(number[1]);
     }
 
     fn scanLowercaseIdentifier(self: *Scanner) Token {

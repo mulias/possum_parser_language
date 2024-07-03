@@ -2120,3 +2120,26 @@ test "A = 1 ; B = 2 ; const('%(A) + %(A) = %(B)')" {
         );
     }
 }
+
+test "Invalid JSON number" {
+    {
+        const parser = "01";
+        var vm = VM.create();
+        try vm.init(allocator, writers, env);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.UnexpectedInput,
+            vm.interpret(parser, "01"),
+        );
+    }
+    {
+        const parser = "-01.234";
+        var vm = VM.create();
+        try vm.init(allocator, writers, env);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.UnexpectedInput,
+            vm.interpret(parser, "-01.234"),
+        );
+    }
+}
