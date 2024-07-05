@@ -1,67 +1,63 @@
 # Possum Language Documentation
 
-The core Possum language provides primitives for creating parsers that transform
-unstructured text into JSON. Possum has very few reserved keywords, and instead
-relies on infix operators for program logic and control flow.
+Possum is a text parsing language with some very minimal utilities for general purpose computation. A Possum program is made up of parsers, functions that define both what text inputs are valid and how to transform valid inputs into structured data. The Possum runtime takes a program and an input string and either successfully parses the input into a JSON encoded value, or fails if the input was malformed.
 
 ## Value Literal Parsers
 
-The simplest parsers are for strings, numbers, and contiguous ranges of
-codepoints or integers.
+The simplest parsers are for strings, numbers, and contiguous ranges of codepoints or integers.
 
-| Parser      | Name                    | Match Behavior                      | Value Returned |
-| ----------- | ----------------------- | ----------------------------------- | -------------- |
-| `"abc"`     | String literal          | Characters of string, with escapes  | Matched string |
-| `'xyz'`     | String literal          | Characters of string, with escapes  | Matched string |
-| `"a".."z"`  | Character Range         | All unicode codepoints within range | Matched string |
-| `123`       | Integer literal         | Exact characters of integer         | Matched number |
-| `1..9`      | Integer Range           | All integers within range           | Matched number |
-| `-1.334e23` | Number literal          | Exact characters of number          | Matched number |
+| Parser      | Name            | Match Behavior              | Value Returned |
+| ----------- | --------------- | --------------------------- | -------------- |
+| `"abc"`     | String literal  | Characters of string, with escapes | Matched string |
+| `'xyz'`     | String literal  | Characters of string, with escapes | Matched string |
+| `` `\n` ``  | Backtick string literal | Exact characters of string | Matched string |
+| `"a".."z"`  | Character Range | All unicode codepoints within range | Matched string |
+| `123`       | Integer literal | Exact characters of integer | Matched number |
+| `1..9`      | Integer Range   | All integers within range   | Matched number |
+| `-1.334e23` | Number literal  | Exact characters of number  | Matched number |
 
-String literals using single and double quotes support the following escape
-characters. (TODO: this list is not quite accurate)
+String literals using single and double quotes support the following escape characters.
 
 | Escape Character | Substitution              |
 | ---------------- | ------------------------- |
+| `\0`             | Null character            |
+| `\b`             | Backspace                 |
+| `\t`             | Tab                       |
+| `\n`             | New line                  |
+| `\v`             | Vertical tab              |
+| `\f`             | Form feed                 |
+| `\r`             | Carriage return           |
 | `\'`             | Single quote              |
 | `\"`             | Double quote              |
 | `\\`             | Backslash                 |
-| `\n`             | New line                  |
-| `\r`             | Carriage return           |
-| `\t`             | Tab                       |
-| `\b`             | Backspace                 |
-| `\f`             | Form feed                 |
-| `\u1234`         | 16-bit unicode code-point |
-| `\U0010FFFF`     | 32-bit unicode code-point |
+| `\u0000` to `\uFFFF` | 16-bit unicode code-point |
+| `\U00000000` to `\U0010FFFF` | 32-bit unicode code-point |
 
 ## Infix Operators
 
 Infix operators compose parsers in order to create more complex parsers.
 
-| Operator       | Name        | Binding Power | Description                             |
-| ---------------| ----------- | ------------- | --------------------------------------- |
-| `p1 \| p2`     | Or          | 5 / 6         | Match `p1`, if no match is found try `p2` instead |
-| `p1 > p2`      | Take Right  | 5 / 6         | Match `p1` and then `p2`, return the result of `p2` |
-| `p1 < p2`      | Take Left   | 5 / 6         | Match `p1` and then `p2`, return the result of `p1` |
-| `p1 + p2`      | Merge       | 5 / 6         | Match `p1` and then `p2`, if both return values of the same type then return a merged result |
-| `p1 ! p2`      | Backtrack   | 5 / 6         | Match `p1` and then go back in the input and match `p2` instead, return the result of `p2` |
-| `p -> P`       | Destructure | 7 / 6         | Match `p`, destructure the resulting value against the pattern `P` |
-| `p $ V`        | Return      | 5 / 8         | Match `p` and then return the value `V` |
-| `p1 & p2`      | Sequence    | 3 / 4         | Match `p1` and then `p2`, returning the result of `p2` |
-| `p1 ? p2 : p3` | Conditional | 2 / 1         | Match `p1`, if successful then match `p2` next. If `p1` fails then try `p2` instead. |
+| Operator       | Name        | Precedence | Associativity | Description      |
+| -------------- | ----------- | ---------- | ------------- | -----------------|
+| `p1 \| p2`     | Or          | 3          | Left          | Match `p1`, if no match is found try `p2` instead |
+| `p1 > p2`      | Take Right  | 3          | Left          | Match `p1` and then `p2`, return the result of `p2` |
+| `p1 < p2`      | Take Left   | 3          | Left          | Match `p1` and then `p2`, return the result of `p1` |
+| `p1 + p2`      | Merge       | 3          | Left          | Match `p1` and then `p2`, return a merged result |
+| `p1 ! p2`      | Backtrack   | 3          | Left          | Match `p1` and then go back in the input and match `p2` instead, return the result of `p2` |
+| `p -> P`       | Destructure | 3          | Left          | Match `p`, destructure the resulting value against the pattern `P` |
+| `p $ V`        | Return      | 3          | Left          | Match `p` and then return the value `V` |
+| `p1 & p2`      | Sequence    | 2          | Left          | Match `p1` and then `p2`, returning the result of `p2` |
+| `p1 ? p2 : p3` | Conditional | 1          | Right         | Match `p1`, if successful then match `p2` next. If `p1` fails then try `p2` instead. |
 
-TODO: Update binding power, explain infix precedence.
+Operators with a higher precedence are evaluated first, and parsers with the same precedence are generally evaluated left to right. Conditionals are right associative so that multiple conditions can be chained in a row.
 
 ## Constructing Values
 
-Values are produced by successfully matching parsers against an input. In many
-cases the value is implicit, for example we know that the parser `123 | 456`
-will either return the value `123`, `456`, or fail. In a few cases values can be
-used explicit:
+Values are produced by successfully matching parsers against an input. In many cases the value is implicit, for example we know that the parser `123 | 456` will either return the value `123`, `456`, or fail. In a few cases values can be used explicit:
 
 * A returned value, which appears on the right side of a `$`
 ```
-my_parser $ [1,2,3]
+my_parser $ [1, 2, 3]
 ```
 
 * Parser arguments
@@ -70,26 +66,14 @@ bar(B) = "bar" $ B ;
 bar({"bar": true})
 ```
 
-* A pattern to destructure on, which appears on the left side of a `<-`
+* A pattern to destructure on, which appears on the right side of a `->`
 ```
-[1, 2, ...Rest] <- array(int)
+array(int) -> [1, 2, ...Rest]
 ```
 
-In the first two cases we construct a value which is then returned by a parser.
-In the third case we pattern match the result of the right-side parser against
-the left-side value, which is explored in more detail in the section
-"Destructuring Values".
+In the first two cases we construct a value which is then returned by a parser. In the third case we pattern match the result of the right-side parser against the left-side value, which is explored in more detail in the section "Destructuring Values".
 
-Constructed values can be any valid JSON data, including arrays, objects, true,
-false, and null. Additionally values can be interpolated into strings, numbers
-can be added and subtracted, and values of the same type can be merged (see
-"Merging Values"). Finally, values can reference local variables (from
-destructuring), and call value functions.
-
-Type mismatches when constructing values is always a runtime error. For example
-`[1, 2, 3] + {"a": true}` would produce a runtime error that array and object
-values can't be merged.
-
+Constructed values can be any valid JSON data, including arrays, objects, `true`, `false`, and `null`. Additionally values can be interpolated into strings, numbers can be added and subtracted, and values of the same type can be merged (see "Merging Values"). Finally, values can reference local variables (from destructuring), and call value functions.
 
 | Constructed Value          | Description                            |
 | -------------------------- | -------------------------------------- |
@@ -102,20 +86,15 @@ values can't be merged.
 | `true`                     | Constant value `true`                  |
 | `false`                    | Constant value `false`                 |
 | `null`                     | Constant value `null`                  |
-| `[ "a", 0, true, Var ]`    | Array of values                        |
-| `{ "foo": 0, "bar": Var }` | Object of key/value pairs              |
-| `{ "foo": 0, Var: null }`  | Object with the string `Var` as a key  |
-| `Value1 + Value2`          | Merge two values of the same type      |
+| `["a", 0, true, Var]`      | Array of values                        |
+| `{"foo": 0, "bar": Var}`   | Object of key/value pairs              |
+| `{"foo": 0, Var: null}`    | Object with the string `Var` as a key  |
+| `Value1 + Value2`          | Merge two values                       |
 | `Reverse([1, 2, 3])`       | Value function                         |
 
 ## Merging Values
 
-Both parsers and constructed values can use an infix `+` to merge their result.
-If both parsers return values of the same type, or if both values are of the
-same type, then the merged value will be a combination of the two values. If the
-two values have different types then the operation will throw a runtime error.
-The one exception is `null`, which can merge with any other type and acts as the
-identity of that type.
+Both parsers and constructed values can use an infix `+` to merge their result. If both parsers return values of the same type, or if both values are of the same type, then the merged value will be a combination of the two values. If the two values have different types then the operation will throw a runtime error. The one exception is `null`, which can merge with any other type and acts as the identity of that type.
 
 | `V1` and `V2` Are Both | `V1 + V2` Behavior  |
 | ---------------------- | ------------------- |
@@ -124,61 +103,49 @@ identity of that type.
 | Objects                | Combine objects, adding fields from the right-side object to the left-side object, possibly replacing existing values |
 | Numbers                | Sum numbers         |
 | Booleans               | Logical or          |
-| `null`                 | `null`              |
 
 ## Destructuring Values
 
-The `<-` pattern matching operator is used to assert the structure of a parsed
-value and optionally bind the value or a substructure of the value to local
-variables.
+The `->` pattern matching operator is used to assert the structure of a parsed value and optionally bind the value or a substructure of the value to local variables.
 
-Bound variables must be `UpperCamelCase`. Values cannot be re-bound within a
-parser, so once the variable is set any subsequent uses will reference the
-initial value instead of re-binding.
-
-TODO: much of this table is not yet implemented.
+Bound variables must be `UpperCamelCase`. Values cannot be re-bound within a parser, so once the variable is set any subsequent uses will reference the initial value instead of re-binding.
 
 | Destructured Value      | Description                                               |
 | ----------------------- | --------------------------------------------------------- |
-| `V <- p`                | Bind a parsed value to `V`                                |
-| `0 + N <- p`            | Match a number using arithmetic, bind the value to `N`    |
-| `[...A] <- p`           | Match an array using a spread, bind the value to `A`      |
-| `{...O} <- p`           | Match an object using a spread, bind the value to `O`     |
-| `"%(S)" <- p`           | Match a string using interpolation, bind the value to `S` |
-| `` `%(S)` <-p ``        | Match the exact string, no interpolation                  |
-| `true <- p`             | Match a constant exactly                                  |
-| `5 <- p`                | Match a number exactly                                    |
-| `N + 100 <- p`          | Match a number, bind `N` such that `N + 100` is equal to the matched number |
-| `[1, 2, 3] <- p`        | Match an array exactly                                    |
-| `[A, ..._] <- p`        | Match an array with at least one element, bind the first element to `A` |
-| `[A, ..._, Z] <- p`     | Match an array with at least two elements, bind the first element to `A` and last to `Z` |
-| `[1, B, _] <- p`        | Match an array of length 3 starting with `1`, bind the second element to `B` |
-| `{"a": 1, "b": 2} <- p` | Match an object exactly                                   |
-| `{"a": 1, ..._} <- p`   | Match an object where the key `"a"` has the value `1`     |
-| `{_: 1, ..._} <- p`     | Match an object where one of the keys has the value `1`   |
-| `{"a": A, ..._} <- p`   | Match an object with the key `"a"`, bind the value to `A` |
-| `{..._, "a": A} <- p`   | As above, object patterns are not position dependant      |
-| `{"a": _, "b": B} <- p` | Match an object with exactly the keys `"a"` and `"b"`, bind the value of `"b"` to `B` |
-| `"abc" <- p`            | Match a string exactly                                    |
-| `"%3(_)" <- p`          | Match a string of length 3                                |
-| `"%3(S)" <- p`          | Bind a string of length 3 to `S`                          |
-| `"abc%(Rest)" <- p`     | Match `"abc"` and bind any remaining string to `Rest`     |
-| `"%(Front)d" <- p`      | Match a string ending in `d`, bind all but the last character to `Front` |
-| `"%1(A)%(_)" <- p`      | Match a string of length at least one, bind the first character to `A` |
-| `"%(null)" <- p`        | Match a string encoding a constant                        |
-| `"%(0 + N)" <- p`       | Match a string encoding a number, bind the number to `N`  |
-| `"%2(0 + _)" <- p`      | Match a string of length 2 encoding a number              |
-| `"%(N + 1)" <- p`       | Match a string encoding a number, calculate and bind `N`  |
-| `"%([...A])" <- p`      | Match a string encoding an array, bind the array to `A`   |
-| `"%({..._})" <- p`      | Match a string encoding an object                         |
+| `p -> V`                | Bind a parsed value to `V`                                |
+| `p -> (0 + N)`          | Match a number using arithmetic, bind the value to `N`    |
+| `p -> [...A]`           | Match an array using a spread, bind the value to `A`      |
+| `p -> {...O}`           | Match an object using a spread, bind the value to `O`     |
+| `p -> "%(S)"`           | Match a string using interpolation, bind the value to `S` |
+| `` p -> `%(S)` ``       | Match the exact string, no interpolation                  |
+| `p -> true`             | Match a constant exactly                                  |
+| `p -> 5`                | Match a number exactly                                    |
+| `p -> N + 100`          | Match a number, bind `N` such that `N + 100` is equal to the matched number |
+| `p -> [1, 2, 3]`        | Match an array exactly                                    |
+| `p -> [A, ..._]`        | Match an array with at least one element, bind the first element to `A` |
+| `p -> [A, ..._, Z]`     | Match an array with at least two elements, bind the first element to `A` and last to `Z` |
+| `p -> [1, B, _]`        | Match an array of length 3 starting with `1`, bind the second element to `B` |
+| `p -> {"a": 1, "b": 2}` | Match an object exactly                                   |
+| `p -> {"a": 1, ..._}`   | Match an object where the key `"a"` has the value `1`     |
+| `p -> {_: 1, ..._}`     | Match an object where one of the keys has the value `1`   |
+| `p -> {"a": A, ..._}`   | Match an object with the key `"a"`, bind the value to `A` |
+| `p -> {..._, "a": A}`   | As above, object patterns are not position dependant      |
+| `p -> {"a": _, "b": B}` | Match an object with exactly the keys `"a"` and `"b"`, bind the value of `"b"` to `B` |
+| `p -> "abc"`            | Match a string exactly                                    |
+| `p -> "%3(S)"`          | Bind a string of length 3 to `S`                          |
+| `p -> "abc%(Rest)"`     | Match `"abc"` and bind any remaining string to `Rest`     |
+| `p -> "%(Front)d"`      | Match a string ending in `d`, bind all but the last character to `Front` |
+| `p -> "%1(A)%(_)"`      | Match a string of length at least one, bind the first character to `A` |
+| `p -> "%(null)"`        | Match a string encoding a constant                        |
+| `p -> "%(0 + N)"`       | Match a string encoding a number, bind the number to `N`  |
+| `p -> "%2(0 + _)"`      | Match a string of length 2 encoding a number              |
+| `p -> "%(N + 1)"`       | Match a string encoding a number, calculate and bind `N`  |
+| `p -> "%([...A])"`      | Match a string encoding an array, bind the array to `A`   |
+| `p -> "%({..._})"`      | Match a string encoding an object                         |
 
 ## Parser Programs
 
-A program consists of one main parser statement and zero, one, or many named
-parser and value statements. Statements may be separated by newlines or
-semicolons and can be defined in any order. Named parsers and values may be
-functions that specify parameters, and can reference each other and themselves
-recursively.
+A program consists of one main parser statement and zero, one, or many parsers and value functions. Statements may be separated by newlines or semicolons and can be defined in any order. Named parsers and values may be functions that specify parameters, and can reference each other and themselves recursively.
 
 ```
 parser_1(param1, param2, param3) = parser_body_1
@@ -193,100 +160,88 @@ Running a parser program without a main parser produces a runtime error.
 
 ## Named Parsers
 
-A named parser can be an alias for an existing parser, a composite parser using
-infix operators and parser functions, or a parametrized parser function. All
-parser names must be `snake_case`.
+A named parser can be an alias for an existing parser, or a new parser that may be parametrized by other parsers and values. All parser names must be `snake_case`.
 
 ```
-# alias for an existing parser
-w = word
+# Alias for an existing parser
+my_array = array
 
-# Composit parser
-foo_bar = "foo" | "bar"
+# Zero-arg parser
+foo_or_array_of_foo = "foo" | my_array("foo")
 
-# Composit parser with recursive reference
+# Parser with recursive reference
 foo_foo_foo_bar = "foo" + ("bar" | foo_foo_foo_bar)
 
-# Parametrized parser function
-quadruple(p) = A <- p & B <- & C <- p & D <- p $ [A,B,C,D]
+# Parametrized parser
+quadruple(p) = p -> A & p -> B & p -> C & p -> D $ [A,B,C,D]
 
-# Parser function with a value param
-append_const(p, C) = p + const(C)
+# Parser with a value param
+merge_const(p, C) = p + const(C)
 
-# Public function referencing a private parser
-many(p) = First <- p & _many_rec(p, First)
+# Public parser referencing a private parser
+many(p) = p -> First & _many(p, First)
 
-# Private parser function
-_many_rec(p, Acc) = Next <- p ? _many_rec(p, Acc + Next) : const(Acc)
+# Private parser
+_many(p, Acc) = p -> Next ? _many(p, Acc + Next) : const(Acc)
 ```
 
-## Named Values
+## Value Functions
 
-A named value can be an alias for a constructed value, a computed value
-calculated with infix operators and value functions, or a value function. Named
-values can use the same infix operators as parsers, but cannot parse input. All
-strings and numbers within the statement are interpreted as values, and
-`snake_case` parser aliases/functions are not allowed. All named values must
-be `UpperCamelCase`.
+A value function can be an alias for an existing value function, or a new function that may be parametrized by other values. All value function names must be `UpperCamelCase`.
+
+Unlike parsers, value functions don't consume input and can only manipulate and return concrete values. Value functions may use the same infix operators as parsers, but in this context the operators only act as control flow. All value functions must be invoked with parentheses, even when the function takes no arguments. An `UpperCamelCase` value without `()` is assumed to be a local variable.
 
 ```
-# Alias for a value
+# Alias for an existing value function
+MyReverse = Reverse
+
+# Zero-arg value function
 MyArray = [1, 2, 3]
 
-# Alias for a calculated value
-MyArrayReversedAndDoubled = RA <- Reverse(MyArray) & RA + RA
+# Zero-arg value function
+MyArrayReversedAndDoubled = MyReverse(MyArray()) -> RA & RA + RA
 
 # Value function
-IsArray(A) = [..._] <- A
+IsArray(A) = A -> [..._]
 
 # Public function referencing a private function
 Reverse(V) =
-  IsArray(V) > _RevereseArrayRec(V, []) |
-  IsString(V) > _ReverseStringRec(V, "")
+  IsArray(V) > _ReverseArray(V, []) |
+  IsString(V) > _ReverseString(V, "")
 
 # Private value function
-_ReverseArrayRec(A, Acc) =
-  [Head, ...Tail] <- A ?
-  _ReverseArrayRec(Tail, [Head, ...Acc]) :
+_ReverseArray(A, Acc) =
+  A -> [First, ...Rest] ?
+  _ReverseArray(Rest, [...Acc, First]) :
   Acc
 ```
 
-This syntax may seem surprising, since up until now the infix operators have
-only been used to compose parsers. Named values are, in practice, syntactic
-sugar for parsers that never consume input and always return a desired value.
-This is true both for names value statements and for value parameters in parser
-functions.
+This syntax may seem surprising, since up until now the infix operators have only been used to compose parsers. Value functions are, in practice, syntactic sugar for parsers that never consume input and always return a desired value.
 
-We can de-sugar the previous example by replacing every instance of a value `V`
-in a parser-only position with a constant parser `"" $ V`.
+We can de-sugar the previous example by replacing every instance of a value `V` in a parser-only position with a constant parser `"" $ V`.
 ```
+my_reverse = my_reverse
+
 my_array = "" $ [1, 2, 3]
 
-my_array_reversed_and_doubled = RA <- reverse(my_array) $ RA + RA
+my_array_reversed_and_doubled = reverse(my_array) -> RA & "" $ RA + RA
 
-is_array(a) = [..._] <- a
+is_array(A) = "" $ A -> [..._]
 
-reverse(v) =
-  is_array(v) > _reverese_array_rec(v, "" $ []) |
-  is_string(v) > _reverse_string_rec(v, "")
+reverse(V) =
+  is_array(V) > _reverese_array(V, []) |
+  is_string(V) > _reverse_string_rec(V, "")
 
-_reverse_array_rec(a, acc) =
-  Acc <- acc & [Head, ...Tail] <- a ?
-  _reverse_array_rec("" $ Tail, "" $ [Head, ...Acc]) :
-  acc
+_reverse_array(A, Acc) =
+  "" $ A -> [First, ...Rest] ?
+  _reverse_array(Rest, [...Acc, First]) :
+  "" $ Acc
 ```
-Allowing named values to use the same infix operators is a simplification of
-this pattern, and provides the guarantee that functions such as `Reverse` will
-not consume input, which is not immediately clear when using `reverse` as a
-parser.
+Allowing named values to use the same infix operators is a simplification of this pattern, and provides the guarantee that functions such as `Reverse` will not consume input, which is not immediately clear when using `reverse` as a parser.
 
 ## Meta Functions
 
-The `@` symbol is reserved as a prefix for parsers and value functions that
-perform meta-level introspection and control flow. These functions are built-in
-and can't be defined at the program-level.
-
-TODO: most of these are not yet implemented.
+The `@` symbol is reserved as a prefix for parsers and value functions that perform meta-level introspection and control flow. These functions are built-in and can't be defined at the program level.
 
 | Function          | Behavior                                              | Returns               |
 | ----------------- | ----------------------------------------------------- | --------------------- |
