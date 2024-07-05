@@ -40,8 +40,9 @@ pub fn build(b: *Build) void {
         const input_file = b.fmt("docs/{s}.md", .{filename});
         const output_name = b.fmt("docs/{s}", .{filename});
 
+        // Convert from github flavored markdown to plain text
         const pandoc = b.addSystemCommand(&.{"pandoc"});
-        pandoc.addArgs(&.{ "-t", "plain" });
+        pandoc.addArgs(&.{ "-f", "gfm", "-t", "plain" });
         pandoc.addFileArg(b.path(input_file));
 
         const output = pandoc.captureStdOut();
