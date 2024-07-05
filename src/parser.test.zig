@@ -2,22 +2,22 @@ const std = @import("std");
 const allocator = std.testing.allocator;
 const Ast = @import("ast.zig").Ast;
 const Elem = @import("elem.zig").Elem;
-const Env = @import("env.zig").Env;
 const Location = @import("location.zig").Location;
 const Parser = @import("parser.zig").Parser;
 const VM = @import("vm.zig").VM;
+const VMConfig = @import("vm.zig").Config;
 const Writers = @import("writer.zig").Writers;
 
 const loc = Location.new;
 const writers = Writers.initStdIo();
-const env = Env.init();
+const config = VMConfig.init();
 
 test "'a' > 'b' > 'c' | 'abz'" {
     const source =
         \\'a' > 'b' > 'c' | 'abz'
     ;
     var vm = VM.create();
-    try vm.init(allocator, writers, env);
+    try vm.init(allocator, writers, config);
     defer vm.deinit();
 
     var parser = Parser.init(&vm);
@@ -47,7 +47,7 @@ test "foo(a, b, c) = a + b + c" {
         \\foo(a, b, c) = a + b + c
     ;
     var vm = VM.create();
-    try vm.init(allocator, writers, env);
+    try vm.init(allocator, writers, config);
     defer vm.deinit();
 
     var parser = Parser.init(&vm);

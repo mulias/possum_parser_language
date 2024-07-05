@@ -16,10 +16,38 @@ const Writers = @import("writer.zig").Writers;
 const meta = @import("meta.zig");
 const parsing = @import("parsing.zig");
 
-const CallFrame = struct {
-    function: *Elem.Dyn.Function,
-    ip: usize,
-    elemsOffset: usize,
+pub const Config = struct {
+    printScanner: bool,
+    printParser: bool,
+    printAst: bool,
+    printCompiledBytecode: bool,
+    printExecutedBytecode: bool,
+    printVM: bool,
+    runVM: bool,
+    includeStdlib: bool,
+
+    pub fn init() Config {
+        return Config{
+            .printScanner = false,
+            .printParser = false,
+            .printAst = false,
+            .printCompiledBytecode = false,
+            .printExecutedBytecode = false,
+            .printVM = false,
+            .runVM = true,
+            .includeStdlib = true,
+        };
+    }
+
+    pub fn setEnv(self: *Config, env: Env) void {
+        self.printScanner = env.printScanner;
+        self.printParser = env.printParser;
+        self.printAst = env.printAst;
+        self.printCompiledBytecode = env.printCompiledBytecode;
+        self.printExecutedBytecode = env.printExecutedBytecode;
+        self.printVM = env.printVM;
+        self.runVM = env.runVM;
+    }
 };
 
 pub const VM = struct {
@@ -34,8 +62,13 @@ pub const VM = struct {
     inputPos: usize,
     uniqueIdCount: u64,
     writers: Writers,
-    env: Env,
+    config: Config,
 
+    const CallFrame = struct {
+        function: *Elem.Dyn.Function,
+        ip: usize,
+        elemsOffset: usize,
+    };
     const Error = error{
         RuntimeError,
         OutOfMemory,
@@ -60,13 +93,13 @@ pub const VM = struct {
             .inputPos = undefined,
             .uniqueIdCount = undefined,
             .writers = undefined,
-            .env = undefined,
+            .config = undefined,
         };
 
         return self;
     }
 
-    pub fn init(self: *VM, allocator: Allocator, writers: Writers, env: Env) !void {
+    pub fn init(self: *VM, allocator: Allocator, writers: Writers, config: Config) !void {
         self.allocator = allocator;
         self.strings = StringTable.init(allocator);
         self.globals = AutoHashMap(StringTable.Id, Elem).init(allocator);
@@ -78,7 +111,7 @@ pub const VM = struct {
         self.inputPos = 0;
         self.uniqueIdCount = 0;
         self.writers = writers;
-        self.env = env;
+        self.config = config;
         errdefer self.deinit();
 
         try self.loadMetaFunctions();
@@ -110,11 +143,11 @@ pub const VM = struct {
         try parser.parse(programSource);
         try parser.end();
 
-        if (self.env.printAst) {
+        if (self.config.printAst) {
             try parser.ast.print(self.writers.debug, self.strings);
         }
 
-        var compiler = try Compiler.init(self, parser.ast, self.env.printCompiledBytecode);
+        var compiler = try Compiler.init(self, parser.ast, self.config.printCompiledBytecode);
         defer compiler.deinit();
 
         const function = try compiler.compile();
@@ -151,7 +184,7 @@ pub const VM = struct {
             return Error.NoMainParser;
         }
 
-        if (self.env.printExecutedBytecode) {
+        if (self.config.printExecutedBytecode) {
             try self.frame().function.disassemble(self.strings, self.writers.debug);
         }
 
@@ -537,7 +570,7 @@ pub const VM = struct {
     }
 
     fn printDebug(self: *VM) !void {
-        if (self.env.printVM) {
+        if (self.config.printVM) {
             try self.writers.debug.print("\n", .{});
             try self.printInput();
             try self.printFrames();
@@ -655,7 +688,7 @@ pub const VM = struct {
                 .Function => {
                     var function = dyn.asFunction();
 
-                    if (self.env.printExecutedBytecode) {
+                    if (self.config.printExecutedBytecode) {
                         try function.disassemble(self.strings, self.writers.debug);
                     }
 

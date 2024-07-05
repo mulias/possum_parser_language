@@ -4,9 +4,10 @@ const Chunk = @import("chunk.zig").Chunk;
 const Env = @import("env.zig").Env;
 const OpCode = @import("op_code.zig").OpCode;
 const VM = @import("vm.zig").VM;
+const VMConfig = @import("vm.zig").Config;
 const Writers = @import("writer.zig").Writers;
-const cli_config = @import("cli_config.zig");
 const build_options = @import("build_options");
+const cli_config = @import("cli_config.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -39,6 +40,8 @@ pub const CLI = struct {
 
     fn parse(self: CLI, parserSource: cli_config.Source, inputSource: cli_config.Source) !void {
         const env = try Env.fromOS(self.allocator);
+        var config = VMConfig.init();
+        config.setEnv(env);
 
         const parser = switch (parserSource) {
             .String => |str| str,
@@ -53,10 +56,10 @@ pub const CLI = struct {
         };
 
         var vm = VM.create();
-        try vm.init(self.allocator, self.writers, env);
+        try vm.init(self.allocator, self.writers, config);
         defer vm.deinit();
 
-        if (env.runVM) {
+        if (config.runVM) {
             const parsed = try vm.interpret(parser, input);
 
             if (parsed == .Failure) {

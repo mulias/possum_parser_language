@@ -2,9 +2,9 @@ const std = @import("std");
 const io = std.io;
 const process = std.process;
 const Allocator = std.mem.Allocator;
-const Env = @import("env.zig").Env;
 const ExternalWriter = @import("writer.zig").ExternalWriter;
 const VM = @import("vm.zig").VM;
+const VMConfig = @import("vm.zig").Config;
 const Writers = @import("writer.zig").Writers;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
@@ -34,11 +34,11 @@ const writers = Writers{
 };
 
 fn createVMPtr() !*VM {
-    const env = Env.init();
+    const config = VMConfig.init();
 
     var vm = try allocator.create(VM);
     vm.* = VM.create();
-    try vm.init(allocator, writers, env);
+    try vm.init(allocator, writers, config);
     return vm;
 }
 

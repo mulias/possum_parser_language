@@ -49,7 +49,7 @@ pub const Parser = struct {
             .previousSkippedNewline = false,
             .ast = ast,
             .writers = vm.writers,
-            .printDebug = vm.env.printParser,
+            .printDebug = vm.config.printParser,
         };
     }
 
@@ -58,7 +58,7 @@ pub const Parser = struct {
     }
 
     pub fn parse(self: *Parser, source: []const u8) !void {
-        self.scanner = Scanner.init(source, self.writers, self.vm.env.printScanner);
+        self.scanner = Scanner.init(source, self.writers, self.vm.config.printScanner);
 
         try self.advance();
 
@@ -74,7 +74,7 @@ pub const Parser = struct {
     }
 
     fn parseExpression(self: *Parser, source: []const u8) !usize {
-        self.scanner = Scanner.init(source, self.writers, self.vm.env.printScanner);
+        self.scanner = Scanner.init(source, self.writers, self.vm.config.printScanner);
         try self.advance();
         return self.expression();
     }
