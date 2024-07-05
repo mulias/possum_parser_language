@@ -115,7 +115,10 @@ pub const VM = struct {
         errdefer self.deinit();
 
         try self.loadMetaFunctions();
-        try self.loadStdlib();
+
+        if (self.config.includeStdlib) {
+            try self.loadStdlib();
+        }
     }
 
     pub fn deinit(self: *VM) void {

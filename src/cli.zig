@@ -30,7 +30,7 @@ pub const CLI = struct {
 
     pub fn run(self: CLI) !void {
         switch (try cli_config.run(self.allocator)) {
-            .Parse => |args| try self.parse(args.parser, args.input),
+            .Parse => |args| try self.parse(args),
             .Docs => |doc| try self.printDocs(doc),
             .Help => try self.printHelp(),
             .Version => try self.printVersion(),
@@ -38,18 +38,19 @@ pub const CLI = struct {
         }
     }
 
-    fn parse(self: CLI, parserSource: cli_config.Source, inputSource: cli_config.Source) !void {
+    fn parse(self: CLI, args: cli_config.ParseArgs) !void {
         const env = try Env.fromOS(self.allocator);
         var config = VMConfig.init();
         config.setEnv(env);
+        config.includeStdlib = args.stdlib;
 
-        const parser = switch (parserSource) {
+        const parser = switch (args.parser) {
             .String => |str| str,
             .Path => |path| try self.readFile(path),
             .Stdin => try self.readStdin("parser"),
         };
 
-        const input = switch (inputSource) {
+        const input = switch (args.input) {
             .String => |str| str,
             .Path => |path| try self.readFile(path),
             .Stdin => try self.readStdin("input"),

@@ -20,14 +20,16 @@ pub const UsageErrorType = enum { TooManyArgs, MissingArgs };
 
 pub const ModeType = enum { Parse, Docs, Help, Version, UsageError };
 
+pub const ParseArgs = struct {
+    parser: Source,
+    input: Source,
+    stdlib: bool,
+    import: []const []const u8,
+    errorFormat: Format,
+};
+
 pub const Mode = union(ModeType) {
-    Parse: struct {
-        parser: Source,
-        input: Source,
-        stdlib: bool,
-        import: []const []const u8,
-        errorFormat: Format,
-    },
+    Parse: ParseArgs,
     Docs: Docs,
     Help: void,
     Version: void,
