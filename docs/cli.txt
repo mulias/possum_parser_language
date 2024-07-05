@@ -22,6 +22,15 @@ OPTIONS
     -i INPUT, --input=INPUT
         Text to parse, used in place of an input file.
 
+    --docs={overview | advanced | language | cli | stdlib}
+        Show documentation in the terminal.
+          * overview: Example-based guide covering Possum's main features.
+          * advanced: Continuation of the example-based guide, focusing on more
+            specialized and situational functionality.
+          * language: Condensed reference for the core language.
+          * cli: Using Possum from the command line.
+          * stdlib: Possum standard library reference.
+
     -h, --help
         Show this help text.
 

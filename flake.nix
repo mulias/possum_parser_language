@@ -17,6 +17,7 @@
             zig_0_12
             zls
             python311Packages.cram
+            pandoc
           ];
           shellHook = ''
             export NVIM_ZIG_LSP=true

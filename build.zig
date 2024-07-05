@@ -30,9 +30,26 @@ pub fn build(b: *Build) void {
         .optimize = optimize,
     });
     cli.root_module.addImport("clap", clap_module);
-    cli.root_module.addAnonymousImport("docs/cli.txt", .{
+
+    cli.root_module.addAnonymousImport("docs/cli", .{
         .root_source_file = .{ .path = "docs/cli.txt" },
     });
+
+    const markdown_docs = [_][]const u8{ "advanced", "language", "overview", "stdlib" };
+    for (markdown_docs) |filename| {
+        const input_file = b.fmt("docs/{s}.md", .{filename});
+        const output_name = b.fmt("docs/{s}", .{filename});
+
+        const pandoc = b.addSystemCommand(&.{"pandoc"});
+        pandoc.addArgs(&.{ "-t", "plain" });
+        pandoc.addFileArg(b.path(input_file));
+
+        const output = pandoc.captureStdOut();
+
+        cli.root_module.addAnonymousImport(output_name, .{
+            .root_source_file = output,
+        });
+    }
 
     const cli_options = b.addOptions();
     cli.root_module.addOptions("build_options", cli_options);

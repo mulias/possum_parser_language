@@ -30,7 +30,7 @@ pub const CLI = struct {
     pub fn run(self: CLI) !void {
         switch (try cli_config.run(self.allocator)) {
             .Parse => |args| try self.parse(args.parser, args.input),
-            .Docs => try self.writers.out.print("Docs\n", .{}),
+            .Docs => |doc| try self.printDocs(doc),
             .Help => try self.printHelp(),
             .Version => try self.printVersion(),
             .UsageError => |err| try self.printUsageError(err),
@@ -104,8 +104,8 @@ pub const CLI = struct {
     }
 
     fn printHelp(self: CLI) !void {
-        const helpDocs = @embedFile("docs/cli.txt");
-        try self.writers.out.print("{s}\n", .{helpDocs});
+        const helpDocs = @embedFile("docs/cli");
+        try self.writers.out.print("{s}", .{helpDocs});
     }
 
     fn printVersion(self: CLI) !void {
@@ -120,5 +120,35 @@ pub const CLI = struct {
         const usage = "Usage: possum [PARSER_FILE] [INPUT_FILE] [-p PARSER] [-i INPUT] [-hv]\n";
 
         try self.writers.err.print("{s}\n{s}\n", .{ message, usage });
+    }
+
+    fn printDocs(self: CLI, doc: cli_config.Docs) !void {
+        const text = switch (doc) {
+            .advanced => @embedFile("docs/advanced"),
+            .cli => @embedFile("docs/cli"),
+            .language => @embedFile("docs/language"),
+            .overview => @embedFile("docs/overview"),
+            .stdlib => @embedFile("docs/stdlib"),
+        };
+
+        printWithPager(text) catch self.writers.out.print("{s}", .{text}) catch |e| return e;
+    }
+
+    fn printWithPager(str: []const u8) !void {
+        var pager = std.ChildProcess.init(&[_][]const u8{ "less", "-FIRX" }, std.heap.page_allocator);
+
+        pager.stdin_behavior = .Pipe;
+
+        try pager.spawn();
+
+        if (pager.stdin) |inputPipe| {
+            defer {
+                inputPipe.close();
+                pager.stdin = null;
+            }
+            try inputPipe.writer().writeAll(str);
+        }
+
+        _ = try pager.wait();
     }
 };
