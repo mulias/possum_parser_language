@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v25
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: nicknovitski/nix-develop@v1
+      - run: ./bin/test-all
+      - run: zig build release
+      - uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          files: |
+            zig-out/bin/possum.wasm
+            zig-out/bin/possum_aarch64-macos
+            zig-out/bin/possum_x86_64-macos
+            zig-out/bin/possum_x86_64-linux-gnu
+            zig-out/bin/possum_x86_64-linux-musl
