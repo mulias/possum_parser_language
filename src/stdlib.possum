@@ -283,3 +283,10 @@ _Reject(Array, Pred, Acc) =
   Acc
 
 IsNull(V) = V -> null
+
+Tabular(Headers, Rows) = _Tabular(Headers, Rows, [])
+
+_Tabular(Headers, Rows, Acc) =
+  Rows -> [Row, ...Rest] ?
+  _Tabular(Headers, Rest, [...Acc, ZipIntoObject(Headers, Row)]) :
+  Acc

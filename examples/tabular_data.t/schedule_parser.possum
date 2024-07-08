@@ -1,0 +1,8 @@
+input(schedule)
+
+schedule = table_sep(token, spaces, nl) -> Table $ Schedule(Table)
+
+Schedule(Table) =
+  Table -> [Weekdays, ...Rows] &
+  TransposeTable(Rows) -> [Hours, ...SubjectRows] &
+  ZipIntoObject(Weekdays, Tabular(Hours, SubjectRows))

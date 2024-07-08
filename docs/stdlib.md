@@ -124,3 +124,4 @@ These parsers and value functions are always available in Possum programs, unles
 | `RotateTableClockwise(T)` | Rotate an array of arrays 90 degrees clockwise |
 | `Reject(A, Pred)`  | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` succeeds |
 | `IsNull(V)`        | Succeeds and returns `V` if the value is `null`, otherwise fails |
+| `Tabular(Headers, Rows)` | Transform an array of `Rows` into an array of objects where each column is paired with its header from `Headers` |

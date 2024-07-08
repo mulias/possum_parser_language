@@ -1814,4 +1814,64 @@
   0003    | Destructure
   0004    | End
   ========================================
+  
+  ================Tabular=================
+  0000  287 GetConstant 0: _Tabular
+  0002    | GetBoundLocal 0
+  0004    | GetBoundLocal 1
+  0006    | GetConstant 1: []
+  0008    | CallTailFunction 3
+  0010    | End
+  ========================================
+  
+  ================_Tabular================
+  0000  290 GetConstant 0: Row
+  0002    | GetConstant 1: Rest
+  0004    | SetInputMark
+  0005    | GetBoundLocal 1
+  0007    | GetConstant 2: [_]
+  0009    | GetLocal 4
+  0011    | PrepareMergePattern 2
+  0013    | JumpIfFailure 13 -> 52
+  0016    | GetConstant 3: [_]
+  0018    | Destructure
+  0019    | JumpIfFailure 19 -> 36
+  0022    | GetAtIndex 0
+  0024    | GetLocal 3
+  0026    | Destructure
+  0027    | JumpIfFailure 27 -> 34
+  0030    | Pop
+  0031    | JumpIfSuccess 31 -> 36
+  0034    | Swap
+  0035    | Pop
+  0036    | JumpIfFailure 36 -> 50
+  0039    | Pop
+  0040    | GetLocal 4
+  0042    | Destructure
+  0043    | JumpIfFailure 43 -> 50
+  0046    | Pop
+  0047    | JumpIfSuccess 47 -> 52
+  0050    | Swap
+  0051    | Pop
+  0052    | ConditionalThen 52 -> 90
+  0055  291 GetConstant 4: _Tabular
+  0057    | GetBoundLocal 0
+  0059    | GetBoundLocal 4
+  0061    | GetConstant 5: []
+  0063    | JumpIfFailure 63 -> 69
+  0066    | GetBoundLocal 2
+  0068    | Merge
+  0069    | JumpIfFailure 69 -> 85
+  0072    | GetConstant 6: [_]
+  0074    | GetConstant 7: ZipIntoObject
+  0076    | GetBoundLocal 0
+  0078    | GetBoundLocal 3
+  0080    | CallFunction 2
+  0082    | InsertAtIndex 0
+  0084    | Merge
+  0085    | CallTailFunction 3
+  0087    | ConditionalElse 87 -> 92
+  0090  292 GetBoundLocal 2
+  0092  290 End
+  ========================================
 
