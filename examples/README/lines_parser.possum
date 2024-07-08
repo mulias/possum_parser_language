@@ -1,0 +1,3 @@
+  point = tuple2_sep(int, ",", int)
+  line = record2_sep("from", point, " -> ", "to", point)
+  array_sep(line, nl)

@@ -27,7 +27,7 @@ Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
   96,27,77,38,49,94,47,9,65,28,59,79,6,29,61,53,11,17,73,99,25,89,51,7,33,85,70
 
 
-  $ possum -p 'table_sep(int, ",", nl)' numbers.txt
+  $ possum --parser='table_sep(int, ",", nl)' numbers.txt
   [
     [
       31, 88, 35, 24, 46, 48, 95, 42, 18, 43, 71, 32, 92, 62, 97, 63, 50, 2,
@@ -89,17 +89,17 @@ Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
   program = array_sep(expr, maybe(ws))
 
   expr =
-    node("apply", apply) |
-    node("atom", atom) |
+    node("apply", apply)   |
     node("number", number) |
-    node("string", string)
+    node("string", string) |
+    node("atom", atom)
 
   apply = "(" > maybe_array_sep(expr, maybe(ws)) < ")"
 
-  atom_char = unless(char, "(" | ")" | '"')
+  atom_char = unless(char, "(" | ")" | '"' | ws)
   atom = many(atom_char)
 
-  string = '"' > maybe(until(char, '"')) < '"'
+  string = '"' > default(many_until(char, '"'), "") < '"'
 
   node(Type, p) = p -> Value $ {"type": Type, "value": Value}
 
@@ -120,6 +120,7 @@ Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
         ...
       ]
     },
+    ...
     {
       "type": "apply",
       "value": [
@@ -145,11 +146,11 @@ Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
     N -> 1 ? 1 :
     Fib(N - 1) + Fib(N - 2)
 
-  int -> N $ Fib(N)
+  int -> N $ "Fibonacci of %(N) is %(Fib(N))"
 
 
   $ possum fibonacci.possum --input=10
-  55
+  "Fibonacci of 10 is 55"
 ```
 
 ## Installation

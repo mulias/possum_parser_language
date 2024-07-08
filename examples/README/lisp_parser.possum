@@ -1,0 +1,18 @@
+input(program)
+
+program = array_sep(expr, maybe(ws))
+
+expr =
+  node("apply", apply)   |
+  node("number", number) |
+  node("string", string) |
+  node("atom", atom)
+
+apply = "(" > maybe_array_sep(expr, maybe(ws)) < ")"
+
+atom_char = unless(char, "(" | ")" | '"' | ws)
+atom = many(atom_char)
+
+string = '"' > default(many_until(char, '"'), "") < '"'
+
+node(Type, p) = p -> Value $ {"type": Type, "value": Value}
