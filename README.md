@@ -1,17 +1,17 @@
 # Possum Parser Language
 
-Possum is a domain specific language for parsing arbitrary text into JSON. A
-Possum program describes both the expected input format and the desired output
-format of data by composing simple parser functions to create larger and more
-complex parsers. Possum is inspired by a number of languages and tools
-including [Awk], Haskell's [Parsec] library, [Definite Clause Grammars] in
-Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
+Possum is a domain-specific language designed for parsing text into JSON. You can use Possum for tasks ranging from single-line scripts for data extraction to quickly prototyping a new programming language syntax. The language aims to make parsing friendly and fun, and uses a minimal feature set to write declarative programs that are both compact and readable.
 
-[Awk]: https://en.wikipedia.org/wiki/AWK
+Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as tools such as Haskell's [Parsec] library, [Definite Clause Grammars] in Prolog, [jq], [Parser Expression Grammars] in [many] [languages], and [Rosie Pattern Language].
+
+[AWK]: https://en.wikipedia.org/wiki/AWK
+[sed]: https://en.wikipedia.org/wiki/Sed
 [Parsec]: https://hackage.haskell.org/package/parsec
 [Definite Clause Grammars]: https://en.wikipedia.org/wiki/Definite_clause_grammar
 [jq]: https://stedolan.github.io/jq/
 [Parser Expression Grammars]: https://en.wikipedia.org/wiki/Parsing_expression_grammar
+[many]: https://docs.rs/peg/latest/peg/
+[languages]: https://janet-lang.org/docs/peg.html
 [Rosie Pattern Language]: https://rosie-lang.org/
 
 ## Examples
@@ -155,34 +155,36 @@ Prolog, [jq], [Parser Expression Grammars], and [Rosie Pattern Language].
 
 ## Installation
 
-The prototype version of Possum is still available on the [Github releases page].
-The new implementation does not yet have precompiled binaries, but can be built
-from source via `zig build`.
+Precompiled binaries are available on the [Github releases page].
 
-[github releases page]: https://github.com/mulias/possum_parser_language/releases
+To build from source with Nix run `nix develop` to enter a shell environment with the necessary dependencies. To build from source without Nix you'll need to first install the dependencies specified in `flake.nix`. Run `zig build --release=safe` to produce the binary `zig-out/bin/possum`, and run `zig build --help` to view other options.
+
+[github releases page]: https://github.com/mulias/possum_parser_language/releases/latest
 
 ## Documentation
 
-- [`overview`]: Example-based guide covering Possum's main features.
-- [`advanced`]: Continuation of the example-based guide, focusing on more
-    specialized and situational functionality.
-- [`language`]: Condensed reference for the core language.
-- [`cli`]: Using Possum from the command line.
-- [`stdlib`]: Possum standard library reference.
+The official Possum docs are included in this repository and baked in to the Possum cli tool:
+
+* [`overview`] - Example-based guide covering Possum's main features.
+* [`advanced`] - Continuation of the example-based guide, focusing on more specialized and situational functionality.
+* [`language`] - Condensed reference for the core language.
+* [`cli`] - Using Possum from the command line.
+* [`stdlib`] - Possum standard library reference.
+
+Some other helpful resources:
+
+* [`examples` directory] features a number of parsing use cases, including [Advent of Code] puzzle input parsers.
+* [Blog posts about Possum]
 
 [`overview`]: docs/overview.md
 [`advanced`]: docs/advanced.md
 [`language`]: docs/language.md
 [`cli`]: docs/cli.txt
 [`stdlib`]: docs/stdlib.md
+[`examples` directory]: examples/
+[Advent of Code]: https://adventofcode.com/
+[Blog posts about Possum]: https://mulias.github.io/tags/possum/
 
 ## `~~~(##)'>` Regarding Possums
 
-It's a well known fact that your computer is full of little guys who run around
-and make all the things you want happen. These little guys come in all shapes
-and sizes and are good at doing many different things. In this case the little
-guy making your program work is a possum. They rustle through your text files
-and forage for the bits of data you want to keep and store those in their pouch.
-Once they've carefully looked behind every stone and under each newline they
-arrange everything they've collected as nicely formatted JSON. What a helpful
-little guy!
+It's a well known fact that your computer is full of little guys who run around and make all the things you want happen. These little guys come in all shapes and sizes and are good at doing many different things. In this case the little guy making your program work is a possum. They rustle through your text files and forage for the bits of data you want to keep and store those in their pouch. Once they've carefully looked behind every stone and under each newline they arrange everything they've collected as nicely formatted JSON. What a helpful little guy!
