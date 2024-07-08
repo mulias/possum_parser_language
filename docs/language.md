@@ -51,6 +51,10 @@ Infix operators compose parsers in order to create more complex parsers.
 
 Operators with a higher precedence are evaluated first, and parsers with the same precedence are generally evaluated left to right. Conditionals are right associative so that multiple conditions can be chained in a row.
 
+## Parser Interpolation for Strings
+
+TODO
+
 ## Constructing Values
 
 Values are produced by successfully matching parsers against an input. In many cases the value is implicit, for example we know that the parser `123 | 456` will either return the value `123`, `456`, or fail. In a few cases values can be used explicit:
@@ -79,6 +83,7 @@ Constructed values can be any valid JSON data, including arrays, objects, `true`
 | -------------------------- | -------------------------------------- |
 | `Var`                      | Variable for a value                   |
 | `"string"`                 | String literal                         |
+| `"My name is %(MyName)"`   | String interpolation                   |
 | `123`                      | Integer literal                        |
 | `-1.334e23`                | Number literal                         |
 | `1 + 2e-4`                 | Number arithmetic                      |
@@ -216,9 +221,7 @@ _ReverseArray(A, Acc) =
   Acc
 ```
 
-This syntax may seem surprising, since up until now the infix operators have only been used to compose parsers. Value functions are, in practice, syntactic sugar for parsers that never consume input and always return a desired value.
-
-We can de-sugar the previous example by replacing every instance of a value `V` in a parser-only position with a constant parser `"" $ V`.
+This syntax may seem surprising, since up until now the infix operators have only been used to compose parsers. Value functions are, in practice, syntactic sugar for parsers that never consume input and always return a desired value. We can de-sugar the previous example by replacing every instance of a value `V` in a parser-only position with a constant parser `"" $ V`.
 ```
 my_reverse = my_reverse
 
@@ -237,7 +240,6 @@ _reverse_array(A, Acc) =
   _reverse_array(Rest, [...Acc, First]) :
   "" $ Acc
 ```
-Allowing named values to use the same infix operators is a simplification of this pattern, and provides the guarantee that functions such as `Reverse` will not consume input, which is not immediately clear when using `reverse` as a parser.
 
 ## Meta Functions
 
