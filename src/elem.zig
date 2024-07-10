@@ -4,6 +4,7 @@ const ArrayList = std.ArrayList;
 const AutoArrayHashMap = std.AutoArrayHashMap;
 const Tuple = std.meta.Tuple;
 const json = std.json;
+const json_pretty = @import("json_pretty.zig");
 const unicode = std.unicode;
 const Chunk = @import("chunk.zig").Chunk;
 const StringBuffer = @import("string_buffer.zig").StringBuffer;
@@ -463,7 +464,7 @@ pub const Elem = union(ElemType) {
                 },
                 .Array => {
                     const array = dyn.asArray();
-                    var jsonArray = ArrayList(json.Value).init(allocator);
+                    var jsonArray = json.Array.init(allocator);
                     try jsonArray.ensureTotalCapacity(array.elems.items.len);
 
                     for (array.elems.items) |item| {
@@ -474,7 +475,7 @@ pub const Elem = union(ElemType) {
                 },
                 .Object => {
                     var object = dyn.asObject();
-                    var jsonObject = std.StringArrayHashMap(json.Value).init(allocator);
+                    var jsonObject = json.ObjectMap.init(allocator);
                     try jsonObject.ensureTotalCapacity(object.members.count());
 
                     var iterator = object.members.iterator();
@@ -499,16 +500,12 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn writeJson(self: Elem, allocator: Allocator, strings: StringTable, outstream: anytype) !void {
-        const j = try self.toJson(allocator, strings);
-        try json.stringify(j, .{}, outstream);
-    }
-
-    pub fn printJson(self: Elem, opts: json.StringifyOptions, allocator: Allocator, writer: VMWriter, strings: StringTable) !void {
+    pub fn writeJson(self: Elem, format: json_pretty.Format, allocator: Allocator, strings: StringTable, outstream: anytype) !void {
         var arena = std.heap.ArenaAllocator.init(allocator);
         defer arena.deinit();
-        const jsonValue = try self.toJson(arena.allocator(), strings);
-        try json.stringify(jsonValue, opts, writer);
+
+        const j = try self.toJson(arena.allocator(), strings);
+        try json_pretty.stringify(j, format, outstream);
     }
 
     pub const DynType = enum {

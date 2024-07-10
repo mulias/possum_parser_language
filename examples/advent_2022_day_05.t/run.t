@@ -4,82 +4,29 @@ https://adventofcode.com/2022/day/5
   $ possum $TESTDIR/input.rows_parser $TESTDIR/input.txt
   {
     "cargo_rows": [
-      [
-        null,
-        "D",
-        null
-      ],
-      [
-        "N",
-        "C",
-        null
-      ],
-      [
-        "Z",
-        "M",
-        "P"
-      ]
+      [ null, "D", null ],
+      [ "N", "C", null ],
+      [ "Z", "M", "P" ]
     ],
     "steps": [
-      {
-        "count": 1,
-        "from": "2",
-        "to": "1"
-      },
-      {
-        "count": 3,
-        "from": "1",
-        "to": "3"
-      },
-      {
-        "count": 2,
-        "from": "2",
-        "to": "1"
-      },
-      {
-        "count": 1,
-        "from": "1",
-        "to": "2"
-      }
+      { "count": 1, "from": "2", "to": "1" },
+      { "count": 3, "from": "1", "to": "3" },
+      { "count": 2, "from": "2", "to": "1" },
+      { "count": 1, "from": "1", "to": "2" }
     ]
   }
 
   $ possum $TESTDIR/input.stacks_parser $TESTDIR/input.txt
   {
     "stacks": {
-      "1": [
-        "N",
-        "Z"
-      ],
-      "2": [
-        "D",
-        "C",
-        "M"
-      ],
-      "3": [
-        "P"
-      ]
+      "1": [ "N", "Z" ],
+      "2": [ "D", "C", "M" ],
+      "3": [ "P" ]
     },
     "steps": [
-      {
-        "count": 1,
-        "from": "2",
-        "to": "1"
-      },
-      {
-        "count": 3,
-        "from": "1",
-        "to": "3"
-      },
-      {
-        "count": 2,
-        "from": "2",
-        "to": "1"
-      },
-      {
-        "count": 1,
-        "from": "1",
-        "to": "2"
-      }
+      { "count": 1, "from": "2", "to": "1" },
+      { "count": 3, "from": "1", "to": "3" },
+      { "count": 2, "from": "2", "to": "1" },
+      { "count": 1, "from": "1", "to": "2" }
     ]
   }

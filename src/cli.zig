@@ -66,7 +66,7 @@ pub const CLI = struct {
             if (parsed == .Failure) {
                 try self.writers.err.print("Parser Failure\n", .{});
             } else {
-                try parsed.printJson(.{ .whitespace = .indent_2 }, self.allocator, self.writers.out, vm.strings);
+                try parsed.writeJson(.Pretty, self.allocator, vm.strings, self.writers.out);
                 try self.writers.out.print("\n", .{});
             }
         } else {

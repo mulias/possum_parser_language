@@ -458,7 +458,7 @@ pub const VM = struct {
                         value = try Elem.Dyn.String.copy(self, bytes);
                     } else {
                         var bytes = ArrayList(u8).init(self.allocator);
-                        try lhs.writeJson(self.allocator, self.strings, bytes.writer());
+                        try lhs.writeJson(.Compact, self.allocator, self.strings, bytes.writer());
                         defer bytes.deinit();
 
                         value = try Elem.Dyn.String.copy(self, bytes.items);
@@ -471,7 +471,7 @@ pub const VM = struct {
                         try value.concatBytes(bytes);
                     } else {
                         var bytes = ArrayList(u8).init(self.allocator);
-                        try rhs.writeJson(self.allocator, self.strings, bytes.writer());
+                        try rhs.writeJson(.Compact, self.allocator, self.strings, bytes.writer());
                         defer bytes.deinit();
 
                         try value.concatBytes(bytes.items);
