@@ -29,12 +29,11 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
 
   $ possum --parser='table_sep(int, ",", nl)' numbers.txt
   [
-    [
-      31, 88, 35, 24, 46, 48, 95, 42, 18, 43, 71, 32, 92, 62, 97, 63, 50, 2,
-      60, 58, 74, 66
-    ],
-    [ 15, 87, 57, 34, 14, 3, 54, 93, 75, 22, 45, 10 ],
-    ...
+    [31, 88, 35, 24, 46, 48, 95, 42, 18, 43, 71, 32, 92, 62, 97, 63, 50, 2, 60, 58, 74, 66],
+    [15, 87, 57, 34, 14, 3, 54, 93, 75, 22, 45, 10],
+    [56, 12, 83, 30, 8, 76, 1, 78, 82, 39, 98, 37, 19, 26, 81, 64, 55, 41, 16, 4, 72, 5],
+    [52, 80, 84, 67, 21, 86, 23, 91, 0, 68, 36, 13, 44, 20, 69, 40, 90],
+    [96, 27, 77, 38, 49, 94, 47, 9, 65, 28, 59, 79, 6, 29, 61, 53, 11, 17, 73, 99, 25, 89, 51, 7, 33, 85, 70]
   ]
 ```
 
@@ -62,10 +61,18 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
 
   $ possum lines_parser.possum lines.txt
   [
-    { "from": [ 8, 0 ], "to": [ 0, 8 ] },
-    { "from": [ 0, 9 ], "to": [ 5, 9 ] },
-    { "from": [ 9, 4 ], "to": [ 3, 4 ] },
-    { "from": [ 2, 2 ], "to": [ 2, 1 ] },
+    {
+      "from": [8, 0],
+      "to": [0, 8]
+    },
+    {
+      "from": [0, 9],
+      "to": [5, 9]
+    },
+    {
+      "from": [9, 4],
+      "to": [3, 4]
+    },
     ...
   ]
 ```
@@ -109,12 +116,12 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
     {
       "type": "apply",
       "value": [
-        { "type": "atom", "value": "define" },
+        {"type": "atom", "value": "define"},
         {
           "type": "apply",
           "value": [
-            { "type": "atom", "value": "fib" },
-            { "type": "atom", "value": "n" }
+            {"type": "atom", "value": "fib"},
+            {"type": "atom", "value": "n"}
           ]
         },
         ...
@@ -124,12 +131,12 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
     {
       "type": "apply",
       "value": [
-        { "type": "atom", "value": "display" },
+        {"type": "atom", "value": "display"},
         {
           "type": "apply",
           "value": [
-            { "type": "atom", "value": "fib" },
-            { "type": "number", "value": 10 }
+            {"type": "atom", "value": "fib"},
+            {"type": "number", "value": 10}
           ]
         }
       ]

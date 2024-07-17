@@ -4,54 +4,54 @@ https://adventofcode.com/2022/day/13
   $ possum $TESTDIR/input.parser $TESTDIR/input.txt
   [
     {
-      "left": [ 1, 1, 3, 1, 1 ],
-      "right": [ 1, 1, 5, 1, 1 ]
+      "left": [1, 1, 3, 1, 1],
+      "right": [1, 1, 5, 1, 1]
     },
     {
       "left": [
-        [ 1 ],
-        [ 2, 3, 4 ]
+        [1],
+        [2, 3, 4]
       ],
       "right": [
-        [ 1 ],
+        [1],
         4
       ]
     },
     {
-      "left": [ 9 ],
+      "left": [9],
       "right": [
-        [ 8, 7, 6 ]
+        [8, 7, 6]
       ]
     },
     {
       "left": [
-        [ 4, 4 ],
+        [4, 4],
         4,
         4
       ],
       "right": [
-        [ 4, 4 ],
+        [4, 4],
         4,
         4,
         4
       ]
     },
     {
-      "left": [ 7, 7, 7, 7 ],
-      "right": [ 7, 7, 7 ]
+      "left": [7, 7, 7, 7],
+      "right": [7, 7, 7]
     },
     {
-      "left": [  ],
-      "right": [ 3 ]
+      "left": [],
+      "right": [3]
     },
     {
       "left": [
         [
-          [  ]
+          []
         ]
       ],
       "right": [
-        [  ]
+        []
       ]
     },
     {
@@ -63,7 +63,7 @@ https://adventofcode.com/2022/day/13
             3,
             [
               4,
-              [ 5, 6, 7 ]
+              [5, 6, 7]
             ]
           ]
         ],
@@ -78,7 +78,7 @@ https://adventofcode.com/2022/day/13
             3,
             [
               4,
-              [ 5, 6, 0 ]
+              [5, 6, 0]
             ]
           ]
         ],

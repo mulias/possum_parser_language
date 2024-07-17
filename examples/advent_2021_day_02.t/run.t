@@ -3,10 +3,10 @@ https://adventofcode.com/2021/day/2
 
   $ possum $TESTDIR/input.parser $TESTDIR/input.txt
   [
-    { "direction": "forward", "magnitude": 5 },
-    { "direction": "down", "magnitude": 5 },
-    { "direction": "forward", "magnitude": 8 },
-    { "direction": "up", "magnitude": 3 },
-    { "direction": "down", "magnitude": 8 },
-    { "direction": "forward", "magnitude": 2 }
+    {"direction": "forward", "magnitude": 5},
+    {"direction": "down", "magnitude": 5},
+    {"direction": "forward", "magnitude": 8},
+    {"direction": "up", "magnitude": 3},
+    {"direction": "down", "magnitude": 8},
+    {"direction": "forward", "magnitude": 2}
   ]

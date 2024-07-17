@@ -39,7 +39,6 @@ pub fn WriteStream(comptime OutStream: type) type {
                     const use_indent = self.useIndentation(value);
 
                     try self.stream.writeByte('[');
-                    if (self.format == .Pretty and !use_indent) try self.stream.writeByte(' ');
 
                     self.indent_level += 1;
 
@@ -56,14 +55,12 @@ pub fn WriteStream(comptime OutStream: type) type {
                     self.indent_level -= 1;
                     if (use_indent and a.items.len > 0) try self.writeIndentation();
 
-                    if (self.format == .Pretty and !use_indent) try self.stream.writeByte(' ');
                     try self.stream.writeByte(']');
                 },
                 .object => |o| {
                     const use_indent = self.useIndentation(value);
 
                     try self.stream.writeByte('{');
-                    if (self.format == .Pretty and !use_indent) try self.stream.writeByte(' ');
 
                     self.indent_level += 1;
 
@@ -88,7 +85,6 @@ pub fn WriteStream(comptime OutStream: type) type {
                     self.indent_level -= 1;
                     if (use_indent and count > 0) try self.writeIndentation();
 
-                    if (self.format == .Pretty and !use_indent) try self.stream.writeByte(' ');
                     try self.stream.writeByte('}');
                 },
             }

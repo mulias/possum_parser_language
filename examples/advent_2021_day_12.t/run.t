@@ -3,12 +3,12 @@ https://adventofcode.com/2021/day/12
 
   $ possum -p 'input(table_sep(alphas, "-", nl))' $TESTDIR/input.txt
   [
-    [ "start", "A" ],
-    [ "start", "b" ],
-    [ "A", "c" ],
-    [ "A", "b" ],
-    [ "b", "d" ],
-    [ "A", "end" ],
-    [ "b", "end" ]
+    ["start", "A"],
+    ["start", "b"],
+    ["A", "c"],
+    ["A", "b"],
+    ["b", "d"],
+    ["A", "end"],
+    ["b", "end"]
   ]
 
