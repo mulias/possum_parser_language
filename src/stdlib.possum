@@ -304,7 +304,7 @@ Reverse(Array) = _Reverse(Array, [])
 
 _Reverse(Array, Acc) =
   Array -> [First, ...Rest] ?
-  _Reverse(Rest, [...Acc, First]) :
+  _Reverse(Rest, [First, ...Acc]) :
   Acc
 
 Reject(Array, Pred) = _Reject(Array, Pred, [])

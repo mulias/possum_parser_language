@@ -1946,22 +1946,19 @@
   0047    | JumpIfSuccess 47 -> 52
   0050    | Swap
   0051    | Pop
-  0052    | ConditionalThen 52 -> 82
+  0052    | ConditionalThen 52 -> 76
   0055  307 GetConstant 4: _Reverse
   0057    | GetBoundLocal 3
-  0059    | GetConstant 5: []
-  0061    | JumpIfFailure 61 -> 67
-  0064    | GetBoundLocal 1
-  0066    | Merge
-  0067    | JumpIfFailure 67 -> 77
-  0070    | GetConstant 6: [_]
-  0072    | GetBoundLocal 2
-  0074    | InsertAtIndex 0
-  0076    | Merge
-  0077    | CallTailFunction 2
-  0079    | ConditionalElse 79 -> 84
-  0082  308 GetBoundLocal 1
-  0084  306 End
+  0059    | GetConstant 5: [_]
+  0061    | GetBoundLocal 2
+  0063    | InsertAtIndex 0
+  0065    | JumpIfFailure 65 -> 71
+  0068    | GetBoundLocal 1
+  0070    | Merge
+  0071    | CallTailFunction 2
+  0073    | ConditionalElse 73 -> 78
+  0076  308 GetBoundLocal 1
+  0078  306 End
   ========================================
   
   =================Reject=================

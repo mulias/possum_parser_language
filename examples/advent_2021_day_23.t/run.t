@@ -3,9 +3,9 @@ https://adventofcode.com/2021/day/23
 
   $ possum $TESTDIR/input.parser $TESTDIR/input.txt
   [
-    ["B", "A"],
-    ["C", "D"],
-    ["B", "C"],
-    ["D", "A"]
+    ["A", "B"],
+    ["D", "C"],
+    ["C", "B"],
+    ["A", "D"]
   ]
 

@@ -19,8 +19,8 @@ https://adventofcode.com/2022/day/5
   $ possum $TESTDIR/input.stacks_parser $TESTDIR/input.txt
   {
     "stacks": {
-      "1": ["N", "Z"],
-      "2": ["D", "C", "M"],
+      "1": ["Z", "N"],
+      "2": ["M", "C", "D"],
       "3": ["P"]
     },
     "steps": [
