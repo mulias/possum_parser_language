@@ -1,3 +1,2 @@
-list = "[" > maybe_array_sep(int | list, ",") < "]"
-pair = list -> L & nl & list -> R $ {"left": L, "right": R}
-array_sep(pair, ws)
+pair = record2_sep("left", json_array, nl, "right", json_array)
+array_sep(pair, nl+nl)

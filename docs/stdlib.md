@@ -29,6 +29,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `nls`              | Alias for `newlines`       | As above                   |
 | `whitespace`       | One or more space, tab, or newline characters | Matched string |
 | `ws`               | Alias for `whitespace`     | As above                   |
+| `json_string`      | Valid JSON string          | Matched string contents, not including quotes |
 
 ## Number Parsers
 
@@ -71,6 +72,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `tuple3_sep(elem1, sep1, elem2, sep2, elem3)` | Runs three element parsers, interspersed with `sep` | Array of length 3 containing parsed elements |
 | `table_sep(elem, sep, row_sep)` | One or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem` |
 | `maybe_table_sep(elem, sep, row_sep)` | Zero or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem`, maybe empty |
+| `json_array`       | Valid JSON array           | Array of arbitrary values |
 
 ## Object Parsers
 
@@ -86,6 +88,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `record2_sep(Key1, value1, sep, Key2, value2)` | Parses `value1`, `sep`, and then `value2` | Object with `Key1` associated to the parsed `value1`, etc |
 | `record3(Key1, value1, Key2, value2, Key3, value3)` | Runs three value parsers in order | Object with `Key1` associated to the parsed `value1`, etc |
 | `record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3)` | Runs three value parsers, interspersed with `sep` | Object with `Key1` associated to the parsed `value1`, etc |
+| `json_object`     | Valid JSON object          | Object with arbitrary values |
 
 ## Utility Parsers
 
@@ -110,6 +113,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `end_of_input`     | End of string or file input | `null` |
 | `end`              | Alias for `end_of_input`   | As above |
 | `input(p)`         | Strips leading and trailing whitespace, succeeds if `p` parses to end of input | Result of `p` |
+| `json`             | Any valid JSON             | Matched JSON               |
 
 ## Value Functions
 

@@ -240,6 +240,38 @@ record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3) =
   value3 -> V3 $
   {Key1: V1, Key2: V2, Key3: V3}
 
+json =
+  boolean("true", "false") |
+  null("null") |
+  number |
+  json_string |
+  json_array |
+  json_object
+
+json_string = '"' > _json_string("")
+
+_json_string(Acc) =
+  '"' ?
+  const(Acc) :
+  _escape_char | _escape_unicode | unless(char, `\`) -> Next &
+  _json_string(Acc + Next)
+
+_escape_char = `\"` | `\\` | `\/` | `\b` | `\f` | `\n` | `\r` | `\t`
+
+_escape_unicode = `\u`+ _hex + _hex + _hex + _hex
+
+_hex = digit | "a".."f" | "A".."F"
+
+json_array = "[" > maybe_array_sep(surround(json, maybe(ws)), ",") < "]"
+
+json_object =
+  "{" >
+  maybe_object_sep(
+    surround(json_string, maybe(ws)), ":",
+    surround(json, maybe(ws)), ","
+  )
+  < "}"
+
 ZipIntoObject(Keys, Values) = _ZipIntoObject(Keys, Values, {})
 
 _ZipIntoObject(Keys, Values, Acc) =
