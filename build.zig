@@ -4,11 +4,12 @@ const Target = std.Target;
 const SemanticVersion = std.SemanticVersion;
 
 pub fn build(b: *Build) void {
-    const default_target = b.standardTargetOptions(.{});
-    const default_optimize = b.standardOptimizeOption(.{});
+    const t = b.standardTargetOptions(.{});
+    const o = b.standardOptimizeOption(.{});
 
-    runStep(b, default_target, default_optimize);
-    testStep(b, default_target, default_optimize);
+    runStep(b, t, o);
+    checkStep(b, t, o);
+    testStep(b, t, o);
     releaseStep(b);
 }
 
@@ -95,6 +96,12 @@ fn runStep(b: *Build, target: anytype, optimize: anytype) void {
     if (b.args) |args| run_cli.addArgs(args);
 
     run_step.dependOn(&run_cli.step);
+}
+
+fn checkStep(b: *Build, target: anytype, optimize: anytype) void {
+    const check_step = b.step("check", "Check for compilation errors");
+    const check_cli = addCliExecutable(b, "possum", target, optimize);
+    check_step.dependOn(&check_cli.step);
 }
 
 fn testStep(b: *Build, target: anytype, optimize: anytype) void {
