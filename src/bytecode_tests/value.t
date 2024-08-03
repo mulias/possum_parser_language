@@ -204,3 +204,18 @@
   0012    | CallFunction 1
   0014    | End
   ========================================
+
+  $ possum -p '"" $ "%(1 + 1)"' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: ""
+  0002    | CallFunction 0
+  0004    | TakeRight 4 -> 18
+  0007    | GetConstant 1: ""
+  0009    | GetConstant 2: 1
+  0011    | JumpIfFailure 11 -> 17
+  0014    | GetConstant 3: 1
+  0016    | Merge
+  0017    | MergeAsString
+  0018    | End
+  ========================================
