@@ -288,13 +288,14 @@ pub const Parser = struct {
                             return self.errorAtPrevious("Character range is not ordered");
                         }
 
-                        return self.ast.pushElem(
-                            try Elem.characterRange(c1, c2),
-                            Location.new(
-                                t1.loc.line,
-                                t1.loc.start,
-                                t1.loc.length + t2.loc.length + 2,
-                            ),
+                        const intNode1 = try self.ast.pushElem(Elem.integer(@as(u21, @intCast(c1))), t1.loc);
+                        const intNode2 = try self.ast.pushElem(Elem.integer(@as(u21, @intCast(c2))), t2.loc);
+
+                        return self.ast.pushInfix(
+                            .CharacterRange,
+                            intNode1,
+                            intNode2,
+                            Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
                         );
                     }
                 }

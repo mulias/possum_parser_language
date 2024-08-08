@@ -20,7 +20,6 @@ pub const ElemType = enum {
     NumberString,
     Integer,
     Float,
-    CharacterRange,
     Boolean,
     Null,
     Failure,
@@ -40,7 +39,6 @@ pub const Elem = union(ElemType) {
     NumberString: struct { sId: StringTable.Id, format: NumberStringFormat },
     Integer: i64,
     Float: f64,
-    CharacterRange: struct { low: u21, lowLength: u3, high: u21, highLength: u3 },
     Boolean: bool,
     Null: void,
     Failure: void,
@@ -70,15 +68,6 @@ pub const Elem = union(ElemType) {
         return Elem{ .Float = f };
     }
 
-    pub fn characterRange(low: u21, high: u21) !Elem {
-        return Elem{ .CharacterRange = .{
-            .low = low,
-            .lowLength = try unicode.utf8CodepointSequenceLength(low),
-            .high = high,
-            .highLength = try unicode.utf8CodepointSequenceLength(high),
-        } };
-    }
-
     pub fn boolean(b: bool) Elem {
         return Elem{ .Boolean = b };
     }
@@ -95,7 +84,6 @@ pub const Elem = union(ElemType) {
             .NumberString => |n| try writer.print("{s}", .{strings.get(n.sId)}),
             .Integer => |i| try writer.print("{d}", .{i}),
             .Float => |f| try writer.print("{d}", .{f}),
-            .CharacterRange => |r| try writer.print("\"{u}\"..\"{u}\"", .{ r.low, r.high }),
             .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
             .Null => try writer.print("null", .{}),
             .Failure => try writer.print("@Failure", .{}),
@@ -196,10 +184,6 @@ pub const Elem = union(ElemType) {
                 .Float => |float2| float1 == float2,
                 else => false,
             },
-            .CharacterRange => |r1| switch (other) {
-                .CharacterRange => |r2| r1.low == r2.low and r1.high == r2.high,
-                else => false,
-            },
             .Boolean => |b1| switch (other) {
                 .Boolean => |b2| b1 == b2,
                 else => false,
@@ -247,7 +231,6 @@ pub const Elem = union(ElemType) {
             => return value.isEql(pattern, strings),
             .ValueVar,
             .ParserVar,
-            .CharacterRange,
             => @panic("Internal error"),
             .Dyn => |dyn| switch (dyn.dynType) {
                 .String => return value.isEql(pattern, strings),
@@ -362,7 +345,6 @@ pub const Elem = union(ElemType) {
                 .Float => |float2| float(float1 + float2),
                 else => null,
             },
-            .CharacterRange => unreachable,
             .Boolean => |b1| switch (elemB) {
                 .Boolean => |b2| boolean(b1 or b2),
                 else => null,
@@ -530,7 +512,6 @@ pub const Elem = union(ElemType) {
             },
             .ParserVar,
             .ValueVar,
-            .CharacterRange,
             .Failure,
             => @panic("Internal Error"),
         };

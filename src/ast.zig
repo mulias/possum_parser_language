@@ -24,6 +24,7 @@ pub const Ast = struct {
         ArrayHead,
         Backtrack,
         CallOrDefineFunction,
+        CharacterRange,
         ConditionalIfThen,
         ConditionalThenElse,
         DeclareGlobal,

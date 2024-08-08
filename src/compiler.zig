@@ -254,7 +254,6 @@ pub const Compiler = struct {
                 .Null,
                 => {},
                 .ParserVar,
-                .CharacterRange,
                 => return Error.InvalidGlobalValue,
                 .Dyn => |dyn| switch (dyn.dynType) {
                     .String,
@@ -276,7 +275,6 @@ pub const Compiler = struct {
                 .NumberString,
                 .Integer,
                 .Float,
-                .CharacterRange,
                 => {},
                 .ValueVar => return Error.InvalidGlobalParser,
                 .Dyn => |dyn| switch (dyn.dynType) {
@@ -423,6 +421,17 @@ pub const Compiler = struct {
                     try self.emitByte(lowId, lowLoc);
                     try self.emitByte(highId, highLoc);
                 },
+                .CharacterRange => {
+                    const lowLoc = self.ast.getLocation(infix.left);
+                    const highLoc = self.ast.getLocation(infix.right);
+                    const lowElem = self.ast.getElem(infix.left).?;
+                    const highElem = self.ast.getElem(infix.right).?;
+                    const lowId = try self.makeConstant(lowElem);
+                    const highId = try self.makeConstant(highElem);
+                    try self.emitOp(.ParseCharacterRange, loc);
+                    try self.emitByte(lowId, lowLoc);
+                    try self.emitByte(highId, highLoc);
+                },
                 .TakeLeft => {
                     try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
@@ -545,7 +554,6 @@ pub const Compiler = struct {
                     .NumberString,
                     .Integer,
                     .Float,
-                    .CharacterRange,
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -783,6 +791,10 @@ pub const Compiler = struct {
                     try self.printError("Integer range is not valid in pattern", loc);
                     return Error.InvalidAst;
                 },
+                .CharacterRange => {
+                    try self.printError("Character range is not valid in pattern", loc);
+                    return Error.InvalidAst;
+                },
                 .Merge,
                 .NumberSubtract,
                 .ArrayCons,
@@ -826,10 +838,6 @@ pub const Compiler = struct {
                 },
                 .Failure,
                 => unreachable, // not produced by the parser
-                .CharacterRange => {
-                    try self.printError("Character range is not valid in pattern", loc);
-                    return Error.InvalidAst;
-                },
                 .Dyn => |d| switch (d.dynType) {
                     .String,
                     .Function,
@@ -1077,6 +1085,10 @@ pub const Compiler = struct {
                     try self.printError("Integer range is not valid in value", loc);
                     return Error.InvalidAst;
                 },
+                .CharacterRange => {
+                    try self.printError("Character range is not valid in value", loc);
+                    return Error.InvalidAst;
+                },
                 .ArrayCons, // handled by writeArray
                 .ConditionalThenElse, // handled by ConditionalIfThen
                 .DeclareGlobal, // handled by top-level compiler functions
@@ -1126,10 +1138,6 @@ pub const Compiler = struct {
                 .Null => try self.emitOp(.Null, loc),
                 .Failure,
                 => unreachable, // not produced by the parser
-                .CharacterRange => {
-                    try self.printError("Character range is not valid in value", loc);
-                    return Error.InvalidAst;
-                },
                 .Dyn => |d| switch (d.dynType) {
                     .String,
                     .Function,

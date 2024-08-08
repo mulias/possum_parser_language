@@ -518,6 +518,13 @@ pub const VM = struct {
                     self.inputPos = resetPos;
                 }
             },
+            .ParseCharacterRange => {
+                const lowIdx = self.readByte();
+                const highIdx = self.readByte();
+                const low = self.chunk().getConstant(lowIdx).Integer;
+                const high = self.chunk().getConstant(highIdx).Integer;
+                try self.parseCharacterRange(@as(u21, @intCast(low)), @as(u21, @intCast(high)));
+            },
             .ParseIntegerRange => {
                 const lowIdx = self.readByte();
                 const highIdx = self.readByte();
@@ -632,27 +639,6 @@ pub const VM = struct {
                 }
                 try self.pushFailure();
             },
-            .CharacterRange => |r| {
-                assert(argCount == 0);
-                _ = self.pop();
-                const start = self.inputPos;
-
-                if (start < self.input.len) {
-                    const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
-                    const end = start + bytesLength;
-
-                    if (r.lowLength <= bytesLength and bytesLength <= r.highLength and end <= self.input.len) {
-                        const codepoint = try unicode.utf8Decode(self.input[start..end]);
-                        if (r.low <= codepoint and codepoint <= r.high) {
-                            self.inputPos = end;
-                            const string = try Elem.Dyn.String.copy(self, self.input[start..end]);
-                            try self.push(string.dyn.elem());
-                            return;
-                        }
-                    }
-                }
-                try self.pushFailure();
-            },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Function => {
                     var function = dyn.asFunction();
@@ -685,6 +671,28 @@ pub const VM = struct {
             },
             else => @panic("Internal error"),
         }
+    }
+
+    fn parseCharacterRange(self: *VM, low: u21, high: u21) !void {
+        const lowLength = try unicode.utf8CodepointSequenceLength(low);
+        const highLength = try unicode.utf8CodepointSequenceLength(high);
+        const start = self.inputPos;
+
+        if (start < self.input.len) {
+            const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
+            const end = start + bytesLength;
+
+            if (lowLength <= bytesLength and bytesLength <= highLength and end <= self.input.len) {
+                const codepoint = try unicode.utf8Decode(self.input[start..end]);
+                if (low <= codepoint and codepoint <= high) {
+                    self.inputPos = end;
+                    const string = try Elem.Dyn.String.copy(self, self.input[start..end]);
+                    try self.push(string.dyn.elem());
+                    return;
+                }
+            }
+        }
+        try self.pushFailure();
     }
 
     fn parseIntegerRange(self: *VM, low: i64, high: i64) !void {
@@ -805,7 +813,6 @@ pub const VM = struct {
                 },
                 .Null => {},
                 .ParserVar,
-                .CharacterRange,
                 .Failure,
                 => @panic("Internal Error"),
                 .Dyn => |dyn| switch (dyn.dynType) {

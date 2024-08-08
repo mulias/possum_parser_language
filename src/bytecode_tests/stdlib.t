@@ -2,14 +2,22 @@
 
   $ possum $TESTDIR/../stdlib.possum -i ''
   
+  ==================char==================
+  0000    1 ParseCharacterRange 0 1: 0 1114111
+  0003    | End
+  ========================================
+  
+  =================ascii==================
+  0000    3 ParseCharacterRange 0 1: 0 127
+  0003    | End
+  ========================================
+  
   =================alpha==================
   0000    5 SetInputMark
-  0001    | GetConstant 0: "a".."z"
-  0003    | CallFunction 0
-  0005    | Or 5 -> 12
-  0008    | GetConstant 1: "A".."Z"
-  0010    | CallFunction 0
-  0012    | End
+  0001    | ParseCharacterRange 0 1: 97 122
+  0004    | Or 4 -> 10
+  0007    | ParseCharacterRange 2 3: 65 90
+  0010    | End
   ========================================
   
   =================alphas=================
@@ -19,23 +27,38 @@
   0006    | End
   ========================================
   
+  =================lower==================
+  0000    9 ParseCharacterRange 0 1: 97 122
+  0003    | End
+  ========================================
+  
   =================lowers=================
   0000   11 GetConstant 0: many
-  0002    | GetConstant 1: "a".."z"
+  0002    | GetConstant 1: lower
   0004    | CallTailFunction 1
   0006    | End
+  ========================================
+  
+  =================upper==================
+  0000   13 ParseCharacterRange 0 1: 65 90
+  0003    | End
   ========================================
   
   =================uppers=================
   0000   15 GetConstant 0: many
-  0002    | GetConstant 1: "A".."Z"
+  0002    | GetConstant 1: upper
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
+  ================numeral=================
+  0000   17 ParseCharacterRange 0 1: 48 57
+  0003    | End
+  ========================================
+  
   ================numerals================
   0000   19 GetConstant 0: many
-  0002    | GetConstant 1: "0".."9"
+  0002    | GetConstant 1: numeral
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -45,7 +68,7 @@
   0001    | GetConstant 0: alpha
   0003    | CallFunction 0
   0005    | Or 5 -> 12
-  0008    | GetConstant 1: "0".."9"
+  0008    | GetConstant 1: numeral
   0010    | CallFunction 0
   0012    | End
   ========================================
@@ -72,19 +95,18 @@
   0017    | Or 17 -> 24
   0020    | GetConstant 2: "\xc2\xa0" (esc)
   0022    | CallFunction 0
-  0024    | Or 24 -> 31
-  0027    | GetConstant 3: "\xe2\x80\x80".."\xe2\x80\x8a" (esc)
-  0029    | CallFunction 0
-  0031    | Or 31 -> 38
-  0034    | GetConstant 4: "\xe2\x80\xaf" (esc)
-  0036    | CallFunction 0
-  0038    | Or 38 -> 45
-  0041    | GetConstant 5: "\xe2\x81\x9f" (esc)
-  0043    | CallFunction 0
-  0045    | Or 45 -> 52
-  0048    | GetConstant 6: "\xe3\x80\x80" (esc)
-  0050    | CallFunction 0
-  0052    | End
+  0024    | Or 24 -> 30
+  0027    | ParseCharacterRange 3 4: 8192 8202
+  0030    | Or 30 -> 37
+  0033    | GetConstant 5: "\xe2\x80\xaf" (esc)
+  0035    | CallFunction 0
+  0037    | Or 37 -> 44
+  0040    | GetConstant 6: "\xe2\x81\x9f" (esc)
+  0042    | CallFunction 0
+  0044    | Or 44 -> 51
+  0047    | GetConstant 7: "\xe3\x80\x80" (esc)
+  0049    | CallFunction 0
+  0051    | End
   ========================================
   
   =================spaces=================
@@ -102,21 +124,18 @@
   0004    | GetConstant 0: "\r (esc)
   "
   0006    | CallFunction 0
-  0008    | Or 8 -> 15
-  0011    | GetConstant 1: "
-  ".."\r (no-eol) (esc)
-  "
-  0013    | CallFunction 0
-  0015    | Or 15 -> 22
-  0018    | GetConstant 2: "\xc2\x85" (esc)
-  0020    | CallFunction 0
-  0022    | Or 22 -> 29
-  0025    | GetConstant 3: "\xe2\x80\xa8" (esc)
-  0027    | CallFunction 0
-  0029    | Or 29 -> 36
-  0032    | GetConstant 4: "\xe2\x80\xa9" (esc)
-  0034    | CallFunction 0
-  0036    | End
+  0008    | Or 8 -> 14
+  0011    | ParseCharacterRange 1 2: 10 13
+  0014    | Or 14 -> 21
+  0017    | GetConstant 3: "\xc2\x85" (esc)
+  0019    | CallFunction 0
+  0021    | Or 21 -> 28
+  0024    | GetConstant 4: "\xe2\x80\xa8" (esc)
+  0026    | CallFunction 0
+  0028    | Or 28 -> 35
+  0031    | GetConstant 5: "\xe2\x80\xa9" (esc)
+  0033    | CallFunction 0
+  0035    | End
   ========================================
   
   ================newlines================
@@ -128,7 +147,7 @@
   
   ==============end_of_input==============
   0000   38 SetInputMark
-  0001    | GetConstant 0: "\x00".."\xf4\x8f\xbf\xbf" (esc)
+  0001    | GetConstant 0: char
   0003    | CallFunction 0
   0005    | ConditionalThen 5 -> 15
   0008    | GetConstant 1: @fail
@@ -158,7 +177,7 @@
   
   =================@fn27==================
   0000   46 GetConstant 0: unless
-  0002    | GetConstant 1: "\x00".."\xf4\x8f\xbf\xbf" (esc)
+  0002    | GetConstant 1: char
   0004    | GetConstant 2: whitespace
   0006    | CallTailFunction 2
   0008    | End
@@ -204,7 +223,7 @@
   
   ==================line==================
   0000   50 GetConstant 0: many_until
-  0002    | GetConstant 1: "\x00".."\xf4\x8f\xbf\xbf" (esc)
+  0002    | GetConstant 1: char
   0004    | GetConstant 2: @fn29
   0006    | CallTailFunction 2
   0008    | End
@@ -337,16 +356,15 @@
   
   ===_number_non_negative_integer_part====
   0000   82 SetInputMark
-  0001    | GetConstant 0: "1".."9"
-  0003    | CallFunction 0
-  0005    | JumpIfFailure 5 -> 13
-  0008    | GetConstant 1: numerals
-  0010    | CallFunction 0
-  0012    | Merge
-  0013    | Or 13 -> 20
-  0016    | GetConstant 2: "0".."9"
-  0018    | CallFunction 0
-  0020    | End
+  0001    | ParseCharacterRange 0 1: 49 57
+  0004    | JumpIfFailure 4 -> 12
+  0007    | GetConstant 2: numerals
+  0009    | CallFunction 0
+  0011    | Merge
+  0012    | Or 12 -> 19
+  0015    | GetConstant 3: numeral
+  0017    | CallFunction 0
+  0019    | End
   ========================================
   
   =========_number_fraction_part==========
@@ -473,7 +491,7 @@
   0001    | GetBoundLocal 0
   0003    | CallFunction 0
   0005    | Or 5 -> 21
-  0008    | GetConstant 0: "\x00".."\xf4\x8f\xbf\xbf" (esc)
+  0008    | GetConstant 0: char
   0010    | CallFunction 0
   0012    | TakeRight 12 -> 21
   0015    | GetConstant 1: scan
@@ -1491,7 +1509,7 @@
   0030    | CallFunction 0
   0032    | Or 32 -> 43
   0035    | GetConstant 5: unless
-  0037    | GetConstant 6: "\x00".."\xf4\x8f\xbf\xbf" (esc)
+  0037    | GetConstant 6: char
   0039    | GetConstant 7: "\"
   0041    | CallFunction 2
   0043    | GetLocal 1
@@ -1567,13 +1585,11 @@
   0001    | SetInputMark
   0002    | GetConstant 0: digit
   0004    | CallFunction 0
-  0006    | Or 6 -> 13
-  0009    | GetConstant 1: "a".."f"
-  0011    | CallFunction 0
-  0013    | Or 13 -> 20
-  0016    | GetConstant 2: "A".."F"
-  0018    | CallFunction 0
-  0020    | End
+  0006    | Or 6 -> 12
+  0009    | ParseCharacterRange 1 2: 97 102
+  0012    | Or 12 -> 18
+  0015    | ParseCharacterRange 3 4: 65 70
+  0018    | End
   ========================================
   
   =================@fn47==================
