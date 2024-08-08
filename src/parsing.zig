@@ -1,5 +1,7 @@
 const std = @import("std");
 const unicode = std.unicode;
+const NumberStringFormat = @import("elem.zig").NumberStringFormat;
+const Scanner = @import("scanner.zig").Scanner;
 
 pub fn parseCodepoint(bytes: []const u8) ?u21 {
     if (std.fmt.parseInt(u21, bytes, 16)) |value| {
@@ -11,6 +13,20 @@ pub fn parseCodepoint(bytes: []const u8) ?u21 {
     } else |_| {
         return null;
     }
+}
+
+pub fn numberStringFormat(bytes: []const u8) ?NumberStringFormat {
+    var scanner = Scanner.initInternal(bytes);
+    const token = scanner.scanNumber();
+
+    if (!scanner.isAtEnd()) return null;
+
+    return switch (token.tokenType) {
+        .Integer => .Integer,
+        .Float => .Float,
+        .Scientific => .Scientific,
+        else => null,
+    };
 }
 
 pub fn parseInteger(bytes: []const u8) ?i64 {

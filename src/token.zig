@@ -31,6 +31,7 @@ pub const TokenType = enum {
     RightBrace,
     RightBracket,
     RightParen,
+    Scientific,
     Semicolon,
     String,
     True,

@@ -30,6 +30,7 @@ pub const Parser = struct {
         UnexpectedInput,
         CodepointTooLarge,
         Utf8CannotEncodeSurrogateHalf,
+        IntegerOverflow,
     } || WriterError;
 
     pub fn init(vm: *VM) Parser {
@@ -151,6 +152,7 @@ pub const Parser = struct {
             .String => self.stringOrCharRange(),
             .Integer => self.integer(),
             .Float => self.float(),
+            .Scientific => self.scientific(),
             .True, .False, .Null => self.literal(),
             else => self.errorAtPrevious("Expect expression."),
         };
@@ -428,43 +430,45 @@ pub const Parser = struct {
     fn integer(self: *Parser) !usize {
         const t1 = self.previous;
         const s1 = t1.lexeme;
-        if (parsing.parseInteger(s1)) |int1| {
-            if (self.current.tokenType == .DotDot and !self.currentSkippedWhitespace) {
+        if (self.current.tokenType == .DotDot and !self.currentSkippedWhitespace) {
+            try self.advance();
+            if (self.current.tokenType == .Integer and !self.currentSkippedWhitespace) {
                 try self.advance();
-                if (self.current.tokenType == .Integer and !self.currentSkippedWhitespace) {
-                    try self.advance();
-                    const t2 = self.previous;
-                    const s2 = t2.lexeme;
+                const t2 = self.previous;
+                const s2 = t2.lexeme;
+                if (parsing.parseInteger(s1)) |int1| {
                     if (parsing.parseInteger(s2)) |int2| {
                         return self.ast.pushElem(
                             Elem.integerRange(int1, int2),
                             Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
                         );
                     } else {
-                        return self.errorAtPrevious("Could not parse number");
+                        // Already verified this is an int during scanning
+                        unreachable;
                     }
                 } else {
-                    return self.errorAtPrevious("Expect integer");
+                    // Already verified this is an int during scanning
+                    unreachable;
                 }
             } else {
-                const sId1 = try self.vm.strings.insert(s1);
-                return self.ast.pushElem(Elem.integer(int1, sId1), t1.loc);
+                return self.errorAtPrevious("Expect integer");
             }
         } else {
-            // Already verified this is an int during scanning
-            unreachable;
+            const sId1 = try self.vm.strings.insert(s1);
+            return self.ast.pushElem(Elem.numberString(sId1, .Integer), t1.loc);
         }
     }
 
     fn float(self: *Parser) !usize {
         const t = self.previous;
-        if (parsing.parseFloat(t.lexeme)) |f| {
-            const sId = try self.vm.strings.insert(t.lexeme);
-            return self.ast.pushElem(Elem.float(f, sId), t.loc);
-        } else {
-            // Already verified this is a float during scanning
-            unreachable;
-        }
+        const sId = try self.vm.strings.insert(t.lexeme);
+        return self.ast.pushElem(Elem.numberString(sId, .Float), t.loc);
+    }
+
+    fn scientific(self: *Parser) !usize {
+        const t = self.previous;
+        const sId = try self.vm.strings.insert(t.lexeme);
+        return self.ast.pushElem(Elem.numberString(sId, .Scientific), t.loc);
     }
 
     fn literal(self: *Parser) !usize {

@@ -247,6 +247,7 @@ pub const Compiler = struct {
             .ValueVar => |name| switch (self.vm.globals.get(name).?) {
                 .ValueVar,
                 .String,
+                .NumberString,
                 .Integer,
                 .Float,
                 .Boolean,
@@ -273,6 +274,7 @@ pub const Compiler = struct {
             .ParserVar => |name| switch (self.vm.globals.get(name).?) {
                 .ParserVar,
                 .String,
+                .NumberString,
                 .Integer,
                 .Float,
                 .CharacterRange,
@@ -531,6 +533,7 @@ pub const Compiler = struct {
                         return Error.InvalidAst;
                     },
                     .String,
+                    .NumberString,
                     .Integer,
                     .Float,
                     .CharacterRange,
@@ -798,6 +801,7 @@ pub const Compiler = struct {
                     }
                 },
                 .String,
+                .NumberString,
                 .Integer,
                 .Float,
                 => {
@@ -1099,6 +1103,7 @@ pub const Compiler = struct {
                     }
                 },
                 .String,
+                .NumberString,
                 .Integer,
                 .Float,
                 => {

@@ -24,6 +24,18 @@ pub const Scanner = struct {
         };
     }
 
+    pub fn initInternal(source: []const u8) Scanner {
+        return Scanner{
+            .source = source,
+            .offset = 0,
+            .line = 1,
+            .pos = 0,
+            .atEnd = false,
+            .writers = undefined,
+            .printDebug = false,
+        };
+    }
+
     pub fn next(self: *Scanner) ?Token {
         if (self.atEnd) return null;
         const token = self.scanToken();
@@ -127,7 +139,7 @@ pub const Scanner = struct {
         return true;
     }
 
-    fn isAtEnd(self: *Scanner) bool {
+    pub fn isAtEnd(self: *Scanner) bool {
         return self.offset >= self.source.len;
     }
 
@@ -232,7 +244,7 @@ pub const Scanner = struct {
         });
     }
 
-    fn scanNumber(self: *Scanner) Token {
+    pub fn scanNumber(self: *Scanner) Token {
         // Consume negative sign
         if (self.peek() == '-') self.advance();
 
@@ -245,7 +257,9 @@ pub const Scanner = struct {
 
         if (self.tokenHasExtraLeadingZero()) {
             return self.makeError("Invalid number.");
-        } else if (hasDecimalPart or hasScientificPart) {
+        } else if (hasScientificPart) {
+            return self.makeToken(.Scientific);
+        } else if (hasDecimalPart) {
             return self.makeToken(.Float);
         } else {
             return self.makeToken(.Integer);

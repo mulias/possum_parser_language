@@ -485,11 +485,11 @@ pub const VM = struct {
             .NegateNumber => {
                 const num = self.pop();
 
-                if (Elem.negateNumber(num)) |value| {
-                    try self.push(value);
-                } else {
-                    return self.runtimeError("Subtraction is only supported for numbers.", .{});
-                }
+                const value = Elem.negateNumber(num, self.strings) catch |err| switch (err) {
+                    error.IntegerOverflow => return self.runtimeError("Number too large.", .{}),
+                    error.ExpectedNumber => return self.runtimeError("Subtraction is only supported for numbers.", .{}),
+                };
+                try self.push(value);
             },
             .Null => {
                 // Push singleton null value.
@@ -611,24 +611,10 @@ pub const VM = struct {
                 }
                 try self.pushFailure();
             },
-            .Integer => |n| {
+            .NumberString => |n| {
                 assert(argCount == 0);
                 _ = self.pop();
-                const s = self.strings.get(n.sId.?);
-                const start = self.inputPos;
-                const end = start + s.len;
-
-                if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
-                    self.inputPos = end;
-                    try self.push(elem);
-                    return;
-                }
-                try self.pushFailure();
-            },
-            .Float => |n| {
-                assert(argCount == 0);
-                _ = self.pop();
-                const s = self.strings.get(n.sId.?);
+                const s = self.strings.get(n.sId);
                 const start = self.inputPos;
                 const end = start + s.len;
 
@@ -658,7 +644,7 @@ pub const VM = struct {
 
                     if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
                         self.inputPos = end;
-                        const int = Elem.integer(i, null);
+                        const int = Elem.integer(i);
                         try self.push(int);
                         return;
                     };
@@ -790,11 +776,12 @@ pub const VM = struct {
                         context.String.postVarLength += strLen;
                     }
                 },
+                .NumberString,
                 .Integer,
                 .Float,
                 => {
                     if (context == .Unknown) {
-                        context = .{ .Number = .{ .acc = Elem.integer(0, null) } };
+                        context = .{ .Number = .{ .acc = Elem.integer(0) } };
                     } else if (context != .Number) {
                         return self.runtimeError("Merge type mismatch in pattern", .{});
                     }
@@ -937,7 +924,7 @@ pub const VM = struct {
                 }
             },
             .Number => |nc| {
-                if (try value.merge(nc.acc.negateNumber().?, self)) |diff| {
+                if (try value.merge(try nc.acc.negateNumber(self.strings), self)) |diff| {
                     var i: usize = patternSegments.len;
                     while (i > 0) {
                         i -= 1;
