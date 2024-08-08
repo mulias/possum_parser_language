@@ -426,11 +426,16 @@ pub const Compiler = struct {
                     const highLoc = self.ast.getLocation(infix.right);
                     const lowElem = self.ast.getElem(infix.left).?;
                     const highElem = self.ast.getElem(infix.right).?;
-                    const lowId = try self.makeConstant(lowElem);
-                    const highId = try self.makeConstant(highElem);
-                    try self.emitOp(.ParseCharacterRange, loc);
-                    try self.emitByte(lowId, lowLoc);
-                    try self.emitByte(highId, highLoc);
+
+                    if (lowElem.Integer == 0 and highElem.Integer == 0x10ffff) {
+                        try self.emitOp(.ParseCharacter, loc);
+                    } else {
+                        const lowId = try self.makeConstant(lowElem);
+                        const highId = try self.makeConstant(highElem);
+                        try self.emitOp(.ParseCharacterRange, loc);
+                        try self.emitByte(lowId, lowLoc);
+                        try self.emitByte(highId, highLoc);
+                    }
                 },
                 .TakeLeft => {
                     try self.writeParser(infix.left, false);

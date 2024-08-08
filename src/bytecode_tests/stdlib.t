@@ -3,8 +3,8 @@
   $ possum $TESTDIR/../stdlib.possum -i ''
   
   ==================char==================
-  0000    1 ParseCharacterRange 0 1: 0 1114111
-  0003    | End
+  0000    1 ParseCharacter
+  0001    | End
   ========================================
   
   =================ascii==================

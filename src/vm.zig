@@ -518,6 +518,20 @@ pub const VM = struct {
                     self.inputPos = resetPos;
                 }
             },
+            .ParseCharacter => {
+                const start = self.inputPos;
+
+                if (start < self.input.len) {
+                    const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
+                    const end = start + bytesLength;
+                    const string = try Elem.Dyn.String.copy(self, self.input[start..end]);
+
+                    self.inputPos = end;
+                    try self.push(string.dyn.elem());
+                } else {
+                    try self.pushFailure();
+                }
+            },
             .ParseCharacterRange => {
                 const lowIdx = self.readByte();
                 const highIdx = self.readByte();
