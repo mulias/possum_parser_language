@@ -255,7 +255,6 @@ pub const Compiler = struct {
                 => {},
                 .ParserVar,
                 .CharacterRange,
-                .IntegerRange,
                 => return Error.InvalidGlobalValue,
                 .Dyn => |dyn| switch (dyn.dynType) {
                     .String,
@@ -278,7 +277,6 @@ pub const Compiler = struct {
                 .Integer,
                 .Float,
                 .CharacterRange,
-                .IntegerRange,
                 => {},
                 .ValueVar => return Error.InvalidGlobalParser,
                 .Dyn => |dyn| switch (dyn.dynType) {
@@ -414,6 +412,17 @@ pub const Compiler = struct {
                 .StringTemplate => {
                     try self.writeStringTemplate(infix.left, infix.right, .Parser);
                 },
+                .IntegerRange => {
+                    const lowLoc = self.ast.getLocation(infix.left);
+                    const highLoc = self.ast.getLocation(infix.right);
+                    const lowElem = self.ast.getElem(infix.left).?;
+                    const highElem = self.ast.getElem(infix.right).?;
+                    const lowId = try self.makeConstant(lowElem);
+                    const highId = try self.makeConstant(highElem);
+                    try self.emitOp(.ParseIntegerRange, loc);
+                    try self.emitByte(lowId, lowLoc);
+                    try self.emitByte(highId, highLoc);
+                },
                 .TakeLeft => {
                     try self.writeParser(infix.left, false);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
@@ -537,7 +546,6 @@ pub const Compiler = struct {
                     .Integer,
                     .Float,
                     .CharacterRange,
-                    .IntegerRange,
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -771,6 +779,10 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
+                .IntegerRange => {
+                    try self.printError("Integer range is not valid in pattern", loc);
+                    return Error.InvalidAst;
+                },
                 .Merge,
                 .NumberSubtract,
                 .ArrayCons,
@@ -816,10 +828,6 @@ pub const Compiler = struct {
                 => unreachable, // not produced by the parser
                 .CharacterRange => {
                     try self.printError("Character range is not valid in pattern", loc);
-                    return Error.InvalidAst;
-                },
-                .IntegerRange => {
-                    try self.printError("Integer range is not valid in pattern", loc);
                     return Error.InvalidAst;
                 },
                 .Dyn => |d| switch (d.dynType) {
@@ -1065,6 +1073,10 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
+                .IntegerRange => {
+                    try self.printError("Integer range is not valid in value", loc);
+                    return Error.InvalidAst;
+                },
                 .ArrayCons, // handled by writeArray
                 .ConditionalThenElse, // handled by ConditionalIfThen
                 .DeclareGlobal, // handled by top-level compiler functions
@@ -1116,10 +1128,6 @@ pub const Compiler = struct {
                 => unreachable, // not produced by the parser
                 .CharacterRange => {
                     try self.printError("Character range is not valid in value", loc);
-                    return Error.InvalidAst;
-                },
-                .IntegerRange => {
-                    try self.printError("Integer range is not valid in value", loc);
                     return Error.InvalidAst;
                 },
                 .Dyn => |d| switch (d.dynType) {

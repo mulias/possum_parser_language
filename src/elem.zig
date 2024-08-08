@@ -21,7 +21,6 @@ pub const ElemType = enum {
     Integer,
     Float,
     CharacterRange,
-    IntegerRange,
     Boolean,
     Null,
     Failure,
@@ -42,7 +41,6 @@ pub const Elem = union(ElemType) {
     Integer: i64,
     Float: f64,
     CharacterRange: struct { low: u21, lowLength: u3, high: u21, highLength: u3 },
-    IntegerRange: Tuple(&.{ i64, i64 }),
     Boolean: bool,
     Null: void,
     Failure: void,
@@ -81,10 +79,6 @@ pub const Elem = union(ElemType) {
         } };
     }
 
-    pub fn integerRange(low: i64, high: i64) Elem {
-        return Elem{ .IntegerRange = .{ low, high } };
-    }
-
     pub fn boolean(b: bool) Elem {
         return Elem{ .Boolean = b };
     }
@@ -102,7 +96,6 @@ pub const Elem = union(ElemType) {
             .Integer => |i| try writer.print("{d}", .{i}),
             .Float => |f| try writer.print("{d}", .{f}),
             .CharacterRange => |r| try writer.print("\"{u}\"..\"{u}\"", .{ r.low, r.high }),
-            .IntegerRange => |r| try writer.print("{d}..{d}", .{ r[0], r[1] }),
             .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
             .Null => try writer.print("null", .{}),
             .Failure => try writer.print("@Failure", .{}),
@@ -203,10 +196,6 @@ pub const Elem = union(ElemType) {
                 .Float => |float2| float1 == float2,
                 else => false,
             },
-            .IntegerRange => |r1| switch (other) {
-                .IntegerRange => |r2| r1[0] == r2[0] and r1[1] == r2[1],
-                else => false,
-            },
             .CharacterRange => |r1| switch (other) {
                 .CharacterRange => |r2| r1.low == r2.low and r1.high == r2.high,
                 else => false,
@@ -258,7 +247,6 @@ pub const Elem = union(ElemType) {
             => return value.isEql(pattern, strings),
             .ValueVar,
             .ParserVar,
-            .IntegerRange,
             .CharacterRange,
             => @panic("Internal error"),
             .Dyn => |dyn| switch (dyn.dynType) {
@@ -375,7 +363,6 @@ pub const Elem = union(ElemType) {
                 else => null,
             },
             .CharacterRange => unreachable,
-            .IntegerRange => unreachable,
             .Boolean => |b1| switch (elemB) {
                 .Boolean => |b2| boolean(b1 or b2),
                 else => null,
@@ -544,7 +531,6 @@ pub const Elem = union(ElemType) {
             .ParserVar,
             .ValueVar,
             .CharacterRange,
-            .IntegerRange,
             .Failure,
             => @panic("Internal Error"),
         };
@@ -1045,7 +1031,7 @@ pub const Elem = union(ElemType) {
 };
 
 test "struct size" {
-    try std.testing.expectEqual(24, @sizeOf(Elem));
+    try std.testing.expectEqual(16, @sizeOf(Elem));
     try std.testing.expectEqual(16, @sizeOf(Elem.Dyn));
     try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.Array));

@@ -210,6 +210,11 @@
   0008    | End
   ========================================
   
+  =================digit==================
+  0000   52 ParseIntegerRange 0 1: 0 9
+  0003    | End
+  ========================================
+  
   ================integer=================
   0000   54 GetConstant 0: @number_of
   0002    | GetConstant 1: _number_integer_part
@@ -1560,7 +1565,7 @@
   ==================_hex==================
   0000  263 SetInputMark
   0001    | SetInputMark
-  0002    | GetConstant 0: 0..9
+  0002    | GetConstant 0: digit
   0004    | CallFunction 0
   0006    | Or 6 -> 13
   0009    | GetConstant 1: "a".."f"

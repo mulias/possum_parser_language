@@ -31,6 +31,7 @@ pub const OpCode = enum(u8) {
     Null,
     NumberOf,
     Or,
+    ParseIntegerRange,
     Pop,
     PrepareMergePattern,
     SetClosureCaptures,
@@ -63,6 +64,8 @@ pub const OpCode = enum(u8) {
             .GetConstant,
             .InsertAtKey,
             => self.constantInstruction(chunk, offset, strings, writer),
+            .ParseIntegerRange,
+            => self.twoConstantsInstruction(chunk, offset, strings, writer),
             .CallFunction,
             .CallTailFunction,
             .GetAtIndex,
@@ -71,7 +74,8 @@ pub const OpCode = enum(u8) {
             .InsertAtIndex,
             .PrepareMergePattern,
             => self.byteInstruciton(chunk, offset, writer),
-            .CaptureLocal => self.twoBytesInstruciton(chunk, offset, writer),
+            .CaptureLocal,
+            => self.twoBytesInstruciton(chunk, offset, writer),
             .Backtrack,
             .ConditionalElse,
             .ConditionalThen,
@@ -98,9 +102,22 @@ pub const OpCode = enum(u8) {
         return offset + 2;
     }
 
+    fn twoConstantsInstruction(self: OpCode, chunk: *Chunk, offset: usize, strings: StringTable, writer: VMWriter) !usize {
+        const byte1 = chunk.read(offset + 1);
+        const byte2 = chunk.read(offset + 2);
+        var constant1 = chunk.getConstant(byte1);
+        var constant2 = chunk.getConstant(byte2);
+        try writer.print("{s} {} {}: ", .{ @tagName(self), byte1, byte2 });
+        try constant1.print(writer, strings);
+        try writer.print(" ", .{});
+        try constant2.print(writer, strings);
+        try writer.print("\n", .{});
+        return offset + 3;
+    }
+
     fn byteInstruciton(self: OpCode, chunk: *Chunk, offset: usize, writer: VMWriter) !usize {
         const byte = chunk.read(offset + 1);
-        try writer.print("{s} {d}\n", .{ @tagName(self), byte });
+        try writer.print("{s} {}\n", .{ @tagName(self), byte });
         return offset + 2;
     }
 

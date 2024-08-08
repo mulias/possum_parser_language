@@ -518,6 +518,13 @@ pub const VM = struct {
                     self.inputPos = resetPos;
                 }
             },
+            .ParseIntegerRange => {
+                const lowIdx = self.readByte();
+                const highIdx = self.readByte();
+                const low = self.chunk().getConstant(lowIdx).Integer;
+                const high = self.chunk().getConstant(highIdx).Integer;
+                try self.parseIntegerRange(low, high);
+            },
             .Pop => {
                 _ = self.pop();
             },
@@ -625,33 +632,6 @@ pub const VM = struct {
                 }
                 try self.pushFailure();
             },
-            .IntegerRange => |r| {
-                assert(argCount == 0);
-                _ = self.pop();
-                const lowIntLen = parsing.intAsStringLen(r[0]);
-                const highIntLen = parsing.intAsStringLen(r[1]);
-                const start = self.inputPos;
-                const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
-                const longestMatchEnd = @min(start + highIntLen, self.input.len);
-
-                var end = longestMatchEnd;
-
-                // Find the longest substring from the start of the input which
-                // parses as an integer, is greater than or equal to r.lowValue and
-                // less than or equal to r.highValue, and is at least one char long.
-                while (end >= shortestMatchEnd and end > start) {
-                    const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
-
-                    if (inputInt) |i| if (r[0] <= i and i <= r[1]) {
-                        self.inputPos = end;
-                        const int = Elem.integer(i);
-                        try self.push(int);
-                        return;
-                    };
-                    end -= 1;
-                }
-                try self.pushFailure();
-            },
             .CharacterRange => |r| {
                 assert(argCount == 0);
                 _ = self.pop();
@@ -705,6 +685,32 @@ pub const VM = struct {
             },
             else => @panic("Internal error"),
         }
+    }
+
+    fn parseIntegerRange(self: *VM, low: i64, high: i64) !void {
+        const lowIntLen = parsing.intAsStringLen(low);
+        const highIntLen = parsing.intAsStringLen(high);
+        const start = self.inputPos;
+        const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
+        const longestMatchEnd = @min(start + highIntLen, self.input.len);
+
+        var end = longestMatchEnd;
+
+        // Find the longest substring from the start of the input which
+        // parses as an integer, is greater than or equal to `low` and
+        // less than or equal to `high`, and is at least one char long.
+        while (end >= shortestMatchEnd and end > start) {
+            const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
+
+            if (inputInt) |i| if (low <= i and i <= high) {
+                self.inputPos = end;
+                const int = Elem.integer(i);
+                try self.push(int);
+                return;
+            };
+            end -= 1;
+        }
+        try self.pushFailure();
     }
 
     fn bindLocalVariable(self: *VM, value: Elem, pattern: Elem) void {
@@ -800,7 +806,6 @@ pub const VM = struct {
                 .Null => {},
                 .ParserVar,
                 .CharacterRange,
-                .IntegerRange,
                 .Failure,
                 => @panic("Internal Error"),
                 .Dyn => |dyn| switch (dyn.dynType) {

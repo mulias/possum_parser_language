@@ -436,20 +436,26 @@ pub const Parser = struct {
                 try self.advance();
                 const t2 = self.previous;
                 const s2 = t2.lexeme;
-                if (parsing.parseInteger(s1)) |int1| {
-                    if (parsing.parseInteger(s2)) |int2| {
-                        return self.ast.pushElem(
-                            Elem.integerRange(int1, int2),
-                            Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
-                        );
-                    } else {
-                        // Already verified this is an int during scanning
-                        unreachable;
-                    }
-                } else {
-                    // Already verified this is an int during scanning
-                    unreachable;
-                }
+
+                const int1 = std.fmt.parseInt(i64, s1, 10) catch |err| switch (err) {
+                    std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
+                    std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
+                };
+
+                const int2 = std.fmt.parseInt(i64, s2, 10) catch |err| switch (err) {
+                    std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
+                    std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
+                };
+
+                const intNode1 = try self.ast.pushElem(Elem.integer(int1), t1.loc);
+                const intNode2 = try self.ast.pushElem(Elem.integer(int2), t2.loc);
+
+                return self.ast.pushInfix(
+                    .IntegerRange,
+                    intNode1,
+                    intNode2,
+                    Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
+                );
             } else {
                 return self.errorAtPrevious("Expect integer");
             }

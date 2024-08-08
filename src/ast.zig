@@ -20,14 +20,15 @@ pub const Ast = struct {
     };
 
     pub const InfixType = enum {
-        ArrayHead,
         ArrayCons,
+        ArrayHead,
         Backtrack,
         CallOrDefineFunction,
         ConditionalIfThen,
         ConditionalThenElse,
         DeclareGlobal,
         Destructure,
+        IntegerRange,
         Merge,
         NumberSubtract,
         ObjectCons,
