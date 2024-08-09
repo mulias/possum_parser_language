@@ -659,13 +659,16 @@ pub const Elem = union(ElemType) {
     };
 
     pub const Dyn = struct {
+        id: u64,
         dynType: DynType,
         next: ?*Dyn,
 
         pub fn allocate(vm: *VM, comptime T: type, dynType: DynType) !*Dyn {
             const ptr = try vm.allocator.create(T);
+            const id = vm.nextUniqueId();
 
             ptr.dyn = Dyn{
+                .id = id,
                 .dynType = dynType,
                 .next = vm.dynList,
             };
@@ -993,6 +996,26 @@ pub const Elem = union(ElemType) {
                 return function;
             }
 
+            pub fn createAnonParser(vm: *VM, fields: struct { arity: u8 }) !*Function {
+                const dyn = try Dyn.allocate(vm, Function, .Function);
+                const function = dyn.asFunction();
+
+                const name_str = try std.fmt.allocPrint(vm.allocator, "@fn{d}", .{dyn.id});
+                defer vm.allocator.free(name_str);
+                const name = try vm.strings.insert(name_str);
+
+                function.* = Function{
+                    .dyn = dyn.*,
+                    .arity = fields.arity,
+                    .chunk = Chunk.init(vm.allocator),
+                    .name = name,
+                    .functionType = .AnonParser,
+                    .locals = ArrayList(Local).init(vm.allocator),
+                };
+
+                return function;
+            }
+
             pub fn destroy(self: *Function, vm: *VM) void {
                 self.chunk.deinit();
                 self.locals.deinit();
@@ -1118,10 +1141,10 @@ pub const Elem = union(ElemType) {
 
 test "struct size" {
     try std.testing.expectEqual(16, @sizeOf(Elem));
-    try std.testing.expectEqual(16, @sizeOf(Elem.Dyn));
-    try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.String));
-    try std.testing.expectEqual(56, @sizeOf(Elem.Dyn.Array));
-    try std.testing.expectEqual(72, @sizeOf(Elem.Dyn.Object));
-    try std.testing.expectEqual(200, @sizeOf(Elem.Dyn.Function));
-    try std.testing.expectEqual(40, @sizeOf(Elem.Dyn.Closure));
+    try std.testing.expectEqual(24, @sizeOf(Elem.Dyn));
+    try std.testing.expectEqual(64, @sizeOf(Elem.Dyn.String));
+    try std.testing.expectEqual(64, @sizeOf(Elem.Dyn.Array));
+    try std.testing.expectEqual(80, @sizeOf(Elem.Dyn.Object));
+    try std.testing.expectEqual(208, @sizeOf(Elem.Dyn.Function));
+    try std.testing.expectEqual(48, @sizeOf(Elem.Dyn.Closure));
 }

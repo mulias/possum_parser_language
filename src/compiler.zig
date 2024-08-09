@@ -707,11 +707,7 @@ pub const Compiler = struct {
     fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !*Elem.Dyn.Function {
         const loc = self.ast.getLocation(nodeId);
 
-        const function = try Elem.Dyn.Function.create(self.vm, .{
-            .name = try self.nextAnonFunctionName(),
-            .functionType = .AnonParser,
-            .arity = 0,
-        });
+        const function = try Elem.Dyn.Function.createAnonParser(self.vm, .{ .arity = 0 });
 
         try self.functions.append(function);
 
@@ -739,13 +735,6 @@ pub const Compiler = struct {
                 try self.emitByte(toSlot, loc);
             }
         }
-    }
-
-    fn nextAnonFunctionName(self: *Compiler) !StringTable.Id {
-        const id = self.vm.nextUniqueId();
-        const name = try std.fmt.allocPrint(self.vm.allocator, "@fn{d}", .{id});
-        defer self.vm.allocator.free(name);
-        return self.vm.strings.insert(name);
     }
 
     fn writeDestructurePattern(self: *Compiler, nodeId: usize) !void {
