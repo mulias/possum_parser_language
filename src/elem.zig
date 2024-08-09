@@ -17,6 +17,7 @@ pub const ElemType = enum {
     ParserVar,
     ValueVar,
     String,
+    InputSubstring,
     NumberString,
     Integer,
     Float,
@@ -36,6 +37,7 @@ pub const Elem = union(ElemType) {
     ParserVar: StringTable.Id,
     ValueVar: StringTable.Id,
     String: StringTable.Id,
+    InputSubstring: Tuple(&.{ u32, u32 }),
     NumberString: struct { sId: StringTable.Id, format: NumberStringFormat },
     Integer: i64,
     Float: f64,
@@ -54,6 +56,10 @@ pub const Elem = union(ElemType) {
 
     pub fn string(sId: StringTable.Id) Elem {
         return Elem{ .String = sId };
+    }
+
+    pub fn inputSubstring(start: u32, end: u32) Elem {
+        return Elem{ .InputSubstring = .{ start, end } };
     }
 
     pub fn numberString(sId: StringTable.Id, format: NumberStringFormat) Elem {
@@ -76,18 +82,19 @@ pub const Elem = union(ElemType) {
 
     pub const failureConst = Elem{ .Failure = undefined };
 
-    pub fn print(self: Elem, writer: VMWriter, strings: StringTable) !void {
+    pub fn print(self: Elem, vm: VM, writer: VMWriter) !void {
         return switch (self) {
-            .ParserVar => |sId| try writer.print("{s}", .{strings.get(sId)}),
-            .ValueVar => |sId| try writer.print("{s}", .{strings.get(sId)}),
-            .String => |sId| try writer.print("\"{s}\"", .{strings.get(sId)}),
-            .NumberString => |n| try writer.print("{s}", .{strings.get(n.sId)}),
+            .ParserVar => |sId| try writer.print("{s}", .{vm.strings.get(sId)}),
+            .ValueVar => |sId| try writer.print("{s}", .{vm.strings.get(sId)}),
+            .String => |sId| try writer.print("\"{s}\"", .{vm.strings.get(sId)}),
+            .InputSubstring => |is| try writer.print("\"{s}\"", .{vm.input[is[0]..is[1]]}),
+            .NumberString => |n| try writer.print("{s}", .{vm.strings.get(n.sId)}),
             .Integer => |i| try writer.print("{d}", .{i}),
             .Float => |f| try writer.print("{d}", .{f}),
             .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
             .Null => try writer.print("null", .{}),
             .Failure => try writer.print("@Failure", .{}),
-            .Dyn => |d| d.print(writer, strings),
+            .Dyn => |d| d.print(vm, writer),
         };
     }
 
@@ -117,7 +124,7 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn isEql(self: Elem, other: Elem, strings: StringTable) bool {
+    pub fn isEql(self: Elem, other: Elem, vm: VM) bool {
         return switch (self) {
             .ParserVar => |sId1| switch (other) {
                 .ParserVar => |sId2| sId1 == sId2,
@@ -129,9 +136,36 @@ pub const Elem = union(ElemType) {
             },
             .String => |sId1| switch (other) {
                 .String => |sId2| sId1 == sId2,
+                .InputSubstring => |is2| {
+                    const s1 = vm.strings.get(sId1);
+                    const s2 = vm.input[is2[0]..is2[1]];
+                    return std.mem.eql(u8, s1, s2);
+                },
                 .Dyn => |d2| {
                     if (d2.isType(.String)) {
-                        const s1 = strings.get(sId1);
+                        const s1 = vm.strings.get(sId1);
+                        const s2 = d2.asString().bytes();
+                        return std.mem.eql(u8, s1, s2);
+                    }
+                    return false;
+                },
+                else => false,
+            },
+            .InputSubstring => |is1| switch (other) {
+                .String => |sId2| {
+                    const s1 = vm.input[is1[0]..is1[1]];
+                    const s2 = vm.strings.get(sId2);
+                    return std.mem.eql(u8, s1, s2);
+                },
+                .InputSubstring => |is2| {
+                    if (is1[0] == is2[0] and is1[1] == is2[1]) return true;
+                    const s1 = vm.input[is1[0]..is1[1]];
+                    const s2 = vm.input[is2[0]..is2[1]];
+                    return std.mem.eql(u8, s1, s2);
+                },
+                .Dyn => |d2| {
+                    if (d2.isType(.String)) {
+                        const s1 = vm.input[is1[0]..is1[1]];
                         const s2 = d2.asString().bytes();
                         return std.mem.eql(u8, s1, s2);
                     }
@@ -144,31 +178,31 @@ pub const Elem = union(ElemType) {
                     if ((n1.format == .Integer and n2.format == .Integer) or
                         (n1.format == .Float and n2.format == .Float))
                     {
-                        const s1 = strings.get(n1.sId);
-                        const s2 = strings.get(n2.sId);
+                        const s1 = vm.strings.get(n1.sId);
+                        const s2 = vm.strings.get(n2.sId);
                         return std.mem.eql(u8, s1, s2);
                     } else {
-                        const s1 = strings.get(n1.sId);
+                        const s1 = vm.strings.get(n1.sId);
                         const elem1 = parseNumberStringToElem(s1, n1.format) catch return false;
-                        const s2 = strings.get(n2.sId);
+                        const s2 = vm.strings.get(n2.sId);
                         const elem2 = parseNumberStringToElem(s2, n2.format) catch return false;
-                        return isEql(elem1, elem2, strings);
+                        return isEql(elem1, elem2, vm);
                     }
                 },
                 .Integer,
                 .Float,
                 => {
-                    const s1 = strings.get(n1.sId);
+                    const s1 = vm.strings.get(n1.sId);
                     const elem1 = parseNumberStringToElem(s1, n1.format) catch return false;
-                    return isEql(elem1, other, strings);
+                    return isEql(elem1, other, vm);
                 },
                 else => false,
             },
             .Integer => |int1| switch (other) {
                 .NumberString => |n2| {
-                    const s2 = strings.get(n2.sId);
+                    const s2 = vm.strings.get(n2.sId);
                     const elem2 = parseNumberStringToElem(s2, n2.format) catch return false;
-                    return isEql(self, elem2, strings);
+                    return isEql(self, elem2, vm);
                 },
                 .Integer => |int2| int1 == int2,
                 .Float => |float2| @as(f64, @floatFromInt(int1)) == float2,
@@ -176,9 +210,9 @@ pub const Elem = union(ElemType) {
             },
             .Float => |float1| switch (other) {
                 .NumberString => |n2| {
-                    const s2 = strings.get(n2.sId);
+                    const s2 = vm.strings.get(n2.sId);
                     const elem2 = parseNumberStringToElem(s2, n2.format) catch return false;
-                    return isEql(self, elem2, strings);
+                    return isEql(self, elem2, vm);
                 },
                 .Integer => |int2| float1 == @as(f64, @floatFromInt(int2)),
                 .Float => |float2| float1 == float2,
@@ -200,18 +234,26 @@ pub const Elem = union(ElemType) {
                 .String => |sId2| {
                     if (d1.isType(.String)) {
                         const s1 = d1.asString().bytes();
-                        const s2 = strings.get(sId2);
+                        const s2 = vm.strings.get(sId2);
                         return std.mem.eql(u8, s1, s2);
                     }
                     return false;
                 },
-                .Dyn => |d2| d1.isEql(d2, strings),
+                .InputSubstring => |is2| {
+                    if (d1.isType(.String)) {
+                        const s1 = d1.asString().bytes();
+                        const s2 = vm.input[is2[0]..is2[1]];
+                        return std.mem.eql(u8, s1, s2);
+                    }
+                    return false;
+                },
+                .Dyn => |d2| d1.isEql(d2, vm),
                 else => false,
             },
         };
     }
 
-    pub fn isValueMatchingPattern(value: Elem, pattern: Elem, strings: StringTable) bool {
+    pub fn isValueMatchingPattern(value: Elem, pattern: Elem, vm: VM) bool {
         // If the pattern is an unbound value variable then the match is always
         // successful. After pattern matching we'll go back and bind the var to
         // `value`.
@@ -222,18 +264,19 @@ pub const Elem = union(ElemType) {
 
         return switch (value) {
             .String,
+            .InputSubstring,
             .NumberString,
             .Integer,
             .Float,
             .Boolean,
             .Null,
             .Failure,
-            => return value.isEql(pattern, strings),
+            => return value.isEql(pattern, vm),
             .ValueVar,
             .ParserVar,
             => @panic("Internal error"),
             .Dyn => |dyn| switch (dyn.dynType) {
-                .String => return value.isEql(pattern, strings),
+                .String => return value.isEql(pattern, vm),
                 .Array => {
                     if (pattern.isDynType(.Array)) {
                         const valueArray = dyn.asArray();
@@ -244,7 +287,7 @@ pub const Elem = union(ElemType) {
                         }
 
                         for (valueArray.elems.items, patternArray.elems.items) |ve, pe| {
-                            if (!ve.isValueMatchingPattern(pe, strings)) {
+                            if (!ve.isValueMatchingPattern(pe, vm)) {
                                 return false;
                             }
                         }
@@ -266,7 +309,7 @@ pub const Elem = union(ElemType) {
                         var iterator = valueObject.members.iterator();
                         while (iterator.next()) |valueEntry| {
                             if (patternObject.members.get(valueEntry.key_ptr.*)) |patternMember| {
-                                if (!valueEntry.value_ptr.*.isValueMatchingPattern(patternMember, strings)) {
+                                if (!valueEntry.value_ptr.*.isValueMatchingPattern(patternMember, vm)) {
                                     return false;
                                 }
                             } else {
@@ -293,11 +336,6 @@ pub const Elem = union(ElemType) {
         if (elemB == .Null) return elemA;
 
         return switch (elemA) {
-            .ParserVar,
-            .ValueVar,
-            .Failure,
-            .Null,
-            => @panic("Internal error"),
             .String => |sId1| switch (elemB) {
                 .String => |sId2| {
                     const s1 = vm.strings.get(sId1);
@@ -307,9 +345,51 @@ pub const Elem = union(ElemType) {
                     try s.concatBytes(s2);
                     return s.dyn.elem();
                 },
+                .InputSubstring => |is2| {
+                    const s1 = vm.strings.get(sId1);
+                    const s2 = vm.input[is2[0]..is2[1]];
+                    const s = try Elem.Dyn.String.create(vm, s1.len + s2.len);
+                    try s.concatBytes(s1);
+                    try s.concatBytes(s2);
+                    return s.dyn.elem();
+                },
                 .Dyn => |d| switch (d.dynType) {
                     .String => {
                         const s1 = vm.strings.get(sId1);
+                        const ds2 = d.asString();
+                        const s = try Elem.Dyn.String.create(vm, s1.len + ds2.buffer.size);
+                        try s.concatBytes(s1);
+                        try s.concat(ds2);
+                        return s.dyn.elem();
+                    },
+                    else => null,
+                },
+                else => null,
+            },
+            .InputSubstring => |is1| switch (elemB) {
+                .String => |sId2| {
+                    const s1 = vm.input[is1[0]..is1[1]];
+                    const s2 = vm.strings.get(sId2);
+                    const s = try Elem.Dyn.String.create(vm, s1.len + s2.len);
+                    try s.concatBytes(s1);
+                    try s.concatBytes(s2);
+                    return s.dyn.elem();
+                },
+                .InputSubstring => |is2| {
+                    if (is1[1] == is2[0]) {
+                        return Elem.inputSubstring(is1[0], is2[1]);
+                    } else {
+                        const s1 = vm.input[is1[0]..is1[1]];
+                        const s2 = vm.input[is2[0]..is2[1]];
+                        const s = try Elem.Dyn.String.create(vm, s1.len + s2.len);
+                        try s.concatBytes(s1);
+                        try s.concatBytes(s2);
+                        return s.dyn.elem();
+                    }
+                },
+                .Dyn => |d| switch (d.dynType) {
+                    .String => {
+                        const s1 = vm.input[is1[0]..is1[1]];
                         const ds2 = d.asString();
                         const s = try Elem.Dyn.String.create(vm, s1.len + ds2.buffer.size);
                         try s.concatBytes(s1);
@@ -349,12 +429,24 @@ pub const Elem = union(ElemType) {
                 .Boolean => |b2| boolean(b1 or b2),
                 else => null,
             },
+            .ParserVar,
+            .ValueVar,
+            .Failure,
+            .Null,
+            => @panic("Internal error"),
             .Dyn => |d1| switch (d1.dynType) {
                 .String => {
                     const ds1 = d1.asString();
                     return switch (elemB) {
                         .String => |sId2| {
                             const s2 = vm.strings.get(sId2);
+                            const s = try Elem.Dyn.String.create(vm, ds1.buffer.size + s2.len);
+                            try s.concat(ds1);
+                            try s.concatBytes(s2);
+                            return s.dyn.elem();
+                        },
+                        .InputSubstring => |is2| {
+                            const s2 = vm.input[is2[0]..is2[1]];
                             const s = try Elem.Dyn.String.create(vm, ds1.buffer.size + s2.len);
                             try s.concat(ds1);
                             try s.concatBytes(s2);
@@ -432,11 +524,20 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn toNumber(self: Elem, strings: *StringTable) !?Elem {
+    pub fn toNumber(self: Elem, vm: *VM) !?Elem {
         return switch (self) {
             .String => |sId| {
-                const s = strings.get(sId);
+                const s = vm.strings.get(sId);
                 if (parsing.numberStringFormat(s)) |format| {
+                    return Elem.numberString(sId, format);
+                } else {
+                    return null;
+                }
+            },
+            .InputSubstring => |is| {
+                const s = vm.input[is[0]..is[1]];
+                if (parsing.numberStringFormat(s)) |format| {
+                    const sId = try vm.strings.insert(s);
                     return Elem.numberString(sId, format);
                 } else {
                     return null;
@@ -450,7 +551,7 @@ pub const Elem = union(ElemType) {
                 .String => {
                     const s = dyn.asString().buffer.str();
                     if (parsing.numberStringFormat(s)) |format| {
-                        const sId = try strings.insert(s);
+                        const sId = try vm.strings.insert(s);
                         return Elem.numberString(sId, format);
                     } else {
                         return null;
@@ -462,14 +563,18 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn toJson(self: Elem, allocator: Allocator, strings: StringTable) !json.Value {
+    pub fn toJson(self: Elem, vm: VM) !json.Value {
         return switch (self) {
             .String => |sId| {
-                const s = strings.get(sId);
+                const s = vm.strings.get(sId);
+                return .{ .string = s };
+            },
+            .InputSubstring => |is| {
+                const s = vm.input[is[0]..is[1]];
                 return .{ .string = s };
             },
             .NumberString => |n| {
-                const s = strings.get(n.sId);
+                const s = vm.strings.get(n.sId);
                 return .{ .number_string = s };
             },
             .Integer => |i| .{ .integer = i },
@@ -483,24 +588,24 @@ pub const Elem = union(ElemType) {
                 },
                 .Array => {
                     const array = dyn.asArray();
-                    var jsonArray = json.Array.init(allocator);
+                    var jsonArray = json.Array.init(vm.allocator);
                     try jsonArray.ensureTotalCapacity(array.elems.items.len);
 
                     for (array.elems.items) |item| {
-                        try jsonArray.append(try item.toJson(allocator, strings));
+                        try jsonArray.append(try item.toJson(vm));
                     }
 
                     return .{ .array = jsonArray };
                 },
                 .Object => {
                     var object = dyn.asObject();
-                    var jsonObject = json.ObjectMap.init(allocator);
+                    var jsonObject = json.ObjectMap.init(vm.allocator);
                     try jsonObject.ensureTotalCapacity(object.members.count());
 
                     var iterator = object.members.iterator();
                     while (iterator.next()) |entry| {
-                        const key = strings.get(entry.key_ptr.*);
-                        const value = try entry.value_ptr.*.toJson(allocator, strings);
+                        const key = vm.strings.get(entry.key_ptr.*);
+                        const value = try entry.value_ptr.*.toJson(vm);
                         try jsonObject.put(key, value);
                     }
 
@@ -517,11 +622,11 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn writeJson(self: Elem, format: json_pretty.Format, allocator: Allocator, strings: StringTable, outstream: anytype) !void {
-        var arena = std.heap.ArenaAllocator.init(allocator);
+    pub fn writeJson(self: Elem, format: json_pretty.Format, vm: VM, outstream: anytype) !void {
+        var arena = std.heap.ArenaAllocator.init(vm.allocator);
         defer arena.deinit();
 
-        const j = try self.toJson(arena.allocator(), strings);
+        const j = try self.toJson(vm);
         try json_pretty.stringify(j, format, outstream);
     }
 
@@ -583,21 +688,21 @@ pub const Elem = union(ElemType) {
             return Elem{ .Dyn = self };
         }
 
-        pub fn print(self: *Dyn, writer: VMWriter, strings: StringTable) !void {
+        pub fn print(self: *Dyn, vm: VM, writer: VMWriter) !void {
             return switch (self.dynType) {
                 .String => self.asString().print(writer),
-                .Array => self.asArray().print(writer, strings),
-                .Object => self.asObject().print(writer, strings),
-                .Function => self.asFunction().print(writer, strings),
-                .Closure => self.asClosure().print(writer, strings),
+                .Array => self.asArray().print(vm, writer),
+                .Object => self.asObject().print(vm, writer),
+                .Function => self.asFunction().print(vm, writer),
+                .Closure => self.asClosure().print(vm, writer),
             };
         }
 
-        pub fn isEql(self: *Dyn, other: *Dyn, strings: StringTable) bool {
+        pub fn isEql(self: *Dyn, other: *Dyn, vm: VM) bool {
             return switch (self.dynType) {
                 .String => self.asString().isEql(other),
-                .Array => self.asArray().isEql(other, strings),
-                .Object => self.asObject().isEql(other, strings),
+                .Array => self.asArray().isEql(other, vm),
+                .Object => self.asObject().isEql(other, vm),
                 .Function => self.asFunction().isEql(other),
                 .Closure => self.asClosure().isEql(other),
             };
@@ -719,7 +824,7 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Array, writer: VMWriter, strings: StringTable) VMWriter.Error!void {
+            pub fn print(self: *Array, vm: VM, writer: VMWriter) VMWriter.Error!void {
                 if (self.elems.items.len == 0) {
                     try writer.print("[]", .{});
                 } else {
@@ -727,15 +832,15 @@ pub const Elem = union(ElemType) {
 
                     try writer.print("[", .{});
                     for (self.elems.items[0..lastItemIndex]) |e| {
-                        try e.print(writer, strings);
+                        try e.print(vm, writer);
                         try writer.print(", ", .{});
                     }
-                    try self.elems.items[lastItemIndex].print(writer, strings);
+                    try self.elems.items[lastItemIndex].print(vm, writer);
                     try writer.print("]", .{});
                 }
             }
 
-            pub fn isEql(self: *Array, other: *Dyn, strings: StringTable) bool {
+            pub fn isEql(self: *Array, other: *Dyn, vm: VM) bool {
                 if (!other.isType(.Array)) return false;
 
                 const otherArray = other.asArray();
@@ -743,7 +848,7 @@ pub const Elem = union(ElemType) {
                 if (self.elems.items.len != otherArray.elems.items.len) return false;
 
                 for (self.elems.items, otherArray.elems.items) |a, b| {
-                    if (!a.isEql(b, strings)) return false;
+                    if (!a.isEql(b, vm)) return false;
                 }
 
                 return true;
@@ -791,7 +896,7 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Object, writer: VMWriter, strings: StringTable) VMWriter.Error!void {
+            pub fn print(self: *Object, vm: VM, writer: VMWriter) VMWriter.Error!void {
                 if (self.members.count() == 0) {
                     try writer.print("{{}}", .{});
                 } else {
@@ -800,8 +905,8 @@ pub const Elem = union(ElemType) {
                     try writer.print("{{", .{});
                     var iterator = self.members.iterator();
                     while (iterator.next()) |entry| {
-                        try writer.print("\"{s}\": ", .{strings.get(entry.key_ptr.*)});
-                        try entry.value_ptr.*.print(writer, strings);
+                        try writer.print("\"{s}\": ", .{vm.strings.get(entry.key_ptr.*)});
+                        try entry.value_ptr.*.print(vm, writer);
 
                         if (iterator.index <= lastMemberIndex) {
                             try writer.print(", ", .{});
@@ -811,7 +916,7 @@ pub const Elem = union(ElemType) {
                 }
             }
 
-            pub fn isEql(self: *Object, other: *Dyn, strings: StringTable) bool {
+            pub fn isEql(self: *Object, other: *Dyn, vm: VM) bool {
                 if (!other.isType(.Object)) return false;
 
                 var otherObject = other.asObject();
@@ -821,7 +926,7 @@ pub const Elem = union(ElemType) {
                 var iterator = self.members.iterator();
                 while (iterator.next()) |entry| {
                     if (otherObject.members.get(entry.key_ptr.*)) |otherVal| {
-                        if (!entry.value_ptr.*.isEql(otherVal, strings)) return false;
+                        if (!entry.value_ptr.*.isEql(otherVal, vm)) return false;
                     } else {
                         return false;
                     }
@@ -894,8 +999,8 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Function, writer: VMWriter, strings: StringTable) !void {
-                try writer.print("{s}", .{strings.get(self.name)});
+            pub fn print(self: *Function, vm: VM, writer: VMWriter) !void {
+                try writer.print("{s}", .{vm.strings.get(self.name)});
             }
 
             pub fn isEql(self: *Function, other: *Dyn) bool {
@@ -903,9 +1008,9 @@ pub const Elem = union(ElemType) {
                 return self == other.asFunction();
             }
 
-            pub fn disassemble(self: *Function, strings: StringTable, writer: VMWriter) !void {
-                const label = strings.get(self.name);
-                try self.chunk.disassemble(strings, label, writer);
+            pub fn disassemble(self: *Function, vm: VM, writer: VMWriter) !void {
+                const label = vm.strings.get(self.name);
+                try self.chunk.disassemble(vm, writer, label);
             }
 
             pub fn addLocal(self: *Function, local: Local) !?u8 {
@@ -968,22 +1073,22 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Closure, writer: VMWriter, strings: StringTable) VMWriter.Error!void {
-                try writer.print("|{s} ", .{strings.get(self.function.name)});
+            pub fn print(self: *Closure, vm: VM, writer: VMWriter) VMWriter.Error!void {
+                try writer.print("|{s} ", .{vm.strings.get(self.function.name)});
 
                 if (self.captures.len > 0) {
                     const lastItemIndex = self.captures.len - 1;
 
                     for (self.captures[0..lastItemIndex]) |maybeElem| {
                         if (maybeElem) |e| {
-                            try e.print(writer, strings);
+                            try e.print(vm, writer);
                             try writer.print(", ", .{});
                         } else {
                             try writer.print("_, ", .{});
                         }
                     }
                     if (self.captures[lastItemIndex]) |e| {
-                        try e.print(writer, strings);
+                        try e.print(vm, writer);
                     } else {
                         try writer.print("_", .{});
                     }

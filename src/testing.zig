@@ -69,8 +69,8 @@ pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {
     try std.testing.expectEqualStrings(expected, str.items);
 }
 
-pub fn expectSuccess(actual: Elem, expected: Elem, strings: StringTable) !void {
-    try std.testing.expect(actual.isEql(expected, strings));
+pub fn expectSuccess(actual: Elem, expected: Elem, vm: VM) !void {
+    try std.testing.expect(actual.isEql(expected, vm));
 }
 
 pub fn expectFailure(result: Elem) !void {

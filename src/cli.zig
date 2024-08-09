@@ -8,6 +8,7 @@ const VMConfig = @import("vm.zig").Config;
 const Writers = @import("writer.zig").Writers;
 const build_options = @import("build_options");
 const cli_config = @import("cli_config.zig");
+const maxInt = std.math.maxInt;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -66,7 +67,7 @@ pub const CLI = struct {
             if (parsed == .Failure) {
                 try self.writers.err.print("Parser Failure\n", .{});
             } else {
-                try parsed.writeJson(.Pretty, self.allocator, vm.strings, self.writers.out);
+                try parsed.writeJson(.Pretty, vm, self.writers.out);
                 try self.writers.out.print("\n", .{});
             }
         } else {
@@ -75,7 +76,7 @@ pub const CLI = struct {
     }
 
     fn readFile(self: CLI, path: []const u8) ![]const u8 {
-        return try std.fs.cwd().readFileAlloc(self.allocator, path, 1e10);
+        return try std.fs.cwd().readFileAlloc(self.allocator, path, maxInt(u32));
     }
 
     fn readStdin(self: CLI, argName: []const u8) ![]const u8 {

@@ -127,7 +127,7 @@ pub const Compiler = struct {
             const main = self.functions.pop();
 
             if (self.printBytecode) {
-                try main.disassemble(self.vm.strings, self.writers.debug);
+                try main.disassemble(self.vm.*, self.writers.debug);
             }
 
             return main;
@@ -248,8 +248,6 @@ pub const Compiler = struct {
                 .ValueVar,
                 .String,
                 .NumberString,
-                .Integer,
-                .Float,
                 .Boolean,
                 .Null,
                 => {},
@@ -267,14 +265,16 @@ pub const Compiler = struct {
                     },
                     .Closure => @panic("Internal Error"),
                 },
-                .Failure => @panic("Internal Error"),
+                .InputSubstring,
+                .Integer,
+                .Float,
+                .Failure,
+                => @panic("Internal Error"),
             },
             .ParserVar => |name| switch (self.vm.globals.get(name).?) {
                 .ParserVar,
                 .String,
                 .NumberString,
-                .Integer,
-                .Float,
                 => {},
                 .ValueVar => return Error.InvalidGlobalParser,
                 .Dyn => |dyn| switch (dyn.dynType) {
@@ -291,7 +291,10 @@ pub const Compiler = struct {
                     .Closure => @panic("Internal Error"),
                 },
                 .Failure,
+                .InputSubstring,
                 .Boolean,
+                .Integer,
+                .Float,
                 .Null,
                 => @panic("Internal Error"),
             },
@@ -366,7 +369,7 @@ pub const Compiler = struct {
             try self.emitOp(.End, self.ast.getLocation(bodyNodeId));
 
             if (self.printBytecode) {
-                try function.disassemble(self.vm.strings, self.writers.debug);
+                try function.disassemble(self.vm.*, self.writers.debug);
             }
 
             _ = self.functions.pop();
@@ -557,8 +560,6 @@ pub const Compiler = struct {
                     },
                     .String,
                     .NumberString,
-                    .Integer,
-                    .Float,
                     => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -575,6 +576,9 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.CallFunction, 0, loc);
                     },
                     .Failure,
+                    .Integer,
+                    .Float,
+                    .InputSubstring,
                     .Dyn,
                     => @panic("Internal Error"),
                 }
@@ -721,7 +725,7 @@ pub const Compiler = struct {
         try self.emitOp(.End, loc);
 
         if (self.printBytecode) {
-            try function.disassemble(self.vm.strings, self.writers.debug);
+            try function.disassemble(self.vm.*, self.writers.debug);
         }
 
         return self.functions.pop();
@@ -831,8 +835,6 @@ pub const Compiler = struct {
                 },
                 .String,
                 .NumberString,
-                .Integer,
-                .Float,
                 => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -842,7 +844,10 @@ pub const Compiler = struct {
                     try self.emitOp(.Null, loc);
                 },
                 .Failure,
-                => unreachable, // not produced by the parser
+                .Float,
+                .InputSubstring,
+                .Integer,
+                => @panic("Internal Error"), // not produced by the parser
                 .Dyn => |d| switch (d.dynType) {
                     .String,
                     .Function,
@@ -1133,8 +1138,6 @@ pub const Compiler = struct {
                 },
                 .String,
                 .NumberString,
-                .Integer,
-                .Float,
                 => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -1142,7 +1145,10 @@ pub const Compiler = struct {
                 .Boolean => |b| try self.emitOp(if (b) .True else .False, loc),
                 .Null => try self.emitOp(.Null, loc),
                 .Failure,
-                => unreachable, // not produced by the parser
+                .InputSubstring,
+                .Integer,
+                .Float,
+                => @panic("Internal Error"), // not produced by the parser
                 .Dyn => |d| switch (d.dynType) {
                     .String,
                     .Function,

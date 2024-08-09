@@ -131,6 +131,8 @@ pub const VM = struct {
     }
 
     pub fn interpret(self: *VM, programSource: []const u8, input: []const u8) !Elem {
+        if (input.len > std.math.maxInt(u32)) return error.InputTooLong;
+
         self.input = input;
         try self.compile(programSource);
         try self.run();
@@ -147,7 +149,7 @@ pub const VM = struct {
         try parser.end();
 
         if (self.config.printAst) {
-            try parser.ast.print(self.writers.debug, self.strings);
+            try parser.ast.print(self.*, self.writers.debug);
         }
 
         var compiler = try Compiler.init(self, parser.ast, self.config.printCompiledBytecode);
@@ -188,7 +190,7 @@ pub const VM = struct {
         }
 
         if (self.config.printExecutedBytecode) {
-            try self.frame().function.disassemble(self.strings, self.writers.debug);
+            try self.frame().function.disassemble(self.*, self.writers.debug);
         }
 
         while (true) {
@@ -283,7 +285,7 @@ pub const VM = struct {
                     if (pattern == .ValueVar) {
                         self.bindLocalVariable(value, pattern);
                         try self.push(value);
-                    } else if (Elem.isValueMatchingPattern(value, pattern, self.strings)) {
+                    } else if (Elem.isValueMatchingPattern(value, pattern, self.*)) {
                         try self.push(value);
                     } else {
                         try self.pushFailure();
@@ -384,6 +386,10 @@ pub const VM = struct {
                         .String => |sId| {
                             key = sId;
                         },
+                        .InputSubstring => |is| {
+                            const s = self.input[is[0]..is[1]];
+                            key = try self.strings.insert(s);
+                        },
                         .Dyn => |dyn| switch (dyn.dynType) {
                             .String => {
                                 const s = dyn.asString().buffer.str();
@@ -448,7 +454,12 @@ pub const VM = struct {
                 const rhs = self.pop();
                 const lhs = self.pop();
 
-                if (lhs.isSuccess() and rhs.isSuccess()) {
+                if (lhs.isType(.InputSubstring) and rhs.isType(.InputSubstring) and
+                    lhs.InputSubstring[1] == rhs.InputSubstring[0])
+                {
+                    const elem = Elem.inputSubstring(lhs.InputSubstring[0], rhs.InputSubstring[1]);
+                    try self.push(elem);
+                } else if (lhs.isSuccess() and rhs.isSuccess()) {
                     var value: *Elem.Dyn.String = undefined;
 
                     if (lhs.isDynType(.String)) {
@@ -456,9 +467,13 @@ pub const VM = struct {
                     } else if (lhs.isType(.String)) {
                         const bytes = self.strings.get(lhs.String);
                         value = try Elem.Dyn.String.copy(self, bytes);
+                    } else if (lhs.isType(.InputSubstring)) {
+                        const is = lhs.InputSubstring;
+                        const bytes = self.input[is[0]..is[1]];
+                        value = try Elem.Dyn.String.copy(self, bytes);
                     } else {
                         var bytes = ArrayList(u8).init(self.allocator);
-                        try lhs.writeJson(.Compact, self.allocator, self.strings, bytes.writer());
+                        try lhs.writeJson(.Compact, self.*, bytes.writer());
                         defer bytes.deinit();
 
                         value = try Elem.Dyn.String.copy(self, bytes.items);
@@ -469,9 +484,13 @@ pub const VM = struct {
                     } else if (rhs.isType(.String)) {
                         const bytes = self.strings.get(rhs.String);
                         try value.concatBytes(bytes);
+                    } else if (rhs.isType(.InputSubstring)) {
+                        const is = rhs.InputSubstring;
+                        const bytes = self.input[is[0]..is[1]];
+                        value = try Elem.Dyn.String.copy(self, bytes);
                     } else {
                         var bytes = ArrayList(u8).init(self.allocator);
-                        try rhs.writeJson(.Compact, self.allocator, self.strings, bytes.writer());
+                        try rhs.writeJson(.Compact, self.*, bytes.writer());
                         defer bytes.deinit();
 
                         try value.concatBytes(bytes.items);
@@ -498,7 +517,7 @@ pub const VM = struct {
             .NumberOf => {
                 if (self.peekIsSuccess()) {
                     const value = self.pop();
-                    if (try value.toNumber(&self.strings)) |n| {
+                    if (try value.toNumber(self)) |n| {
                         try self.push(n);
                     } else {
                         try self.pushFailure();
@@ -524,10 +543,11 @@ pub const VM = struct {
                 if (start < self.input.len) {
                     const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
                     const end = start + bytesLength;
-                    const string = try Elem.Dyn.String.copy(self, self.input[start..end]);
 
                     self.inputPos = end;
-                    try self.push(string.dyn.elem());
+
+                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
+                    try self.push(substring);
                 } else {
                     try self.pushFailure();
                 }
@@ -608,7 +628,7 @@ pub const VM = struct {
             try self.printElems();
 
             if (self.frames.items.len > 0) {
-                _ = try self.chunk().disassembleInstruction(self.frame().ip, self.strings, self.writers.debug);
+                _ = try self.chunk().disassembleInstruction(self.*, self.writers.debug, self.frame().ip);
             }
         }
     }
@@ -634,7 +654,10 @@ pub const VM = struct {
 
                 if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
                     self.inputPos = end;
-                    try self.push(elem);
+
+                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
+                    try self.push(substring);
+
                     return;
                 }
                 try self.pushFailure();
@@ -658,7 +681,7 @@ pub const VM = struct {
                     var function = dyn.asFunction();
 
                     if (self.config.printExecutedBytecode) {
-                        try function.disassemble(self.strings, self.writers.debug);
+                        try function.disassemble(self.*, self.writers.debug);
                     }
 
                     if (function.arity == argCount) {
@@ -700,8 +723,10 @@ pub const VM = struct {
                 const codepoint = try unicode.utf8Decode(self.input[start..end]);
                 if (low <= codepoint and codepoint <= high) {
                     self.inputPos = end;
-                    const string = try Elem.Dyn.String.copy(self, self.input[start..end]);
-                    try self.push(string.dyn.elem());
+
+                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
+                    try self.push(substring);
+
                     return;
                 }
             }
@@ -798,6 +823,21 @@ pub const VM = struct {
 
                     // Post happends before pre because backwards
                     const strLen = self.strings.get(sId).len;
+                    if (foundUnboundVar) {
+                        context.String.preVarLength += strLen;
+                    } else {
+                        context.String.postVarLength += strLen;
+                    }
+                },
+                .InputSubstring => |is| {
+                    if (context == .Unknown) {
+                        context = .{ .String = .{ .preVarLength = 0, .postVarLength = 0 } };
+                    } else if (context != .String) {
+                        return self.runtimeError("Merge type mismatch in pattern", .{});
+                    }
+
+                    // Post happends before pre because backwards
+                    const strLen = is[1] - is[0];
                     if (foundUnboundVar) {
                         context.String.preVarLength += strLen;
                     } else {
@@ -969,6 +1009,7 @@ pub const VM = struct {
             .String => |sc| {
                 const valueAsString = switch (value) {
                     .String => |sId| self.strings.get(sId),
+                    .InputSubstring => |is| self.input[is[0]..is[1]],
                     .Dyn => |dyn| switch (dyn.dynType) {
                         .String => dyn.asString().bytes(),
                         else => null,
@@ -1142,16 +1183,16 @@ pub const VM = struct {
     fn printElems(self: *VM) !void {
         try self.writers.debug.print("Stack   | ", .{});
         for (self.stack.items, 0..) |e, idx| {
-            e.print(self.writers.debug, self.strings) catch {};
+            e.print(self.*, self.writers.debug) catch {};
             if (idx < self.stack.items.len - 1) try self.writers.debug.print(", ", .{});
         }
         try self.writers.debug.print("\n", .{});
     }
 
-    fn printFrames(self: *VM) !void {
+    fn printFrames(self: VM) !void {
         try self.writers.debug.print("Frames  | ", .{});
         for (self.frames.items, 0..) |f, idx| {
-            f.function.print(self.writers.debug, self.strings) catch {};
+            f.function.print(self, self.writers.debug) catch {};
             if (idx < self.frames.items.len - 1) try self.writers.debug.print(", ", .{});
         }
         try self.writers.debug.print("\n", .{});

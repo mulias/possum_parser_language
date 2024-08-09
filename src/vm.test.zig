@@ -7,7 +7,7 @@ const Writers = @import("writer.zig").Writers;
 const testing = @import("testing.zig");
 
 const writers = Writers.initStdIo();
-const config = VMConfig.init();
+var config = VMConfig.init();
 
 test "empty program" {
     const parser = "";
@@ -45,8 +45,8 @@ test "empty input" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "\"\""),
-            Elem.string(vm.strings.getId("")),
-            vm.strings,
+            Elem.inputSubstring(0, 0),
+            vm,
         );
     }
 }
@@ -62,7 +62,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "abc"),
             Elem.string(vm.strings.getId("c")),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -71,8 +71,8 @@ test "'a' > 'b' > 'c' | 'abz'" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abzsss"),
-            Elem.string(vm.strings.getId("abz")),
-            vm.strings,
+            Elem.inputSubstring(0, 3),
+            vm,
         );
     }
     {
@@ -96,7 +96,7 @@ test "1234 | 5678 | 910" {
         try testing.expectSuccess(
             try vm.interpret(parser, "56789"),
             Elem.numberString(vm.strings.getId("5678"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -112,7 +112,7 @@ test "'foo' + 'bar' + 'baz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foobarbaz"),
             (try Elem.Dyn.String.copy(&vm, "foobarbaz")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -128,7 +128,7 @@ test "1 + 2 + 3" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.integer(6),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -144,7 +144,7 @@ test "1.23 + 10" {
         try testing.expectSuccess(
             try vm.interpret(parser, "1.2310"),
             Elem.float(11.23),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -160,7 +160,7 @@ test "0.1 + 0.2" {
         try testing.expectSuccess(
             try vm.interpret(parser, "0.10.2"),
             Elem.float(0.30000000000000004),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -176,7 +176,7 @@ test "1e57 + 3e-4" {
         try testing.expectSuccess(
             try vm.interpret(parser, "1e573e-4"),
             Elem.float(1.0e+57),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -192,7 +192,7 @@ test "bool(1,0) + bool(1,0)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "11"),
             Elem.boolean(true),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -202,7 +202,7 @@ test "bool(1,0) + bool(1,0)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "10"),
             Elem.boolean(true),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -212,7 +212,7 @@ test "bool(1,0) + bool(1,0)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "01"),
             Elem.boolean(true),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -222,7 +222,7 @@ test "bool(1,0) + bool(1,0)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "00"),
             Elem.boolean(false),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -238,7 +238,7 @@ test "'foo' $ 'bar'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
             Elem.string(vm.strings.getId("bar")),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -260,7 +260,7 @@ test "1 ! 12 ! 123" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.numberString(vm.strings.getId("123"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -276,7 +276,7 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "truefoobar"),
             (try Elem.Dyn.String.copy(&vm, "foobar")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -286,7 +286,7 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "baz"),
             Elem.string(vm.strings.getId("baz")),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -302,7 +302,7 @@ test "1000..10000 | 100..1000" {
         try testing.expectSuccess(
             try vm.interpret(parser, "888"),
             Elem.integer(888),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -318,7 +318,7 @@ test "-100..-1" {
         try testing.expectSuccess(
             try vm.interpret(parser, "-5"),
             Elem.integer(-5),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -335,7 +335,7 @@ test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
             (try Elem.Dyn.String.copy(&vm, "foo")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -351,7 +351,7 @@ test "'true' $ true" {
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
             Elem.boolean(true),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -368,7 +368,7 @@ test "('' $ null) + ('' $ null)" {
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
             Elem.nullConst,
-            vm.strings,
+            vm,
         );
     }
 }
@@ -384,7 +384,7 @@ test "'a'..'z' -> 'f' & 0..100 -> 12" {
         try testing.expectSuccess(
             try vm.interpret(parser, "f12"),
             Elem.integer(12),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -401,7 +401,7 @@ test "42.0 -> 42" {
         try testing.expectSuccess(
             try vm.interpret(parser, "42.0"),
             Elem.numberString(vm.strings.getId("42.0"), .Float),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -429,7 +429,7 @@ test "123 & 456 | 789 $ true & 'xyz'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123789xyz"),
             Elem.string(vm.strings.getId("xyz")),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -453,7 +453,7 @@ test "1 ? 2 & 3 : 4" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.numberString(vm.strings.getId("3"), .Integer),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -463,7 +463,7 @@ test "1 ? 2 & 3 : 4" {
         try testing.expectSuccess(
             try vm.interpret(parser, "4"),
             Elem.numberString(vm.strings.getId("4"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -485,7 +485,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
             Elem.numberString(vm.strings.getId("2"), .Integer),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -543,7 +543,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         try testing.expectSuccess(
             try vm.interpret(parser, "34"),
             Elem.numberString(vm.strings.getId("4"), .Integer),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -571,7 +571,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         try testing.expectSuccess(
             try vm.interpret(parser, "5"),
             Elem.numberString(vm.strings.getId("5"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -587,7 +587,7 @@ test "'foo' -> 'foo' -> 'foo'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foofoo"),
             Elem.string(vm.strings.getId("foo")),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -604,7 +604,7 @@ test "a = 'a' ; a + a" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
             (try Elem.Dyn.String.copy(&vm, "aa")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -620,7 +620,7 @@ test "Foo = true ; 123 $ Foo" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.boolean(true),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -637,7 +637,7 @@ test "double(p) = p + p ; double('a')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
             (try Elem.Dyn.String.copy(&vm, "aa")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -654,7 +654,7 @@ test "scan(p) = p | (char > scan(p)) ; scan('end')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aaaaaaaend"),
             (try Elem.Dyn.String.copy(&vm, "end")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -671,7 +671,7 @@ test "double(p) = p + p ; double('a' + 'b')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "abab"),
             (try Elem.Dyn.String.copy(&vm, "abab")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -688,7 +688,7 @@ test "double(p) = p + p ; double('a' + 'b') + double('x' < 'y')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "ababxyxy"),
             (try Elem.Dyn.String.copy(&vm, "ababxx")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -705,7 +705,7 @@ test "id(A) = '' $ A ; id(true)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "ignored"),
             Elem.boolean(true),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -728,7 +728,7 @@ test "n = '\n' ; n > n > n > 'wow!'" {
         try testing.expectSuccess(
             try vm.interpret(parser, input),
             Elem.string(vm.strings.getId("wow!")),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -748,7 +748,7 @@ test "'\\n\\'\\\\' > 0" {
         try testing.expectSuccess(
             try vm.interpret(parser, input),
             Elem.numberString(vm.strings.getId("0"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -765,7 +765,7 @@ test "c = '\\u0000'..'\\U10FFFF' ; c > (c + c) < c" {
         try testing.expectSuccess(
             try vm.interpret(parser, "abcd"),
             (try Elem.Dyn.String.copy(&vm, "bc")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -782,7 +782,7 @@ test "c = '\\u0001'..'\\U10FFFE' ; c > (c + c) < c" {
         try testing.expectSuccess(
             try vm.interpret(parser, "abcd"),
             (try Elem.Dyn.String.copy(&vm, "bc")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -805,7 +805,7 @@ test "n = '\n'..'\n' ; n > n > n > 'wow!'" {
         try testing.expectSuccess(
             try vm.interpret(parser, input),
             Elem.string(vm.strings.getId("wow!")),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -822,7 +822,7 @@ test "A = 100 ; 100 -> A" {
         try testing.expectSuccess(
             try vm.interpret(parser, "100"),
             Elem.numberString(vm.strings.getId("100"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -839,7 +839,7 @@ test "eql_to(p, V) = p -> V ; eql_to('bar' | 'foo', 'foo')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
             Elem.string(vm.strings.getId("foo")),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -856,7 +856,7 @@ test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.numberString(vm.strings.getId("3"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -872,7 +872,7 @@ test "'foo' -> Foo $ Foo" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
             Elem.string(vm.strings.getId("foo")),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -889,7 +889,7 @@ test "peek(p) = p -> V ! '' $ V ; peek(1) + peek(1) + peek(1)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
             Elem.integer(3),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -922,7 +922,7 @@ test "a = b ; b = c ; c = 111 ; a" {
         try testing.expectSuccess(
             try vm.interpret(parser, "111"),
             Elem.numberString(vm.strings.getId("111"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -942,7 +942,7 @@ test "a = b ; b = c('bar') ; c(a) = d(a, 'foo') ; d(a, b) = a + b; a" {
         try testing.expectSuccess(
             try vm.interpret(parser, "barfoo"),
             (try Elem.Dyn.String.copy(&vm, "barfoo")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -958,7 +958,7 @@ test "@number_of('123')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.integer(123),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -974,7 +974,7 @@ test "@number_of('123.456')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123.456"),
             Elem.float(123.456),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -990,7 +990,7 @@ test "many('🐀' | skip('🛹'))" {
         try testing.expectSuccess(
             try vm.interpret(parser, "🛹🛹🛹🐀🐀🛹🐀🛹🐀🐀"),
             Elem.integer(5),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1006,7 +1006,7 @@ test "123 + ((456 -> B) -> C)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123456"),
             Elem.integer(579),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1023,7 +1023,7 @@ test "foo(a) = a + a ; foo('a' + 'a')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aaaa"),
             (try Elem.Dyn.String.copy(&vm, "aaaa")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1041,7 +1041,7 @@ test "foo(a) = a + a ; bar(p) = p ; foo(bar('a' + 'a'))" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aaaa"),
             (try Elem.Dyn.String.copy(&vm, "aaaa")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1058,7 +1058,7 @@ test "foo(N) = 12 -> N ; const(12) -> A & foo(A)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "input"),
             Elem.integer(12),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1134,7 +1134,7 @@ test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo(3)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "33"),
             Elem.integer(6),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1178,7 +1178,7 @@ test "Max function locals" {
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
             Elem.numberString(vm.strings.getId("0"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1237,7 +1237,7 @@ test "'aa' $ []" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
             (try Elem.Dyn.Array.create(&vm, 0)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1254,7 +1254,7 @@ test "'aa' $ [1, 2, 3]" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1274,7 +1274,7 @@ test "'a' -> A $ [[A]]" {
         const outerArray = [_]Elem{(try Elem.Dyn.Array.copy(&vm, &innerArray)).dyn.elem()};
         const array = (try Elem.Dyn.Array.copy(&vm, &outerArray)).dyn.elem();
 
-        try testing.expectSuccess(result, array, vm.strings);
+        try testing.expectSuccess(result, array, vm);
     }
 }
 
@@ -1290,7 +1290,7 @@ test "('a' $ [1, 2]) + ('b' $ [true, false])" {
         try testing.expectSuccess(
             try vm.interpret(parser, "abc"),
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1306,7 +1306,7 @@ test "('a' + 'b') -> S $ (S + 'c') $ (S + 'd')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "ab"),
             (try Elem.Dyn.String.copy(&vm, "abd")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1323,7 +1323,7 @@ test "const([1, 2]) -> [A, B] $ [B, A]" {
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1340,7 +1340,7 @@ test "const([[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]" {
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1356,7 +1356,7 @@ test "const([[], 100]) -> [[], A] $ A" {
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
             Elem.numberString(vm.strings.getId("100"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1417,7 +1417,7 @@ test "true(t) = t $ true ; true('true')" {
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
             Elem.boolean(true),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1436,7 +1436,7 @@ test "camelCase = _foo ; _foo = __bar ; __bar = 123 ; camelCase" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.numberString(vm.strings.getId("123"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1482,7 +1482,7 @@ test "Add(A, B) = A + B ; '' $ Add(3, 12)" {
         try testing.expectSuccess(
             try vm.interpret(parser, "true"),
             Elem.integer(15),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1498,7 +1498,7 @@ test "A = 1 + 100 ; 101 -> A" {
         try testing.expectSuccess(
             try vm.interpret(parser, "101"),
             Elem.integer(101),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1520,7 +1520,7 @@ test "fibonacci parser function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
             Elem.integer(0),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1530,7 +1530,7 @@ test "fibonacci parser function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
             Elem.integer(1),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1540,7 +1540,7 @@ test "fibonacci parser function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "2"),
             Elem.integer(1),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1550,7 +1550,7 @@ test "fibonacci parser function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "3"),
             Elem.integer(2),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1560,7 +1560,7 @@ test "fibonacci parser function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "7"),
             Elem.integer(13),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1581,7 +1581,7 @@ test "fibonacci value function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
             Elem.integer(0),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1591,7 +1591,7 @@ test "fibonacci value function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
             Elem.integer(1),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1601,7 +1601,7 @@ test "fibonacci value function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "2"),
             Elem.integer(1),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1611,7 +1611,7 @@ test "fibonacci value function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "3"),
             Elem.integer(2),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1621,7 +1621,7 @@ test "fibonacci value function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "7"),
             Elem.integer(13),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1631,7 +1631,7 @@ test "fibonacci value function" {
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
             Elem.integer(144),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1647,7 +1647,7 @@ test "'aa' $ {}" {
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
             (try Elem.Dyn.Object.create(&vm, 0)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1668,7 +1668,7 @@ test "'aa' $ {'a': 1, 'b': 2, 'c': 3}" {
         try object.members.put(vm.strings.getId("b"), Elem.integer(2));
         try object.members.put(vm.strings.getId("c"), Elem.integer(3));
 
-        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+        try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
 }
 
@@ -1687,7 +1687,7 @@ test "1 -> A & 2 -> B $ {'a': A, 'b': B}" {
         try object.members.put(vm.strings.getId("a"), Elem.integer(1));
         try object.members.put(vm.strings.getId("b"), Elem.integer(2));
 
-        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+        try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
 }
 
@@ -1706,7 +1706,7 @@ test "'Z' -> A $ {A: 1, 'A': 2}" {
         try object.members.put(vm.strings.getId("Z"), Elem.integer(1));
         try object.members.put(vm.strings.getId("A"), Elem.integer(2));
 
-        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+        try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
 }
 
@@ -1726,7 +1726,7 @@ test "object(alpha, digit)" {
         try object.members.put(vm.strings.getId("b"), Elem.integer(2));
         try object.members.put(vm.strings.getId("c"), Elem.integer(3));
 
-        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+        try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
 }
 
@@ -1745,7 +1745,7 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
         try object.members.put(vm.strings.getId("a"), Elem.boolean(false));
         try object.members.put(vm.strings.getId("b"), Elem.nullConst);
 
-        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+        try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
 }
 
@@ -1763,7 +1763,7 @@ test "const({'a': true}) -> {'a': true}" {
         var object = try Elem.Dyn.Object.create(&vm, 1);
         try object.members.put(vm.strings.getId("a"), Elem.boolean(true));
 
-        try testing.expectSuccess(result, object.dyn.elem(), vm.strings);
+        try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
 }
 
@@ -1794,7 +1794,7 @@ test "const({'a': 123}) -> {'a': A} $ A" {
         try testing.expectSuccess(
             result,
             Elem.numberString(vm.strings.getId("123"), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1818,7 +1818,7 @@ test "const([1, 2, 3 + 10, 4])" {
         try testing.expectSuccess(
             result,
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1842,7 +1842,7 @@ test "const([1, 2, 3 - 10, 4])" {
         try testing.expectSuccess(
             result,
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1869,7 +1869,7 @@ test "'' $ [1, 2, [1+1+1]]" {
         try testing.expectSuccess(
             result,
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -1925,7 +1925,7 @@ test "array(digit) -> [A, B]" {
         try testing.expectSuccess(
             result,
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1949,8 +1949,8 @@ test "'ab' -> ('a' + 'b')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ab"),
-            (try Elem.Dyn.String.copy(&vm, "ab")).dyn.elem(),
-            vm.strings,
+            Elem.inputSubstring(0, 2),
+            vm,
         );
     }
 }
@@ -1966,7 +1966,7 @@ test "int -> (2 + N) $ N" {
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
             Elem.integer(121),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -1990,7 +1990,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
         try testing.expectSuccess(
             try vm.interpret(parser, "tt"),
             Elem.boolean(false),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -2000,7 +2000,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
         try testing.expectSuccess(
             try vm.interpret(parser, "ff"),
             Elem.boolean(false),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -2018,7 +2018,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
         try testing.expectSuccess(
             try vm.interpret(parser, "ft"),
             Elem.boolean(true),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -2035,7 +2035,7 @@ test "const([1,[2],2,3]) -> ([1,A] + A + [3]) $ A" {
         try testing.expectSuccess(
             try vm.interpret(parser, "a"),
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -2051,7 +2051,7 @@ test "'foobar' -> ('fo' + Ob + 'ar') $ Ob" {
         try testing.expectSuccess(
             try vm.interpret(parser, "foobar"),
             (try Elem.Dyn.String.copy(&vm, "ob")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -2076,7 +2076,7 @@ test "const([1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]" {
         try testing.expectSuccess(
             try vm.interpret(parser, "a"),
             (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -2092,7 +2092,7 @@ test "'Hello %(word)!'" {
         try testing.expectSuccess(
             try vm.interpret(parser, "Hello World!"),
             (try Elem.Dyn.String.copy(&vm, "Hello World!")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
     {
@@ -2116,7 +2116,7 @@ test "A = 1 ; B = 2 ; const('%(A) + %(A) = %(B)')" {
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
             (try Elem.Dyn.String.copy(&vm, "1 + 1 = 2")).dyn.elem(),
-            vm.strings,
+            vm,
         );
     }
 }
@@ -2154,7 +2154,7 @@ test "Large number" {
         try testing.expectSuccess(
             try vm.interpret(parser, large_int),
             Elem.numberString(vm.strings.getId(large_int), .Integer),
-            vm.strings,
+            vm,
         );
     }
 }

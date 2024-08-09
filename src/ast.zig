@@ -5,6 +5,7 @@ const Elem = @import("elem.zig").Elem;
 const Location = @import("location.zig").Location;
 const StringTable = @import("string_table.zig").StringTable;
 const VMWriter = @import("writer.zig").VMWriter;
+const VM = @import("vm.zig").VM;
 
 pub const Ast = struct {
     roots: ArrayList(usize),
@@ -116,7 +117,7 @@ pub const Ast = struct {
         return self.nodes.items.len - 1;
     }
 
-    pub fn print(self: *Ast, writer: VMWriter, strings: StringTable) !void {
+    pub fn print(self: *Ast, vm: VM, writer: VMWriter) !void {
         try writer.print("roots:", .{});
         for (self.roots.items) |nodeId| {
             try writer.print(" {d}", .{nodeId});
@@ -127,7 +128,7 @@ pub const Ast = struct {
             try writer.print("node {d}: ", .{index});
             switch (node) {
                 .InfixNode => |infix| try writer.print("{s} {d} {d}", .{ @tagName(infix.infixType), infix.left, infix.right }),
-                .ElemNode => |elem| try elem.print(writer, strings),
+                .ElemNode => |elem| try elem.print(vm, writer),
             }
             try writer.print("\n", .{});
         }

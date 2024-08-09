@@ -6,6 +6,7 @@ const Location = @import("location.zig").Location;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable;
 const VMWriter = @import("writer.zig").VMWriter;
+const VM = @import("vm.zig").VM;
 
 pub const ChunkError = error{
     TooManyConstants,
@@ -89,18 +90,18 @@ pub const Chunk = struct {
         return @as(u8, @intCast(idx));
     }
 
-    pub fn disassemble(self: *Chunk, strings: StringTable, name: []const u8, writer: VMWriter) !void {
+    pub fn disassemble(self: *Chunk, vm: VM, writer: VMWriter, name: []const u8) !void {
         try writer.print("\n{s:=^40}\n", .{name});
 
         var offset: usize = 0;
         while (offset < self.code.items.len) {
-            offset = try self.disassembleInstruction(offset, strings, writer);
+            offset = try self.disassembleInstruction(vm, writer, offset);
         }
 
         try writer.print("{s:=^40}\n", .{""});
     }
 
-    pub fn disassembleInstruction(self: *Chunk, offset: usize, strings: StringTable, writer: VMWriter) !usize {
+    pub fn disassembleInstruction(self: *Chunk, vm: VM, writer: VMWriter, offset: usize) !usize {
         // print address
         try writer.print("{:0>4} ", .{offset});
 
@@ -113,7 +114,7 @@ pub const Chunk = struct {
 
         const instruction = self.readOp(offset);
 
-        return instruction.disassemble(self, strings, offset, writer);
+        return instruction.disassemble(self, vm, writer, offset);
     }
 
     fn shortLowerBytes(short: u16) u8 {
