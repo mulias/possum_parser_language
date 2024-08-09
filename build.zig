@@ -101,7 +101,9 @@ fn runStep(b: *Build, target: anytype, optimize: anytype) void {
 fn checkStep(b: *Build, target: anytype, optimize: anytype) void {
     const check_step = b.step("check", "Check for compilation errors");
     const check_cli = addCliExecutable(b, "possum", target, optimize);
+    const check_wasm = addWasmExecutable(b, "possum");
     check_step.dependOn(&check_cli.step);
+    check_step.dependOn(&check_wasm.step);
 }
 
 fn testStep(b: *Build, target: anytype, optimize: anytype) void {
