@@ -944,7 +944,8 @@ pub const VM = struct {
                 }
             },
             .Number => |nc| {
-                if (try value.merge(try nc.acc.negateNumber(self.strings), self)) |diff| {
+                const subtrahend = nc.acc.negateNumber(self.strings) catch @panic("Internal Error");
+                if (try Elem.merge(value, subtrahend, self)) |diff| {
                     var i: usize = patternSegments.len;
                     while (i > 0) {
                         i -= 1;
