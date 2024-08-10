@@ -382,22 +382,13 @@ pub const VM = struct {
                     try self.pushFailure();
                 } else {
                     var key: StringTable.Id = undefined;
-                    switch (keyElem) {
-                        .String => |sId| {
-                            key = sId;
-                        },
-                        .InputSubstring => |is| {
-                            const s = self.input[is[0]..is[1]];
-                            key = try self.strings.insert(s);
-                        },
-                        .Dyn => |dyn| switch (dyn.dynType) {
-                            .String => {
-                                const s = dyn.asString().buffer.str();
-                                key = try self.strings.insert(s);
-                            },
-                            else => return self.runtimeError("Object key must be a string", .{}),
-                        },
-                        else => return self.runtimeError("Object key must be a string", .{}),
+
+                    if (keyElem.isType(.String)) {
+                        key = keyElem.String;
+                    } else if (keyElem.stringBytes(self.*)) |bytes| {
+                        key = try self.strings.insert(bytes);
+                    } else {
+                        return self.runtimeError("Object key must be a string", .{});
                     }
 
                     var copy = try Elem.Dyn.Object.create(self, object.members.count());
@@ -454,49 +445,12 @@ pub const VM = struct {
                 const rhs = self.pop();
                 const lhs = self.pop();
 
-                if (lhs.isType(.InputSubstring) and rhs.isType(.InputSubstring) and
-                    lhs.InputSubstring[1] == rhs.InputSubstring[0])
-                {
-                    const elem = Elem.inputSubstring(lhs.InputSubstring[0], rhs.InputSubstring[1]);
-                    try self.push(elem);
-                } else if (lhs.isSuccess() and rhs.isSuccess()) {
-                    var value: *Elem.Dyn.String = undefined;
+                if (lhs.isSuccess() and rhs.isSuccess()) {
+                    const lStr = try lhs.toString(self);
+                    const rStr = try rhs.toString(self);
+                    const merged = (try lStr.merge(rStr, self)).?;
 
-                    if (lhs.isDynType(.String)) {
-                        value = lhs.asDyn().asString();
-                    } else if (lhs.isType(.String)) {
-                        const bytes = self.strings.get(lhs.String);
-                        value = try Elem.Dyn.String.copy(self, bytes);
-                    } else if (lhs.isType(.InputSubstring)) {
-                        const is = lhs.InputSubstring;
-                        const bytes = self.input[is[0]..is[1]];
-                        value = try Elem.Dyn.String.copy(self, bytes);
-                    } else {
-                        var bytes = ArrayList(u8).init(self.allocator);
-                        try lhs.writeJson(.Compact, self.*, bytes.writer());
-                        defer bytes.deinit();
-
-                        value = try Elem.Dyn.String.copy(self, bytes.items);
-                    }
-
-                    if (rhs.isDynType(.String)) {
-                        try value.concat(rhs.asDyn().asString());
-                    } else if (rhs.isType(.String)) {
-                        const bytes = self.strings.get(rhs.String);
-                        try value.concatBytes(bytes);
-                    } else if (rhs.isType(.InputSubstring)) {
-                        const is = rhs.InputSubstring;
-                        const bytes = self.input[is[0]..is[1]];
-                        value = try Elem.Dyn.String.copy(self, bytes);
-                    } else {
-                        var bytes = ArrayList(u8).init(self.allocator);
-                        try rhs.writeJson(.Compact, self.*, bytes.writer());
-                        defer bytes.deinit();
-
-                        try value.concatBytes(bytes.items);
-                    }
-
-                    try self.push(value.dyn.elem());
+                    try self.push(merged);
                 } else {
                     try self.push(Elem.failureConst);
                 }
@@ -1007,18 +961,10 @@ pub const VM = struct {
             },
             .Object => {},
             .String => |sc| {
-                const valueAsString = switch (value) {
-                    .String => |sId| self.strings.get(sId),
-                    .InputSubstring => |is| self.input[is[0]..is[1]],
-                    .Dyn => |dyn| switch (dyn.dynType) {
-                        .String => dyn.asString().bytes(),
-                        else => null,
-                    },
-                    else => null,
-                };
+                const valueString = value.stringBytes(self.*);
 
-                if (valueAsString) |valueString| {
-                    const valueLength = valueString.len;
+                if (valueString) |bytes| {
+                    const valueLength = bytes.len;
                     const patternMinLength = sc.preVarLength + sc.postVarLength;
 
                     if ((foundUnboundVar and valueLength >= patternMinLength) or valueLength == patternMinLength) {
@@ -1028,7 +974,7 @@ pub const VM = struct {
                                 assert(valueIndex == sc.preVarLength);
 
                                 const length = valueLength - sc.preVarLength - sc.postVarLength;
-                                const substring = try Elem.Dyn.String.copy(self, valueString[valueIndex..(valueIndex + length)]);
+                                const substring = try Elem.Dyn.String.copy(self, bytes[valueIndex..(valueIndex + length)]);
 
                                 valueIndex += length;
                                 patternSegments[i] = substring.dyn.elem();
@@ -1038,7 +984,7 @@ pub const VM = struct {
                                 else
                                     segment.asDyn().asString().bytes();
 
-                                const substring = try Elem.Dyn.String.copy(self, valueString[valueIndex..(valueIndex + segmentString.len)]);
+                                const substring = try Elem.Dyn.String.copy(self, bytes[valueIndex..(valueIndex + segmentString.len)]);
 
                                 valueIndex += substring.len();
                                 patternSegments[i] = substring.dyn.elem();

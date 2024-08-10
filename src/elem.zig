@@ -563,6 +563,31 @@ pub const Elem = union(ElemType) {
         };
     }
 
+    pub fn toString(self: Elem, vm: *VM) !Elem {
+        if (self.isType(.String) or self.isType(.InputSubstring) or self.isDynType(.String)) {
+            return self;
+        } else {
+            var bytes = ArrayList(u8).init(vm.allocator);
+            try self.writeJson(.Compact, vm.*, bytes.writer());
+            defer bytes.deinit();
+
+            const s = try Elem.Dyn.String.copy(vm, bytes.items);
+            return s.dyn.elem();
+        }
+    }
+
+    pub fn stringBytes(elem: Elem, vm: VM) ?[]const u8 {
+        return switch (elem) {
+            .String => |sId| vm.strings.get(sId),
+            .InputSubstring => |is| vm.input[is[0]..is[1]],
+            .Dyn => |d| switch (d.dynType) {
+                .String => d.asString().buffer.str(),
+                else => null,
+            },
+            else => null,
+        };
+    }
+
     pub fn toJson(self: Elem, vm: VM) !json.Value {
         return switch (self) {
             .String => |sId| {
