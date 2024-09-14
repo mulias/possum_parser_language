@@ -41,9 +41,8 @@ pub const CLI = struct {
 
     fn parse(self: CLI, args: cli_config.ParseArgs) !void {
         const env = try Env.fromOS(self.allocator);
-        var config = VMConfig.init();
+        var config = VMConfig{ .includeStdlib = args.stdlib };
         config.setEnv(env);
-        config.includeStdlib = args.stdlib;
 
         const parser = switch (args.parser) {
             .String => |str| str,

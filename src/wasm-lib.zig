@@ -34,7 +34,7 @@ const writers = Writers{
 };
 
 fn createVMPtr() !*VM {
-    const config = VMConfig.init();
+    const config = VMConfig{};
 
     var vm = try allocator.create(VM);
     vm.* = VM.create();

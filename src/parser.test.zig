@@ -10,7 +10,7 @@ const Writers = @import("writer.zig").Writers;
 
 const loc = Location.new;
 const writers = Writers.initStdIo();
-const config = VMConfig.init();
+const config = VMConfig{ .includeStdlib = false };
 
 test "'a' > 'b' > 'c' | 'abz'" {
     const source =

@@ -7,7 +7,7 @@ const Writers = @import("writer.zig").Writers;
 const testing = @import("testing.zig");
 
 const writers = Writers.initStdIo();
-var config = VMConfig.init();
+const config = VMConfig{ .includeStdlib = false };
 
 test "empty program" {
     const parser = "";
@@ -183,6 +183,11 @@ test "1e57 + 3e-4" {
 
 test "bool(1,0) + bool(1,0)" {
     const parser =
+        \\true(t) = t $ true
+        \\false(f) = f $ false
+        \\boolean(t, f) = true(t) | false(f)
+        \\bool = boolean
+        \\
         \\bool(1,0) + bool(1,0)
     ;
     {
@@ -979,8 +984,14 @@ test "@number_of('123.456')" {
     }
 }
 
-test "many('🐀' | skip('🛹'))" {
+test "many(('🐀' $ 1) | skip('🛹'))" {
     const parser =
+        \\const(C) = "" $ C
+        \\many(p) = p -> First & _many(p, First)
+        \\_many(p, Acc) = p -> Next ? _many(p, Acc + Next) : const(Acc)
+        \\skip(p) = null(p)
+        \\null(n) = n $ null
+        \\
         \\many(('🐀' $ 1) | skip('🛹'))
     ;
     {
@@ -1046,17 +1057,17 @@ test "foo(a) = a + a ; bar(p) = p ; foo(bar('a' + 'a'))" {
     }
 }
 
-test "foo(N) = 12 -> N ; const(12) -> A & foo(A)" {
+test "is_twelve(N) = ('' $ N) -> 12 ; 12 -> A & is_twelve(A)" {
     const parser =
-        \\is_twelve(N) = const(N) -> 12
-        \\const(12) -> A & is_twelve(A)
+        \\is_twelve(N) = ("" $ N) -> 12
+        \\12 -> A & is_twelve(A)
     ;
     {
         var vm = VM.create();
         try vm.init(allocator, writers, config);
         defer vm.deinit();
         try testing.expectSuccess(
-            try vm.interpret(parser, "input"),
+            try vm.interpret(parser, "12"),
             Elem.integer(12),
             vm,
         );
@@ -1311,9 +1322,9 @@ test "('a' + 'b') -> S $ (S + 'c') $ (S + 'd')" {
     }
 }
 
-test "const([1, 2]) -> [A, B] $ [B, A]" {
+test "('' $ [1, 2]) -> [A, B] $ [B, A]" {
     const parser =
-        \\const([1, 2]) -> [A, B] $ [B, A]
+        \\('' $ [1, 2]) -> [A, B] $ [B, A]
     ;
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(1) };
@@ -1328,9 +1339,9 @@ test "const([1, 2]) -> [A, B] $ [B, A]" {
     }
 }
 
-test "const([[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]" {
+test "('' $ [[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]" {
     const parser =
-        \\const([[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]
+        \\("" $ [[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]
     ;
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(4) };
@@ -1345,9 +1356,9 @@ test "const([[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]" {
     }
 }
 
-test "const([[], 100]) -> [[], A] $ A" {
+test "('' $ [[], 100]) -> [[], A] $ A" {
     const parser =
-        \\const([[], 100]) -> [[], A] $ A
+        \\('' $ [[], 100]) -> [[], A] $ A
     ;
     {
         var vm = VM.create();
@@ -1505,13 +1516,15 @@ test "A = 1 + 100 ; 101 -> A" {
 
 test "fibonacci parser function" {
     const parser =
+        \\const(C) = "" $ C
+        \\
         \\fib(N) =
         \\  const(N) -> 0 ? const(0) :
         \\  const(N) -> 1 ? const(1) :
         \\  fib(N - 1) -> N1 & fib(N - 2) -> N2 $
         \\  (N1 + N2)
         \\
-        \\int -> N & fib(N)
+        \\0..99 -> N & fib(N)
     ;
     {
         var vm = VM.create();
@@ -1572,7 +1585,7 @@ test "fibonacci value function" {
         \\  N -> 1 ? 1 :
         \\  Fib(N - 1) + Fib(N - 2)
         \\
-        \\int -> N $ Fib(N)
+        \\0..99 -> N $ Fib(N)
     ;
     {
         var vm = VM.create();
@@ -1710,9 +1723,20 @@ test "'Z' -> A $ {A: 1, 'A': 2}" {
     }
 }
 
-test "object(alpha, digit)" {
+test "object('a'..'z', 0..9)" {
     const parser =
-        \\object(alpha, digit)
+        \\const(C) = "" $ C
+        \\
+        \\object(key, value) =
+        \\  key -> K & value -> V &
+        \\  _object(key, value, {K: V})
+        \\
+        \\_object(key, value, Acc) =
+        \\  key -> K & value -> V ?
+        \\  _object(key, value, Acc + {K: V}) :
+        \\  const(Acc)
+        \\
+        \\object('a'..'z', 0..9)
     ;
     {
         var vm = VM.create();
@@ -1749,9 +1773,9 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
     }
 }
 
-test "const({'a': true}) -> {'a': true}" {
+test "('' $ {'a': true}) -> {'a': true}" {
     const parser =
-        \\const({'a': true}) -> {'a': true}
+        \\("" $ {'a': true}) -> {'a': true}
     ;
     {
         var vm = VM.create();
@@ -1767,9 +1791,9 @@ test "const({'a': true}) -> {'a': true}" {
     }
 }
 
-test "const({'a': true}) -> {'a': false}" {
+test "('' $ {'a': true}) -> {'a': false}" {
     const parser =
-        \\const({'a': true}) -> {'a': false}
+        \\("" $ {'a': true}) -> {'a': false}
     ;
     {
         var vm = VM.create();
@@ -1781,9 +1805,9 @@ test "const({'a': true}) -> {'a': false}" {
     }
 }
 
-test "const({'a': 123}) -> {'a': A} $ A" {
+test "('' $ {'a': 123}) -> {'a': A} $ A" {
     const parser =
-        \\const({'a': 123}) -> {'a': A} $ A
+        \\('' $ {'a': 123}) -> {'a': A} $ A
     ;
     {
         var vm = VM.create();
@@ -1799,9 +1823,9 @@ test "const({'a': 123}) -> {'a': A} $ A" {
     }
 }
 
-test "const([1, 2, 3 + 10, 4])" {
+test "('' $ [1, 2, 3 + 10, 4])" {
     const parser =
-        \\const([1, 2, 3 + 10, 4])
+        \\('' $ [1, 2, 3 + 10, 4])
     ;
     {
         const array = [_]Elem{
@@ -1823,9 +1847,9 @@ test "const([1, 2, 3 + 10, 4])" {
     }
 }
 
-test "const([1, 2, 3 - 10, 4])" {
+test "('' $ [1, 2, 3 - 10, 4])" {
     const parser =
-        \\const([1, 2, 3 - 10, 4])
+        \\('' $ [1, 2, 3 - 10, 4])
     ;
     {
         const array = [_]Elem{
@@ -1891,6 +1915,17 @@ test "Foo = (1 -> 2) + 1 ; '' $ [Foo]" {
 
 test "array(digit) -> [A, B]" {
     const parser =
+        \\const(C) = "" $ C
+        \\
+        \\array(elem) = elem -> First & _array(elem, [First])
+        \\
+        \\_array(elem, Acc) =
+        \\  elem -> Elem ?
+        \\  _array(elem, [...Acc, Elem]) :
+        \\  const(Acc)
+        \\
+        \\digit = 0..9
+        \\
         \\array(digit) -> [A, B]
     ;
     {
@@ -1955,9 +1990,9 @@ test "'ab' -> ('a' + 'b')" {
     }
 }
 
-test "int -> (2 + N) $ N" {
+test "123 -> (2 + N) $ N" {
     const parser =
-        \\int -> (2 + N) $ N
+        \\123 -> (2 + N) $ N
     ;
     {
         var vm = VM.create();
@@ -1981,6 +2016,11 @@ test "int -> (2 + N) $ N" {
 
 test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
     const parser =
+        \\true(t) = t $ true
+        \\false(f) = f $ false
+        \\boolean(t, f) = true(t) | false(f)
+        \\bool = boolean
+        \\
         \\bool('t','f') -> A & bool('t','f') -> (A + B) $ B
     ;
     {
@@ -2023,9 +2063,9 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
     }
 }
 
-test "const([1,[2],2,3]) -> ([1,A] + A + [3]) $ A" {
+test "('' $ [1,[2],2,3]) -> ([1,A] + A + [3]) $ A" {
     const parser =
-        \\const([1,[2],2,3]) -> ([1,A] + A + [3]) $ A
+        \\('' $ [1,[2],2,3]) -> ([1,A] + A + [3]) $ A
     ;
     {
         var vm = VM.create();
@@ -2056,9 +2096,9 @@ test "'foobar' -> ('fo' + Ob + 'ar') $ Ob" {
     }
 }
 
-test "const([1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]" {
+test "('' $ [1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]" {
     const parser =
-        \\const([1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]
+        \\('' $ [1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]
     ;
     {
         var vm = VM.create();
@@ -2081,17 +2121,17 @@ test "const([1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]" {
     }
 }
 
-test "'Hello %(word)!'" {
+test "'Hello %('a'..'z')!'" {
     const parser =
-        \\'Hello %(word)!'
+        \\'Hello %('a'..'z')!'
     ;
     {
         var vm = VM.create();
         try vm.init(allocator, writers, config);
         defer vm.deinit();
         try testing.expectSuccess(
-            try vm.interpret(parser, "Hello World!"),
-            (try Elem.Dyn.String.copy(&vm, "Hello World!")).dyn.elem(),
+            try vm.interpret(parser, "Hello q!"),
+            (try Elem.Dyn.String.copy(&vm, "Hello q!")).dyn.elem(),
             vm,
         );
     }
@@ -2100,14 +2140,14 @@ test "'Hello %(word)!'" {
         try vm.init(allocator, writers, config);
         defer vm.deinit();
         try testing.expectFailure(
-            try vm.interpret(parser, "Hello World?"),
+            try vm.interpret(parser, "Hello a?"),
         );
     }
 }
 
-test "A = 1 ; B = 2 ; const('%(A) + %(A) = %(B)')" {
+test "A = 1 ; B = 2 ; ('' $ '%(A) + %(A) = %(B)')" {
     const parser =
-        \\A = 1 ; B = 2 ; const('%(A) + %(A) = %(B)')
+        \\A = 1 ; B = 2 ; ('' $ '%(A) + %(A) = %(B)')
     ;
     {
         var vm = VM.create();
@@ -2158,3 +2198,17 @@ test "Large number" {
         );
     }
 }
+
+// test "0..999 -> N $ 'Your number was %(N).'" {
+//     {
+//         const parser = "0..999 -> N $ 'Your number was %(N).'";
+//         var vm = VM.create();
+//         try vm.init(allocator, writers, config);
+//         defer vm.deinit();
+//         try testing.expectSuccess(
+//             try vm.interpret(parser, "123"),
+//             (try Elem.Dyn.String.copy(&vm, "Your number was 123.")).dyn.elem(),
+//             vm,
+//         );
+//     }
+// }

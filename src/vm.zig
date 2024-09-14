@@ -17,27 +17,14 @@ const meta = @import("meta.zig");
 const parsing = @import("parsing.zig");
 
 pub const Config = struct {
-    printScanner: bool,
-    printParser: bool,
-    printAst: bool,
-    printCompiledBytecode: bool,
-    printExecutedBytecode: bool,
-    printVM: bool,
-    runVM: bool,
-    includeStdlib: bool,
-
-    pub fn init() Config {
-        return Config{
-            .printScanner = false,
-            .printParser = false,
-            .printAst = false,
-            .printCompiledBytecode = false,
-            .printExecutedBytecode = false,
-            .printVM = false,
-            .runVM = true,
-            .includeStdlib = true,
-        };
-    }
+    printScanner: bool = false,
+    printParser: bool = false,
+    printAst: bool = false,
+    printCompiledBytecode: bool = false,
+    printExecutedBytecode: bool = false,
+    printVM: bool = false,
+    runVM: bool = true,
+    includeStdlib: bool = true,
 
     pub fn setEnv(self: *Config, env: Env) void {
         self.printScanner = env.printScanner;
