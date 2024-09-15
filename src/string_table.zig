@@ -30,6 +30,13 @@ pub const StringTable = struct {
     }
 
     pub fn insert(self: *StringTable, string: []const u8) !u32 {
+        // The null byte is used as a sentinal character, so it can't appear in
+        // `string`. In order to support interned null bytes we allow the
+        // string "\u{000000}" and "insert" it at the very end of the table.
+        if (string.len == 1 and string[0] == 0) {
+            return std.math.maxInt(u32);
+        }
+
         const gop = try self.table.getOrPutContextAdapted(self.allocator, @as([]const u8, string), StringIndexAdapter{
             .bytes = &self.buffer,
         }, StringIndexContext{
@@ -56,11 +63,13 @@ pub const StringTable = struct {
     }
 
     pub fn find(self: StringTable, off: u32) ?[:0]const u8 {
+        if (off == std.math.maxInt(u32)) return "\u{000000}";
         if (off >= self.buffer.items.len) return null;
         return mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + off)), 0);
     }
 
     pub fn getId(self: *StringTable, string: []const u8) u32 {
+        if (string.len == 0 and string[0] == 0) return std.math.maxInt(u32);
         return self.table.getKeyAdapted(string, StringIndexAdapter{
             .bytes = &self.buffer,
         }) orelse @panic("failed to get interned string id, this should never happen");
