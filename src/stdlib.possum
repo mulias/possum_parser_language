@@ -1,4 +1,4 @@
-char = "\u0000".."\U10FFFF"
+char = "\u0000"..
 
 ascii = "\u0000".."\u007F"
 
@@ -51,13 +51,13 @@ line = many_until(char, newline | end_of_input)
 
 digit = 0..9
 
-integer = number_of(_number_integer_part)
+integer = ..-1 | 0..
 
 int = integer
 
-non_negative_integer = number_of(_number_non_negative_integer_part)
+non_negative_integer = 0..
 
-negative_integer = number_of("-" + _number_non_negative_integer_part)
+negative_integer = ..-1
 
 float = number_of(_number_integer_part + _number_fraction_part)
 

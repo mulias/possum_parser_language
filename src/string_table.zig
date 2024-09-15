@@ -69,6 +69,10 @@ pub const StringTable = struct {
     pub fn get(self: StringTable, off: u32) [:0]const u8 {
         return self.find(off) orelse @panic("failed to get interned string by id, this should never happen");
     }
+
+    pub fn equal(self: StringTable, sId: u32, compare: []const u8) bool {
+        return std.mem.eql(u8, self.get(sId), compare);
+    }
 };
 
 test "StringTable.insert copies and interns a string" {

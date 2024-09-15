@@ -154,6 +154,7 @@ pub const Parser = struct {
             .Float => self.float(),
             .Scientific => self.scientific(),
             .True, .False, .Null => self.literal(),
+            .DotDot => self.upperBoundedRange(),
             else => self.errorAtPrevious("Expect expression."),
         };
     }
@@ -278,31 +279,40 @@ pub const Parser = struct {
         const t1 = self.previous;
         if (self.current.tokenType == .DotDot and !self.currentSkippedWhitespace) {
             try self.advance();
-            if (self.current.tokenType == .String and !self.currentSkippedWhitespace) {
-                try self.advance();
-                const t2 = self.previous;
 
-                if (characterStringToCodepoint(t1)) |c1| {
+            if (characterStringToCodepoint(t1)) |c1| {
+                if (self.current.tokenType == .String and !self.currentSkippedWhitespace) {
+                    try self.advance();
+                    const t2 = self.previous;
+
+                    // closed range `"a".."z"`
                     if (characterStringToCodepoint(t2)) |c2| {
                         if (c1 > c2) {
                             return self.errorAtPrevious("Character range is not ordered");
                         }
 
-                        const intNode1 = try self.ast.pushElem(Elem.integer(@as(u21, @intCast(c1))), t1.loc);
-                        const intNode2 = try self.ast.pushElem(Elem.integer(@as(u21, @intCast(c2))), t2.loc);
+                        const charNode1 = try self.ast.pushElem(Elem.integer(@as(u21, @intCast(c1))), t1.loc);
+                        const charNode2 = try self.ast.pushElem(Elem.integer(@as(u21, @intCast(c2))), t2.loc);
 
                         return self.ast.pushInfix(
                             .CharacterRange,
-                            intNode1,
-                            intNode2,
+                            charNode1,
+                            charNode2,
                             Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
                         );
+                    } else {
+                        return self.errorAtPrevious("Expect single character for character range");
                     }
+                } else {
+                    // open range `"a"..`
+                    const internResult = try self.internUnescaped(stringContents(t1.lexeme));
+                    return self.ast.pushNode(
+                        .{ .LowerBoundedRange = Elem.string(internResult.sId) },
+                        Location.new(t1.loc.line, t1.loc.start, t1.loc.length + 2),
+                    );
                 }
-
-                return self.errorAtPrevious("Expect single character for character range");
             } else {
-                return self.errorAtPrevious("Expect second string for character range");
+                return self.errorAtPrevious("Expect single character for character range");
             }
         } else {
             return self.string();
@@ -433,15 +443,16 @@ pub const Parser = struct {
         const s1 = t1.lexeme;
         if (self.current.tokenType == .DotDot and !self.currentSkippedWhitespace) {
             try self.advance();
+
+            const int1 = std.fmt.parseInt(i64, s1, 10) catch |err| switch (err) {
+                std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
+                std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
+            };
+
             if (self.current.tokenType == .Integer and !self.currentSkippedWhitespace) {
                 try self.advance();
                 const t2 = self.previous;
                 const s2 = t2.lexeme;
-
-                const int1 = std.fmt.parseInt(i64, s1, 10) catch |err| switch (err) {
-                    std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
-                    std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
-                };
 
                 const int2 = std.fmt.parseInt(i64, s2, 10) catch |err| switch (err) {
                     std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
@@ -458,12 +469,52 @@ pub const Parser = struct {
                     Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
                 );
             } else {
-                return self.errorAtPrevious("Expect integer");
+                return self.ast.pushNode(
+                    .{ .LowerBoundedRange = Elem.integer(int1) },
+                    Location.new(t1.loc.line, t1.loc.start, t1.loc.length + 2),
+                );
             }
         } else {
             const sId1 = try self.vm.strings.insert(s1);
             return self.ast.pushElem(Elem.numberString(sId1, .Integer), t1.loc);
         }
+    }
+
+    fn upperBoundedRange(self: *Parser) !usize {
+        const dotsLoc = self.previous.loc;
+
+        var upperBoundToken: Token = undefined;
+        var upperBoundElem: Elem = undefined;
+
+        if (self.current.tokenType == .Integer and !self.currentSkippedWhitespace) {
+            try self.advance();
+            upperBoundToken = self.previous;
+
+            const intStr = upperBoundToken.lexeme;
+            const i = std.fmt.parseInt(i64, intStr, 10) catch |err| switch (err) {
+                std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
+                std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
+            };
+
+            upperBoundElem = Elem.integer(i);
+        } else if (self.current.tokenType == .String and !self.currentSkippedWhitespace) {
+            try self.advance();
+            upperBoundToken = self.previous;
+
+            if (characterStringToCodepoint(upperBoundToken) != null) {
+                const internResult = try self.internUnescaped(stringContents(upperBoundToken.lexeme));
+                upperBoundElem = Elem.string(internResult.sId);
+            } else {
+                return self.errorAtPrevious("Expect single character for character range");
+            }
+        } else {
+            return self.errorAtPrevious("Expect string or integer for upper bounded range");
+        }
+
+        return self.ast.pushNode(
+            .{ .UpperBoundedRange = upperBoundElem },
+            Location.new(dotsLoc.line, dotsLoc.start, upperBoundToken.loc.length + 2),
+        );
     }
 
     fn float(self: *Parser) !usize {

@@ -13,11 +13,18 @@ pub const Ast = struct {
     locations: ArrayList(Location),
     endLocation: Location,
 
-    pub const NodeType = enum { InfixNode, ElemNode };
+    pub const NodeType = enum {
+        InfixNode,
+        ElemNode,
+        UpperBoundedRange,
+        LowerBoundedRange,
+    };
 
     pub const Node = union(NodeType) {
         InfixNode: Infix,
         ElemNode: Elem,
+        UpperBoundedRange: Elem,
+        LowerBoundedRange: Elem,
     };
 
     pub const InfixType = enum {
@@ -76,7 +83,7 @@ pub const Ast = struct {
     pub fn getInfix(self: Ast, index: usize) ?Infix {
         return switch (self.getNode(index)) {
             .InfixNode => |infix| infix,
-            .ElemNode => null,
+            else => null,
         };
     }
 
@@ -87,8 +94,8 @@ pub const Ast = struct {
 
     pub fn getElem(self: Ast, index: usize) ?Elem {
         return switch (self.getNode(index)) {
-            .InfixNode => null,
             .ElemNode => |elem| elem,
+            else => null,
         };
     }
 
@@ -101,20 +108,22 @@ pub const Ast = struct {
         try self.roots.append(rootNodeId);
     }
 
-    pub fn pushElem(self: *Ast, elem: Elem, loc: Location) !usize {
-        try self.nodes.append(.{ .ElemNode = elem });
+    pub fn pushNode(self: *Ast, node: Node, loc: Location) !usize {
+        try self.nodes.append(node);
         try self.locations.append(loc);
         return self.nodes.items.len - 1;
     }
 
+    pub fn pushElem(self: *Ast, elem: Elem, loc: Location) !usize {
+        return self.pushNode(.{ .ElemNode = elem }, loc);
+    }
+
     pub fn pushInfix(self: *Ast, infixType: InfixType, left: usize, right: usize, loc: Location) !usize {
-        try self.nodes.append(.{ .InfixNode = .{
+        return self.pushNode(.{ .InfixNode = .{
             .infixType = infixType,
             .left = left,
             .right = right,
-        } });
-        try self.locations.append(loc);
-        return self.nodes.items.len - 1;
+        } }, loc);
     }
 
     pub fn print(self: *Ast, vm: VM, writer: VMWriter) !void {
@@ -129,6 +138,12 @@ pub const Ast = struct {
             switch (node) {
                 .InfixNode => |infix| try writer.print("{s} {d} {d}", .{ @tagName(infix.infixType), infix.left, infix.right }),
                 .ElemNode => |elem| try elem.print(vm, writer),
+                .UpperBoundedRange,
+                .LowerBoundedRange,
+                => |elem| {
+                    try writer.print("{s} ", .{@tagName(node)});
+                    try elem.print(vm, writer);
+                },
             }
             try writer.print("\n", .{});
         }

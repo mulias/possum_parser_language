@@ -507,6 +507,24 @@ pub const VM = struct {
                 const high = self.chunk().getConstant(highIdx).Integer;
                 try self.parseIntegerRange(low, high);
             },
+            .ParseLowerBoundedRange => {
+                const lowIdx = self.readByte();
+                const low_elem = self.chunk().getConstant(lowIdx);
+                switch (low_elem) {
+                    .String => |sId| try self.parseCharacterLowerBounded(sId),
+                    .Integer => |i| try self.parseIntegerLowerBounded(i),
+                    else => @panic("Internal Error"),
+                }
+            },
+            .ParseUpperBoundedRange => {
+                const highIdx = self.readByte();
+                const high_elem = self.chunk().getConstant(highIdx);
+                switch (high_elem) {
+                    .String => |sId| try self.parseCharacterUpperBounded(sId),
+                    .Integer => |i| try self.parseIntegerUpperBounded(i),
+                    else => @panic("Internal Error"),
+                }
+            },
             .Pop => {
                 _ = self.pop();
             },
@@ -675,6 +693,56 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
+    fn parseCharacterLowerBounded(self: *VM, sId: StringTable.Id) !void {
+        const str = self.strings.get(sId);
+        const low = try unicode.utf8Decode(str);
+        const lowLength = try unicode.utf8CodepointSequenceLength(low);
+        const start = self.inputPos;
+
+        if (start < self.input.len) {
+            const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
+            const end = start + bytesLength;
+
+            if (lowLength <= bytesLength and end <= self.input.len) {
+                const codepoint = try unicode.utf8Decode(self.input[start..end]);
+                if (low <= codepoint) {
+                    self.inputPos = end;
+
+                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
+                    try self.push(substring);
+
+                    return;
+                }
+            }
+        }
+        try self.pushFailure();
+    }
+
+    fn parseCharacterUpperBounded(self: *VM, sId: StringTable.Id) !void {
+        const str = self.strings.get(sId);
+        const high = try unicode.utf8Decode(str);
+        const highLength = try unicode.utf8CodepointSequenceLength(high);
+        const start = self.inputPos;
+
+        if (start < self.input.len) {
+            const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
+            const end = start + bytesLength;
+
+            if (bytesLength <= highLength and end <= self.input.len) {
+                const codepoint = try unicode.utf8Decode(self.input[start..end]);
+                if (codepoint <= high) {
+                    self.inputPos = end;
+
+                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
+                    try self.push(substring);
+
+                    return;
+                }
+            }
+        }
+        try self.pushFailure();
+    }
+
     fn parseIntegerRange(self: *VM, low: i64, high: i64) !void {
         const lowIntLen = parsing.intAsStringLen(low);
         const highIntLen = parsing.intAsStringLen(high);
@@ -699,6 +767,60 @@ pub const VM = struct {
             end -= 1;
         }
         try self.pushFailure();
+    }
+
+    fn parseIntegerLowerBounded(self: *VM, low: i64) !void {
+        const lowIntLen = parsing.intAsStringLen(low);
+        const start = self.inputPos;
+        const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
+
+        var end = shortestMatchEnd;
+
+        // The integer has no upper bound, so keep eating digits
+        while (end < self.input.len and self.input[end] >= '0' and self.input[end] <= '9') {
+            end += 1;
+        }
+
+        const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
+
+        if (inputInt) |i| if (low <= i) {
+            self.inputPos = end;
+            const int = Elem.integer(i);
+            try self.push(int);
+            return;
+        };
+
+        try self.pushFailure();
+    }
+
+    fn parseIntegerUpperBounded(self: *VM, high: i64) !void {
+        if (self.input[self.inputPos] == '-') {
+            // If it's a negative integer then the max number of digits is unbounded
+            const lowIntLen = 2;
+            const start = self.inputPos;
+            const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
+
+            var end = shortestMatchEnd;
+
+            // The negative integer has no lower bound, so keep eating digits
+            while (end < self.input.len and self.input[end] >= '0' and self.input[end] <= '9') {
+                end += 1;
+            }
+
+            const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
+
+            if (inputInt) |i| if (i <= high) {
+                self.inputPos = end;
+                const int = Elem.integer(i);
+                try self.push(int);
+                return;
+            };
+
+            try self.pushFailure();
+        } else {
+            // Since the integer is not negative we can assume it's between 0 and the upper bound
+            try self.parseIntegerRange(0, high);
+        }
     }
 
     fn bindLocalVariable(self: *VM, value: Elem, pattern: Elem) void {

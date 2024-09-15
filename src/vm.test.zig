@@ -2199,6 +2199,206 @@ test "Large number" {
     }
 }
 
+test "5.." {
+    const parser =
+        \\5..
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "5"),
+            Elem.integer(5),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "57"),
+            Elem.integer(57),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, "4"),
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, "-2"),
+        );
+    }
+}
+
+test "..30" {
+    const parser =
+        \\..30
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "5"),
+            Elem.integer(5),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "30"),
+            Elem.integer(30),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "-100"),
+            Elem.integer(-100),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "31"),
+            Elem.integer(3),
+            vm,
+        );
+    }
+}
+
+test "..-1" {
+    const parser =
+        \\..-1
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "-1"),
+            Elem.integer(-1),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "-30"),
+            Elem.integer(-30),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "-100"),
+            Elem.integer(-100),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, "3"),
+        );
+    }
+}
+
+test "'a'.." {
+    const parser =
+        \\'a'..
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "a"),
+            Elem.inputSubstring(0, 1),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "~"),
+            Elem.inputSubstring(0, 1),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, "4"),
+        );
+    }
+}
+
+test "..'\\U0001F920'" {
+    const parser =
+        \\..'\U0001F920'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "a"),
+            Elem.inputSubstring(0, 1),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "🤠"),
+            Elem.inputSubstring(0, 4),
+            vm,
+        );
+    }
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret(parser, "🤡"),
+        );
+    }
+}
+
 // test "0..999 -> N $ 'Your number was %(N).'" {
 //     {
 //         const parser = "0..999 -> N $ 'Your number was %(N).'";

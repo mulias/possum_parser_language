@@ -148,7 +148,10 @@ pub const Compiler = struct {
                 else => return Error.InvalidAst,
             },
             .ElemNode => |nameElem| switch (self.ast.getNode(bodyNodeId)) {
-                .InfixNode => {
+                .InfixNode,
+                .UpperBoundedRange,
+                .LowerBoundedRange,
+                => {
                     // A function without params
                     try self.declareGlobalFunction(headNodeId, null);
                 },
@@ -156,6 +159,9 @@ pub const Compiler = struct {
                     try self.declareGlobalAlias(nameElem, bodyElem);
                 },
             },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => return Error.InvalidAst,
         }
     }
 
@@ -217,6 +223,9 @@ pub const Compiler = struct {
                         function.arity += 1;
                         break;
                     },
+                    .UpperBoundedRange,
+                    .LowerBoundedRange,
+                    => return Error.InvalidAst,
                 }
             }
         }
@@ -240,6 +249,9 @@ pub const Compiler = struct {
         const nameElem = switch (self.ast.getNode(headNodeId)) {
             .InfixNode => |infix| self.ast.getElem(infix.left) orelse return Error.InvalidAst,
             .ElemNode => |elem| elem,
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
 
@@ -345,12 +357,8 @@ pub const Compiler = struct {
         const globalVal = self.vm.globals.get(globalName).?;
 
         // Exit early if the node is an alias, not a function def
-        switch (self.ast.getNode(headNodeId)) {
-            .ElemNode => switch (self.ast.getNode(bodyNodeId)) {
-                .InfixNode => {},
-                .ElemNode => return,
-            },
-            .InfixNode => {},
+        if (self.ast.getElem(headNodeId) != null and self.ast.getElem(bodyNodeId) != null) {
+            return;
         }
 
         if (globalVal.isDynType(.Function)) {
@@ -380,6 +388,9 @@ pub const Compiler = struct {
         const nameElem = switch (self.ast.getNode(headNodeId)) {
             .InfixNode => |infix| self.ast.getElem(infix.left) orelse return Error.InvalidAst,
             .ElemNode => |elem| elem,
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
         const name = switch (nameVar) {
@@ -506,6 +517,24 @@ pub const Compiler = struct {
                 .StringTemplateCons,
                 => return Error.InvalidAst,
             },
+            .UpperBoundedRange => |elem| {
+                if (elem.isType(.String) and self.vm.strings.equal(elem.String, "\u{10ffff}")) {
+                    try self.emitOp(.ParseCharacter, loc);
+                } else {
+                    const highId = try self.makeConstant(elem);
+                    try self.emitOp(.ParseUpperBoundedRange, loc);
+                    try self.emitByte(highId, loc);
+                }
+            },
+            .LowerBoundedRange => |elem| {
+                if (elem.isType(.String) and self.vm.strings.equal(elem.String, "\u{000000}")) {
+                    try self.emitOp(.ParseCharacter, loc);
+                } else {
+                    const lowId = try self.makeConstant(elem);
+                    try self.emitOp(.ParseLowerBoundedRange, loc);
+                    try self.emitByte(lowId, loc);
+                }
+            },
             .ElemNode => try self.writeParserElem(nodeId),
         }
     }
@@ -583,7 +612,10 @@ pub const Compiler = struct {
                     => @panic("Internal Error"),
                 }
             },
-            .InfixNode => return Error.InvalidAst,
+            .InfixNode,
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => return Error.InvalidAst,
         }
     }
 
@@ -675,7 +707,10 @@ pub const Compiler = struct {
 
         switch (argType) {
             .Parser => switch (self.ast.getNode(nodeId)) {
-                .InfixNode => {
+                .InfixNode,
+                .UpperBoundedRange,
+                .LowerBoundedRange,
+                => {
                     const function = try self.writeAnonymousFunction(nodeId);
                     const constId = try self.makeConstant(function.dyn.elem());
                     try self.emitUnaryOp(.GetConstant, constId, loc);
@@ -764,6 +799,9 @@ pub const Compiler = struct {
                 try self.writePattern(nodeId);
                 try self.emitOp(.Destructure, loc);
             },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => @panic("todo"),
         }
     }
 
@@ -804,6 +842,9 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 },
             },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => @panic("todo"),
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
                     try self.printError("parser is not valid in pattern", loc);
@@ -889,6 +930,9 @@ pub const Compiler = struct {
                 else => {},
             },
             .ElemNode => {},
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => @panic("todo"),
         }
         try self.writePrepareMergePatternPart(nodeId);
         return count + 1;
@@ -909,6 +953,9 @@ pub const Compiler = struct {
                     try self.writePattern(nodeId);
                 },
             },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => @panic("todo"),
             .ElemNode => {
                 try self.writePattern(nodeId);
             },
@@ -930,6 +977,9 @@ pub const Compiler = struct {
                 },
                 else => {},
             },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => @panic("todo"),
             .ElemNode => {},
         }
 
@@ -948,7 +998,10 @@ pub const Compiler = struct {
                 try self.addValueLocals(infix.left);
                 try self.addValueLocals(infix.right);
             },
-            .ElemNode => |elem| switch (elem) {
+            .ElemNode,
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => |elem| switch (elem) {
                 .ValueVar => |varName| if (self.vm.globals.get(varName) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, loc);
                     if (newLocalId) |_| {
@@ -970,7 +1023,10 @@ pub const Compiler = struct {
                 try self.addClosureLocals(infix.left);
                 try self.addClosureLocals(infix.right);
             },
-            .ElemNode => |elem| {
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            .ElemNode,
+            => |elem| {
                 const varName = switch (elem) {
                     .ValueVar => |name| name,
                     .ParserVar => |name| name,
@@ -1096,6 +1152,9 @@ pub const Compiler = struct {
                 .StringTemplateCons, // handled by StringTemplate
                 => @panic("internal error"),
             },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => @panic("Internal Error"),
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
                     try self.printError("Parser is not valid in value", loc);
@@ -1302,7 +1361,10 @@ pub const Compiler = struct {
                     },
                     else => break,
                 },
-                .ElemNode => break,
+                .ElemNode,
+                .UpperBoundedRange,
+                .LowerBoundedRange,
+                => break,
             }
         }
 
@@ -1345,6 +1407,9 @@ pub const Compiler = struct {
                     try array.append(elem);
                 },
             },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            => @panic("todo"),
         }
     }
 
@@ -1443,7 +1508,10 @@ pub const Compiler = struct {
                     },
                     else => break,
                 },
-                .ElemNode => break,
+                .ElemNode,
+                .UpperBoundedRange,
+                .LowerBoundedRange,
+                => break,
             }
         }
 
@@ -1505,6 +1573,9 @@ pub const Compiler = struct {
                         }
                     },
                 },
+                .UpperBoundedRange,
+                .LowerBoundedRange,
+                => @panic("todo"),
             }
         } else {
             const key = switch (keyElem) {
@@ -1538,6 +1609,9 @@ pub const Compiler = struct {
                         try object.members.put(key, elem);
                     },
                 },
+                .UpperBoundedRange,
+                .LowerBoundedRange,
+                => @panic("todo"),
             }
         }
     }
@@ -1589,6 +1663,9 @@ pub const Compiler = struct {
                     try self.emitOp(.MergeAsString, loc);
                     break;
                 },
+                .UpperBoundedRange,
+                .LowerBoundedRange,
+                => @panic("todo"),
             }
         }
     }
