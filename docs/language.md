@@ -1,6 +1,6 @@
 # Possum Language Documentation
 
-Possum is a text parsing language with some very minimal utilities for general purpose computation. A Possum program is made up of parsers, functions that define both what text inputs are valid and how to transform valid inputs into structured data. The Possum runtime takes a program and an input string and either successfully parses the input into a JSON encoded value, or fails if the input was malformed.
+Possum is a text parsing language with some very minimal utilities for general purpose computation. A Possum program is made up of parsers, functions that define both what text inputs are valid and how to transform valid inputs into structured data. The Possum runtime takes a program and an input string and either successfully parses the input into a JSON encoded value, or fails if the input does not meet the parser requirements.
 
 ## Value Literal Parsers
 
@@ -11,10 +11,12 @@ The simplest parsers are for strings, numbers, and contiguous ranges of codepoin
 | `"abc"`     | String literal  | Characters of string, with escapes | Matched string |
 | `'xyz'`     | String literal  | Characters of string, with escapes | Matched string |
 | `` `\n` ``  | Backtick string literal | Exact characters of string | Matched string |
-| `"a".."z"`  | Character Range | All unicode codepoints within range | Matched string |
 | `123`       | Integer literal | Exact characters of integer | Matched number |
-| `1..9`      | Integer Range   | All integers within range   | Matched number |
 | `-1.334e23` | Number literal  | Exact characters of number  | Matched number |
+| `"a".."z"`  | Character Range | One unicode codepoint within range | Matched string |
+| `1..9`      | Integer Range   | One integer within range    | Matched number |
+| `"~"..`     | Lower bounded range | One codepoint or integer greater than or equal to the lower bound | Matched string/number |
+| `..100`     | Upper bounded range | One codepoint or integer less than or equal to the upper bound | Matched string/number |
 
 String literals using single and double quotes support the following escape characters.
 
