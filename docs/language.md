@@ -18,20 +18,19 @@ The simplest parsers are for strings, numbers, and contiguous ranges of codepoin
 
 String literals using single and double quotes support the following escape characters.
 
-| Escape Character | Substitution              |
-| ---------------- | ------------------------- |
-| `\0`             | Null character            |
-| `\b`             | Backspace                 |
-| `\t`             | Tab                       |
-| `\n`             | New line                  |
-| `\v`             | Vertical tab              |
-| `\f`             | Form feed                 |
-| `\r`             | Carriage return           |
-| `\'`             | Single quote              |
-| `\"`             | Double quote              |
-| `\\`             | Backslash                 |
-| `\u0000` to `\uFFFF` | 16-bit unicode code-point |
-| `\U00000000` to `\U0010FFFF` | 32-bit unicode code-point |
+| Escape Character | Substitution               |
+| ---------------- | -------------------------- |
+| `\0`             | Null character             |
+| `\b`             | Backspace                  |
+| `\t`             | Tab                        |
+| `\n`             | New line                   |
+| `\v`             | Vertical tab               |
+| `\f`             | Form feed                  |
+| `\r`             | Carriage return            |
+| `\'`             | Single quote               |
+| `\"`             | Double quote               |
+| `\\`             | Backslash                  |
+| `\u000000` to `\u10FFFF` | unicode code-point |
 
 ## Infix Operators
 

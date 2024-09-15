@@ -758,9 +758,9 @@ test "'\\n\\'\\\\' > 0" {
     }
 }
 
-test "c = '\\u0000'..'\\U10FFFF' ; c > (c + c) < c" {
+test "c = '\\u000000'..'\\u10FFFF' ; c > (c + c) < c" {
     const parser =
-        \\c = '\u0000'..'\U10FFFF'
+        \\c = '\u000000'..'\u10FFFF'
         \\c > (c + c) < c
     ;
     {
@@ -775,9 +775,9 @@ test "c = '\\u0000'..'\\U10FFFF' ; c > (c + c) < c" {
     }
 }
 
-test "c = '\\u0001'..'\\U10FFFE' ; c > (c + c) < c" {
+test "c = '\\u000001'..'\\u10FFFE' ; c > (c + c) < c" {
     const parser =
-        \\c = '\u0001'..'\U10FFFE'
+        \\c = '\u000001'..'\u10FFFE'
         \\c > (c + c) < c
     ;
     {
@@ -2365,9 +2365,9 @@ test "'a'.." {
     }
 }
 
-test "..'\\U0001F920'" {
+test "..'\\u01F920'" {
     const parser =
-        \\..'\U0001F920'
+        \\..'\u01F920'
     ;
     {
         var vm = VM.create();

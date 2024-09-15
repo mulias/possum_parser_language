@@ -1,6 +1,6 @@
-char = "\u0000"..
+char = "\u000000"..
 
-ascii = "\u0000".."\u007F"
+ascii = "\u000000".."\u00007F"
 
 alpha = "a".."z" | "A".."Z"
 
@@ -23,11 +23,11 @@ alnum = alpha | numeral
 alnums = many(alnum)
 
 space =
-  " " | "\t" | "\u00A0" | "\u2000".."\u200A" | "\u202F" | "\u205F" | "\u3000"
+  " " | "\t" | "\u0000A0" | "\u002000".."\u00200A" | "\u00202F" | "\u00205F" | "\u003000"
 
 spaces = many(space)
 
-newline = "\r\n" | "\u000A".."\u000D" | "\u0085" | "\u2028" | "\u2029"
+newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
 
 nl = newline
 
