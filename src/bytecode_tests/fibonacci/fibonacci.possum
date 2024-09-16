@@ -1,12 +1,8 @@
 fib(N) =
-  const(N) -> 0 ? const(0) :
-  const(N) -> 1 ? const(1) :
+  const(N -> ..1) ? const(N) :
   fib(N - 1) -> N1 & fib(N - 2) -> N2 $
   (N1 + N2)
 
-Fib(N) =
-  N -> 0 ? 0 :
-  N -> 1 ? 1 :
-  Fib(N - 1) + Fib(N - 2)
+Fib(N) = N -> ..1 | (Fib(N - 1) + Fib(N - 2))
 
-int -> N & fib(N) -> Fib(N)
+0.. -> N & fib(N) -> Fib(N)
