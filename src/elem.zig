@@ -329,6 +329,63 @@ pub const Elem = union(ElemType) {
         };
     }
 
+    pub fn isValueInRange(value: Elem, low: Elem, high: Elem, vm: VM) !bool {
+        return try low.isLessThanOrEqual(value, vm) and try value.isLessThanOrEqual(high, vm);
+    }
+
+    fn isLessThanOrEqual(value: Elem, high: Elem, vm: VM) !bool {
+        return switch (value) {
+            .String,
+            .InputSubstring,
+            .Dyn,
+            => {
+                const value_codepoint = value.toCodepoint(vm) orelse return false;
+                const high_codepoint = high.toCodepoint(vm) orelse return false;
+
+                return value_codepoint <= high_codepoint;
+            },
+            .NumberString => |ns| {
+                const bytes = vm.strings.get(ns.sId);
+                const num = try parseNumberStringToElem(bytes, ns.format);
+                return num.isLessThanOrEqual(high, vm);
+            },
+            .Integer => |int_value| switch (high) {
+                .NumberString => |ns| {
+                    const bytes = vm.strings.get(ns.sId);
+                    const highNum = try parseNumberStringToElem(bytes, ns.format);
+                    return value.isLessThanOrEqual(highNum, vm);
+                },
+                .Integer => |int_high| return int_value <= int_high,
+                .Float => |float_high| @as(f64, @floatFromInt(int_value)) <= float_high,
+                else => false,
+            },
+            .Float => |float_value| switch (high) {
+                .NumberString => |ns| {
+                    const bytes = vm.strings.get(ns.sId);
+                    const highNum = try parseNumberStringToElem(bytes, ns.format);
+                    return value.isLessThanOrEqual(highNum, vm);
+                },
+                .Integer => |int_high| float_value <= @as(f64, @floatFromInt(int_high)),
+                .Float => |float_high| float_value <= float_high,
+                else => false,
+            },
+            .Boolean,
+            .Null,
+            .Failure,
+            .ParserVar,
+            .ValueVar,
+            => false,
+        };
+    }
+
+    fn toCodepoint(elem: Elem, vm: VM) ?u21 {
+        if (elem.stringBytes(vm)) |bytes| {
+            return unicode.utf8Decode(bytes) catch return null;
+        } else {
+            return null;
+        }
+    }
+
     pub fn merge(elemA: Elem, elemB: Elem, vm: *VM) !?Elem {
         if (elemA == .Failure) return Elem.failureConst;
         if (elemB == .Failure) return Elem.failureConst;

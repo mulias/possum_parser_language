@@ -435,3 +435,25 @@
   0039    | End
   ========================================
 
+  $ possum -p 'const(2) -> 0..5' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: const
+  0002    | GetConstant 1: 2
+  0004    | CallFunction 1
+  0006    | GetConstant 2: 0
+  0008    | GetConstant 3: 5
+  0010    | DestructureRange
+  0011    | End
+  ========================================
+
+  $ possum -p 'char -> "a".."z"' -i 'q'
+  
+  =================@main==================
+  0000    1 GetConstant 0: char
+  0002    | CallFunction 0
+  0004    | GetConstant 1: "a"
+  0006    | GetConstant 2: "z"
+  0008    | DestructureRange
+  0009    | End
+  ========================================

@@ -424,31 +424,22 @@ pub const Compiler = struct {
                 .StringTemplate => {
                     try self.writeStringTemplate(infix.left, infix.right, .Parser);
                 },
-                .IntegerRange => {
-                    const lowLoc = self.ast.getLocation(infix.left);
-                    const highLoc = self.ast.getLocation(infix.right);
-                    const lowElem = self.ast.getElem(infix.left).?;
-                    const highElem = self.ast.getElem(infix.right).?;
-                    const lowId = try self.makeConstant(lowElem);
-                    const highId = try self.makeConstant(highElem);
-                    try self.emitOp(.ParseIntegerRange, loc);
-                    try self.emitByte(lowId, lowLoc);
-                    try self.emitByte(highId, highLoc);
-                },
-                .CharacterRange => {
-                    const lowLoc = self.ast.getLocation(infix.left);
-                    const highLoc = self.ast.getLocation(infix.right);
-                    const lowElem = self.ast.getElem(infix.left).?;
-                    const highElem = self.ast.getElem(infix.right).?;
+                .Range => {
+                    const low_loc = self.ast.getLocation(infix.left);
+                    const high_loc = self.ast.getLocation(infix.right);
+                    const low_elem = self.ast.getElem(infix.left).?;
+                    const high_elem = self.ast.getElem(infix.right).?;
 
-                    if (lowElem.Integer == 0 and highElem.Integer == 0x10ffff) {
+                    if (low_elem == .String and self.vm.strings.equal(low_elem.String, "\u{000000}") and
+                        high_elem == .String and self.vm.strings.equal(high_elem.String, "\u{10ffff}"))
+                    {
                         try self.emitOp(.ParseCharacter, loc);
                     } else {
-                        const lowId = try self.makeConstant(lowElem);
-                        const highId = try self.makeConstant(highElem);
-                        try self.emitOp(.ParseCharacterRange, loc);
-                        try self.emitByte(lowId, lowLoc);
-                        try self.emitByte(highId, highLoc);
+                        const low_id = try self.makeConstant(low_elem);
+                        const high_id = try self.makeConstant(high_elem);
+                        try self.emitOp(.ParseRange, loc);
+                        try self.emitByte(low_id, low_loc);
+                        try self.emitByte(high_id, high_loc);
                     }
                 },
                 .TakeLeft => {
@@ -790,6 +781,16 @@ pub const Compiler = struct {
                 .NumberSubtract => {
                     @panic("TODO");
                 },
+                .Range,
+                => {
+                    const low = self.ast.getElem(infix.left).?;
+                    const high = self.ast.getElem(infix.right).?;
+                    const lowId = try self.makeConstant(low);
+                    const highId = try self.makeConstant(high);
+                    try self.emitUnaryOp(.GetConstant, lowId, loc);
+                    try self.emitUnaryOp(.GetConstant, highId, loc);
+                    try self.emitOp(.DestructureRange, loc);
+                },
                 else => {
                     try self.writePattern(nodeId);
                     try self.emitOp(.Destructure, loc);
@@ -822,14 +823,6 @@ pub const Compiler = struct {
                 },
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
-                },
-                .IntegerRange => {
-                    try self.printError("Integer range is not valid in pattern", loc);
-                    return Error.InvalidAst;
-                },
-                .CharacterRange => {
-                    try self.printError("Character range is not valid in pattern", loc);
-                    return Error.InvalidAst;
                 },
                 .Merge,
                 .NumberSubtract,
@@ -1136,12 +1129,8 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
-                .IntegerRange => {
-                    try self.printError("Integer range is not valid in value", loc);
-                    return Error.InvalidAst;
-                },
-                .CharacterRange => {
-                    try self.printError("Character range is not valid in value", loc);
+                .Range => {
+                    try self.printError("Character and integer ranges are not valid in value", loc);
                     return Error.InvalidAst;
                 },
                 .ArrayCons, // handled by writeArray

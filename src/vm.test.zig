@@ -2399,6 +2399,23 @@ test "..'\\u01F920'" {
     }
 }
 
+test "int -> 0..5" {
+    const parser =
+        \\int = ..-1 | 0..
+        \\int -> 0..5
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "3"),
+            Elem.integer(3),
+            vm,
+        );
+    }
+}
+
 // test "0..999 -> N $ 'Your number was %(N).'" {
 //     {
 //         const parser = "0..999 -> N $ 'Your number was %(N).'";

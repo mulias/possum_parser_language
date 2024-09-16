@@ -281,6 +281,18 @@ pub const VM = struct {
                     try self.pushFailure();
                 }
             },
+            .DestructureRange => {
+                // Postfix, value, lower bound, and upper bound on stack
+                const high = self.pop();
+                const low = self.pop();
+                const value = self.pop();
+
+                if (try Elem.isValueInRange(value, low, high, self.*)) {
+                    try self.push(value);
+                } else {
+                    try self.pushFailure();
+                }
+            },
             .End => {
                 // End of function cleanup. Remove everything from the stack
                 // frame except the final function result.
@@ -493,19 +505,19 @@ pub const VM = struct {
                     try self.pushFailure();
                 }
             },
-            .ParseCharacterRange => {
-                const lowIdx = self.readByte();
-                const highIdx = self.readByte();
-                const low = self.chunk().getConstant(lowIdx).Integer;
-                const high = self.chunk().getConstant(highIdx).Integer;
-                try self.parseCharacterRange(@as(u21, @intCast(low)), @as(u21, @intCast(high)));
-            },
-            .ParseIntegerRange => {
-                const lowIdx = self.readByte();
-                const highIdx = self.readByte();
-                const low = self.chunk().getConstant(lowIdx).Integer;
-                const high = self.chunk().getConstant(highIdx).Integer;
-                try self.parseIntegerRange(low, high);
+            .ParseRange => {
+                const low_idx = self.readByte();
+                const high_idx = self.readByte();
+                const low_elem = self.chunk().getConstant(low_idx);
+                const high_elem = self.chunk().getConstant(high_idx);
+
+                assert(@intFromEnum(low_elem) == @intFromEnum(high_elem));
+
+                switch (low_elem) {
+                    .String => try self.parseCharacterRange(low_elem.String, high_elem.String),
+                    .Integer => try self.parseIntegerRange(low_elem.Integer, high_elem.Integer),
+                    else => @panic("Internal Error"),
+                }
             },
             .ParseLowerBoundedRange => {
                 const lowIdx = self.readByte();
@@ -669,16 +681,18 @@ pub const VM = struct {
         }
     }
 
-    fn parseCharacterRange(self: *VM, low: u21, high: u21) !void {
-        const lowLength = try unicode.utf8CodepointSequenceLength(low);
-        const highLength = try unicode.utf8CodepointSequenceLength(high);
+    fn parseCharacterRange(self: *VM, low_id: StringTable.Id, high_id: StringTable.Id) !void {
+        const low = unicode.utf8Decode(self.strings.get(low_id)) catch @panic("Internal Error");
+        const high = unicode.utf8Decode(self.strings.get(high_id)) catch @panic("Internal Error");
+        const low_length = unicode.utf8CodepointSequenceLength(low) catch 1;
+        const high_length = unicode.utf8CodepointSequenceLength(high) catch 1;
         const start = self.inputPos;
 
         if (start < self.input.len) {
-            const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
-            const end = start + bytesLength;
+            const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
+            const end = start + bytes_length;
 
-            if (lowLength <= bytesLength and bytesLength <= highLength and end <= self.input.len) {
+            if (low_length <= bytes_length and bytes_length <= high_length and end <= self.input.len) {
                 const codepoint = try unicode.utf8Decode(self.input[start..end]);
                 if (low <= codepoint and codepoint <= high) {
                     self.inputPos = end;
@@ -693,17 +707,16 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
-    fn parseCharacterLowerBounded(self: *VM, sId: StringTable.Id) !void {
-        const str = self.strings.get(sId);
-        const low = try unicode.utf8Decode(str);
-        const lowLength = try unicode.utf8CodepointSequenceLength(low);
+    fn parseCharacterLowerBounded(self: *VM, low_id: StringTable.Id) !void {
+        const low = unicode.utf8Decode(self.strings.get(low_id)) catch @panic("Internal Error");
+        const low_length = unicode.utf8CodepointSequenceLength(low) catch @panic("Internal Error");
         const start = self.inputPos;
 
         if (start < self.input.len) {
-            const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
-            const end = start + bytesLength;
+            const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
+            const end = start + bytes_length;
 
-            if (lowLength <= bytesLength and end <= self.input.len) {
+            if (low_length <= bytes_length and end <= self.input.len) {
                 const codepoint = try unicode.utf8Decode(self.input[start..end]);
                 if (low <= codepoint) {
                     self.inputPos = end;
@@ -718,17 +731,16 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
-    fn parseCharacterUpperBounded(self: *VM, sId: StringTable.Id) !void {
-        const str = self.strings.get(sId);
-        const high = try unicode.utf8Decode(str);
-        const highLength = try unicode.utf8CodepointSequenceLength(high);
+    fn parseCharacterUpperBounded(self: *VM, high_id: StringTable.Id) !void {
+        const high = unicode.utf8Decode(self.strings.get(high_id)) catch @panic("Internal Error");
+        const high_length = unicode.utf8CodepointSequenceLength(high) catch @panic("Internal Error");
         const start = self.inputPos;
 
         if (start < self.input.len) {
-            const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
-            const end = start + bytesLength;
+            const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
+            const end = start + bytes_length;
 
-            if (bytesLength <= highLength and end <= self.input.len) {
+            if (bytes_length <= high_length and end <= self.input.len) {
                 const codepoint = try unicode.utf8Decode(self.input[start..end]);
                 if (codepoint <= high) {
                     self.inputPos = end;

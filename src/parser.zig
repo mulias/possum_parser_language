@@ -291,11 +291,14 @@ pub const Parser = struct {
                             return self.errorAtPrevious("Character range is not ordered");
                         }
 
-                        const charNode1 = try self.ast.pushElem(Elem.integer(@as(u21, @intCast(c1))), t1.loc);
-                        const charNode2 = try self.ast.pushElem(Elem.integer(@as(u21, @intCast(c2))), t2.loc);
+                        const t1_intern_result = try self.internUnescaped(stringContents(t1.lexeme));
+                        const t2_intern_result = try self.internUnescaped(stringContents(t2.lexeme));
+
+                        const charNode1 = try self.ast.pushElem(Elem.string(t1_intern_result.sId), t1.loc);
+                        const charNode2 = try self.ast.pushElem(Elem.string(t2_intern_result.sId), t2.loc);
 
                         return self.ast.pushInfix(
-                            .CharacterRange,
+                            .Range,
                             charNode1,
                             charNode2,
                             Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
@@ -305,9 +308,9 @@ pub const Parser = struct {
                     }
                 } else {
                     // open range `"a"..`
-                    const internResult = try self.internUnescaped(stringContents(t1.lexeme));
+                    const intern_result = try self.internUnescaped(stringContents(t1.lexeme));
                     return self.ast.pushNode(
-                        .{ .LowerBoundedRange = Elem.string(internResult.sId) },
+                        .{ .LowerBoundedRange = Elem.string(intern_result.sId) },
                         Location.new(t1.loc.line, t1.loc.start, t1.loc.length + 2),
                     );
                 }
@@ -449,7 +452,7 @@ pub const Parser = struct {
                 const intNode2 = try self.ast.pushElem(Elem.integer(int2), t2.loc);
 
                 return self.ast.pushInfix(
-                    .IntegerRange,
+                    .Range,
                     intNode1,
                     intNode2,
                     Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
