@@ -70,7 +70,13 @@ pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {
 }
 
 pub fn expectSuccess(actual: Elem, expected: Elem, vm: VM) !void {
-    try std.testing.expect(actual.isEql(expected, vm));
+    if (!actual.isEql(expected, vm)) {
+        std.debug.print("expectSuccess: returned elems were not equal. expected elem\n\n", .{});
+        expected.print(vm, vm.writers.debug) catch {};
+        std.debug.print("\n\nactual elem\n\n", .{});
+        actual.print(vm, vm.writers.debug) catch {};
+        std.debug.print("\n", .{});
+    }
 }
 
 pub fn expectFailure(result: Elem) !void {

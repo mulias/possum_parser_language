@@ -781,8 +781,7 @@ pub const Compiler = struct {
                 .NumberSubtract => {
                     @panic("TODO");
                 },
-                .Range,
-                => {
+                .Range => {
                     const low = self.ast.getElem(infix.left).?;
                     const high = self.ast.getElem(infix.right).?;
                     const lowId = try self.makeConstant(low);
