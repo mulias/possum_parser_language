@@ -137,9 +137,8 @@ maybe_many(p) = many(p) | succeed
 maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
 
 repeat(p, N) =
-  const(AssertPositiveInteger(N)) &
-  p -> First &
-  _repeat(p, N - 1, First)
+  const(AssertNonNegativeInteger(N)) &
+  _repeat(p, N, null)
 
 _repeat(p, N, Acc) =
   const(N -> 0) ?
@@ -147,10 +146,9 @@ _repeat(p, N, Acc) =
   p -> Next & _repeat(p, N - 1, Acc + Next)
 
 repeat_between(p, N, M) =
-  const(AssertPositiveInteger(N)) &
-  const(AssertPositiveInteger(M)) &
-  p -> First &
-  _repeat_between(p, N - 1, M - 1, First)
+  const(AssertNonNegativeInteger(N)) &
+  const(AssertNonNegativeInteger(M)) &
+  _repeat_between(p, N, M, null)
 
 _repeat_between(p, N, M, Acc) =
   const(M -> 0) ?
@@ -365,9 +363,6 @@ _Tabular(Headers, Rows, Acc) =
   Rows -> [Row, ...Rest] ?
   _Tabular(Headers, Rest, [...Acc, ZipIntoObject(Headers, Row)]) :
   Acc
-
-AssertPositiveInteger(V) =
-  V -> 1.. | @Crash("Expected a positive integer, got %(V)")
 
 AssertNonNegativeInteger(V) =
   V -> 0.. | @Crash("Expected a non-negative integer, got %(V)")

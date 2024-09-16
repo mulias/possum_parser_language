@@ -56,6 +56,18 @@ These parsers and value functions are always available in Possum programs, unles
 | `bool(t, f)`       | Alias for `boolean`        | As above                   |
 | `null(n)`          | Parses `n`                 | `null`                     |
 
+## Repeated Value Parsers
+
+| Parser             | Match Behavior             | Returns                    |
+| ------------------ | -------------------------- | -------------------------- |
+| `many(p)`          | One or more `p`            | Merged values parsed by `p` |
+| `many_sep(p, sep)` | One or more `p`, interspersed with `sep` | Marged values parsed by `p` |
+| `many_until(p, stop)` | One or more `p`, must be followed by `stop` which is not consumed | Merged values parsed by `p` |
+| `maybe_many(p)`    | Zero or more `p`           | Merged values parsed by `p`, or `null` if `p` fails |
+| `maybe_many_sep(p)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
+| `repeat(p, N)`     | Parses `p` exactly `N` times, where `N` is a non-negative integer | Merged values parsed by `p`, or `null` if `N` is 0 |
+| `repeat_between(p, N, M)` | Parses `p` at least `N` times and up to `M` times, where `N` and `M` are non-negative integers | Merged values parsed by `p`, or `null` if `N` is 0 and no matches found |
+
 ## Array Parsers
 
 | Parser             | Match Behavior             | Returns                    |
@@ -70,6 +82,8 @@ These parsers and value functions are always available in Possum programs, unles
 | `tuple2_sep(elem1, sep, elem2)` | Parses `elem1`, `sep`, and then `elem2` | Array of length 2 containing parsed elements |
 | `tuple3(elem1, elem2, elem3)` | Runs three element parsers in order | Array of length 3 containing parsed elements |
 | `tuple3_sep(elem1, sep1, elem2, sep2, elem3)` | Runs three element parsers, interspersed with `sep` | Array of length 3 containing parsed elements |
+| `tuple(elem, N)`   | Parses `elem` exactly `N` times, where `N` is a non-negative integer | Array of values parsed by `elem` |
+| `tuple_sep(elem, N)`   | Parses `elem` exactly `N` times, interspersed with `sep`, where `N` is a non-negative integer | Array of values parsed by `elem` |
 | `table_sep(elem, sep, row_sep)` | One or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem` |
 | `maybe_table_sep(elem, sep, row_sep)` | Zero or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem`, maybe empty |
 | `json_array`       | Valid JSON array           | Array of arbitrary values |
@@ -94,11 +108,6 @@ These parsers and value functions are always available in Possum programs, unles
 
 | Parser             | Match Behavior             | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
-| `many(p)`          | One or more `p`            | Merged values parsed by `p` |
-| `many_sep(p, sep)` | One or more `p`, interspersed with `sep` | Marged values parsed by `p` |
-| `many_until(p, stop)` | One or more `p`, must be followed by `stop` which is not consumed | Merged values parsed by `p` |
-| `maybe_many(p)`    | Zero or more `p`           | Merged values parsed by `p`, or `null` if `p` fails |
-| `maybe_many_sep(p)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
 | `peek(p)`          | Parses `p`, consumes no input on success | Result of `p` |
 | `maybe(p)`         | Parses `p`, or succeeds with no match | Result of `p`, or `null` if `p` fails |
 | `unless(p, excluded)` | Fails if `excluded` would succeed, otherwise parses `p` | Result of `p` |
