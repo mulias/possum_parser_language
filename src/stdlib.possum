@@ -141,7 +141,7 @@ repeat(p, N) =
   _repeat(p, N, null)
 
 _repeat(p, N, Acc) =
-  const(N -> 0) ?
+  const(N -> ..0) ?
   const(Acc) :
   p -> Next & _repeat(p, N - 1, Acc + Next)
 
@@ -151,7 +151,7 @@ repeat_between(p, N, M) =
   _repeat_between(p, N, M, null)
 
 _repeat_between(p, N, M, Acc) =
-  const(M -> 0) ?
+  const(M -> ..0) ?
   const(Acc) :
   p -> Next ?
   _repeat_between(p, N - 1, M - 1, Acc + Next) :
@@ -203,7 +203,7 @@ tuple(elem, N) =
   _tuple(elem, N, [])
 
 _tuple(elem, N, Acc) =
-  const(N -> 0) ?
+  const(N -> ..0) ?
   const(Acc) :
   elem -> Elem & _tuple(elem, N - 1, [...Acc, Elem])
 
@@ -212,7 +212,7 @@ tuple_sep(elem, sep, N) =
   _tuple_sep(elem, sep, N, [])
 
 _tuple_sep(elem, sep, N, Acc) =
-  const(N -> 0) ?
+  const(N -> ..0) ?
   const(Acc) :
   sep > elem -> Elem & _tuple_sep(elem, sep, N - 1, [...Acc, Elem])
 
