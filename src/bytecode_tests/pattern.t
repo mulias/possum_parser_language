@@ -457,3 +457,14 @@
   0008    | DestructureRange
   0009    | End
   ========================================
+
+  $ possum -p 'char -> .."z"' -i '!'
+  
+  =================@main==================
+  0000    1 GetConstant 0: char
+  0002    | CallFunction 0
+  0004    | GetConstant 1: _
+  0006    | GetConstant 2: "z"
+  0008    | DestructureRange
+  0009    | End
+  ========================================

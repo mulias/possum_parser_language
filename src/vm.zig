@@ -287,7 +287,7 @@ pub const VM = struct {
                 const low = self.pop();
                 const value = self.pop();
 
-                if (try Elem.isValueInRange(value, low, high, self.*)) {
+                if (try Elem.isValueInRangePattern(value, low, high, self.*)) {
                     try self.push(value);
                 } else {
                     try self.pushFailure();

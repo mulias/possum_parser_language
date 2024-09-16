@@ -329,12 +329,15 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn isValueInRange(value: Elem, low: Elem, high: Elem, vm: VM) !bool {
+    pub fn isValueInRangePattern(value: Elem, low: Elem, high: Elem, vm: VM) !bool {
         return try low.isLessThanOrEqual(value, vm) and try value.isLessThanOrEqual(high, vm);
     }
 
     fn isLessThanOrEqual(value: Elem, high: Elem, vm: VM) !bool {
+        if (value == .ValueVar or high == .ValueVar) return true;
+
         return switch (value) {
+            .ValueVar => true,
             .String,
             .InputSubstring,
             .Dyn,
@@ -373,7 +376,6 @@ pub const Elem = union(ElemType) {
             .Null,
             .Failure,
             .ParserVar,
-            .ValueVar,
             => false,
         };
     }

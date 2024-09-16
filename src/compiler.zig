@@ -799,9 +799,22 @@ pub const Compiler = struct {
                 try self.writePattern(nodeId);
                 try self.emitOp(.Destructure, loc);
             },
-            .UpperBoundedRange,
-            .LowerBoundedRange,
-            => @panic("todo"),
+            .UpperBoundedRange => |high_elem| {
+                const low_elem = self.placeholderVar();
+                const low_id = try self.makeConstant(low_elem);
+                const high_id = try self.makeConstant(high_elem);
+                try self.emitUnaryOp(.GetConstant, low_id, loc);
+                try self.emitUnaryOp(.GetConstant, high_id, loc);
+                try self.emitOp(.DestructureRange, loc);
+            },
+            .LowerBoundedRange => |low_elem| {
+                const high_elem = self.placeholderVar();
+                const low_id = try self.makeConstant(low_elem);
+                const high_id = try self.makeConstant(high_elem);
+                try self.emitUnaryOp(.GetConstant, low_id, loc);
+                try self.emitUnaryOp(.GetConstant, high_id, loc);
+                try self.emitOp(.DestructureRange, loc);
+            },
         }
     }
 
