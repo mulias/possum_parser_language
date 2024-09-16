@@ -83,7 +83,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `tuple3(elem1, elem2, elem3)` | Runs three element parsers in order | Array of length 3 containing parsed elements |
 | `tuple3_sep(elem1, sep1, elem2, sep2, elem3)` | Runs three element parsers, interspersed with `sep` | Array of length 3 containing parsed elements |
 | `tuple(elem, N)`   | Parses `elem` exactly `N` times, where `N` is a non-negative integer | Array of values parsed by `elem` |
-| `tuple_sep(elem, N)`   | Parses `elem` exactly `N` times, interspersed with `sep`, where `N` is a non-negative integer | Array of values parsed by `elem` |
+| `tuple_sep(elem, sep, N)` | Parses `elem` exactly `N` times, interspersed with `sep`, where `N` is a non-negative integer | Array of values parsed by `elem` |
 | `table_sep(elem, sep, row_sep)` | One or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem` |
 | `maybe_table_sep(elem, sep, row_sep)` | Zero or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem`, maybe empty |
 | `json_array`       | Valid JSON array           | Array of arbitrary values |
