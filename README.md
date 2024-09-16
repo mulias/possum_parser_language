@@ -149,8 +149,7 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
 ```
   $ cat fibonacci.possum
   Fib(N) =
-    N -> 0 ? 0 :
-    N -> 1 ? 1 :
+    N -> ..1 ? N :
     Fib(N - 1) + Fib(N - 2)
 
   int -> N $ "Fibonacci of %(N) is %(Fib(N))"
