@@ -322,3 +322,6 @@ _Tabular(Headers, Rows, Acc) =
   Rows -> [Row, ...Rest] ?
   _Tabular(Headers, Rest, [...Acc, ZipIntoObject(Headers, Row)]) :
   Acc
+
+AssertPositiveInteger(V) =
+  V -> 1.. | @Crash("Expected a positive integer, got %(V)")

@@ -263,6 +263,16 @@ pub const VM = struct {
                 const offset = self.readShort();
                 self.frame().ip += offset;
             },
+            .Crash => {
+                if (self.peekIsSuccess()) {
+                    const value = self.pop();
+                    const str = try value.toString(self);
+                    const message = str.stringBytes(self.*).?;
+                    return self.runtimeError("{s}", .{message});
+                } else {
+                    return self.runtimeError("Crashed with no error message", .{});
+                }
+            },
             .Destructure => {
                 // Postfix, lhs pattern and rhs value on stack.
                 const pattern = self.pop();

@@ -10,6 +10,7 @@ pub const OpCode = enum(u8) {
     CaptureLocal,
     ConditionalElse,
     ConditionalThen,
+    Crash,
     Destructure,
     DestructureRange,
     End,
@@ -47,6 +48,7 @@ pub const OpCode = enum(u8) {
 
     pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, writer: VMWriter, offset: usize) !usize {
         return switch (self) {
+            .Crash,
             .Destructure,
             .DestructureRange,
             .End,
