@@ -61,7 +61,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abc"),
-            Elem.string(vm.strings.getId("c")),
+            Elem.inputSubstring(2, 3),
             vm,
         );
     }
@@ -111,7 +111,7 @@ test "'foo' + 'bar' + 'baz'" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foobarbaz"),
-            (try Elem.Dyn.String.copy(&vm, "foobarbaz")).dyn.elem(),
+            Elem.inputSubstring(0, 9),
             vm,
         );
     }
@@ -280,7 +280,7 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "truefoobar"),
-            (try Elem.Dyn.String.copy(&vm, "foobar")).dyn.elem(),
+            Elem.inputSubstring(4, 10),
             vm,
         );
     }
@@ -290,7 +290,7 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "baz"),
-            Elem.string(vm.strings.getId("baz")),
+            Elem.inputSubstring(0, 3),
             vm,
         );
     }
@@ -339,7 +339,7 @@ test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
 
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
-            (try Elem.Dyn.String.copy(&vm, "foo")).dyn.elem(),
+            Elem.inputSubstring(0, 3),
             vm,
         );
     }
@@ -433,7 +433,7 @@ test "123 & 456 | 789 $ true & 'xyz'" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123789xyz"),
-            Elem.string(vm.strings.getId("xyz")),
+            Elem.inputSubstring(6, 9),
             vm,
         );
     }
@@ -590,8 +590,8 @@ test "'foo' -> 'foo' -> 'foo'" {
         try vm.init(allocator, writers, config);
         defer vm.deinit();
         try testing.expectSuccess(
-            try vm.interpret(parser, "foofoo"),
-            Elem.string(vm.strings.getId("foo")),
+            try vm.interpret(parser, "foo"),
+            Elem.inputSubstring(0, 3),
             vm,
         );
     }
@@ -608,7 +608,7 @@ test "a = 'a' ; a + a" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
-            (try Elem.Dyn.String.copy(&vm, "aa")).dyn.elem(),
+            Elem.inputSubstring(0, 2),
             vm,
         );
     }
@@ -641,7 +641,7 @@ test "double(p) = p + p ; double('a')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
-            (try Elem.Dyn.String.copy(&vm, "aa")).dyn.elem(),
+            Elem.inputSubstring(0, 2),
             vm,
         );
     }
@@ -658,7 +658,7 @@ test "scan(p) = p | (char > scan(p)) ; scan('end')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aaaaaaaend"),
-            (try Elem.Dyn.String.copy(&vm, "end")).dyn.elem(),
+            Elem.inputSubstring(7, 10),
             vm,
         );
     }
@@ -675,7 +675,7 @@ test "double(p) = p + p ; double('a' + 'b')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abab"),
-            (try Elem.Dyn.String.copy(&vm, "abab")).dyn.elem(),
+            Elem.inputSubstring(0, 4),
             vm,
         );
     }
@@ -732,7 +732,7 @@ test "n = '\n' ; n > n > n > 'wow!'" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, input),
-            Elem.string(vm.strings.getId("wow!")),
+            Elem.inputSubstring(3, 7),
             vm,
         );
     }
@@ -769,7 +769,7 @@ test "c = '\\u000000'..'\\u10FFFF' ; c > (c + c) < c" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abcd"),
-            (try Elem.Dyn.String.copy(&vm, "bc")).dyn.elem(),
+            Elem.inputSubstring(1, 3),
             vm,
         );
     }
@@ -786,7 +786,7 @@ test "c = '\\u000001'..'\\u10FFFE' ; c > (c + c) < c" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abcd"),
-            (try Elem.Dyn.String.copy(&vm, "bc")).dyn.elem(),
+            Elem.inputSubstring(1, 3),
             vm,
         );
     }
@@ -809,7 +809,7 @@ test "n = '\n'..'\n' ; n > n > n > 'wow!'" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, input),
-            Elem.string(vm.strings.getId("wow!")),
+            Elem.inputSubstring(3, 7),
             vm,
         );
     }
@@ -843,7 +843,7 @@ test "eql_to(p, V) = p -> V ; eql_to('bar' | 'foo', 'foo')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
-            Elem.string(vm.strings.getId("foo")),
+            Elem.inputSubstring(0, 3),
             vm,
         );
     }
@@ -876,7 +876,7 @@ test "'foo' -> Foo $ Foo" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foo"),
-            Elem.string(vm.strings.getId("foo")),
+            Elem.inputSubstring(0, 3),
             vm,
         );
     }
@@ -946,7 +946,7 @@ test "a = b ; b = c('bar') ; c(a) = d(a, 'foo') ; d(a, b) = a + b; a" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "barfoo"),
-            (try Elem.Dyn.String.copy(&vm, "barfoo")).dyn.elem(),
+            Elem.inputSubstring(0, 6),
             vm,
         );
     }
@@ -962,7 +962,7 @@ test "@number_of('123')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.integer(123),
+            Elem.numberString(vm.strings.getId("123"), .Integer),
             vm,
         );
     }
@@ -978,7 +978,7 @@ test "@number_of('123.456')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123.456"),
-            Elem.float(123.456),
+            Elem.numberString(vm.strings.getId("123.456"), .Float),
             vm,
         );
     }
@@ -1033,7 +1033,7 @@ test "foo(a) = a + a ; foo('a' + 'a')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aaaa"),
-            (try Elem.Dyn.String.copy(&vm, "aaaa")).dyn.elem(),
+            Elem.inputSubstring(0, 4),
             vm,
         );
     }
@@ -1051,7 +1051,7 @@ test "foo(a) = a + a ; bar(p) = p ; foo(bar('a' + 'a'))" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aaaa"),
-            (try Elem.Dyn.String.copy(&vm, "aaaa")).dyn.elem(),
+            Elem.inputSubstring(0, 4),
             vm,
         );
     }
@@ -1068,7 +1068,7 @@ test "is_twelve(N) = ('' $ N) -> 12 ; 12 -> A & is_twelve(A)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
-            Elem.integer(12),
+            Elem.numberString(vm.strings.getId("12"), .Integer),
             vm,
         );
     }
@@ -1508,7 +1508,7 @@ test "A = 1 + 100 ; 101 -> A" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "101"),
-            Elem.integer(101),
+            Elem.numberString(vm.strings.getId("101"), .Integer),
             vm,
         );
     }
@@ -1532,7 +1532,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            Elem.integer(0),
+            Elem.numberString(vm.strings.getId("0"), .Integer),
             vm,
         );
     }
@@ -1542,7 +1542,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
-            Elem.integer(1),
+            Elem.numberString(vm.strings.getId("1"), .Integer),
             vm,
         );
     }
@@ -1593,7 +1593,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            Elem.integer(0),
+            Elem.numberString(vm.strings.getId("0"), .Integer),
             vm,
         );
     }
@@ -1603,7 +1603,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
-            Elem.integer(1),
+            Elem.numberString(vm.strings.getId("1"), .Integer),
             vm,
         );
     }
@@ -2131,7 +2131,7 @@ test "'Hello %('a'..'z')!'" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "Hello q!"),
-            (try Elem.Dyn.String.copy(&vm, "Hello q!")).dyn.elem(),
+            Elem.inputSubstring(0, 8),
             vm,
         );
     }
