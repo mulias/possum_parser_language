@@ -83,6 +83,7 @@ pub const Elem = union(ElemType) {
     pub const failureConst = Elem{ .Failure = undefined };
 
     pub fn print(self: Elem, vm: VM, writer: VMWriter) !void {
+        // try writer.print("{s} ", .{@tagName(self)});
         return switch (self) {
             .ParserVar => |sId| try writer.print("{s}", .{vm.strings.get(sId)}),
             .ValueVar => |sId| try writer.print("{s}", .{vm.strings.get(sId)}),

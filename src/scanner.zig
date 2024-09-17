@@ -246,7 +246,7 @@ pub const Scanner = struct {
 
     pub fn scanNumber(self: *Scanner) Token {
         // Consume negative sign
-        if (self.peek() == '-') self.advance();
+        if (self.offset == 0 and self.peek() == '-') self.advance();
 
         // Integer part
         while (isDigit(self.peek())) self.advance();
