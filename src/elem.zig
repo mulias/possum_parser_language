@@ -107,7 +107,7 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn isType(self: Elem, elemType: ElemType) bool {
-        return std.mem.eql(u8, @tagName(self), @tagName(elemType));
+        return self == elemType;
     }
 
     pub fn isDynType(self: Elem, dynType: DynType) bool {
