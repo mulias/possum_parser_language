@@ -1,3 +1,5 @@
+#!/usr/bin/env possum
+
 input(program)
 
 program = array_sep(expr, maybe(ws))

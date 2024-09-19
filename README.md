@@ -79,18 +79,21 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
 
 ### Parse an abstract syntax tree
 
+This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/Shebang_(Unix)).
+
 ```
   $ cat fibonacci.rkt
   (define (fib n)
-    (cond ((= n 0) 0)
-          ((= n 1) 1)
-          (else (+ (fib (- n 1)) (fib (- n 2))))))
+    (if (<= n 1) n
+        (+ (fib (- n 1)) (fib (- n 2)))))
 
   (display "Fibonacci of 10 is ")
   (display (fib 10))
 
 
-  $ cat lisp_parser.possum
+  $ cat lisp_ast
+  #!/usr/bin/env possum
+
   input(program)
 
   program = array_sep(expr, maybe(ws))
@@ -111,7 +114,7 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
   node(Type, p) = p -> Value $ {"type": Type, "value": Value}
 
 
-  $ possum lisp_parser.possum fibonacci.rkt
+  $ lisp_ast fibonacci.rkt
   [
     {
       "type": "apply",
