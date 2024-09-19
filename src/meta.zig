@@ -63,6 +63,8 @@ pub fn createCrashValue(vm: *VM) !*Function {
 
     const loc = Location.new(0, 0, 0);
 
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(0, loc);
     try fun.chunk.writeOp(.Crash, loc);
     try fun.chunk.writeOp(.End, loc);
 
