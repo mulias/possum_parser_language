@@ -27,24 +27,83 @@ pub const ElemType = enum {
     Dyn,
 };
 
-pub const NumberStringFormat = enum {
-    Integer,
-    Float,
-    Scientific,
-};
-
 pub const Elem = union(ElemType) {
     ParserVar: StringTable.Id,
     ValueVar: StringTable.Id,
     String: StringTable.Id,
     InputSubstring: Tuple(&.{ u32, u32 }),
-    NumberString: struct { sId: StringTable.Id, format: NumberStringFormat },
+    NumberString: NumberString,
     Integer: i64,
     Float: f64,
     Boolean: bool,
     Null: void,
     Failure: void,
     Dyn: *Dyn,
+
+    pub const NumberString = struct {
+        sId: StringTable.Id,
+        format: Format,
+        negated: bool,
+
+        pub const Format = enum {
+            Integer,
+            Float,
+            Scientific,
+        };
+
+        pub fn new(bytes: []const u8, format: Format, vm: *VM) !NumberString {
+            if (bytes[0] == '-') {
+                const sId = try vm.strings.insert(bytes);
+                return NumberString{ .sId = sId, .format = format, .negated = true };
+            } else {
+                var buffer = try vm.allocator.alloc(u8, bytes.len + 1);
+                defer vm.allocator.free(buffer);
+                buffer[0] = '-';
+                @memcpy(buffer[1..], bytes);
+                const sId = try vm.strings.insert(buffer);
+                return NumberString{ .sId = sId, .format = format, .negated = false };
+            }
+        }
+
+        pub fn toString(self: NumberString, strings: StringTable) []const u8 {
+            const bs = strings.get(self.sId);
+            if (self.negated) {
+                return bs;
+            } else {
+                return bs[1..];
+            }
+        }
+
+        pub fn negate(self: NumberString) NumberString {
+            return NumberString{
+                .sId = self.sId,
+                .format = self.format,
+                .negated = !self.negated,
+            };
+        }
+
+        pub fn toNumberElem(self: NumberString, strings: StringTable) !Elem {
+            const bytes = self.toString(strings);
+
+            switch (self.format) {
+                .Integer => {
+                    const i = std.fmt.parseInt(i64, bytes, 10) catch |err| switch (err) {
+                        std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
+                        std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
+                    };
+                    return Elem.integer(i);
+                },
+                .Float,
+                .Scientific,
+                => {
+                    const f = std.fmt.parseFloat(f64, bytes) catch |err| switch (err) {
+                        std.fmt.ParseFloatError.InvalidCharacter => @panic("Internal Error"),
+                    };
+                    return Elem.float(f);
+                },
+            }
+        }
+    };
 
     pub fn parserVar(sId: StringTable.Id) Elem {
         return Elem{ .ParserVar = sId };
@@ -62,8 +121,8 @@ pub const Elem = union(ElemType) {
         return Elem{ .InputSubstring = .{ start, end } };
     }
 
-    pub fn numberString(sId: StringTable.Id, format: NumberStringFormat) Elem {
-        return Elem{ .NumberString = .{ .sId = sId, .format = format } };
+    pub fn numberString(bytes: []const u8, format: NumberString.Format, vm: *VM) !Elem {
+        return Elem{ .NumberString = try NumberString.new(bytes, format, vm) };
     }
 
     pub fn integer(i: i64) Elem {
@@ -89,7 +148,7 @@ pub const Elem = union(ElemType) {
             .ValueVar => |sId| try writer.print("{s}", .{vm.strings.get(sId)}),
             .String => |sId| try writer.print("\"{s}\"", .{vm.strings.get(sId)}),
             .InputSubstring => |is| try writer.print("\"{s}\"", .{vm.input[is[0]..is[1]]}),
-            .NumberString => |n| try writer.print("{s}", .{vm.strings.get(n.sId)}),
+            .NumberString => |ns| try writer.print("{s}", .{ns.toString(vm.strings)}),
             .Integer => |i| try writer.print("{d}", .{i}),
             .Float => |f| try writer.print("{d}", .{f}),
             .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
@@ -179,30 +238,26 @@ pub const Elem = union(ElemType) {
                     if ((n1.format == .Integer and n2.format == .Integer) or
                         (n1.format == .Float and n2.format == .Float))
                     {
-                        const s1 = vm.strings.get(n1.sId);
-                        const s2 = vm.strings.get(n2.sId);
+                        const s1 = n1.toString(vm.strings);
+                        const s2 = n2.toString(vm.strings);
                         return std.mem.eql(u8, s1, s2);
                     } else {
-                        const s1 = vm.strings.get(n1.sId);
-                        const elem1 = parseNumberStringToElem(s1, n1.format) catch return false;
-                        const s2 = vm.strings.get(n2.sId);
-                        const elem2 = parseNumberStringToElem(s2, n2.format) catch return false;
+                        const elem1 = n1.toNumberElem(vm.strings) catch return false;
+                        const elem2 = n2.toNumberElem(vm.strings) catch return false;
                         return isEql(elem1, elem2, vm);
                     }
                 },
                 .Integer,
                 .Float,
                 => {
-                    const s1 = vm.strings.get(n1.sId);
-                    const elem1 = parseNumberStringToElem(s1, n1.format) catch return false;
+                    const elem1 = n1.toNumberElem(vm.strings) catch return false;
                     return isEql(elem1, other, vm);
                 },
                 else => false,
             },
             .Integer => |int1| switch (other) {
                 .NumberString => |n2| {
-                    const s2 = vm.strings.get(n2.sId);
-                    const elem2 = parseNumberStringToElem(s2, n2.format) catch return false;
+                    const elem2 = n2.toNumberElem(vm.strings) catch return false;
                     return isEql(self, elem2, vm);
                 },
                 .Integer => |int2| int1 == int2,
@@ -211,8 +266,7 @@ pub const Elem = union(ElemType) {
             },
             .Float => |float1| switch (other) {
                 .NumberString => |n2| {
-                    const s2 = vm.strings.get(n2.sId);
-                    const elem2 = parseNumberStringToElem(s2, n2.format) catch return false;
+                    const elem2 = n2.toNumberElem(vm.strings) catch return false;
                     return isEql(self, elem2, vm);
                 },
                 .Integer => |int2| float1 == @as(f64, @floatFromInt(int2)),
@@ -331,12 +385,11 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn isValueInRangePattern(value: Elem, low: Elem, high: Elem, vm: VM) !bool {
-        return try low.isLessThanOrEqual(value, vm) and try value.isLessThanOrEqual(high, vm);
+        return try low.isLessThanOrEqualInRangePattern(value, vm) and
+            try value.isLessThanOrEqualInRangePattern(high, vm);
     }
 
-    fn isLessThanOrEqual(value: Elem, high: Elem, vm: VM) !bool {
-        if (value == .ValueVar or high == .ValueVar) return true;
-
+    pub fn isLessThanOrEqualInRangePattern(value: Elem, high: Elem, vm: VM) !bool {
         return switch (value) {
             .ValueVar => true,
             .String,
@@ -344,30 +397,33 @@ pub const Elem = union(ElemType) {
             .Dyn,
             => {
                 const value_codepoint = value.toCodepoint(vm) orelse return false;
-                const high_codepoint = high.toCodepoint(vm) orelse return false;
 
-                return value_codepoint <= high_codepoint;
+                if (high == .ValueVar) {
+                    return true;
+                } else {
+                    const high_codepoint = high.toCodepoint(vm) orelse return false;
+                    return value_codepoint <= high_codepoint;
+                }
             },
             .NumberString => |ns| {
-                const bytes = vm.strings.get(ns.sId);
-                const num = try parseNumberStringToElem(bytes, ns.format);
-                return num.isLessThanOrEqual(high, vm);
+                const num = try ns.toNumberElem(vm.strings);
+                return num.isLessThanOrEqualInRangePattern(high, vm);
             },
             .Integer => |int_value| switch (high) {
+                .ValueVar => true,
                 .NumberString => |ns| {
-                    const bytes = vm.strings.get(ns.sId);
-                    const highNum = try parseNumberStringToElem(bytes, ns.format);
-                    return value.isLessThanOrEqual(highNum, vm);
+                    const highNum = try ns.toNumberElem(vm.strings);
+                    return value.isLessThanOrEqualInRangePattern(highNum, vm);
                 },
                 .Integer => |int_high| return int_value <= int_high,
                 .Float => |float_high| @as(f64, @floatFromInt(int_value)) <= float_high,
                 else => false,
             },
             .Float => |float_value| switch (high) {
+                .ValueVar => true,
                 .NumberString => |ns| {
-                    const bytes = vm.strings.get(ns.sId);
-                    const highNum = try parseNumberStringToElem(bytes, ns.format);
-                    return value.isLessThanOrEqual(highNum, vm);
+                    const highNum = try ns.toNumberElem(vm.strings);
+                    return value.isLessThanOrEqualInRangePattern(highNum, vm);
                 },
                 .Integer => |int_high| float_value <= @as(f64, @floatFromInt(int_high)),
                 .Float => |float_high| float_value <= float_high,
@@ -461,14 +517,12 @@ pub const Elem = union(ElemType) {
                 else => null,
             },
             .NumberString => |n1| {
-                const s1 = vm.strings.get(n1.sId);
-                const elem1 = try parseNumberStringToElem(s1, n1.format);
+                const elem1 = try n1.toNumberElem(vm.strings);
                 return merge(elem1, elemB, vm);
             },
             .Integer => |int1| switch (elemB) {
                 .NumberString => |n2| {
-                    const s2 = vm.strings.get(n2.sId);
-                    const elem2 = try parseNumberStringToElem(s2, n2.format);
+                    const elem2 = try n2.toNumberElem(vm.strings);
                     return merge(elemA, elem2, vm);
                 },
                 .Integer => |int2| integer(int1 + int2),
@@ -477,8 +531,7 @@ pub const Elem = union(ElemType) {
             },
             .Float => |float1| switch (elemB) {
                 .NumberString => |n2| {
-                    const s2 = vm.strings.get(n2.sId);
-                    const elem2 = try parseNumberStringToElem(s2, n2.format);
+                    const elem2 = try n2.toNumberElem(vm.strings);
                     return merge(elemA, elem2, vm);
                 },
                 .Integer => |int2| float(float1 + @as(f64, @floatFromInt(int2))),
@@ -564,7 +617,11 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn negateNumber(elem: Elem, strings: StringTable) !Elem {
+    pub fn isNumber(elem: Elem) bool {
+        return elem == .Integer or elem == .Float or elem == .NumberString;
+    }
+
+    pub fn negateNumber(elem: Elem) !Elem {
         if (elem == .Failure) return Elem.failureConst;
 
         return switch (elem) {
@@ -572,11 +629,7 @@ pub const Elem = union(ElemType) {
             .ValueVar,
             .Failure,
             => @panic("Internal error"),
-            .NumberString => |n| {
-                const s = strings.get(n.sId);
-                const parsed = try parseNumberStringToElem(s, n.format);
-                return negateNumber(parsed, strings);
-            },
+            .NumberString => |n| Elem{ .NumberString = n.negate() },
             .Integer => |i| integer(i * -1),
             .Float => |f| float(f * -1),
             .Null => integer(0),
@@ -585,42 +638,28 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn toNumber(self: Elem, vm: *VM) !?Elem {
-        return switch (self) {
-            .String => |sId| {
-                const s = vm.strings.get(sId);
-                if (parsing.numberStringFormat(s)) |format| {
-                    return Elem.numberString(sId, format);
-                } else {
-                    return null;
-                }
-            },
-            .InputSubstring => |is| {
-                const s = vm.input[is[0]..is[1]];
-                if (parsing.numberStringFormat(s)) |format| {
-                    const sId = try vm.strings.insert(s);
-                    return Elem.numberString(sId, format);
-                } else {
-                    return null;
-                }
-            },
+        const bytes = switch (self) {
             .NumberString,
             .Integer,
             .Float,
-            => self,
+            => return self,
+            .String => |sId| vm.strings.get(sId),
+            .InputSubstring => |is| vm.input[is[0]..is[1]],
             .Dyn => |dyn| switch (dyn.dynType) {
-                .String => {
-                    const s = dyn.asString().buffer.str();
-                    if (parsing.numberStringFormat(s)) |format| {
-                        const sId = try vm.strings.insert(s);
-                        return Elem.numberString(sId, format);
-                    } else {
-                        return null;
-                    }
-                },
-                else => null,
+                .String => dyn.asString().buffer.str(),
+                else => return null,
             },
-            else => null,
+            else => return null,
         };
+
+        var ns: ?Elem = null;
+
+        // Weird issue with coercing Elem to ?Elem
+        if (parsing.numberStringFormat(bytes)) |format| {
+            ns = try Elem.numberString(bytes, format, vm);
+        }
+
+        return ns;
     }
 
     pub fn toString(self: Elem, vm: *VM) !Elem {
@@ -659,8 +698,7 @@ pub const Elem = union(ElemType) {
                 return .{ .string = s };
             },
             .NumberString => |n| {
-                const s = vm.strings.get(n.sId);
-                return .{ .number_string = s };
+                return .{ .number_string = n.toString(vm.strings) };
             },
             .Integer => |i| .{ .integer = i },
             .Float => |f| .{ .float = f },
@@ -713,26 +751,6 @@ pub const Elem = union(ElemType) {
 
         const j = try self.toJson(vm);
         try json_pretty.stringify(j, format, outstream);
-    }
-
-    fn parseNumberStringToElem(bytes: []const u8, format: NumberStringFormat) !Elem {
-        switch (format) {
-            .Integer => {
-                const i = std.fmt.parseInt(i64, bytes, 10) catch |err| switch (err) {
-                    std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
-                    std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
-                };
-                return Elem.integer(i);
-            },
-            .Float,
-            .Scientific,
-            => {
-                const f = std.fmt.parseFloat(f64, bytes) catch |err| switch (err) {
-                    std.fmt.ParseFloatError.InvalidCharacter => @panic("Internal Error"),
-                };
-                return Elem.float(f);
-            },
-        }
     }
 
     pub const DynType = enum {

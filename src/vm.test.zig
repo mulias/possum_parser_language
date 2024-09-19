@@ -95,7 +95,7 @@ test "1234 | 5678 | 910" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "56789"),
-            Elem.numberString(vm.strings.getId("5678"), .Integer),
+            try Elem.numberString("5678", .Integer, &vm),
             vm,
         );
     }
@@ -264,7 +264,7 @@ test "1 ! 12 ! 123" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.numberString(vm.strings.getId("123"), .Integer),
+            try Elem.numberString("123", .Integer, &vm),
             vm,
         );
     }
@@ -405,7 +405,7 @@ test "42.0 -> 42" {
 
         try testing.expectSuccess(
             try vm.interpret(parser, "42.0"),
-            Elem.numberString(vm.strings.getId("42.0"), .Float),
+            try Elem.numberString("42.0", .Float, &vm),
             vm,
         );
     }
@@ -457,7 +457,7 @@ test "1 ? 2 & 3 : 4" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.numberString(vm.strings.getId("3"), .Integer),
+            try Elem.numberString("3", .Integer, &vm),
             vm,
         );
     }
@@ -467,7 +467,7 @@ test "1 ? 2 & 3 : 4" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "4"),
-            Elem.numberString(vm.strings.getId("4"), .Integer),
+            try Elem.numberString("4", .Integer, &vm),
             vm,
         );
     }
@@ -489,7 +489,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
-            Elem.numberString(vm.strings.getId("2"), .Integer),
+            try Elem.numberString("2", .Integer, &vm),
             vm,
         );
     }
@@ -547,7 +547,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "34"),
-            Elem.numberString(vm.strings.getId("4"), .Integer),
+            try Elem.numberString("4", .Integer, &vm),
             vm,
         );
     }
@@ -575,7 +575,7 @@ test "1 ? 2 : 3 ? 4 : 5" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "5"),
-            Elem.numberString(vm.strings.getId("5"), .Integer),
+            try Elem.numberString("5", .Integer, &vm),
             vm,
         );
     }
@@ -752,7 +752,7 @@ test "'\\n\\'\\\\' > 0" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, input),
-            Elem.numberString(vm.strings.getId("0"), .Integer),
+            try Elem.numberString("0", .Integer, &vm),
             vm,
         );
     }
@@ -826,7 +826,7 @@ test "A = 100 ; 100 -> A" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "100"),
-            Elem.numberString(vm.strings.getId("100"), .Integer),
+            try Elem.numberString("100", .Integer, &vm),
             vm,
         );
     }
@@ -860,7 +860,7 @@ test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.numberString(vm.strings.getId("3"), .Integer),
+            try Elem.numberString("3", .Integer, &vm),
             vm,
         );
     }
@@ -926,7 +926,7 @@ test "a = b ; b = c ; c = 111 ; a" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "111"),
-            Elem.numberString(vm.strings.getId("111"), .Integer),
+            try Elem.numberString("111", .Integer, &vm),
             vm,
         );
     }
@@ -962,7 +962,7 @@ test "@number_of('123')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.numberString(vm.strings.getId("123"), .Integer),
+            try Elem.numberString("123", .Integer, &vm),
             vm,
         );
     }
@@ -978,7 +978,7 @@ test "@number_of('123.456')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123.456"),
-            Elem.numberString(vm.strings.getId("123.456"), .Float),
+            try Elem.numberString("123.456", .Float, &vm),
             vm,
         );
     }
@@ -1068,7 +1068,7 @@ test "is_twelve(N) = ('' $ N) -> 12 ; 12 -> A & is_twelve(A)" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "12"),
-            Elem.numberString(vm.strings.getId("12"), .Integer),
+            try Elem.numberString("12", .Integer, &vm),
             vm,
         );
     }
@@ -1188,7 +1188,7 @@ test "Max function locals" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            Elem.numberString(vm.strings.getId("0"), .Integer),
+            try Elem.numberString("0", .Integer, &vm),
             vm,
         );
     }
@@ -1366,7 +1366,7 @@ test "('' $ [[], 100]) -> [[], A] $ A" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
-            Elem.numberString(vm.strings.getId("100"), .Integer),
+            try Elem.numberString("100", .Integer, &vm),
             vm,
         );
     }
@@ -1446,7 +1446,7 @@ test "camelCase = _foo ; _foo = __bar ; __bar = 123 ; camelCase" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "123"),
-            Elem.numberString(vm.strings.getId("123"), .Integer),
+            try Elem.numberString("123", .Integer, &vm),
             vm,
         );
     }
@@ -1508,7 +1508,7 @@ test "A = 1 + 100 ; 101 -> A" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "101"),
-            Elem.numberString(vm.strings.getId("101"), .Integer),
+            try Elem.numberString("101", .Integer, &vm),
             vm,
         );
     }
@@ -1532,7 +1532,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            Elem.numberString(vm.strings.getId("0"), .Integer),
+            try Elem.numberString("0", .Integer, &vm),
             vm,
         );
     }
@@ -1542,7 +1542,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
-            Elem.numberString(vm.strings.getId("1"), .Integer),
+            try Elem.numberString("1", .Integer, &vm),
             vm,
         );
     }
@@ -1593,7 +1593,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            Elem.numberString(vm.strings.getId("0"), .Integer),
+            try Elem.numberString("0", .Integer, &vm),
             vm,
         );
     }
@@ -1603,7 +1603,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
-            Elem.numberString(vm.strings.getId("1"), .Integer),
+            try Elem.numberString("1", .Integer, &vm),
             vm,
         );
     }
@@ -1817,7 +1817,7 @@ test "('' $ {'a': 123}) -> {'a': A} $ A" {
 
         try testing.expectSuccess(
             result,
-            Elem.numberString(vm.strings.getId("123"), .Integer),
+            try Elem.numberString("123", .Integer, &vm),
             vm,
         );
     }
@@ -2193,7 +2193,7 @@ test "Large number" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, large_int),
-            Elem.numberString(vm.strings.getId(large_int), .Integer),
+            try Elem.numberString(large_int, .Integer, &vm),
             vm,
         );
     }
@@ -2416,6 +2416,37 @@ test "int -> 0..5" {
     }
 }
 
+test "0.. -> I $ -I" {
+    const parser =
+        \\0.. -> I $ -I
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "3"),
+            Elem.integer(-3),
+            vm,
+        );
+    }
+}
+
+test "0.. -> I & ..0 -> -I" {
+    const parser =
+        \\0.. -> I $ -I
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "3"),
+            Elem.integer(-3),
+            vm,
+        );
+    }
+}
 // test "0..999 -> N $ 'Your number was %(N).'" {
 //     {
 //         const parser = "0..999 -> N $ 'Your number was %(N).'";

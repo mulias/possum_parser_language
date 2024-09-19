@@ -77,3 +77,30 @@ test "foo(a, b, c) = a + b + c" {
     try std.testing.expectEqualSlices(Ast.Node, expected.nodes.items, actual.nodes.items);
     try std.testing.expectEqualSlices(Location, expected.locations.items, actual.locations.items);
 }
+
+test "1-2" {
+    const source =
+        \\1-2
+    ;
+
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+
+    var parser = Parser.init(&vm);
+    defer parser.deinit();
+
+    try parser.parse(source);
+    try parser.end();
+    const actual = parser.ast;
+
+    var expected = Ast.init(allocator);
+    defer expected.deinit();
+
+    _ = try expected.pushElem(try Elem.numberString("1", .Integer, &vm), loc(1, 0, 1));
+    _ = try expected.pushElem(try Elem.numberString("2", .Integer, &vm), loc(1, 2, 1));
+    _ = try expected.pushInfix(.NumberSubtract, 0, 1, loc(1, 1, 1));
+
+    try std.testing.expectEqualSlices(Ast.Node, expected.nodes.items, actual.nodes.items);
+    try std.testing.expectEqualSlices(Location, expected.locations.items, actual.locations.items);
+}

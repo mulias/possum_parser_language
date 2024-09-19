@@ -20,13 +20,15 @@ pub const Ast = struct {
         ElemNode,
         UpperBoundedRange,
         LowerBoundedRange,
+        Negation,
     };
 
     pub const Node = union(NodeType) {
         InfixNode: Infix,
         ElemNode: Elem,
-        UpperBoundedRange: Elem,
-        LowerBoundedRange: Elem,
+        UpperBoundedRange: NodeId,
+        LowerBoundedRange: NodeId,
+        Negation: NodeId,
     };
 
     pub const InfixType = enum {
@@ -138,13 +140,11 @@ pub const Ast = struct {
             try writer.print("node {d}: ", .{index});
             switch (node) {
                 .InfixNode => |infix| try writer.print("{s} {d} {d}", .{ @tagName(infix.infixType), infix.left, infix.right }),
-                .ElemNode => |elem| try elem.print(vm, writer),
                 .UpperBoundedRange,
                 .LowerBoundedRange,
-                => |elem| {
-                    try writer.print("{s} ", .{@tagName(node)});
-                    try elem.print(vm, writer);
-                },
+                .Negation,
+                => |nodeId| try writer.print("{s} {d}", .{ @tagName(node), nodeId }),
+                .ElemNode => |elem| try elem.print(vm, writer),
             }
             try writer.print("\n", .{});
         }

@@ -297,7 +297,20 @@ pub const VM = struct {
                 const low = self.pop();
                 const value = self.pop();
 
+                // Unlike with range parsers, there are no compile-time
+                // garentees that range patterns are correctly ordered or
+                // typed.
+                const low_is_valid_type = low == .ValueVar or low == .String or low.isNumber();
+                const high_is_valid_type = high == .ValueVar or high == .String or high.isNumber();
+                const range_is_ordered = try low.isLessThanOrEqualInRangePattern(high, self.*);
+
+                if (!low_is_valid_type or !high_is_valid_type or !range_is_ordered) {
+                    return self.runtimeError("Invalid range in pattern", .{});
+                }
+
                 if (try Elem.isValueInRangePattern(value, low, high, self.*)) {
+                    if (low == .ValueVar) self.bindLocalVariable(value, low);
+                    if (high == .ValueVar) self.bindLocalVariable(value, high);
                     try self.push(value);
                 } else {
                     try self.pushFailure();
@@ -467,9 +480,8 @@ pub const VM = struct {
             .NegateNumber => {
                 const num = self.pop();
 
-                const value = Elem.negateNumber(num, self.strings) catch |err| switch (err) {
-                    error.IntegerOverflow => return self.runtimeError("Number too large.", .{}),
-                    error.ExpectedNumber => return self.runtimeError("Subtraction is only supported for numbers.", .{}),
+                const value = Elem.negateNumber(num) catch |err| switch (err) {
+                    error.ExpectedNumber => return self.runtimeError("Negation and subtraction is only supported for numbers.", .{}),
                 };
                 try self.push(value);
             },
@@ -646,11 +658,11 @@ pub const VM = struct {
             .NumberString => |n| {
                 assert(argCount == 0);
                 _ = self.pop();
-                const s = self.strings.get(n.sId);
+                const bytes = n.toString(self.strings);
                 const start = self.inputPos;
-                const end = start + s.len;
+                const end = start + bytes.len;
 
-                if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
+                if (self.input.len >= end and std.mem.eql(u8, bytes, self.input[start..end])) {
                     self.inputPos = end;
                     try self.push(elem);
                     return;
@@ -1075,7 +1087,7 @@ pub const VM = struct {
                 }
             },
             .Number => |nc| {
-                const subtrahend = nc.acc.negateNumber(self.strings) catch @panic("Internal Error");
+                const subtrahend = nc.acc.negateNumber() catch @panic("Internal Error");
                 if (try Elem.merge(value, subtrahend, self)) |diff| {
                     var i: usize = patternSegments.len;
                     while (i > 0) {

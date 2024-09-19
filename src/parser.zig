@@ -142,6 +142,7 @@ pub const Parser = struct {
         if (self.printDebug) self.writers.debugPrint("prefix {}\n", .{tokenType});
 
         return switch (tokenType) {
+            .Minus => self.negate(),
             .LeftParen => self.grouping(),
             .LeftBracket => self.array(),
             .LeftBrace => self.object(),
@@ -149,7 +150,7 @@ pub const Parser = struct {
             .UnderscoreIdentifier,
             .UppercaseIdentifier,
             => self.valueVar(),
-            .String => self.stringOrCharRange(),
+            .String => self.string(),
             .Integer => self.integer(),
             .Float => self.float(),
             .Scientific => self.scientific(),
@@ -179,6 +180,13 @@ pub const Parser = struct {
             .LeftParen => {
                 if (!self.previousSkippedWhitespace) {
                     return self.callOrDefineFunction(leftNode);
+                } else {
+                    return self.errorAtPrevious("Expected infix operator.");
+                }
+            },
+            .DotDot => {
+                if (!self.previousSkippedWhitespace) {
+                    return self.fullOrLowerBoundedRange(leftNode);
                 } else {
                     return self.errorAtPrevious("Expected infix operator.");
                 }
@@ -272,53 +280,6 @@ pub const Parser = struct {
                 restNodeId,
                 loc,
             );
-        }
-    }
-
-    fn stringOrCharRange(self: *Parser) !usize {
-        const t1 = self.previous;
-        if (self.current.tokenType == .DotDot and !self.currentSkippedWhitespace) {
-            try self.advance();
-
-            if (characterStringToCodepoint(t1)) |c1| {
-                if (self.current.tokenType == .String and !self.currentSkippedWhitespace) {
-                    try self.advance();
-                    const t2 = self.previous;
-
-                    // closed range `"a".."z"`
-                    if (characterStringToCodepoint(t2)) |c2| {
-                        if (c1 > c2) {
-                            return self.errorAtPrevious("Character range is not ordered");
-                        }
-
-                        const t1_intern_result = try self.internUnescaped(stringContents(t1.lexeme));
-                        const t2_intern_result = try self.internUnescaped(stringContents(t2.lexeme));
-
-                        const charNode1 = try self.ast.pushElem(Elem.string(t1_intern_result.sId), t1.loc);
-                        const charNode2 = try self.ast.pushElem(Elem.string(t2_intern_result.sId), t2.loc);
-
-                        return self.ast.pushInfix(
-                            .Range,
-                            charNode1,
-                            charNode2,
-                            Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
-                        );
-                    } else {
-                        return self.errorAtPrevious("Expect single character for character range");
-                    }
-                } else {
-                    // open range `"a"..`
-                    const intern_result = try self.internUnescaped(stringContents(t1.lexeme));
-                    return self.ast.pushNode(
-                        .{ .LowerBoundedRange = Elem.string(intern_result.sId) },
-                        Location.new(t1.loc.line, t1.loc.start, t1.loc.length + 2),
-                    );
-                }
-            } else {
-                return self.errorAtPrevious("Expect single character for character range");
-            }
-        } else {
-            return self.string();
         }
     }
 
@@ -427,95 +388,24 @@ pub const Parser = struct {
         return null;
     }
 
-    fn integer(self: *Parser) !usize {
-        const t1 = self.previous;
-        const s1 = t1.lexeme;
-        if (self.current.tokenType == .DotDot and !self.currentSkippedWhitespace) {
-            try self.advance();
+    fn integer(self: *Parser) !Ast.NodeId {
+        const t = self.previous;
 
-            const int1 = std.fmt.parseInt(i64, s1, 10) catch |err| switch (err) {
-                std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
-                std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
-            };
-
-            if (self.current.tokenType == .Integer and !self.currentSkippedWhitespace) {
-                try self.advance();
-                const t2 = self.previous;
-                const s2 = t2.lexeme;
-
-                const int2 = std.fmt.parseInt(i64, s2, 10) catch |err| switch (err) {
-                    std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
-                    std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
-                };
-
-                const intNode1 = try self.ast.pushElem(Elem.integer(int1), t1.loc);
-                const intNode2 = try self.ast.pushElem(Elem.integer(int2), t2.loc);
-
-                return self.ast.pushInfix(
-                    .Range,
-                    intNode1,
-                    intNode2,
-                    Location.new(t1.loc.line, t1.loc.start, t1.loc.length + t2.loc.length + 2),
-                );
-            } else {
-                return self.ast.pushNode(
-                    .{ .LowerBoundedRange = Elem.integer(int1) },
-                    Location.new(t1.loc.line, t1.loc.start, t1.loc.length + 2),
-                );
-            }
+        if (t.tokenType == .Integer) {
+            return self.ast.pushElem(try Elem.numberString(t.lexeme, .Integer, self.vm), t.loc);
         } else {
-            const sId1 = try self.vm.strings.insert(s1);
-            return self.ast.pushElem(Elem.numberString(sId1, .Integer), t1.loc);
+            return self.errorAtPrevious("Expected integer");
         }
-    }
-
-    fn upperBoundedRange(self: *Parser) !usize {
-        const dotsLoc = self.previous.loc;
-
-        var upperBoundToken: Token = undefined;
-        var upperBoundElem: Elem = undefined;
-
-        if (self.current.tokenType == .Integer and !self.currentSkippedWhitespace) {
-            try self.advance();
-            upperBoundToken = self.previous;
-
-            const intStr = upperBoundToken.lexeme;
-            const i = std.fmt.parseInt(i64, intStr, 10) catch |err| switch (err) {
-                std.fmt.ParseIntError.InvalidCharacter => @panic("Internal Error"),
-                std.fmt.ParseIntError.Overflow => return error.IntegerOverflow,
-            };
-
-            upperBoundElem = Elem.integer(i);
-        } else if (self.current.tokenType == .String and !self.currentSkippedWhitespace) {
-            try self.advance();
-            upperBoundToken = self.previous;
-
-            if (characterStringToCodepoint(upperBoundToken) != null) {
-                const internResult = try self.internUnescaped(stringContents(upperBoundToken.lexeme));
-                upperBoundElem = Elem.string(internResult.sId);
-            } else {
-                return self.errorAtPrevious("Expect single character for character range");
-            }
-        } else {
-            return self.errorAtPrevious("Expect string or integer for upper bounded range");
-        }
-
-        return self.ast.pushNode(
-            .{ .UpperBoundedRange = upperBoundElem },
-            Location.new(dotsLoc.line, dotsLoc.start, upperBoundToken.loc.length + 2),
-        );
     }
 
     fn float(self: *Parser) !Ast.NodeId {
         const t = self.previous;
-        const sId = try self.vm.strings.insert(t.lexeme);
-        return self.ast.pushElem(Elem.numberString(sId, .Float), t.loc);
+        return self.ast.pushElem(try Elem.numberString(t.lexeme, .Float, self.vm), t.loc);
     }
 
     fn scientific(self: *Parser) !Ast.NodeId {
         const t = self.previous;
-        const sId = try self.vm.strings.insert(t.lexeme);
-        return self.ast.pushElem(Elem.numberString(sId, .Scientific), t.loc);
+        return self.ast.pushElem(try Elem.numberString(t.lexeme, .Scientific, self.vm), t.loc);
     }
 
     fn literal(self: *Parser) !Ast.NodeId {
@@ -534,7 +424,18 @@ pub const Parser = struct {
         return nodeId;
     }
 
-    fn binaryOp(self: *Parser, leftNodeId: usize) !usize {
+    fn negate(self: *Parser) !Ast.NodeId {
+        const t = self.previous;
+
+        if (self.currentSkippedWhitespace) {
+            return self.errorAtPrevious("Expected expression");
+        }
+
+        const nodeId = try self.parseWithPrecedence(.Negation);
+        return self.ast.pushNode(.{ .Negation = nodeId }, t.loc);
+    }
+
+    fn binaryOp(self: *Parser, leftNodeId: Ast.NodeId) !Ast.NodeId {
         if (self.printDebug) self.writers.debugPrint("binary op {}\n", .{self.previous.tokenType});
 
         const t = self.previous;
@@ -616,7 +517,73 @@ pub const Parser = struct {
         }
     }
 
-    fn array(self: *Parser) Error!usize {
+    fn upperBoundedRange(self: *Parser) !Ast.NodeId {
+        const range_token = self.previous;
+        const upper_bound_node_id = try self.parseWithPrecedence(operatorPrecedence(range_token.tokenType));
+        const upper_bound_loc = self.ast.getLocation(upper_bound_node_id);
+
+        return self.ast.pushNode(
+            .{ .UpperBoundedRange = upper_bound_node_id },
+            Location.new(
+                range_token.loc.line,
+                range_token.loc.start,
+                range_token.loc.length + upper_bound_loc.length,
+            ),
+        );
+    }
+
+    fn fullOrLowerBoundedRange(self: *Parser, lower_bound_node_id: Ast.NodeId) !Ast.NodeId {
+        const range_token = self.previous;
+        const lower_bound_loc = self.ast.getLocation(lower_bound_node_id);
+
+        const lower_bounded_range_node = .{ .LowerBoundedRange = lower_bound_node_id };
+        const lower_bounded_range_loc = Location.new(
+            lower_bound_loc.line,
+            lower_bound_loc.start,
+            lower_bound_loc.length + range_token.loc.length,
+        );
+
+        // If there's whitespace then the range is done
+        if (self.currentSkippedWhitespace) {
+            return self.ast.pushNode(
+                lower_bounded_range_node,
+                lower_bounded_range_loc,
+            );
+        }
+
+        switch (self.current.tokenType) {
+            .Integer,
+            .String,
+            .Minus,
+            .LeftParen,
+            .UnderscoreIdentifier,
+            .UppercaseIdentifier,
+            => {
+                const upper_bound_node_id = try self.parseWithPrecedence(
+                    operatorPrecedence(range_token.tokenType),
+                );
+                const upper_bound_loc = self.ast.getLocation(upper_bound_node_id);
+                return self.ast.pushInfix(
+                    .Range,
+                    lower_bound_node_id,
+                    upper_bound_node_id,
+                    Location.new(
+                        lower_bound_loc.line,
+                        lower_bound_loc.start,
+                        lower_bound_loc.length + range_token.loc.length + upper_bound_loc.length,
+                    ),
+                );
+            },
+            else => {
+                return self.ast.pushNode(
+                    lower_bounded_range_node,
+                    lower_bounded_range_loc,
+                );
+            },
+        }
+    }
+
+    fn array(self: *Parser) Error!Ast.NodeId {
         const loc = self.previous.loc;
         var a = try Elem.Dyn.Array.create(self.vm, 0);
         const nodeId = try self.ast.pushElem(a.dyn.elem(), loc);
@@ -822,6 +789,7 @@ pub const Parser = struct {
     fn operatorPrecedence(tokenType: TokenType) Precedence {
         return switch (tokenType) {
             .LeftParen => .CallOrDefineFunction,
+            .DotDot => .Range,
             .Bang,
             .Plus,
             .Minus,
@@ -842,6 +810,8 @@ pub const Parser = struct {
 
     const Precedence = enum {
         CallOrDefineFunction,
+        Negation,
+        Range,
         StandardInfix,
         Sequence,
         Conditional,
@@ -851,6 +821,8 @@ pub const Parser = struct {
         pub fn bindingPower(precedence: Precedence) struct { left: u4, right: u4 } {
             return switch (precedence) {
                 .CallOrDefineFunction => .{ .left = 11, .right = 12 },
+                .Negation => .{ .left = 10, .right = 10 },
+                .Range => .{ .left = 9, .right = 9 },
                 .StandardInfix => .{ .left = 7, .right = 8 },
                 .Sequence => .{ .left = 5, .right = 6 },
                 .Conditional => .{ .left = 4, .right = 3 },

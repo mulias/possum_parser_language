@@ -84,9 +84,7 @@ pub const Scanner = struct {
             '`' => self.scanBacktickString(),
             '@' => self.scanAtSignIdentifier(),
             '_' => self.scanUnderscoreIdentifier(),
-            '-' => if (isDigit(self.peek()))
-                self.scanNumber()
-            else if (self.match('>'))
+            '-' => if (self.match('>'))
                 self.makeToken(.DashGreaterThan)
             else
                 self.makeToken(.Minus),
