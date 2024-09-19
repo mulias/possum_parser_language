@@ -107,7 +107,7 @@ pub const Compiler = struct {
     }
 
     fn compileMain(self: *Compiler) !?*Elem.Dyn.Function {
-        var mainNodeId: ?usize = null;
+        var mainNodeId: ?Ast.NodeId = null;
 
         for (self.ast.roots.items) |nodeId| {
             if (self.ast.getInfixOfType(nodeId, .DeclareGlobal) == null) {
@@ -136,7 +136,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn declareGlobal(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !void {
+    fn declareGlobal(self: *Compiler, headNodeId: Ast.NodeId, bodyNodeId: Ast.NodeId) !void {
         switch (self.ast.getNode(headNodeId)) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .CallOrDefineFunction => {
@@ -165,7 +165,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn declareGlobalFunction(self: *Compiler, nameNodeId: usize, paramsNodeId: ?usize) !void {
+    fn declareGlobalFunction(self: *Compiler, nameNodeId: Ast.NodeId, paramsNodeId: ?Ast.NodeId) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
@@ -245,7 +245,7 @@ pub const Compiler = struct {
         try self.vm.globals.put(name, bodyElem);
     }
 
-    fn validateGlobal(self: *Compiler, headNodeId: usize) !void {
+    fn validateGlobal(self: *Compiler, headNodeId: Ast.NodeId) !void {
         const nameElem = switch (self.ast.getNode(headNodeId)) {
             .InfixNode => |infix| self.ast.getElem(infix.left) orelse return Error.InvalidAst,
             .ElemNode => |elem| elem,
@@ -314,7 +314,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn resolveGlobalAlias(self: *Compiler, headNodeId: usize) !void {
+    fn resolveGlobalAlias(self: *Compiler, headNodeId: Ast.NodeId) !void {
         const globalName = try self.getGlobalName(headNodeId);
         var aliasName = globalName;
         var value = self.vm.globals.get(aliasName);
@@ -352,7 +352,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileGlobalFunction(self: *Compiler, headNodeId: usize, bodyNodeId: usize) !void {
+    fn compileGlobalFunction(self: *Compiler, headNodeId: Ast.NodeId, bodyNodeId: Ast.NodeId) !void {
         const globalName = try self.getGlobalName(headNodeId);
         const globalVal = self.vm.globals.get(globalName).?;
 
@@ -384,7 +384,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn getGlobalName(self: *Compiler, headNodeId: usize) !StringTable.Id {
+    fn getGlobalName(self: *Compiler, headNodeId: Ast.NodeId) !StringTable.Id {
         const nameElem = switch (self.ast.getNode(headNodeId)) {
             .InfixNode => |infix| self.ast.getElem(infix.left) orelse return Error.InvalidAst,
             .ElemNode => |elem| elem,
@@ -401,7 +401,7 @@ pub const Compiler = struct {
         return name;
     }
 
-    fn writeParser(self: *Compiler, nodeId: usize, isTailPosition: bool) !void {
+    fn writeParser(self: *Compiler, nodeId: Ast.NodeId, isTailPosition: bool) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
@@ -530,7 +530,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeParserFunctionCall(self: *Compiler, functionNodeId: usize, argsNodeId: usize, isTailPosition: bool) !void {
+    fn writeParserFunctionCall(self: *Compiler, functionNodeId: Ast.NodeId, argsNodeId: Ast.NodeId, isTailPosition: bool) !void {
         const functionElem = self.ast.getElem(functionNodeId) orelse @panic("internal error");
         const functionLoc = self.ast.getLocation(functionNodeId);
 
@@ -564,7 +564,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeParserElem(self: *Compiler, nodeId: usize) !void {
+    fn writeParserElem(self: *Compiler, nodeId: Ast.NodeId) !void {
         const loc = self.ast.getLocation(nodeId);
 
         switch (self.ast.getNode(nodeId)) {
@@ -648,7 +648,7 @@ pub const Compiler = struct {
 
     const ArgType = enum { Parser, Value, Unspecified };
 
-    fn writeParserFunctionArguments(self: *Compiler, nodeId: usize, function: ?*Elem.Dyn.Function) Error!u8 {
+    fn writeParserFunctionArguments(self: *Compiler, nodeId: Ast.NodeId, function: ?*Elem.Dyn.Function) Error!u8 {
         var argCount: u8 = 0;
         var argsNodeId = nodeId;
         var argType: ArgType = .Unspecified;
@@ -693,7 +693,7 @@ pub const Compiler = struct {
         return argCount;
     }
 
-    fn writeParserFunctionArgument(self: *Compiler, nodeId: usize, argType: ArgType) !void {
+    fn writeParserFunctionArgument(self: *Compiler, nodeId: Ast.NodeId, argType: ArgType) !void {
         const loc = self.ast.getLocation(nodeId);
 
         switch (argType) {
@@ -730,7 +730,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeAnonymousFunction(self: *Compiler, nodeId: usize) !*Elem.Dyn.Function {
+    fn writeAnonymousFunction(self: *Compiler, nodeId: Ast.NodeId) !*Elem.Dyn.Function {
         const loc = self.ast.getLocation(nodeId);
 
         const function = try Elem.Dyn.Function.createAnonParser(self.vm, .{ .arity = 0 });
@@ -763,7 +763,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeDestructurePattern(self: *Compiler, nodeId: usize) !void {
+    fn writeDestructurePattern(self: *Compiler, nodeId: Ast.NodeId) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
@@ -818,7 +818,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writePattern(self: *Compiler, nodeId: usize) !void {
+    fn writePattern(self: *Compiler, nodeId: Ast.NodeId) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
@@ -899,7 +899,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writePatternMerge(self: *Compiler, nodeId: usize) !void {
+    fn writePatternMerge(self: *Compiler, nodeId: Ast.NodeId) !void {
         const loc = self.ast.getLocation(nodeId);
 
         var jumpList = ArrayList(usize).init(self.vm.allocator);
@@ -924,7 +924,7 @@ pub const Compiler = struct {
         try self.patchJump(successJumpIndex, loc);
     }
 
-    fn writePrepareMergePattern(self: *Compiler, nodeId: usize, count: u8) !u8 {
+    fn writePrepareMergePattern(self: *Compiler, nodeId: Ast.NodeId, count: u8) !u8 {
         switch (self.ast.getNode(nodeId)) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
@@ -943,7 +943,7 @@ pub const Compiler = struct {
         return count + 1;
     }
 
-    fn writePrepareMergePatternPart(self: *Compiler, nodeId: usize) Error!void {
+    fn writePrepareMergePatternPart(self: *Compiler, nodeId: Ast.NodeId) Error!void {
         switch (self.ast.getNode(nodeId)) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead, .ObjectCons => {
@@ -967,7 +967,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeMergePattern(self: *Compiler, nodeId: usize, jumpList: *ArrayList(usize)) Error!void {
+    fn writeMergePattern(self: *Compiler, nodeId: Ast.NodeId, jumpList: *ArrayList(usize)) Error!void {
         const loc = self.ast.getLocation(nodeId);
 
         switch (self.ast.getNode(nodeId)) {
@@ -994,7 +994,7 @@ pub const Compiler = struct {
         try jumpList.append(jumpIndex);
     }
 
-    fn addValueLocals(self: *Compiler, nodeId: usize) !void {
+    fn addValueLocals(self: *Compiler, nodeId: Ast.NodeId) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
@@ -1019,7 +1019,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn addClosureLocals(self: *Compiler, nodeId: usize) !void {
+    fn addClosureLocals(self: *Compiler, nodeId: Ast.NodeId) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
@@ -1051,7 +1051,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValue(self: *Compiler, nodeId: usize, isTailPosition: bool) !void {
+    fn writeValue(self: *Compiler, nodeId: Ast.NodeId, isTailPosition: bool) !void {
         const node = self.ast.getNode(nodeId);
         const loc = self.ast.getLocation(nodeId);
 
@@ -1214,7 +1214,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValueFunctionCall(self: *Compiler, functionNodeId: usize, argsNodeId: usize, isTailPosition: bool) !void {
+    fn writeValueFunctionCall(self: *Compiler, functionNodeId: Ast.NodeId, argsNodeId: Ast.NodeId, isTailPosition: bool) !void {
         const functionElem = self.ast.getElem(functionNodeId) orelse @panic("internal error");
         const functionLoc = self.ast.getLocation(functionNodeId);
 
@@ -1246,7 +1246,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValueFunctionArguments(self: *Compiler, nodeId: usize, function: ?*Elem.Dyn.Function) Error!u8 {
+    fn writeValueFunctionArguments(self: *Compiler, nodeId: Ast.NodeId, function: ?*Elem.Dyn.Function) Error!u8 {
         var argCount: u8 = 0;
         var argsNodeId = nodeId;
         var loc: Location = undefined;
@@ -1308,17 +1308,17 @@ pub const Compiler = struct {
         }
     };
 
-    fn writePatternArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
+    fn writePatternArray(self: *Compiler, startNodeId: Ast.NodeId, itemNodeId: Ast.NodeId) !void {
         var jumpList = ArrayList(usize).init(self.vm.allocator);
         defer jumpList.deinit();
         try self.writeArray(startNodeId, itemNodeId, ArrayContext{ .Pattern = &jumpList });
     }
 
-    fn writeValueArray(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
+    fn writeValueArray(self: *Compiler, startNodeId: Ast.NodeId, itemNodeId: Ast.NodeId) !void {
         try self.writeArray(startNodeId, itemNodeId, ArrayContext{ .Value = undefined });
     }
 
-    fn writeArray(self: *Compiler, startNodeId: usize, itemNodeId: usize, context: ArrayContext) !void {
+    fn writeArray(self: *Compiler, startNodeId: Ast.NodeId, itemNodeId: Ast.NodeId, context: ArrayContext) !void {
         // The first left node is the empty array
         const arrayElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
         const arrayLoc = self.ast.getLocation(startNodeId);
@@ -1348,7 +1348,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn appendArrayElems(self: *Compiler, array: *Elem.Dyn.Array, itemNodeId: usize, context: ArrayContext) !void {
+    fn appendArrayElems(self: *Compiler, array: *Elem.Dyn.Array, itemNodeId: Ast.NodeId, context: ArrayContext) !void {
         var nodeId = itemNodeId;
         var index: u8 = 0;
 
@@ -1373,7 +1373,7 @@ pub const Compiler = struct {
         try self.appendArrayElem(array, nodeId, index, context);
     }
 
-    fn appendArrayElem(self: *Compiler, array: *Elem.Dyn.Array, nodeId: usize, index: u8, context: ArrayContext) Error!void {
+    fn appendArrayElem(self: *Compiler, array: *Elem.Dyn.Array, nodeId: Ast.NodeId, index: u8, context: ArrayContext) Error!void {
         switch (self.ast.getNode(nodeId)) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
@@ -1414,7 +1414,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeArrayElem(self: *Compiler, nodeId: usize, index: u8, context: ArrayContext) Error!void {
+    fn writeArrayElem(self: *Compiler, nodeId: Ast.NodeId, index: u8, context: ArrayContext) Error!void {
         const loc = self.ast.getLocation(nodeId);
 
         switch (context) {
@@ -1457,17 +1457,17 @@ pub const Compiler = struct {
         }
     };
 
-    fn writePatternObject(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
+    fn writePatternObject(self: *Compiler, startNodeId: Ast.NodeId, itemNodeId: Ast.NodeId) !void {
         var jumpList = ArrayList(usize).init(self.vm.allocator);
         defer jumpList.deinit();
         try self.writeObject(startNodeId, itemNodeId, ObjectContext{ .Pattern = &jumpList });
     }
 
-    fn writeValueObject(self: *Compiler, startNodeId: usize, itemNodeId: usize) !void {
+    fn writeValueObject(self: *Compiler, startNodeId: Ast.NodeId, itemNodeId: Ast.NodeId) !void {
         try self.writeObject(startNodeId, itemNodeId, ObjectContext{ .Value = undefined });
     }
 
-    fn writeObject(self: *Compiler, startNodeId: usize, itemNodeId: usize, context: ObjectContext) !void {
+    fn writeObject(self: *Compiler, startNodeId: Ast.NodeId, itemNodeId: Ast.NodeId, context: ObjectContext) !void {
         // The first left node is the empty object
         var objectElem = self.ast.getElem(startNodeId) orelse @panic("Internal Error");
         const objectLoc = self.ast.getLocation(startNodeId);
@@ -1497,7 +1497,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn appendObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, itemNodeId: usize, context: ObjectContext) !void {
+    fn appendObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, itemNodeId: Ast.NodeId, context: ObjectContext) !void {
         var nodeId = itemNodeId;
 
         while (true) {
@@ -1519,7 +1519,7 @@ pub const Compiler = struct {
         try self.appendObjectPair(object, nodeId, context);
     }
 
-    fn appendObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pairNodeId: usize, context: ObjectContext) Error!void {
+    fn appendObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pairNodeId: Ast.NodeId, context: ObjectContext) Error!void {
         const pair = self.ast.getInfixOfType(pairNodeId, .ObjectPair) orelse @panic("Internal Error");
         const pairLoc = self.ast.getLocation(pairNodeId);
 
@@ -1617,7 +1617,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeObjectVal(self: *Compiler, nodeId: usize, key: Elem, context: ObjectContext) Error!void {
+    fn writeObjectVal(self: *Compiler, nodeId: Ast.NodeId, key: Elem, context: ObjectContext) Error!void {
         const loc = self.ast.getLocation(nodeId);
         const constId = try self.makeConstant(key);
 
@@ -1637,7 +1637,7 @@ pub const Compiler = struct {
 
     const StringTemplateContext = enum { Parser, Value };
 
-    fn writeStringTemplate(self: *Compiler, startNodeId: usize, restNodeId: usize, context: StringTemplateContext) Error!void {
+    fn writeStringTemplate(self: *Compiler, startNodeId: Ast.NodeId, restNodeId: Ast.NodeId, context: StringTemplateContext) Error!void {
         const loc = self.ast.getLocation(startNodeId);
 
         try self.writeStringTemplatePart(startNodeId, context);
@@ -1671,7 +1671,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeStringTemplatePart(self: *Compiler, nodeId: usize, context: StringTemplateContext) !void {
+    fn writeStringTemplatePart(self: *Compiler, nodeId: Ast.NodeId, context: StringTemplateContext) !void {
         switch (context) {
             .Parser => try self.writeParser(nodeId, false),
             .Value => try self.writeValue(nodeId, false),
@@ -1747,7 +1747,7 @@ pub const Compiler = struct {
         return self.vm.strings.get(sId)[0] == '@';
     }
 
-    fn emitJump(self: *Compiler, op: OpCode, loc: Location) !usize {
+    fn emitJump(self: *Compiler, op: OpCode, loc: Location) !Ast.NodeId {
         try self.emitOp(op, loc);
         // Dummy operands that will be patched later
         try self.chunk().writeShort(0xffff, loc);

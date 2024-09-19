@@ -13,6 +13,8 @@ pub const Ast = struct {
     locations: ArrayList(Location),
     endLocation: Location,
 
+    pub const NodeId = usize;
+
     pub const NodeType = enum {
         InfixNode,
         ElemNode,

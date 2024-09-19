@@ -74,13 +74,13 @@ pub const Parser = struct {
         self.ast.endLocation = self.previous.loc;
     }
 
-    fn parseExpression(self: *Parser, source: []const u8) !usize {
+    fn parseExpression(self: *Parser, source: []const u8) !Ast.NodeId {
         self.scanner = Scanner.init(source, self.writers, self.vm.config.printScanner);
         try self.advance();
         return self.expression();
     }
 
-    fn statement(self: *Parser) !usize {
+    fn statement(self: *Parser) !Ast.NodeId {
         const node = try self.parseWithPrecedence(.None);
 
         if (self.check(.Eof) or self.currentSkippedNewline or try self.match(.Semicolon)) {
@@ -90,11 +90,11 @@ pub const Parser = struct {
         return self.errorAtCurrent("Expected newline or semicolon between statements");
     }
 
-    fn expression(self: *Parser) Error!usize {
+    fn expression(self: *Parser) Error!Ast.NodeId {
         return self.parseWithPrecedence(.None);
     }
 
-    fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!usize {
+    fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!Ast.NodeId {
         if (self.printDebug) self.writers.debugPrint("parse with precedence {}\n", .{precedence});
 
         try self.advance();
@@ -138,7 +138,7 @@ pub const Parser = struct {
         return node;
     }
 
-    fn prefix(self: *Parser, tokenType: TokenType) !usize {
+    fn prefix(self: *Parser, tokenType: TokenType) !Ast.NodeId {
         if (self.printDebug) self.writers.debugPrint("prefix {}\n", .{tokenType});
 
         return switch (tokenType) {
@@ -159,7 +159,7 @@ pub const Parser = struct {
         };
     }
 
-    fn infix(self: *Parser, tokenType: TokenType, leftNode: usize) !usize {
+    fn infix(self: *Parser, tokenType: TokenType, leftNode: Ast.NodeId) !Ast.NodeId {
         if (self.printDebug) self.writers.debugPrint("infix {}\n", .{tokenType});
 
         return switch (tokenType) {
@@ -187,19 +187,19 @@ pub const Parser = struct {
         };
     }
 
-    fn parserVar(self: *Parser) !usize {
+    fn parserVar(self: *Parser) !Ast.NodeId {
         const t = self.previous;
         const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.pushElem(Elem.parserVar(sId), t.loc);
     }
 
-    fn valueVar(self: *Parser) !usize {
+    fn valueVar(self: *Parser) !Ast.NodeId {
         const t = self.previous;
         const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.pushElem(Elem.valueVar(sId), t.loc);
     }
 
-    fn string(self: *Parser) !usize {
+    fn string(self: *Parser) !Ast.NodeId {
         const t1 = self.previous;
         const s1 = stringContents(t1.lexeme);
 
@@ -218,7 +218,7 @@ pub const Parser = struct {
         }
     }
 
-    fn stringTemplate(self: *Parser, firstPartNodeId: usize, rest: []const u8) !usize {
+    fn stringTemplate(self: *Parser, firstPartNodeId: Ast.NodeId, rest: []const u8) !Ast.NodeId {
         const loc = self.previous.loc;
 
         // Don't deinit, we want the shared ast to persist
@@ -237,9 +237,9 @@ pub const Parser = struct {
         );
     }
 
-    fn stringTemplateParts(templateParser: *Parser, str: []const u8) !usize {
+    fn stringTemplateParts(templateParser: *Parser, str: []const u8) !Ast.NodeId {
         const loc = templateParser.previous.loc;
-        var nodeId: usize = undefined;
+        var nodeId: Ast.NodeId = undefined;
         var rest: []const u8 = undefined;
 
         if (str[0] == '%' and str[1] == '(') {
@@ -506,19 +506,19 @@ pub const Parser = struct {
         );
     }
 
-    fn float(self: *Parser) !usize {
+    fn float(self: *Parser) !Ast.NodeId {
         const t = self.previous;
         const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.pushElem(Elem.numberString(sId, .Float), t.loc);
     }
 
-    fn scientific(self: *Parser) !usize {
+    fn scientific(self: *Parser) !Ast.NodeId {
         const t = self.previous;
         const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.pushElem(Elem.numberString(sId, .Scientific), t.loc);
     }
 
-    fn literal(self: *Parser) !usize {
+    fn literal(self: *Parser) !Ast.NodeId {
         const t = self.previous;
         return switch (t.tokenType) {
             .True => try self.ast.pushElem(Elem.boolean(true), t.loc),
@@ -528,7 +528,7 @@ pub const Parser = struct {
         };
     }
 
-    fn grouping(self: *Parser) !usize {
+    fn grouping(self: *Parser) !Ast.NodeId {
         const nodeId = try self.expression();
         try self.consume(.RightParen, "Expect ')' after expression.");
         return nodeId;
@@ -558,7 +558,7 @@ pub const Parser = struct {
         return self.ast.pushInfix(infixType, leftNodeId, rightNodeId, t.loc);
     }
 
-    fn conditionalIfThenOp(self: *Parser, ifNodeId: usize) !usize {
+    fn conditionalIfThenOp(self: *Parser, ifNodeId: Ast.NodeId) !Ast.NodeId {
         if (self.printDebug) self.writers.debugPrint("conditional if/then {}\n", .{self.previous.tokenType});
 
         const ifThenLoc = self.previous.loc;
@@ -570,7 +570,7 @@ pub const Parser = struct {
         return ifThenNodeId;
     }
 
-    fn conditionalThenElseOp(self: *Parser, thenNodeId: usize) !usize {
+    fn conditionalThenElseOp(self: *Parser, thenNodeId: Ast.NodeId) !Ast.NodeId {
         if (self.printDebug) self.writers.debugPrint("conditional then/else {}\n", .{self.previous.tokenType});
 
         const thenElseLoc = self.previous.loc;
@@ -582,7 +582,7 @@ pub const Parser = struct {
         return thenElseNodeId;
     }
 
-    fn callOrDefineFunction(self: *Parser, functionNameNodeId: usize) !usize {
+    fn callOrDefineFunction(self: *Parser, functionNameNodeId: Ast.NodeId) !Ast.NodeId {
         const callOrDefineLoc = self.previous.loc;
 
         if (try self.match(.RightParen)) {
@@ -600,7 +600,7 @@ pub const Parser = struct {
         }
     }
 
-    fn paramsOrArgs(self: *Parser) !usize {
+    fn paramsOrArgs(self: *Parser) !Ast.NodeId {
         const nodeId = try self.expression();
 
         if (try self.match(.Comma)) {
@@ -630,7 +630,7 @@ pub const Parser = struct {
         }
     }
 
-    fn arrayNonEmpty(self: *Parser, headNodeId: usize) !usize {
+    fn arrayNonEmpty(self: *Parser, headNodeId: Ast.NodeId) !Ast.NodeId {
         const loc = self.previous.loc;
         const arrayElemsNodeId = try self.arrayElems();
 
@@ -649,7 +649,7 @@ pub const Parser = struct {
         }
     }
 
-    fn arraySpread(self: *Parser, leftNodeId: usize) !usize {
+    fn arraySpread(self: *Parser, leftNodeId: Ast.NodeId) !Ast.NodeId {
         const loc = self.previous.loc;
         const spreadNodeId = try self.expression();
 
@@ -666,7 +666,7 @@ pub const Parser = struct {
         }
     }
 
-    fn arrayElems(self: *Parser) !usize {
+    fn arrayElems(self: *Parser) !Ast.NodeId {
         const nodeId = try self.expression();
 
         // There's another array element and it's not a spread
@@ -683,7 +683,7 @@ pub const Parser = struct {
         }
     }
 
-    fn object(self: *Parser) !usize {
+    fn object(self: *Parser) !Ast.NodeId {
         const loc = self.previous.loc;
         var a = try Elem.Dyn.Object.create(self.vm, 0);
         const nodeId = try self.ast.pushElem(a.dyn.elem(), loc);
@@ -703,7 +703,7 @@ pub const Parser = struct {
         }
     }
 
-    fn objectMembers(self: *Parser) !usize {
+    fn objectMembers(self: *Parser) !Ast.NodeId {
         const nodeId = try self.objectPair();
 
         if (try self.match(.Comma)) {
@@ -719,10 +719,10 @@ pub const Parser = struct {
         }
     }
 
-    fn objectPair(self: *Parser) !usize {
+    fn objectPair(self: *Parser) !Ast.NodeId {
         const pairLoc = self.current.loc;
 
-        var keyNodeId: usize = undefined;
+        var keyNodeId: Ast.NodeId = undefined;
         if (try self.match(.UppercaseIdentifier)) {
             keyNodeId = try self.valueVar();
         } else {
