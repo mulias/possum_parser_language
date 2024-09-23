@@ -86,7 +86,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `tuple_sep(elem, sep, N)` | Parses `elem` exactly `N` times, interspersed with `sep`, where `N` is a non-negative integer | Array of values parsed by `elem` |
 | `table_sep(elem, sep, row_sep)` | One or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem` |
 | `maybe_table_sep(elem, sep, row_sep)` | Zero or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem`, maybe empty |
-| `json_array`       | Valid JSON array           | Array of arbitrary values |
+| `json_array(elem)` | JSON formatted array with square brackets and comma separators, containing zero or more `elem`s | Array of values parsed by `elem` |
 
 ## Object Parsers
 
@@ -102,7 +102,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `record2_sep(Key1, value1, sep, Key2, value2)` | Parses `value1`, `sep`, and then `value2` | Object with `Key1` associated to the parsed `value1`, etc |
 | `record3(Key1, value1, Key2, value2, Key3, value3)` | Runs three value parsers in order | Object with `Key1` associated to the parsed `value1`, etc |
 | `record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3)` | Runs three value parsers, interspersed with `sep` | Object with `Key1` associated to the parsed `value1`, etc |
-| `json_object`     | Valid JSON object          | Object with arbitrary values |
+| `json_object(value)` | JSON formatted object with braces, string keys, colon and comma separators, containing zero or more `value`s | Object with string keys and values parsed by `value` |
 
 ## Utility Parsers
 

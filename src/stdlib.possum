@@ -290,8 +290,8 @@ json =
   null("null") |
   number |
   json_string |
-  json_array |
-  json_object
+  json_array(json) |
+  json_object(json)
 
 json_string = '"' > _json_string("")
 
@@ -307,13 +307,13 @@ _escape_unicode = `\u`+ _hex + _hex + _hex + _hex
 
 _hex = digit | "a".."f" | "A".."F"
 
-json_array = "[" > maybe_array_sep(surround(json, maybe(ws)), ",") < "]"
+json_array(elem) = "[" > maybe_array_sep(surround(elem, maybe(ws)), ",") < "]"
 
-json_object =
+json_object(value) =
   "{" >
   maybe_object_sep(
     surround(json_string, maybe(ws)), ":",
-    surround(json, maybe(ws)), ","
+    surround(value, maybe(ws)), ","
   )
   < "}"
 

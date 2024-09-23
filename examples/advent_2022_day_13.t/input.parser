@@ -1,2 +1,3 @@
-pair = record2_sep("left", json_array, nl, "right", json_array)
+packet = json_array(int | packet)
+pair = record2_sep("left", packet, nl, "right", packet)
 array_sep(pair, nl+nl)

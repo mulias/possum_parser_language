@@ -1750,13 +1750,15 @@
   0029    | Or 29 -> 36
   0032  292 GetConstant 6: json_string
   0034    | CallFunction 0
-  0036    | Or 36 -> 43
+  0036    | Or 36 -> 45
   0039  293 GetConstant 7: json_array
-  0041    | CallFunction 0
-  0043    | Or 43 -> 50
-  0046  294 GetConstant 8: json_object
-  0048    | CallFunction 0
-  0050  293 End
+  0041    | GetConstant 8: json
+  0043    | CallFunction 1
+  0045    | Or 45 -> 54
+  0048  294 GetConstant 9: json_object
+  0050    | GetConstant 10: json
+  0052    | CallTailFunction 1
+  0054  293 End
   ========================================
   
   ==============json_string===============
@@ -1879,26 +1881,29 @@
   ========================================
   
   =================@fn423=================
-  0000  310 GetConstant 0: surround
-  0002    | GetConstant 1: json
-  0004    | GetConstant 2: @fn424
-  0006    | CallTailFunction 2
-  0008    | End
+  0000  310 GetConstant 0: elem
+  0002    | SetClosureCaptures
+  0003    | GetConstant 1: surround
+  0005    | GetBoundLocal 0
+  0007    | GetConstant 2: @fn424
+  0009    | CallTailFunction 2
+  0011    | End
   ========================================
   
   ===============json_array===============
   0000  310 GetConstant 0: "["
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 15
+  0004    | TakeRight 4 -> 18
   0007    | GetConstant 1: maybe_array_sep
   0009    | GetConstant 2: @fn423
-  0011    | GetConstant 3: ","
-  0013    | CallFunction 2
-  0015    | JumpIfFailure 15 -> 23
-  0018    | GetConstant 4: "]"
-  0020    | CallFunction 0
-  0022    | TakeLeft
-  0023    | End
+  0011    | CaptureLocal 0 0
+  0014    | GetConstant 3: ","
+  0016    | CallFunction 2
+  0018    | JumpIfFailure 18 -> 26
+  0021    | GetConstant 4: "]"
+  0023    | CallFunction 0
+  0025    | TakeLeft
+  0026    | End
   ========================================
   
   =================@fn426=================
@@ -1924,28 +1929,31 @@
   ========================================
   
   =================@fn427=================
-  0000  316 GetConstant 0: surround
-  0002    | GetConstant 1: json
-  0004    | GetConstant 2: @fn428
-  0006    | CallTailFunction 2
-  0008    | End
+  0000  316 GetConstant 0: value
+  0002    | SetClosureCaptures
+  0003    | GetConstant 1: surround
+  0005    | GetBoundLocal 0
+  0007    | GetConstant 2: @fn428
+  0009    | CallTailFunction 2
+  0011    | End
   ========================================
   
   ==============json_object===============
   0000  313 GetConstant 0: "{"
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 19
+  0004    | TakeRight 4 -> 22
   0007  314 GetConstant 1: maybe_object_sep
   0009  315 GetConstant 2: @fn425
   0011    | GetConstant 3: ":"
   0013  316 GetConstant 4: @fn427
-  0015    | GetConstant 5: ","
-  0017  314 CallFunction 4
-  0019  318 JumpIfFailure 19 -> 27
-  0022    | GetConstant 6: "}"
-  0024    | CallFunction 0
-  0026    | TakeLeft
-  0027    | End
+  0015    | CaptureLocal 0 0
+  0018    | GetConstant 5: ","
+  0020  314 CallFunction 4
+  0022  318 JumpIfFailure 22 -> 30
+  0025    | GetConstant 6: "}"
+  0027    | CallFunction 0
+  0029    | TakeLeft
+  0030    | End
   ========================================
   
   =============ZipIntoObject==============
