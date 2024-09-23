@@ -257,6 +257,10 @@ maybe_object(key, value) = default(object(key, value), {})
 maybe_object_sep(key, pair_sep, value, sep) =
   default(object_sep(key, pair_sep, value, sep), {})
 
+pair(key, value) = key -> K & value -> V $ {K: V}
+
+pair_sep(key, sep, value) = key -> K & sep & value -> V $ {K: V}
+
 record1(Key, value) = value -> Value $ {Key: Value}
 
 record2(Key1, value1, Key2, value2) =
