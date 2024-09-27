@@ -7,6 +7,7 @@ const Location = @import("location.zig").Location;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 const VMWriter = @import("writer.zig").VMWriter;
+const prettyPrint = @import("pretty.zig").print;
 
 pub const Ast = struct {
     arena: ArenaAllocator,
@@ -111,11 +112,12 @@ pub const Ast = struct {
         } }, loc);
     }
 
-    pub fn print(self: *Ast, vm: VM, writer: VMWriter) !void {
-        _ = self; // autofix
-        _ = vm; // autofix
-        _ = writer; // autofix
-        @panic("todo");
+    pub fn print(self: *Ast, vm: VM) !void {
+        try prettyPrint(vm.allocator, self.roots.items, .{
+            .array_show_item_idx = false,
+            .max_depth = 0,
+            .array_max_len = 0,
+        });
     }
 };
 
