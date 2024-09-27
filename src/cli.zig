@@ -139,7 +139,7 @@ pub const CLI = struct {
     }
 
     fn printWithPager(str: []const u8) !void {
-        var pager = std.ChildProcess.init(&[_][]const u8{ "less", "-FIRXS" }, std.heap.page_allocator);
+        var pager = std.process.Child.init(&[_][]const u8{ "less", "-FIRXS" }, std.heap.page_allocator);
 
         pager.stdin_behavior = .Pipe;
 

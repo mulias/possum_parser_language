@@ -27,7 +27,7 @@ fn addCliExecutable(b: *Build, name: []const u8, target: anytype, optimize: anyt
 
     const cli = b.addExecutable(.{
         .name = name,
-        .root_source_file = .{ .path = "src/cli.zig" },
+        .root_source_file = b.path("src/cli.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -42,7 +42,7 @@ fn addCliExecutable(b: *Build, name: []const u8, target: anytype, optimize: anyt
 fn addWasmExecutable(b: *Build, name: []const u8) *Build.Step.Compile {
     const wasm = b.addExecutable(.{
         .name = name,
-        .root_source_file = .{ .path = "src/wasm-lib.zig" },
+        .root_source_file = b.path("src/wasm-lib.zig"),
         .target = b.resolveTargetQuery(.{
             .cpu_arch = .wasm32,
             .os_tag = .freestanding,
@@ -57,7 +57,7 @@ fn addWasmExecutable(b: *Build, name: []const u8) *Build.Step.Compile {
 
 fn addDocImports(b: *Build, exe: *Build.Step.Compile) void {
     exe.root_module.addAnonymousImport("docs/cli", .{
-        .root_source_file = .{ .path = "docs/cli.txt" },
+        .root_source_file = b.path("docs/cli.txt"),
     });
 
     const markdown_docs = [_][]const u8{ "advanced", "language", "overview", "stdlib" };
@@ -110,7 +110,7 @@ fn testStep(b: *Build, target: anytype, optimize: anytype) void {
     const test_step = b.step("test", "Run unit tests");
 
     const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/tests.zig" },
+        .root_source_file = b.path("src/tests.zig"),
         .target = target,
         .optimize = optimize,
     });
