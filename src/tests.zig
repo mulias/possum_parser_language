@@ -6,4 +6,5 @@ comptime {
     _ = @import("string_buffer.test.zig");
     _ = @import("string_table.zig");
     _ = @import("elem.zig");
+    _ = @import("pretty.test.zig");
 }
