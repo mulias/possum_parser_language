@@ -133,7 +133,6 @@ pub const VM = struct {
         defer parser.deinit();
 
         try parser.parse(programSource);
-        try parser.end();
 
         if (self.config.printAst) {
             try parser.ast.print(self.*, self.writers.debug);

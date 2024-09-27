@@ -1,19 +1,21 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArenaAllocator = std.heap.ArenaAllocator;
+const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const Location = @import("location.zig").Location;
 const StringTable = @import("string_table.zig").StringTable;
-const VMWriter = @import("writer.zig").VMWriter;
 const VM = @import("vm.zig").VM;
+const VMWriter = @import("writer.zig").VMWriter;
 
 pub const Ast = struct {
-    roots: ArrayList(usize),
-    nodes: ArrayList(Node),
-    locations: ArrayList(Location),
-    endLocation: Location,
+    arena: ArenaAllocator,
+    roots: ArrayList(*LocNode),
 
-    pub const NodeId = usize;
+    pub const LocNode = struct {
+        loc: Location,
+        node: Node,
+    };
 
     pub const NodeType = enum {
         InfixNode,
@@ -26,9 +28,23 @@ pub const Ast = struct {
     pub const Node = union(NodeType) {
         InfixNode: Infix,
         ElemNode: Elem,
-        UpperBoundedRange: NodeId,
-        LowerBoundedRange: NodeId,
-        Negation: NodeId,
+        UpperBoundedRange: *LocNode,
+        LowerBoundedRange: *LocNode,
+        Negation: *LocNode,
+
+        pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
+            return switch (self) {
+                .InfixNode => |infix| if (infix.infixType == t) infix else null,
+                else => null,
+            };
+        }
+
+        pub fn asElem(self: Node) ?Elem {
+            return switch (self) {
+                .ElemNode => |elem| elem,
+                else => null,
+            };
+        }
     };
 
     pub const InfixType = enum {
@@ -56,73 +72,39 @@ pub const Ast = struct {
 
     pub const Infix = struct {
         infixType: InfixType,
-        left: usize,
-        right: usize,
+        left: *LocNode,
+        right: *LocNode,
     };
 
     pub fn init(allocator: Allocator) Ast {
         return Ast{
-            .roots = ArrayList(usize).init(allocator),
-            .nodes = ArrayList(Node).init(allocator),
-            .locations = ArrayList(Location).init(allocator),
-            .endLocation = undefined,
+            .arena = ArenaAllocator.init(allocator),
+            .roots = .{},
         };
     }
 
     pub fn deinit(self: *Ast) void {
-        self.roots.deinit();
-        self.nodes.deinit();
-        self.locations.deinit();
+        self.arena.deinit();
     }
 
-    pub fn getNode(self: Ast, index: usize) Node {
-        return self.nodes.items[index];
+    pub fn pushRoot(self: *Ast, root: *LocNode) !void {
+        try self.roots.append(self.arena.allocator(), root);
     }
 
-    pub fn getLocation(self: Ast, index: usize) Location {
-        return self.locations.items[index];
+    pub fn create(self: *Ast, node: Node, loc: Location) !*LocNode {
+        const ptr = try self.arena.allocator().create(LocNode);
+
+        ptr.* = LocNode{ .loc = loc, .node = node };
+
+        return ptr;
     }
 
-    pub fn getInfix(self: Ast, index: usize) ?Infix {
-        return switch (self.getNode(index)) {
-            .InfixNode => |infix| infix,
-            else => null,
-        };
+    pub fn createElem(self: *Ast, elem: Elem, loc: Location) !*LocNode {
+        return self.create(.{ .ElemNode = elem }, loc);
     }
 
-    pub fn getInfixOfType(self: Ast, index: usize, infixType: InfixType) ?Infix {
-        if (self.getInfix(index)) |infix| if (infix.infixType == infixType) return infix;
-        return null;
-    }
-
-    pub fn getElem(self: Ast, index: usize) ?Elem {
-        return switch (self.getNode(index)) {
-            .ElemNode => |elem| elem,
-            else => null,
-        };
-    }
-
-    pub fn getElemOfType(self: Ast, index: usize, elemType: Elem.ElemType) ?Elem {
-        if (self.getElem(index)) |elem| if (elem.isType(elemType)) return elem;
-        return null;
-    }
-
-    pub fn pushRoot(self: *Ast, rootNodeId: usize) !void {
-        try self.roots.append(rootNodeId);
-    }
-
-    pub fn pushNode(self: *Ast, node: Node, loc: Location) !usize {
-        try self.nodes.append(node);
-        try self.locations.append(loc);
-        return self.nodes.items.len - 1;
-    }
-
-    pub fn pushElem(self: *Ast, elem: Elem, loc: Location) !usize {
-        return self.pushNode(.{ .ElemNode = elem }, loc);
-    }
-
-    pub fn pushInfix(self: *Ast, infixType: InfixType, left: usize, right: usize, loc: Location) !usize {
-        return self.pushNode(.{ .InfixNode = .{
+    pub fn createInfix(self: *Ast, infixType: InfixType, left: *LocNode, right: *LocNode, loc: Location) !*LocNode {
+        return self.create(.{ .InfixNode = .{
             .infixType = infixType,
             .left = left,
             .right = right,
@@ -130,24 +112,10 @@ pub const Ast = struct {
     }
 
     pub fn print(self: *Ast, vm: VM, writer: VMWriter) !void {
-        try writer.print("roots:", .{});
-        for (self.roots.items) |nodeId| {
-            try writer.print(" {d}", .{nodeId});
-        }
-        try writer.print("\n", .{});
-
-        for (self.nodes.items, 0..) |node, index| {
-            try writer.print("node {d}: ", .{index});
-            switch (node) {
-                .InfixNode => |infix| try writer.print("{s} {d} {d}", .{ @tagName(infix.infixType), infix.left, infix.right }),
-                .UpperBoundedRange,
-                .LowerBoundedRange,
-                .Negation,
-                => |nodeId| try writer.print("{s} {d}", .{ @tagName(node), nodeId }),
-                .ElemNode => |elem| try elem.print(vm, writer),
-            }
-            try writer.print("\n", .{});
-        }
+        _ = self; // autofix
+        _ = vm; // autofix
+        _ = writer; // autofix
+        @panic("todo");
     }
 };
 

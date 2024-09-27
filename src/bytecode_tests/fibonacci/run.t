@@ -79,5 +79,5 @@
   0018    | GetBoundLocal 0
   0020    | CallFunction 1
   0022    | Destructure
-  0023    9 End
+  0023    | End
   ========================================

@@ -24,7 +24,6 @@ test "'a' > 'b' > 'c' | 'abz'" {
     defer parser.deinit();
 
     try parser.parse(source);
-    try parser.end();
     const actual = parser.ast;
 
     var expected = Ast.init(allocator);
@@ -54,7 +53,6 @@ test "foo(a, b, c) = a + b + c" {
     defer parser.deinit();
 
     try parser.parse(source);
-    try parser.end();
     const actual = parser.ast;
 
     var expected = Ast.init(allocator);
@@ -91,7 +89,6 @@ test "1-2" {
     defer parser.deinit();
 
     try parser.parse(source);
-    try parser.end();
     const actual = parser.ast;
 
     var expected = Ast.init(allocator);
