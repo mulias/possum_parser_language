@@ -106,7 +106,7 @@ Both parsers and constructed values can use an infix `+` to merge their result. 
 | ---------------------- | ------------------- |
 | Strings                | Concatenate strings |
 | Arrays                 | Concatenate arrays  |
-| Objects                | Combine objects, adding fields from the right-side object to the left-side object, possibly replacing existing values |
+| Objects                | Combine objects, overwriting existing `V1` values with `V2` values |
 | Numbers                | Sum numbers         |
 | Booleans               | Logical or          |
 

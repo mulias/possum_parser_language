@@ -64,7 +64,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `many_sep(p, sep)` | One or more `p`, interspersed with `sep` | Marged values parsed by `p` |
 | `many_until(p, stop)` | One or more `p`, must be followed by `stop` which is not consumed | Merged values parsed by `p` |
 | `maybe_many(p)`    | Zero or more `p`           | Merged values parsed by `p`, or `null` if `p` fails |
-| `maybe_many_sep(p)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
+| `maybe_many_sep(p, sep)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
 | `repeat(p, N)`     | Parses `p` exactly `N` times, where `N` is a non-negative integer | Merged values parsed by `p`, or `null` if `N` is 0 |
 | `repeat_between(p, N, M)` | Parses `p` at least `N` times and up to `M` times, where `N` and `M` are non-negative integers | Merged values parsed by `p`, or `null` if `N` is 0 and no matches found |
 
