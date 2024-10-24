@@ -134,7 +134,7 @@ pub const Options = struct {
 };
 
 /// Prints pretty formatted string for an arbitrary input value.
-pub fn print(alloc: Allocator, val: anytype, comptime opt: Options) !void {
+pub fn print(alloc: Allocator, writer: anytype, val: anytype, comptime opt: Options) !void {
     var pretty = Pretty(opt).init(alloc);
     defer pretty.deinit();
     try pretty.render(val, true);
@@ -142,9 +142,7 @@ pub fn print(alloc: Allocator, val: anytype, comptime opt: Options) !void {
     if (builtin.is_test) {
         std.debug.print("{s}", .{pretty.buffer.items});
     } else {
-        // Perform buffered stdout write
-        const stdout = std.io.getStdOut();
-        var bw = std.io.bufferedWriter(stdout.writer());
+        var bw = std.io.bufferedWriter(writer);
         try bw.writer().print("{s}", .{pretty.buffer.items});
         try bw.flush();
     }

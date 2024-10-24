@@ -113,7 +113,7 @@ pub const Ast = struct {
     }
 
     pub fn print(self: *Ast, vm: VM) !void {
-        try prettyPrint(vm.allocator, self.roots.items, .{
+        try prettyPrint(vm.allocator, vm.writers.debug, self.roots.items, .{
             .array_show_item_idx = false,
             .max_depth = 0,
             .array_max_len = 0,
