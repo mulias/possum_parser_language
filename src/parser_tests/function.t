@@ -27,7 +27,7 @@
                     .length: usize = 3
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .ParserVar: u32 = 1897
+                      .ParserVar: u32 = 2306
                 .right: *ast.Ast.LocNode
                   .loc: location.Location
                     .line: usize = 1
@@ -44,7 +44,7 @@
                           .length: usize = 1
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .ParserVar: u32 = 53
+                            .ParserVar: u32 = 59
                       .right: *ast.Ast.LocNode
                         .loc: location.Location
                           .line: usize = 1
@@ -61,7 +61,7 @@
                                 .length: usize = 1
                               .node: ast.Ast.Node
                                 .ElemNode: elem.Elem
-                                  .ParserVar: u32 = 1901
+                                  .ParserVar: u32 = 2310
                             .right: *ast.Ast.LocNode
                               .loc: location.Location
                                 .line: usize = 1
@@ -69,7 +69,7 @@
                                 .length: usize = 1
                               .node: ast.Ast.Node
                                 .ElemNode: elem.Elem
-                                  .ParserVar: u32 = 1903
+                                  .ParserVar: u32 = 2312
           .right: *ast.Ast.LocNode
             .loc: location.Location
               .line: usize = 1
@@ -95,7 +95,7 @@
                           .length: usize = 1
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .ParserVar: u32 = 53
+                            .ParserVar: u32 = 59
                       .right: *ast.Ast.LocNode
                         .loc: location.Location
                           .line: usize = 1
@@ -103,7 +103,7 @@
                           .length: usize = 1
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .ParserVar: u32 = 1901
+                            .ParserVar: u32 = 2310
                 .right: *ast.Ast.LocNode
                   .loc: location.Location
                     .line: usize = 1
@@ -111,5 +111,5 @@
                     .length: usize = 1
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .ParserVar: u32 = 1903
+                      .ParserVar: u32 = 2312
 
