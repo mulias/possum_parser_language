@@ -330,6 +330,50 @@ json_object(value) =
   )
   < "}"
 
+ast_with_operator_precedence(node, prefix, infix, postfix) =
+  _ast_with_precedence_start(node, prefix, infix, postfix, 0)
+
+_ast_with_precedence_start(node, prefix, infix, postfix, LeftBindingPower) =
+  prefix -> [OpNode, PrefixBindingPower] ? (
+    _ast_with_precedence_start(node, prefix, infix, postfix, PrefixBindingPower) -> PrefixedNode &
+    _ast_with_precedence_rest(
+      node, prefix, infix, postfix,
+      LeftBindingPower,
+      OpNode + {"prefixed": PrefixedNode}
+    )
+  ) : (
+    node -> Node &
+    _ast_with_precedence_rest(node, prefix, infix, postfix, LeftBindingPower, Node)
+  )
+
+_ast_with_precedence_rest(node, prefix, infix, postfix, LeftBindingPower, Node) =
+  postfix -> [OpNode, RightBindingPower] &
+  const(LessThan(LeftBindingPower, RightBindingPower)) ? (
+    _ast_with_precedence_rest(
+      node, prefix, infix, postfix,
+      LeftBindingPower,
+      OpNode + {"postfixed": Node}
+    )
+  ) :
+  infix -> [OpNode, RightBindingPower, NextLeftBindingPower] &
+  const(LessThan(LeftBindingPower, RightBindingPower)) ? (
+    _ast_with_precedence_start(node, prefix, infix, postfix, NextLeftBindingPower) -> RightNode &
+    _ast_with_precedence_rest(
+      node, prefix, infix, postfix,
+      LeftBindingPower,
+      OpNode + {"left": Node, "right": RightNode}
+    )
+  ) :
+  const(Node)
+
+ast_op_precedence(op_node, BindingPower) =
+  op_node -> OpNode $ [OpNode, BindingPower]
+
+ast_infix_op_precedence(op_node, LeftBindingPower, RightBindingPower) =
+  op_node -> OpNode $ [OpNode, LeftBindingPower, RightBindingPower]
+
+ast_node(Type, value) = value -> Value $ {"type": Type, "value": Value}
+
 ZipIntoObject(Keys, Values) = _ZipIntoObject(Keys, Values, {})
 
 _ZipIntoObject(Keys, Values, Acc) =

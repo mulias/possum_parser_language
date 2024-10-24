@@ -6,7 +6,7 @@ const io = std.io;
 
 pub const Format = enum { plain, json };
 
-pub const Docs = enum { overview, advanced, language, cli, stdlib };
+pub const Docs = enum { overview, advanced, language, cli, stdlib, @"stdlib-ast" };
 
 pub const SourceType = enum { String, Path, Stdin };
 

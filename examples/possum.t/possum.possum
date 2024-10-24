@@ -1,0 +1,168 @@
+input(program)
+
+program = ast_node("program", array_sep(expr, expr_sep) < maybe(expr_sep))
+
+expr_sep = ws_arround(";") | nl
+
+w = maybe_many(comment | whitespace)
+
+comment = "#" > many_until(char, nl | end)
+
+ws_arround(p) = surround(p, w)
+
+# Don't parse trailing whitespace so that we can detect newline expr separators.
+expr = ast_with_operator_precedence(
+  w > value,
+  ws_arround(prefix),
+  ws_arround(infix),
+  w > postfix
+)
+
+value =
+  grouped_value |
+  boolean_value |
+  null_value |
+  string_value |
+  template_string_value |
+  number_value |
+  parser_variable_value |
+  value_variable_value |
+  underscore_variable_value |
+  array_value |
+  object_value
+
+grouped_value = "(" > w > expr < w < ")"
+
+boolean_value = ast_node(
+  "boolean",
+  boolean("t" + word -> "true", "f" + word -> "false")
+)
+
+null_value = "n" + word -> "null" $ {"type": "null"}
+
+string_value = ast_node(
+  "string",
+  (`"` > quoted_string_body(`"`, "")) |
+  (`'` > quoted_string_body(`'`, "")) |
+  ("`" > backtick_string_body(""))
+)
+
+quoted_string_body(end_quote, Str) =
+  end_quote ?
+  const(Str) :
+  string_escape_char | string_escape_unicode | unless(char, `\` | `%(`) -> Next &
+  quoted_string_body(end_quote, Str + Next)
+
+string_escape_char =
+  `\0` | `\b` | `\t` | `\n` | `\v` | `\f` | `\r` | `\'` | `\"` | `\\`
+
+string_escape_unicode = `\u` + repeat(hex, 6)
+
+hex = numeral | "a".."f" | "A".."F"
+
+template_string_value = ast_node(
+  "template_string",
+  (`"` > template_string_body(`"`, [], "")) |
+  (`'` > template_string_body(`'`, [], ""))
+)
+
+template_string_body(end_quote, TemplateParts, Str) =
+  end_quote ?
+  const(AppendNonEmptyString(TemplateParts, Str)) :
+  `%(` ? (
+    expr < ")" -> Expr &
+    template_string_body(
+      end_quote,
+      [...AppendNonEmptyString(TemplateParts, Str), Expr],
+      ""
+    )
+  ) :
+  string_escape_char | string_escape_unicode | unless(char, `\`) -> Next &
+  template_string_body(end_quote, TemplateParts, Str + Next)
+
+AppendNonEmptyString(TemplateParts, Str) =
+  Str -> "" ? TemplateParts : [...TemplateParts, {"type": "string", "value": Str}]
+
+backtick_string_body(Str) =
+  "`" ?
+  const(Str) :
+  char -> Next & backtick_string_body(Str + Next)
+
+number_value = ast_node("number", number)
+
+parser_variable_value =
+  peek(tuple2(
+    boolean("@", succeed),
+    boolean(many("_"), succeed)
+  )) -> [IsMeta, IsUnderscored] &
+  maybe("@") + maybe_many("_") + lower + maybe(word) -> Name $
+  {
+    "type": "parser_variable",
+    "name": Name,
+    "is_meta": IsMeta,
+    "is_underscored": IsUnderscored
+  }
+
+value_variable_value =
+  peek(tuple2(
+    boolean("@", succeed),
+    boolean(many("_"), succeed)
+  )) -> [IsMeta, IsUnderscored] &
+  maybe("@") + maybe_many("_") + upper + maybe(word) -> Name $
+  {
+    "type": "value_variable",
+    "name": Name,
+    "is_meta": IsMeta,
+    "is_underscored": IsUnderscored
+  }
+
+underscore_variable_value = ast_node("underscore_variable", many("_"))
+
+array_value = ast_node("array", json_array(expr))
+
+object_value = ast_node(
+  "object",
+  "{" > maybe_array_sep(object_pair, ",") < "}"
+)
+
+object_pair = tuple2_sep(ws_arround(expr), ":", ws_arround(expr))
+
+conditional_infix =
+  "?" & w & expr -> Middle & w & ":" $
+  {"type": "conditional", "middle": Middle}
+
+# Since ".." can be a prefix, infix, or postfix we need to make sure it isn't
+# parsed as postfix when it is intended as infix. To do this we look ahead to
+# make sure there isn't a right hand value, and if there is we fail in order to
+# parse as infix instead.
+lower_bounded_range_postfix =
+  ".." & peek(w > (postfix | infix | end)) $
+  {"type": "lower_bounded_range"}
+
+call_or_define_function_postfix = ast_node(
+  "call_or_define_function",
+  "(" > w > array_sep(ws_arround(expr), ",") < w < ")"
+)
+
+prefix =
+  ast_op_precedence("..." $ {"type": "spread"}, 8) |
+  ast_op_precedence(".." $ {"type": "upper_bounded_range"}, 7) |
+  ast_op_precedence("-" $ {"type": "negate"}, 6)
+
+infix =
+  ast_infix_op_precedence(".." $ {"type": "range"}, 5, 5.5) |
+  ast_infix_op_precedence("|" $ {"type": "or"}, 4, 4.5) |
+  ast_infix_op_precedence(">" $ {"type": "take_right"}, 4, 4.5) |
+  ast_infix_op_precedence("<" $ {"type": "take_left"}, 4, 4.5) |
+  ast_infix_op_precedence("+" $ {"type": "merge"}, 4, 4.5) |
+  ast_infix_op_precedence("!" $ {"type": "backtrack"}, 4, 4.5) |
+  ast_infix_op_precedence("->" $ {"type": "destructure"}, 4, 4.5) |
+  ast_infix_op_precedence("$" $ {"type": "return"}, 4, 4.5) |
+  ast_infix_op_precedence("-" $ {"type": "number_subtract"}, 4, 4.5) |
+  ast_infix_op_precedence("&" $ {"type": "and"}, 3, 3.5) |
+  ast_infix_op_precedence(conditional_infix, 2.5, 2) |
+  ast_infix_op_precedence("=" $ {"type": "assign"}, 1.5, 1)
+
+postfix =
+  ast_op_precedence(call_or_define_function_postfix, 10) |
+  ast_op_precedence(lower_bounded_range_postfix, 9)

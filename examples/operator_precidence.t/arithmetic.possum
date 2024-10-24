@@ -1,0 +1,39 @@
+w = maybe(whitespace)
+
+var_node = ast_node("var", alphas)
+
+number_node = ast_node("num", non_negative_number)
+
+grouped_expr_node = "(" > w > expr < w < ")"
+
+value = var_node | number_node | grouped_expr_node
+
+conditional_infix =
+  "?" & w & expr -> Middle & w & ":" $ {"type": "cond", "middle": Middle}
+
+index_postfix = ast_node("index", "[" > w > expr < w < "]")
+
+prefix = ast_op_precedence("-" $ {"type": "neg"}, 7)
+
+infix =
+  ast_infix_op_precedence("^" $ {"type": "exp"}, 6, 6.5) |
+  ast_infix_op_precedence("*" $ {"type": "mul"}, 5, 5.5) |
+  ast_infix_op_precedence("/" $ {"type": "div"}, 5, 5.5) |
+  ast_infix_op_precedence("+" $ {"type": "add"}, 4, 4.5) |
+  ast_infix_op_precedence("-" $ {"type": "sub"}, 4, 4.5) |
+  ast_infix_op_precedence("==" $ {"type": "eql"}, 3, 3.5) |
+  ast_infix_op_precedence(conditional_infix, 2.5, 2) |
+  ast_infix_op_precedence("=" $ {"type": "assign"}, 1.5, 1)
+
+postfix =
+  ast_op_precedence("!" $ {"type": "fac"}, 8) |
+  ast_op_precedence(index_postfix, 8)
+
+expr = ast_with_operator_precedence(
+  surround(value, w),
+  surround(prefix, w),
+  surround(infix, w),
+  surround(postfix, w)
+)
+
+expr

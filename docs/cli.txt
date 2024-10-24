@@ -33,6 +33,7 @@ OPTIONS
           * language: Condensed reference for the core language.
           * cli: Using Possum from the command line.
           * stdlib: Possum standard library reference.
+          * stdlib-ast: Using the stdlib to parse abstract syntax trees.
 
     -h, --help
         Show this help text.

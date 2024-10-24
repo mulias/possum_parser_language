@@ -60,7 +60,7 @@ fn addDocImports(b: *Build, exe: *Build.Step.Compile) void {
         .root_source_file = b.path("docs/cli.txt"),
     });
 
-    const markdown_docs = [_][]const u8{ "advanced", "language", "overview", "stdlib" };
+    const markdown_docs = [_][]const u8{ "advanced", "language", "overview", "stdlib", "stdlib-ast" };
     for (markdown_docs) |filename| {
         const input_file = b.fmt("docs/{s}.md", .{filename});
         const output_name = b.fmt("docs/{s}", .{filename});

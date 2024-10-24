@@ -133,6 +133,7 @@ pub const CLI = struct {
             .language => @embedFile("docs/language"),
             .overview => @embedFile("docs/overview"),
             .stdlib => @embedFile("docs/stdlib"),
+            .@"stdlib-ast" => @embedFile("docs/stdlib-ast"),
         };
 
         printWithPager(text) catch self.writers.out.print("{s}", .{text}) catch |e| return e;

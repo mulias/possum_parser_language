@@ -126,6 +126,17 @@ These parsers and value functions are always available in Possum programs, unles
 | `input(p)`         | Strips leading and trailing whitespace, succeeds if `p` parses to end of input | Result of `p` |
 | `json`             | Any valid JSON             | Matched JSON               |
 
+## Abstract Syntax Tree Parsers
+
+See the `stdlib-ast` docs for more detailed documentation.
+
+| Parser             | Match Behavior             | Returns                    |
+| ------------------ | -------------------------- | -------------------------- |
+| `ast_with_operator_precedence(node, prefix, infix, postfix)` | Parses `node`s with prefix and postfix operators, composed with infix operators | Abstract syntax tree |
+| `ast_node(Type, value)` | Parses `value`        | Object with a `"type"` and `"value"` field |
+| `ast_op_precedence(op_node, BindingPower)` | Parses `op_node` | Array with two elements, the result of `op_node` and `BindingPower` |
+| `ast_infix_op_precedence(op_node, LeftBindingPower, RightBindingPower)` | Parses `op_node` | Array with three elements, the result of `op_node`, `LeftBindingPower`, and `RightBindingPower` |
+
 ## Value Functions
 
 | Value Function     | Behavior                                                |
