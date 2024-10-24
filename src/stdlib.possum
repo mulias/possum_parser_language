@@ -383,3 +383,7 @@ _Tabular(Headers, Rows, Acc) =
 
 AssertNonNegativeInteger(V) =
   V -> 0.. | @Crash("Expected a non-negative integer, got %(V)")
+
+LessThan(A, B) = A -> B ? @Fail : A -> ..B
+
+GreaterThan(A, B) = A -> B ? @Fail : A -> B..

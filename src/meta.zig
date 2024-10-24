@@ -3,19 +3,36 @@ const Function = @import("elem.zig").Elem.Dyn.Function;
 const Location = @import("location.zig").Location;
 const VM = @import("vm.zig").VM;
 
-pub fn functions(vm: *VM) ![3]*Function {
+pub fn functions(vm: *VM) ![4]*Function {
     return [_]*Function{
-        try createFail(vm),
+        try createFailParser(vm),
+        try createFailValue(vm),
         try createNumberOf(vm),
         try createCrashValue(vm),
     };
 }
 
-pub fn createFail(vm: *VM) !*Function {
+pub fn createFailParser(vm: *VM) !*Function {
     const name = try vm.strings.insert("@fail");
     var fun = try Function.create(vm, .{
         .name = name,
         .functionType = .NamedParser,
+        .arity = 0,
+    });
+
+    const loc = Location.new(0, 0, 0);
+
+    try fun.chunk.writeOp(.Fail, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+pub fn createFailValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@Fail");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
         .arity = 0,
     });
 
