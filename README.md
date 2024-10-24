@@ -179,6 +179,7 @@ The official Possum docs are included in this repository and baked in to the Pos
 * [`language`] - Condensed reference for the core language.
 * [`cli`] - Using Possum from the command line.
 * [`stdlib`] - Possum standard library reference.
+* [`stdlib-ast`]: Using the stdlib to parse abstract syntax trees.
 
 Some other helpful resources:
 
@@ -190,6 +191,7 @@ Some other helpful resources:
 [`language`]: docs/language.md
 [`cli`]: docs/cli.txt
 [`stdlib`]: docs/stdlib.md
+[`stdlib-ast`]: docs/stdlib-ast.md
 [`examples` directory]: examples/
 [Advent of Code]: https://adventofcode.com/
 [Blog posts about Possum]: https://mulias.github.io/tags/possum/
