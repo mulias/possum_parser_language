@@ -77,6 +77,19 @@ number = number_of(
 
 num = number
 
+non_negative_number = number_of(
+  _number_non_negative_integer_part +
+  maybe(_number_fraction_part) +
+  maybe(_number_exponent_part)
+)
+
+negative_number = number_of(
+  "-" +
+  _number_non_negative_integer_part +
+  maybe(_number_fraction_part) +
+  maybe(_number_exponent_part)
+)
+
 _number_integer_part = maybe("-") + _number_non_negative_integer_part
 
 _number_non_negative_integer_part = (("1".."9" + numerals) | numeral)

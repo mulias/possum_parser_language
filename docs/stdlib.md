@@ -45,6 +45,8 @@ These parsers and value functions are always available in Possum programs, unles
 | `scientific_float` | Valid JSON number with an integer, fractional, and exponent part | Number |
 | `number`           | Valid JSON number with integer part and optional fraction and exponent part | Number |
 | `num`              | Alias for `number`         | As above |
+| `non_negative_number` | Valid JSON number without a leading minus sign | Integer number greater than or equal to zero |
+| `negative_number` | Valid JSON number with a leading minus sign | Integer number less than or equal to `-0` |
 
 ## Constant Parsers
 
