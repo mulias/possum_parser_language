@@ -652,6 +652,7 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, functionLoc);
             } else {
+                try self.writers.err.print("{s}\n", .{self.vm.strings.get(functionName)});
                 return Error.UndefinedVariable;
             }
         }
@@ -732,6 +733,7 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(globalElem);
                 try self.emitUnaryOp(.GetConstant, constId, loc);
             } else {
+                try self.writers.err.print("{s}\n", .{self.vm.strings.get(varName)});
                 return Error.UndefinedVariable;
             }
         }
@@ -975,6 +977,7 @@ pub const Compiler = struct {
                             try self.emitUnaryOp(.CallFunction, 0, loc);
                         }
                     } else {
+                        try self.writers.err.print("{s}\n", .{self.vm.strings.get(name)});
                         return Error.UndefinedVariable;
                     }
                 },
@@ -1298,6 +1301,7 @@ pub const Compiler = struct {
                             }
                         }
                     } else {
+                        try self.writers.err.print("{s}\n", .{self.vm.strings.get(name)});
                         return Error.UndefinedVariable;
                     }
                 },
@@ -1349,6 +1353,7 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, functionLoc);
             } else {
+                try self.writers.err.print("{s}\n", .{self.vm.strings.get(functionName)});
                 return Error.UndefinedVariable;
             }
         }
