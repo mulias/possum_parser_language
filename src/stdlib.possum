@@ -305,7 +305,7 @@ _escape_char = `\"` | `\\` | `\/` | `\b` | `\f` | `\n` | `\r` | `\t`
 
 _escape_unicode = `\u`+ _hex + _hex + _hex + _hex
 
-_hex = digit | "a".."f" | "A".."F"
+_hex = numeral | "a".."f" | "A".."F"
 
 json_array(elem) = "[" > maybe_array_sep(surround(elem, maybe(ws)), ",") < "]"
 
