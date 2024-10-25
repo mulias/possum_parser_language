@@ -96,55 +96,58 @@ This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/S
 
   input(program)
 
-  program = array_sep(expr, maybe(ws))
+  program = ast_node("program", array_sep(expr, w))
+
+  w = maybe(whitespace)
 
   expr =
-    node("apply", apply)   |
-    node("number", number) |
-    node("string", string) |
-    node("atom", atom)
+    ast_node("apply", apply)   |
+    ast_node("number", number) |
+    ast_node("string", string) |
+    ast_node("atom", atom)
 
-  apply = "(" > maybe_array_sep(expr, maybe(ws)) < ")"
+  apply = "(" > maybe_array_sep(expr, w) < ")"
 
-  atom_char = unless(char, "(" | ")" | '"' | ws)
-  atom = many(atom_char)
+  non_atom_char = "(" | ")" | '"' | space | newline
+  atom = many_until(char, non_atom_char)
 
-  string = '"' > default(many_until(char, '"'), "") < '"'
-
-  node(Type, p) = p -> Value $ {"type": Type, "value": Value}
+  string = ('"' > default(many_until(char, '"'), "") < '"')
 
 
   $ lisp_ast fibonacci.rkt
-  [
-    {
-      "type": "apply",
-      "value": [
-        {"type": "atom", "value": "define"},
-        {
-          "type": "apply",
-          "value": [
-            {"type": "atom", "value": "fib"},
-            {"type": "atom", "value": "n"}
-          ]
-        },
-        ...
-      ]
-    },
-    ...
-    {
-      "type": "apply",
-      "value": [
-        {"type": "atom", "value": "display"},
-        {
-          "type": "apply",
-          "value": [
-            {"type": "atom", "value": "fib"},
-            {"type": "number", "value": 10}
-          ]
-        }
-      ]
-    }
-  ]
+  {
+    "type": "program",
+    "value": [
+      {
+        "type": "apply",
+        "value": [
+          {"type": "atom", "value": "define"},
+          {
+            "type": "apply",
+            "value": [
+              {"type": "atom", "value": "fib"},
+              {"type": "atom", "value": "n"}
+            ]
+          },
+          ...
+        ]
+      },
+      ...
+      {
+        "type": "apply",
+        "value": [
+          {"type": "atom", "value": "display"},
+          {
+            "type": "apply",
+            "value": [
+              {"type": "atom", "value": "fib"},
+              {"type": "number", "value": 10}
+            ]
+          }
+        ]
+      }
+    ]
+  }
 ```
 
 ### Fibonacci Sequence

@@ -52,90 +52,93 @@
   ]
 
   $ possum $TESTDIR/lisp_ast $TESTDIR/fibonacci.rkt
-  [
-    {
-      "type": "apply",
-      "value": [
-        {"type": "atom", "value": "define"},
-        {
-          "type": "apply",
-          "value": [
-            {"type": "atom", "value": "fib"},
-            {"type": "atom", "value": "n"}
-          ]
-        },
-        {
-          "type": "apply",
-          "value": [
-            {"type": "atom", "value": "if"},
-            {
-              "type": "apply",
-              "value": [
-                {"type": "atom", "value": "<="},
-                {"type": "atom", "value": "n"},
-                {"type": "number", "value": 1}
-              ]
-            },
-            {"type": "atom", "value": "n"},
-            {
-              "type": "apply",
-              "value": [
-                {"type": "atom", "value": "+"},
-                {
-                  "type": "apply",
-                  "value": [
-                    {"type": "atom", "value": "fib"},
-                    {
-                      "type": "apply",
-                      "value": [
-                        {"type": "atom", "value": "-"},
-                        {"type": "atom", "value": "n"},
-                        {"type": "number", "value": 1}
-                      ]
-                    }
-                  ]
-                },
-                {
-                  "type": "apply",
-                  "value": [
-                    {"type": "atom", "value": "fib"},
-                    {
-                      "type": "apply",
-                      "value": [
-                        {"type": "atom", "value": "-"},
-                        {"type": "atom", "value": "n"},
-                        {"type": "number", "value": 2}
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "apply",
-      "value": [
-        {"type": "atom", "value": "display"},
-        {"type": "string", "value": "Fibonacci of 10 is "}
-      ]
-    },
-    {
-      "type": "apply",
-      "value": [
-        {"type": "atom", "value": "display"},
-        {
-          "type": "apply",
-          "value": [
-            {"type": "atom", "value": "fib"},
-            {"type": "number", "value": 10}
-          ]
-        }
-      ]
-    }
-  ]
+  {
+    "type": "program",
+    "value": [
+      {
+        "type": "apply",
+        "value": [
+          {"type": "atom", "value": "define"},
+          {
+            "type": "apply",
+            "value": [
+              {"type": "atom", "value": "fib"},
+              {"type": "atom", "value": "n"}
+            ]
+          },
+          {
+            "type": "apply",
+            "value": [
+              {"type": "atom", "value": "if"},
+              {
+                "type": "apply",
+                "value": [
+                  {"type": "atom", "value": "<="},
+                  {"type": "atom", "value": "n"},
+                  {"type": "number", "value": 1}
+                ]
+              },
+              {"type": "atom", "value": "n"},
+              {
+                "type": "apply",
+                "value": [
+                  {"type": "atom", "value": "+"},
+                  {
+                    "type": "apply",
+                    "value": [
+                      {"type": "atom", "value": "fib"},
+                      {
+                        "type": "apply",
+                        "value": [
+                          {"type": "atom", "value": "-"},
+                          {"type": "atom", "value": "n"},
+                          {"type": "number", "value": 1}
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "apply",
+                    "value": [
+                      {"type": "atom", "value": "fib"},
+                      {
+                        "type": "apply",
+                        "value": [
+                          {"type": "atom", "value": "-"},
+                          {"type": "atom", "value": "n"},
+                          {"type": "number", "value": 2}
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "apply",
+        "value": [
+          {"type": "atom", "value": "display"},
+          {"type": "string", "value": "Fibonacci of 10 is "}
+        ]
+      },
+      {
+        "type": "apply",
+        "value": [
+          {"type": "atom", "value": "display"},
+          {
+            "type": "apply",
+            "value": [
+              {"type": "atom", "value": "fib"},
+              {"type": "number", "value": 10}
+            ]
+          }
+        ]
+      }
+    ]
+  }
 
   $ possum $TESTDIR/fibonacci.possum --input=10
   "Fibonacci of 10 is 55"
