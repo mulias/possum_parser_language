@@ -71,7 +71,7 @@ Parses an AST with customizable operators and operator precedence. Takes four pa
     var_node = alphas -> Var $ {"type": "var", "value": Var}
     ```
 
-- `prefix`: Parser for operators that can be placed in front of any value. The result of `prefix` must be an array with two elements. The first element must be an object, the node for the AST, and the second element must be a number, the operator's binding power. If there are no prefix operators to parse, use the `fail` parser to skip this step. In the following example `prefix` parses either a minus sign or the `not` keyword, and returns a tuple with a node object and binding power in both cases.
+- `prefix`: Parser for operators that can be placed in front of any value. The result of `prefix` must be an array with two elements. The first element must be an object, the node for the AST, and the second element must be a number, the operator's binding power. If there are no prefix operators to parse, use the `@fail` parser to skip this step. In the following example `prefix` parses either a minus sign or the `not` keyword, and returns a tuple with a node object and binding power in both cases.
 
     ```
     prefix =
@@ -108,7 +108,7 @@ Parses an AST with customizable operators and operator precedence. Takes four pa
     }
     ```
 
-* `postfix`: Parser for operators that can be placed after any value. The result of `postfix` must be an array with two elements. The first element must be an object, the node for the AST, and the second element must be a number, the operator's binding power. If there are no postfix operators to parse, use the `fail` parser to skip this step. This parser is very similar to `prefix`, but the resulting AST node uses the key `"postfixed"` for the subtree modified by the operator.
+* `postfix`: Parser for operators that can be placed after any value. The result of `postfix` must be an array with two elements. The first element must be an object, the node for the AST, and the second element must be a number, the operator's binding power. If there are no postfix operators to parse, use the `@fail` parser to skip this step. This parser is very similar to `prefix`, but the resulting AST node uses the key `"postfixed"` for the subtree modified by the operator.
 
 ### `ast_node(Type, value)`
 
