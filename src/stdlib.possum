@@ -118,6 +118,10 @@ skip(p) = null(p)
 
 scan(p) = p | (char > scan(p))
 
+find_all(p) = array(scan(p))
+
+maybe_find_all(p) = maybe_array(scan(p))
+
 succeed = const(null)
 
 default(p, D) = p | const(D)

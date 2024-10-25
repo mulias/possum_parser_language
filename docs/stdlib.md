@@ -115,6 +115,8 @@ These parsers and value functions are always available in Possum programs, unles
 | `unless(p, excluded)` | Fails if `excluded` would succeed, otherwise parses `p` | Result of `p` |
 | `skip(p)`          | Parses `p`                 | `null` |
 | `scan(p)`          | Skip input until `p` succeeds | Result of `p` |
+| `find_all(p)`      | Parses the entire input, succeeds if `p` matches at least once | Array of one or more results of `p` |
+| `maybe_find_all(p)` | Parses the entire input, always succeeds | Array of zero or more results of `p` |
 | `succeed`          | Succeeds, consumes no input | `null` |
 | `default(p, D)`    | Parses `p` or succeeds with no match | Result of `p`, or `D` if `p` fails |
 | `const(C)`         | Succeeds with no match     | Value `C` |

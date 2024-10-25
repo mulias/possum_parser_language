@@ -44,7 +44,7 @@
                           .length: usize = 3
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .String: u32 = 2306
+                            .String: u32 = 2344
                 .right: *ast.Ast.LocNode
                   .loc: location.Location
                     .line: usize = 1
@@ -52,7 +52,7 @@
                     .length: usize = 3
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .String: u32 = 2308
+                      .String: u32 = 2346
           .right: *ast.Ast.LocNode
             .loc: location.Location
               .line: usize = 1
@@ -60,7 +60,7 @@
               .length: usize = 5
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 2310
+                .String: u32 = 2348
 
   $ possum -p '"" $ (1-2)' -i ''
   []*ast.Ast.LocNode
@@ -80,7 +80,7 @@
               .length: usize = 2
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 637
+                .String: u32 = 679
           .right: *ast.Ast.LocNode
             .loc: location.Location
               .line: usize = 1
@@ -98,7 +98,7 @@
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 787
+                        .sId: u32 = 829
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false
@@ -110,7 +110,7 @@
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 2306
+                        .sId: u32 = 2344
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false
