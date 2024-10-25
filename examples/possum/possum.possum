@@ -2,19 +2,19 @@ input(program)
 
 program = ast_node("program", array_sep(expr, expr_sep) < maybe(expr_sep))
 
-expr_sep = ws_arround(";") | nl
+expr_sep = w_arround(";") | nl
 
 w = maybe_many(comment | whitespace)
 
 comment = "#" > many_until(char, nl | end)
 
-ws_arround(p) = surround(p, w)
+w_arround(p) = surround(p, w)
 
 # Don't parse trailing whitespace so that we can detect newline expr separators.
 expr = ast_with_operator_precedence(
   w > value,
-  ws_arround(prefix),
-  ws_arround(infix),
+  w_arround(prefix),
+  w_arround(infix),
   w > postfix
 )
 
@@ -31,6 +31,29 @@ value =
   array_value |
   object_value
 
+prefix =
+  ast_op_precedence("..." $ {"type": "spread"}, 8) |
+  ast_op_precedence(".." $ {"type": "upper_bounded_range"}, 7) |
+  ast_op_precedence("-" $ {"type": "negate"}, 6)
+
+infix =
+  ast_infix_op_precedence(".." $ {"type": "range"}, 5, 5.5) |
+  ast_infix_op_precedence("|" $ {"type": "or"}, 4, 4.5) |
+  ast_infix_op_precedence(">" $ {"type": "take_right"}, 4, 4.5) |
+  ast_infix_op_precedence("<" $ {"type": "take_left"}, 4, 4.5) |
+  ast_infix_op_precedence("+" $ {"type": "merge"}, 4, 4.5) |
+  ast_infix_op_precedence("!" $ {"type": "backtrack"}, 4, 4.5) |
+  ast_infix_op_precedence("->" $ {"type": "destructure"}, 4, 4.5) |
+  ast_infix_op_precedence("$" $ {"type": "return"}, 4, 4.5) |
+  ast_infix_op_precedence("-" $ {"type": "number_subtract"}, 4, 4.5) |
+  ast_infix_op_precedence("&" $ {"type": "and"}, 3, 3.5) |
+  ast_infix_op_precedence(conditional_infix, 2.5, 2) |
+  ast_infix_op_precedence("=" $ {"type": "assign"}, 1.5, 1)
+
+postfix =
+  ast_op_precedence(call_or_define_function_postfix, 10) |
+  ast_op_precedence(lower_bounded_range_postfix, 9)
+
 grouped_value = "(" > w > expr < w < ")"
 
 boolean_value = ast_node(
@@ -42,16 +65,18 @@ null_value = "n" + word -> "null" $ {"type": "null"}
 
 string_value = ast_node(
   "string",
-  (`"` > quoted_string_body(`"`, "")) |
-  (`'` > quoted_string_body(`'`, "")) |
-  ("`" > backtick_string_body(""))
+  surround(quoted_string_body(`"`), `"`) |
+  surround(quoted_string_body(`'`), `'`) |
+  surround(backtick_string_body, "`")
 )
 
-quoted_string_body(end_quote, Str) =
-  end_quote ?
-  const(Str) :
-  string_escape_char | string_escape_unicode | unless(char, `\` | `%(`) -> Next &
-  quoted_string_body(end_quote, Str + Next)
+quoted_string_body(end_quote) =
+  many(
+    string_escape_char |
+    string_escape_unicode |
+    unless(char, `\` | `%(` | end_quote)
+  ) |
+  const("")
 
 string_escape_char =
   `\0` | `\b` | `\t` | `\n` | `\v` | `\f` | `\r` | `\'` | `\"` | `\\`
@@ -60,17 +85,19 @@ string_escape_unicode = `\u` + repeat(hex, 6)
 
 hex = numeral | "a".."f" | "A".."F"
 
+backtick_string_body = many_until(char, "`") | const("")
+
 template_string_value = ast_node(
   "template_string",
-  (`"` > template_string_body(`"`, [], "")) |
-  (`'` > template_string_body(`'`, [], ""))
+  surround(template_string_body(`"`, [], ""), `"`) |
+  surround(template_string_body(`'`, [], ""), `'`)
 )
 
 template_string_body(end_quote, TemplateParts, Str) =
-  end_quote ?
-  const(AppendNonEmptyString(TemplateParts, Str)) :
+  peek(end_quote) ? const(AppendNonEmptyString(TemplateParts, Str)) :
+  `%(` > w < `)` ? template_string_body(end_quote, TemplateParts, Str) :
   `%(` ? (
-    expr < ")" -> Expr &
+    w_arround(expr) -> Expr & ")" &
     template_string_body(
       end_quote,
       [...AppendNonEmptyString(TemplateParts, Str), Expr],
@@ -82,11 +109,6 @@ template_string_body(end_quote, TemplateParts, Str) =
 
 AppendNonEmptyString(TemplateParts, Str) =
   Str -> "" ? TemplateParts : [...TemplateParts, {"type": "string", "value": Str}]
-
-backtick_string_body(Str) =
-  "`" ?
-  const(Str) :
-  char -> Next & backtick_string_body(Str + Next)
 
 number_value = ast_node("number", number)
 
@@ -125,7 +147,7 @@ object_value = ast_node(
   "{" > maybe_array_sep(object_pair, ",") < "}"
 )
 
-object_pair = tuple2_sep(ws_arround(expr), ":", ws_arround(expr))
+object_pair = tuple2_sep(w_arround(expr), ":", w_arround(expr))
 
 conditional_infix =
   "?" & w & expr -> Middle & w & ":" $
@@ -141,28 +163,5 @@ lower_bounded_range_postfix =
 
 call_or_define_function_postfix = ast_node(
   "call_or_define_function",
-  "(" > w > array_sep(ws_arround(expr), ",") < w < ")"
+  "(" > w > maybe_array_sep(w_arround(expr), ",") < w < ")"
 )
-
-prefix =
-  ast_op_precedence("..." $ {"type": "spread"}, 8) |
-  ast_op_precedence(".." $ {"type": "upper_bounded_range"}, 7) |
-  ast_op_precedence("-" $ {"type": "negate"}, 6)
-
-infix =
-  ast_infix_op_precedence(".." $ {"type": "range"}, 5, 5.5) |
-  ast_infix_op_precedence("|" $ {"type": "or"}, 4, 4.5) |
-  ast_infix_op_precedence(">" $ {"type": "take_right"}, 4, 4.5) |
-  ast_infix_op_precedence("<" $ {"type": "take_left"}, 4, 4.5) |
-  ast_infix_op_precedence("+" $ {"type": "merge"}, 4, 4.5) |
-  ast_infix_op_precedence("!" $ {"type": "backtrack"}, 4, 4.5) |
-  ast_infix_op_precedence("->" $ {"type": "destructure"}, 4, 4.5) |
-  ast_infix_op_precedence("$" $ {"type": "return"}, 4, 4.5) |
-  ast_infix_op_precedence("-" $ {"type": "number_subtract"}, 4, 4.5) |
-  ast_infix_op_precedence("&" $ {"type": "and"}, 3, 3.5) |
-  ast_infix_op_precedence(conditional_infix, 2.5, 2) |
-  ast_infix_op_precedence("=" $ {"type": "assign"}, 1.5, 1)
-
-postfix =
-  ast_op_precedence(call_or_define_function_postfix, 10) |
-  ast_op_precedence(lower_bounded_range_postfix, 9)
