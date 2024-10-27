@@ -2,19 +2,17 @@
 
 input(program)
 
-program = ast_node("program", array_sep(expr, w))
-
 w = maybe(whitespace)
 
+program = ast_node("program", array_sep(expr, w))
+
 expr =
-  ast_node("apply", apply)   |
   ast_node("number", number) |
-  ast_node("string", string) |
+  ast_node("string", json_string) |
+  ast_node("apply", apply) |
   ast_node("atom", atom)
 
 apply = "(" > maybe_array_sep(expr, w) < ")"
 
 non_atom_char = "(" | ")" | '"' | space | newline
 atom = chars_until(non_atom_char)
-
-string = ('"' > default(chars_until('"'), "") < '"')
