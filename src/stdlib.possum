@@ -312,21 +312,20 @@ json =
   json_array(json) |
   json_object(json)
 
-json_string = '"' > _json_string("")
 json_boolean = boolean("true", "false")
 
-_json_string(Acc) =
-  '"' ?
-  const(Acc) :
-  _escape_char | _escape_unicode | unless(char, `\`) -> Next &
-  _json_string(Acc + Next)
 json_null = null("null")
 
 json_number = number
 
+json_string = '"' > _json_string_body < '"'
+
+_json_string_body =
+  many(_escape_char | _escape_unicode | unless(char, `\` | '"')) | const("")
+
 _escape_char = `\"` | `\\` | `\/` | `\b` | `\f` | `\n` | `\r` | `\t`
 
-_escape_unicode = `\u`+ _hex + _hex + _hex + _hex
+_escape_unicode = `\u` + repeat(_hex, 4)
 
 _hex = numeral | "a".."f" | "A".."F"
 
