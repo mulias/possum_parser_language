@@ -47,7 +47,7 @@ token = many(unless(char, whitespace))
 
 word = many(alnum | "_" | "-")
 
-line = many_until(char, newline | end_of_input)
+line = chars_until(newline | end_of_input)
 
 digit = 0..9
 
@@ -148,6 +148,8 @@ _many_until(p, stop, Acc) =
   peek(stop) ?
   const(Acc) :
   p -> Next & _many_until(p, stop, Acc + Next)
+
+chars_until(stop) = many_until(char, stop)
 
 maybe_many(p) = many(p) | succeed
 

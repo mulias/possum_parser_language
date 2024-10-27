@@ -65,6 +65,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `many(p)`          | One or more `p`            | Merged values parsed by `p` |
 | `many_sep(p, sep)` | One or more `p`, interspersed with `sep` | Marged values parsed by `p` |
 | `many_until(p, stop)` | One or more `p`, must be followed by `stop` which is not consumed | Merged values parsed by `p` |
+| `chars_until(stop)` | One or more codepoints, must be followed by `stop` which is not consumed | Merged string of all matched codepoints |
 | `maybe_many(p)`    | Zero or more `p`           | Merged values parsed by `p`, or `null` if `p` fails |
 | `maybe_many_sep(p, sep)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
 | `repeat(p, N)`     | Parses `p` exactly `N` times, where `N` is a non-negative integer | Merged values parsed by `p`, or `null` if `N` is 0 |

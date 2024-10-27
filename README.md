@@ -109,9 +109,9 @@ This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/S
   apply = "(" > maybe_array_sep(expr, w) < ")"
 
   non_atom_char = "(" | ")" | '"' | space | newline
-  atom = many_until(char, non_atom_char)
+  atom = chars_until(non_atom_char)
 
-  string = ('"' > default(many_until(char, '"'), "") < '"')
+  string = ('"' > default(chars_until('"'), "") < '"')
 
 
   $ lisp_ast fibonacci.rkt

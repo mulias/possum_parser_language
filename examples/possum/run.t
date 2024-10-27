@@ -166,14 +166,13 @@
           "right": {
             "type": "call_or_define_function",
             "value": [
-              {"type": "parser_variable", "name": "char", "is_meta": false, "is_underscored": false},
               {
                 "type": "or",
                 "left": {"type": "parser_variable", "name": "nl", "is_meta": false, "is_underscored": false},
                 "right": {"type": "parser_variable", "name": "end", "is_meta": false, "is_underscored": false}
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "many_until", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "chars_until", "is_meta": false, "is_underscored": false}
           }
         }
       },
@@ -914,10 +913,9 @@
           "left": {
             "type": "call_or_define_function",
             "value": [
-              {"type": "parser_variable", "name": "char", "is_meta": false, "is_underscored": false},
               {"type": "string", "value": "`"}
             ],
-            "postfixed": {"type": "parser_variable", "name": "many_until", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "chars_until", "is_meta": false, "is_underscored": false}
           },
           "right": {
             "type": "call_or_define_function",

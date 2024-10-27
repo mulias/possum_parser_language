@@ -6,7 +6,7 @@ expr_sep = w_arround(";") | nl
 
 w = maybe_many(comment | whitespace)
 
-comment = "#" > many_until(char, nl | end)
+comment = "#" > chars_until(nl | end)
 
 w_arround(p) = surround(p, w)
 
@@ -85,7 +85,7 @@ string_escape_unicode = `\u` + repeat(hex, 6)
 
 hex = numeral | "a".."f" | "A".."F"
 
-backtick_string_body = many_until(char, "`") | const("")
+backtick_string_body = chars_until("`") | const("")
 
 template_string_value = ast_node(
   "template_string",
