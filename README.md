@@ -184,7 +184,7 @@ The official Possum docs are included in this repository and baked in to the Pos
 
 Some other helpful resources:
 
-* [`examples` directory] features a number of parsing use cases, including [Advent of Code] puzzle input parsers.
+* The [examples] directory features a number of parsing use cases, including [Advent of Code] puzzle input parsers, and a [parser for Possum's own syntax].
 * [Blog posts about Possum]
 
 [`overview`]: docs/overview.md
@@ -193,8 +193,9 @@ Some other helpful resources:
 [`cli`]: docs/cli.txt
 [`stdlib`]: docs/stdlib.md
 [`stdlib-ast`]: docs/stdlib-ast.md
-[`examples` directory]: examples/
+[examples]: examples/
 [Advent of Code]: https://adventofcode.com/
+[parser for possum's own syntax]: examples/possum/
 [Blog posts about Possum]: https://mulias.github.io/tags/possum/
 
 ## `~~~(##)'>` Regarding Possums
