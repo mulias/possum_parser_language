@@ -1,6 +1,6 @@
 input(program)
 
-program = ast_node("program", array_sep(expr, expr_sep) < maybe(expr_sep))
+program = ast_node($"program", array_sep(expr, expr_sep) < maybe(expr_sep))
 
 expr_sep = w_arround(";") | nl
 
@@ -12,59 +12,60 @@ w_arround(p) = surround(p, w)
 
 # Don't parse trailing whitespace so that we can detect newline expr separators.
 expr = ast_with_operator_precedence(
-  w > value,
+  w > operand,
   w_arround(prefix),
   w_arround(infix),
   w > postfix
 )
 
-value =
-  grouped_value |
-  boolean_value |
-  null_value |
-  string_value |
-  template_string_value |
-  number_value |
-  parser_variable_value |
-  value_variable_value |
-  underscore_variable_value |
-  array_value |
-  object_value
+operand =
+  grouped_expr |
+  boolean_node |
+  null_node |
+  string_node |
+  template_string_node |
+  number_node |
+  parser_variable_node |
+  value_variable_node |
+  underscore_variable_node |
+  array_node |
+  object_node
 
 prefix =
-  ast_op_precedence("..." $ {"type": "spread"}, 8) |
-  ast_op_precedence(".." $ {"type": "upper_bounded_range"}, 7) |
-  ast_op_precedence("-" $ {"type": "negate"}, 6)
+  ("$"   $ [{"type": "value_label"},         9]) |
+  ("..." $ [{"type": "spread"},              8]) |
+  (".."  $ [{"type": "upper_bounded_range"}, 7]) |
+  ("-"   $ [{"type": "negate"},              6])
 
 infix =
-  ast_infix_op_precedence(".." $ {"type": "range"}, 5, 5.5) |
-  ast_infix_op_precedence("|" $ {"type": "or"}, 4, 4.5) |
-  ast_infix_op_precedence(">" $ {"type": "take_right"}, 4, 4.5) |
-  ast_infix_op_precedence("<" $ {"type": "take_left"}, 4, 4.5) |
-  ast_infix_op_precedence("+" $ {"type": "merge"}, 4, 4.5) |
-  ast_infix_op_precedence("!" $ {"type": "backtrack"}, 4, 4.5) |
-  ast_infix_op_precedence("->" $ {"type": "destructure"}, 4, 4.5) |
-  ast_infix_op_precedence("$" $ {"type": "return"}, 4, 4.5) |
-  ast_infix_op_precedence("-" $ {"type": "number_subtract"}, 4, 4.5) |
-  ast_infix_op_precedence("&" $ {"type": "and"}, 3, 3.5) |
-  ast_infix_op_precedence(conditional_infix, 2.5, 2) |
-  ast_infix_op_precedence("=" $ {"type": "assign"}, 1.5, 1)
+  (".." $ [{"type": "range"},         5, 5.5]) |
+  ("|"  $ [{"type": "or"},            4, 4.5]) |
+  (">"  $ [{"type": "take_right"},    4, 4.5]) |
+  ("<"  $ [{"type": "take_left"},     4, 4.5]) |
+  ("+"  $ [{"type": "merge"},         4, 4.5]) |
+  ("!"  $ [{"type": "backtrack"},     4, 4.5]) |
+  ("->" $ [{"type": "destructure"},   4, 4.5]) |
+  ("$"  $ [{"type": "return"},        4, 4.5]) |
+  ("-"  $ [{"type": "subtract"},      4, 4.5]) |
+  ("&"  $ [{"type": "and"},           3, 3.5]) |
+  (conditional_infix -> Node $ [Node, 2.5, 2]) |
+  ("="  $ [{"type": "assign"},        1.5, 1])
 
 postfix =
-  ast_op_precedence(call_or_define_function_postfix, 10) |
-  ast_op_precedence(lower_bounded_range_postfix, 9)
+  (call_or_define_function_postfix -> Node $ [Node, 11]) |
+  (lower_bounded_range_postfix -> Node     $ [Node, 10])
 
-grouped_value = "(" > w > expr < w < ")"
+grouped_expr = "(" > w > expr < w < ")"
 
-boolean_value = ast_node(
-  "boolean",
+boolean_node = ast_node(
+  $"boolean",
   boolean("t" + word -> "true", "f" + word -> "false")
 )
 
-null_value = "n" + word -> "null" $ {"type": "null"}
+null_node = "n" + word -> "null" $ {"type": "null"}
 
-string_value = ast_node(
-  "string",
+string_node = ast_node(
+  $"string",
   surround(quoted_string_body(`"`), `"`) |
   surround(quoted_string_body(`'`), `'`) |
   surround(backtick_string_body, "`")
@@ -76,19 +77,19 @@ quoted_string_body(end_quote) =
     string_escape_unicode |
     unless(char, `\` | `%(` | end_quote)
   ) |
-  const("")
+  const($"")
 
 string_escape_char =
   `\0` | `\b` | `\t` | `\n` | `\v` | `\f` | `\r` | `\'` | `\"` | `\\`
 
-string_escape_unicode = `\u` + repeat(hex_numeral, 6)
+string_escape_unicode = `\u` + repeat(hex_numeral, $6)
 
-backtick_string_body = chars_until("`") | const("")
+backtick_string_body = chars_until("`") | const($"")
 
-template_string_value = ast_node(
-  "template_string",
-  surround(template_string_body(`"`, [], ""), `"`) |
-  surround(template_string_body(`'`, [], ""), `'`)
+template_string_node = ast_node(
+  $"template_string",
+  surround(template_string_body(`"`, [], $""), `"`) |
+  surround(template_string_body(`'`, [], $""), `'`)
 )
 
 template_string_body(end_quote, TemplateParts, Str) =
@@ -99,7 +100,7 @@ template_string_body(end_quote, TemplateParts, Str) =
     template_string_body(
       end_quote,
       [...AppendNonEmptyString(TemplateParts, Str), Expr],
-      ""
+      $""
     )
   ) :
   string_escape_char | string_escape_unicode | unless(char, `\`) -> Next &
@@ -108,9 +109,9 @@ template_string_body(end_quote, TemplateParts, Str) =
 AppendNonEmptyString(TemplateParts, Str) =
   Str -> "" ? TemplateParts : [...TemplateParts, {"type": "string", "value": Str}]
 
-number_value = ast_node("number", number)
+number_node = ast_node($"number", number)
 
-parser_variable_value =
+parser_variable_node =
   peek(tuple2(
     boolean("@", succeed),
     boolean(many("_"), succeed)
@@ -123,7 +124,7 @@ parser_variable_value =
     "is_underscored": IsUnderscored
   }
 
-value_variable_value =
+value_variable_node =
   peek(tuple2(
     boolean("@", succeed),
     boolean(many("_"), succeed)
@@ -136,12 +137,12 @@ value_variable_value =
     "is_underscored": IsUnderscored
   }
 
-underscore_variable_value = ast_node("underscore_variable", many("_"))
+underscore_variable_node = ast_node($"underscore_variable", many("_"))
 
-array_value = ast_node("array", json_array(expr))
+array_node = ast_node($"array", json_array(expr))
 
-object_value = ast_node(
-  "object",
+object_node = ast_node(
+  $"object",
   "{" > maybe_array_sep(object_pair, ",") < "}"
 )
 
@@ -160,6 +161,6 @@ lower_bounded_range_postfix =
   {"type": "lower_bounded_range"}
 
 call_or_define_function_postfix = ast_node(
-  "call_or_define_function",
+  $"call_or_define_function",
   "(" > w > maybe_array_sep(w_arround(expr), ",") < w < ")"
 )

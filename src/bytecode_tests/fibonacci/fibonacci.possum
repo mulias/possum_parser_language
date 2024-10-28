@@ -1,6 +1,6 @@
 fib(N) =
   const(N -> ..1) ? const(N) :
-  fib(N - 1) -> N1 & fib(N - 2) -> N2 $
+  fib(N - $1) -> N1 & fib(N - $2) -> N2 $
   (N1 + N2)
 
 Fib(N) = N -> ..1 | (Fib(N - 1) + Fib(N - 2))

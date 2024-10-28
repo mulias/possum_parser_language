@@ -43,6 +43,10 @@ pub const Compiler = struct {
         RangeIntegersUnordered,
         RangeInvalidNumberFormat,
         RangeIntegerTooLarge,
+        UnlabeledStringValue,
+        UnlabeledNumberValue,
+        UnlabeledBooleanValue,
+        UnlabeledNullValue,
     } || WriterError;
 
     pub fn init(vm: *VM, ast: Ast, printBytecode: bool) !Compiler {
@@ -158,6 +162,7 @@ pub const Compiler = struct {
                 .UpperBoundedRange,
                 .LowerBoundedRange,
                 .Negation,
+                .ValueLabel,
                 => {
                     // A function without params
                     try self.declareGlobalFunction(head, null);
@@ -169,6 +174,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => return Error.InvalidAst,
         }
     }
@@ -232,6 +238,7 @@ pub const Compiler = struct {
                     .UpperBoundedRange,
                     .LowerBoundedRange,
                     .Negation,
+                    .ValueLabel,
                     => return Error.InvalidAst,
                 }
             }
@@ -259,6 +266,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -399,6 +407,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -610,7 +619,9 @@ pub const Compiler = struct {
                 }
             },
             .ElemNode => try self.writeParserElem(loc_node),
-            .Negation => return Error.InvalidAst,
+            .Negation,
+            .ValueLabel,
+            => return Error.InvalidAst,
         }
     }
 
@@ -709,6 +720,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => @panic("Internal Error"),
         }
     }
@@ -819,8 +831,9 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.GetConstant, constId, loc);
                     },
                 },
+                .ValueLabel => @panic("todo"),
             },
-            .Value => try self.writeValue(loc_node, false),
+            .Value => try self.writeValueArgument(loc_node, false),
             .Unspecified => {
                 // In this case we don't know the arg type because the function
                 // will be passed in as a variable and is not yet known. Things
@@ -918,6 +931,7 @@ pub const Compiler = struct {
                 try self.writePattern(loc_node);
                 try self.emitOp(.Destructure, loc);
             },
+            .ValueLabel => return error.InvalidAst,
         }
     }
 
@@ -953,6 +967,7 @@ pub const Compiler = struct {
             },
             .UpperBoundedRange,
             .LowerBoundedRange,
+            .ValueLabel,
             => @panic("todo"),
             .Negation => {
                 if (simplifyNegatedNumberNode(loc_node)) |elem| {
@@ -1051,6 +1066,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => @panic("todo"),
         }
         try self.writePrepareMergePatternPart(loc_node);
@@ -1075,6 +1091,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => @panic("todo"),
             .ElemNode => {
                 try self.writePattern(loc_node);
@@ -1100,6 +1117,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => @panic("todo"),
             .ElemNode => {},
         }
@@ -1122,6 +1140,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => |inner| try self.addValueLocals(inner),
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => |varName| if (self.vm.globals.get(varName) == null) {
@@ -1148,6 +1167,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => |inner| try self.addClosureLocals(inner),
             .ElemNode => |elem| {
                 const varName = switch (elem) {
@@ -1166,6 +1186,110 @@ pub const Compiler = struct {
                     }
                 }
             },
+        }
+    }
+
+    fn writeValueArgument(self: *Compiler, loc_node: *Ast.LocNode, isTailPosition: bool) !void {
+        const node = loc_node.node;
+        const loc = loc_node.loc;
+
+        switch (node) {
+            .InfixNode => |infix| switch (infix.infixType) {
+                .StringTemplate => {
+                    return error.UnlabeledStringValue;
+                },
+                .Backtrack => {
+                    try self.emitOp(.SetInputMark, loc);
+                    try self.writeValueArgument(infix.left, false);
+                    const jumpIndex = try self.emitJump(.Backtrack, loc);
+                    try self.writeValueArgument(infix.right, isTailPosition);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .Merge => {
+                    try self.writeValueArgument(infix.left, false);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    try self.writeValueArgument(infix.right, false);
+                    try self.emitOp(.Merge, loc);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .NumberSubtract => {
+                    try self.writeValueArgument(infix.left, false);
+                    try self.writeValueArgument(infix.right, false);
+                    try self.emitOp(.NegateNumber, loc);
+                    try self.emitOp(.Merge, loc);
+                },
+                .TakeLeft => {
+                    try self.writeValueArgument(infix.left, false);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    try self.writeValueArgument(infix.right, false);
+                    try self.emitOp(.TakeLeft, loc);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .TakeRight => {
+                    try self.writeValueArgument(infix.left, false);
+                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    try self.writeValueArgument(infix.right, isTailPosition);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .Destructure => {
+                    try self.writeValueArgument(infix.left, false);
+                    try self.writeDestructurePattern(infix.right);
+                },
+                .Or => {
+                    try self.emitOp(.SetInputMark, loc);
+                    try self.writeValueArgument(infix.left, false);
+                    const jumpIndex = try self.emitJump(.Or, loc);
+                    try self.writeValueArgument(infix.right, isTailPosition);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .Return => {
+                    try self.writeValueArgument(infix.left, false);
+                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    try self.writeValue(infix.right, true);
+                    try self.patchJump(jumpIndex, loc);
+                },
+                .ConditionalIfThen => {
+                    // Then/Else is always the right-side node
+                    const thenElseOp = infix.right.node.asInfixOfType(.ConditionalThenElse) orelse return Error.InvalidAst;
+                    const thenElseLoc = infix.right.loc;
+
+                    // Get each part of `if ? then : else`
+                    const if_loc_node = infix.left;
+                    const then_loc_node = thenElseOp.left;
+                    const else_loc_node = thenElseOp.right;
+
+                    try self.emitOp(.SetInputMark, loc);
+                    try self.writeValueArgument(if_loc_node, false);
+                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
+                    try self.writeValueArgument(then_loc_node, isTailPosition);
+                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseLoc);
+                    try self.patchJump(ifThenJumpIndex, loc);
+                    try self.writeValueArgument(else_loc_node, isTailPosition);
+                    try self.patchJump(thenElseJumpIndex, thenElseLoc);
+                },
+                else => try writeValue(self, loc_node, isTailPosition),
+            },
+            .Negation => |inner| {
+                try self.writeValueArgument(inner, false);
+                try self.emitOp(.NegateNumber, loc);
+            },
+            .ValueLabel => |inner| {
+                try self.writeValue(inner, isTailPosition);
+            },
+            .ElemNode => |elem| switch (elem) {
+                .String => {
+                    std.debug.print("{s}\n", .{self.vm.strings.get(elem.String)});
+                    return error.UnlabeledStringValue;
+                },
+                .NumberString => {
+                    std.debug.print("{s}\n", .{self.vm.strings.get(elem.NumberString.sId)});
+                    return error.UnlabeledNumberValue;
+                },
+                .Boolean => return error.UnlabeledBooleanValue,
+                .Null => return error.UnlabeledNullValue,
+                else => try writeValue(self, loc_node, isTailPosition),
+            },
+            else => try writeValue(self, loc_node, isTailPosition),
         }
     }
 
@@ -1274,6 +1398,9 @@ pub const Compiler = struct {
             .Negation => |inner| {
                 try self.writeValue(inner, false);
                 try self.emitOp(.NegateNumber, loc);
+            },
+            .ValueLabel => |inner| {
+                try self.writeValue(inner, isTailPosition);
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
@@ -1483,6 +1610,7 @@ pub const Compiler = struct {
                 .UpperBoundedRange,
                 .LowerBoundedRange,
                 .Negation,
+                .ValueLabel,
                 => break,
             }
         }
@@ -1529,6 +1657,7 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
+            .ValueLabel,
             => @panic("todo"),
         }
     }
@@ -1629,6 +1758,7 @@ pub const Compiler = struct {
                 .UpperBoundedRange,
                 .LowerBoundedRange,
                 .Negation,
+                .ValueLabel,
                 => break,
             }
         }
@@ -1694,6 +1824,7 @@ pub const Compiler = struct {
                 .UpperBoundedRange,
                 .LowerBoundedRange,
                 .Negation,
+                .ValueLabel,
                 => @panic("todo"),
             }
         } else {
@@ -1731,6 +1862,7 @@ pub const Compiler = struct {
                 .UpperBoundedRange,
                 .LowerBoundedRange,
                 .Negation,
+                .ValueLabel,
                 => @panic("todo"),
             }
         }
@@ -1786,6 +1918,7 @@ pub const Compiler = struct {
                 .UpperBoundedRange,
                 .LowerBoundedRange,
                 .Negation,
+                .ValueLabel,
                 => @panic("todo"),
             }
         }

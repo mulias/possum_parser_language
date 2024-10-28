@@ -6,9 +6,9 @@ player_1 = hand_shape
 
 player_2 = peek(hand_shape) + end_goal
 
-hand_shape = record1("hand_shape", rock | paper | scissors)
+hand_shape = record1($"hand_shape", rock | paper | scissors)
 
-end_goal = record1("end_goal", lose | win | draw)
+end_goal = record1($"end_goal", lose | win | draw)
 
 rock = "A" | "X" $ "rock"
 paper = "B" | "Y" $ "paper"

@@ -1,6 +1,6 @@
 range = tuple2_sep(int, "..", int)
 step =
-  record1("isOn", bool("on", "off")) + skip(ws) +
+  record1($"isOn", bool("on", "off")) + skip(ws) +
   object_sep(alphas, "=", range, ",")
 
 input(array_sep(step, nl))

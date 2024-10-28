@@ -698,10 +698,10 @@ test "double(p) = p + p ; double('a' + 'b') + double('x' < 'y')" {
     }
 }
 
-test "id(A) = '' $ A ; id(true)" {
+test "id(A) = '' $ A ; id($true)" {
     const parser =
         \\id(A) = '' $ A
-        \\id(true)
+        \\id($true)
     ;
     {
         var vm = VM.create();
@@ -832,10 +832,10 @@ test "A = 100 ; 100 -> A" {
     }
 }
 
-test "eql_to(p, V) = p -> V ; eql_to('bar' | 'foo', 'foo')" {
+test "eql_to(p, V) = p -> V ; eql_to('bar' | 'foo', $'foo')" {
     const parser =
         \\eql_to(p, V) = p -> V
-        \\eql_to('bar' | 'foo', 'foo')
+        \\eql_to('bar' | 'foo', $'foo')
     ;
     {
         var vm = VM.create();
@@ -1090,11 +1090,11 @@ test "bar(12 -> N) $ N ; bar(p) = p" {
     }
 }
 
-test "foo(N) = bar(12 -> N) ; bar(p) = p ; foo(11)" {
+test "foo(N) = bar(12 -> N) ; bar(p) = p ; foo($11)" {
     const parser =
         \\foo(N) = bar(12 -> N)
         \\bar(p) = p
-        \\foo(11)
+        \\foo($11)
     ;
     {
         var vm = VM.create();
@@ -1104,11 +1104,11 @@ test "foo(N) = bar(12 -> N) ; bar(p) = p ; foo(11)" {
     }
 }
 
-test "foo(N) = bar(bar(bar(12 -> N))) ; bar(p) = p ; foo(11)" {
+test "foo(N) = bar(bar(bar(12 -> N))) ; bar(p) = p ; foo($11)" {
     const parser =
         \\foo(N) = bar(bar(bar(12 -> N)))
         \\bar(p) = p
-        \\foo(11)
+        \\foo($11)
     ;
     {
         var vm = VM.create();
@@ -1118,11 +1118,11 @@ test "foo(N) = bar(bar(bar(12 -> N))) ; bar(p) = p ; foo(11)" {
     }
 }
 
-test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo(0)" {
+test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo($0)" {
     const parser =
         \\foo(N) = bar(bar(3 -> N) + bar(3 -> N))
         \\bar(p) = p
-        \\foo(0)
+        \\foo($0)
     ;
     {
         var vm = VM.create();
@@ -1132,11 +1132,11 @@ test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo(0)" {
     }
 }
 
-test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo(3)" {
+test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo($3)" {
     const parser =
         \\foo(N) = bar(bar(3 -> N) + bar(3 -> N))
         \\bar(p) = p
-        \\foo(3)
+        \\foo($3)
     ;
     {
         var vm = VM.create();
@@ -1519,12 +1519,11 @@ test "fibonacci parser function" {
         \\const(C) = "" $ C
         \\
         \\fib(N) =
-        \\  const(N) -> 0 ? const(0) :
-        \\  const(N) -> 1 ? const(1) :
-        \\  fib(N - 1) -> N1 & fib(N - 2) -> N2 $
+        \\  const(N) -> ..1 ? const(N) :
+        \\  fib(N - $1) -> N1 & fib(N - $2) -> N2 $
         \\  (N1 + N2)
         \\
-        \\0..99 -> N & fib(N)
+        \\0.. -> N & fib(N)
     ;
     {
         var vm = VM.create();
@@ -1532,7 +1531,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            try Elem.numberString("0", .Integer, &vm),
+            Elem.integer(0),
             vm,
         );
     }
@@ -1542,7 +1541,7 @@ test "fibonacci parser function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
-            try Elem.numberString("1", .Integer, &vm),
+            Elem.integer(1),
             vm,
         );
     }
@@ -1581,11 +1580,10 @@ test "fibonacci parser function" {
 test "fibonacci value function" {
     const parser =
         \\Fib(N) =
-        \\  N -> 0 ? 0 :
-        \\  N -> 1 ? 1 :
+        \\  N -> ..1 ? N :
         \\  Fib(N - 1) + Fib(N - 2)
         \\
-        \\0..99 -> N $ Fib(N)
+        \\0.. -> N $ Fib(N)
     ;
     {
         var vm = VM.create();
@@ -1593,7 +1591,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "0"),
-            try Elem.numberString("0", .Integer, &vm),
+            Elem.integer(0),
             vm,
         );
     }
@@ -1603,7 +1601,7 @@ test "fibonacci value function" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "1"),
-            try Elem.numberString("1", .Integer, &vm),
+            Elem.integer(1),
             vm,
         );
     }

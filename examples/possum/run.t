@@ -104,7 +104,10 @@
         "right": {
           "type": "call_or_define_function",
           "value": [
-            {"type": "string", "value": "program"},
+            {
+              "type": "value_label",
+              "prefixed": {"type": "string", "value": "program"}
+            },
             {
               "type": "take_left",
               "left": {
@@ -203,7 +206,7 @@
             {
               "type": "take_right",
               "left": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false},
-              "right": {"type": "parser_variable", "name": "value", "is_meta": false, "is_underscored": false}
+              "right": {"type": "parser_variable", "name": "operand", "is_meta": false, "is_underscored": false}
             },
             {
               "type": "call_or_define_function",
@@ -230,7 +233,7 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "operand", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "or",
           "left": {
@@ -251,26 +254,26 @@
                           "type": "or",
                           "left": {
                             "type": "or",
-                            "left": {"type": "parser_variable", "name": "grouped_value", "is_meta": false, "is_underscored": false},
-                            "right": {"type": "parser_variable", "name": "boolean_value", "is_meta": false, "is_underscored": false}
+                            "left": {"type": "parser_variable", "name": "grouped_expr", "is_meta": false, "is_underscored": false},
+                            "right": {"type": "parser_variable", "name": "boolean_node", "is_meta": false, "is_underscored": false}
                           },
-                          "right": {"type": "parser_variable", "name": "null_value", "is_meta": false, "is_underscored": false}
+                          "right": {"type": "parser_variable", "name": "null_node", "is_meta": false, "is_underscored": false}
                         },
-                        "right": {"type": "parser_variable", "name": "string_value", "is_meta": false, "is_underscored": false}
+                        "right": {"type": "parser_variable", "name": "string_node", "is_meta": false, "is_underscored": false}
                       },
-                      "right": {"type": "parser_variable", "name": "template_string_value", "is_meta": false, "is_underscored": false}
+                      "right": {"type": "parser_variable", "name": "template_string_node", "is_meta": false, "is_underscored": false}
                     },
-                    "right": {"type": "parser_variable", "name": "number_value", "is_meta": false, "is_underscored": false}
+                    "right": {"type": "parser_variable", "name": "number_node", "is_meta": false, "is_underscored": false}
                   },
-                  "right": {"type": "parser_variable", "name": "parser_variable_value", "is_meta": false, "is_underscored": false}
+                  "right": {"type": "parser_variable", "name": "parser_variable_node", "is_meta": false, "is_underscored": false}
                 },
-                "right": {"type": "parser_variable", "name": "value_variable_value", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "value_variable_node", "is_meta": false, "is_underscored": false}
               },
-              "right": {"type": "parser_variable", "name": "underscore_variable_value", "is_meta": false, "is_underscored": false}
+              "right": {"type": "parser_variable", "name": "underscore_variable_node", "is_meta": false, "is_underscored": false}
             },
-            "right": {"type": "parser_variable", "name": "array_value", "is_meta": false, "is_underscored": false}
+            "right": {"type": "parser_variable", "name": "array_node", "is_meta": false, "is_underscored": false}
           },
-          "right": {"type": "parser_variable", "name": "object_value", "is_meta": false, "is_underscored": false}
+          "right": {"type": "parser_variable", "name": "object_node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -281,32 +284,53 @@
           "left": {
             "type": "or",
             "left": {
-              "type": "call_or_define_function",
-              "value": [
-                {
-                  "type": "return",
-                  "left": {"type": "string", "value": "..."},
-                  "right": {
-                    "type": "object",
-                    "value": [
-                      [
-                        {"type": "string", "value": "type"},
-                        {"type": "string", "value": "spread"}
+              "type": "or",
+              "left": {
+                "type": "return",
+                "left": {"type": "string", "value": "$"},
+                "right": {
+                  "type": "array",
+                  "value": [
+                    {
+                      "type": "object",
+                      "value": [
+                        [
+                          {"type": "string", "value": "type"},
+                          {"type": "string", "value": "value_label"}
+                        ]
                       ]
-                    ]
-                  }
-                },
-                {"type": "number", "value": 8}
-              ],
-              "postfixed": {"type": "parser_variable", "name": "ast_op_precedence", "is_meta": false, "is_underscored": false}
+                    },
+                    {"type": "number", "value": 9}
+                  ]
+                }
+              },
+              "right": {
+                "type": "return",
+                "left": {"type": "string", "value": "..."},
+                "right": {
+                  "type": "array",
+                  "value": [
+                    {
+                      "type": "object",
+                      "value": [
+                        [
+                          {"type": "string", "value": "type"},
+                          {"type": "string", "value": "spread"}
+                        ]
+                      ]
+                    },
+                    {"type": "number", "value": 8}
+                  ]
+                }
+              }
             },
             "right": {
-              "type": "call_or_define_function",
-              "value": [
-                {
-                  "type": "return",
-                  "left": {"type": "string", "value": ".."},
-                  "right": {
+              "type": "return",
+              "left": {"type": "string", "value": ".."},
+              "right": {
+                "type": "array",
+                "value": [
+                  {
                     "type": "object",
                     "value": [
                       [
@@ -314,20 +338,19 @@
                         {"type": "string", "value": "upper_bounded_range"}
                       ]
                     ]
-                  }
-                },
-                {"type": "number", "value": 7}
-              ],
-              "postfixed": {"type": "parser_variable", "name": "ast_op_precedence", "is_meta": false, "is_underscored": false}
+                  },
+                  {"type": "number", "value": 7}
+                ]
+              }
             }
           },
           "right": {
-            "type": "call_or_define_function",
-            "value": [
-              {
-                "type": "return",
-                "left": {"type": "string", "value": "-"},
-                "right": {
+            "type": "return",
+            "left": {"type": "string", "value": "-"},
+            "right": {
+              "type": "array",
+              "value": [
+                {
                   "type": "object",
                   "value": [
                     [
@@ -335,11 +358,10 @@
                       {"type": "string", "value": "negate"}
                     ]
                   ]
-                }
-              },
-              {"type": "number", "value": 6}
-            ],
-            "postfixed": {"type": "parser_variable", "name": "ast_op_precedence", "is_meta": false, "is_underscored": false}
+                },
+                {"type": "number", "value": 6}
+              ]
+            }
           }
         }
       },
@@ -369,12 +391,12 @@
                             "left": {
                               "type": "or",
                               "left": {
-                                "type": "call_or_define_function",
-                                "value": [
-                                  {
-                                    "type": "return",
-                                    "left": {"type": "string", "value": ".."},
-                                    "right": {
+                                "type": "return",
+                                "left": {"type": "string", "value": ".."},
+                                "right": {
+                                  "type": "array",
+                                  "value": [
+                                    {
                                       "type": "object",
                                       "value": [
                                         [
@@ -382,20 +404,19 @@
                                           {"type": "string", "value": "range"}
                                         ]
                                       ]
-                                    }
-                                  },
-                                  {"type": "number", "value": 5},
-                                  {"type": "number", "value": 5.5}
-                                ],
-                                "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                                    },
+                                    {"type": "number", "value": 5},
+                                    {"type": "number", "value": 5.5}
+                                  ]
+                                }
                               },
                               "right": {
-                                "type": "call_or_define_function",
-                                "value": [
-                                  {
-                                    "type": "return",
-                                    "left": {"type": "string", "value": "|"},
-                                    "right": {
+                                "type": "return",
+                                "left": {"type": "string", "value": "|"},
+                                "right": {
+                                  "type": "array",
+                                  "value": [
+                                    {
                                       "type": "object",
                                       "value": [
                                         [
@@ -403,21 +424,20 @@
                                           {"type": "string", "value": "or"}
                                         ]
                                       ]
-                                    }
-                                  },
-                                  {"type": "number", "value": 4},
-                                  {"type": "number", "value": 4.5}
-                                ],
-                                "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                                    },
+                                    {"type": "number", "value": 4},
+                                    {"type": "number", "value": 4.5}
+                                  ]
+                                }
                               }
                             },
                             "right": {
-                              "type": "call_or_define_function",
-                              "value": [
-                                {
-                                  "type": "return",
-                                  "left": {"type": "string", "value": ">"},
-                                  "right": {
+                              "type": "return",
+                              "left": {"type": "string", "value": ">"},
+                              "right": {
+                                "type": "array",
+                                "value": [
+                                  {
                                     "type": "object",
                                     "value": [
                                       [
@@ -425,21 +445,20 @@
                                         {"type": "string", "value": "take_right"}
                                       ]
                                     ]
-                                  }
-                                },
-                                {"type": "number", "value": 4},
-                                {"type": "number", "value": 4.5}
-                              ],
-                              "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                                  },
+                                  {"type": "number", "value": 4},
+                                  {"type": "number", "value": 4.5}
+                                ]
+                              }
                             }
                           },
                           "right": {
-                            "type": "call_or_define_function",
-                            "value": [
-                              {
-                                "type": "return",
-                                "left": {"type": "string", "value": "<"},
-                                "right": {
+                            "type": "return",
+                            "left": {"type": "string", "value": "<"},
+                            "right": {
+                              "type": "array",
+                              "value": [
+                                {
                                   "type": "object",
                                   "value": [
                                     [
@@ -447,21 +466,20 @@
                                       {"type": "string", "value": "take_left"}
                                     ]
                                   ]
-                                }
-                              },
-                              {"type": "number", "value": 4},
-                              {"type": "number", "value": 4.5}
-                            ],
-                            "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                                },
+                                {"type": "number", "value": 4},
+                                {"type": "number", "value": 4.5}
+                              ]
+                            }
                           }
                         },
                         "right": {
-                          "type": "call_or_define_function",
-                          "value": [
-                            {
-                              "type": "return",
-                              "left": {"type": "string", "value": "+"},
-                              "right": {
+                          "type": "return",
+                          "left": {"type": "string", "value": "+"},
+                          "right": {
+                            "type": "array",
+                            "value": [
+                              {
                                 "type": "object",
                                 "value": [
                                   [
@@ -469,21 +487,20 @@
                                     {"type": "string", "value": "merge"}
                                   ]
                                 ]
-                              }
-                            },
-                            {"type": "number", "value": 4},
-                            {"type": "number", "value": 4.5}
-                          ],
-                          "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                              },
+                              {"type": "number", "value": 4},
+                              {"type": "number", "value": 4.5}
+                            ]
+                          }
                         }
                       },
                       "right": {
-                        "type": "call_or_define_function",
-                        "value": [
-                          {
-                            "type": "return",
-                            "left": {"type": "string", "value": "!"},
-                            "right": {
+                        "type": "return",
+                        "left": {"type": "string", "value": "!"},
+                        "right": {
+                          "type": "array",
+                          "value": [
+                            {
                               "type": "object",
                               "value": [
                                 [
@@ -491,21 +508,20 @@
                                   {"type": "string", "value": "backtrack"}
                                 ]
                               ]
-                            }
-                          },
-                          {"type": "number", "value": 4},
-                          {"type": "number", "value": 4.5}
-                        ],
-                        "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                            },
+                            {"type": "number", "value": 4},
+                            {"type": "number", "value": 4.5}
+                          ]
+                        }
                       }
                     },
                     "right": {
-                      "type": "call_or_define_function",
-                      "value": [
-                        {
-                          "type": "return",
-                          "left": {"type": "string", "value": "->"},
-                          "right": {
+                      "type": "return",
+                      "left": {"type": "string", "value": "->"},
+                      "right": {
+                        "type": "array",
+                        "value": [
+                          {
                             "type": "object",
                             "value": [
                               [
@@ -513,21 +529,20 @@
                                 {"type": "string", "value": "destructure"}
                               ]
                             ]
-                          }
-                        },
-                        {"type": "number", "value": 4},
-                        {"type": "number", "value": 4.5}
-                      ],
-                      "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                          },
+                          {"type": "number", "value": 4},
+                          {"type": "number", "value": 4.5}
+                        ]
+                      }
                     }
                   },
                   "right": {
-                    "type": "call_or_define_function",
-                    "value": [
-                      {
-                        "type": "return",
-                        "left": {"type": "string", "value": "$"},
-                        "right": {
+                    "type": "return",
+                    "left": {"type": "string", "value": "$"},
+                    "right": {
+                      "type": "array",
+                      "value": [
+                        {
                           "type": "object",
                           "value": [
                             [
@@ -535,43 +550,41 @@
                               {"type": "string", "value": "return"}
                             ]
                           ]
-                        }
-                      },
-                      {"type": "number", "value": 4},
-                      {"type": "number", "value": 4.5}
-                    ],
-                    "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                        },
+                        {"type": "number", "value": 4},
+                        {"type": "number", "value": 4.5}
+                      ]
+                    }
                   }
                 },
                 "right": {
-                  "type": "call_or_define_function",
-                  "value": [
-                    {
-                      "type": "return",
-                      "left": {"type": "string", "value": "-"},
-                      "right": {
+                  "type": "return",
+                  "left": {"type": "string", "value": "-"},
+                  "right": {
+                    "type": "array",
+                    "value": [
+                      {
                         "type": "object",
                         "value": [
                           [
                             {"type": "string", "value": "type"},
-                            {"type": "string", "value": "number_subtract"}
+                            {"type": "string", "value": "subtract"}
                           ]
                         ]
-                      }
-                    },
-                    {"type": "number", "value": 4},
-                    {"type": "number", "value": 4.5}
-                  ],
-                  "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                      },
+                      {"type": "number", "value": 4},
+                      {"type": "number", "value": 4.5}
+                    ]
+                  }
                 }
               },
               "right": {
-                "type": "call_or_define_function",
-                "value": [
-                  {
-                    "type": "return",
-                    "left": {"type": "string", "value": "&"},
-                    "right": {
+                "type": "return",
+                "left": {"type": "string", "value": "&"},
+                "right": {
+                  "type": "array",
+                  "value": [
+                    {
                       "type": "object",
                       "value": [
                         [
@@ -579,31 +592,37 @@
                           {"type": "string", "value": "and"}
                         ]
                       ]
-                    }
-                  },
-                  {"type": "number", "value": 3},
-                  {"type": "number", "value": 3.5}
-                ],
-                "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                    },
+                    {"type": "number", "value": 3},
+                    {"type": "number", "value": 3.5}
+                  ]
+                }
               }
             },
             "right": {
-              "type": "call_or_define_function",
-              "value": [
-                {"type": "parser_variable", "name": "conditional_infix", "is_meta": false, "is_underscored": false},
-                {"type": "number", "value": 2.5},
-                {"type": "number", "value": 2}
-              ],
-              "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+              "type": "return",
+              "left": {
+                "type": "destructure",
+                "left": {"type": "parser_variable", "name": "conditional_infix", "is_meta": false, "is_underscored": false},
+                "right": {"type": "value_variable", "name": "Node", "is_meta": false, "is_underscored": false}
+              },
+              "right": {
+                "type": "array",
+                "value": [
+                  {"type": "value_variable", "name": "Node", "is_meta": false, "is_underscored": false},
+                  {"type": "number", "value": 2.5},
+                  {"type": "number", "value": 2}
+                ]
+              }
             }
           },
           "right": {
-            "type": "call_or_define_function",
-            "value": [
-              {
-                "type": "return",
-                "left": {"type": "string", "value": "="},
-                "right": {
+            "type": "return",
+            "left": {"type": "string", "value": "="},
+            "right": {
+              "type": "array",
+              "value": [
+                {
                   "type": "object",
                   "value": [
                     [
@@ -611,12 +630,11 @@
                       {"type": "string", "value": "assign"}
                     ]
                   ]
-                }
-              },
-              {"type": "number", "value": 1.5},
-              {"type": "number", "value": 1}
-            ],
-            "postfixed": {"type": "parser_variable", "name": "ast_infix_op_precedence", "is_meta": false, "is_underscored": false}
+                },
+                {"type": "number", "value": 1.5},
+                {"type": "number", "value": 1}
+              ]
+            }
           }
         }
       },
@@ -626,26 +644,40 @@
         "right": {
           "type": "or",
           "left": {
-            "type": "call_or_define_function",
-            "value": [
-              {"type": "parser_variable", "name": "call_or_define_function_postfix", "is_meta": false, "is_underscored": false},
-              {"type": "number", "value": 10}
-            ],
-            "postfixed": {"type": "parser_variable", "name": "ast_op_precedence", "is_meta": false, "is_underscored": false}
+            "type": "return",
+            "left": {
+              "type": "destructure",
+              "left": {"type": "parser_variable", "name": "call_or_define_function_postfix", "is_meta": false, "is_underscored": false},
+              "right": {"type": "value_variable", "name": "Node", "is_meta": false, "is_underscored": false}
+            },
+            "right": {
+              "type": "array",
+              "value": [
+                {"type": "value_variable", "name": "Node", "is_meta": false, "is_underscored": false},
+                {"type": "number", "value": 11}
+              ]
+            }
           },
           "right": {
-            "type": "call_or_define_function",
-            "value": [
-              {"type": "parser_variable", "name": "lower_bounded_range_postfix", "is_meta": false, "is_underscored": false},
-              {"type": "number", "value": 9}
-            ],
-            "postfixed": {"type": "parser_variable", "name": "ast_op_precedence", "is_meta": false, "is_underscored": false}
+            "type": "return",
+            "left": {
+              "type": "destructure",
+              "left": {"type": "parser_variable", "name": "lower_bounded_range_postfix", "is_meta": false, "is_underscored": false},
+              "right": {"type": "value_variable", "name": "Node", "is_meta": false, "is_underscored": false}
+            },
+            "right": {
+              "type": "array",
+              "value": [
+                {"type": "value_variable", "name": "Node", "is_meta": false, "is_underscored": false},
+                {"type": "number", "value": 10}
+              ]
+            }
           }
         }
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "grouped_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "grouped_expr", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "take_left",
           "left": {
@@ -666,11 +698,14 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "boolean_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "boolean_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "call_or_define_function",
           "value": [
-            {"type": "string", "value": "boolean"},
+            {
+              "type": "value_label",
+              "prefixed": {"type": "string", "value": "boolean"}
+            },
             {
               "type": "call_or_define_function",
               "value": [
@@ -701,7 +736,7 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "null_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "null_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "return",
           "left": {
@@ -726,11 +761,14 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "string_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "string_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "call_or_define_function",
           "value": [
-            {"type": "string", "value": "string"},
+            {
+              "type": "value_label",
+              "prefixed": {"type": "string", "value": "string"}
+            },
             {
               "type": "or",
               "left": {
@@ -821,7 +859,10 @@
           "right": {
             "type": "call_or_define_function",
             "value": [
-              {"type": "string", "value": ""}
+              {
+                "type": "value_label",
+                "prefixed": {"type": "string", "value": ""}
+              }
             ],
             "postfixed": {"type": "parser_variable", "name": "const", "is_meta": false, "is_underscored": false}
           }
@@ -878,7 +919,10 @@
             "type": "call_or_define_function",
             "value": [
               {"type": "parser_variable", "name": "hex_numeral", "is_meta": false, "is_underscored": false},
-              {"type": "number", "value": 6}
+              {
+                "type": "value_label",
+                "prefixed": {"type": "number", "value": 6}
+              }
             ],
             "postfixed": {"type": "parser_variable", "name": "repeat", "is_meta": false, "is_underscored": false}
           }
@@ -899,7 +943,10 @@
           "right": {
             "type": "call_or_define_function",
             "value": [
-              {"type": "string", "value": ""}
+              {
+                "type": "value_label",
+                "prefixed": {"type": "string", "value": ""}
+              }
             ],
             "postfixed": {"type": "parser_variable", "name": "const", "is_meta": false, "is_underscored": false}
           }
@@ -907,11 +954,14 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "template_string_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "template_string_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "call_or_define_function",
           "value": [
-            {"type": "string", "value": "template_string"},
+            {
+              "type": "value_label",
+              "prefixed": {"type": "string", "value": "template_string"}
+            },
             {
               "type": "or",
               "left": {
@@ -925,7 +975,10 @@
                         "type": "array",
                         "value": []
                       },
-                      {"type": "string", "value": ""}
+                      {
+                        "type": "value_label",
+                        "prefixed": {"type": "string", "value": ""}
+                      }
                     ],
                     "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
                   },
@@ -944,7 +997,10 @@
                         "type": "array",
                         "value": []
                       },
-                      {"type": "string", "value": ""}
+                      {
+                        "type": "value_label",
+                        "prefixed": {"type": "string", "value": ""}
+                      }
                     ],
                     "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
                   },
@@ -1051,7 +1107,10 @@
                         {"type": "value_variable", "name": "Expr", "is_meta": false, "is_underscored": false}
                       ]
                     },
-                    {"type": "string", "value": ""}
+                    {
+                      "type": "value_label",
+                      "prefixed": {"type": "string", "value": ""}
+                    }
                   ],
                   "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
                 }
@@ -1141,11 +1200,14 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "number_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "number_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "call_or_define_function",
           "value": [
-            {"type": "string", "value": "number"},
+            {
+              "type": "value_label",
+              "prefixed": {"type": "string", "value": "number"}
+            },
             {"type": "parser_variable", "name": "number", "is_meta": false, "is_underscored": false}
           ],
           "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
@@ -1153,7 +1215,7 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "parser_variable_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "parser_variable_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "and",
           "left": {
@@ -1263,7 +1325,7 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "value_variable_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "value_variable_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "and",
           "left": {
@@ -1373,11 +1435,14 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "underscore_variable_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "underscore_variable_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "call_or_define_function",
           "value": [
-            {"type": "string", "value": "underscore_variable"},
+            {
+              "type": "value_label",
+              "prefixed": {"type": "string", "value": "underscore_variable"}
+            },
             {
               "type": "call_or_define_function",
               "value": [
@@ -1391,11 +1456,14 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "array_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "array_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "call_or_define_function",
           "value": [
-            {"type": "string", "value": "array"},
+            {
+              "type": "value_label",
+              "prefixed": {"type": "string", "value": "array"}
+            },
             {
               "type": "call_or_define_function",
               "value": [
@@ -1409,11 +1477,14 @@
       },
       {
         "type": "assign",
-        "left": {"type": "parser_variable", "name": "object_value", "is_meta": false, "is_underscored": false},
+        "left": {"type": "parser_variable", "name": "object_node", "is_meta": false, "is_underscored": false},
         "right": {
           "type": "call_or_define_function",
           "value": [
-            {"type": "string", "value": "object"},
+            {
+              "type": "value_label",
+              "prefixed": {"type": "string", "value": "object"}
+            },
             {
               "type": "take_left",
               "left": {
@@ -1545,7 +1616,10 @@
         "right": {
           "type": "call_or_define_function",
           "value": [
-            {"type": "string", "value": "call_or_define_function"},
+            {
+              "type": "value_label",
+              "prefixed": {"type": "string", "value": "call_or_define_function"}
+            },
             {
               "type": "take_left",
               "left": {

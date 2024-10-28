@@ -152,6 +152,7 @@ pub const Parser = struct {
             .Scientific => self.scientific(),
             .True, .False, .Null => self.literal(),
             .DotDot => self.upperBoundedRange(),
+            .DollarSign => self.valueLabel(),
             else => self.errorAtPrevious("Expect expression."),
         };
     }
@@ -427,8 +428,14 @@ pub const Parser = struct {
             return self.errorAtPrevious("Expected expression");
         }
 
-        const inner = try self.parseWithPrecedence(.Negation);
+        const inner = try self.parseWithPrecedence(.Prefix);
         return self.ast.create(.{ .Negation = inner }, t.loc);
+    }
+
+    fn valueLabel(self: *Parser) !*Ast.LocNode {
+        const t = self.previous;
+        const inner = try self.parseWithPrecedence(.Prefix);
+        return self.ast.create(.{ .ValueLabel = inner }, t.loc);
     }
 
     fn binaryOp(self: *Parser, left: *Ast.LocNode) !*Ast.LocNode {
@@ -805,7 +812,7 @@ pub const Parser = struct {
 
     const Precedence = enum {
         CallOrDefineFunction,
-        Negation,
+        Prefix,
         Range,
         StandardInfix,
         Sequence,
@@ -816,7 +823,7 @@ pub const Parser = struct {
         pub fn bindingPower(precedence: Precedence) struct { left: u4, right: u4 } {
             return switch (precedence) {
                 .CallOrDefineFunction => .{ .left = 11, .right = 12 },
-                .Negation => .{ .left = 10, .right = 10 },
+                .Prefix => .{ .left = 10, .right = 10 },
                 .Range => .{ .left = 9, .right = 9 },
                 .StandardInfix => .{ .left = 7, .right = 8 },
                 .Sequence => .{ .left = 5, .right = 6 },

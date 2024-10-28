@@ -152,29 +152,28 @@
   0086    | End
   ========================================
 
-  $ possum -p 'const(3) -> (2 + B)' -i ''
+  $ possum -p '3 -> (2 + B)' -i '3'
   
   =================@main==================
   0000    1 GetConstant 0: B
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: 3
-  0006    | CallFunction 1
-  0008    | GetConstant 3: 2
-  0010    | GetLocal 0
-  0012    | PrepareMergePattern 2
-  0014    | JumpIfFailure 14 -> 36
-  0017    | GetConstant 4: 2
-  0019    | Destructure
-  0020    | JumpIfFailure 20 -> 34
-  0023    | Pop
-  0024    | GetLocal 0
-  0026    | Destructure
-  0027    | JumpIfFailure 27 -> 34
-  0030    | Pop
-  0031    | JumpIfSuccess 31 -> 36
-  0034    | Swap
-  0035    | Pop
-  0036    | End
+  0002    | GetConstant 1: 3
+  0004    | CallFunction 0
+  0006    | GetConstant 2: 2
+  0008    | GetLocal 0
+  0010    | PrepareMergePattern 2
+  0012    | JumpIfFailure 12 -> 34
+  0015    | GetConstant 3: 2
+  0017    | Destructure
+  0018    | JumpIfFailure 18 -> 32
+  0021    | Pop
+  0022    | GetLocal 0
+  0024    | Destructure
+  0025    | JumpIfFailure 25 -> 32
+  0028    | Pop
+  0029    | JumpIfSuccess 29 -> 34
+  0032    | Swap
+  0033    | Pop
+  0034    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [A, 1 + 1, 3]' -i ''
@@ -435,16 +434,15 @@
   0039    | End
   ========================================
 
-  $ possum -p 'const(2) -> 0..5' -i ''
+  $ possum -p '2 -> 0..5' -i '2'
   
   =================@main==================
-  0000    1 GetConstant 0: const
-  0002    | GetConstant 1: 2
-  0004    | CallFunction 1
-  0006    | GetConstant 2: 0
-  0008    | GetConstant 3: 5
-  0010    | DestructureRange
-  0011    | End
+  0000    1 GetConstant 0: 2
+  0002    | CallFunction 0
+  0004    | GetConstant 1: 0
+  0006    | GetConstant 2: 5
+  0008    | DestructureRange
+  0009    | End
   ========================================
 
   $ possum -p 'char -> "a".."z"' -i 'q'

@@ -2,7 +2,7 @@
 
 These parsers and value functions are always available in Possum programs, unless Possum is ran with the `--no-stdlib` flag.
 
-## String Parsers
+## Strings
 
 | Parser             | Match Behavior             | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -30,9 +30,8 @@ These parsers and value functions are always available in Possum programs, unles
 | `nls`              | Alias for `newlines`       | As above                   |
 | `whitespace`       | One or more space, tab, or newline characters | Matched string |
 | `ws`               | Alias for `whitespace`     | As above                   |
-| `json_string`      | Valid JSON string          | Matched string contents, not including quotes |
 
-## Number Parsers
+## Numbers
 
 | Parser             | Match Behavior             | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -47,11 +46,10 @@ These parsers and value functions are always available in Possum programs, unles
 | `scientific_float` | Valid JSON number with an integer, fractional, and exponent part | Number |
 | `number`           | Valid JSON number with integer part and optional fraction and exponent part | Number |
 | `num`              | Alias for `number`         | As above |
-| `json_number`      | Alias for `number`         | As above |
 | `non_negative_number` | Valid JSON number without a leading minus sign | Integer number greater than or equal to zero |
 | `negative_number`  | Valid JSON number with a leading minus sign | Integer number less than or equal to `-0` |
 
-## Constant Parsers
+## Constants
 
 | Parser             | Match Behavior             | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -59,11 +57,9 @@ These parsers and value functions are always available in Possum programs, unles
 | `false(f)`         | Parses `f`                 | `false`                    |
 | `boolean(t, f)`    | Parses `t` or `f`          | `true` or `false`          |
 | `bool(t, f)`       | Alias for `boolean`        | As above                   |
-| `json_boolean`     | JSON "true" or "false" keyword | `true` or `false`      |
 | `null(n)`          | Parses `n`                 | `null`                     |
-| `json_null`        | JSON "null" keyword        | `null`                     |
 
-## Repeated Value Parsers
+## Repeated Values
 
 | Parser             | Match Behavior             | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -76,7 +72,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `repeat(p, N)`     | Parses `p` exactly `N` times, where `N` is a non-negative integer | Merged values parsed by `p`, or `null` if `N` is 0 |
 | `repeat_between(p, N, M)` | Parses `p` at least `N` times and up to `M` times, where `N` and `M` are non-negative integers | Merged values parsed by `p`, or `null` if `N` is 0 and no matches found |
 
-## Array Parsers
+## Arrays
 
 | Parser             | Match Behavior             | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -94,9 +90,8 @@ These parsers and value functions are always available in Possum programs, unles
 | `tuple_sep(elem, sep, N)` | Parses `elem` exactly `N` times, interspersed with `sep`, where `N` is a non-negative integer | Array of values parsed by `elem` |
 | `table_sep(elem, sep, row_sep)` | One or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem` |
 | `maybe_table_sep(elem, sep, row_sep)` | Zero or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem`, maybe empty |
-| `json_array(elem)` | JSON formatted array with square brackets and comma separators, containing zero or more `elem`s | Array of values parsed by `elem` |
 
-## Object Parsers
+## Objects
 
 | Parser             | Match Behavior             | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -110,7 +105,6 @@ These parsers and value functions are always available in Possum programs, unles
 | `record2_sep(Key1, value1, sep, Key2, value2)` | Parses `value1`, `sep`, and then `value2` | Object with `Key1` associated to the parsed `value1`, etc |
 | `record3(Key1, value1, Key2, value2, Key3, value3)` | Runs three value parsers in order | Object with `Key1` associated to the parsed `value1`, etc |
 | `record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3)` | Runs three value parsers, interspersed with `sep` | Object with `Key1` associated to the parsed `value1`, etc |
-| `json_object(value)` | JSON formatted object with braces, string keys, colon and comma separators, containing zero or more `value`s | Object with string keys and values parsed by `value` |
 
 ## Utility Parsers
 
@@ -132,23 +126,42 @@ These parsers and value functions are always available in Possum programs, unles
 | `end_of_input`     | End of string or file input | `null` |
 | `end`              | Alias for `end_of_input`   | As above |
 | `input(p)`         | Strips leading and trailing whitespace, succeeds if `p` parses to end of input | Result of `p` |
-| `json`             | Any valid JSON             | Matched JSON               |
 
-## Abstract Syntax Tree Parsers
+## JSON
+
+| Parser             | Match Behavior             | Returns                    |
+| ------------------ | -------------------------- | -------------------------- |
+| `json`             | Any valid JSON             | Matched JSON               |
+| `json_string`      | Valid JSON string          | Matched string contents, not including quotes |
+| `json_number`      | Alias for `number`         | Number |
+| `json_boolean`     | JSON "true" or "false" keyword | `true` or `false`      |
+| `json_null`        | JSON "null" keyword        | `null`                     |
+| `json_array(elem)` | JSON formatted array with square brackets and comma separators, containing zero or more `elem`s | Array of values parsed by `elem` |
+| `json_object(value)` | JSON formatted object with braces, string keys, colon and comma separators, containing zero or more `value`s | Object with string keys and values parsed by `value` |
+
+## Abstract Syntax Trees
 
 See the `stdlib-ast` docs for more detailed documentation.
 
 | Parser             | Match Behavior             | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
-| `ast_with_operator_precedence(node, prefix, infix, postfix)` | Parses `node`s with prefix and postfix operators, composed with infix operators | Abstract syntax tree |
+| `ast_with_operator_precedence(operand, prefix, infix, postfix)` | Parses `operands`s with prefix and postfix operators, composed with infix operators | Abstract syntax tree |
 | `ast_node(Type, value)` | Parses `value`        | Object with a `"type"` and `"value"` field |
-| `ast_op_precedence(op_node, BindingPower)` | Parses `op_node` | Array with two elements, the result of `op_node` and `BindingPower` |
-| `ast_infix_op_precedence(op_node, LeftBindingPower, RightBindingPower)` | Parses `op_node` | Array with three elements, the result of `op_node`, `LeftBindingPower`, and `RightBindingPower` |
+
+| Value Function     | Behavior                                                |
+| ------------------ | ------------------------------------------------------- |
+| `AstOpPrecedence(OpNode, BindingPower)` | Array with two elements, `OpNode` and `BindingPower` |
+| `AstInfixOpPrecedence(OpNode, LeftBindingPower, RightBindingPower)` | Array with three elements, `OpNode`, `LeftBindingPower`, and `RightBindingPower` |
 
 ## Value Functions
 
 | Value Function     | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
+| `True`             | Alias for the `true` constant                           |
+| `False`            | Alias for the `false` constant                          |
+| `Null`             | Alias for the `null` constant                           |
+| `Inc(N)`           | Increment, return `N + 1`                               |
+| `Dec(N)`           | Decrement, return `N - 1`                               |
 | `ArrayFirst(A)`    | Return the first element in `A`, fail if `A` is not an array with at least one element |
 | `ArrayRest(A)`     | Return the remaining array without the first element, fails if `A` is not an array with at least one element |
 | `Map(A, Fn)`       | Apply the function `Fn` to each element in the array `A` |

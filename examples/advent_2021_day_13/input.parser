@@ -1,4 +1,4 @@
-fold = "fold along " > record2_sep("direction", alpha, "=", "position", int)
+fold = "fold along " > record2_sep($"direction", alpha, "=", $"position", int)
 
 input(
   table_sep(int, ",", nl) -> Dots & ws &

@@ -24,6 +24,7 @@ pub const Ast = struct {
         UpperBoundedRange,
         LowerBoundedRange,
         Negation,
+        ValueLabel,
     };
 
     pub const Node = union(NodeType) {
@@ -32,6 +33,7 @@ pub const Ast = struct {
         UpperBoundedRange: *LocNode,
         LowerBoundedRange: *LocNode,
         Negation: *LocNode,
+        ValueLabel: *LocNode,
 
         pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
             return switch (self) {

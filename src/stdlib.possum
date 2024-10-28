@@ -133,7 +133,7 @@ find_all(p) = array(scan(p))
 
 maybe_find_all(p) = maybe_array(scan(p))
 
-succeed = const(null)
+succeed = const(Null)
 
 default(p, D) = p | const(D)
 
@@ -168,23 +168,23 @@ maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
 
 repeat(p, N) =
   const(AssertNonNegativeInteger(N)) &
-  _repeat(p, N, null)
+  _repeat(p, N, Null)
 
 _repeat(p, N, Acc) =
   const(N -> ..0) ?
   const(Acc) :
-  p -> Next & _repeat(p, N - 1, Acc + Next)
+  p -> Next & _repeat(p, Dec(N), Acc + Next)
 
 repeat_between(p, N, M) =
   const(AssertNonNegativeInteger(N)) &
   const(AssertNonNegativeInteger(M)) &
-  _repeat_between(p, N, M, null)
+  _repeat_between(p, N, M, Null)
 
 _repeat_between(p, N, M, Acc) =
   const(M -> ..0) ?
   const(Acc) :
   p -> Next ?
-  _repeat_between(p, N - 1, M - 1, Acc + Next) :
+  _repeat_between(p, Dec(N), Dec(M), Acc + Next) :
   const(N -> ..0) ?
   const(Acc) :
   @fail
@@ -235,7 +235,7 @@ tuple(elem, N) =
 _tuple(elem, N, Acc) =
   const(N -> ..0) ?
   const(Acc) :
-  elem -> Elem & _tuple(elem, N - 1, [...Acc, Elem])
+  elem -> Elem & _tuple(elem, Dec(N), [...Acc, Elem])
 
 tuple_sep(elem, sep, N) =
   const(AssertNonNegativeInteger(N)) &
@@ -244,7 +244,7 @@ tuple_sep(elem, sep, N) =
 _tuple_sep(elem, sep, N, Acc) =
   const(N -> ..0) ?
   const(Acc) :
-  sep > elem -> Elem & _tuple_sep(elem, sep, N - 1, [...Acc, Elem])
+  sep > elem -> Elem & _tuple_sep(elem, sep, Dec(N), [...Acc, Elem])
 
 table_sep(elem, sep, row_sep) =
   elem -> First & _table_sep(elem, sep, row_sep, [First], [])
@@ -336,7 +336,7 @@ _json_string_body =
     _escaped_ctrl_char |
     _escaped_unicode |
     unless(char, _ctrl_char | `\` | '"')
-  ) | const("")
+  ) | const($"")
 
 _ctrl_char = "\u000000".."\u00001F"
 
@@ -365,7 +365,7 @@ _high_surrogate =
 _low_surrogate =
   `\u` > ("D" | "d") + ("C".."F" | "c".."f") + hex_numeral + hex_numeral
 
-_escaped_codepoint = `\u` > repeat(hex_numeral, 4) -> U $ @Codepoint(U)
+_escaped_codepoint = `\u` > repeat(hex_numeral, $4) -> U $ @Codepoint(U)
 
 json_array(elem) = "[" > maybe_array_sep(surround(elem, maybe(ws)), ",") < "]"
 
@@ -377,49 +377,64 @@ json_object(value) =
   )
   < "}"
 
-ast_with_operator_precedence(node, prefix, infix, postfix) =
-  _ast_with_precedence_start(node, prefix, infix, postfix, 0)
+ast_with_operator_precedence(operand, prefix, infix, postfix) =
+  _ast_with_precedence_start(operand, prefix, infix, postfix, $0)
 
-_ast_with_precedence_start(node, prefix, infix, postfix, LeftBindingPower) =
+_ast_with_precedence_start(operand, prefix, infix, postfix, LeftBindingPower) =
   prefix -> [OpNode, PrefixBindingPower] ? (
-    _ast_with_precedence_start(node, prefix, infix, postfix, PrefixBindingPower) -> PrefixedNode &
+    _ast_with_precedence_start(
+      operand, prefix, infix, postfix,
+      PrefixBindingPower
+    ) -> PrefixedNode &
     _ast_with_precedence_rest(
-      node, prefix, infix, postfix,
+      operand, prefix, infix, postfix,
       LeftBindingPower,
       OpNode + {"prefixed": PrefixedNode}
     )
   ) : (
-    node -> Node &
-    _ast_with_precedence_rest(node, prefix, infix, postfix, LeftBindingPower, Node)
+    operand -> Node &
+    _ast_with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node)
   )
 
-_ast_with_precedence_rest(node, prefix, infix, postfix, LeftBindingPower, Node) =
+_ast_with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node) =
   postfix -> [OpNode, RightBindingPower] &
   const(LessThan(LeftBindingPower, RightBindingPower)) ? (
     _ast_with_precedence_rest(
-      node, prefix, infix, postfix,
+      operand, prefix, infix, postfix,
       LeftBindingPower,
       OpNode + {"postfixed": Node}
     )
   ) :
   infix -> [OpNode, RightBindingPower, NextLeftBindingPower] &
   const(LessThan(LeftBindingPower, RightBindingPower)) ? (
-    _ast_with_precedence_start(node, prefix, infix, postfix, NextLeftBindingPower) -> RightNode &
+    _ast_with_precedence_start(
+      operand, prefix, infix, postfix,
+      NextLeftBindingPower
+    ) -> RightNode &
     _ast_with_precedence_rest(
-      node, prefix, infix, postfix,
+      operand, prefix, infix, postfix,
       LeftBindingPower,
       OpNode + {"left": Node, "right": RightNode}
     )
   ) :
   const(Node)
 
-ast_op_precedence(op_node, BindingPower) =
-  op_node -> OpNode $ [OpNode, BindingPower]
+AstOpPrecedence(OpNode, BindingPower) = [OpNode, BindingPower]
 
-ast_infix_op_precedence(op_node, LeftBindingPower, RightBindingPower) =
-  op_node -> OpNode $ [OpNode, LeftBindingPower, RightBindingPower]
+AstInfixOpPrecedence(OpNode, LeftBindingPower, RightBindingPower) =
+  [OpNode, LeftBindingPower, RightBindingPower]
 
 ast_node(Type, value) = value -> Value $ {"type": Type, "value": Value}
+
+Null = null
+
+True = true
+
+False = false
+
+Inc(N) = N + 1
+
+Dec(N) = N - 1
 
 ZipIntoObject(Keys, Values) = _ZipIntoObject(Keys, Values, {})
 

@@ -1,2 +1,2 @@
-command = record2_sep("direction", word, ws, "magnitude", int)
+command = record2_sep($"direction", word, ws, $"magnitude", int)
 input(array_sep(command, newline))

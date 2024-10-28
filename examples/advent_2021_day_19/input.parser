@@ -1,6 +1,6 @@
 scan = record2(
-  "id", "--- scanner " > int < " ---\n",
-  "beacons", table_sep(int, ",", nl)
+  $"id", "--- scanner " > int < " ---\n",
+  $"beacons", table_sep(int, ",", nl)
 )
 
 input(array_sep(scan, ws))
