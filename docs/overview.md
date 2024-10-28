@@ -219,7 +219,7 @@ Collections frequently use separator characters between elements. You can use `a
   $ possum -p 'array_sep(int, ',')' -i '1,2,3,4,5,6'
   [ 1, 2, 3, 4, 5, 6 ]
 
-  $ possum -p 'object_sep(many(alpha), ":", int, " ; ")' -i 'foo:33 ; bar:1'
+  $ possum -p 'object_sep(alphas, ":", int, " ; ")' -i 'foo:33 ; bar:1'
   { "foo": 33, "bar": 1 }
 ```
 
@@ -288,7 +288,7 @@ Concatenate arrays:
   [9, 8, 7, 6, 5, "h", "e", "f", "t", "y"]
 ```
 
-Combine objects, adding fields from the right-side object to the left-side object, possibly replacing existing values:
+Combine objects, overwriting existing values:
 ```
   $ possum -p 'object(char, 0) + object(char, 1)' -i 'a0b0c0c1a1d1'
   {"a": 1, "b": 0, "c": 1, "d": 1}
@@ -407,13 +407,22 @@ A Possum program must have one *main parser*, and can optionally declare any num
   [88, 0, -10]
 ```
 
-Named Parsers can be parameterized with both parsers and values. Note that parser params are always `snake_case` while value params are always `UpperCamelCase`.
+Named Parsers can be parameterized with both parsers and values. Parser params are always `snake_case` while value params are always `UpperCamelCase`.
 ```
   $ possum -p '
-      if(condition, Then) = condition $ Then ;
-      if(12345, "Password Accepted")
+      if(condition, Then) = condition $ Then
+      if(12345, ["return", "this", "array"])
     ' -i '12345'
-  "Password Accepted"
+  ["return", "this", "array"]
+```
+
+There's one edge case when passing values as parser args, which is that values which could be confused with parsers must be prefixed with a `$`. This includes strings, numbers, and the constants `true`, `false`, and `null`. Arrays, objects, and `UpperCamelCase` variables are always values, so there's no need to disambiguate.
+```
+  $ possum -p '
+      if(condition, Then) = condition $ Then
+      if(12345, $"return this string")
+    ' -i '12345'
+  "return this string"
 ```
 
 Named parsers can be recursive and referenced before they are declared. The main parser can come before, after, or in between named parser declarations.
