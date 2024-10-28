@@ -572,6 +572,55 @@ pub const VM = struct {
 
                 try self.prepareMergePattern(count);
             },
+            .StringToCodepoint => {
+                const value = self.pop();
+
+                if (value.isSuccess()) {
+                    if (value.stringBytes(self.*)) |bytes| {
+                        if (parsing.parseCodepoint(bytes)) |c| {
+                            const len = try unicode.utf8CodepointSequenceLength(c);
+                            const buffer = try self.allocator.alloc(u8, len);
+                            defer self.allocator.free(buffer);
+                            _ = try unicode.utf8Encode(c, buffer);
+                            var str = try Elem.Dyn.String.copy(self, buffer);
+                            try self.push(str.dyn.elem());
+                        } else {
+                            try self.pushFailure();
+                        }
+                    } else {
+                        try self.pushFailure();
+                    }
+                } else {
+                    try self.pushFailure();
+                }
+            },
+            .StringsToCodepoint => {
+                const lowSurrogate = self.pop();
+                const highSurrogate = self.pop();
+
+                if (highSurrogate.isSuccess() and lowSurrogate.isSuccess()) {
+                    if (highSurrogate.stringBytes(self.*)) |high| {
+                        if (lowSurrogate.stringBytes(self.*)) |low| {
+                            if (parsing.parseSurrogatePair(high, low)) |c| {
+                                const len = try unicode.utf8CodepointSequenceLength(c);
+                                const buffer = try self.allocator.alloc(u8, len);
+                                defer self.allocator.free(buffer);
+                                _ = try unicode.utf8Encode(c, buffer);
+                                var str = try Elem.Dyn.String.copy(self, buffer);
+                                try self.push(str.dyn.elem());
+                            } else {
+                                try self.pushFailure();
+                            }
+                        } else {
+                            try self.pushFailure();
+                        }
+                    } else {
+                        try self.pushFailure();
+                    }
+                } else {
+                    try self.pushFailure();
+                }
+            },
             .Swap => {
                 const a = self.pop();
                 const b = self.pop();

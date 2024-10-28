@@ -3,12 +3,14 @@ const Function = @import("elem.zig").Elem.Dyn.Function;
 const Location = @import("location.zig").Location;
 const VM = @import("vm.zig").VM;
 
-pub fn functions(vm: *VM) ![4]*Function {
+pub fn functions(vm: *VM) ![6]*Function {
     return [_]*Function{
         try createFailParser(vm),
         try createFailValue(vm),
         try createNumberOf(vm),
         try createCrashValue(vm),
+        try createCodepointValue(vm),
+        try createSurrogatePairCodepointValue(vm),
     };
 }
 
@@ -83,6 +85,52 @@ pub fn createCrashValue(vm: *VM) !*Function {
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
     try fun.chunk.writeOp(.Crash, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+pub fn createCodepointValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@Codepoint");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
+        .arity = 1,
+    });
+
+    const argName = try vm.strings.insert("HexString");
+    try fun.locals.append(.{ .ValueVar = argName });
+
+    const loc = Location.new(0, 0, 0);
+
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(0, loc);
+    try fun.chunk.writeOp(.StringToCodepoint, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+pub fn createSurrogatePairCodepointValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@SurrogatePairCodepoint");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
+        .arity = 2,
+    });
+
+    const arg1 = try vm.strings.insert("HighSurrogate");
+    const arg2 = try vm.strings.insert("LowSurrogate");
+    try fun.locals.append(.{ .ValueVar = arg1 });
+    try fun.locals.append(.{ .ValueVar = arg2 });
+
+    const loc = Location.new(0, 0, 0);
+
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(0, loc);
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(1, loc);
+    try fun.chunk.writeOp(.StringsToCodepoint, loc);
     try fun.chunk.writeOp(.End, loc);
 
     return fun;

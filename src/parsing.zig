@@ -15,6 +15,22 @@ pub fn parseCodepoint(bytes: []const u8) ?u21 {
     }
 }
 
+pub fn parseSurrogatePair(highSurrogate: []const u8, lowSurrogate: []const u8) ?u21 {
+    if (std.fmt.parseInt(u16, highSurrogate, 16)) |high| {
+        if (std.fmt.parseInt(u16, lowSurrogate, 16)) |low| {
+            if (unicode.utf16IsHighSurrogate(high) and unicode.utf16IsLowSurrogate(low)) {
+                return unicode.utf16DecodeSurrogatePair(&[_]u16{ high, low }) catch return null;
+            } else {
+                return null;
+            }
+        } else |_| {
+            return null;
+        }
+    } else |_| {
+        return null;
+    }
+}
+
 pub fn numberStringFormat(bytes: []const u8) ?NumberString.Format {
     var scanner = Scanner.initInternal(bytes);
     const token = scanner.scanNumber();

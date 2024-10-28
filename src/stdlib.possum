@@ -321,11 +321,39 @@ json_number = number
 json_string = '"' > _json_string_body < '"'
 
 _json_string_body =
-  many(_escape_char | _escape_unicode | unless(char, `\` | '"')) | const("")
+  many(
+    _escaped_ctrl_char |
+    _escaped_unicode |
+    unless(char, _ctrl_char | `\` | '"')
+  ) | const("")
 
-_escape_char = `\"` | `\\` | `\/` | `\b` | `\f` | `\n` | `\r` | `\t`
+_ctrl_char = "\u000000".."\u00001F"
 
-_escape_unicode = `\u` + repeat(_hex, 4)
+_escaped_ctrl_char =
+  (`\"` $ `"`) |
+  (`\\` $ `\`) |
+  (`\/` $ `/`) |
+  (`\b` $ "\b") |
+  (`\f` $ "\f") |
+  (`\n` $ "\n") |
+  (`\r` $ "\r") |
+  (`\t` $ "\t")
+
+_escaped_unicode = _escaped_surrogate_pair | _escaped_codepoint
+
+_escaped_surrogate_pair = _valid_surrogate_pair | _invalid_surrogate_pair
+
+_valid_surrogate_pair =
+  _high_surrogate -> H & _low_surrogate -> L $ @SurrogatePairCodepoint(H, L)
+
+_invalid_surrogate_pair = _low_surrogate | _high_surrogate $ "\u00FFFD"
+
+_high_surrogate =
+  `\u` > ("D" | "d") + ("8" | "9" | "A" | "B" | "a" | "b") + _hex + _hex
+
+_low_surrogate = `\u` > ("D" | "d") + ("C".."F" | "c".."f") + _hex + _hex
+
+_escaped_codepoint = `\u` > repeat(_hex, 4) -> U $ @Codepoint(U)
 
 _hex = numeral | "a".."f" | "A".."F"
 

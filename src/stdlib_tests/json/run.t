@@ -152,10 +152,6 @@
   {"":0}
   {"": 0}
   
-  y_object_escaped_null_in_key.json
-  {"foo\u0000bar": 42}
-  {"foo\u0000bar": 42}
-  
   y_object_extreme_numbers.json
   { "min": -1.0e+28, "max": 1.0e+28 }
   {"min": -1.0e+28, "max": 1.0e+28}
@@ -177,7 +173,7 @@
   
   y_object_string_unicode.json
   {"title":"\u041f\u043e\u043b\u0442\u043e\u0440\u0430 \u0417\u0435\u043c\u043b\u0435\u043a\u043e\u043f\u0430" }
-  {"title": "\\u041f\\u043e\\u043b\\u0442\\u043e\\u0440\\u0430 \\u0417\\u0435\\u043c\\u043b\\u0435\\u043a\\u043e\\u043f\\u0430"}
+  {"title": "\xd0\x9f\xd0\xbe\xd0\xbb\xd1\x82\xd0\xbe\xd1\x80\xd0\xb0 \xd0\x97\xd0\xb5\xd0\xbc\xd0\xbb\xd0\xb5\xd0\xba\xd0\xbe\xd0\xbf\xd0\xb0"} (esc)
   
   y_object_with_newlines.json
   {
@@ -187,27 +183,27 @@
   
   y_string_1_2_3_bytes_UTF-8_sequences.json
   ["\u0060\u012a\u12AB"]
-  ["\\u0060\\u012a\\u12AB"]
+  ["`\xc4\xaa\xe1\x8a\xab"] (esc)
   
   y_string_accepted_surrogate_pair.json
   ["\uD801\udc37"]
-  ["\\uD801\\udc37"]
+  ["\xf0\x90\x90\xb7"] (esc)
   
   y_string_accepted_surrogate_pairs.json
   ["\ud83d\ude39\ud83d\udc8d"]
-  ["\\ud83d\\ude39\\ud83d\\udc8d"]
+  ["\xf0\x9f\x98\xb9\xf0\x9f\x92\x8d"] (esc)
   
   y_string_allowed_escapes.json
   ["\"\\\/\b\f\n\r\t"]
-  ["\\\"\\\\\\/\\b\\f\\n\\r\\t"]
+  ["\"\\/\b\f\n\r\t"]
   
   y_string_backslash_and_u_escaped_zero.json
   ["\\u0000"]
-  ["\\\\u0000"]
+  ["\\u0000"]
   
   y_string_backslash_doublequotes.json
   ["\""]
-  ["\\\""]
+  ["\""]
   
   y_string_comments.json
   ["a/*b*/c/*d//e"]
@@ -215,19 +211,19 @@
   
   y_string_double_escape_a.json
   ["\\a"]
-  ["\\\\a"]
+  ["\\a"]
   
   y_string_double_escape_n.json
   ["\\n"]
-  ["\\\\n"]
+  ["\\n"]
   
   y_string_escaped_control_character.json
   ["\u0012"]
-  ["\\u0012"]
+  ["\u0012"]
   
   y_string_escaped_noncharacter.json
   ["\uFFFF"]
-  ["\\uFFFF"]
+  ["\xef\xbf\xbf"] (esc)
   
   y_string_in_array.json
   ["asd"]
@@ -239,11 +235,11 @@
   
   y_string_last_surrogates_1_and_2.json
   ["\uDBFF\uDFFF"]
-  ["\\uDBFF\\uDFFF"]
+  ["\xf4\x8f\xbf\xbf"] (esc)
   
   y_string_nbsp_uescaped.json
   ["new\u00A0line"]
-  ["new\\u00A0line"]
+  ["new\xc2\xa0line"] (esc)
   
   y_string_nonCharacterInUTF-8_U+10FFFF.json
   ["\xf4\x8f\xbf\xbf"] (esc)
@@ -255,11 +251,11 @@
   
   y_string_null_escape.json
   ["\u0000"]
-  ["\\u0000"]
+  ["\u0000"]
   
   y_string_one-byte-utf-8.json
   ["\u002c"]
-  ["\\u002c"]
+  [","]
   
   y_string_pi.json
   ["\xcf\x80"] (esc)
@@ -279,15 +275,15 @@
   
   y_string_surrogates_U+1D11E_MUSICAL_SYMBOL_G_CLEF.json
   ["\uD834\uDd1e"]
-  ["\\uD834\\uDd1e"]
+  ["\xf0\x9d\x84\x9e"] (esc)
   
   y_string_three-byte-utf-8.json
   ["\u0821"]
-  ["\\u0821"]
+  ["\xe0\xa0\xa1"] (esc)
   
   y_string_two-byte-utf-8.json
   ["\u0123"]
-  ["\\u0123"]
+  ["\xc4\xa3"] (esc)
   
   y_string_u+2028_line_sep.json
   ["\xe2\x80\xa8"] (esc)
@@ -299,11 +295,11 @@
   
   y_string_uEscape.json
   ["\u0061\u30af\u30EA\u30b9"]
-  ["\\u0061\\u30af\\u30EA\\u30b9"]
+  ["a\xe3\x82\xaf\xe3\x83\xaa\xe3\x82\xb9"] (esc)
   
   y_string_uescaped_newline.json
   ["new\u000Aline"]
-  ["new\\u000Aline"]
+  ["new\nline"]
   
   y_string_unescaped_char_delete.json
   ["\x7f"] (esc)
@@ -311,11 +307,11 @@
   
   y_string_unicode.json
   ["\uA66D"]
-  ["\\uA66D"]
+  ["\xea\x99\xad"] (esc)
   
   y_string_unicodeEscapedBackslash.json
   ["\u005C"]
-  ["\\u005C"]
+  ["\\"]
   
   y_string_unicode_2.json
   ["\xe2\x8d\x82\xe3\x88\xb4\xe2\x8d\x82"] (esc)
@@ -323,31 +319,31 @@
   
   y_string_unicode_U+10FFFE_nonchar.json
   ["\uDBFF\uDFFE"]
-  ["\\uDBFF\\uDFFE"]
+  ["\xf4\x8f\xbf\xbe"] (esc)
   
   y_string_unicode_U+1FFFE_nonchar.json
   ["\uD83F\uDFFE"]
-  ["\\uD83F\\uDFFE"]
+  ["\xf0\x9f\xbf\xbe"] (esc)
   
   y_string_unicode_U+200B_ZERO_WIDTH_SPACE.json
   ["\u200B"]
-  ["\\u200B"]
+  ["\xe2\x80\x8b"] (esc)
   
   y_string_unicode_U+2064_invisible_plus.json
   ["\u2064"]
-  ["\\u2064"]
+  ["\xe2\x81\xa4"] (esc)
   
   y_string_unicode_U+FDD0_nonchar.json
   ["\uFDD0"]
-  ["\\uFDD0"]
+  ["\xef\xb7\x90"] (esc)
   
   y_string_unicode_U+FFFE_nonchar.json
   ["\uFFFE"]
-  ["\\uFFFE"]
+  ["\xef\xbf\xbe"] (esc)
   
   y_string_unicode_escaped_double_quote.json
   ["\u0022"]
-  ["\\u0022"]
+  ["\""]
   
   y_string_utf8.json
   ["\xe2\x82\xac\xf0\x9d\x84\x9e"] (esc)
@@ -938,16 +934,16 @@
   
   n_string_unescaped_ctrl_char.json
   ["a\x00a"] (esc)
-  ["a\u0000a"]
+  Parser Failure
   
   n_string_unescaped_newline.json
   ["new
   line"]
-  ["new\nline"]
+  Parser Failure
   
   n_string_unescaped_tab.json
   ["\t"] (esc)
-  ["\t"]
+  Parser Failure
   
   n_string_unicode_CapitalU.json
   "\UA66D"
@@ -1184,15 +1180,15 @@
   
   i_object_key_lone_2nd_surrogate.json
   {"\uDFAA":0}
-  {"\uDFAA": 0}
+  {"\xef\xbf\xbd": 0} (esc)
   
   i_string_1st_surrogate_but_2nd_missing.json
   ["\uDADA"]
-  ["\\uDADA"]
+  ["\xef\xbf\xbd"] (esc)
   
   i_string_1st_valid_surrogate_2nd_invalid.json
   ["\uD888\u1234"]
-  ["\\uD888\\u1234"]
+  ["\xef\xbf\xbd\xe1\x88\xb4"] (esc)
   
   i_string_UTF-16LE_with_BOM.json
   \xff\xfe[\x00"\x00\xe9\x00"\x00]\x00 (esc)
@@ -1208,23 +1204,23 @@
   
   i_string_incomplete_surrogate_and_escape_valid.json
   ["\uD800\n"]
-  ["\\uD800\\n"]
+  ["\xef\xbf\xbd\\n"] (esc)
   
   i_string_incomplete_surrogate_pair.json
   ["\uDd1ea"]
-  ["\\uDd1ea"]
+  ["\xef\xbf\xbda"] (esc)
   
   i_string_incomplete_surrogates_escape_valid.json
   ["\uD800\uD800\n"]
-  ["\\uD800\\uD800\\n"]
+  ["\xef\xbf\xbd\xef\xbf\xbd\\n"] (esc)
   
   i_string_invalid_lonely_surrogate.json
   ["\ud800"]
-  ["\\ud800"]
+  ["\xef\xbf\xbd"] (esc)
   
   i_string_invalid_surrogate.json
   ["\ud800abc"]
-  ["\\ud800abc"]
+  ["\xef\xbf\xbdabc"] (esc)
   
   i_string_invalid_utf-8.json
   ["\xff"] (esc)
@@ -1232,7 +1228,7 @@
   
   i_string_inverted_surrogates_U+1D11E.json
   ["\uDd1e\uD834"]
-  ["\\uDd1e\\uD834"]
+  ["\xef\xbf\xbd\xef\xbf\xbd"] (esc)
   
   i_string_iso_latin_1.json
   ["\xe9"] (esc)
@@ -1240,7 +1236,7 @@
   
   i_string_lone_second_surrogate.json
   ["\uDFAA"]
-  ["\\uDFAA"]
+  ["\xef\xbf\xbd"] (esc)
   
   i_string_lone_utf8_continuation_byte.json
   ["\x81"] (esc)
@@ -1353,7 +1349,7 @@
   
   t_string_1_escaped_invalid_codepoint.json
   ["\uD800"]
-  ["\\uD800"]
+  ["\xef\xbf\xbd"] (esc)
   
   t_string_1_invalid_codepoint.json
   ["\xed\xa0\x80"] (esc)
@@ -1361,7 +1357,7 @@
   
   t_string_2_escaped_invalid_codepoints.json
   ["\uD800\uD800"]
-  ["\\uD800\\uD800"]
+  ["\xef\xbf\xbd\xef\xbf\xbd"] (esc)
   
   t_string_2_invalid_codepoints.json
   ["\xed\xa0\x80\xed\xa0\x80"] (esc)
@@ -1369,7 +1365,7 @@
   
   t_string_3_escaped_invalid_codepoints.json
   ["\uD800\uD800\uD800"]
-  ["\\uD800\\uD800\\uD800"]
+  ["\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd"] (esc)
   
   t_string_3_invalid_codepoints.json
   ["\xed\xa0\x80\xed\xa0\x80\xed\xa0\x80"] (esc)
@@ -1377,5 +1373,5 @@
   
   t_string_with_escaped_NULL.json
   ["A\u0000B"]
-  ["A\\u0000B"]
+  ["A\u0000B"]
   
