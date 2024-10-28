@@ -13,7 +13,7 @@ pub fn build(b: *Build) void {
     releaseStep(b);
 }
 
-const version: SemanticVersion = .{ .major = 0, .minor = 8, .patch = 0 };
+const version: SemanticVersion = .{ .major = 0, .minor = 9, .patch = 0 };
 
 fn versionString(b: *Build) []const u8 {
     return b.fmt("{d}.{d}.{d}", .{ version.major, version.minor, version.patch });
