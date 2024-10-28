@@ -98,6 +98,17 @@ _number_fraction_part = "." + numerals
 
 _number_exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
 
+hex_numeral = numeral | "a".."f" | "A".."F"
+
+hex_digit =
+  digit |
+  ("a" | "A" $ 10) |
+  ("b" | "B" $ 11) |
+  ("c" | "C" $ 12) |
+  ("d" | "D" $ 13) |
+  ("e" | "E" $ 14) |
+  ("f" | "F" $ 15)
+
 true(t) = t $ true
 
 false(f) = f $ false
@@ -349,13 +360,12 @@ _valid_surrogate_pair =
 _invalid_surrogate_pair = _low_surrogate | _high_surrogate $ "\u00FFFD"
 
 _high_surrogate =
-  `\u` > ("D" | "d") + ("8" | "9" | "A" | "B" | "a" | "b") + _hex + _hex
+  `\u` > ("D" | "d") + ("8" | "9" | "A" | "B" | "a" | "b") + hex_numeral + hex_numeral
 
-_low_surrogate = `\u` > ("D" | "d") + ("C".."F" | "c".."f") + _hex + _hex
+_low_surrogate =
+  `\u` > ("D" | "d") + ("C".."F" | "c".."f") + hex_numeral + hex_numeral
 
-_escaped_codepoint = `\u` > repeat(_hex, 4) -> U $ @Codepoint(U)
-
-_hex = numeral | "a".."f" | "A".."F"
+_escaped_codepoint = `\u` > repeat(hex_numeral, 4) -> U $ @Codepoint(U)
 
 json_array(elem) = "[" > maybe_array_sep(surround(elem, maybe(ws)), ",") < "]"
 

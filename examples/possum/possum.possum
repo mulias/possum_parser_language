@@ -81,9 +81,7 @@ quoted_string_body(end_quote) =
 string_escape_char =
   `\0` | `\b` | `\t` | `\n` | `\v` | `\f` | `\r` | `\'` | `\"` | `\\`
 
-string_escape_unicode = `\u` + repeat(hex, 6)
-
-hex = numeral | "a".."f" | "A".."F"
+string_escape_unicode = `\u` + repeat(hex_numeral, 6)
 
 backtick_string_body = chars_until("`") | const("")
 

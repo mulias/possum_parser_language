@@ -16,6 +16,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `uppers`           | One or more `upper`s       | Matched string             |
 | `numeral`          | One Arabic numeral, "0" to "9" | Matched string         |
 | `numerals`         | One or more `numeral`s     | Matched string             |
+| `hex_numeral`      | One hexadecimal numeral, "0" to "9", "a" to "f", or "A" to "F" | Matched string |
 | `alnum`            | One `alpha` or `numeral`   | Matched string             |
 | `alnums`           | One or more `alnum`s       | Matched string             |
 | `token`            | One or more non-whitespace characters | Matched string  |
@@ -36,6 +37,7 @@ These parsers and value functions are always available in Possum programs, unles
 | Parser             | Match Behavior             | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
 | `digit`            | One Arabic numeral, "0" to "9" | Integer number between 0 and 9 |
+| `hex_digit`        | One hexadecimal numeral, "0" to "9", "a" to "f", or "A" to "F" | Integer number between 0 and 15 |
 | `integer`          | Valid JSON integer         | Integer number             |
 | `int`              | Alias for `integer`        | As above                   |
 | `non_negative_integer` | Valid JSON integer without a leading minus sign | Integer number greater than or equal to zero |
@@ -47,7 +49,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `num`              | Alias for `number`         | As above |
 | `json_number`      | Alias for `number`         | As above |
 | `non_negative_number` | Valid JSON number without a leading minus sign | Integer number greater than or equal to zero |
-| `negative_number` | Valid JSON number with a leading minus sign | Integer number less than or equal to `-0` |
+| `negative_number`  | Valid JSON number with a leading minus sign | Integer number less than or equal to `-0` |
 
 ## Constant Parsers
 
@@ -57,9 +59,9 @@ These parsers and value functions are always available in Possum programs, unles
 | `false(f)`         | Parses `f`                 | `false`                    |
 | `boolean(t, f)`    | Parses `t` or `f`          | `true` or `false`          |
 | `bool(t, f)`       | Alias for `boolean`        | As above                   |
-| `json_boolean`     | Json "true" or "false" keyword | `true` or `false`      |
+| `json_boolean`     | JSON "true" or "false" keyword | `true` or `false`      |
 | `null(n)`          | Parses `n`                 | `null`                     |
-| `json_null`        | Json "null" keyword        | `null`                     |
+| `json_null`        | JSON "null" keyword        | `null`                     |
 
 ## Repeated Value Parsers
 

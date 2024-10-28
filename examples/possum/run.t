@@ -877,31 +877,10 @@
           "right": {
             "type": "call_or_define_function",
             "value": [
-              {"type": "parser_variable", "name": "hex", "is_meta": false, "is_underscored": false},
+              {"type": "parser_variable", "name": "hex_numeral", "is_meta": false, "is_underscored": false},
               {"type": "number", "value": 6}
             ],
             "postfixed": {"type": "parser_variable", "name": "repeat", "is_meta": false, "is_underscored": false}
-          }
-        }
-      },
-      {
-        "type": "assign",
-        "left": {"type": "parser_variable", "name": "hex", "is_meta": false, "is_underscored": false},
-        "right": {
-          "type": "or",
-          "left": {
-            "type": "or",
-            "left": {"type": "parser_variable", "name": "numeral", "is_meta": false, "is_underscored": false},
-            "right": {
-              "type": "range",
-              "left": {"type": "string", "value": "a"},
-              "right": {"type": "string", "value": "f"}
-            }
-          },
-          "right": {
-            "type": "range",
-            "left": {"type": "string", "value": "A"},
-            "right": {"type": "string", "value": "F"}
           }
         }
       },
