@@ -1278,11 +1278,9 @@ pub const Compiler = struct {
             },
             .ElemNode => |elem| switch (elem) {
                 .String => {
-                    std.debug.print("{s}\n", .{self.vm.strings.get(elem.String)});
                     return error.UnlabeledStringValue;
                 },
                 .NumberString => {
-                    std.debug.print("{s}\n", .{self.vm.strings.get(elem.NumberString.sId)});
                     return error.UnlabeledNumberValue;
                 },
                 .Boolean => return error.UnlabeledBooleanValue,
