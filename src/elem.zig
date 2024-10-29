@@ -997,6 +997,12 @@ pub const Elem = union(ElemType) {
                 return object;
             }
 
+            pub fn copy(vm: *VM, other: *Object) !*Object {
+                const obj = try create(vm, other.members.count());
+                try obj.concat(other);
+                return obj;
+            }
+
             pub fn destroy(self: *Object, vm: *VM) void {
                 self.members.deinit();
                 vm.allocator.destroy(self);

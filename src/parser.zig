@@ -652,30 +652,69 @@ pub const Parser = struct {
         }
     }
 
-    fn object(self: *Parser) !*Ast.LocNode {
+    fn object(self: *Parser) Error!*Ast.LocNode {
         const loc = self.previous.loc;
-        var a = try Elem.Dyn.Object.create(self.vm, 0);
-        const elem_loc_node = try self.ast.createElem(a.dyn.elem(), loc);
+        var o = try Elem.Dyn.Object.create(self.vm, 0);
+        const elem_loc_node = try self.ast.createElem(o.dyn.elem(), loc);
 
         if (try self.match(.RightBrace)) {
             return elem_loc_node;
+        } else if (try self.match(.DotDotDot)) {
+            return self.objectSpread(elem_loc_node);
         } else {
-            const object_members = try self.objectMembers();
-            try self.consume(.RightBrace, "Expected closing '}'");
+            return self.objectNonEmpty(elem_loc_node);
+        }
+    }
 
-            return self.ast.createInfix(
-                .ObjectCons,
-                elem_loc_node,
-                object_members,
-                loc,
-            );
+    fn objectNonEmpty(self: *Parser, head: *Ast.LocNode) !*Ast.LocNode {
+        const loc = self.previous.loc;
+        const members = try self.objectMembers();
+
+        const left_object = try self.ast.createInfix(
+            .ObjectCons,
+            head,
+            members,
+            loc,
+        );
+
+        if (try self.match(.DotDotDot)) {
+            return try self.objectSpread(left_object);
+        } else {
+            try self.consume(.RightBrace, "Expected closing '}'");
+            return left_object;
+        }
+    }
+
+    fn objectSpread(self: *Parser, left: *Ast.LocNode) !*Ast.LocNode {
+        const dots = self.previous;
+        const spread = try self.expression();
+
+        const left_merge = try self.ast.createInfix(
+            .Merge,
+            left,
+            spread,
+            Location.new(
+                dots.loc.line,
+                dots.loc.start,
+                dots.loc.length + spread.loc.length,
+            ),
+        );
+
+        if (try self.match(.Comma)) {
+            const comma_loc = self.previous.loc;
+            const right_object = try self.object();
+
+            return self.ast.createInfix(.Merge, left_merge, right_object, comma_loc);
+        } else {
+            try self.consume(.RightBrace, "Expected closing '}'");
+            return left_merge;
         }
     }
 
     fn objectMembers(self: *Parser) !*Ast.LocNode {
         const pair = try self.objectPair();
 
-        if (try self.match(.Comma)) {
+        if (try self.match(.Comma) and !self.check(.DotDotDot)) {
             const commaLoc = self.previous.loc;
             return self.ast.createInfix(
                 .ObjectCons,
@@ -689,9 +728,8 @@ pub const Parser = struct {
     }
 
     fn objectPair(self: *Parser) !*Ast.LocNode {
-        const pairLoc = self.current.loc;
-
         var key: *Ast.LocNode = undefined;
+
         if (try self.match(.UppercaseIdentifier)) {
             key = try self.valueVar();
         } else {
@@ -707,7 +745,11 @@ pub const Parser = struct {
             .ObjectPair,
             key,
             val,
-            pairLoc,
+            Location.new(
+                key.loc.line,
+                key.loc.start,
+                key.loc.length + val.loc.length,
+            ),
         );
     }
 

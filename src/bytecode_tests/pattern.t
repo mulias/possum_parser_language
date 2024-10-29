@@ -434,6 +434,148 @@
   0039    | End
   ========================================
 
+  $ possum -p 'const({"a": 1, "b": 2}) -> {"a": _, "b": _}' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: _
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: {"a": 1, "b": 2}
+  0006    | CallFunction 1
+  0008    | GetConstant 3: {"a": _, "b": _}
+  0010    | Destructure
+  0011    | JumpIfFailure 11 -> 37
+  0014    | GetAtKey 4: "a"
+  0016    | GetLocal 0
+  0018    | Destructure
+  0019    | JumpIfFailure 19 -> 35
+  0022    | Pop
+  0023    | GetAtKey 5: "b"
+  0025    | GetLocal 0
+  0027    | Destructure
+  0028    | JumpIfFailure 28 -> 35
+  0031    | Pop
+  0032    | JumpIfSuccess 32 -> 37
+  0035    | Swap
+  0036    | Pop
+  0037    | End
+  ========================================
+
+  $ possum -p 'const({"a": 1, "b": 2}) -> ({"a": 1} + B)' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: B
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: {"a": 1, "b": 2}
+  0006    | CallFunction 1
+  0008    | GetConstant 3: {"a": 1}
+  0010    | GetLocal 0
+  0012    | PrepareMergePattern 2
+  0014    | JumpIfFailure 14 -> 44
+  0017    | GetConstant 4: {"a": 1}
+  0019    | Destructure
+  0020    | JumpIfFailure 20 -> 28
+  0023    | JumpIfSuccess 23 -> 28
+  0026    | Swap
+  0027    | Pop
+  0028    | JumpIfFailure 28 -> 42
+  0031    | Pop
+  0032    | GetLocal 0
+  0034    | Destructure
+  0035    | JumpIfFailure 35 -> 42
+  0038    | Pop
+  0039    | JumpIfSuccess 39 -> 44
+  0042    | Swap
+  0043    | Pop
+  0044    | End
+  ========================================
+
+  $ possum -p 'const({"a": 1, "b": 2}) -> ({"b": 2} + A)' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: A
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: {"a": 1, "b": 2}
+  0006    | CallFunction 1
+  0008    | GetConstant 3: {"b": 2}
+  0010    | GetLocal 0
+  0012    | PrepareMergePattern 2
+  0014    | JumpIfFailure 14 -> 44
+  0017    | GetConstant 4: {"b": 2}
+  0019    | Destructure
+  0020    | JumpIfFailure 20 -> 28
+  0023    | JumpIfSuccess 23 -> 28
+  0026    | Swap
+  0027    | Pop
+  0028    | JumpIfFailure 28 -> 42
+  0031    | Pop
+  0032    | GetLocal 0
+  0034    | Destructure
+  0035    | JumpIfFailure 35 -> 42
+  0038    | Pop
+  0039    | JumpIfSuccess 39 -> 44
+  0042    | Swap
+  0043    | Pop
+  0044    | End
+  ========================================
+
+  $ possum -p 'const({"a": 1, "b": 2}) -> (A + {"b": 2})' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: A
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: {"a": 1, "b": 2}
+  0006    | CallFunction 1
+  0008    | GetLocal 0
+  0010    | GetConstant 3: {"b": 2}
+  0012    | PrepareMergePattern 2
+  0014    | JumpIfFailure 14 -> 44
+  0017    | GetLocal 0
+  0019    | Destructure
+  0020    | JumpIfFailure 20 -> 42
+  0023    | Pop
+  0024    | GetConstant 4: {"b": 2}
+  0026    | Destructure
+  0027    | JumpIfFailure 27 -> 35
+  0030    | JumpIfSuccess 30 -> 35
+  0033    | Swap
+  0034    | Pop
+  0035    | JumpIfFailure 35 -> 42
+  0038    | Pop
+  0039    | JumpIfSuccess 39 -> 44
+  0042    | Swap
+  0043    | Pop
+  0044    | End
+  ========================================
+
+  $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, ...B}' -i ''
+  
+  =================@main==================
+  0000    1 GetConstant 0: B
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: {"a": 1, "b": 2}
+  0006    | CallFunction 1
+  0008    | GetConstant 3: {"a": 1}
+  0010    | GetLocal 0
+  0012    | PrepareMergePattern 2
+  0014    | JumpIfFailure 14 -> 44
+  0017    | GetConstant 4: {"a": 1}
+  0019    | Destructure
+  0020    | JumpIfFailure 20 -> 28
+  0023    | JumpIfSuccess 23 -> 28
+  0026    | Swap
+  0027    | Pop
+  0028    | JumpIfFailure 28 -> 42
+  0031    | Pop
+  0032    | GetLocal 0
+  0034    | Destructure
+  0035    | JumpIfFailure 35 -> 42
+  0038    | Pop
+  0039    | JumpIfSuccess 39 -> 44
+  0042    | Swap
+  0043    | Pop
+  0044    | End
+  ========================================
+
   $ possum -p '2 -> 0..5' -i '2'
   
   =================@main==================

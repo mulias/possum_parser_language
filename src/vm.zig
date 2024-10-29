@@ -1022,7 +1022,7 @@ pub const VM = struct {
                             return self.runtimeError("Merge type mismatch in pattern", .{});
                         }
 
-                        // Post happends before pre because backwards
+                        // Post happens before pre because backwards
                         const strLen = dyn.asString().len();
                         if (foundUnboundVar) {
                             context.String.preVarLength += strLen;
@@ -1037,7 +1037,7 @@ pub const VM = struct {
                             return self.runtimeError("Merge type mismatch in pattern", .{});
                         }
 
-                        // Post happends before pre because backwards
+                        // Post happens before pre because backwards
                         const len = dyn.asArray().elems.items.len;
                         if (foundUnboundVar) {
                             context.Array.preVarLength += len;
@@ -1151,7 +1151,49 @@ pub const VM = struct {
                     try self.pushFailure();
                 }
             },
-            .Object => {},
+            .Object => {
+                if (value.isDynType(.Object)) {
+                    const valueObj = value.asDyn().asObject();
+
+                    var unboundObj: ?*Elem.Dyn.Object = null;
+                    if (foundUnboundVar) unboundObj = try Elem.Dyn.Object.copy(self, valueObj);
+
+                    // For each pattern segment, copy a subset of valueObj
+                    // containing the keys in the pattern. If there is an
+                    // unbound variable, make a copy of valueObj and delete
+                    // keys that are in other pattern segments.
+                    for (patternSegments, 0..) |segment, i| {
+                        if (segment == .ValueVar) {
+                            patternSegments[i] = unboundObj.?.dyn.elem();
+                        } else {
+                            const segmentObj = segment.asDyn().asObject();
+
+                            const subObj = try Elem.Dyn.Object.create(self, segmentObj.members.count());
+
+                            var iterator = segmentObj.members.iterator();
+                            while (iterator.next()) |entry| {
+                                if (valueObj.members.get(entry.key_ptr.*)) |val| {
+                                    try subObj.members.put(entry.key_ptr.*, val);
+                                }
+                                if (unboundObj) |unbound| {
+                                    _ = unbound.members.orderedRemove(entry.key_ptr.*);
+                                }
+                            }
+
+                            patternSegments[i] = subObj.dyn.elem();
+                        }
+                    }
+
+                    var i = patternSegments.len;
+                    while (i > 0) {
+                        i -= 1;
+                        try self.push(patternSegments[i]);
+                    }
+                } else {
+                    _ = self.pop();
+                    try self.pushFailure();
+                }
+            },
             .String => |sc| {
                 const valueString = value.stringBytes(self.*);
 

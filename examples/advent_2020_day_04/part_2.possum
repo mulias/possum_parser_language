@@ -1,0 +1,35 @@
+birth_year = 1920..2002
+issue_year = 2010..2020
+exp_year = 2020..2030
+
+height = tuple2(150..193, "cm") | tuple2(59..76, "in")
+
+hair_color = "#" > repeat(hex_numeral, $6)
+eye_color = "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth"
+
+passport_id = repeat(numeral, $9)
+
+field(key, val) = pair_sep(key, ":", val) < peek(ws | end)
+
+valid_field =
+  field("byr", birth_year) |
+  field("iyr", issue_year) |
+  field("eyr", exp_year) |
+  field("hgt", height) |
+  field("hcl", hair_color) |
+  field("ecl", eye_color) |
+  field("pid", passport_id)
+
+invalid_field = field(alphas, token)
+
+passport = many_sep(valid_field | skip(invalid_field), space | nl)
+
+count_valid_passport = passport -> Passport $ CountIsValid(Passport)
+
+CountIsValid(Passport) =
+  Passport -> {
+    "byr": _, "iyr": _, "eyr": _, "hgt": _,
+    "hcl": _, "ecl": _, "pid": _, ..._
+  } ? 1 : 0
+
+many_sep(count_valid_passport, nl+nl)

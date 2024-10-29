@@ -158,17 +158,12 @@ pub const Compiler = struct {
                 else => return Error.InvalidAst,
             },
             .ElemNode => |nameElem| switch (body.node) {
-                .InfixNode,
-                .UpperBoundedRange,
-                .LowerBoundedRange,
-                .Negation,
-                .ValueLabel,
-                => {
-                    // A function without params
-                    try self.declareGlobalFunction(head, null);
-                },
                 .ElemNode => |bodyElem| {
                     try self.declareGlobalAlias(nameElem, bodyElem);
+                },
+                else => {
+                    // A function without params
+                    try self.declareGlobalFunction(head, null);
                 },
             },
             .UpperBoundedRange,
@@ -723,12 +718,7 @@ pub const Compiler = struct {
                     => @panic("Internal Error"),
                 }
             },
-            .InfixNode,
-            .UpperBoundedRange,
-            .LowerBoundedRange,
-            .Negation,
-            .ValueLabel,
-            => @panic("Internal Error"),
+            else => @panic("Internal Error"),
         }
     }
 
