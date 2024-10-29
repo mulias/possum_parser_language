@@ -618,28 +618,35 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 }
             },
+            .Negation => |inner| {
+                const negated = try negateParserNumber(inner);
+                const constId = try self.makeConstant(negated);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
+                try self.emitUnaryOp(.CallFunction, 0, loc);
+            },
             .ElemNode => try self.writeParserElem(loc_node),
-            .Negation,
             .ValueLabel,
             => return Error.InvalidAst,
         }
     }
 
-    fn getParserRangeElemNode(loc_node: *Ast.LocNode) !Elem {
-        switch (loc_node.node) {
-            .ElemNode => |elem| return elem,
-            .Negation => |inner| {
-                if (inner.node.asElem()) |elem| {
-                    const negated = Elem.negateNumber(elem) catch |err| switch (err) {
-                        error.ExpectedNumber => return Error.InvalidAst,
-                    };
-                    return negated;
-                } else {
-                    return Error.InvalidAst;
-                }
-            },
-            else => return Error.InvalidAst,
+    fn negateParserNumber(loc_node: *Ast.LocNode) !Elem {
+        if (loc_node.node.asElem()) |elem| {
+            const negated = Elem.negateNumber(elem) catch |err| switch (err) {
+                error.ExpectedNumber => return Error.InvalidAst,
+            };
+            return negated;
+        } else {
+            return Error.InvalidAst;
         }
+    }
+
+    fn getParserRangeElemNode(loc_node: *Ast.LocNode) !Elem {
+        return switch (loc_node.node) {
+            .ElemNode => |elem| elem,
+            .Negation => |inner| negateParserNumber(inner),
+            else => Error.InvalidAst,
+        };
     }
 
     fn writeParserFunctionCall(self: *Compiler, function_loc_node: *Ast.LocNode, args_loc_node: *Ast.LocNode, isTailPosition: bool) !void {

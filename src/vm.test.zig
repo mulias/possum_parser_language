@@ -85,6 +85,37 @@ test "'a' > 'b' > 'c' | 'abz'" {
     }
 }
 
+test "-37" {
+    const parser =
+        \\-37
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret(parser, "-37"),
+            try Elem.numberString("-37", .Integer, &vm),
+            vm,
+        );
+    }
+}
+
+test "--37" {
+    const parser =
+        \\--37
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.InvalidAst,
+            vm.interpret(parser, "--37"),
+        );
+    }
+}
+
 test "1234 | 5678 | 910" {
     const parser =
         \\ 1234 | 5678 | 910
