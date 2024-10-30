@@ -25,8 +25,9 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
   56,12,83,30,8,76,1,78,82,39,98,37,19,26,81,64,55,41,16,4,72,5
   52,80,84,67,21,86,23,91,0,68,36,13,44,20,69,40,90
   96,27,77,38,49,94,47,9,65,28,59,79,6,29,61,53,11,17,73,99,25,89,51,7,33,85,70
+```
 
-
+```
   $ possum --parser='table_sep(int, ",", nl)' numbers.txt
   [
     [31, 88, 35, 24, 46, 48, 95, 42, 18, 43, 71, 32, 92, 62, 97, 63, 50, 2, 60, 58, 74, 66],
@@ -51,14 +52,16 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
   3,4 -> 1,4
   0,0 -> 8,8
   5,5 -> 8,2
+```
 
-
+```
   $ cat lines_parser.possum
   point = tuple2_sep(int, ",", int)
   line = record2_sep($"from", point, " -> ", $"to", point)
   array_sep(line, nl)
+```
 
-
+```
   $ possum lines_parser.possum lines.txt
   [
     {
@@ -89,8 +92,9 @@ This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/S
 
   (display "Fibonacci of 10 is ")
   (display (fib 10))
+```
 
-
+```
   $ cat lisp_ast
   #!/usr/bin/env possum
 
@@ -110,8 +114,9 @@ This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/S
 
   non_atom_char = "(" | ")" | '"' | space | newline
   atom = chars_until(non_atom_char)
+```
 
-
+```
   $ lisp_ast fibonacci.rkt
   {
     "type": "program",
@@ -157,8 +162,9 @@ This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/S
     Fib(N - 1) + Fib(N - 2)
 
   int -> N $ "Fibonacci of %(N) is %(Fib(N))"
+```
 
-
+```
   $ possum fibonacci.possum --input=10
   "Fibonacci of 10 is 55"
 ```
