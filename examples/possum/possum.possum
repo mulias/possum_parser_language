@@ -111,31 +111,22 @@ AppendNonEmptyString(TemplateParts, Str) =
 
 number_node = ast_node($"number", number)
 
-parser_variable_node =
+variable_node(Type, name_format) =
   peek(tuple2(
     boolean("@", succeed),
     boolean(many("_"), succeed)
   )) -> [IsMeta, IsUnderscored] &
-  maybe("@") + maybe_many("_") + lower + maybe(word) -> Name $
+  maybe("@") + maybe_many("_") + name_format -> Name $
   {
-    "type": "parser_variable",
+    "type": Type,
     "name": Name,
     "is_meta": IsMeta,
     "is_underscored": IsUnderscored
   }
 
-value_variable_node =
-  peek(tuple2(
-    boolean("@", succeed),
-    boolean(many("_"), succeed)
-  )) -> [IsMeta, IsUnderscored] &
-  maybe("@") + maybe_many("_") + upper + maybe(word) -> Name $
-  {
-    "type": "value_variable",
-    "name": Name,
-    "is_meta": IsMeta,
-    "is_underscored": IsUnderscored
-  }
+parser_variable_node = variable_node($"parser_variable", lower + maybe(word))
+
+value_variable_node = variable_node($"value_variable", upper + maybe(word))
 
 underscore_variable_node = ast_node($"underscore_variable", many("_"))
 
