@@ -14,5 +14,5 @@ expr =
 
 apply = "(" > maybe_array_sep(expr, w) < ")"
 
-non_atom_char = "(" | ")" | '"' | space | newline
-atom = chars_until(non_atom_char)
+atom = chars_until(non_atom)
+non_atom = "(" | ")" | '"' | space | newline

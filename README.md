@@ -112,8 +112,8 @@ This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/S
 
   apply = "(" > maybe_array_sep(expr, w) < ")"
 
-  non_atom_char = "(" | ")" | '"' | space | newline
-  atom = chars_until(non_atom_char)
+  atom = chars_until(non_atom)
+  non_atom = "(" | ")" | '"' | space | newline
 ```
 
 ```
