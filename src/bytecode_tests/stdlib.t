@@ -1,6 +1,6 @@
   $ export PRINT_COMPILED_BYTECODE=true RUN_VM=false
 
-  $ possum $TESTDIR/../stdlib.possum -i ''
+  $ possum $TESTDIR/../../stdlib/core.possum -i ''
   
   ==================char==================
   0000    1 ParseCharacter

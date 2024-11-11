@@ -2,7 +2,7 @@
 
 set -e
 
-zig test src/tests.zig
+zig build test
 
 ./bin/test-snapshot ./examples/
 ./bin/test-snapshot ./src/parser_tests/

@@ -158,7 +158,7 @@ pub const VM = struct {
     }
 
     fn loadStdlib(self: *VM) !void {
-        const stdlibSource = @embedFile("./stdlib.possum");
+        const stdlibSource = @embedFile("stdlib/core.possum");
         var parser = Parser.init(self);
         defer parser.deinit();
 

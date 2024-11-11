@@ -34,6 +34,7 @@ fn addCliExecutable(b: *Build, name: []const u8, target: anytype, optimize: anyt
     cli.root_module.addImport("clap", clap_module);
 
     addDocImports(b, cli);
+    addStdlibImports(b, cli);
     addBuildOptions(b, cli);
 
     return cli;
@@ -51,6 +52,8 @@ fn addWasmExecutable(b: *Build, name: []const u8) *Build.Step.Compile {
     });
     wasm.entry = .disabled;
     wasm.rdynamic = true;
+
+    addStdlibImports(b, wasm);
 
     return wasm;
 }
@@ -76,6 +79,12 @@ fn addDocImports(b: *Build, exe: *Build.Step.Compile) void {
             .root_source_file = output,
         });
     }
+}
+
+fn addStdlibImports(b: *Build, exe: *Build.Step.Compile) void {
+    exe.root_module.addAnonymousImport("stdlib/core.possum", .{
+        .root_source_file = b.path("stdlib/core.possum"),
+    });
 }
 
 fn addBuildOptions(b: *Build, exe: *Build.Step.Compile) void {
@@ -114,6 +123,8 @@ fn testStep(b: *Build, target: anytype, optimize: anytype) void {
         .target = target,
         .optimize = optimize,
     });
+
+    addStdlibImports(b, unit_tests);
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
