@@ -655,14 +655,16 @@ pub const Parser = struct {
     fn object(self: *Parser) Error!*Ast.LocNode {
         const loc = self.previous.loc;
         var o = try Elem.Dyn.Object.create(self.vm, 0);
-        const elem_loc_node = try self.ast.createElem(o.dyn.elem(), loc);
 
-        if (try self.match(.RightBrace)) {
-            return elem_loc_node;
-        } else if (try self.match(.DotDotDot)) {
-            return self.objectSpread(elem_loc_node);
+        if (try self.match(.DotDotDot)) {
+            return self.objectSpread(null);
         } else {
-            return self.objectNonEmpty(elem_loc_node);
+            const elem_loc_node = try self.ast.createElem(o.dyn.elem(), loc);
+            if (try self.match(.RightBrace)) {
+                return elem_loc_node;
+            } else {
+                return self.objectNonEmpty(elem_loc_node);
+            }
         }
     }
 
@@ -685,29 +687,34 @@ pub const Parser = struct {
         }
     }
 
-    fn objectSpread(self: *Parser, left: *Ast.LocNode) !*Ast.LocNode {
+    fn objectSpread(self: *Parser, left: ?*Ast.LocNode) !*Ast.LocNode {
         const dots = self.previous;
         const spread = try self.expression();
+        var new_left: *Ast.LocNode = undefined;
 
-        const left_merge = try self.ast.createInfix(
-            .Merge,
-            left,
-            spread,
-            Location.new(
-                dots.loc.line,
-                dots.loc.start,
-                dots.loc.length + spread.loc.length,
-            ),
-        );
+        if (left) |left_node| {
+            new_left = try self.ast.createInfix(
+                .Merge,
+                left_node,
+                spread,
+                Location.new(
+                    dots.loc.line,
+                    dots.loc.start,
+                    dots.loc.length + spread.loc.length,
+                ),
+            );
+        } else {
+            new_left = spread;
+        }
 
         if (try self.match(.Comma)) {
             const comma_loc = self.previous.loc;
             const right_object = try self.object();
 
-            return self.ast.createInfix(.Merge, left_merge, right_object, comma_loc);
+            return self.ast.createInfix(.Merge, new_left, right_object, comma_loc);
         } else {
             try self.consume(.RightBrace, "Expected closing '}'");
-            return left_merge;
+            return new_left;
         }
     }
 

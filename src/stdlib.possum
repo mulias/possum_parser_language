@@ -265,7 +265,7 @@ object(key, value) =
 
 _object(key, value, Acc) =
   key -> K & value -> V ?
-  _object(key, value, Acc + {K: V}) :
+  _object(key, value, {...Acc, K: V}) :
   const(Acc)
 
 object_sep(key, pair_sep, value, sep) =
@@ -280,7 +280,7 @@ object_until(key, value, stop) =
 _object_until(key, value, stop, Acc) =
   peek(stop) ?
   const(Acc) :
-  key -> K & value -> V & _object_until(key, value, stop, Acc + {K: V})
+  key -> K & value -> V & _object_until(key, value, stop, {...Acc, K: V})
 
 maybe_object(key, value) = default(object(key, value), {})
 
@@ -389,7 +389,7 @@ _ast_with_precedence_start(operand, prefix, infix, postfix, LeftBindingPower) =
     _ast_with_precedence_rest(
       operand, prefix, infix, postfix,
       LeftBindingPower,
-      OpNode + {"prefixed": PrefixedNode}
+      {...OpNode, "prefixed": PrefixedNode}
     )
   ) : (
     operand -> Node &
@@ -402,7 +402,7 @@ _ast_with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Nod
     _ast_with_precedence_rest(
       operand, prefix, infix, postfix,
       LeftBindingPower,
-      OpNode + {"postfixed": Node}
+      {...OpNode, "postfixed": Node}
     )
   ) :
   infix -> [OpNode, RightBindingPower, NextLeftBindingPower] &
@@ -414,7 +414,7 @@ _ast_with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Nod
     _ast_with_precedence_rest(
       operand, prefix, infix, postfix,
       LeftBindingPower,
-      OpNode + {"left": Node, "right": RightNode}
+      {...OpNode, "left": Node, "right": RightNode}
     )
   ) :
   const(Node)
@@ -440,7 +440,7 @@ ZipIntoObject(Keys, Values) = _ZipIntoObject(Keys, Values, {})
 
 _ZipIntoObject(Keys, Values, Acc) =
   Keys -> [K, ...KeysRest] & Values -> [V, ...ValuesRest] ?
-  _ZipIntoObject(KeysRest, ValuesRest, Acc + {K: V}) :
+  _ZipIntoObject(KeysRest, ValuesRest, {...Acc, K: V}) :
   Acc
 
 Map(Array, Fn) = _Map(Array, Fn, [])
