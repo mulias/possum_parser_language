@@ -1,7 +1,7 @@
 Advent of Code 2022 Day 7
 https://adventofcode.com/2022/day/7
 
-  $ possum $TESTDIR/input.linear_parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input_linear.possum $TESTDIR/input.txt
   [
     {"cmd": "cd", "dir": "/"},
     {
@@ -44,7 +44,7 @@ https://adventofcode.com/2022/day/7
     }
   ]
 
-  $ possum $TESTDIR/input.tree_parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input_tree.possum $TESTDIR/input.txt
   {
     "name": "/",
     "contains": [

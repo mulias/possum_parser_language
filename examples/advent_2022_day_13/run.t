@@ -1,7 +1,7 @@
 Advent of Code 2022 Day 13
 https://adventofcode.com/2022/day/13
 
-  $ possum $TESTDIR/input.parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input.possum $TESTDIR/input.txt
   [
     {
       "left": [1, 1, 3, 1, 1],

@@ -1,7 +1,7 @@
 Advent of Code 2021 Day 24
 https://adventofcode.com/2021/day/24
 
-  $ possum $TESTDIR/input.parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input.possum $TESTDIR/input.txt
   [
     {"type": "inp", "var": "w"},
     {"type": "add", "a": "z", "b": "w"},

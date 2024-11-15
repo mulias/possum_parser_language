@@ -1,7 +1,7 @@
 Advent of Code 2021 Day 2
 https://adventofcode.com/2021/day/2
 
-  $ possum $TESTDIR/input.parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input.possum $TESTDIR/input.txt
   [
     {"direction": "forward", "magnitude": 5},
     {"direction": "down", "magnitude": 5},

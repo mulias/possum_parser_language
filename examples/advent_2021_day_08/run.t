@@ -1,7 +1,7 @@
 Advent of Code 2021 Day 8
 https://adventofcode.com/2021/day/8
 
-  $ possum $TESTDIR/input.parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input.possum $TESTDIR/input.txt
   [
     {
       "unique": ["be", "cfbegad", "cbdgef", "fgaecd", "cgeb", "fdcge", "agebfd", "fecdb", "fabcd", "edb"],

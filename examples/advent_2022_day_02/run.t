@@ -8,7 +8,7 @@ https://adventofcode.com/2022/day/2
     ["C", "Z"]
   ]
 
-  $ possum $TESTDIR/input.parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input.possum $TESTDIR/input.txt
   [
     [
       {"hand_shape": "rock"},

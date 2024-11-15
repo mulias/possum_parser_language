@@ -1,7 +1,7 @@
 Advent of Code 2021 Day 13
 https://adventofcode.com/2021/day/13
 
-  $ possum $TESTDIR/input.parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input.possum $TESTDIR/input.txt
   {
     "dots": [
       [6, 10],

@@ -1,7 +1,7 @@
 Advent of Code 2022 Day 5
 https://adventofcode.com/2022/day/5
 
-  $ possum $TESTDIR/input.rows_parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input_rows.possum $TESTDIR/input.txt
   {
     "cargo_rows": [
       [null, "D", null],
@@ -16,7 +16,7 @@ https://adventofcode.com/2022/day/5
     ]
   }
 
-  $ possum $TESTDIR/input.stacks_parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input_stacks.possum $TESTDIR/input.txt
   {
     "stacks": {
       "1": ["Z", "N"],

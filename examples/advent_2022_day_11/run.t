@@ -1,7 +1,7 @@
 Advent of Code 2022 Day 11
 https://adventofcode.com/2022/day/11
 
-  $ possum $TESTDIR/input.parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input.possum $TESTDIR/input.txt
   [
     {
       "id": 0,

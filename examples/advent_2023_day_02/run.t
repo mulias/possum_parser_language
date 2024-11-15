@@ -1,7 +1,7 @@
 Advent of Code 2023 Day 2
 https://adventofcode.com/2023/day/2
 
-  $ possum $TESTDIR/input_parser.possum $TESTDIR/input.txt
+  $ possum $TESTDIR/input.possum $TESTDIR/input.txt
   [
     {
       "id": 1,

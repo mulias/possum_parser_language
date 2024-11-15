@@ -1,7 +1,7 @@
 Advent of Code 2021 Day 19
 https://adventofcode.com/2021/day/19
 
-  $ possum $TESTDIR/input.parser $TESTDIR/input.txt
+  $ possum $TESTDIR/input.possum $TESTDIR/input.txt
   [
     {
       "id": 0,
