@@ -1559,11 +1559,24 @@
               "prefixed": {"type": "string", "value": "array"}
             },
             {
-              "type": "call_function",
-              "value": [
-                {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
-              ],
-              "postfixed": {"type": "parser_variable", "name": "json_array", "is_meta": false, "is_underscored": false}
+              "type": "take_left",
+              "left": {
+                "type": "take_left",
+                "left": {
+                  "type": "take_right",
+                  "left": {"type": "string", "value": "["},
+                  "right": {
+                    "type": "call_function",
+                    "value": [
+                      {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false},
+                      {"type": "string", "value": ","}
+                    ],
+                    "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
+                  }
+                },
+                "right": {"type": "parser_variable", "name": "trailing_comma", "is_meta": false, "is_underscored": false}
+              },
+              "right": {"type": "string", "value": "]"}
             }
           ],
           "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
@@ -1583,16 +1596,20 @@
             {
               "type": "take_left",
               "left": {
-                "type": "take_right",
-                "left": {"type": "string", "value": "{"},
-                "right": {
-                  "type": "call_function",
-                  "value": [
-                    {"type": "parser_variable", "name": "object_pair", "is_meta": false, "is_underscored": false},
-                    {"type": "string", "value": ","}
-                  ],
-                  "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
-                }
+                "type": "take_left",
+                "left": {
+                  "type": "take_right",
+                  "left": {"type": "string", "value": "{"},
+                  "right": {
+                    "type": "call_function",
+                    "value": [
+                      {"type": "parser_variable", "name": "object_pair", "is_meta": false, "is_underscored": false},
+                      {"type": "string", "value": ","}
+                    ],
+                    "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
+                  }
+                },
+                "right": {"type": "parser_variable", "name": "trailing_comma", "is_meta": false, "is_underscored": false}
               },
               "right": {"type": "string", "value": "}"}
             }
@@ -1624,6 +1641,24 @@
             }
           ],
           "postfixed": {"type": "parser_variable", "name": "tuple2_sep", "is_meta": false, "is_underscored": false}
+        }
+      },
+      {
+        "type": "named_function",
+        "ident": {"type": "parser_variable", "name": "trailing_comma", "is_meta": false, "is_underscored": false},
+        "params": [],
+        "body": {
+          "type": "call_function",
+          "value": [
+            {
+              "type": "call_function",
+              "value": [
+                {"type": "string", "value": ","}
+              ],
+              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+            }
+          ],
+          "postfixed": {"type": "parser_variable", "name": "maybe", "is_meta": false, "is_underscored": false}
         }
       },
       {

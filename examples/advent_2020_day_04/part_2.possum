@@ -29,7 +29,7 @@ count_valid_passport = passport -> Passport $ CountIsValid(Passport)
 CountIsValid(Passport) =
   Passport -> {
     "byr": _, "iyr": _, "eyr": _, "hgt": _,
-    "hcl": _, "ecl": _, "pid": _, ..._
+    "hcl": _, "ecl": _, "pid": _, ..._,
   } ? 1 : 0
 
 many_sep(count_valid_passport, nl+nl)

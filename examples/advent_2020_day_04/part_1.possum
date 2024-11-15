@@ -3,7 +3,7 @@ passport = object_sep(alphas, ":", token, space | nl)
 valid_passport =
   passport -> {
     "byr": _, "iyr": _, "eyr": _, "hgt": _,
-    "hcl": _, "ecl": _, "pid": _, ..._
+    "hcl": _, "ecl": _, "pid": _, ..._,
   }
 
 count_valid_passport = (valid_passport $ 1) | (passport $ 0)

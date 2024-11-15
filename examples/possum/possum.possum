@@ -131,7 +131,7 @@ variable_node(Type, name_format) =
     "type": Type,
     "name": Name,
     "is_meta": IsMeta,
-    "is_underscored": IsUnderscored
+    "is_underscored": IsUnderscored,
   }
 
 parser_variable_node = variable_node($"parser_variable", lower + maybe(word))
@@ -140,14 +140,19 @@ value_variable_node = variable_node($"value_variable", upper + maybe(word))
 
 underscore_variable_node = ast_node($"underscore_variable", many("_"))
 
-array_node = ast_node($"array", json_array(expr))
+array_node = ast_node(
+  $"array",
+  "[" > maybe_array_sep(expr, ",") < trailing_comma < "]"
+)
 
 object_node = ast_node(
   $"object",
-  "{" > maybe_array_sep(object_pair, ",") < "}"
+  "{" > maybe_array_sep(object_pair, ",") < trailing_comma < "}"
 )
 
 object_pair = tuple2_sep(w_arround(expr), ":", w_arround(expr))
+
+trailing_comma = maybe(w_arround(","))
 
 conditional_infix =
   "?" & w & expr -> Middle & w & ":" $

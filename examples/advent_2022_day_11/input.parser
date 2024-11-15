@@ -13,7 +13,7 @@ monkey =
     "operation": Operation,
     "test": Test,
     "if_true": IfTrue,
-    "if_false": IfFalse
+    "if_false": IfFalse,
   }
 
 operation =

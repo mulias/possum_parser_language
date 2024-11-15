@@ -638,8 +638,9 @@ pub const Parser = struct {
     fn arrayElems(self: *Parser) !*Ast.LocNode {
         const expr = try self.expression();
 
-        // There's another array element and it's not a spread
-        if (try self.match(.Comma) and !self.check(.DotDotDot)) {
+        // Comsume a comma if there is one, and then parse another elem unless
+        // it's a spread or it was a trailing comma at the end of the array
+        if (try self.match(.Comma) and !(self.check(.DotDotDot) or self.check(.RightBracket))) {
             const commaLoc = self.previous.loc;
             return self.ast.createInfix(
                 .ArrayCons,
@@ -721,7 +722,10 @@ pub const Parser = struct {
     fn objectMembers(self: *Parser) !*Ast.LocNode {
         const pair = try self.objectPair();
 
-        if (try self.match(.Comma) and !self.check(.DotDotDot)) {
+        // Comsume a comma if there is one, and then parse another object
+        // member unless it's a spread or it was a trailing comma at the end of
+        // the object
+        if (try self.match(.Comma) and !(self.check(.DotDotDot) or self.check(.RightBrace))) {
             const commaLoc = self.previous.loc;
             return self.ast.createInfix(
                 .ObjectCons,
