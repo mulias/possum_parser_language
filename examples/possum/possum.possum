@@ -1,12 +1,22 @@
 input(program)
 
-program = ast_node($"program", array_sep(expr, expr_sep) < maybe(expr_sep))
+program = ast_node($"program", array(w_arround(statement)))
 
-expr_sep = w_arround(";") | nl
+statement = (named_function | main_parser) < statement_sep
 
-w = maybe_many(comment | whitespace)
+statement_sep = nl | w_arround(";") | w_arround(end)
+
+named_function =
+  parser_variable_node | value_variable_node -> Ident & w &
+  default(function_args_or_params, []) -> Params & w &
+  "=" > expr -> Body $
+  { "type": "named_function", "ident": Ident, "params": Params, "body": Body }
+
+main_parser = ast_node($"main_parser", expr)
 
 comment = "#" > chars_until(nl | end)
+
+w = maybe_many(comment | whitespace)
 
 w_arround(p) = surround(p, w)
 
@@ -52,8 +62,8 @@ infix =
   ("="  $ [{"type": "assign"},        1.5, 1])
 
 postfix =
-  (call_or_define_function_postfix -> Node $ [Node, 11]) |
-  (lower_bounded_range_postfix -> Node     $ [Node, 10])
+  (call_function_postfix -> Node       $ [Node, 11]) |
+  (lower_bounded_range_postfix -> Node $ [Node, 10])
 
 grouped_expr = "(" > w > expr < w < ")"
 
@@ -151,7 +161,7 @@ lower_bounded_range_postfix =
   ".." & peek(w > (postfix | infix | end)) $
   {"type": "lower_bounded_range"}
 
-call_or_define_function_postfix = ast_node(
-  $"call_or_define_function",
+call_function_postfix = ast_node($"call_function", function_args_or_params)
+
+function_args_or_params =
   "(" > w > maybe_array_sep(w_arround(expr), ",") < w < ")"
-)
