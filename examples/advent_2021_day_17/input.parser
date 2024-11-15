@@ -1,5 +1,5 @@
 range = tuple2_sep(int, "..", int)
 
-scan("x=") > range -> [XMin, XMax] &
-scan("y=") > range -> [YMin, YMax] $
+find("x=") > range -> [XMin, XMax] &
+find("y=") > range -> [YMin, YMax] $
 {"xmin": XMin, "xmax": XMax, "ymin": YMin, "ymax": YMax}

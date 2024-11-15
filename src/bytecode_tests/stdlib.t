@@ -615,7 +615,7 @@
   0006    | End
   ========================================
   
-  ==================scan==================
+  ==================find==================
   0000  130 SetInputMark
   0001    | GetBoundLocal 0
   0003    | CallFunction 0
@@ -623,7 +623,7 @@
   0008    | GetConstant 0: char
   0010    | CallFunction 0
   0012    | TakeRight 12 -> 21
-  0015    | GetConstant 1: scan
+  0015    | GetConstant 1: find
   0017    | GetBoundLocal 0
   0019    | CallTailFunction 1
   0021    | End
@@ -632,7 +632,7 @@
   =================@fn504=================
   0000  132 GetConstant 0: p
   0002    | SetClosureCaptures
-  0003    | GetConstant 1: scan
+  0003    | GetConstant 1: find
   0005    | GetBoundLocal 0
   0007    | CallTailFunction 1
   0009    | End
@@ -649,7 +649,7 @@
   =================@fn505=================
   0000  134 GetConstant 0: p
   0002    | SetClosureCaptures
-  0003    | GetConstant 1: scan
+  0003    | GetConstant 1: find
   0005    | GetBoundLocal 0
   0007    | CallTailFunction 1
   0009    | End

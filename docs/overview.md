@@ -474,9 +474,9 @@ Alternatively, `input(p)` wraps a parser to both strip surrounding whitespace an
   123
 ```
 
-Use `scan(p)` to skip characters until the provided parser matches.
+Use `find(p)` to skip characters until the provided parser matches.
 ```
-  $ possum -p 'scan(number)' -i '___test___83324____99'
+  $ possum -p 'find(number)' -i '___test___83324____99'
   83324
 ```
 

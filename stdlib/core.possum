@@ -127,11 +127,11 @@ unless(p, excluded) = excluded ? @fail : p
 
 skip(p) = null(p)
 
-scan(p) = p | (char > scan(p))
+find(p) = p | (char > find(p))
 
-find_all(p) = array(scan(p))
+find_all(p) = array(find(p))
 
-maybe_find_all(p) = maybe_array(scan(p))
+maybe_find_all(p) = maybe_array(find(p))
 
 succeed = const(Null)
 
