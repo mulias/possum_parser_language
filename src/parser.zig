@@ -507,7 +507,7 @@ pub const Parser = struct {
     fn paramsOrArgs(self: *Parser) !*Ast.LocNode {
         const expr = try self.expression();
 
-        if (try self.match(.Comma)) {
+        if (try self.match(.Comma) and !self.check(.RightParen)) {
             const commaLoc = self.previous.loc;
             return self.ast.createInfix(
                 .ParamsOrArgs,

@@ -1564,7 +1564,11 @@
                 "type": "take_left",
                 "left": {
                   "type": "take_right",
-                  "left": {"type": "string", "value": "["},
+                  "left": {
+                    "type": "take_right",
+                    "left": {"type": "string", "value": "["},
+                    "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+                  },
                   "right": {
                     "type": "call_function",
                     "value": [
@@ -1599,7 +1603,11 @@
                 "type": "take_left",
                 "left": {
                   "type": "take_right",
-                  "left": {"type": "string", "value": "{"},
+                  "left": {
+                    "type": "take_right",
+                    "left": {"type": "string", "value": "{"},
+                    "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+                  },
                   "right": {
                     "type": "call_function",
                     "value": [
@@ -1641,6 +1649,41 @@
             }
           ],
           "postfixed": {"type": "parser_variable", "name": "tuple2_sep", "is_meta": false, "is_underscored": false}
+        }
+      },
+      {
+        "type": "named_function",
+        "ident": {"type": "parser_variable", "name": "function_args_or_params", "is_meta": false, "is_underscored": false},
+        "params": [],
+        "body": {
+          "type": "take_left",
+          "left": {
+            "type": "take_left",
+            "left": {
+              "type": "take_right",
+              "left": {
+                "type": "take_right",
+                "left": {"type": "string", "value": "("},
+                "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+              },
+              "right": {
+                "type": "call_function",
+                "value": [
+                  {
+                    "type": "call_function",
+                    "value": [
+                      {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
+                    ],
+                    "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+                  },
+                  {"type": "string", "value": ","}
+                ],
+                "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
+              }
+            },
+            "right": {"type": "parser_variable", "name": "trailing_comma", "is_meta": false, "is_underscored": false}
+          },
+          "right": {"type": "string", "value": ")"}
         }
       },
       {
@@ -1757,41 +1800,6 @@
             {"type": "parser_variable", "name": "function_args_or_params", "is_meta": false, "is_underscored": false}
           ],
           "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
-        }
-      },
-      {
-        "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "function_args_or_params", "is_meta": false, "is_underscored": false},
-        "params": [],
-        "body": {
-          "type": "take_left",
-          "left": {
-            "type": "take_left",
-            "left": {
-              "type": "take_right",
-              "left": {
-                "type": "take_right",
-                "left": {"type": "string", "value": "("},
-                "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
-              },
-              "right": {
-                "type": "call_function",
-                "value": [
-                  {
-                    "type": "call_function",
-                    "value": [
-                      {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
-                    ],
-                    "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
-                  },
-                  {"type": "string", "value": ","}
-                ],
-                "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
-              }
-            },
-            "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
-          },
-          "right": {"type": "string", "value": ")"}
         }
       }
     ]
