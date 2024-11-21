@@ -100,6 +100,8 @@ These parsers and value functions are always available in Possum programs, unles
 | `object_until(key, value, stop)` | One or more `key`/`value` pairs, must be followed by `stop` which is not consumed | Object of key/value pairs |
 | `maybe_object(key, value)` | Both `key` and `value` together zero or more times | Object of key/value pairs, maybe empty |
 | `maybe_object_sep(key, pair_sep, value, sep)` | Parses `key`, `pair_sep`, and `value` together zero or more times, interspersed with `sep` | Object of key/value pairs, maybe empty|
+| `pair(key, value)` | Parses `key` and then `value` once each | Object with a single key/value pair |
+| `pair_sep(key, sep, value)` | Parses `key`, `sep`, and `value` once each | Object with a single key/value pair |
 | `record1(Key, value)` | Parses `value` | Object with `Key` associated to the parsed `value` |
 | `record2(Key1, value1, Key2, value2)` | Parses `value1` and then `value2` | Object with `Key1` associated to the parsed `value1`, etc |
 | `record2_sep(Key1, value1, sep, Key2, value2)` | Parses `value1`, `sep`, and then `value2` | Object with `Key1` associated to the parsed `value1`, etc |
