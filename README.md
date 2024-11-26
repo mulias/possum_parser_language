@@ -171,11 +171,13 @@ This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/S
 
 ## Installation
 
-Precompiled binaries are available on the [Github releases page].
+Download precompiled binaries from the [releases page].
 
 To build from source with Nix run `nix develop` to enter a shell environment with the necessary dependencies. To build from source without Nix you'll need to first install the dependencies specified in `flake.nix`. Run `zig build --release=safe` to produce the binary `zig-out/bin/possum`, and run `zig build --help` to view other options.
 
-[github releases page]: https://github.com/mulias/possum_parser_language/releases/latest
+Possum is not notarized for macOS. This means running the precompiled binary may fail with a warning about potentially malicious software. You should be able to suppress this error by allow the program explicitly under the Gatekeeper settings, or by running `xattr -d com.apple.quarantine` to remove the offending attribute.
+
+[releases page]: https://github.com/mulias/possum_parser_language/releases/latest
 
 ## Documentation
 
