@@ -1873,7 +1873,8 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.InsertAtKey, constId, loc);
             },
             .Pattern => {
-                try self.emitUnaryOp(.GetAtKey, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
+                try self.emitOp(.GetAtKey, loc);
                 try self.writeDestructurePattern(loc_node);
                 try context.emitPatternJumpIfFailure(self, loc);
                 try self.emitOp(.Pop, loc);

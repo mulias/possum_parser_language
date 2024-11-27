@@ -417,21 +417,23 @@
   0008    | CallFunction 1
   0010    | GetConstant 4: {"a": _, "b": _}
   0012    | Destructure
-  0013    | JumpIfFailure 13 -> 39
-  0016    | GetAtKey 5: "a"
-  0018    | GetLocal 0
-  0020    | Destructure
-  0021    | JumpIfFailure 21 -> 37
-  0024    | Pop
-  0025    | GetAtKey 6: "b"
-  0027    | GetLocal 1
-  0029    | Destructure
-  0030    | JumpIfFailure 30 -> 37
-  0033    | Pop
-  0034    | JumpIfSuccess 34 -> 39
-  0037    | Swap
-  0038    | Pop
-  0039    | End
+  0013    | JumpIfFailure 13 -> 41
+  0016    | GetConstant 5: "a"
+  0018    | GetAtKey
+  0019    | GetLocal 0
+  0021    | Destructure
+  0022    | JumpIfFailure 22 -> 39
+  0025    | Pop
+  0026    | GetConstant 6: "b"
+  0028    | GetAtKey
+  0029    | GetLocal 1
+  0031    | Destructure
+  0032    | JumpIfFailure 32 -> 39
+  0035    | Pop
+  0036    | JumpIfSuccess 36 -> 41
+  0039    | Swap
+  0040    | Pop
+  0041    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": _, "b": _}' -i ''
@@ -443,21 +445,23 @@
   0006    | CallFunction 1
   0008    | GetConstant 3: {"a": _, "b": _}
   0010    | Destructure
-  0011    | JumpIfFailure 11 -> 37
-  0014    | GetAtKey 4: "a"
-  0016    | GetLocal 0
-  0018    | Destructure
-  0019    | JumpIfFailure 19 -> 35
-  0022    | Pop
-  0023    | GetAtKey 5: "b"
-  0025    | GetLocal 0
-  0027    | Destructure
-  0028    | JumpIfFailure 28 -> 35
-  0031    | Pop
-  0032    | JumpIfSuccess 32 -> 37
-  0035    | Swap
-  0036    | Pop
-  0037    | End
+  0011    | JumpIfFailure 11 -> 39
+  0014    | GetConstant 4: "a"
+  0016    | GetAtKey
+  0017    | GetLocal 0
+  0019    | Destructure
+  0020    | JumpIfFailure 20 -> 37
+  0023    | Pop
+  0024    | GetConstant 5: "b"
+  0026    | GetAtKey
+  0027    | GetLocal 0
+  0029    | Destructure
+  0030    | JumpIfFailure 30 -> 37
+  0033    | Pop
+  0034    | JumpIfSuccess 34 -> 39
+  0037    | Swap
+  0038    | Pop
+  0039    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> ({"a": 1} + B)' -i ''

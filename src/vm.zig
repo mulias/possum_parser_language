@@ -342,16 +342,15 @@ pub const VM = struct {
                 }
             },
             .GetAtKey => {
-                const idx = self.readByte();
-                const key = switch (self.chunk().getConstant(idx)) {
-                    .String => |sId| sId,
-                    else => @panic("Internal Error"),
-                };
-                const elem = self.peek(0);
+                const key_elem = self.pop();
+                const object_elem = self.peek(0);
 
-                if (elem.isSuccess()) {
-                    const object = elem.asDyn().asObject();
-                    try self.push(object.members.get(key).?);
+                switch (key_elem) {
+                    .String => |sId| if (object_elem.isSuccess()) {
+                        const object = object_elem.asDyn().asObject();
+                        try self.push(object.members.get(sId).?);
+                    },
+                    else => @panic("Internal Error"),
                 }
             },
             .GetLocal => {
