@@ -778,7 +778,10 @@ pub const Compiler = struct {
             argCount += 1;
 
             if (function) |f| {
-                if (f.arity < argCount) return Error.FunctionCallTooManyArgs;
+                if (f.arity < argCount) {
+                    try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
+                    return Error.FunctionCallTooManyArgs;
+                }
 
                 const argPos = argCount - 1;
                 switch (f.localVar(argPos)) {
@@ -800,7 +803,10 @@ pub const Compiler = struct {
         }
 
         if (function) |f| {
-            if (f.arity != argCount) return Error.FunctionCallTooFewArgs;
+            if (f.arity != argCount) {
+                try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
+                return Error.FunctionCallTooFewArgs;
+            }
         }
 
         return argCount;
@@ -1515,8 +1521,14 @@ pub const Compiler = struct {
         }
 
         if (function) |f| {
-            if (f.arity < argCount) return Error.FunctionCallTooManyArgs;
-            if (f.arity > argCount) return Error.FunctionCallTooFewArgs;
+            if (f.arity < argCount) {
+                try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
+                return Error.FunctionCallTooManyArgs;
+            }
+            if (f.arity > argCount) {
+                try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
+                return Error.FunctionCallTooFewArgs;
+            }
         }
 
         return argCount;
