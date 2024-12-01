@@ -166,6 +166,22 @@ maybe_many(p) = many(p) | succeed
 
 maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
 
+repeat2(p) = p + p
+
+repeat3(p) = p + p + p
+
+repeat4(p) = p + p + p + p
+
+repeat5(p) = p + p + p + p + p
+
+repeat6(p) = p + p + p + p + p + p
+
+repeat7(p) = p + p + p + p + p + p + p
+
+repeat8(p) = p + p + p + p + p + p + p + p
+
+repeat9(p) = p + p + p + p + p + p + p + p + p
+
 repeat(p, N) =
   const(AssertNonNegativeInteger(N)) &
   _repeat(p, N, Null)
@@ -365,7 +381,7 @@ _high_surrogate =
 _low_surrogate =
   `\u` > ("D" | "d") + ("C".."F" | "c".."f") + hex_numeral + hex_numeral
 
-_escaped_codepoint = `\u` > repeat(hex_numeral, $4) -> U $ @Codepoint(U)
+_escaped_codepoint = `\u` > repeat4(hex_numeral) -> U $ @Codepoint(U)
 
 json_array(elem) = "[" > maybe_array_sep(surround(elem, maybe(ws)), ",") < "]"
 
