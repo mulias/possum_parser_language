@@ -3,11 +3,12 @@ const Function = @import("elem.zig").Elem.Dyn.Function;
 const Location = @import("location.zig").Location;
 const VM = @import("vm.zig").VM;
 
-pub fn functions(vm: *VM) ![6]*Function {
+pub fn functions(vm: *VM) ![7]*Function {
     return [_]*Function{
         try createFailParser(vm),
         try createFailValue(vm),
-        try createNumberOf(vm),
+        try createNumberOfParser(vm),
+        try createNumberOfValue(vm),
         try createCrashValue(vm),
         try createCodepointValue(vm),
         try createSurrogatePairCodepointValue(vm),
@@ -46,7 +47,7 @@ pub fn createFailValue(vm: *VM) !*Function {
     return fun;
 }
 
-pub fn createNumberOf(vm: *VM) !*Function {
+pub fn createNumberOfParser(vm: *VM) !*Function {
     const name = try vm.strings.insert("@number_of");
     var fun = try Function.create(vm, .{
         .name = name,
@@ -62,6 +63,27 @@ pub fn createNumberOf(vm: *VM) !*Function {
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
     try fun.chunk.writeOp(.CallFunction, loc);
+    try fun.chunk.write(0, loc);
+    try fun.chunk.writeOp(.NumberOf, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+pub fn createNumberOfValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@NumberOf");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
+        .arity = 1,
+    });
+
+    const argName = try vm.strings.insert("V");
+    try fun.locals.append(.{ .ValueVar = argName });
+
+    const loc = Location.new(0, 0, 0);
+
+    try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
     try fun.chunk.writeOp(.NumberOf, loc);
     try fun.chunk.writeOp(.End, loc);
