@@ -133,9 +133,11 @@ skip(p) = null(p)
 
 find(p) = p | (char > find(p))
 
-find_all(p) = array(find(p))
+find_all(p) = array(find(p)) < maybe(many(char))
 
-maybe_find_all(p) = maybe_array(find(p))
+find_before(p, stop) = stop ? @fail :  p | (char > find_before(p, stop))
+
+find_all_before(p, stop) = array(find_before(p, stop)) < maybe(chars_until(stop))
 
 succeed = const(Null)
 
