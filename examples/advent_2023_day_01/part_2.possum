@@ -1,0 +1,20 @@
+digit =
+  numeral |
+  ("one" $ "1") | ("two" $ "2") | ("three" $ "3") |
+  ("four" $ "4") | ("five" $ "5") | ("six" $ "6") |
+  ("seven" $ "7") | ("eight" $ "8") | ("nine" $ "9")
+
+step_char(p) = peek(p) < char
+
+find_all_overlapping_in_line(p) = find_all_before(step_char(p), nl)
+
+calibration_value =
+  find_all_overlapping_in_line(digit) -> Digits $
+  CalibrationValue(Digits)
+
+CalibrationValue(Digits) =
+  Digits -> [First, ..._] &
+  Digits -> [..._, Last] &
+  @NumberOf(First + Last)
+
+many_sep(calibration_value, ws)
