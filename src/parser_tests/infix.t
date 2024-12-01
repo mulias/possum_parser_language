@@ -36,7 +36,7 @@
                           .length: usize = 3
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .String: u32 = 131
+                            .String: u32 = 143
                       .right: *ast.Ast.LocNode
                         .loc: location.Location
                           .line: usize = 1
@@ -44,7 +44,7 @@
                           .length: usize = 3
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .String: u32 = 677
+                            .String: u32 = 655
                 .right: *ast.Ast.LocNode
                   .loc: location.Location
                     .line: usize = 1
@@ -52,7 +52,7 @@
                     .length: usize = 3
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .String: u32 = 685
+                      .String: u32 = 663
           .right: *ast.Ast.LocNode
             .loc: location.Location
               .line: usize = 1
@@ -60,7 +60,7 @@
               .length: usize = 5
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 2704
+                .String: u32 = 2775
 
   $ possum -p '"" $ (1-2)' -i ''
   []*ast.Ast.LocNode
@@ -80,7 +80,7 @@
               .length: usize = 2
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 813
+                .String: u32 = 795
           .right: *ast.Ast.LocNode
             .loc: location.Location
               .line: usize = 1
@@ -98,7 +98,7 @@
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 2159
+                        .sId: u32 = 2209
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false
@@ -110,7 +110,7 @@
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 2704
+                        .sId: u32 = 2775
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false
