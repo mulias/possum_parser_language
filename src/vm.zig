@@ -345,12 +345,19 @@ pub const VM = struct {
                 const key_elem = self.pop();
                 const object_elem = self.peek(0);
 
-                switch (key_elem) {
-                    .String => |sId| if (object_elem.isSuccess()) {
-                        const object = object_elem.asDyn().asObject();
-                        try self.push(object.members.get(sId).?);
-                    },
-                    else => @panic("Internal Error"),
+                var key: StringTable.Id = undefined;
+
+                if (key_elem.isType(.String)) {
+                    key = key_elem.String;
+                } else if (key_elem.stringBytes(self.*)) |bytes| {
+                    key = try self.strings.insert(bytes);
+                } else {
+                    return self.runtimeError("Get key error: Object key must be a string", .{});
+                }
+
+                if (object_elem.isSuccess()) {
+                    const object = object_elem.asDyn().asObject();
+                    try self.push(object.members.get(key).?);
                 }
             },
             .GetLocal => {
@@ -408,7 +415,7 @@ pub const VM = struct {
                     } else if (keyElem.stringBytes(self.*)) |bytes| {
                         key = try self.strings.insert(bytes);
                     } else {
-                        return self.runtimeError("Object key must be a string", .{});
+                        return self.runtimeError("Insert key error: Object key must be a string", .{});
                     }
 
                     var copy = try Elem.Dyn.Object.create(self, object.members.count());

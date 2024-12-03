@@ -1079,13 +1079,22 @@ pub const Compiler = struct {
     fn writePrepareMergePatternPart(self: *Compiler, loc_node: *Ast.LocNode) Error!void {
         switch (loc_node.node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ArrayHead, .ObjectCons => {
+                .ArrayHead => {
                     // At this point the array/object is empty, but in a
                     // later step we'll mutate to add elements.
                     const elem = infix.left.node.asElem() orelse @panic("Internal Error");
                     const loc = infix.left.loc;
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, loc);
+                },
+                .ObjectCons => {
+                    // At this point the array/object is empty, but in a
+                    // later step we'll mutate to add elements.
+                    const elem = infix.left.node.asElem() orelse @panic("Internal Error");
+                    const loc = infix.left.loc;
+                    const constId = try self.makeConstant(elem);
+                    try self.emitUnaryOp(.GetConstant, constId, loc);
+                    try self.writePatternObjectDynamicKeys(infix.right);
                 },
                 else => {
                     try self.writePattern(loc_node);
@@ -1710,18 +1719,10 @@ pub const Compiler = struct {
         }
     };
 
-    fn writePatternObject(self: *Compiler, start_object: *Ast.LocNode, first_item: *Ast.LocNode) !void {
+    fn writePatternObject(self: *Compiler, object_start: *Ast.LocNode, first_item: *Ast.LocNode) Error!void {
         var jumpList = ArrayList(usize).init(self.vm.allocator);
         defer jumpList.deinit();
-        try self.writeObject(start_object, first_item, ObjectContext{ .Pattern = &jumpList });
-    }
 
-    fn writeValueObject(self: *Compiler, start_object: *Ast.LocNode, first_item: *Ast.LocNode) !void {
-        try self.writeObject(start_object, first_item, ObjectContext{ .Value = undefined });
-    }
-
-    fn writeObject(self: *Compiler, object_start: *Ast.LocNode, first_item: *Ast.LocNode, context: ObjectContext) !void {
-        // The first left node is the empty object
         var object_elem = object_start.node.asElem() orelse @panic("Internal Error");
 
         const object = object_elem.asDyn().asObject();
@@ -1729,169 +1730,260 @@ pub const Compiler = struct {
 
         try self.emitUnaryOp(.GetConstant, constId, object_start.loc);
 
-        if (context == .Pattern) {
-            try self.emitOp(.Destructure, object_start.loc);
-            const failureJumpIndex = try self.emitJump(.JumpIfFailure, object_start.loc);
+        try self.writePatternObjectDynamicKeys(first_item);
 
-            try self.appendObjectMembers(object, first_item, context);
+        try self.emitOp(.Destructure, object_start.loc);
+        const failureJumpIndex = try self.emitJump(.JumpIfFailure, object_start.loc);
 
-            const successJumpIndex = try self.emitJump(.JumpIfSuccess, object_start.loc);
+        try self.appendPatternObjectMembers(object, first_item, &jumpList);
 
-            try context.patchPatternJumps(self, object_start.loc);
+        const successJumpIndex = try self.emitJump(.JumpIfSuccess, object_start.loc);
 
-            try self.emitOp(.Swap, object_start.loc);
-            try self.emitOp(.Pop, object_start.loc);
-
-            try self.patchJump(failureJumpIndex, object_start.loc);
-            try self.patchJump(successJumpIndex, object_start.loc);
-        } else {
-            try self.appendObjectMembers(object, first_item, context);
+        for (jumpList.items) |index| {
+            try self.patchJump(index, object_start.loc);
         }
+
+        try self.emitOp(.Swap, object_start.loc);
+        try self.emitOp(.Pop, object_start.loc);
+
+        try self.patchJump(failureJumpIndex, object_start.loc);
+        try self.patchJump(successJumpIndex, object_start.loc);
     }
 
-    fn appendObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, first_item: *Ast.LocNode, context: ObjectContext) !void {
+    fn writeValueObject(self: *Compiler, object_start: *Ast.LocNode, first_item: *Ast.LocNode) !void {
+        var object_elem = object_start.node.asElem() orelse @panic("Internal Error");
+
+        const object = object_elem.asDyn().asObject();
+        const constId = try self.makeConstant(object_elem);
+
+        try self.emitUnaryOp(.GetConstant, constId, object_start.loc);
+
+        try self.appendValueObjectMembers(object, first_item);
+    }
+
+    fn writePatternObjectDynamicKeys(self: *Compiler, first_item: *Ast.LocNode) !void {
         var loc_node = first_item;
 
         while (true) {
             switch (loc_node.node) {
                 .InfixNode => |infix| switch (infix.infixType) {
                     .ObjectCons => {
-                        try self.appendObjectPair(object, infix.left, context);
+                        try self.writePatternObjectDynamicKey(infix.left);
                         loc_node = infix.right;
                     },
                     else => break,
                 },
-                .ElemNode,
-                .UpperBoundedRange,
-                .LowerBoundedRange,
-                .Negation,
-                .ValueLabel,
-                => break,
+                else => break,
             }
         }
 
-        try self.appendObjectPair(object, loc_node, context);
+        try self.writePatternObjectDynamicKey(loc_node);
     }
 
-    fn appendObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pair_loc_node: *Ast.LocNode, context: ObjectContext) Error!void {
-        const pair = pair_loc_node.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
-        const pairLoc = pair_loc_node.loc;
+    fn appendPatternObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, first_item: *Ast.LocNode, jump_list: *ArrayList(usize)) !void {
+        var loc_node = first_item;
 
-        const keyLoc = pair.left.loc;
-        const keyElem = pair.left.node.asElem().?;
-        const loc_node = pair.right;
-
-        if (context == .Value) {
+        while (true) {
             switch (loc_node.node) {
-                .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                    .ArrayHead,
-                    .ObjectCons,
-                    .Merge,
-                    .NumberSubtract,
-                    .CallOrDefineFunction,
-                    => {
-                        switch (keyElem) {
-                            .String => try self.writeObjectVal(loc_node, keyElem, context),
-                            .ValueVar => {
-                                try self.writeGetVar(keyElem, keyLoc, .Value);
-                                try self.writeValue(loc_node, false);
-                                try self.emitOp(.InsertKeyVal, pairLoc);
-                            },
-                            else => @panic("Internal Error"),
-                        }
+                .InfixNode => |infix| switch (infix.infixType) {
+                    .ObjectCons => {
+                        try self.appendPatternObjectPair(object, infix.left, jump_list);
+                        loc_node = infix.right;
                     },
-                    else => {
-                        @panic("Internal Error");
-                    },
+                    else => break,
                 },
-                .ElemNode => |elem| switch (elem) {
-                    .ValueVar => {
-                        switch (keyElem) {
-                            .String => try self.writeObjectVal(loc_node, keyElem, context),
-                            .ValueVar => {
-                                try self.writeGetVar(keyElem, keyLoc, .Value);
-                                try self.writeValue(loc_node, false);
-                                try self.emitOp(.InsertKeyVal, pairLoc);
-                            },
-                            else => @panic("Internal Error"),
-                        }
-                    },
-                    else => {
-                        switch (keyElem) {
-                            .String => |sId| try object.members.put(sId, elem),
-                            .ValueVar => {
-                                try self.writeGetVar(keyElem, keyLoc, .Value);
-                                try self.writeValue(loc_node, false);
-                                try self.emitOp(.InsertKeyVal, pairLoc);
-                            },
-                            else => @panic("Internal Error"),
-                        }
-                    },
-                },
-                .UpperBoundedRange,
-                .LowerBoundedRange,
-                .Negation,
-                .ValueLabel,
-                => @panic("todo"),
+                else => break,
             }
-        } else {
-            const key = switch (keyElem) {
-                .String => |sId| sId,
+        }
+
+        try self.appendPatternObjectPair(object, loc_node, jump_list);
+    }
+
+    fn appendValueObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, first_item: *Ast.LocNode) !void {
+        var loc_node = first_item;
+
+        while (true) {
+            switch (loc_node.node) {
+                .InfixNode => |infix| switch (infix.infixType) {
+                    .ObjectCons => {
+                        try self.appendValueObjectPair(object, infix.left);
+                        loc_node = infix.right;
+                    },
+                    else => break,
+                },
+                else => break,
+            }
+        }
+
+        try self.appendValueObjectPair(object, loc_node);
+    }
+
+    fn writePatternObjectDynamicKey(self: *Compiler, pair_loc_node: *Ast.LocNode) !void {
+        const pair_node = pair_loc_node.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
+        const pair_loc = pair_loc_node.loc;
+
+        const key_loc = pair_node.left.loc;
+        const key_elem = pair_node.left.node.asElem().?;
+        const val_loc_node = pair_node.right;
+
+        if (key_elem == .ValueVar) switch (val_loc_node.node) {
+            .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
+                .ArrayHead,
+                .ObjectCons,
+                .Merge,
+                .NumberSubtract,
+                => {
+                    try self.writeGetVar(key_elem, key_loc, .Pattern);
+                    try self.writePattern(val_loc_node);
+                    try self.emitOp(.InsertKeyVal, pair_loc);
+                },
+                .CallOrDefineFunction => @panic("todo"),
                 else => @panic("Internal Error"),
-            };
+            },
+            .ElemNode => {
+                try self.writeGetVar(key_elem, key_loc, .Pattern);
+                try self.writePattern(val_loc_node);
+                try self.emitOp(.InsertKeyVal, pair_loc);
+            },
+            else => {},
+        };
+    }
 
-            switch (loc_node.node) {
-                .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                    .ArrayHead,
-                    .ObjectCons,
-                    .Merge,
-                    .NumberSubtract,
-                    => {
-                        try self.writeObjectVal(loc_node, keyElem, context);
-                        try object.members.put(key, self.placeholderVar());
-                    },
-                    .CallOrDefineFunction => {
-                        @panic("todo");
-                    },
-                    else => {
-                        @panic("Internal Error");
-                    },
+    fn appendPatternObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pair_loc_node: *Ast.LocNode, jump_list: *ArrayList(usize)) Error!void {
+        const pair_node = pair_loc_node.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
+
+        const key_elem = pair_node.left.node.asElem().?;
+        const val_loc_node = pair_node.right;
+
+        switch (val_loc_node.node) {
+            .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
+                .ArrayHead,
+                .ObjectCons,
+                .Merge,
+                .NumberSubtract,
+                => {
+                    try self.writePatternObjectVal(val_loc_node, key_elem, jump_list);
+
+                    if (key_elem == .String) {
+                        try object.members.put(key_elem.String, self.placeholderVar());
+                    }
                 },
-                .ElemNode => |elem| switch (elem) {
-                    .ValueVar => {
-                        try self.writeObjectVal(loc_node, keyElem, context);
-                        try object.members.put(key, self.placeholderVar());
-                    },
-                    else => {
-                        try object.members.put(key, elem);
-                    },
+                .CallOrDefineFunction => @panic("todo"),
+                else => @panic("Internal Error"),
+            },
+            .ElemNode => |elem| switch (elem) {
+                .ValueVar => {
+                    try self.writePatternObjectVal(val_loc_node, key_elem, jump_list);
+
+                    if (key_elem == .String) {
+                        try object.members.put(key_elem.String, self.placeholderVar());
+                    }
                 },
-                .UpperBoundedRange,
-                .LowerBoundedRange,
-                .Negation,
-                .ValueLabel,
-                => @panic("todo"),
-            }
+                else => {
+                    if (key_elem == .String) {
+                        try object.members.put(key_elem.String, elem);
+                    }
+                },
+            },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            .Negation,
+            .ValueLabel,
+            => @panic("todo"),
         }
     }
 
-    fn writeObjectVal(self: *Compiler, loc_node: *Ast.LocNode, key: Elem, context: ObjectContext) Error!void {
+    fn appendValueObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pair_loc_node: *Ast.LocNode) Error!void {
+        const pair_node = pair_loc_node.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
+        const pair_loc = pair_loc_node.loc;
+
+        const key_loc = pair_node.left.loc;
+        const key_elem = pair_node.left.node.asElem().?;
+        const val_loc_node = pair_node.right;
+
+        switch (val_loc_node.node) {
+            .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
+                .ArrayHead,
+                .ObjectCons,
+                .Merge,
+                .NumberSubtract,
+                .CallOrDefineFunction,
+                => {
+                    switch (key_elem) {
+                        .String => try self.writeValueObjectVal(val_loc_node, key_elem),
+                        .ValueVar => {
+                            try self.writeGetVar(key_elem, key_loc, .Value);
+                            try self.writeValue(val_loc_node, false);
+                            try self.emitOp(.InsertKeyVal, pair_loc);
+                        },
+                        else => @panic("Internal Error"),
+                    }
+                },
+                else => {
+                    @panic("Internal Error");
+                },
+            },
+            .ElemNode => |elem| switch (elem) {
+                .ValueVar => {
+                    switch (key_elem) {
+                        .String => try self.writeValueObjectVal(val_loc_node, key_elem),
+                        .ValueVar => {
+                            try self.writeGetVar(key_elem, key_loc, .Value);
+                            try self.writeValue(val_loc_node, false);
+                            try self.emitOp(.InsertKeyVal, pair_loc);
+                        },
+                        else => @panic("Internal Error"),
+                    }
+                },
+                else => {
+                    switch (key_elem) {
+                        .String => |sId| try object.members.put(sId, elem),
+                        .ValueVar => {
+                            try self.writeGetVar(key_elem, key_loc, .Value);
+                            try self.writeValue(val_loc_node, false);
+                            try self.emitOp(.InsertKeyVal, pair_loc);
+                        },
+                        else => @panic("Internal Error"),
+                    }
+                },
+            },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            .Negation,
+            .ValueLabel,
+            => @panic("todo"),
+        }
+    }
+
+    fn writePatternObjectVal(self: *Compiler, loc_node: *Ast.LocNode, key: Elem, jump_list: *ArrayList(usize)) Error!void {
+        const loc = loc_node.loc;
+
+        switch (key) {
+            .String => {
+                const constId = try self.makeConstant(key);
+                try self.emitUnaryOp(.GetConstant, constId, loc);
+            },
+            .ValueVar => {
+                try self.writeGetVar(key, loc, .Pattern);
+            },
+            else => @panic("Internal Error"),
+        }
+
+        try self.emitOp(.GetAtKey, loc);
+        try self.writeDestructurePattern(loc_node);
+
+        const index = try self.emitJump(.JumpIfFailure, loc);
+        try jump_list.append(index);
+
+        try self.emitOp(.Pop, loc);
+    }
+
+    fn writeValueObjectVal(self: *Compiler, loc_node: *Ast.LocNode, key: Elem) Error!void {
         const loc = loc_node.loc;
         const constId = try self.makeConstant(key);
 
-        switch (context) {
-            .Value => {
-                try self.writeValue(loc_node, false);
-                try self.emitUnaryOp(.InsertAtKey, constId, loc);
-            },
-            .Pattern => {
-                try self.emitUnaryOp(.GetConstant, constId, loc);
-                try self.emitOp(.GetAtKey, loc);
-                try self.writeDestructurePattern(loc_node);
-                try context.emitPatternJumpIfFailure(self, loc);
-                try self.emitOp(.Pop, loc);
-            },
-        }
+        try self.writeValue(loc_node, false);
+        try self.emitUnaryOp(.InsertAtKey, constId, loc);
     }
 
     const StringTemplateContext = enum { Parser, Value };
