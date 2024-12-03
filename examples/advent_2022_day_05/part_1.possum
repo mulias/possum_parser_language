@@ -1,0 +1,46 @@
+crate = "[" > char < "]"
+no_crate = "   " $ null
+cargo = crate | no_crate
+
+move =
+  "move %(number -> C) from %(numeral -> F) to %(numeral -> T)" $
+  {"count": C, "from": F, "to": T}
+
+table_sep(cargo, space, nl) -> CargoRows & ws &
+array_sep(numeral, ws) -> Labels & ws &
+array_sep(move, nl) -> Steps $ (
+  CrateStacks(Labels, CargoRows) -> InitialState &
+  Solve(InitialState, Steps) -> FinalState &
+  TopCrates(FinalState, Labels)
+)
+
+CrateStacks(Labels, CargoRows) =
+  RotateTableClockwise(CargoRows) -> CargoCols &
+  Map(CargoCols, RejectNull) -> CrateCols &
+  ZipIntoObject(Labels, CrateCols)
+
+RejectNull(Array) = Reject(Array, IsNull)
+
+Solve(Stacks, Steps) =
+  Steps -> [{"count": Count, "from": From, "to": To}, ...StepsRest] ? (
+    Stacks -> {From: FromStack, To: ToStack, ..._} &
+    Move(Count, FromStack, ToStack) -> [NewFrom, NewTo] &
+    Solve({...Stacks, From: NewFrom, To: NewTo}, StepsRest)
+  ) :
+  Stacks
+
+Move(Count, FromStack, ToStack) =
+  Count -> 0 ?
+  [FromStack, ToStack] :
+  FromStack -> [...FromRest, FromTop] &
+  Move(Count - 1, FromRest, [...ToStack, FromTop])
+
+TopCrates(State, Labels) = _TopCrates(State, Labels, "")
+
+_TopCrates(State, Labels, Acc) =
+  Labels -> [First, ...Rest] ? (
+    State -> {First: Stack, ..._} &
+    (Stack -> [..._, Top]) | ("" -> Top) &
+    _TopCrates(State, Rest, Acc + Top)
+  ) :
+  Acc

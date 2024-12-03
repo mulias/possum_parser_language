@@ -30,3 +30,6 @@ https://adventofcode.com/2022/day/5
       {"count": 1, "from": "1", "to": "2"}
     ]
   }
+
+  $ possum $TESTDIR/part_1.possum $TESTDIR/input.txt
+  "CMZ"
