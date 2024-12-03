@@ -493,6 +493,13 @@ _Reverse(Array, Acc) =
   _Reverse(Rest, [First, ...Acc]) :
   Acc
 
+Filter(Array, Pred) = _Filter(Array, Pred, [])
+
+_Filter(Array, Pred, Acc) =
+  Array -> [First, ...Rest] ?
+  _Filter(Rest, Pred, Pred(First) ? [...Acc, First] : Acc) :
+  Acc
+
 Reject(Array, Pred) = _Reject(Array, Pred, [])
 
 _Reject(Array, Pred, Acc) =
