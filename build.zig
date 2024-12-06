@@ -151,7 +151,7 @@ fn releaseStep(b: *Build) void {
         const name = b.fmt("possum_{s}", .{target_string});
 
         const cli = addCliExecutable(b, name, target, .ReleaseSafe);
-        cli.root_module.strip = true;
+        cli.root_module.strip = false;
         const target_output = b.addInstallArtifact(cli, .{});
         release_step.dependOn(&target_output.step);
     }
