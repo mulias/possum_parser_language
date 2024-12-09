@@ -378,6 +378,7 @@ pub const Elem = union(ElemType) {
                     }
                 },
                 .Function,
+                .NativeCode,
                 .Closure,
                 => @panic("internal error"),
             },
@@ -611,6 +612,7 @@ pub const Elem = union(ElemType) {
                     };
                 },
                 .Function,
+                .NativeCode,
                 .Closure,
                 => @panic("Internal error"),
             },
@@ -735,6 +737,7 @@ pub const Elem = union(ElemType) {
                     return .{ .object = jsonObject };
                 },
                 .Function,
+                .NativeCode,
                 .Closure,
                 => @panic("Internal Error"),
             },
@@ -758,6 +761,7 @@ pub const Elem = union(ElemType) {
         Array,
         Object,
         Function,
+        NativeCode,
         Closure,
     };
 
@@ -786,6 +790,7 @@ pub const Elem = union(ElemType) {
                 .Array => self.asArray().destroy(vm),
                 .Object => self.asObject().destroy(vm),
                 .Function => self.asFunction().destroy(vm),
+                .NativeCode => self.asNativeCode().destroy(vm),
                 .Closure => self.asClosure().destroy(vm),
             }
         }
@@ -800,6 +805,7 @@ pub const Elem = union(ElemType) {
                 .Array => self.asArray().print(vm, writer),
                 .Object => self.asObject().print(vm, writer),
                 .Function => self.asFunction().print(vm, writer),
+                .NativeCode => self.asNativeCode().print(writer),
                 .Closure => self.asClosure().print(vm, writer),
             };
         }
@@ -810,6 +816,7 @@ pub const Elem = union(ElemType) {
                 .Array => self.asArray().isEql(other, vm),
                 .Object => self.asObject().isEql(other, vm),
                 .Function => self.asFunction().isEql(other),
+                .NativeCode => self.asNativeCode().isEql(other),
                 .Closure => self.asClosure().isEql(other),
             };
         }
@@ -831,6 +838,10 @@ pub const Elem = union(ElemType) {
         }
 
         pub fn asFunction(self: *Dyn) *Function {
+            return @fieldParentPtr("dyn", self);
+        }
+
+        pub fn asNativeCode(self: *Dyn) *NativeCode {
             return @fieldParentPtr("dyn", self);
         }
 
@@ -1176,6 +1187,40 @@ pub const Elem = union(ElemType) {
 
             pub fn localVar(self: *Function, slot: u8) Local {
                 return self.locals.items[@as(usize, @intCast(slot))];
+            }
+        };
+
+        pub const NativeCode = struct {
+            dyn: Dyn,
+            name: []const u8,
+            handle: NativeCodeHandle,
+
+            pub const NativeCodeHandle = *const fn (vm: *VM) VM.Error!void;
+
+            pub fn create(vm: *VM, name: []const u8, handle: NativeCodeHandle) !*NativeCode {
+                const dyn = try Dyn.allocate(vm, NativeCode, .NativeCode);
+                const nc = dyn.asNativeCode();
+
+                nc.* = NativeCode{
+                    .dyn = dyn.*,
+                    .name = name,
+                    .handle = handle,
+                };
+
+                return nc;
+            }
+
+            pub fn destroy(self: *NativeCode, vm: *VM) void {
+                vm.allocator.destroy(self);
+            }
+
+            pub fn print(self: *NativeCode, writer: VMWriter) !void {
+                try writer.print("{s}", .{self.name});
+            }
+
+            pub fn isEql(self: *NativeCode, other: *Dyn) bool {
+                if (!other.isType(.NativeCode)) return false;
+                return self == other.asNativeCode();
             }
         };
 

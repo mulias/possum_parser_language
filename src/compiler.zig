@@ -280,6 +280,7 @@ pub const Compiler = struct {
                     .String,
                     .Array,
                     .Object,
+                    .NativeCode,
                     => {},
                     .Function => {
                         if (dyn.asFunction().functionType != .NamedValue) {
@@ -302,6 +303,7 @@ pub const Compiler = struct {
                 .ValueVar => return Error.InvalidGlobalParser,
                 .Dyn => |dyn| switch (dyn.dynType) {
                     .String,
+                    .NativeCode,
                     => {},
                     .Array,
                     .Object,
@@ -1017,6 +1019,7 @@ pub const Compiler = struct {
                 .Dyn => |d| switch (d.dynType) {
                     .String,
                     .Function,
+                    .NativeCode,
                     .Closure,
                     => @panic("Internal Error"), // not produced by the parser
                     .Array,
@@ -1458,6 +1461,7 @@ pub const Compiler = struct {
                 .Dyn => |d| switch (d.dynType) {
                     .String,
                     .Function,
+                    .NativeCode,
                     .Closure,
                     => @panic("Internal Error"), // not produced by the parser
                     .Array,

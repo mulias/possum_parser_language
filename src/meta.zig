@@ -1,7 +1,11 @@
 const std = @import("std");
+const unicode = std.unicode;
+const Elem = @import("elem.zig").Elem;
 const Function = @import("elem.zig").Elem.Dyn.Function;
+const NativeCode = @import("elem.zig").Elem.Dyn.NativeCode;
 const Location = @import("location.zig").Location;
 const VM = @import("vm.zig").VM;
+const parsing = @import("parsing.zig");
 
 pub fn functions(vm: *VM) ![7]*Function {
     return [_]*Function{
@@ -120,6 +124,14 @@ pub fn createCodepointValue(vm: *VM) !*Function {
         .arity = 1,
     });
 
+    const native_code = try NativeCode.create(
+        vm,
+        "stringToCodepointNative",
+        stringToCodepoint,
+    );
+
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
     const argName = try vm.strings.insert("HexString");
     try fun.locals.append(.{ .ValueVar = argName });
 
@@ -127,10 +139,34 @@ pub fn createCodepointValue(vm: *VM) !*Function {
 
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
-    try fun.chunk.writeOp(.StringToCodepoint, loc);
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
     try fun.chunk.writeOp(.End, loc);
 
     return fun;
+}
+
+fn stringToCodepoint(vm: *VM) VM.Error!void {
+    const value = vm.pop();
+
+    if (value.isSuccess()) {
+        if (value.stringBytes(vm.*)) |bytes| {
+            if (parsing.parseCodepoint(bytes)) |c| {
+                const len = try unicode.utf8CodepointSequenceLength(c);
+                const buffer = try vm.allocator.alloc(u8, len);
+                defer vm.allocator.free(buffer);
+                _ = try unicode.utf8Encode(c, buffer);
+                var str = try Elem.Dyn.String.copy(vm, buffer);
+                try vm.push(str.dyn.elem());
+            } else {
+                try vm.pushFailure();
+            }
+        } else {
+            try vm.pushFailure();
+        }
+    } else {
+        try vm.pushFailure();
+    }
 }
 
 pub fn createSurrogatePairCodepointValue(vm: *VM) !*Function {
@@ -140,6 +176,14 @@ pub fn createSurrogatePairCodepointValue(vm: *VM) !*Function {
         .functionType = .NamedValue,
         .arity = 2,
     });
+
+    const native_code = try NativeCode.create(
+        vm,
+        "stringsToSurrogateCodepointNative",
+        stringsToSurrogateCodepoint,
+    );
+
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
 
     const arg1 = try vm.strings.insert("HighSurrogate");
     const arg2 = try vm.strings.insert("LowSurrogate");
@@ -152,8 +196,37 @@ pub fn createSurrogatePairCodepointValue(vm: *VM) !*Function {
     try fun.chunk.write(0, loc);
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(1, loc);
-    try fun.chunk.writeOp(.StringsToCodepoint, loc);
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
     try fun.chunk.writeOp(.End, loc);
 
     return fun;
+}
+
+fn stringsToSurrogateCodepoint(vm: *VM) VM.Error!void {
+    const lowSurrogate = vm.pop();
+    const highSurrogate = vm.pop();
+
+    if (highSurrogate.isSuccess() and lowSurrogate.isSuccess()) {
+        if (highSurrogate.stringBytes(vm.*)) |high| {
+            if (lowSurrogate.stringBytes(vm.*)) |low| {
+                if (parsing.parseSurrogatePair(high, low)) |c| {
+                    const len = try unicode.utf8CodepointSequenceLength(c);
+                    const buffer = try vm.allocator.alloc(u8, len);
+                    defer vm.allocator.free(buffer);
+                    _ = try unicode.utf8Encode(c, buffer);
+                    var str = try Elem.Dyn.String.copy(vm, buffer);
+                    try vm.push(str.dyn.elem());
+                } else {
+                    try vm.pushFailure();
+                }
+            } else {
+                try vm.pushFailure();
+            }
+        } else {
+            try vm.pushFailure();
+        }
+    } else {
+        try vm.pushFailure();
+    }
 }

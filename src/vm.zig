@@ -56,13 +56,15 @@ pub const VM = struct {
         ip: usize,
         elemsOffset: usize,
     };
-    const Error = error{
+
+    pub const Error = error{
         RuntimeError,
         OutOfMemory,
         Utf8ExpectedContinuation,
         Utf8OverlongEncoding,
         Utf8EncodesSurrogateHalf,
-        Utf8CodepointTooLarge,
+        CodepointTooLarge,
+        Utf8CannotEncodeSurrogateHalf,
         InvalidRange,
         NoMainParser,
     } || WriterError;
@@ -482,6 +484,17 @@ pub const VM = struct {
                     try self.push(Elem.failureConst);
                 }
             },
+            .NativeCode => {
+                const idx = self.readByte();
+                const elem = self.chunk().getConstant(idx);
+
+                if (elem.isDynType(.NativeCode)) {
+                    const nc = elem.asDyn().asNativeCode();
+                    try nc.handle(self);
+                } else {
+                    @panic("Internal Error");
+                }
+            },
             .NegateNumber => {
                 const num = self.pop();
 
@@ -577,55 +590,6 @@ pub const VM = struct {
                 const count = self.readByte();
 
                 try self.prepareMergePattern(count);
-            },
-            .StringToCodepoint => {
-                const value = self.pop();
-
-                if (value.isSuccess()) {
-                    if (value.stringBytes(self.*)) |bytes| {
-                        if (parsing.parseCodepoint(bytes)) |c| {
-                            const len = try unicode.utf8CodepointSequenceLength(c);
-                            const buffer = try self.allocator.alloc(u8, len);
-                            defer self.allocator.free(buffer);
-                            _ = try unicode.utf8Encode(c, buffer);
-                            var str = try Elem.Dyn.String.copy(self, buffer);
-                            try self.push(str.dyn.elem());
-                        } else {
-                            try self.pushFailure();
-                        }
-                    } else {
-                        try self.pushFailure();
-                    }
-                } else {
-                    try self.pushFailure();
-                }
-            },
-            .StringsToCodepoint => {
-                const lowSurrogate = self.pop();
-                const highSurrogate = self.pop();
-
-                if (highSurrogate.isSuccess() and lowSurrogate.isSuccess()) {
-                    if (highSurrogate.stringBytes(self.*)) |high| {
-                        if (lowSurrogate.stringBytes(self.*)) |low| {
-                            if (parsing.parseSurrogatePair(high, low)) |c| {
-                                const len = try unicode.utf8CodepointSequenceLength(c);
-                                const buffer = try self.allocator.alloc(u8, len);
-                                defer self.allocator.free(buffer);
-                                _ = try unicode.utf8Encode(c, buffer);
-                                var str = try Elem.Dyn.String.copy(self, buffer);
-                                try self.push(str.dyn.elem());
-                            } else {
-                                try self.pushFailure();
-                            }
-                        } else {
-                            try self.pushFailure();
-                        }
-                    } else {
-                        try self.pushFailure();
-                    }
-                } else {
-                    try self.pushFailure();
-                }
             },
             .Swap => {
                 const a = self.pop();
@@ -1059,6 +1023,7 @@ pub const VM = struct {
                         }
                     },
                     .Function,
+                    .NativeCode,
                     .Closure,
                     => @panic("internal error"),
                 },
@@ -1328,15 +1293,15 @@ pub const VM = struct {
         return (@as(u16, @intCast(items[self.frame().ip - 2])) << 8) | items[self.frame().ip - 1];
     }
 
-    fn push(self: *VM, elem: Elem) !void {
+    pub fn push(self: *VM, elem: Elem) !void {
         try self.stack.append(elem);
     }
 
-    fn pushFailure(self: *VM) !void {
+    pub fn pushFailure(self: *VM) !void {
         try self.push(Elem.failureConst);
     }
 
-    fn pop(self: *VM) Elem {
+    pub fn pop(self: *VM) Elem {
         return self.stack.pop();
     }
 

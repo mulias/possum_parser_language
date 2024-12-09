@@ -160,7 +160,7 @@
   0019    | End
   ========================================
   
-  =================@fn524=================
+  =================@fn526=================
   0000   42 SetInputMark
   0001    | GetConstant 0: space
   0003    | CallFunction 0
@@ -172,12 +172,12 @@
   
   ===============whitespace===============
   0000   42 GetConstant 0: many
-  0002    | GetConstant 1: @fn524
+  0002    | GetConstant 1: @fn526
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn525=================
+  =================@fn527=================
   0000   46 GetConstant 0: unless
   0002    | GetConstant 1: char
   0004    | GetConstant 2: whitespace
@@ -187,12 +187,12 @@
   
   =================token==================
   0000   46 GetConstant 0: many
-  0002    | GetConstant 1: @fn525
+  0002    | GetConstant 1: @fn527
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn526=================
+  =================@fn528=================
   0000   48 SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: alnum
@@ -208,12 +208,12 @@
   
   ==================word==================
   0000   48 GetConstant 0: many
-  0002    | GetConstant 1: @fn526
+  0002    | GetConstant 1: @fn528
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn527=================
+  =================@fn529=================
   0000   50 SetInputMark
   0001    | GetConstant 0: newline
   0003    | CallFunction 0
@@ -225,7 +225,7 @@
   
   ==================line==================
   0000   50 GetConstant 0: chars_until
-  0002    | GetConstant 1: @fn527
+  0002    | GetConstant 1: @fn529
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -235,7 +235,7 @@
   0003    | End
   ========================================
   
-  =================@fn528=================
+  =================@fn530=================
   0000   54 GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -248,7 +248,7 @@
   
   ================integer=================
   0000   54 GetConstant 0: @number_of
-  0002    | GetConstant 1: @fn528
+  0002    | GetConstant 1: @fn530
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -260,7 +260,7 @@
   0006    | End
   ========================================
   
-  =================@fn529=================
+  =================@fn531=================
   0000   60 GetConstant 0: "-"
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -272,12 +272,12 @@
   
   ============negative_integer============
   0000   60 GetConstant 0: @number_of
-  0002    | GetConstant 1: @fn529
+  0002    | GetConstant 1: @fn531
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn530=================
+  =================@fn532=================
   0000   62 GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -294,12 +294,12 @@
   
   =================float==================
   0000   62 GetConstant 0: @number_of
-  0002    | GetConstant 1: @fn530
+  0002    | GetConstant 1: @fn532
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn531=================
+  =================@fn533=================
   0000   65 GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -316,12 +316,12 @@
   
   ===========scientific_integer===========
   0000   64 GetConstant 0: @number_of
-  0002   66 GetConstant 1: @fn531
+  0002   66 GetConstant 1: @fn533
   0004   64 CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn532=================
+  =================@fn534=================
   0000   71 GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -342,12 +342,12 @@
   
   ============scientific_float============
   0000   70 GetConstant 0: @number_of
-  0002   73 GetConstant 1: @fn532
+  0002   73 GetConstant 1: @fn534
   0004   70 CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn533=================
+  =================@fn535=================
   0000   78 GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -370,12 +370,12 @@
   
   =================number=================
   0000   77 GetConstant 0: @number_of
-  0002   80 GetConstant 1: @fn533
+  0002   80 GetConstant 1: @fn535
   0004   77 CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn534=================
+  =================@fn536=================
   0000   87 GetConstant 0: _number_integer_part
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 14
@@ -393,12 +393,12 @@
   
   ==========non_negative_number===========
   0000   86 GetConstant 0: @number_of
-  0002   88 GetConstant 1: @fn534
+  0002   88 GetConstant 1: @fn536
   0004   86 CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn535=================
+  =================@fn537=================
   0000   93 GetConstant 0: "-"
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -420,7 +420,7 @@
   
   ============negative_number=============
   0000   92 GetConstant 0: @number_of
-  0002   95 GetConstant 1: @fn535
+  0002   95 GetConstant 1: @fn537
   0004   92 CallTailFunction 1
   0006    | End
   ========================================
@@ -448,7 +448,7 @@
   0012    | End
   ========================================
   
-  =================@fn536=================
+  =================@fn538=================
   0000  103 SetInputMark
   0001    | GetConstant 0: "-"
   0003    | CallFunction 0
@@ -467,7 +467,7 @@
   0010    | CallFunction 0
   0012    | JumpIfFailure 12 -> 22
   0015    | GetConstant 2: maybe
-  0017    | GetConstant 3: @fn536
+  0017    | GetConstant 3: @fn538
   0019    | CallFunction 1
   0021    | Merge
   0022    | JumpIfFailure 22 -> 30
@@ -649,7 +649,7 @@
   0021    | End
   ========================================
   
-  =================@fn537=================
+  =================@fn539=================
   0000  136 GetConstant 0: p
   0002    | SetClosureCaptures
   0003    | GetConstant 1: find
@@ -658,7 +658,7 @@
   0009    | End
   ========================================
   
-  =================@fn538=================
+  =================@fn540=================
   0000  136 GetConstant 0: many
   0002    | GetConstant 1: char
   0004    | CallTailFunction 1
@@ -667,12 +667,12 @@
   
   ================find_all================
   0000  136 GetConstant 0: array
-  0002    | GetConstant 1: @fn537
+  0002    | GetConstant 1: @fn539
   0004    | CaptureLocal 0 0
   0007    | CallFunction 1
   0009    | JumpIfFailure 9 -> 19
   0012    | GetConstant 2: maybe
-  0014    | GetConstant 3: @fn538
+  0014    | GetConstant 3: @fn540
   0016    | CallFunction 1
   0018    | TakeLeft
   0019    | End
@@ -700,7 +700,7 @@
   0038    | End
   ========================================
   
-  =================@fn539=================
+  =================@fn541=================
   0000  140 GetConstant 0: p
   0002    | GetConstant 1: stop
   0004    | SetClosureCaptures
@@ -711,7 +711,7 @@
   0013    | End
   ========================================
   
-  =================@fn540=================
+  =================@fn542=================
   0000  140 GetConstant 0: stop
   0002    | SetClosureCaptures
   0003    | GetConstant 1: chars_until
@@ -722,13 +722,13 @@
   
   ============find_all_before=============
   0000  140 GetConstant 0: array
-  0002    | GetConstant 1: @fn539
+  0002    | GetConstant 1: @fn541
   0004    | CaptureLocal 0 0
   0007    | CaptureLocal 1 1
   0010    | CallFunction 1
   0012    | JumpIfFailure 12 -> 25
   0015    | GetConstant 2: maybe
-  0017    | GetConstant 3: @fn540
+  0017    | GetConstant 3: @fn542
   0019    | CaptureLocal 1 0
   0022    | CallFunction 1
   0024    | TakeLeft
@@ -783,7 +783,7 @@
   0019    | End
   ========================================
   
-  =================@fn541=================
+  =================@fn543=================
   0000  154 GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
@@ -793,7 +793,7 @@
   =================input==================
   0000  154 GetConstant 0: surround
   0002    | GetBoundLocal 0
-  0004    | GetConstant 1: @fn541
+  0004    | GetConstant 1: @fn543
   0006    | CallFunction 2
   0008    | JumpIfFailure 8 -> 16
   0011    | GetConstant 2: end_of_input
@@ -838,7 +838,7 @@
   0036    | End
   ========================================
   
-  =================@fn542=================
+  =================@fn544=================
   0000  160 GetConstant 0: sep
   0002    | GetConstant 1: p
   0004    | SetClosureCaptures
@@ -858,7 +858,7 @@
   0008    | Destructure
   0009    | TakeRight 9 -> 26
   0012    | GetConstant 1: _many
-  0014    | GetConstant 2: @fn542
+  0014    | GetConstant 2: @fn544
   0016    | CaptureLocal 0 1
   0019    | CaptureLocal 1 0
   0022    | GetBoundLocal 2
@@ -1296,7 +1296,7 @@
   0046  217 End
   ========================================
   
-  =================@fn543=================
+  =================@fn545=================
   0000  221 GetConstant 0: sep
   0002    | GetConstant 1: elem
   0004    | SetClosureCaptures
@@ -1316,7 +1316,7 @@
   0008    | Destructure
   0009    | TakeRight 9 -> 30
   0012    | GetConstant 1: _array
-  0014    | GetConstant 2: @fn543
+  0014    | GetConstant 2: @fn545
   0016    | CaptureLocal 0 1
   0019    | CaptureLocal 1 0
   0022    | GetConstant 3: [_]
@@ -1377,7 +1377,7 @@
   0057  227 End
   ========================================
   
-  =================@fn544=================
+  =================@fn546=================
   0000  231 GetConstant 0: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 1: array
@@ -1388,14 +1388,14 @@
   
   ==============maybe_array===============
   0000  231 GetConstant 0: default
-  0002    | GetConstant 1: @fn544
+  0002    | GetConstant 1: @fn546
   0004    | CaptureLocal 0 0
   0007    | GetConstant 2: []
   0009    | CallTailFunction 2
   0011    | End
   ========================================
   
-  =================@fn545=================
+  =================@fn547=================
   0000  233 GetConstant 0: elem
   0002    | GetConstant 1: sep
   0004    | SetClosureCaptures
@@ -1408,7 +1408,7 @@
   
   ============maybe_array_sep=============
   0000  233 GetConstant 0: default
-  0002    | GetConstant 1: @fn545
+  0002    | GetConstant 1: @fn547
   0004    | CaptureLocal 0 0
   0007    | CaptureLocal 1 1
   0010    | GetConstant 2: []
@@ -1735,7 +1735,7 @@
   0132  275 End
   ========================================
   
-  =================@fn546=================
+  =================@fn548=================
   0000  282 GetConstant 0: elem
   0002    | GetConstant 1: sep
   0004    | GetConstant 2: row_sep
@@ -1750,7 +1750,7 @@
   
   ============maybe_table_sep=============
   0000  282 GetConstant 0: default
-  0002    | GetConstant 1: @fn546
+  0002    | GetConstant 1: @fn548
   0004    | CaptureLocal 0 0
   0007    | CaptureLocal 1 1
   0010    | CaptureLocal 2 2
@@ -1815,7 +1815,7 @@
   0055  289 End
   ========================================
   
-  =================@fn547=================
+  =================@fn549=================
   0000  295 GetConstant 0: sep
   0002    | GetConstant 1: key
   0004    | SetClosureCaptures
@@ -1827,7 +1827,7 @@
   0016    | End
   ========================================
   
-  =================@fn548=================
+  =================@fn550=================
   0000  295 GetConstant 0: pair_sep
   0002    | GetConstant 1: value
   0004    | SetClosureCaptures
@@ -1856,10 +1856,10 @@
   0027    | Destructure
   0028    | TakeRight 28 -> 58
   0031  295 GetConstant 2: _object
-  0033    | GetConstant 3: @fn547
+  0033    | GetConstant 3: @fn549
   0035    | CaptureLocal 0 1
   0038    | CaptureLocal 3 0
-  0041    | GetConstant 4: @fn548
+  0041    | GetConstant 4: @fn550
   0043    | CaptureLocal 1 0
   0046    | CaptureLocal 2 1
   0049    | GetConstant 5: {}
@@ -1934,7 +1934,7 @@
   0066  303 End
   ========================================
   
-  =================@fn549=================
+  =================@fn551=================
   0000  307 GetConstant 0: key
   0002    | GetConstant 1: value
   0004    | SetClosureCaptures
@@ -1947,7 +1947,7 @@
   
   ==============maybe_object==============
   0000  307 GetConstant 0: default
-  0002    | GetConstant 1: @fn549
+  0002    | GetConstant 1: @fn551
   0004    | CaptureLocal 0 0
   0007    | CaptureLocal 1 1
   0010    | GetConstant 2: {}
@@ -1955,7 +1955,7 @@
   0014    | End
   ========================================
   
-  =================@fn550=================
+  =================@fn552=================
   0000  310 GetConstant 0: key
   0002    | GetConstant 1: pair_sep
   0004    | GetConstant 2: value
@@ -1972,7 +1972,7 @@
   
   ============maybe_object_sep============
   0000  310 GetConstant 0: default
-  0002    | GetConstant 1: @fn550
+  0002    | GetConstant 1: @fn552
   0004    | CaptureLocal 0 0
   0007    | CaptureLocal 1 1
   0010    | CaptureLocal 2 2
@@ -2214,7 +2214,7 @@
   0019    | End
   ========================================
   
-  =================@fn552=================
+  =================@fn554=================
   0000  360 SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: _ctrl_char
@@ -2228,7 +2228,7 @@
   0020    | End
   ========================================
   
-  =================@fn551=================
+  =================@fn553=================
   0000  359 SetInputMark
   0001  358 SetInputMark
   0002    | GetConstant 0: _escaped_ctrl_char
@@ -2239,7 +2239,7 @@
   0013    | Or 13 -> 24
   0016  360 GetConstant 2: unless
   0018    | GetConstant 3: char
-  0020    | GetConstant 4: @fn552
+  0020    | GetConstant 4: @fn554
   0022    | CallTailFunction 2
   0024  359 End
   ========================================
@@ -2247,7 +2247,7 @@
   ===========_json_string_body============
   0000  361 SetInputMark
   0001  357 GetConstant 0: many
-  0003  359 GetConstant 1: @fn551
+  0003  359 GetConstant 1: @fn553
   0005  357 CallFunction 1
   0007  361 Or 7 -> 16
   0010    | GetConstant 2: const
@@ -2454,19 +2454,19 @@
   0027    | End
   ========================================
   
-  =================@fn554=================
+  =================@fn556=================
   0000  392 GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn553=================
+  =================@fn555=================
   0000  392 GetConstant 0: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 1: surround
   0005    | GetBoundLocal 0
-  0007    | GetConstant 2: @fn554
+  0007    | GetConstant 2: @fn556
   0009    | CallTailFunction 2
   0011    | End
   ========================================
@@ -2476,7 +2476,7 @@
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 18
   0007    | GetConstant 1: maybe_array_sep
-  0009    | GetConstant 2: @fn553
+  0009    | GetConstant 2: @fn555
   0011    | CaptureLocal 0 0
   0014    | GetConstant 3: ","
   0016    | CallFunction 2
@@ -2487,34 +2487,34 @@
   0026    | End
   ========================================
   
-  =================@fn556=================
+  =================@fn558=================
   0000  397 GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn555=================
+  =================@fn557=================
   0000  397 GetConstant 0: surround
   0002    | GetConstant 1: json_string
-  0004    | GetConstant 2: @fn556
+  0004    | GetConstant 2: @fn558
   0006    | CallTailFunction 2
   0008    | End
   ========================================
   
-  =================@fn558=================
+  =================@fn560=================
   0000  398 GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn557=================
+  =================@fn559=================
   0000  398 GetConstant 0: value
   0002    | SetClosureCaptures
   0003    | GetConstant 1: surround
   0005    | GetBoundLocal 0
-  0007    | GetConstant 2: @fn558
+  0007    | GetConstant 2: @fn560
   0009    | CallTailFunction 2
   0011    | End
   ========================================
@@ -2524,9 +2524,9 @@
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 22
   0007  396 GetConstant 1: maybe_object_sep
-  0009  397 GetConstant 2: @fn555
+  0009  397 GetConstant 2: @fn557
   0011    | GetConstant 3: ":"
-  0013  398 GetConstant 4: @fn557
+  0013  398 GetConstant 4: @fn559
   0015    | CaptureLocal 0 0
   0018    | GetConstant 5: ","
   0020  396 CallFunction 4
