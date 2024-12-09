@@ -13,7 +13,7 @@ const Parser = @import("parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
 const WriterError = @import("writer.zig").VMWriter.Error;
 const Writers = @import("writer.zig").Writers;
-const meta = @import("meta.zig");
+const builtin = @import("builtin.zig");
 const parsing = @import("parsing.zig");
 
 pub const Config = struct {
@@ -103,7 +103,7 @@ pub const VM = struct {
         self.config = config;
         errdefer self.deinit();
 
-        try self.loadMetaFunctions();
+        try self.loadBuiltinFunctions();
 
         if (self.config.includeStdlib) {
             try self.loadStdlib();
@@ -151,8 +151,8 @@ pub const VM = struct {
         }
     }
 
-    fn loadMetaFunctions(self: *VM) !void {
-        const functions = try meta.functions(self);
+    fn loadBuiltinFunctions(self: *VM) !void {
+        const functions = try builtin.functions(self);
 
         for (functions) |function| {
             try self.globals.put(function.name, function.dyn.elem());
