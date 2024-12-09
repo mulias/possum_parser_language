@@ -1305,7 +1305,7 @@ pub const VM = struct {
         return self.stack.pop();
     }
 
-    fn peek(self: *VM, distance: usize) Elem {
+    pub fn peek(self: *VM, distance: usize) Elem {
         const len = self.stack.items.len;
         return self.stack.items[(len - 1) - distance];
     }
