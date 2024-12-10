@@ -2,7 +2,7 @@ const std = @import("std");
 const unicode = std.unicode;
 const Ast = @import("ast.zig").Ast;
 const Elem = @import("elem.zig").Elem;
-const Location = @import("location.zig").Location;
+const Region = @import("region.zig").Region;
 const Scanner = @import("scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
 const Token = @import("token.zig").Token;
@@ -70,13 +70,13 @@ pub const Parser = struct {
         try self.consume(.Eof, "Expect end of program.");
     }
 
-    fn parseExpression(self: *Parser, source: []const u8) !*Ast.LocNode {
+    fn parseExpression(self: *Parser, source: []const u8) !*Ast.RNode {
         self.scanner = Scanner.init(source, self.writers, self.vm.config.printScanner);
         try self.advance();
         return self.expression();
     }
 
-    fn statement(self: *Parser) !*Ast.LocNode {
+    fn statement(self: *Parser) !*Ast.RNode {
         const node = try self.parseWithPrecedence(.None);
 
         if (self.check(.Eof) or self.currentSkippedNewline or try self.match(.Semicolon)) {
@@ -86,11 +86,11 @@ pub const Parser = struct {
         return self.errorAtCurrent("Expected newline or semicolon between statements");
     }
 
-    fn expression(self: *Parser) Error!*Ast.LocNode {
+    fn expression(self: *Parser) Error!*Ast.RNode {
         return self.parseWithPrecedence(.None);
     }
 
-    fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!*Ast.LocNode {
+    fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!*Ast.RNode {
         if (self.printDebug) self.writers.debugPrint("parse with precedence {}\n", .{precedence});
 
         try self.advance();
@@ -134,7 +134,7 @@ pub const Parser = struct {
         return node;
     }
 
-    fn prefix(self: *Parser, tokenType: TokenType) !*Ast.LocNode {
+    fn prefix(self: *Parser, tokenType: TokenType) !*Ast.RNode {
         if (self.printDebug) self.writers.debugPrint("prefix {}\n", .{tokenType});
 
         return switch (tokenType) {
@@ -157,7 +157,7 @@ pub const Parser = struct {
         };
     }
 
-    fn infix(self: *Parser, tokenType: TokenType, leftNode: *Ast.LocNode) !*Ast.LocNode {
+    fn infix(self: *Parser, tokenType: TokenType, leftNode: *Ast.RNode) !*Ast.RNode {
         if (self.printDebug) self.writers.debugPrint("infix {}\n", .{tokenType});
 
         return switch (tokenType) {
@@ -192,39 +192,39 @@ pub const Parser = struct {
         };
     }
 
-    fn parserVar(self: *Parser) !*Ast.LocNode {
+    fn parserVar(self: *Parser) !*Ast.RNode {
         const t = self.previous;
         const sId = try self.vm.strings.insert(t.lexeme);
-        return self.ast.createElem(Elem.parserVar(sId), t.loc);
+        return self.ast.createElem(Elem.parserVar(sId), t.region);
     }
 
-    fn valueVar(self: *Parser) !*Ast.LocNode {
+    fn valueVar(self: *Parser) !*Ast.RNode {
         const t = self.previous;
         const sId = try self.vm.strings.insert(t.lexeme);
-        return self.ast.createElem(Elem.valueVar(sId), t.loc);
+        return self.ast.createElem(Elem.valueVar(sId), t.region);
     }
 
-    fn string(self: *Parser) !*Ast.LocNode {
+    fn string(self: *Parser) !*Ast.RNode {
         const t1 = self.previous;
         const s1 = stringContents(t1.lexeme);
 
         if (t1.isBacktickString()) {
             const sId = try self.vm.strings.insert(s1);
-            return self.ast.createElem(Elem.string(sId), t1.loc);
+            return self.ast.createElem(Elem.string(sId), t1.region);
         }
 
         const result = try self.internUnescaped(s1);
-        const loc_node = try self.ast.createElem(Elem.string(result.sId), t1.loc);
+        const rnode = try self.ast.createElem(Elem.string(result.sId), t1.region);
 
         if (result.rest.len == 0) {
-            return loc_node;
+            return rnode;
         } else {
-            return self.stringTemplate(loc_node, result.rest);
+            return self.stringTemplate(rnode, result.rest);
         }
     }
 
-    fn stringTemplate(self: *Parser, first_part: *Ast.LocNode, rest: []const u8) !*Ast.LocNode {
-        const loc = self.previous.loc;
+    fn stringTemplate(self: *Parser, first_part: *Ast.RNode, rest: []const u8) !*Ast.RNode {
+        const r = self.previous.region;
 
         // Don't deinit, we want the shared ast to persist
         var templateParser = initWithAst(self.vm, self.ast);
@@ -238,13 +238,13 @@ pub const Parser = struct {
             .StringTemplate,
             first_part,
             templatePartsRest,
-            loc,
+            r,
         );
     }
 
-    fn stringTemplateParts(templateParser: *Parser, str: []const u8) !*Ast.LocNode {
-        const loc = templateParser.previous.loc;
-        var template: *Ast.LocNode = undefined;
+    fn stringTemplateParts(templateParser: *Parser, str: []const u8) !*Ast.RNode {
+        const r = templateParser.previous.region;
+        var template: *Ast.RNode = undefined;
         var rest_bytes: []const u8 = undefined;
 
         if (str[0] == '%' and str[1] == '(') {
@@ -262,7 +262,7 @@ pub const Parser = struct {
         } else {
             // Next template part is a string
             const result = try templateParser.internUnescaped(str);
-            template = try templateParser.ast.createElem(Elem.string(result.sId), loc);
+            template = try templateParser.ast.createElem(Elem.string(result.sId), r);
             rest_bytes = result.rest;
         }
 
@@ -275,7 +275,7 @@ pub const Parser = struct {
                 .StringTemplateCons,
                 template,
                 rest,
-                loc,
+                r,
             );
         }
     }
@@ -385,43 +385,43 @@ pub const Parser = struct {
         return null;
     }
 
-    fn integer(self: *Parser) !*Ast.LocNode {
+    fn integer(self: *Parser) !*Ast.RNode {
         const t = self.previous;
 
         if (t.tokenType == .Integer) {
-            return self.ast.createElem(try Elem.numberString(t.lexeme, .Integer, self.vm), t.loc);
+            return self.ast.createElem(try Elem.numberString(t.lexeme, .Integer, self.vm), t.region);
         } else {
             return self.errorAtPrevious("Expected integer");
         }
     }
 
-    fn float(self: *Parser) !*Ast.LocNode {
+    fn float(self: *Parser) !*Ast.RNode {
         const t = self.previous;
-        return self.ast.createElem(try Elem.numberString(t.lexeme, .Float, self.vm), t.loc);
+        return self.ast.createElem(try Elem.numberString(t.lexeme, .Float, self.vm), t.region);
     }
 
-    fn scientific(self: *Parser) !*Ast.LocNode {
+    fn scientific(self: *Parser) !*Ast.RNode {
         const t = self.previous;
-        return self.ast.createElem(try Elem.numberString(t.lexeme, .Scientific, self.vm), t.loc);
+        return self.ast.createElem(try Elem.numberString(t.lexeme, .Scientific, self.vm), t.region);
     }
 
-    fn literal(self: *Parser) !*Ast.LocNode {
+    fn literal(self: *Parser) !*Ast.RNode {
         const t = self.previous;
         return switch (t.tokenType) {
-            .True => try self.ast.createElem(Elem.boolean(true), t.loc),
-            .False => try self.ast.createElem(Elem.boolean(false), t.loc),
-            .Null => try self.ast.createElem(Elem.nullConst, t.loc),
+            .True => try self.ast.createElem(Elem.boolean(true), t.region),
+            .False => try self.ast.createElem(Elem.boolean(false), t.region),
+            .Null => try self.ast.createElem(Elem.nullConst, t.region),
             else => unreachable,
         };
     }
 
-    fn grouping(self: *Parser) !*Ast.LocNode {
+    fn grouping(self: *Parser) !*Ast.RNode {
         const expr = try self.expression();
         try self.consume(.RightParen, "Expect ')' after expression.");
         return expr;
     }
 
-    fn negate(self: *Parser) !*Ast.LocNode {
+    fn negate(self: *Parser) !*Ast.RNode {
         const t = self.previous;
 
         if (self.currentSkippedWhitespace) {
@@ -429,16 +429,16 @@ pub const Parser = struct {
         }
 
         const inner = try self.parseWithPrecedence(.Prefix);
-        return self.ast.create(.{ .Negation = inner }, t.loc);
+        return self.ast.create(.{ .Negation = inner }, t.region);
     }
 
-    fn valueLabel(self: *Parser) !*Ast.LocNode {
+    fn valueLabel(self: *Parser) !*Ast.RNode {
         const t = self.previous;
         const inner = try self.parseWithPrecedence(.Prefix);
-        return self.ast.create(.{ .ValueLabel = inner }, t.loc);
+        return self.ast.create(.{ .ValueLabel = inner }, t.region);
     }
 
-    fn binaryOp(self: *Parser, left: *Ast.LocNode) !*Ast.LocNode {
+    fn binaryOp(self: *Parser, left: *Ast.RNode) !*Ast.RNode {
         if (self.printDebug) self.writers.debugPrint("binary op {}\n", .{self.previous.tokenType});
 
         const t = self.previous;
@@ -459,35 +459,35 @@ pub const Parser = struct {
             else => unreachable,
         };
 
-        return self.ast.createInfix(infixType, left, right, t.loc);
+        return self.ast.createInfix(infixType, left, right, t.region);
     }
 
-    fn conditionalIfThenOp(self: *Parser, if_loc_node: *Ast.LocNode) !*Ast.LocNode {
+    fn conditionalIfThenOp(self: *Parser, if_rnode: *Ast.RNode) !*Ast.RNode {
         if (self.printDebug) self.writers.debugPrint("conditional if/then {}\n", .{self.previous.tokenType});
 
-        const ifThenLoc = self.previous.loc;
+        const if_then_region = self.previous.region;
 
-        const then_else_loc_node = try self.parseWithPrecedence(.Conditional);
+        const then_else_rnode = try self.parseWithPrecedence(.Conditional);
 
-        const if_then_loc_node = try self.ast.createInfix(.ConditionalIfThen, if_loc_node, then_else_loc_node, ifThenLoc);
+        const if_then_rnode = try self.ast.createInfix(.ConditionalIfThen, if_rnode, then_else_rnode, if_then_region);
 
-        return if_then_loc_node;
+        return if_then_rnode;
     }
 
-    fn conditionalThenElseOp(self: *Parser, then_loc_node: *Ast.LocNode) !*Ast.LocNode {
+    fn conditionalThenElseOp(self: *Parser, then_rnode: *Ast.RNode) !*Ast.RNode {
         if (self.printDebug) self.writers.debugPrint("conditional then/else {}\n", .{self.previous.tokenType});
 
-        const thenElseLoc = self.previous.loc;
+        const then_else_region = self.previous.region;
 
-        const else_loc_node = try self.parseWithPrecedence(.Conditional);
+        const else_rnode = try self.parseWithPrecedence(.Conditional);
 
-        const then_else_loc_node = try self.ast.createInfix(.ConditionalThenElse, then_loc_node, else_loc_node, thenElseLoc);
+        const then_else_rnode = try self.ast.createInfix(.ConditionalThenElse, then_rnode, else_rnode, then_else_region);
 
-        return then_else_loc_node;
+        return then_else_rnode;
     }
 
-    fn callOrDefineFunction(self: *Parser, function_ident: *Ast.LocNode) !*Ast.LocNode {
-        const callOrDefineLoc = self.previous.loc;
+    fn callOrDefineFunction(self: *Parser, function_ident: *Ast.RNode) !*Ast.RNode {
+        const call_or_define_region = self.previous.region;
 
         if (try self.match(.RightParen)) {
             return function_ident;
@@ -499,56 +499,48 @@ pub const Parser = struct {
                 .CallOrDefineFunction,
                 function_ident,
                 params_or_args,
-                callOrDefineLoc,
+                call_or_define_region,
             );
         }
     }
 
-    fn paramsOrArgs(self: *Parser) !*Ast.LocNode {
+    fn paramsOrArgs(self: *Parser) !*Ast.RNode {
         const expr = try self.expression();
 
         if (try self.match(.Comma) and !self.check(.RightParen)) {
-            const commaLoc = self.previous.loc;
+            const comma_region = self.previous.region;
             return self.ast.createInfix(
                 .ParamsOrArgs,
                 expr,
                 try self.paramsOrArgs(),
-                commaLoc,
+                comma_region,
             );
         } else {
             return expr;
         }
     }
 
-    fn upperBoundedRange(self: *Parser) !*Ast.LocNode {
+    fn upperBoundedRange(self: *Parser) !*Ast.RNode {
         const range_token = self.previous;
         const upper_bound_node = try self.parseWithPrecedence(operatorPrecedence(range_token.tokenType));
 
         return self.ast.create(
             .{ .UpperBoundedRange = upper_bound_node },
-            Location.new(
-                range_token.loc.line,
-                range_token.loc.start,
-                range_token.loc.length + upper_bound_node.loc.length,
-            ),
+            range_token.region.merge(upper_bound_node.region),
         );
     }
 
-    fn fullOrLowerBoundedRange(self: *Parser, lower_bound_node: *Ast.LocNode) !*Ast.LocNode {
+    fn fullOrLowerBoundedRange(self: *Parser, lower_bound_node: *Ast.RNode) !*Ast.RNode {
         const range_token = self.previous;
 
         const lower_bounded_range_node = .{ .LowerBoundedRange = lower_bound_node };
-        const lower_bounded_range_loc = Location.new(
-            lower_bound_node.loc.line,
-            lower_bound_node.loc.start,
-            lower_bound_node.loc.length + range_token.loc.length,
-        );
+        const lower_bounded_range_region = lower_bound_node.region.merge(range_token.region);
 
         // If there's whitespace then the range is done
         if (self.currentSkippedWhitespace) {
             return self.ast.create(
                 lower_bounded_range_node,
-                lower_bounded_range_loc,
+                lower_bounded_range_region,
             );
         }
 
@@ -567,47 +559,41 @@ pub const Parser = struct {
                     .Range,
                     lower_bound_node,
                     upper_bound_node,
-                    Location.new(
-                        lower_bound_node.loc.line,
-                        lower_bound_node.loc.start,
-                        lower_bound_node.loc.length +
-                            range_token.loc.length +
-                            upper_bound_node.loc.length,
-                    ),
+                    lower_bound_node.region.merge(upper_bound_node.region),
                 );
             },
             else => {
                 return self.ast.create(
                     lower_bounded_range_node,
-                    lower_bounded_range_loc,
+                    lower_bounded_range_region,
                 );
             },
         }
     }
 
-    fn array(self: *Parser) Error!*Ast.LocNode {
-        const loc = self.previous.loc;
+    fn array(self: *Parser) Error!*Ast.RNode {
+        const region = self.previous.region;
         var a = try Elem.Dyn.Array.create(self.vm, 0);
-        const elem_loc_node = try self.ast.createElem(a.dyn.elem(), loc);
+        const elem_rnode = try self.ast.createElem(a.dyn.elem(), region);
 
         if (try self.match(.RightBracket)) {
-            return elem_loc_node;
+            return elem_rnode;
         } else if (try self.match(.DotDotDot)) {
-            return self.arraySpread(elem_loc_node);
+            return self.arraySpread(elem_rnode);
         } else {
-            return self.arrayNonEmpty(elem_loc_node);
+            return self.arrayNonEmpty(elem_rnode);
         }
     }
 
-    fn arrayNonEmpty(self: *Parser, head: *Ast.LocNode) !*Ast.LocNode {
-        const loc = self.previous.loc;
+    fn arrayNonEmpty(self: *Parser, head: *Ast.RNode) !*Ast.RNode {
+        const r = self.previous.region;
         const array_elems = try self.arrayElems();
 
         const left_array = try self.ast.createInfix(
             .ArrayHead,
             head,
             array_elems,
-            loc,
+            r,
         );
 
         if (try self.match(.DotDotDot)) {
@@ -618,66 +604,66 @@ pub const Parser = struct {
         }
     }
 
-    fn arraySpread(self: *Parser, left: *Ast.LocNode) !*Ast.LocNode {
-        const loc = self.previous.loc;
+    fn arraySpread(self: *Parser, left: *Ast.RNode) !*Ast.RNode {
+        const r = self.previous.region;
         const spread = try self.expression();
 
-        const left_merge = try self.ast.createInfix(.Merge, left, spread, loc);
+        const left_merge = try self.ast.createInfix(.Merge, left, spread, r);
 
         if (try self.match(.Comma)) {
-            const comma_loc = self.previous.loc;
+            const comma_region = self.previous.region;
             const right_array = try self.array();
 
-            return self.ast.createInfix(.Merge, left_merge, right_array, comma_loc);
+            return self.ast.createInfix(.Merge, left_merge, right_array, comma_region);
         } else {
             try self.consume(.RightBracket, "Expected closing ']'");
             return left_merge;
         }
     }
 
-    fn arrayElems(self: *Parser) !*Ast.LocNode {
+    fn arrayElems(self: *Parser) !*Ast.RNode {
         const expr = try self.expression();
 
         // Comsume a comma if there is one, and then parse another elem unless
         // it's a spread or it was a trailing comma at the end of the array
         if (try self.match(.Comma) and !(self.check(.DotDotDot) or self.check(.RightBracket))) {
-            const commaLoc = self.previous.loc;
+            const comma_region = self.previous.region;
             return self.ast.createInfix(
                 .ArrayCons,
                 expr,
                 try self.arrayElems(),
-                commaLoc,
+                comma_region,
             );
         } else {
             return expr;
         }
     }
 
-    fn object(self: *Parser) Error!*Ast.LocNode {
-        const loc = self.previous.loc;
+    fn object(self: *Parser) Error!*Ast.RNode {
+        const r = self.previous.region;
         var o = try Elem.Dyn.Object.create(self.vm, 0);
 
         if (try self.match(.DotDotDot)) {
             return self.objectSpread(null);
         } else {
-            const elem_loc_node = try self.ast.createElem(o.dyn.elem(), loc);
+            const elem_rnode = try self.ast.createElem(o.dyn.elem(), r);
             if (try self.match(.RightBrace)) {
-                return elem_loc_node;
+                return elem_rnode;
             } else {
-                return self.objectNonEmpty(elem_loc_node);
+                return self.objectNonEmpty(elem_rnode);
             }
         }
     }
 
-    fn objectNonEmpty(self: *Parser, head: *Ast.LocNode) !*Ast.LocNode {
-        const loc = self.previous.loc;
+    fn objectNonEmpty(self: *Parser, head: *Ast.RNode) !*Ast.RNode {
+        const r = self.previous.region;
         const members = try self.objectMembers();
 
         const left_object = try self.ast.createInfix(
             .ObjectCons,
             head,
             members,
-            loc,
+            r,
         );
 
         if (try self.match(.DotDotDot)) {
@@ -688,58 +674,54 @@ pub const Parser = struct {
         }
     }
 
-    fn objectSpread(self: *Parser, left: ?*Ast.LocNode) !*Ast.LocNode {
+    fn objectSpread(self: *Parser, left: ?*Ast.RNode) !*Ast.RNode {
         const dots = self.previous;
         const spread = try self.expression();
-        var new_left: *Ast.LocNode = undefined;
+        var new_left: *Ast.RNode = undefined;
 
         if (left) |left_node| {
             new_left = try self.ast.createInfix(
                 .Merge,
                 left_node,
                 spread,
-                Location.new(
-                    dots.loc.line,
-                    dots.loc.start,
-                    dots.loc.length + spread.loc.length,
-                ),
+                dots.region.merge(spread.region),
             );
         } else {
             new_left = spread;
         }
 
         if (try self.match(.Comma)) {
-            const comma_loc = self.previous.loc;
+            const comma_region = self.previous.region;
             const right_object = try self.object();
 
-            return self.ast.createInfix(.Merge, new_left, right_object, comma_loc);
+            return self.ast.createInfix(.Merge, new_left, right_object, comma_region);
         } else {
             try self.consume(.RightBrace, "Expected closing '}'");
             return new_left;
         }
     }
 
-    fn objectMembers(self: *Parser) !*Ast.LocNode {
+    fn objectMembers(self: *Parser) !*Ast.RNode {
         const pair = try self.objectPair();
 
         // Comsume a comma if there is one, and then parse another object
         // member unless it's a spread or it was a trailing comma at the end of
         // the object
         if (try self.match(.Comma) and !(self.check(.DotDotDot) or self.check(.RightBrace))) {
-            const commaLoc = self.previous.loc;
+            const comma_region = self.previous.region;
             return self.ast.createInfix(
                 .ObjectCons,
                 pair,
                 try self.objectMembers(),
-                commaLoc,
+                comma_region,
             );
         } else {
             return pair;
         }
     }
 
-    fn objectPair(self: *Parser) !*Ast.LocNode {
-        var key: *Ast.LocNode = undefined;
+    fn objectPair(self: *Parser) !*Ast.RNode {
+        var key: *Ast.RNode = undefined;
 
         if (try self.match(.UppercaseIdentifier)) {
             key = try self.valueVar();
@@ -756,11 +738,7 @@ pub const Parser = struct {
             .ObjectPair,
             key,
             val,
-            Location.new(
-                key.loc.line,
-                key.loc.start,
-                key.loc.length + val.loc.length,
-            ),
+            key.region.merge(val.region),
         );
     }
 
@@ -824,7 +802,7 @@ pub const Parser = struct {
     }
 
     fn errorAt(self: *Parser, token: Token, message: []const u8) Error {
-        try token.loc.print(self.writers.err);
+        try token.region.printLineRelative(self.vm.source, self.writers.err);
 
         switch (token.tokenType) {
             .Eof => {

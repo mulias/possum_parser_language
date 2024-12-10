@@ -3,7 +3,7 @@ const unicode = std.unicode;
 const Elem = @import("elem.zig").Elem;
 const Function = @import("elem.zig").Elem.Dyn.Function;
 const NativeCode = @import("elem.zig").Elem.Dyn.NativeCode;
-const Location = @import("location.zig").Location;
+const Region = @import("region.zig").Region;
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
 
@@ -28,7 +28,7 @@ pub fn createFailParser(vm: *VM) !*Function {
         .arity = 0,
     });
 
-    const loc = Location.new(0, 0, 0);
+    const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(.Fail, loc);
     try fun.chunk.writeOp(.End, loc);
@@ -44,7 +44,7 @@ pub fn createFailValue(vm: *VM) !*Function {
         .arity = 0,
     });
 
-    const loc = Location.new(0, 0, 0);
+    const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(.Fail, loc);
     try fun.chunk.writeOp(.End, loc);
@@ -63,7 +63,7 @@ pub fn createNumberOfParser(vm: *VM) !*Function {
     const argName = try vm.strings.insert("p");
     try fun.locals.append(.{ .ParserVar = argName });
 
-    const loc = Location.new(0, 0, 0);
+    const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
@@ -86,7 +86,7 @@ pub fn createNumberOfValue(vm: *VM) !*Function {
     const argName = try vm.strings.insert("V");
     try fun.locals.append(.{ .ValueVar = argName });
 
-    const loc = Location.new(0, 0, 0);
+    const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
@@ -107,7 +107,7 @@ pub fn createCrashValue(vm: *VM) !*Function {
     const argName = try vm.strings.insert("Message");
     try fun.locals.append(.{ .ValueVar = argName });
 
-    const loc = Location.new(0, 0, 0);
+    const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
@@ -136,7 +136,7 @@ pub fn createCodepointValue(vm: *VM) !*Function {
     const argName = try vm.strings.insert("HexString");
     try fun.locals.append(.{ .ValueVar = argName });
 
-    const loc = Location.new(0, 0, 0);
+    const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
@@ -191,7 +191,7 @@ pub fn createSurrogatePairCodepointValue(vm: *VM) !*Function {
     try fun.locals.append(.{ .ValueVar = arg1 });
     try fun.locals.append(.{ .ValueVar = arg2 });
 
-    const loc = Location.new(0, 0, 0);
+    const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
@@ -246,7 +246,7 @@ pub fn createDbgParser(vm: *VM) !*Function {
     const arg1 = try vm.strings.insert("p");
     try fun.locals.append(.{ .ParserVar = arg1 });
 
-    const loc = Location.new(0, 0, 0);
+    const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);

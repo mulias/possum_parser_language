@@ -3,9 +3,9 @@
   $ possum $TESTDIR/fibonacci.possum -i '0'
   
   ==================fib===================
-  0000    3 GetConstant 0: N1
+  0000    | GetConstant 0: N1
   0002    | GetConstant 1: N2
-  0004    2 SetInputMark
+  0004    | SetInputMark
   0005    | GetConstant 2: const
   0007    | GetBoundLocal 0
   0009    | GetConstant 3: _
@@ -17,7 +17,7 @@
   0021    | GetBoundLocal 0
   0023    | CallTailFunction 1
   0025    | ConditionalElse 25 -> 68
-  0028    3 GetConstant 6: fib
+  0028    | GetConstant 6: fib
   0030    | GetBoundLocal 0
   0032    | GetConstant 7: 1
   0034    | NegateNumber
@@ -35,15 +35,15 @@
   0054    | GetLocal 2
   0056    | Destructure
   0057    | TakeRight 57 -> 68
-  0060    4 GetBoundLocal 1
+  0060    | GetBoundLocal 1
   0062    | JumpIfFailure 62 -> 68
   0065    | GetBoundLocal 2
   0067    | Merge
-  0068    2 End
+  0068    | End
   ========================================
   
   ==================Fib===================
-  0000    6 SetInputMark
+  0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | GetConstant 0: _
   0005    | GetConstant 1: 1
@@ -67,7 +67,7 @@
   ========================================
   
   =================@main==================
-  0000    8 GetConstant 0: N
+  0000    | GetConstant 0: N
   0002    | ParseLowerBoundedRange 1: 0
   0004    | GetLocal 0
   0006    | Destructure

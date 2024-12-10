@@ -3,7 +3,7 @@
   $ possum -p 'const([1,2,3]) -> [1,2,3]' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: const
+  0000    | GetConstant 0: const
   0002    | GetConstant 1: [1, 2, 3]
   0004    | CallFunction 1
   0006    | GetConstant 2: [1, 2, 3]
@@ -18,7 +18,7 @@
   $ possum -p 'const([1,2,3]) -> [A,B,C]' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: B
   0004    | GetConstant 2: C
   0006    | GetConstant 3: const
@@ -51,7 +51,7 @@
   $ possum -p 'A = 1 ; const([1,2,3]) -> [A,B,C]' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: B
+  0000    | GetConstant 0: B
   0002    | GetConstant 1: C
   0004    | GetConstant 2: const
   0006    | GetConstant 3: [1, 2, 3]
@@ -83,7 +83,7 @@
   $ possum -p 'const([1,2,3]) -> [A, 2, 3]' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: const
   0004    | GetConstant 2: [1, 2, 3]
   0006    | CallFunction 1
@@ -104,7 +104,7 @@
   $ possum -p 'const([1,[[2],3]]) -> [A, [[B], 3]] $ B' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: B
   0004    | GetConstant 2: const
   0006    | GetConstant 3: [1, _]
@@ -155,7 +155,7 @@
   $ possum -p '3 -> (2 + B)' -i '3'
   
   =================@main==================
-  0000    1 GetConstant 0: B
+  0000    | GetConstant 0: B
   0002    | GetConstant 1: 3
   0004    | CallFunction 0
   0006    | GetConstant 2: 2
@@ -179,7 +179,7 @@
   $ possum -p 'const([1,2,3]) -> [A, 1 + 1, 3]' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: const
   0004    | GetConstant 2: [1, 2, 3]
   0006    | CallFunction 1
@@ -218,7 +218,7 @@
   $ possum -p 'const([1,2]) -> ([1] + [2])' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: const
+  0000    | GetConstant 0: const
   0002    | GetConstant 1: [1, 2]
   0004    | CallFunction 1
   0006    | GetConstant 2: [1]
@@ -250,7 +250,7 @@
   $ possum -p 'const([1,2,3]) -> ([1] + B + [3])' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: B
+  0000    | GetConstant 0: B
   0002    | GetConstant 1: const
   0004    | GetConstant 2: [1, 2, 3]
   0006    | CallFunction 1
@@ -288,7 +288,7 @@
   $ possum -p 'const([1,[2],2,3]) -> ([1,A] + A + [3])' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: const
   0004    | GetConstant 2: [1, _, 2, 3]
   0006    | GetConstant 3: [2]
@@ -333,7 +333,7 @@
   $ possum -p '"foobar" -> ("fo" + Ob + "ar") $ Ob' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: Ob
+  0000    | GetConstant 0: Ob
   0002    | GetConstant 1: "foobar"
   0004    | CallFunction 0
   0006    | GetConstant 2: "fo"
@@ -364,7 +364,7 @@
   $ possum -p 'const([1,2,3]) -> [1, ...Rest] $ Rest' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: Rest
+  0000    | GetConstant 0: Rest
   0002    | GetConstant 1: const
   0004    | GetConstant 2: [1, 2, 3]
   0006    | CallFunction 1
@@ -395,7 +395,7 @@
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, "b": 2}' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: const
+  0000    | GetConstant 0: const
   0002    | GetConstant 1: {"a": 1, "b": 2}
   0004    | CallFunction 1
   0006    | GetConstant 2: {"a": 1, "b": 2}
@@ -410,7 +410,7 @@
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": A, "b": B}' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: B
   0004    | GetConstant 2: const
   0006    | GetConstant 3: {"a": 1, "b": 2}
@@ -439,7 +439,7 @@
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": _, "b": _}' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: _
+  0000    | GetConstant 0: _
   0002    | GetConstant 1: const
   0004    | GetConstant 2: {"a": 1, "b": 2}
   0006    | CallFunction 1
@@ -467,7 +467,7 @@
   $ possum -p 'const({"a": 1, "b": 2}) -> ({"a": 1} + B)' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: B
+  0000    | GetConstant 0: B
   0002    | GetConstant 1: const
   0004    | GetConstant 2: {"a": 1, "b": 2}
   0006    | CallFunction 1
@@ -496,7 +496,7 @@
   $ possum -p 'const({"a": 1, "b": 2}) -> ({"b": 2} + A)' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: const
   0004    | GetConstant 2: {"a": 1, "b": 2}
   0006    | CallFunction 1
@@ -525,7 +525,7 @@
   $ possum -p 'const({"a": 1, "b": 2}) -> (A + {"b": 2})' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: const
   0004    | GetConstant 2: {"a": 1, "b": 2}
   0006    | CallFunction 1
@@ -554,7 +554,7 @@
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, ...B}' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: B
+  0000    | GetConstant 0: B
   0002    | GetConstant 1: const
   0004    | GetConstant 2: {"a": 1, "b": 2}
   0006    | CallFunction 1
@@ -583,7 +583,7 @@
   $ possum -p '2 -> 0..5' -i '2'
   
   =================@main==================
-  0000    1 GetConstant 0: 2
+  0000    | GetConstant 0: 2
   0002    | CallFunction 0
   0004    | GetConstant 1: 0
   0006    | GetConstant 2: 5
@@ -594,7 +594,7 @@
   $ possum -p 'char -> "a".."z"' -i 'q'
   
   =================@main==================
-  0000    1 GetConstant 0: char
+  0000    | GetConstant 0: char
   0002    | CallFunction 0
   0004    | GetConstant 1: "a"
   0006    | GetConstant 2: "z"
@@ -605,7 +605,7 @@
   $ possum -p 'char -> .."z"' -i '!'
   
   =================@main==================
-  0000    1 GetConstant 0: char
+  0000    | GetConstant 0: char
   0002    | CallFunction 0
   0004    | GetConstant 1: _
   0006    | GetConstant 2: "z"

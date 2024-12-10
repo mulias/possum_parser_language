@@ -143,24 +143,21 @@ pub const Scanner = struct {
 
     fn makeToken(self: *Scanner, tokenType: TokenType) Token {
         return Token.new(tokenType, self.source[0..self.offset], .{
-            .line = self.line,
             .start = self.pos - self.offset,
-            .length = self.offset,
+            .end = self.pos,
         });
     }
 
     fn makeError(self: *Scanner, message: []const u8) Token {
         return Token.new(.Error, message, .{
-            .line = self.line,
             .start = self.pos - self.offset,
-            .length = self.offset,
+            .end = self.pos,
         });
     }
 
     fn scanString(self: *Scanner, mark: u8) Token {
         // if we've already consumed input then assume it was string
         const start = self.pos - self.offset;
-        const startLine = self.line;
 
         var p = self.peek();
         var templateParenDepth: u64 = 0;
@@ -213,16 +210,14 @@ pub const Scanner = struct {
         self.advance();
 
         return Token.new(.String, self.source[0..self.offset], .{
-            .line = startLine,
             .start = start,
-            .length = self.offset,
+            .end = start + self.offset,
         });
     }
 
     fn scanBacktickString(self: *Scanner) Token {
         // if we've already consumed input then assume it was string
         const start = self.pos - self.offset;
-        const startLine = self.line;
 
         while (self.peek() != '`' and !self.isAtEnd()) {
             if (self.peek() == '\n') self.line += 1;
@@ -236,9 +231,8 @@ pub const Scanner = struct {
         self.advance();
 
         return Token.new(.String, self.source[0..self.offset], .{
-            .line = startLine,
             .start = start,
-            .length = self.offset,
+            .end = start + self.offset,
         });
     }
 
@@ -369,7 +363,6 @@ pub const Scanner = struct {
                 '\n' => {
                     self.advance();
                     self.line += 1;
-                    self.pos = 0; // reset pos after newline is consumed
                 },
                 '#' => {
                     // A comment goes until the end of the line
@@ -383,15 +376,13 @@ pub const Scanner = struct {
 
         if (startLine < self.line) {
             return Token.new(.WhitespaceWithNewline, self.source[0..self.offset], .{
-                .line = startLine,
                 .start = start,
-                .length = self.offset,
+                .end = start + self.offset,
             });
         } else if (start < self.pos) {
             return Token.new(.Whitespace, self.source[0..self.offset], .{
-                .line = startLine,
                 .start = start,
-                .length = self.offset,
+                .end = start + self.offset,
             });
         } else {
             return null;

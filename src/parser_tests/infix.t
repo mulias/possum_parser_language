@@ -1,116 +1,104 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum -p '"a" > "b" > "c" | "abz"' -i ''
-  []*ast.Ast.LocNode
-    *ast.Ast.LocNode
-      .loc: location.Location
-        .line: usize = 1
+  []*ast.Ast.RNode
+    *ast.Ast.RNode
+      .region: region.Region
         .start: usize = 16
-        .length: usize = 1
+        .end: usize = 17
       .node: ast.Ast.Node
         .InfixNode: ast.Ast.Infix
           .infixType: ast.Ast.InfixType
             .Or
-          .left: *ast.Ast.LocNode
-            .loc: location.Location
-              .line: usize = 1
+          .left: *ast.Ast.RNode
+            .region: region.Region
               .start: usize = 10
-              .length: usize = 1
+              .end: usize = 11
             .node: ast.Ast.Node
               .InfixNode: ast.Ast.Infix
                 .infixType: ast.Ast.InfixType
                   .TakeRight
-                .left: *ast.Ast.LocNode
-                  .loc: location.Location
-                    .line: usize = 1
+                .left: *ast.Ast.RNode
+                  .region: region.Region
                     .start: usize = 4
-                    .length: usize = 1
+                    .end: usize = 5
                   .node: ast.Ast.Node
                     .InfixNode: ast.Ast.Infix
                       .infixType: ast.Ast.InfixType
                         .TakeRight
-                      .left: *ast.Ast.LocNode
-                        .loc: location.Location
-                          .line: usize = 1
+                      .left: *ast.Ast.RNode
+                        .region: region.Region
                           .start: usize = 0
-                          .length: usize = 3
+                          .end: usize = 3
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .String: u32 = 143
-                      .right: *ast.Ast.LocNode
-                        .loc: location.Location
-                          .line: usize = 1
+                            .String: u32 = 148
+                      .right: *ast.Ast.RNode
+                        .region: region.Region
                           .start: usize = 6
-                          .length: usize = 3
+                          .end: usize = 9
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .String: u32 = 655
-                .right: *ast.Ast.LocNode
-                  .loc: location.Location
-                    .line: usize = 1
+                            .String: u32 = 660
+                .right: *ast.Ast.RNode
+                  .region: region.Region
                     .start: usize = 12
-                    .length: usize = 3
+                    .end: usize = 15
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .String: u32 = 663
-          .right: *ast.Ast.LocNode
-            .loc: location.Location
-              .line: usize = 1
+                      .String: u32 = 668
+          .right: *ast.Ast.RNode
+            .region: region.Region
               .start: usize = 18
-              .length: usize = 5
+              .end: usize = 23
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 2790
+                .String: u32 = 2795
 
   $ possum -p '"" $ (1-2)' -i ''
-  []*ast.Ast.LocNode
-    *ast.Ast.LocNode
-      .loc: location.Location
-        .line: usize = 1
+  []*ast.Ast.RNode
+    *ast.Ast.RNode
+      .region: region.Region
         .start: usize = 3
-        .length: usize = 1
+        .end: usize = 4
       .node: ast.Ast.Node
         .InfixNode: ast.Ast.Infix
           .infixType: ast.Ast.InfixType
             .Return
-          .left: *ast.Ast.LocNode
-            .loc: location.Location
-              .line: usize = 1
+          .left: *ast.Ast.RNode
+            .region: region.Region
               .start: usize = 0
-              .length: usize = 2
+              .end: usize = 2
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 795
-          .right: *ast.Ast.LocNode
-            .loc: location.Location
-              .line: usize = 1
+                .String: u32 = 800
+          .right: *ast.Ast.RNode
+            .region: region.Region
               .start: usize = 7
-              .length: usize = 1
+              .end: usize = 8
             .node: ast.Ast.Node
               .InfixNode: ast.Ast.Infix
                 .infixType: ast.Ast.InfixType
                   .NumberSubtract
-                .left: *ast.Ast.LocNode
-                  .loc: location.Location
-                    .line: usize = 1
+                .left: *ast.Ast.RNode
+                  .region: region.Region
                     .start: usize = 6
-                    .length: usize = 1
+                    .end: usize = 7
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 2209
+                        .sId: u32 = 2214
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false
-                .right: *ast.Ast.LocNode
-                  .loc: location.Location
-                    .line: usize = 1
+                .right: *ast.Ast.RNode
+                  .region: region.Region
                     .start: usize = 8
-                    .length: usize = 1
+                    .end: usize = 9
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 2790
+                        .sId: u32 = 2795
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false

@@ -5,7 +5,7 @@ const Ast = @import("ast.zig").Ast;
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
 const Elem = @import("elem.zig").Elem;
-const Location = @import("location.zig").Location;
+const Region = @import("region.zig").Region;
 const OpCode = @import("op_code.zig").OpCode;
 const Scanner = @import("scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
@@ -117,7 +117,7 @@ pub const Compiler = struct {
     }
 
     fn compileMain(self: *Compiler) !?*Elem.Dyn.Function {
-        var main: ?*Ast.LocNode = null;
+        var main: ?*Ast.RNode = null;
 
         for (self.ast.roots.items) |root| {
             if (root.node.asInfixOfType(.DeclareGlobal) == null) {
@@ -129,10 +129,10 @@ pub const Compiler = struct {
             }
         }
 
-        if (main) |main_loc_node| {
-            try self.addValueLocals(main_loc_node);
-            try self.writeParser(main_loc_node, false);
-            try self.emitOp(.End, main_loc_node.loc);
+        if (main) |main_rnode| {
+            try self.addValueLocals(main_rnode);
+            try self.writeParser(main_rnode, false);
+            try self.emitEnd();
 
             const main_fn = self.functions.pop();
 
@@ -146,7 +146,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn declareGlobal(self: *Compiler, head: *Ast.LocNode, body: *Ast.LocNode) !void {
+    fn declareGlobal(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode) !void {
         switch (head.node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .CallOrDefineFunction => {
@@ -174,7 +174,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn declareGlobalFunction(self: *Compiler, name: *Ast.LocNode, params: ?*Ast.LocNode) !void {
+    fn declareGlobalFunction(self: *Compiler, name: *Ast.RNode, params: ?*Ast.RNode) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
@@ -212,7 +212,7 @@ pub const Compiler = struct {
                             if (infix.left.node.asElem()) |leftElem| {
                                 _ = try self.addLocal(
                                     leftElem,
-                                    infix.left.loc,
+                                    infix.left.region,
                                 );
                                 function.arity += 1;
                             } else {
@@ -226,7 +226,7 @@ pub const Compiler = struct {
                     },
                     .ElemNode => |elem| {
                         // This is the last param
-                        _ = try self.addLocal(elem, param.loc);
+                        _ = try self.addLocal(elem, param.region);
                         function.arity += 1;
                         break;
                     },
@@ -254,7 +254,7 @@ pub const Compiler = struct {
         try self.vm.globals.put(name, bodyElem);
     }
 
-    fn validateGlobal(self: *Compiler, head: *Ast.LocNode) !void {
+    fn validateGlobal(self: *Compiler, head: *Ast.RNode) !void {
         const nameElem = switch (head.node) {
             .InfixNode => |infix| infix.left.node.asElem() orelse return Error.InvalidAst,
             .ElemNode => |elem| elem,
@@ -327,7 +327,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn resolveGlobalAlias(self: *Compiler, head: *Ast.LocNode) !void {
+    fn resolveGlobalAlias(self: *Compiler, head: *Ast.RNode) !void {
         const globalName = try self.getGlobalName(head);
         var aliasName = globalName;
         var value = self.vm.globals.get(aliasName);
@@ -365,7 +365,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileGlobalFunction(self: *Compiler, head: *Ast.LocNode, body: *Ast.LocNode) !void {
+    fn compileGlobalFunction(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode) !void {
         const globalName = try self.getGlobalName(head);
         const globalVal = self.vm.globals.get(globalName).?;
 
@@ -387,7 +387,7 @@ pub const Compiler = struct {
                 try self.writeValue(body, true);
             }
 
-            try self.emitOp(.End, body.loc);
+            try self.emitEnd();
 
             if (self.printBytecode) {
                 try function.disassemble(self.vm.*, self.writers.debug);
@@ -397,7 +397,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn getGlobalName(self: *Compiler, head: *Ast.LocNode) !StringTable.Id {
+    fn getGlobalName(self: *Compiler, head: *Ast.RNode) !StringTable.Id {
         const nameElem = switch (head.node) {
             .InfixNode => |infix| infix.left.node.asElem() orelse return Error.InvalidAst,
             .ElemNode => |elem| elem,
@@ -416,25 +416,25 @@ pub const Compiler = struct {
         return name;
     }
 
-    fn writeParser(self: *Compiler, loc_node: *Ast.LocNode, isTailPosition: bool) !void {
-        const node = loc_node.node;
-        const loc = loc_node.loc;
+    fn writeParser(self: *Compiler, rnode: *Ast.RNode, isTailPosition: bool) !void {
+        const node = rnode.node;
+        const region = rnode.region;
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Backtrack => {
-                    try self.emitOp(.SetInputMark, loc);
+                    try self.emitOp(.SetInputMark, region);
                     try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Backtrack, loc);
+                    const jumpIndex = try self.emitJump(.Backtrack, region);
                     try self.writeParser(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .Merge => {
                     try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                     try self.writeParser(infix.right, false);
-                    try self.emitOp(.Merge, loc);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.emitOp(.Merge, region);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .StringTemplate => {
                     try self.writeStringTemplate(infix.left, infix.right, .Parser);
@@ -456,13 +456,13 @@ pub const Compiler = struct {
                         if (low_codepoint > high_codepoint) {
                             return Error.RangeCodepointsUnordered;
                         } else if (low_codepoint == 0 and high_codepoint == 0x10ffff) {
-                            try self.emitOp(.ParseCharacter, loc);
+                            try self.emitOp(.ParseCharacter, region);
                         } else {
                             const low_id = try self.makeConstant(low_elem);
                             const high_id = try self.makeConstant(high_elem);
-                            try self.emitOp(.ParseRange, loc);
-                            try self.emitByte(low_id, low.loc);
-                            try self.emitByte(high_id, high.loc);
+                            try self.emitOp(.ParseRange, region);
+                            try self.emitByte(low_id, low.region);
+                            try self.emitByte(high_id, high.region);
                         }
                     } else if (low_elem == .NumberString and high_elem == .NumberString) {
                         const low_ns = low_elem.NumberString;
@@ -477,9 +477,9 @@ pub const Compiler = struct {
                             } else {
                                 const low_id = try self.makeConstant(low_int);
                                 const high_id = try self.makeConstant(high_int);
-                                try self.emitOp(.ParseRange, loc);
-                                try self.emitByte(low_id, low.loc);
-                                try self.emitByte(high_id, high.loc);
+                                try self.emitOp(.ParseRange, region);
+                                try self.emitByte(low_id, low.region);
+                                try self.emitByte(high_id, high.region);
                             }
                         } else {
                             return Error.RangeInvalidNumberFormat;
@@ -490,52 +490,52 @@ pub const Compiler = struct {
                 },
                 .TakeLeft => {
                     try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                     try self.writeParser(infix.right, false);
-                    try self.emitOp(.TakeLeft, loc);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.emitOp(.TakeLeft, region);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .TakeRight => {
                     try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    const jumpIndex = try self.emitJump(.TakeRight, region);
                     try self.writeParser(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .Destructure => {
                     try self.writeParser(infix.left, false);
                     try self.writeDestructurePattern(infix.right);
                 },
                 .Or => {
-                    try self.emitOp(.SetInputMark, loc);
+                    try self.emitOp(.SetInputMark, region);
                     try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Or, loc);
+                    const jumpIndex = try self.emitJump(.Or, region);
                     try self.writeParser(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .Return => {
                     try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    const jumpIndex = try self.emitJump(.TakeRight, region);
                     try self.writeValue(infix.right, true);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .ConditionalIfThen => {
                     // Then/Else is always the right-side node
                     const thenElseOp = infix.right.node.asInfixOfType(.ConditionalThenElse) orelse return Error.InvalidAst;
-                    const thenElseLoc = infix.right.loc;
+                    const thenElseregion = infix.right.region;
 
                     // Get each part of `if ? then : else`
-                    const if_loc_node = infix.left;
-                    const then_loc_node = thenElseOp.left;
-                    const else_loc_node = thenElseOp.right;
+                    const if_rnode = infix.left;
+                    const then_rnode = thenElseOp.left;
+                    const else_rnode = thenElseOp.right;
 
-                    try self.emitOp(.SetInputMark, loc);
-                    try self.writeParser(if_loc_node, false);
-                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
-                    try self.writeParser(then_loc_node, isTailPosition);
-                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseLoc);
-                    try self.patchJump(ifThenJumpIndex, loc);
-                    try self.writeParser(else_loc_node, isTailPosition);
-                    try self.patchJump(thenElseJumpIndex, thenElseLoc);
+                    try self.emitOp(.SetInputMark, region);
+                    try self.writeParser(if_rnode, false);
+                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
+                    try self.writeParser(then_rnode, isTailPosition);
+                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseregion);
+                    try self.patchJump(ifThenJumpIndex, region);
+                    try self.writeParser(else_rnode, isTailPosition);
+                    try self.patchJump(thenElseJumpIndex, thenElseregion);
                 },
                 .ConditionalThenElse => @panic("internal error"), // always handled via ConditionalIfThen
                 .DeclareGlobal => unreachable,
@@ -553,7 +553,7 @@ pub const Compiler = struct {
             },
             .UpperBoundedRange => |high| {
                 const high_elem = try getParserRangeElemNode(high);
-                const high_loc = high.loc;
+                const high_region = high.region;
 
                 if (high_elem == .String) {
                     const high_str = high_elem.String;
@@ -561,11 +561,11 @@ pub const Compiler = struct {
                     const high_codepoint = unicode.utf8Decode(high_bytes) catch return Error.RangeNotSingleCodepoint;
 
                     if (high_codepoint == 0x10ffff) {
-                        try self.emitOp(.ParseCharacter, loc);
+                        try self.emitOp(.ParseCharacter, region);
                     } else {
                         const high_id = try self.makeConstant(high_elem);
-                        try self.emitOp(.ParseUpperBoundedRange, loc);
-                        try self.emitByte(high_id, high_loc);
+                        try self.emitOp(.ParseUpperBoundedRange, region);
+                        try self.emitByte(high_id, high_region);
                     }
                 } else if (high_elem == .NumberString) {
                     const high_ns = high_elem.NumberString;
@@ -574,8 +574,8 @@ pub const Compiler = struct {
                         const high_int = high_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
 
                         const high_id = try self.makeConstant(high_int);
-                        try self.emitOp(.ParseUpperBoundedRange, loc);
-                        try self.emitByte(high_id, high_loc);
+                        try self.emitOp(.ParseUpperBoundedRange, region);
+                        try self.emitByte(high_id, high_region);
                     } else {
                         return Error.RangeInvalidNumberFormat;
                     }
@@ -585,7 +585,7 @@ pub const Compiler = struct {
             },
             .LowerBoundedRange => |low| {
                 const low_elem = try getParserRangeElemNode(low);
-                const low_loc = low.loc;
+                const low_region = low.region;
 
                 if (low_elem == .String) {
                     const low_str = low_elem.String;
@@ -593,11 +593,11 @@ pub const Compiler = struct {
                     const low_codepoint = unicode.utf8Decode(low_bytes) catch return Error.RangeNotSingleCodepoint;
 
                     if (low_codepoint == 0) {
-                        try self.emitOp(.ParseCharacter, loc);
+                        try self.emitOp(.ParseCharacter, region);
                     } else {
                         const low_id = try self.makeConstant(low_elem);
-                        try self.emitOp(.ParseLowerBoundedRange, loc);
-                        try self.emitByte(low_id, low_loc);
+                        try self.emitOp(.ParseLowerBoundedRange, region);
+                        try self.emitByte(low_id, low_region);
                     }
                 } else if (low_elem == .NumberString) {
                     const low_ns = low_elem.NumberString;
@@ -606,8 +606,8 @@ pub const Compiler = struct {
                         const low_int = low_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
 
                         const low_id = try self.makeConstant(low_int);
-                        try self.emitOp(.ParseLowerBoundedRange, loc);
-                        try self.emitByte(low_id, low_loc);
+                        try self.emitOp(.ParseLowerBoundedRange, region);
+                        try self.emitByte(low_id, low_region);
                     } else {
                         return Error.RangeInvalidNumberFormat;
                     }
@@ -618,17 +618,17 @@ pub const Compiler = struct {
             .Negation => |inner| {
                 const negated = try negateParserNumber(inner);
                 const constId = try self.makeConstant(negated);
-                try self.emitUnaryOp(.GetConstant, constId, loc);
-                try self.emitUnaryOp(.CallFunction, 0, loc);
+                try self.emitUnaryOp(.GetConstant, constId, region);
+                try self.emitUnaryOp(.CallFunction, 0, region);
             },
-            .ElemNode => try self.writeParserElem(loc_node),
+            .ElemNode => try self.writeParserElem(rnode),
             .ValueLabel,
             => return Error.InvalidAst,
         }
     }
 
-    fn negateParserNumber(loc_node: *Ast.LocNode) !Elem {
-        if (loc_node.node.asElem()) |elem| {
+    fn negateParserNumber(rnode: *Ast.RNode) !Elem {
+        if (rnode.node.asElem()) |elem| {
             const negated = Elem.negateNumber(elem) catch |err| switch (err) {
                 error.ExpectedNumber => return Error.InvalidAst,
             };
@@ -638,19 +638,19 @@ pub const Compiler = struct {
         }
     }
 
-    fn getParserRangeElemNode(loc_node: *Ast.LocNode) !Elem {
-        return switch (loc_node.node) {
+    fn getParserRangeElemNode(rnode: *Ast.RNode) !Elem {
+        return switch (rnode.node) {
             .ElemNode => |elem| elem,
             .Negation => |inner| negateParserNumber(inner),
             else => Error.InvalidAst,
         };
     }
 
-    fn writeParserFunctionCall(self: *Compiler, function_loc_node: *Ast.LocNode, args_loc_node: *Ast.LocNode, isTailPosition: bool) !void {
-        const functionElem = function_loc_node.node.asElem() orelse @panic("internal error");
-        const functionLoc = function_loc_node.loc;
+    fn writeParserFunctionCall(self: *Compiler, function_rnode: *Ast.RNode, args_rnode: *Ast.RNode, isTailPosition: bool) !void {
+        const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
+        const function_region = function_rnode.region;
 
-        const functionName = switch (functionElem) {
+        const functionName = switch (function_elem) {
             .ParserVar => |sId| sId,
             .Boolean => |b| try self.vm.strings.insert(if (b) "true" else "false"),
             .Null => try self.vm.strings.insert("null"),
@@ -660,57 +660,57 @@ pub const Compiler = struct {
         var function: ?*Elem.Dyn.Function = null;
 
         if (self.localSlot(functionName)) |slot| {
-            try self.emitUnaryOp(.GetBoundLocal, slot, functionLoc);
+            try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
             if (self.vm.globals.get(functionName)) |global| {
                 function = global.asDyn().asFunction();
                 const constId = try self.makeConstant(global);
-                try self.emitUnaryOp(.GetConstant, constId, functionLoc);
+                try self.emitUnaryOp(.GetConstant, constId, function_region);
             } else {
                 try self.writers.err.print("{s}\n", .{self.vm.strings.get(functionName)});
                 return Error.UndefinedVariable;
             }
         }
 
-        const argCount = try self.writeParserFunctionArguments(args_loc_node, function);
+        const argCount = try self.writeParserFunctionArguments(args_rnode, function);
 
         if (isTailPosition) {
-            try self.emitUnaryOp(.CallTailFunction, argCount, functionLoc);
+            try self.emitUnaryOp(.CallTailFunction, argCount, function_region);
         } else {
-            try self.emitUnaryOp(.CallFunction, argCount, functionLoc);
+            try self.emitUnaryOp(.CallFunction, argCount, function_region);
         }
     }
 
-    fn writeParserElem(self: *Compiler, loc_node: *Ast.LocNode) !void {
-        const loc = loc_node.loc;
+    fn writeParserElem(self: *Compiler, rnode: *Ast.RNode) !void {
+        const region = rnode.region;
 
-        switch (loc_node.node) {
+        switch (rnode.node) {
             .ElemNode => |elem| {
                 switch (elem) {
                     .ParserVar => {
-                        try self.writeGetVar(elem, loc, .Parser);
-                        try self.emitUnaryOp(.CallFunction, 0, loc);
+                        try self.writeGetVar(elem, region, .Parser);
+                        try self.emitUnaryOp(.CallFunction, 0, region);
                     },
                     .ValueVar => {
-                        try self.printError("Variable is only valid as a pattern or value", loc);
+                        try self.printError("Variable is only valid as a pattern or value", region);
                         return Error.InvalidAst;
                     },
                     .String,
                     .NumberString,
                     => {
                         const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, loc);
-                        try self.emitUnaryOp(.CallFunction, 0, loc);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
+                        try self.emitUnaryOp(.CallFunction, 0, region);
                     },
                     .Boolean => {
                         // In this context `true`/`false` could be a zero-arg function call
-                        try self.writeGetVar(elem, loc, .Parser);
-                        try self.emitUnaryOp(.CallFunction, 0, loc);
+                        try self.writeGetVar(elem, region, .Parser);
+                        try self.emitUnaryOp(.CallFunction, 0, region);
                     },
                     .Null => {
                         // In this context `null` could be a zero-arg function call
-                        try self.writeGetVar(elem, loc, .Parser);
-                        try self.emitUnaryOp(.CallFunction, 0, loc);
+                        try self.writeGetVar(elem, region, .Parser);
+                        try self.emitUnaryOp(.CallFunction, 0, region);
                     },
                     .Failure,
                     .Integer,
@@ -724,7 +724,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGetVar(self: *Compiler, elem: Elem, loc: Location, context: enum { Parser, Pattern, Value }) !void {
+    fn writeGetVar(self: *Compiler, elem: Elem, region: Region, context: enum { Parser, Pattern, Value }) !void {
         const varName = switch (elem) {
             .ParserVar => |sId| sId,
             .ValueVar => |sId| sId,
@@ -735,14 +735,14 @@ pub const Compiler = struct {
 
         if (self.localSlot(varName)) |slot| {
             if (context == .Pattern) {
-                try self.emitUnaryOp(.GetLocal, slot, loc);
+                try self.emitUnaryOp(.GetLocal, slot, region);
             } else {
-                try self.emitUnaryOp(.GetBoundLocal, slot, loc);
+                try self.emitUnaryOp(.GetBoundLocal, slot, region);
             }
         } else {
             if (self.vm.globals.get(varName)) |globalElem| {
                 const constId = try self.makeConstant(globalElem);
-                try self.emitUnaryOp(.GetConstant, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, region);
             } else {
                 try self.writers.err.print("{s}\n", .{self.vm.strings.get(varName)});
                 return Error.UndefinedVariable;
@@ -763,7 +763,7 @@ pub const Compiler = struct {
 
     const ArgType = enum { Parser, Value, Unspecified };
 
-    fn writeParserFunctionArguments(self: *Compiler, first_arg: *Ast.LocNode, function: ?*Elem.Dyn.Function) Error!u8 {
+    fn writeParserFunctionArguments(self: *Compiler, first_arg: *Ast.RNode, function: ?*Elem.Dyn.Function) Error!u8 {
         var argCount: u8 = 0;
         var arg = first_arg;
         var argType: ArgType = .Unspecified;
@@ -772,7 +772,7 @@ pub const Compiler = struct {
             if (argCount == std.math.maxInt(u8)) {
                 try self.printError(
                     std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
-                    arg.loc,
+                    arg.region,
                 );
                 return Error.MaxFunctionArgs;
             }
@@ -814,31 +814,31 @@ pub const Compiler = struct {
         return argCount;
     }
 
-    fn writeParserFunctionArgument(self: *Compiler, loc_node: *Ast.LocNode, argType: ArgType) !void {
-        const loc = loc_node.loc;
+    fn writeParserFunctionArgument(self: *Compiler, rnode: *Ast.RNode, argType: ArgType) !void {
+        const region = rnode.region;
 
         switch (argType) {
-            .Parser => switch (loc_node.node) {
+            .Parser => switch (rnode.node) {
                 .InfixNode,
                 .UpperBoundedRange,
                 .LowerBoundedRange,
                 .Negation,
                 => {
-                    const function = try self.writeAnonymousFunction(loc_node);
+                    const function = try self.writeAnonymousFunction(rnode);
                     const constId = try self.makeConstant(function.dyn.elem());
-                    try self.emitUnaryOp(.GetConstant, constId, loc);
-                    try self.writeCaptureLocals(function, loc);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
+                    try self.writeCaptureLocals(function, region);
                 },
                 .ElemNode => |elem| switch (elem) {
-                    .ParserVar => try self.writeGetVar(elem, loc, .Value),
+                    .ParserVar => try self.writeGetVar(elem, region, .Value),
                     else => {
                         const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
                     },
                 },
                 .ValueLabel => @panic("todo"),
             },
-            .Value => try self.writeValueArgument(loc_node, false),
+            .Value => try self.writeValueArgument(rnode, false),
             .Unspecified => {
                 // In this case we don't know the arg type because the function
                 // will be passed in as a variable and is not yet known. Things
@@ -853,21 +853,21 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeAnonymousFunction(self: *Compiler, loc_node: *Ast.LocNode) !*Elem.Dyn.Function {
-        const loc = loc_node.loc;
+    fn writeAnonymousFunction(self: *Compiler, rnode: *Ast.RNode) !*Elem.Dyn.Function {
+        const region = rnode.region;
 
         const function = try Elem.Dyn.Function.createAnonParser(self.vm, .{ .arity = 0 });
 
         try self.functions.append(function);
 
-        try self.addClosureLocals(loc_node);
+        try self.addClosureLocals(rnode);
 
         if (function.locals.items.len > 0) {
-            try self.emitOp(.SetClosureCaptures, loc);
+            try self.emitOp(.SetClosureCaptures, region);
         }
 
-        try self.writeParser(loc_node, true);
-        try self.emitOp(.End, loc);
+        try self.writeParser(rnode, true);
+        try self.emitEnd();
 
         if (self.printBytecode) {
             try function.disassemble(self.vm.*, self.writers.debug);
@@ -876,19 +876,19 @@ pub const Compiler = struct {
         return self.functions.pop();
     }
 
-    fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.Dyn.Function, loc: Location) !void {
+    fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.Dyn.Function, region: Region) !void {
         for (self.currentFunction().locals.items, 0..) |local, fromSlot| {
             if (targetFunction.localSlot(local.name())) |toSlot| {
-                try self.emitOp(.CaptureLocal, loc);
-                try self.emitByte(@as(u8, @intCast(fromSlot)), loc);
-                try self.emitByte(toSlot, loc);
+                try self.emitOp(.CaptureLocal, region);
+                try self.emitByte(@as(u8, @intCast(fromSlot)), region);
+                try self.emitByte(toSlot, region);
             }
         }
     }
 
-    fn writeDestructurePattern(self: *Compiler, loc_node: *Ast.LocNode) !void {
-        const node = loc_node.node;
-        const loc = loc_node.loc;
+    fn writeDestructurePattern(self: *Compiler, rnode: *Ast.RNode) !void {
+        const node = rnode.node;
+        const region = rnode.region;
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
@@ -899,7 +899,7 @@ pub const Compiler = struct {
                     try self.writePatternObject(infix.left, infix.right);
                 },
                 .Merge => {
-                    try self.writePatternMerge(loc_node);
+                    try self.writePatternMerge(rnode);
                 },
                 .NumberSubtract => {
                     @panic("TODO");
@@ -907,42 +907,42 @@ pub const Compiler = struct {
                 .Range => {
                     try self.writePattern(infix.left);
                     try self.writePattern(infix.right);
-                    try self.emitOp(.DestructureRange, loc);
+                    try self.emitOp(.DestructureRange, region);
                 },
                 else => {
-                    try self.writePattern(loc_node);
-                    try self.emitOp(.Destructure, loc);
+                    try self.writePattern(rnode);
+                    try self.emitOp(.Destructure, region);
                 },
             },
             .ElemNode => {
-                try self.writePattern(loc_node);
-                try self.emitOp(.Destructure, loc);
+                try self.writePattern(rnode);
+                try self.emitOp(.Destructure, region);
             },
             .UpperBoundedRange => |high_node_id| {
                 const low_elem = self.placeholderVar();
                 const low_id = try self.makeConstant(low_elem);
-                try self.emitUnaryOp(.GetConstant, low_id, loc);
+                try self.emitUnaryOp(.GetConstant, low_id, region);
                 try self.writePattern(high_node_id);
-                try self.emitOp(.DestructureRange, loc);
+                try self.emitOp(.DestructureRange, region);
             },
             .LowerBoundedRange => |low_node_id| {
                 const high_elem = self.placeholderVar();
                 try self.writePattern(low_node_id);
                 const high_id = try self.makeConstant(high_elem);
-                try self.emitUnaryOp(.GetConstant, high_id, loc);
-                try self.emitOp(.DestructureRange, loc);
+                try self.emitUnaryOp(.GetConstant, high_id, region);
+                try self.emitOp(.DestructureRange, region);
             },
             .Negation => {
-                try self.writePattern(loc_node);
-                try self.emitOp(.Destructure, loc);
+                try self.writePattern(rnode);
+                try self.emitOp(.Destructure, region);
             },
             .ValueLabel => return error.InvalidAst,
         }
     }
 
-    fn writePattern(self: *Compiler, loc_node: *Ast.LocNode) !void {
-        const node = loc_node.node;
-        const loc = loc_node.loc;
+    fn writePattern(self: *Compiler, rnode: *Ast.RNode) !void {
+        const node = rnode.node;
+        const region = rnode.region;
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
@@ -966,7 +966,7 @@ pub const Compiler = struct {
                 .StringTemplateCons,
                 => @panic("Internal Error"),
                 else => {
-                    try self.printError("Invalid infix operator in pattern", loc);
+                    try self.printError("Invalid infix operator in pattern", region);
                     return Error.InvalidAst;
                 },
             },
@@ -975,26 +975,26 @@ pub const Compiler = struct {
             .ValueLabel,
             => @panic("todo"),
             .Negation => {
-                if (simplifyNegatedNumberNode(loc_node)) |elem| {
+                if (simplifyNegatedNumberNode(rnode)) |elem| {
                     const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, loc);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
                 } else {
                     @panic("todo");
                 }
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
-                    try self.printError("parser is not valid in pattern", loc);
+                    try self.printError("parser is not valid in pattern", region);
                     return Error.InvalidAst;
                 },
                 .ValueVar => |name| {
                     if (self.localSlot(name)) |slot| {
-                        try self.emitUnaryOp(.GetLocal, slot, loc);
+                        try self.emitUnaryOp(.GetLocal, slot, region);
                     } else if (self.vm.globals.get(name)) |globalElem| {
                         const constId = try self.makeConstant(globalElem);
-                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
                         if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
-                            try self.emitUnaryOp(.CallFunction, 0, loc);
+                            try self.emitUnaryOp(.CallFunction, 0, region);
                         }
                     } else {
                         try self.writers.err.print("{s}\n", .{self.vm.strings.get(name)});
@@ -1005,11 +1005,11 @@ pub const Compiler = struct {
                 .NumberString,
                 => {
                     const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, loc);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
                 },
-                .Boolean => |b| try self.emitOp(if (b) .True else .False, loc),
+                .Boolean => |b| try self.emitOp(if (b) .True else .False, region),
                 .Null => {
-                    try self.emitOp(.Null, loc);
+                    try self.emitOp(.Null, region);
                 },
                 .Failure,
                 .Float,
@@ -1026,40 +1026,40 @@ pub const Compiler = struct {
                     .Object,
                     => {
                         const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
                     },
                 },
             },
         }
     }
 
-    fn writePatternMerge(self: *Compiler, loc_node: *Ast.LocNode) !void {
-        const loc = loc_node.loc;
+    fn writePatternMerge(self: *Compiler, rnode: *Ast.RNode) !void {
+        const region = rnode.region;
 
         var jumpList = ArrayList(usize).init(self.vm.allocator);
         defer jumpList.deinit();
 
-        const count = try self.writePrepareMergePattern(loc_node, 0);
-        try self.emitUnaryOp(.PrepareMergePattern, count, loc);
-        const failureJumpIndex = try self.emitJump(.JumpIfFailure, loc);
+        const count = try self.writePrepareMergePattern(rnode, 0);
+        try self.emitUnaryOp(.PrepareMergePattern, count, region);
+        const failureJumpIndex = try self.emitJump(.JumpIfFailure, region);
 
-        try self.writeMergePattern(loc_node, &jumpList);
+        try self.writeMergePattern(rnode, &jumpList);
 
-        const successJumpIndex = try self.emitJump(.JumpIfSuccess, loc);
+        const successJumpIndex = try self.emitJump(.JumpIfSuccess, region);
 
         for (jumpList.items) |jumpIndex| {
-            try self.patchJump(jumpIndex, loc);
+            try self.patchJump(jumpIndex, region);
         }
 
-        try self.emitOp(.Swap, loc);
-        try self.emitOp(.Pop, loc);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Pop, region);
 
-        try self.patchJump(failureJumpIndex, loc);
-        try self.patchJump(successJumpIndex, loc);
+        try self.patchJump(failureJumpIndex, region);
+        try self.patchJump(successJumpIndex, region);
     }
 
-    fn writePrepareMergePattern(self: *Compiler, loc_node: *Ast.LocNode, count: u8) !u8 {
-        switch (loc_node.node) {
+    fn writePrepareMergePattern(self: *Compiler, rnode: *Ast.RNode, count: u8) !u8 {
+        switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
                     const totalCount = try self.writePrepareMergePattern(infix.left, count + 1);
@@ -1075,32 +1075,32 @@ pub const Compiler = struct {
             .ValueLabel,
             => @panic("todo"),
         }
-        try self.writePrepareMergePatternPart(loc_node);
+        try self.writePrepareMergePatternPart(rnode);
         return count + 1;
     }
 
-    fn writePrepareMergePatternPart(self: *Compiler, loc_node: *Ast.LocNode) Error!void {
-        switch (loc_node.node) {
+    fn writePrepareMergePatternPart(self: *Compiler, rnode: *Ast.RNode) Error!void {
+        switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
                     // At this point the array/object is empty, but in a
                     // later step we'll mutate to add elements.
                     const elem = infix.left.node.asElem() orelse @panic("Internal Error");
-                    const loc = infix.left.loc;
+                    const region = infix.left.region;
                     const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, loc);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
                 },
                 .ObjectCons => {
                     // At this point the array/object is empty, but in a
                     // later step we'll mutate to add elements.
                     const elem = infix.left.node.asElem() orelse @panic("Internal Error");
-                    const loc = infix.left.loc;
+                    const region = infix.left.region;
                     const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, loc);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
                     try self.writePatternObjectDynamicKeys(infix.right);
                 },
                 else => {
-                    try self.writePattern(loc_node);
+                    try self.writePattern(rnode);
                 },
             },
             .UpperBoundedRange,
@@ -1109,21 +1109,21 @@ pub const Compiler = struct {
             .ValueLabel,
             => @panic("todo"),
             .ElemNode => {
-                try self.writePattern(loc_node);
+                try self.writePattern(rnode);
             },
         }
     }
 
-    fn writeMergePattern(self: *Compiler, loc_node: *Ast.LocNode, jumpList: *ArrayList(usize)) Error!void {
-        const loc = loc_node.loc;
+    fn writeMergePattern(self: *Compiler, rnode: *Ast.RNode, jumpList: *ArrayList(usize)) Error!void {
+        const region = rnode.region;
 
-        switch (loc_node.node) {
+        switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
                     try self.writeMergePattern(infix.left, jumpList);
                     try self.writeDestructurePattern(infix.right);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
-                    try self.emitOp(.Pop, loc);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
+                    try self.emitOp(.Pop, region);
                     try jumpList.append(jumpIndex);
                     return;
                 },
@@ -1137,15 +1137,15 @@ pub const Compiler = struct {
             .ElemNode => {},
         }
 
-        try self.writeDestructurePattern(loc_node);
-        const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
-        try self.emitOp(.Pop, loc);
+        try self.writeDestructurePattern(rnode);
+        const jumpIndex = try self.emitJump(.JumpIfFailure, region);
+        try self.emitOp(.Pop, region);
         try jumpList.append(jumpIndex);
     }
 
-    fn addValueLocals(self: *Compiler, loc_node: *Ast.LocNode) !void {
-        const node = loc_node.node;
-        const loc = loc_node.loc;
+    fn addValueLocals(self: *Compiler, rnode: *Ast.RNode) !void {
+        const node = rnode.node;
+        const region = rnode.region;
 
         switch (node) {
             .InfixNode => |infix| {
@@ -1159,10 +1159,10 @@ pub const Compiler = struct {
             => |inner| try self.addValueLocals(inner),
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => |varName| if (self.vm.globals.get(varName) == null) {
-                    const newLocalId = try self.addLocalIfUndefined(elem, loc);
+                    const newLocalId = try self.addLocalIfUndefined(elem, region);
                     if (newLocalId) |_| {
                         const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
                     }
                 },
                 else => {},
@@ -1170,9 +1170,9 @@ pub const Compiler = struct {
         }
     }
 
-    fn addClosureLocals(self: *Compiler, loc_node: *Ast.LocNode) !void {
-        const node = loc_node.node;
-        const loc = loc_node.loc;
+    fn addClosureLocals(self: *Compiler, rnode: *Ast.RNode) !void {
+        const node = rnode.node;
+        const region = rnode.region;
 
         switch (node) {
             .InfixNode => |infix| {
@@ -1193,10 +1193,10 @@ pub const Compiler = struct {
 
                 if (varName) |name| {
                     if (self.parentFunction().localSlot(name) != null) {
-                        const newLocalId = try self.addLocalIfUndefined(elem, loc);
+                        const newLocalId = try self.addLocalIfUndefined(elem, region);
                         if (newLocalId) |_| {
                             const constId = try self.makeConstant(elem);
-                            try self.emitUnaryOp(.GetConstant, constId, loc);
+                            try self.emitUnaryOp(.GetConstant, constId, region);
                         }
                     }
                 }
@@ -1204,9 +1204,9 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValueArgument(self: *Compiler, loc_node: *Ast.LocNode, isTailPosition: bool) !void {
-        const node = loc_node.node;
-        const loc = loc_node.loc;
+    fn writeValueArgument(self: *Compiler, rnode: *Ast.RNode, isTailPosition: bool) !void {
+        const node = rnode.node;
+        const region = rnode.region;
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
@@ -1214,79 +1214,79 @@ pub const Compiler = struct {
                     return error.UnlabeledStringValue;
                 },
                 .Backtrack => {
-                    try self.emitOp(.SetInputMark, loc);
+                    try self.emitOp(.SetInputMark, region);
                     try self.writeValueArgument(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Backtrack, loc);
+                    const jumpIndex = try self.emitJump(.Backtrack, region);
                     try self.writeValueArgument(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .Merge => {
                     try self.writeValueArgument(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                     try self.writeValueArgument(infix.right, false);
-                    try self.emitOp(.Merge, loc);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.emitOp(.Merge, region);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .NumberSubtract => {
                     try self.writeValueArgument(infix.left, false);
                     try self.writeValueArgument(infix.right, false);
-                    try self.emitOp(.NegateNumber, loc);
-                    try self.emitOp(.Merge, loc);
+                    try self.emitOp(.NegateNumber, region);
+                    try self.emitOp(.Merge, region);
                 },
                 .TakeLeft => {
                     try self.writeValueArgument(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                     try self.writeValueArgument(infix.right, false);
-                    try self.emitOp(.TakeLeft, loc);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.emitOp(.TakeLeft, region);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .TakeRight => {
                     try self.writeValueArgument(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    const jumpIndex = try self.emitJump(.TakeRight, region);
                     try self.writeValueArgument(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .Destructure => {
                     try self.writeValueArgument(infix.left, false);
                     try self.writeDestructurePattern(infix.right);
                 },
                 .Or => {
-                    try self.emitOp(.SetInputMark, loc);
+                    try self.emitOp(.SetInputMark, region);
                     try self.writeValueArgument(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Or, loc);
+                    const jumpIndex = try self.emitJump(.Or, region);
                     try self.writeValueArgument(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .Return => {
                     try self.writeValueArgument(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    const jumpIndex = try self.emitJump(.TakeRight, region);
                     try self.writeValue(infix.right, true);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .ConditionalIfThen => {
                     // Then/Else is always the right-side node
                     const thenElseOp = infix.right.node.asInfixOfType(.ConditionalThenElse) orelse return Error.InvalidAst;
-                    const thenElseLoc = infix.right.loc;
+                    const thenElseregion = infix.right.region;
 
                     // Get each part of `if ? then : else`
-                    const if_loc_node = infix.left;
-                    const then_loc_node = thenElseOp.left;
-                    const else_loc_node = thenElseOp.right;
+                    const if_rnode = infix.left;
+                    const then_rnode = thenElseOp.left;
+                    const else_rnode = thenElseOp.right;
 
-                    try self.emitOp(.SetInputMark, loc);
-                    try self.writeValueArgument(if_loc_node, false);
-                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
-                    try self.writeValueArgument(then_loc_node, isTailPosition);
-                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseLoc);
-                    try self.patchJump(ifThenJumpIndex, loc);
-                    try self.writeValueArgument(else_loc_node, isTailPosition);
-                    try self.patchJump(thenElseJumpIndex, thenElseLoc);
+                    try self.emitOp(.SetInputMark, region);
+                    try self.writeValueArgument(if_rnode, false);
+                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
+                    try self.writeValueArgument(then_rnode, isTailPosition);
+                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseregion);
+                    try self.patchJump(ifThenJumpIndex, region);
+                    try self.writeValueArgument(else_rnode, isTailPosition);
+                    try self.patchJump(thenElseJumpIndex, thenElseregion);
                 },
-                else => try writeValue(self, loc_node, isTailPosition),
+                else => try writeValue(self, rnode, isTailPosition),
             },
             .Negation => |inner| {
                 try self.writeValueArgument(inner, false);
-                try self.emitOp(.NegateNumber, loc);
+                try self.emitOp(.NegateNumber, region);
             },
             .ValueLabel => |inner| {
                 try self.writeValue(inner, isTailPosition);
@@ -1300,15 +1300,15 @@ pub const Compiler = struct {
                 },
                 .Boolean => return error.UnlabeledBooleanValue,
                 .Null => return error.UnlabeledNullValue,
-                else => try writeValue(self, loc_node, isTailPosition),
+                else => try writeValue(self, rnode, isTailPosition),
             },
-            else => try writeValue(self, loc_node, isTailPosition),
+            else => try writeValue(self, rnode, isTailPosition),
         }
     }
 
-    fn writeValue(self: *Compiler, loc_node: *Ast.LocNode, isTailPosition: bool) !void {
-        const node = loc_node.node;
-        const loc = loc_node.loc;
+    fn writeValue(self: *Compiler, rnode: *Ast.RNode, isTailPosition: bool) !void {
+        const node = rnode.node;
+        const region = rnode.region;
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
@@ -1322,79 +1322,79 @@ pub const Compiler = struct {
                     try self.writeStringTemplate(infix.left, infix.right, .Value);
                 },
                 .Backtrack => {
-                    try self.emitOp(.SetInputMark, loc);
+                    try self.emitOp(.SetInputMark, region);
                     try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Backtrack, loc);
+                    const jumpIndex = try self.emitJump(.Backtrack, region);
                     try self.writeValue(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .Merge => {
                     try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                     try self.writeValue(infix.right, false);
-                    try self.emitOp(.Merge, loc);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.emitOp(.Merge, region);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .NumberSubtract => {
                     try self.writeValue(infix.left, false);
                     try self.writeValue(infix.right, false);
-                    try self.emitOp(.NegateNumber, loc);
-                    try self.emitOp(.Merge, loc);
+                    try self.emitOp(.NegateNumber, region);
+                    try self.emitOp(.Merge, region);
                 },
                 .TakeLeft => {
                     try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, loc);
+                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                     try self.writeValue(infix.right, false);
-                    try self.emitOp(.TakeLeft, loc);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.emitOp(.TakeLeft, region);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .TakeRight => {
                     try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    const jumpIndex = try self.emitJump(.TakeRight, region);
                     try self.writeValue(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .Destructure => {
                     try self.writeValue(infix.left, false);
                     try self.writeDestructurePattern(infix.right);
                 },
                 .Or => {
-                    try self.emitOp(.SetInputMark, loc);
+                    try self.emitOp(.SetInputMark, region);
                     try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Or, loc);
+                    const jumpIndex = try self.emitJump(.Or, region);
                     try self.writeValue(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .Return => {
                     try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, loc);
+                    const jumpIndex = try self.emitJump(.TakeRight, region);
                     try self.writeValue(infix.right, true);
-                    try self.patchJump(jumpIndex, loc);
+                    try self.patchJump(jumpIndex, region);
                 },
                 .ConditionalIfThen => {
                     // Then/Else is always the right-side node
                     const thenElseOp = infix.right.node.asInfixOfType(.ConditionalThenElse) orelse return Error.InvalidAst;
-                    const thenElseLoc = infix.right.loc;
+                    const thenElseregion = infix.right.region;
 
                     // Get each part of `if ? then : else`
-                    const if_loc_node = infix.left;
-                    const then_loc_node = thenElseOp.left;
-                    const else_loc_node = thenElseOp.right;
+                    const if_rnode = infix.left;
+                    const then_rnode = thenElseOp.left;
+                    const else_rnode = thenElseOp.right;
 
-                    try self.emitOp(.SetInputMark, loc);
-                    try self.writeValue(if_loc_node, false);
-                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, loc);
-                    try self.writeValue(then_loc_node, isTailPosition);
-                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseLoc);
-                    try self.patchJump(ifThenJumpIndex, loc);
-                    try self.writeValue(else_loc_node, isTailPosition);
-                    try self.patchJump(thenElseJumpIndex, thenElseLoc);
+                    try self.emitOp(.SetInputMark, region);
+                    try self.writeValue(if_rnode, false);
+                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
+                    try self.writeValue(then_rnode, isTailPosition);
+                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseregion);
+                    try self.patchJump(ifThenJumpIndex, region);
+                    try self.writeValue(else_rnode, isTailPosition);
+                    try self.patchJump(thenElseJumpIndex, thenElseregion);
                 },
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
                 .Range => {
-                    try self.printError("Character and integer ranges are not valid in value", loc);
+                    try self.printError("Character and integer ranges are not valid in value", region);
                     return Error.InvalidAst;
                 },
                 .ArrayCons, // handled by writeArray
@@ -1410,14 +1410,14 @@ pub const Compiler = struct {
             => @panic("Internal Error"),
             .Negation => |inner| {
                 try self.writeValue(inner, false);
-                try self.emitOp(.NegateNumber, loc);
+                try self.emitOp(.NegateNumber, region);
             },
             .ValueLabel => |inner| {
                 try self.writeValue(inner, isTailPosition);
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
-                    try self.printError("Parser is not valid in value", loc);
+                    try self.printError("Parser is not valid in value", region);
                     return Error.InvalidAst;
                 },
                 .ValueVar => |name| {
@@ -1429,15 +1429,15 @@ pub const Compiler = struct {
                         // an arg then the value function will be called before
                         // the outer function, and the value used when calling
                         // the outer function will be concrete.
-                        try self.emitUnaryOp(.GetBoundLocal, slot, loc);
+                        try self.emitUnaryOp(.GetBoundLocal, slot, region);
                     } else if (self.vm.globals.get(name)) |globalElem| {
                         const constId = try self.makeConstant(globalElem);
-                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
                         if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
                             if (isTailPosition) {
-                                try self.emitUnaryOp(.CallTailFunction, 0, loc);
+                                try self.emitUnaryOp(.CallTailFunction, 0, region);
                             } else {
-                                try self.emitUnaryOp(.CallFunction, 0, loc);
+                                try self.emitUnaryOp(.CallFunction, 0, region);
                             }
                         }
                     } else {
@@ -1449,10 +1449,10 @@ pub const Compiler = struct {
                 .NumberString,
                 => {
                     const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, loc);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
                 },
-                .Boolean => |b| try self.emitOp(if (b) .True else .False, loc),
-                .Null => try self.emitOp(.Null, loc),
+                .Boolean => |b| try self.emitOp(if (b) .True else .False, region),
+                .Null => try self.emitOp(.Null, region),
                 .Failure,
                 .InputSubstring,
                 .Integer,
@@ -1468,18 +1468,18 @@ pub const Compiler = struct {
                     .Object,
                     => {
                         const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, loc);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
                     },
                 },
             },
         }
     }
 
-    fn writeValueFunctionCall(self: *Compiler, function_loc_node: *Ast.LocNode, args_loc_node: *Ast.LocNode, isTailPosition: bool) !void {
-        const functionElem = function_loc_node.node.asElem() orelse @panic("internal error");
-        const functionLoc = function_loc_node.loc;
+    fn writeValueFunctionCall(self: *Compiler, function_rnode: *Ast.RNode, args_rnode: *Ast.RNode, isTailPosition: bool) !void {
+        const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
+        const function_region = function_rnode.region;
 
-        const functionName = switch (functionElem) {
+        const functionName = switch (function_elem) {
             .ValueVar => |sId| sId,
             else => return Error.InvalidAst,
         };
@@ -1487,28 +1487,28 @@ pub const Compiler = struct {
         var function: ?*Elem.Dyn.Function = null;
 
         if (self.localSlot(functionName)) |slot| {
-            try self.emitUnaryOp(.GetBoundLocal, slot, functionLoc);
+            try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
             if (self.vm.globals.get(functionName)) |global| {
                 function = global.asDyn().asFunction();
                 const constId = try self.makeConstant(global);
-                try self.emitUnaryOp(.GetConstant, constId, functionLoc);
+                try self.emitUnaryOp(.GetConstant, constId, function_region);
             } else {
                 try self.writers.err.print("{s}\n", .{self.vm.strings.get(functionName)});
                 return Error.UndefinedVariable;
             }
         }
 
-        const argCount = try self.writeValueFunctionArguments(args_loc_node, function);
+        const argCount = try self.writeValueFunctionArguments(args_rnode, function);
 
         if (isTailPosition) {
-            try self.emitUnaryOp(.CallTailFunction, argCount, functionLoc);
+            try self.emitUnaryOp(.CallTailFunction, argCount, function_region);
         } else {
-            try self.emitUnaryOp(.CallFunction, argCount, functionLoc);
+            try self.emitUnaryOp(.CallFunction, argCount, function_region);
         }
     }
 
-    fn writeValueFunctionArguments(self: *Compiler, first_arg: *Ast.LocNode, function: ?*Elem.Dyn.Function) Error!u8 {
+    fn writeValueFunctionArguments(self: *Compiler, first_arg: *Ast.RNode, function: ?*Elem.Dyn.Function) Error!u8 {
         var argCount: u8 = 0;
         var arg = first_arg;
 
@@ -1516,7 +1516,7 @@ pub const Compiler = struct {
             if (argCount == std.math.maxInt(u8)) {
                 try self.printError(
                     std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
-                    arg.loc,
+                    arg.region,
                 );
                 return Error.MaxFunctionArgs;
             }
@@ -1551,21 +1551,21 @@ pub const Compiler = struct {
         Pattern: *ArrayList(usize),
         Value: void,
 
-        pub fn emitPatternJumpIfFailure(self: ArrayContext, compiler: *Compiler, loc: Location) !void {
+        pub fn emitPatternJumpIfFailure(self: ArrayContext, compiler: *Compiler, region: Region) !void {
             switch (self) {
                 .Pattern => |jumpList| {
-                    const index = try compiler.emitJump(.JumpIfFailure, loc);
+                    const index = try compiler.emitJump(.JumpIfFailure, region);
                     try jumpList.append(index);
                 },
                 .Value => {},
             }
         }
 
-        pub fn patchPatternJumps(self: ArrayContext, compiler: *Compiler, loc: Location) !void {
+        pub fn patchPatternJumps(self: ArrayContext, compiler: *Compiler, region: Region) !void {
             switch (self) {
                 .Pattern => |jumpList| {
                     for (jumpList.items) |index| {
-                        try compiler.patchJump(index, loc);
+                        try compiler.patchJump(index, region);
                     }
                 },
                 .Value => {},
@@ -1573,46 +1573,46 @@ pub const Compiler = struct {
         }
     };
 
-    fn writePatternArray(self: *Compiler, start_array: *Ast.LocNode, first_item: *Ast.LocNode) !void {
+    fn writePatternArray(self: *Compiler, start_array: *Ast.RNode, first_item: *Ast.RNode) !void {
         var jumpList = ArrayList(usize).init(self.vm.allocator);
         defer jumpList.deinit();
         try self.writeArray(start_array, first_item, ArrayContext{ .Pattern = &jumpList });
     }
 
-    fn writeValueArray(self: *Compiler, start_array: *Ast.LocNode, first_item: *Ast.LocNode) !void {
+    fn writeValueArray(self: *Compiler, start_array: *Ast.RNode, first_item: *Ast.RNode) !void {
         try self.writeArray(start_array, first_item, ArrayContext{ .Value = undefined });
     }
 
-    fn writeArray(self: *Compiler, array_start: *Ast.LocNode, first_item: *Ast.LocNode, context: ArrayContext) !void {
+    fn writeArray(self: *Compiler, array_start: *Ast.RNode, first_item: *Ast.RNode, context: ArrayContext) !void {
         // The first left node is the empty array
         const arrayElem = array_start.node.asElem() orelse @panic("Internal Error");
 
         const array = arrayElem.asDyn().asArray();
         const constId = try self.makeConstant(arrayElem);
 
-        try self.emitUnaryOp(.GetConstant, constId, array_start.loc);
+        try self.emitUnaryOp(.GetConstant, constId, array_start.region);
 
         if (context == .Pattern) {
-            try self.emitOp(.Destructure, array_start.loc);
-            const failureJumpIndex = try self.emitJump(.JumpIfFailure, array_start.loc);
+            try self.emitOp(.Destructure, array_start.region);
+            const failureJumpIndex = try self.emitJump(.JumpIfFailure, array_start.region);
 
             try self.appendArrayElems(array, first_item, context);
 
-            const successJumpIndex = try self.emitJump(.JumpIfSuccess, array_start.loc);
+            const successJumpIndex = try self.emitJump(.JumpIfSuccess, array_start.region);
 
-            try context.patchPatternJumps(self, array_start.loc);
+            try context.patchPatternJumps(self, array_start.region);
 
-            try self.emitOp(.Swap, array_start.loc);
-            try self.emitOp(.Pop, array_start.loc);
+            try self.emitOp(.Swap, array_start.region);
+            try self.emitOp(.Pop, array_start.region);
 
-            try self.patchJump(failureJumpIndex, array_start.loc);
-            try self.patchJump(successJumpIndex, array_start.loc);
+            try self.patchJump(failureJumpIndex, array_start.region);
+            try self.patchJump(successJumpIndex, array_start.region);
         } else {
             try self.appendArrayElems(array, first_item, context);
         }
     }
 
-    fn appendArrayElems(self: *Compiler, array: *Elem.Dyn.Array, first_item: *Ast.LocNode, context: ArrayContext) !void {
+    fn appendArrayElems(self: *Compiler, array: *Elem.Dyn.Array, first_item: *Ast.RNode, context: ArrayContext) !void {
         var item = first_item;
         var index: u8 = 0;
 
@@ -1639,23 +1639,23 @@ pub const Compiler = struct {
         try self.appendArrayElem(array, item, index, context);
     }
 
-    fn appendArrayElem(self: *Compiler, array: *Elem.Dyn.Array, loc_node: *Ast.LocNode, index: u8, context: ArrayContext) Error!void {
-        switch (loc_node.node) {
+    fn appendArrayElem(self: *Compiler, array: *Elem.Dyn.Array, rnode: *Ast.RNode, index: u8, context: ArrayContext) Error!void {
+        switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
-                    try self.writeArrayElem(loc_node, index, context);
+                    try self.writeArrayElem(rnode, index, context);
                     try array.append(self.placeholderVar());
                 },
                 .ObjectCons,
                 .Merge,
                 .NumberSubtract,
                 => {
-                    try self.writeArrayElem(loc_node, index, context);
+                    try self.writeArrayElem(rnode, index, context);
                     try array.append(self.placeholderVar());
                 },
                 .CallOrDefineFunction => {
                     if (context == .Value) {
-                        try self.writeArrayElem(loc_node, index, context);
+                        try self.writeArrayElem(rnode, index, context);
                         try array.append(self.placeholderVar());
                     } else {
                         @panic("todo");
@@ -1667,7 +1667,7 @@ pub const Compiler = struct {
             },
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => {
-                    try self.writeArrayElem(loc_node, index, context);
+                    try self.writeArrayElem(rnode, index, context);
                     try array.append(self.placeholderVar());
                 },
                 else => {
@@ -1682,17 +1682,17 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeArrayElem(self: *Compiler, loc_node: *Ast.LocNode, index: u8, context: ArrayContext) Error!void {
+    fn writeArrayElem(self: *Compiler, rnode: *Ast.RNode, index: u8, context: ArrayContext) Error!void {
         switch (context) {
             .Value => {
-                try self.writeValue(loc_node, false);
-                try self.emitUnaryOp(.InsertAtIndex, index, loc_node.loc);
+                try self.writeValue(rnode, false);
+                try self.emitUnaryOp(.InsertAtIndex, index, rnode.region);
             },
             .Pattern => {
-                try self.emitUnaryOp(.GetAtIndex, index, loc_node.loc);
-                try self.writeDestructurePattern(loc_node);
-                try context.emitPatternJumpIfFailure(self, loc_node.loc);
-                try self.emitOp(.Pop, loc_node.loc);
+                try self.emitUnaryOp(.GetAtIndex, index, rnode.region);
+                try self.writeDestructurePattern(rnode);
+                try context.emitPatternJumpIfFailure(self, rnode.region);
+                try self.emitOp(.Pop, rnode.region);
             },
         }
     }
@@ -1701,21 +1701,21 @@ pub const Compiler = struct {
         Pattern: *ArrayList(usize),
         Value: void,
 
-        pub fn emitPatternJumpIfFailure(self: ObjectContext, compiler: *Compiler, loc: Location) !void {
+        pub fn emitPatternJumpIfFailure(self: ObjectContext, compiler: *Compiler, region: Region) !void {
             switch (self) {
                 .Pattern => |jumpList| {
-                    const index = try compiler.emitJump(.JumpIfFailure, loc);
+                    const index = try compiler.emitJump(.JumpIfFailure, region);
                     try jumpList.append(index);
                 },
                 .Value => {},
             }
         }
 
-        pub fn patchPatternJumps(self: ObjectContext, compiler: *Compiler, loc: Location) !void {
+        pub fn patchPatternJumps(self: ObjectContext, compiler: *Compiler, region: Region) !void {
             switch (self) {
                 .Pattern => |jumpList| {
                     for (jumpList.items) |index| {
-                        try compiler.patchJump(index, loc);
+                        try compiler.patchJump(index, region);
                     }
                 },
                 .Value => {},
@@ -1723,7 +1723,7 @@ pub const Compiler = struct {
         }
     };
 
-    fn writePatternObject(self: *Compiler, object_start: *Ast.LocNode, first_item: *Ast.LocNode) Error!void {
+    fn writePatternObject(self: *Compiler, object_start: *Ast.RNode, first_item: *Ast.RNode) Error!void {
         var jumpList = ArrayList(usize).init(self.vm.allocator);
         defer jumpList.deinit();
 
@@ -1732,48 +1732,48 @@ pub const Compiler = struct {
         const object = object_elem.asDyn().asObject();
         const constId = try self.makeConstant(object_elem);
 
-        try self.emitUnaryOp(.GetConstant, constId, object_start.loc);
+        try self.emitUnaryOp(.GetConstant, constId, object_start.region);
 
         try self.writePatternObjectDynamicKeys(first_item);
 
-        try self.emitOp(.Destructure, object_start.loc);
-        const failureJumpIndex = try self.emitJump(.JumpIfFailure, object_start.loc);
+        try self.emitOp(.Destructure, object_start.region);
+        const failureJumpIndex = try self.emitJump(.JumpIfFailure, object_start.region);
 
         try self.appendPatternObjectMembers(object, first_item, &jumpList);
 
-        const successJumpIndex = try self.emitJump(.JumpIfSuccess, object_start.loc);
+        const successJumpIndex = try self.emitJump(.JumpIfSuccess, object_start.region);
 
         for (jumpList.items) |index| {
-            try self.patchJump(index, object_start.loc);
+            try self.patchJump(index, object_start.region);
         }
 
-        try self.emitOp(.Swap, object_start.loc);
-        try self.emitOp(.Pop, object_start.loc);
+        try self.emitOp(.Swap, object_start.region);
+        try self.emitOp(.Pop, object_start.region);
 
-        try self.patchJump(failureJumpIndex, object_start.loc);
-        try self.patchJump(successJumpIndex, object_start.loc);
+        try self.patchJump(failureJumpIndex, object_start.region);
+        try self.patchJump(successJumpIndex, object_start.region);
     }
 
-    fn writeValueObject(self: *Compiler, object_start: *Ast.LocNode, first_item: *Ast.LocNode) !void {
+    fn writeValueObject(self: *Compiler, object_start: *Ast.RNode, first_item: *Ast.RNode) !void {
         var object_elem = object_start.node.asElem() orelse @panic("Internal Error");
 
         const object = object_elem.asDyn().asObject();
         const constId = try self.makeConstant(object_elem);
 
-        try self.emitUnaryOp(.GetConstant, constId, object_start.loc);
+        try self.emitUnaryOp(.GetConstant, constId, object_start.region);
 
         try self.appendValueObjectMembers(object, first_item);
     }
 
-    fn writePatternObjectDynamicKeys(self: *Compiler, first_item: *Ast.LocNode) !void {
-        var loc_node = first_item;
+    fn writePatternObjectDynamicKeys(self: *Compiler, first_item: *Ast.RNode) !void {
+        var rnode = first_item;
 
         while (true) {
-            switch (loc_node.node) {
+            switch (rnode.node) {
                 .InfixNode => |infix| switch (infix.infixType) {
                     .ObjectCons => {
                         try self.writePatternObjectDynamicKey(infix.left);
-                        loc_node = infix.right;
+                        rnode = infix.right;
                     },
                     else => break,
                 },
@@ -1781,18 +1781,18 @@ pub const Compiler = struct {
             }
         }
 
-        try self.writePatternObjectDynamicKey(loc_node);
+        try self.writePatternObjectDynamicKey(rnode);
     }
 
-    fn appendPatternObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, first_item: *Ast.LocNode, jump_list: *ArrayList(usize)) !void {
-        var loc_node = first_item;
+    fn appendPatternObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, first_item: *Ast.RNode, jump_list: *ArrayList(usize)) !void {
+        var rnode = first_item;
 
         while (true) {
-            switch (loc_node.node) {
+            switch (rnode.node) {
                 .InfixNode => |infix| switch (infix.infixType) {
                     .ObjectCons => {
                         try self.appendPatternObjectPair(object, infix.left, jump_list);
-                        loc_node = infix.right;
+                        rnode = infix.right;
                     },
                     else => break,
                 },
@@ -1800,18 +1800,18 @@ pub const Compiler = struct {
             }
         }
 
-        try self.appendPatternObjectPair(object, loc_node, jump_list);
+        try self.appendPatternObjectPair(object, rnode, jump_list);
     }
 
-    fn appendValueObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, first_item: *Ast.LocNode) !void {
-        var loc_node = first_item;
+    fn appendValueObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, first_item: *Ast.RNode) !void {
+        var rnode = first_item;
 
         while (true) {
-            switch (loc_node.node) {
+            switch (rnode.node) {
                 .InfixNode => |infix| switch (infix.infixType) {
                     .ObjectCons => {
                         try self.appendValueObjectPair(object, infix.left);
-                        loc_node = infix.right;
+                        rnode = infix.right;
                     },
                     else => break,
                 },
@@ -1819,54 +1819,54 @@ pub const Compiler = struct {
             }
         }
 
-        try self.appendValueObjectPair(object, loc_node);
+        try self.appendValueObjectPair(object, rnode);
     }
 
-    fn writePatternObjectDynamicKey(self: *Compiler, pair_loc_node: *Ast.LocNode) !void {
-        const pair_node = pair_loc_node.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
-        const pair_loc = pair_loc_node.loc;
+    fn writePatternObjectDynamicKey(self: *Compiler, pair_rnode: *Ast.RNode) !void {
+        const pair_node = pair_rnode.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
+        const pair_region = pair_rnode.region;
 
-        const key_loc = pair_node.left.loc;
+        const key_region = pair_node.left.region;
         const key_elem = pair_node.left.node.asElem().?;
-        const val_loc_node = pair_node.right;
+        const val_rnode = pair_node.right;
 
-        if (key_elem == .ValueVar) switch (val_loc_node.node) {
+        if (key_elem == .ValueVar) switch (val_rnode.node) {
             .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
                 .ArrayHead,
                 .ObjectCons,
                 .Merge,
                 .NumberSubtract,
                 => {
-                    try self.writeGetVar(key_elem, key_loc, .Pattern);
-                    try self.writePattern(val_loc_node);
-                    try self.emitOp(.InsertKeyVal, pair_loc);
+                    try self.writeGetVar(key_elem, key_region, .Pattern);
+                    try self.writePattern(val_rnode);
+                    try self.emitOp(.InsertKeyVal, pair_region);
                 },
                 .CallOrDefineFunction => @panic("todo"),
                 else => @panic("Internal Error"),
             },
             .ElemNode => {
-                try self.writeGetVar(key_elem, key_loc, .Pattern);
-                try self.writePattern(val_loc_node);
-                try self.emitOp(.InsertKeyVal, pair_loc);
+                try self.writeGetVar(key_elem, key_region, .Pattern);
+                try self.writePattern(val_rnode);
+                try self.emitOp(.InsertKeyVal, pair_region);
             },
             else => {},
         };
     }
 
-    fn appendPatternObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pair_loc_node: *Ast.LocNode, jump_list: *ArrayList(usize)) Error!void {
-        const pair_node = pair_loc_node.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
+    fn appendPatternObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pair_rnode: *Ast.RNode, jump_list: *ArrayList(usize)) Error!void {
+        const pair_node = pair_rnode.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
 
         const key_elem = pair_node.left.node.asElem().?;
-        const val_loc_node = pair_node.right;
+        const val_rnode = pair_node.right;
 
-        switch (val_loc_node.node) {
+        switch (val_rnode.node) {
             .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
                 .ArrayHead,
                 .ObjectCons,
                 .Merge,
                 .NumberSubtract,
                 => {
-                    try self.writePatternObjectVal(val_loc_node, key_elem, jump_list);
+                    try self.writePatternObjectVal(val_rnode, key_elem, jump_list);
 
                     if (key_elem == .String) {
                         try object.members.put(key_elem.String, self.placeholderVar());
@@ -1877,7 +1877,7 @@ pub const Compiler = struct {
             },
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => {
-                    try self.writePatternObjectVal(val_loc_node, key_elem, jump_list);
+                    try self.writePatternObjectVal(val_rnode, key_elem, jump_list);
 
                     if (key_elem == .String) {
                         try object.members.put(key_elem.String, self.placeholderVar());
@@ -1897,15 +1897,15 @@ pub const Compiler = struct {
         }
     }
 
-    fn appendValueObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pair_loc_node: *Ast.LocNode) Error!void {
-        const pair_node = pair_loc_node.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
-        const pair_loc = pair_loc_node.loc;
+    fn appendValueObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pair_rnode: *Ast.RNode) Error!void {
+        const pair_node = pair_rnode.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
+        const pair_region = pair_rnode.region;
 
-        const key_loc = pair_node.left.loc;
+        const key_region = pair_node.left.region;
         const key_elem = pair_node.left.node.asElem().?;
-        const val_loc_node = pair_node.right;
+        const val_rnode = pair_node.right;
 
-        switch (val_loc_node.node) {
+        switch (val_rnode.node) {
             .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
                 .ArrayHead,
                 .ObjectCons,
@@ -1914,11 +1914,11 @@ pub const Compiler = struct {
                 .CallOrDefineFunction,
                 => {
                     switch (key_elem) {
-                        .String => try self.writeValueObjectVal(val_loc_node, key_elem),
+                        .String => try self.writeValueObjectVal(val_rnode, key_elem),
                         .ValueVar => {
-                            try self.writeGetVar(key_elem, key_loc, .Value);
-                            try self.writeValue(val_loc_node, false);
-                            try self.emitOp(.InsertKeyVal, pair_loc);
+                            try self.writeGetVar(key_elem, key_region, .Value);
+                            try self.writeValue(val_rnode, false);
+                            try self.emitOp(.InsertKeyVal, pair_region);
                         },
                         else => @panic("Internal Error"),
                     }
@@ -1930,11 +1930,11 @@ pub const Compiler = struct {
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => {
                     switch (key_elem) {
-                        .String => try self.writeValueObjectVal(val_loc_node, key_elem),
+                        .String => try self.writeValueObjectVal(val_rnode, key_elem),
                         .ValueVar => {
-                            try self.writeGetVar(key_elem, key_loc, .Value);
-                            try self.writeValue(val_loc_node, false);
-                            try self.emitOp(.InsertKeyVal, pair_loc);
+                            try self.writeGetVar(key_elem, key_region, .Value);
+                            try self.writeValue(val_rnode, false);
+                            try self.emitOp(.InsertKeyVal, pair_region);
                         },
                         else => @panic("Internal Error"),
                     }
@@ -1943,9 +1943,9 @@ pub const Compiler = struct {
                     switch (key_elem) {
                         .String => |sId| try object.members.put(sId, elem),
                         .ValueVar => {
-                            try self.writeGetVar(key_elem, key_loc, .Value);
-                            try self.writeValue(val_loc_node, false);
-                            try self.emitOp(.InsertKeyVal, pair_loc);
+                            try self.writeGetVar(key_elem, key_region, .Value);
+                            try self.writeValue(val_rnode, false);
+                            try self.emitOp(.InsertKeyVal, pair_region);
                         },
                         else => @panic("Internal Error"),
                     }
@@ -1959,64 +1959,64 @@ pub const Compiler = struct {
         }
     }
 
-    fn writePatternObjectVal(self: *Compiler, loc_node: *Ast.LocNode, key: Elem, jump_list: *ArrayList(usize)) Error!void {
-        const loc = loc_node.loc;
+    fn writePatternObjectVal(self: *Compiler, rnode: *Ast.RNode, key: Elem, jump_list: *ArrayList(usize)) Error!void {
+        const region = rnode.region;
 
         switch (key) {
             .String => {
                 const constId = try self.makeConstant(key);
-                try self.emitUnaryOp(.GetConstant, constId, loc);
+                try self.emitUnaryOp(.GetConstant, constId, region);
             },
             .ValueVar => {
-                try self.writeGetVar(key, loc, .Pattern);
+                try self.writeGetVar(key, region, .Pattern);
             },
             else => @panic("Internal Error"),
         }
 
-        try self.emitOp(.GetAtKey, loc);
-        try self.writeDestructurePattern(loc_node);
+        try self.emitOp(.GetAtKey, region);
+        try self.writeDestructurePattern(rnode);
 
-        const index = try self.emitJump(.JumpIfFailure, loc);
+        const index = try self.emitJump(.JumpIfFailure, region);
         try jump_list.append(index);
 
-        try self.emitOp(.Pop, loc);
+        try self.emitOp(.Pop, region);
     }
 
-    fn writeValueObjectVal(self: *Compiler, loc_node: *Ast.LocNode, key: Elem) Error!void {
-        const loc = loc_node.loc;
+    fn writeValueObjectVal(self: *Compiler, rnode: *Ast.RNode, key: Elem) Error!void {
+        const region = rnode.region;
         const constId = try self.makeConstant(key);
 
-        try self.writeValue(loc_node, false);
-        try self.emitUnaryOp(.InsertAtKey, constId, loc);
+        try self.writeValue(rnode, false);
+        try self.emitUnaryOp(.InsertAtKey, constId, region);
     }
 
     const StringTemplateContext = enum { Parser, Value };
 
-    fn writeStringTemplate(self: *Compiler, string_start: *Ast.LocNode, string_rest: *Ast.LocNode, context: StringTemplateContext) Error!void {
-        const loc = string_start.loc;
+    fn writeStringTemplate(self: *Compiler, string_start: *Ast.RNode, string_rest: *Ast.RNode, context: StringTemplateContext) Error!void {
+        const region = string_start.region;
 
         try self.writeStringTemplatePart(string_start, context);
 
-        var loc_node = string_rest;
+        var rnode = string_rest;
 
         while (true) {
-            switch (loc_node.node) {
+            switch (rnode.node) {
                 .InfixNode => |infix| switch (infix.infixType) {
                     .StringTemplateCons => {
                         try self.writeStringTemplatePart(infix.left, context);
-                        try self.emitOp(.MergeAsString, loc);
+                        try self.emitOp(.MergeAsString, region);
 
-                        loc_node = infix.right;
+                        rnode = infix.right;
                     },
                     else => {
-                        try self.writeStringTemplatePart(loc_node, context);
-                        try self.emitOp(.MergeAsString, loc);
+                        try self.writeStringTemplatePart(rnode, context);
+                        try self.emitOp(.MergeAsString, region);
                         break;
                     },
                 },
                 .ElemNode => {
-                    try self.writeStringTemplatePart(loc_node, context);
-                    try self.emitOp(.MergeAsString, loc);
+                    try self.writeStringTemplatePart(rnode, context);
+                    try self.emitOp(.MergeAsString, region);
                     break;
                 },
                 .UpperBoundedRange,
@@ -2028,15 +2028,15 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeStringTemplatePart(self: *Compiler, loc_node: *Ast.LocNode, context: StringTemplateContext) !void {
+    fn writeStringTemplatePart(self: *Compiler, rnode: *Ast.RNode, context: StringTemplateContext) !void {
         switch (context) {
-            .Parser => try self.writeParser(loc_node, false),
-            .Value => try self.writeValue(loc_node, false),
+            .Parser => try self.writeParser(rnode, false),
+            .Value => try self.writeValue(rnode, false),
         }
     }
 
-    fn simplifyNegatedNumberNode(loc_node: *Ast.LocNode) ?Elem {
-        switch (loc_node.node) {
+    fn simplifyNegatedNumberNode(rnode: *Ast.RNode) ?Elem {
+        switch (rnode.node) {
             .Negation => |inner| {
                 if (simplifyNegatedNumberNode(inner)) |num| {
                     return num.negateNumber() catch null;
@@ -2073,7 +2073,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn addLocal(self: *Compiler, elem: Elem, loc: Location) !?u8 {
+    fn addLocal(self: *Compiler, elem: Elem, region: Region) !?u8 {
         const local: Elem.Dyn.Function.Local = switch (elem) {
             .ParserVar => |sId| .{ .ParserVar = sId },
             .ValueVar => |sId| .{ .ValueVar = sId },
@@ -2095,7 +2095,7 @@ pub const Compiler = struct {
                         "Can't have more than {} parameters and local variables.",
                         .{std.math.maxInt(u8)},
                     ),
-                    loc,
+                    region,
                 );
                 return err;
             },
@@ -2103,8 +2103,8 @@ pub const Compiler = struct {
         };
     }
 
-    fn addLocalIfUndefined(self: *Compiler, elem: Elem, loc: Location) !?u8 {
-        return self.addLocal(elem, loc) catch |err| switch (err) {
+    fn addLocalIfUndefined(self: *Compiler, elem: Elem, region: Region) !?u8 {
+        return self.addLocal(elem, region) catch |err| switch (err) {
             error.VariableNameUsedInScope => return null,
             else => return err,
         };
@@ -2118,14 +2118,14 @@ pub const Compiler = struct {
         return self.vm.strings.get(sId)[0] == '@';
     }
 
-    fn emitJump(self: *Compiler, op: OpCode, loc: Location) !usize {
-        try self.emitOp(op, loc);
+    fn emitJump(self: *Compiler, op: OpCode, region: Region) !usize {
+        try self.emitOp(op, region);
         // Dummy operands that will be patched later
-        try self.chunk().writeShort(0xffff, loc);
+        try self.chunk().writeShort(0xffff, region);
         return self.chunk().nextByteIndex() - 2;
     }
 
-    fn patchJump(self: *Compiler, offset: usize, loc: Location) !void {
+    fn patchJump(self: *Compiler, offset: usize, region: Region) !void {
         const jump = self.chunk().nextByteIndex() - offset - 2;
 
         std.debug.assert(self.chunk().read(offset) == 0xff);
@@ -2133,24 +2133,29 @@ pub const Compiler = struct {
 
         self.chunk().updateShortAt(offset, @as(u16, @intCast(jump))) catch |err| switch (err) {
             ChunkError.ShortOverflow => {
-                try self.printError("Too much code to jump over.", loc);
+                try self.printError("Too much code to jump over.", region);
                 return err;
             },
             else => return err,
         };
     }
 
-    fn emitByte(self: *Compiler, byte: u8, loc: Location) !void {
-        try self.chunk().write(byte, loc);
+    fn emitByte(self: *Compiler, byte: u8, region: Region) !void {
+        try self.chunk().write(byte, region);
     }
 
-    fn emitOp(self: *Compiler, op: OpCode, loc: Location) !void {
-        try self.chunk().writeOp(op, loc);
+    fn emitOp(self: *Compiler, op: OpCode, region: Region) !void {
+        try self.chunk().writeOp(op, region);
     }
 
-    fn emitUnaryOp(self: *Compiler, op: OpCode, byte: u8, loc: Location) !void {
-        try self.emitOp(op, loc);
-        try self.emitByte(byte, loc);
+    fn emitEnd(self: *Compiler) !void {
+        const r = self.chunk().regions.getLast();
+        try self.chunk().writeOp(.End, Region.new(r.end, r.end));
+    }
+
+    fn emitUnaryOp(self: *Compiler, op: OpCode, byte: u8, region: Region) !void {
+        try self.emitOp(op, region);
+        try self.emitByte(byte, region);
     }
 
     fn makeConstant(self: *Compiler, elem: Elem) !u8 {
@@ -2163,8 +2168,8 @@ pub const Compiler = struct {
         };
     }
 
-    fn printError(self: *Compiler, message: []const u8, loc: Location) !void {
-        try loc.print(self.writers.err);
+    fn printError(self: *Compiler, message: []const u8, region: Region) !void {
+        try region.printLineRelative(self.vm.source, self.writers.err);
         try self.writers.err.print(" Error: {s}\n", .{message});
     }
 };

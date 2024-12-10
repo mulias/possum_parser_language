@@ -1,5 +1,5 @@
 const std = @import("std");
-const Location = @import("location.zig").Location;
+const Region = @import("region.zig").Region;
 const VMWriter = @import("writer.zig").VMWriter;
 
 pub const TokenType = enum {
@@ -44,18 +44,17 @@ pub const TokenType = enum {
 pub const Token = struct {
     tokenType: TokenType,
     lexeme: []const u8,
-    loc: Location,
+    region: Region,
 
-    pub fn new(tokenType: TokenType, lexeme: []const u8, loc: Location) Token {
-        return Token{ .tokenType = tokenType, .lexeme = lexeme, .loc = loc };
+    pub fn new(tokenType: TokenType, lexeme: []const u8, region: Region) Token {
+        return Token{ .tokenType = tokenType, .lexeme = lexeme, .region = region };
     }
 
     pub fn isEql(self: Token, other: Token) bool {
         return self.tokenType == other.tokenType and
             std.mem.eql(u8, self.lexeme, other.lexeme) and
-            self.loc.line == other.loc.line and
-            self.loc.start == other.loc.start and
-            self.loc.length == other.loc.length;
+            self.region.start == other.region.start and
+            self.region.end == other.region.end;
     }
 
     pub fn isType(self: Token, tokenType: TokenType) bool {
@@ -67,12 +66,11 @@ pub const Token = struct {
     }
 
     pub fn print(self: Token, writer: VMWriter) !void {
-        try writer.print("{s} '{s}' {d}:{d}-{d}", .{
+        try writer.print("{s} '{s}' {d}-{d}", .{
             @tagName(self.tokenType),
             self.lexeme,
-            self.loc.line,
-            self.loc.start,
-            self.loc.start + self.loc.length,
+            self.region.start,
+            self.region.end,
         });
     }
 };

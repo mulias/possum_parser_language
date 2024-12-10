@@ -44,6 +44,7 @@ pub const VM = struct {
     dynList: ?*Elem.Dyn,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
+    source: []const u8,
     input: []const u8,
     inputMarks: ArrayList(usize),
     inputPos: usize,
@@ -77,6 +78,7 @@ pub const VM = struct {
             .dynList = undefined,
             .stack = undefined,
             .frames = undefined,
+            .source = undefined,
             .input = undefined,
             .inputMarks = undefined,
             .inputPos = undefined,
@@ -95,6 +97,7 @@ pub const VM = struct {
         self.dynList = null;
         self.stack = ArrayList(Elem).init(allocator);
         self.frames = ArrayList(CallFrame).init(allocator);
+        self.source = undefined;
         self.input = undefined;
         self.inputMarks = ArrayList(usize).init(allocator);
         self.inputPos = 0;
@@ -122,6 +125,7 @@ pub const VM = struct {
     pub fn interpret(self: *VM, programSource: []const u8, input: []const u8) !Elem {
         if (input.len > std.math.maxInt(u32)) return error.InputTooLong;
 
+        self.source = programSource;
         self.input = input;
         try self.compile(programSource);
         try self.run();
@@ -1350,8 +1354,8 @@ pub const VM = struct {
     }
 
     fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
-        const loc = self.chunk().locations.items[self.frame().ip];
-        try loc.print(self.writers.err);
+        const region = self.chunk().regions.items[self.frame().ip];
+        try region.printLineRelative(self.source, self.writers.err);
         try self.writers.err.print("Error: ", .{});
         try self.writers.err.print(message, args);
         try self.writers.err.print("\n", .{});

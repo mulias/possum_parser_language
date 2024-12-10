@@ -5,7 +5,7 @@
   input   | 4 @ 0
   Frames  | @main
   Stack   | @main
-  0000    3 GetConstant 0: N
+  0000    | GetConstant 0: N
   
   input   | 4 @ 0
   Frames  | @main
@@ -45,7 +45,7 @@
   input   | 4 @ 1
   Frames  | Fib
   Stack   | Fib, 4
-  0000    1 SetInputMark
+  0000    | SetInputMark
   
   input   | 4 @ 1
   Frames  | Fib
@@ -105,7 +105,7 @@
   input   | 4 @ 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3
-  0000    1 SetInputMark
+  0000    | SetInputMark
   
   input   | 4 @ 1
   Frames  | Fib, Fib
@@ -165,7 +165,7 @@
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2
-  0000    1 SetInputMark
+  0000    | SetInputMark
   
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib
@@ -225,7 +225,7 @@
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib, 1
-  0000    1 SetInputMark
+  0000    | SetInputMark
   
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib, Fib
@@ -295,7 +295,7 @@
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 0
-  0000    1 SetInputMark
+  0000    | SetInputMark
   
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib, Fib
@@ -375,7 +375,7 @@
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, 1, Fib, 1
-  0000    1 SetInputMark
+  0000    | SetInputMark
   
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib
@@ -455,7 +455,7 @@
   input   | 4 @ 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, 2, Fib, 2
-  0000    1 SetInputMark
+  0000    | SetInputMark
   
   input   | 4 @ 1
   Frames  | Fib, Fib
@@ -515,7 +515,7 @@
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, 2, Fib, 2, Fib, 1
-  0000    1 SetInputMark
+  0000    | SetInputMark
   
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib
@@ -585,7 +585,7 @@
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 0
-  0000    1 SetInputMark
+  0000    | SetInputMark
   
   input   | 4 @ 1
   Frames  | Fib, Fib, Fib

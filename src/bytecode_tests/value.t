@@ -3,7 +3,7 @@
   $ possum -p '"" $ [1, 2, [1+1+1]]' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: ""
+  0000    | GetConstant 0: ""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 29
   0007    | GetConstant 1: [1, 2, _]
@@ -23,7 +23,7 @@
   $ possum -p '1 -> A $ A' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: 1
   0004    | CallFunction 0
   0006    | GetLocal 0
@@ -36,7 +36,7 @@
   $ possum -p '1 -> A $ [A]' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: 1
   0004    | CallFunction 0
   0006    | GetLocal 0
@@ -51,7 +51,7 @@
   $ possum -p '2 -> A $ [1, [2]]' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: 2
   0004    | CallFunction 0
   0006    | GetLocal 0
@@ -66,7 +66,7 @@
   $ possum -p 'Foo = 1 + 1 ; "" $ [Foo]' -i ''
   
   ==================Foo===================
-  0000    1 GetConstant 0: 1
+  0000    | GetConstant 0: 1
   0002    | JumpIfFailure 2 -> 8
   0005    | GetConstant 1: 1
   0007    | Merge
@@ -74,7 +74,7 @@
   ========================================
   
   =================@main==================
-  0000    1 GetConstant 0: ""
+  0000    | GetConstant 0: ""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 15
   0007    | GetConstant 1: [_]
@@ -87,7 +87,7 @@
   $ possum -p '1 -> A $ [[A]]' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: 1
   0004    | CallFunction 0
   0006    | GetLocal 0
@@ -104,7 +104,7 @@
   $ possum -p 'Foo = 1 -> A & A + A ; "" $ [Foo]' -i ''
   
   ==================Foo===================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: 1
   0004    | GetLocal 0
   0006    | Destructure
@@ -117,7 +117,7 @@
   ========================================
   
   =================@main==================
-  0000    1 GetConstant 0: ""
+  0000    | GetConstant 0: ""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 15
   0007    | GetConstant 1: [_]
@@ -130,12 +130,12 @@
   $ possum -p 'A = [1,2,3] ; const([...A, ...A])' -i ''
   
   ===================A====================
-  0000    1 GetConstant 0: [1, 2, 3]
+  0000    | GetConstant 0: [1, 2, 3]
   0002    | End
   ========================================
   
   =================@main==================
-  0000    1 GetConstant 0: const
+  0000    | GetConstant 0: const
   0002    | GetConstant 1: []
   0004    | JumpIfFailure 4 -> 12
   0007    | GetConstant 2: A
@@ -155,7 +155,7 @@
   $ possum -p '1 -> A & 2 -> B $ {"a": A, "b": B}' -i '12'
   
   =================@main==================
-  0000    1 GetConstant 0: A
+  0000    | GetConstant 0: A
   0002    | GetConstant 1: B
   0004    | GetConstant 2: 1
   0006    | CallFunction 0
@@ -178,7 +178,7 @@
   $ possum -p 'const({"a": 1 + 2 + 3})' -i '12'
   
   =================@main==================
-  0000    1 GetConstant 0: const
+  0000    | GetConstant 0: const
   0002    | GetConstant 1: {}
   0004    | GetConstant 3: 1
   0006    | JumpIfFailure 6 -> 12
@@ -195,7 +195,7 @@
   $ possum -p 'const({"a": [{"b": "foo"}]})' -i '12'
   
   =================@main==================
-  0000    1 GetConstant 0: const
+  0000    | GetConstant 0: const
   0002    | GetConstant 1: {}
   0004    | GetConstant 3: [_]
   0006    | GetConstant 4: {"b": "foo"}
@@ -208,7 +208,7 @@
   $ possum -p '"" $ "%(1 + 1)"' -i ''
   
   =================@main==================
-  0000    1 GetConstant 0: ""
+  0000    | GetConstant 0: ""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 18
   0007    | GetConstant 1: ""

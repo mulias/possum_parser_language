@@ -1,115 +1,102 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum -p 'foo(a, b, c) = a + b + c' -i ''
-  []*ast.Ast.LocNode
-    *ast.Ast.LocNode
-      .loc: location.Location
-        .line: usize = 1
+  []*ast.Ast.RNode
+    *ast.Ast.RNode
+      .region: region.Region
         .start: usize = 13
-        .length: usize = 1
+        .end: usize = 14
       .node: ast.Ast.Node
         .InfixNode: ast.Ast.Infix
           .infixType: ast.Ast.InfixType
             .DeclareGlobal
-          .left: *ast.Ast.LocNode
-            .loc: location.Location
-              .line: usize = 1
+          .left: *ast.Ast.RNode
+            .region: region.Region
               .start: usize = 3
-              .length: usize = 1
+              .end: usize = 4
             .node: ast.Ast.Node
               .InfixNode: ast.Ast.Infix
                 .infixType: ast.Ast.InfixType
                   .CallOrDefineFunction
-                .left: *ast.Ast.LocNode
-                  .loc: location.Location
-                    .line: usize = 1
+                .left: *ast.Ast.RNode
+                  .region: region.Region
                     .start: usize = 0
-                    .length: usize = 3
+                    .end: usize = 3
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .ParserVar: u32 = 2790
-                .right: *ast.Ast.LocNode
-                  .loc: location.Location
-                    .line: usize = 1
+                      .ParserVar: u32 = 2795
+                .right: *ast.Ast.RNode
+                  .region: region.Region
                     .start: usize = 5
-                    .length: usize = 1
+                    .end: usize = 6
                   .node: ast.Ast.Node
                     .InfixNode: ast.Ast.Infix
                       .infixType: ast.Ast.InfixType
                         .ParamsOrArgs
-                      .left: *ast.Ast.LocNode
-                        .loc: location.Location
-                          .line: usize = 1
+                      .left: *ast.Ast.RNode
+                        .region: region.Region
                           .start: usize = 4
-                          .length: usize = 1
+                          .end: usize = 5
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .ParserVar: u32 = 143
-                      .right: *ast.Ast.LocNode
-                        .loc: location.Location
-                          .line: usize = 1
+                            .ParserVar: u32 = 148
+                      .right: *ast.Ast.RNode
+                        .region: region.Region
                           .start: usize = 8
-                          .length: usize = 1
+                          .end: usize = 9
                         .node: ast.Ast.Node
                           .InfixNode: ast.Ast.Infix
                             .infixType: ast.Ast.InfixType
                               .ParamsOrArgs
-                            .left: *ast.Ast.LocNode
-                              .loc: location.Location
-                                .line: usize = 1
+                            .left: *ast.Ast.RNode
+                              .region: region.Region
                                 .start: usize = 7
-                                .length: usize = 1
+                                .end: usize = 8
                               .node: ast.Ast.Node
                                 .ElemNode: elem.Elem
-                                  .ParserVar: u32 = 655
-                            .right: *ast.Ast.LocNode
-                              .loc: location.Location
-                                .line: usize = 1
+                                  .ParserVar: u32 = 660
+                            .right: *ast.Ast.RNode
+                              .region: region.Region
                                 .start: usize = 10
-                                .length: usize = 1
+                                .end: usize = 11
                               .node: ast.Ast.Node
                                 .ElemNode: elem.Elem
-                                  .ParserVar: u32 = 663
-          .right: *ast.Ast.LocNode
-            .loc: location.Location
-              .line: usize = 1
+                                  .ParserVar: u32 = 668
+          .right: *ast.Ast.RNode
+            .region: region.Region
               .start: usize = 21
-              .length: usize = 1
+              .end: usize = 22
             .node: ast.Ast.Node
               .InfixNode: ast.Ast.Infix
                 .infixType: ast.Ast.InfixType
                   .Merge
-                .left: *ast.Ast.LocNode
-                  .loc: location.Location
-                    .line: usize = 1
+                .left: *ast.Ast.RNode
+                  .region: region.Region
                     .start: usize = 17
-                    .length: usize = 1
+                    .end: usize = 18
                   .node: ast.Ast.Node
                     .InfixNode: ast.Ast.Infix
                       .infixType: ast.Ast.InfixType
                         .Merge
-                      .left: *ast.Ast.LocNode
-                        .loc: location.Location
-                          .line: usize = 1
+                      .left: *ast.Ast.RNode
+                        .region: region.Region
                           .start: usize = 15
-                          .length: usize = 1
+                          .end: usize = 16
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .ParserVar: u32 = 143
-                      .right: *ast.Ast.LocNode
-                        .loc: location.Location
-                          .line: usize = 1
+                            .ParserVar: u32 = 148
+                      .right: *ast.Ast.RNode
+                        .region: region.Region
                           .start: usize = 19
-                          .length: usize = 1
+                          .end: usize = 20
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .ParserVar: u32 = 655
-                .right: *ast.Ast.LocNode
-                  .loc: location.Location
-                    .line: usize = 1
+                            .ParserVar: u32 = 660
+                .right: *ast.Ast.RNode
+                  .region: region.Region
                     .start: usize = 23
-                    .length: usize = 1
+                    .end: usize = 24
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .ParserVar: u32 = 663
+                      .ParserVar: u32 = 668
 

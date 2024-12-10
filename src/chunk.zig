@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Elem = @import("elem.zig").Elem;
-const Location = @import("location.zig").Location;
+const Region = @import("region.zig").Region;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable;
 const VMWriter = @import("writer.zig").VMWriter;
@@ -17,21 +17,21 @@ pub const Chunk = struct {
     allocator: Allocator,
     code: ArrayList(u8),
     constants: ArrayList(Elem),
-    locations: ArrayList(Location),
+    regions: ArrayList(Region),
 
     pub fn init(allocator: Allocator) Chunk {
         return Chunk{
             .allocator = allocator,
             .code = ArrayList(u8).init(allocator),
             .constants = ArrayList(Elem).init(allocator),
-            .locations = ArrayList(Location).init(allocator),
+            .regions = ArrayList(Region).init(allocator),
         };
     }
 
     pub fn deinit(self: *Chunk) void {
         self.code.deinit();
         self.constants.deinit();
-        self.locations.deinit();
+        self.regions.deinit();
     }
 
     pub fn read(self: *Chunk, pos: usize) u8 {
@@ -50,16 +50,16 @@ pub const Chunk = struct {
         return self.constants.items[idx];
     }
 
-    pub fn write(self: *Chunk, byte: u8, loc: Location) !void {
+    pub fn write(self: *Chunk, byte: u8, loc: Region) !void {
         try self.code.append(byte);
-        try self.locations.append(loc);
+        try self.regions.append(loc);
     }
 
-    pub fn writeOp(self: *Chunk, op: OpCode, loc: Location) !void {
+    pub fn writeOp(self: *Chunk, op: OpCode, loc: Region) !void {
         try self.write(@intFromEnum(op), loc);
     }
 
-    pub fn writeShort(self: *Chunk, short: u16, loc: Location) !void {
+    pub fn writeShort(self: *Chunk, short: u16, loc: Region) !void {
         try self.write(shortUpperBytes(short), loc);
         try self.write(shortLowerBytes(short), loc);
     }
@@ -105,16 +105,17 @@ pub const Chunk = struct {
         // print address
         try writer.print("{:0>4} ", .{offset});
 
-        // print line
-        if (offset > 0 and self.locations.items[offset].line == self.locations.items[offset - 1].line) {
-            try writer.print("   | ", .{});
-        } else {
-            try writer.print("{: >4} ", .{self.locations.items[offset].line});
-        }
+        try writer.print("   | ", .{});
 
         const instruction = self.readOp(offset);
 
         return instruction.disassemble(self, vm, writer, offset);
+    }
+
+    pub fn region(self: *Chunk) Region {
+        const first_region = self.regions.items[0];
+        const last_region = self.regions.getLast();
+        return first_region.merge(last_region);
     }
 
     fn shortLowerBytes(short: u16) u8 {
