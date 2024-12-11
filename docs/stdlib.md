@@ -184,5 +184,10 @@ See the `stdlib-ast` docs for more detailed documentation.
 | `Reject(A, Pred)`  | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` succeeds |
 | `IsNull(V)`        | Succeeds and returns `V` if the value is `null`, otherwise fails |
 | `Tabular(Headers, Rows)` | Transform an array of `Rows` into an array of objects where each column is paired with its header from `Headers` |
-| `LessThan(A, B)` | Succeeds and returns `A` if `A` is strictly less than `B` |
+| `LessThan(A, B)`   | Succeeds and returns `A` if `A` is strictly less than `B` |
 | `GreaterThan(A, B)` | Succeeds and returns `A` if `A` is strictly greater than `B` |
+| `Num.Add(A, B)`    | Sum `A` and `B`, error if values are not numbers or null |
+| `Num.Sub(A, B)`    | Subtract `B` from `A`, error if values are not numbers or null |
+| `Num.Mul(A, B)`    | Multiply `A` and `B`, error if values are not numbers or null |
+| `Num.Div(A, B)`    | Divide `A` by `B`, error if values are not numbers or null, or if `B` is 0 |
+| `Num.Pow(A, B)`    | Raise `A` to the exponent `B`, error if values are not numbers or null |
