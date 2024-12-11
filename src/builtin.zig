@@ -303,20 +303,23 @@ fn createAddValue(vm: *VM) !*Function {
 }
 
 fn addNative(vm: *VM) VM.Error!void {
-    const b = vm.pop();
-    const a = vm.pop();
+    var b = vm.pop();
+    var a = vm.pop();
+
+    a = if (a == .Null) Elem.integer(0) else a;
+    b = if (b == .Null) Elem.integer(0) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
-        const res = switch (n1) {
-            .Integer => |int1| switch (n2) {
+        const res = switch (a) {
+            .Integer => |int1| switch (b) {
                 .Integer => |int2| Elem.integer(int1 + int2),
                 .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) + float2),
                 else => @panic("Internal Error"),
             },
-            .Float => |float1| switch (n2) {
+            .Float => |float1| switch (b) {
                 .Integer => |int2| Elem.float(float1 + @as(f64, @floatFromInt(int2))),
                 .Float => |float2| Elem.float(float1 + float2),
                 else => @panic("Internal Error"),
@@ -327,12 +330,8 @@ fn addNative(vm: *VM) VM.Error!void {
         return vm.push(res);
     } else if (a == .Failure or b == .Failure) {
         return vm.pushFailure();
-    } else if (a == .Null) {
-        return vm.push(b);
-    } else if (b == .Null) {
-        return vm.push(a);
     } else {
-        return vm.runtimeError("@Add expected two numbers", .{});
+        return vm.runtimeError("@Add expected number or null arguments", .{});
     }
 }
 
@@ -366,20 +365,23 @@ fn createSubtractValue(vm: *VM) !*Function {
 }
 
 fn subtractNative(vm: *VM) VM.Error!void {
-    const b = vm.pop();
-    const a = vm.pop();
+    var b = vm.pop();
+    var a = vm.pop();
+
+    a = if (a == .Null) Elem.integer(0) else a;
+    b = if (b == .Null) Elem.integer(0) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
-        const res = switch (n1) {
-            .Integer => |int1| switch (n2) {
+        const res = switch (a) {
+            .Integer => |int1| switch (b) {
                 .Integer => |int2| Elem.integer(int1 - int2),
                 .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) - float2),
                 else => @panic("Internal Error"),
             },
-            .Float => |float1| switch (n2) {
+            .Float => |float1| switch (b) {
                 .Integer => |int2| Elem.float(float1 - @as(f64, @floatFromInt(int2))),
                 .Float => |float2| Elem.float(float1 - float2),
                 else => @panic("Internal Error"),
@@ -390,12 +392,8 @@ fn subtractNative(vm: *VM) VM.Error!void {
         return vm.push(res);
     } else if (a == .Failure or b == .Failure) {
         return vm.pushFailure();
-    } else if (a == .Null) {
-        return vm.push(b);
-    } else if (b == .Null) {
-        return vm.push(a);
     } else {
-        return vm.runtimeError("@Subtract expected two numbers", .{});
+        return vm.runtimeError("@Subtract expected number or null arguments", .{});
     }
 }
 
@@ -429,20 +427,23 @@ fn createMultiplyValue(vm: *VM) !*Function {
 }
 
 fn multiplyNative(vm: *VM) VM.Error!void {
-    const b = vm.pop();
-    const a = vm.pop();
+    var b = vm.pop();
+    var a = vm.pop();
+
+    a = if (a == .Null) Elem.integer(1) else a;
+    b = if (b == .Null) Elem.integer(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
-        const res = switch (n1) {
-            .Integer => |int1| switch (n2) {
+        const res = switch (a) {
+            .Integer => |int1| switch (b) {
                 .Integer => |int2| Elem.integer(int1 * int2),
                 .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) * float2),
                 else => @panic("Internal Error"),
             },
-            .Float => |float1| switch (n2) {
+            .Float => |float1| switch (b) {
                 .Integer => |int2| Elem.float(float1 * @as(f64, @floatFromInt(int2))),
                 .Float => |float2| Elem.float(float1 * float2),
                 else => @panic("Internal Error"),
@@ -453,12 +454,8 @@ fn multiplyNative(vm: *VM) VM.Error!void {
         return vm.push(res);
     } else if (a == .Failure or b == .Failure) {
         return vm.pushFailure();
-    } else if (a == .Null) {
-        return vm.push(b);
-    } else if (b == .Null) {
-        return vm.push(a);
     } else {
-        return vm.runtimeError("@Multiply expected two numbers", .{});
+        return vm.runtimeError("@Multiply expected number or null arguments", .{});
     }
 }
 
@@ -492,24 +489,27 @@ fn createDivideValue(vm: *VM) !*Function {
 }
 
 fn divideNative(vm: *VM) VM.Error!void {
-    const b = vm.pop();
-    const a = vm.pop();
+    var b = vm.pop();
+    var a = vm.pop();
+
+    a = if (a == .Null) Elem.integer(1) else a;
+    b = if (b == .Null) Elem.integer(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
-        if (n2.isEql(Elem.integer(0), vm.*)) {
+        if (b.isEql(Elem.integer(0), vm.*)) {
             return vm.runtimeError("@Divide denominator is 0", .{});
         }
 
-        const res = switch (n1) {
-            .Integer => |int1| switch (n2) {
+        const res = switch (a) {
+            .Integer => |int1| switch (b) {
                 .Integer => |int2| Elem.float(@as(f64, @floatFromInt(int1)) / @as(f64, @floatFromInt(int2))),
                 .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) / float2),
                 else => @panic("Internal Error"),
             },
-            .Float => |float1| switch (n2) {
+            .Float => |float1| switch (b) {
                 .Integer => |int2| Elem.float(float1 / @as(f64, @floatFromInt(int2))),
                 .Float => |float2| Elem.float(float1 / float2),
                 else => @panic("Internal Error"),
@@ -520,12 +520,8 @@ fn divideNative(vm: *VM) VM.Error!void {
         return vm.push(res);
     } else if (a == .Failure or b == .Failure) {
         return vm.pushFailure();
-    } else if (a == .Null) {
-        return vm.push(b);
-    } else if (b == .Null) {
-        return vm.push(a);
     } else {
-        return vm.runtimeError("@Divide expected two numbers", .{});
+        return vm.runtimeError("@Divide expected number or null arguments", .{});
     }
 }
 
@@ -559,15 +555,18 @@ fn createPowerValue(vm: *VM) !*Function {
 }
 
 fn powerNative(vm: *VM) VM.Error!void {
-    const b = vm.pop();
-    const a = vm.pop();
+    var b = vm.pop();
+    var a = vm.pop();
+
+    a = if (a == .Null) Elem.integer(1) else a;
+    b = if (b == .Null) Elem.integer(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
-        const res = switch (n1) {
-            .Integer => |int1| switch (n2) {
+        const res = switch (a) {
+            .Integer => |int1| switch (b) {
                 .Integer => |int2| blk: {
                     const int_res = std.math.powi(i64, int1, int2) catch null;
                     if (int_res) |res| {
@@ -587,7 +586,7 @@ fn powerNative(vm: *VM) VM.Error!void {
                 ),
                 else => @panic("Internal Error"),
             },
-            .Float => |float1| switch (n2) {
+            .Float => |float1| switch (b) {
                 .Integer => |int2| Elem.float(
                     std.math.pow(f64, float1, @as(f64, @floatFromInt(int2))),
                 ),
@@ -602,11 +601,7 @@ fn powerNative(vm: *VM) VM.Error!void {
         return vm.push(res);
     } else if (a == .Failure or b == .Failure) {
         return vm.pushFailure();
-    } else if (a == .Null) {
-        return vm.push(b);
-    } else if (b == .Null) {
-        return vm.push(a);
     } else {
-        return vm.runtimeError("@Power expected two numbers", .{});
+        return vm.runtimeError("@Power expected number or null arguments", .{});
     }
 }
