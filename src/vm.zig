@@ -68,6 +68,8 @@ pub const VM = struct {
         Utf8CannotEncodeSurrogateHalf,
         InvalidRange,
         NoMainParser,
+        IntegerOverflow,
+        Overflow,
     } || WriterError;
 
     pub fn create() VM {
@@ -1353,7 +1355,7 @@ pub const VM = struct {
         try self.writers.debug.print("\n", .{});
     }
 
-    fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
+    pub fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
         const region = self.chunk().regions.items[self.frame().ip];
         try region.printLineRelative(self.source, self.writers.err);
         try self.writers.err.print("Error: ", .{});

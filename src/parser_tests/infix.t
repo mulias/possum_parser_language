@@ -32,28 +32,28 @@
                           .end: usize = 3
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .String: u32 = 148
+                            .String: u32 = 192
                       .right: *ast.Ast.RNode
                         .region: region.Region
                           .start: usize = 6
                           .end: usize = 9
                         .node: ast.Ast.Node
                           .ElemNode: elem.Elem
-                            .String: u32 = 660
+                            .String: u32 = 702
                 .right: *ast.Ast.RNode
                   .region: region.Region
                     .start: usize = 12
                     .end: usize = 15
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .String: u32 = 668
+                      .String: u32 = 708
           .right: *ast.Ast.RNode
             .region: region.Region
               .start: usize = 18
               .end: usize = 23
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 2795
+                .String: u32 = 2883
 
   $ possum -p '"" $ (1-2)' -i ''
   []*ast.Ast.RNode
@@ -71,7 +71,7 @@
               .end: usize = 2
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 800
+                .String: u32 = 840
           .right: *ast.Ast.RNode
             .region: region.Region
               .start: usize = 7
@@ -87,7 +87,7 @@
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 2214
+                        .sId: u32 = 2254
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false
@@ -98,7 +98,7 @@
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 2795
+                        .sId: u32 = 2883
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false

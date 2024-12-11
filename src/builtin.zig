@@ -7,7 +7,7 @@ const Region = @import("region.zig").Region;
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
 
-pub fn functions(vm: *VM) ![8]*Function {
+pub fn functions(vm: *VM) ![13]*Function {
     return [_]*Function{
         try createFailParser(vm),
         try createFailValue(vm),
@@ -17,10 +17,15 @@ pub fn functions(vm: *VM) ![8]*Function {
         try createCodepointValue(vm),
         try createSurrogatePairCodepointValue(vm),
         try createDbgParser(vm),
+        try createAddValue(vm),
+        try createSubtractValue(vm),
+        try createMultiplyValue(vm),
+        try createDivideValue(vm),
+        try createPowerValue(vm),
     };
 }
 
-pub fn createFailParser(vm: *VM) !*Function {
+fn createFailParser(vm: *VM) !*Function {
     const name = try vm.strings.insert("@fail");
     var fun = try Function.create(vm, .{
         .name = name,
@@ -36,7 +41,7 @@ pub fn createFailParser(vm: *VM) !*Function {
     return fun;
 }
 
-pub fn createFailValue(vm: *VM) !*Function {
+fn createFailValue(vm: *VM) !*Function {
     const name = try vm.strings.insert("@Fail");
     var fun = try Function.create(vm, .{
         .name = name,
@@ -52,7 +57,7 @@ pub fn createFailValue(vm: *VM) !*Function {
     return fun;
 }
 
-pub fn createNumberOfParser(vm: *VM) !*Function {
+fn createNumberOfParser(vm: *VM) !*Function {
     const name = try vm.strings.insert("@number_of");
     var fun = try Function.create(vm, .{
         .name = name,
@@ -75,7 +80,7 @@ pub fn createNumberOfParser(vm: *VM) !*Function {
     return fun;
 }
 
-pub fn createNumberOfValue(vm: *VM) !*Function {
+fn createNumberOfValue(vm: *VM) !*Function {
     const name = try vm.strings.insert("@NumberOf");
     var fun = try Function.create(vm, .{
         .name = name,
@@ -96,7 +101,7 @@ pub fn createNumberOfValue(vm: *VM) !*Function {
     return fun;
 }
 
-pub fn createCrashValue(vm: *VM) !*Function {
+fn createCrashValue(vm: *VM) !*Function {
     const name = try vm.strings.insert("@Crash");
     var fun = try Function.create(vm, .{
         .name = name,
@@ -117,7 +122,7 @@ pub fn createCrashValue(vm: *VM) !*Function {
     return fun;
 }
 
-pub fn createCodepointValue(vm: *VM) !*Function {
+fn createCodepointValue(vm: *VM) !*Function {
     const name = try vm.strings.insert("@Codepoint");
     var fun = try Function.create(vm, .{
         .name = name,
@@ -170,7 +175,7 @@ fn stringToCodepoint(vm: *VM) VM.Error!void {
     }
 }
 
-pub fn createSurrogatePairCodepointValue(vm: *VM) !*Function {
+fn createSurrogatePairCodepointValue(vm: *VM) !*Function {
     const name = try vm.strings.insert("@SurrogatePairCodepoint");
     var fun = try Function.create(vm, .{
         .name = name,
@@ -232,7 +237,7 @@ fn stringsToSurrogateCodepoint(vm: *VM) VM.Error!void {
     }
 }
 
-pub fn createDbgParser(vm: *VM) !*Function {
+fn createDbgParser(vm: *VM) !*Function {
     const name = try vm.strings.insert("@dbg");
     var fun = try Function.create(vm, .{
         .name = name,
@@ -266,4 +271,342 @@ fn dbgNative(vm: *VM) VM.Error!void {
     try vm.writers.debug.print(": ", .{});
     try value.print(vm.*, vm.writers.debug);
     try vm.writers.debug.print("\n", .{});
+}
+
+fn createAddValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@Add");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
+        .arity = 2,
+    });
+
+    const native_code = try NativeCode.create(vm, "addNative", addNative);
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
+    const arg1 = try vm.strings.insert("A");
+    const arg2 = try vm.strings.insert("B");
+    try fun.locals.append(.{ .ValueVar = arg1 });
+    try fun.locals.append(.{ .ValueVar = arg2 });
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(0, loc);
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(1, loc);
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+fn addNative(vm: *VM) VM.Error!void {
+    const b = vm.pop();
+    const a = vm.pop();
+
+    if (a.isNumber() and b.isNumber()) {
+        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+
+        const res = switch (n1) {
+            .Integer => |int1| switch (n2) {
+                .Integer => |int2| Elem.integer(int1 + int2),
+                .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) + float2),
+                else => @panic("Internal Error"),
+            },
+            .Float => |float1| switch (n2) {
+                .Integer => |int2| Elem.float(float1 + @as(f64, @floatFromInt(int2))),
+                .Float => |float2| Elem.float(float1 + float2),
+                else => @panic("Internal Error"),
+            },
+            else => @panic("Internal Error"),
+        };
+
+        return vm.push(res);
+    } else if (a == .Failure or b == .Failure) {
+        return vm.pushFailure();
+    } else if (a == .Null) {
+        return vm.push(b);
+    } else if (b == .Null) {
+        return vm.push(a);
+    } else {
+        return vm.runtimeError("@Add expected two numbers", .{});
+    }
+}
+
+fn createSubtractValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@Subtract");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
+        .arity = 2,
+    });
+
+    const native_code = try NativeCode.create(vm, "subtractNative", subtractNative);
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
+    const arg1 = try vm.strings.insert("A");
+    const arg2 = try vm.strings.insert("B");
+    try fun.locals.append(.{ .ValueVar = arg1 });
+    try fun.locals.append(.{ .ValueVar = arg2 });
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(0, loc);
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(1, loc);
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+fn subtractNative(vm: *VM) VM.Error!void {
+    const b = vm.pop();
+    const a = vm.pop();
+
+    if (a.isNumber() and b.isNumber()) {
+        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+
+        const res = switch (n1) {
+            .Integer => |int1| switch (n2) {
+                .Integer => |int2| Elem.integer(int1 - int2),
+                .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) - float2),
+                else => @panic("Internal Error"),
+            },
+            .Float => |float1| switch (n2) {
+                .Integer => |int2| Elem.float(float1 - @as(f64, @floatFromInt(int2))),
+                .Float => |float2| Elem.float(float1 - float2),
+                else => @panic("Internal Error"),
+            },
+            else => @panic("Internal Error"),
+        };
+
+        return vm.push(res);
+    } else if (a == .Failure or b == .Failure) {
+        return vm.pushFailure();
+    } else if (a == .Null) {
+        return vm.push(b);
+    } else if (b == .Null) {
+        return vm.push(a);
+    } else {
+        return vm.runtimeError("@Subtract expected two numbers", .{});
+    }
+}
+
+fn createMultiplyValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@Multiply");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
+        .arity = 2,
+    });
+
+    const native_code = try NativeCode.create(vm, "multiplyNative", multiplyNative);
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
+    const arg1 = try vm.strings.insert("A");
+    const arg2 = try vm.strings.insert("B");
+    try fun.locals.append(.{ .ValueVar = arg1 });
+    try fun.locals.append(.{ .ValueVar = arg2 });
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(0, loc);
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(1, loc);
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+fn multiplyNative(vm: *VM) VM.Error!void {
+    const b = vm.pop();
+    const a = vm.pop();
+
+    if (a.isNumber() and b.isNumber()) {
+        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+
+        const res = switch (n1) {
+            .Integer => |int1| switch (n2) {
+                .Integer => |int2| Elem.integer(int1 * int2),
+                .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) * float2),
+                else => @panic("Internal Error"),
+            },
+            .Float => |float1| switch (n2) {
+                .Integer => |int2| Elem.float(float1 * @as(f64, @floatFromInt(int2))),
+                .Float => |float2| Elem.float(float1 * float2),
+                else => @panic("Internal Error"),
+            },
+            else => @panic("Internal Error"),
+        };
+
+        return vm.push(res);
+    } else if (a == .Failure or b == .Failure) {
+        return vm.pushFailure();
+    } else if (a == .Null) {
+        return vm.push(b);
+    } else if (b == .Null) {
+        return vm.push(a);
+    } else {
+        return vm.runtimeError("@Multiply expected two numbers", .{});
+    }
+}
+
+fn createDivideValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@Divide");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
+        .arity = 2,
+    });
+
+    const native_code = try NativeCode.create(vm, "divideNative", divideNative);
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
+    const arg1 = try vm.strings.insert("A");
+    const arg2 = try vm.strings.insert("B");
+    try fun.locals.append(.{ .ValueVar = arg1 });
+    try fun.locals.append(.{ .ValueVar = arg2 });
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(0, loc);
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(1, loc);
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+fn divideNative(vm: *VM) VM.Error!void {
+    const b = vm.pop();
+    const a = vm.pop();
+
+    if (a.isNumber() and b.isNumber()) {
+        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+
+        if (n2.isEql(Elem.integer(0), vm.*)) {
+            return vm.runtimeError("@Divide denominator is 0", .{});
+        }
+
+        const res = switch (n1) {
+            .Integer => |int1| switch (n2) {
+                .Integer => |int2| Elem.float(@as(f64, @floatFromInt(int1)) / @as(f64, @floatFromInt(int2))),
+                .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) / float2),
+                else => @panic("Internal Error"),
+            },
+            .Float => |float1| switch (n2) {
+                .Integer => |int2| Elem.float(float1 / @as(f64, @floatFromInt(int2))),
+                .Float => |float2| Elem.float(float1 / float2),
+                else => @panic("Internal Error"),
+            },
+            else => @panic("Internal Error"),
+        };
+
+        return vm.push(res);
+    } else if (a == .Failure or b == .Failure) {
+        return vm.pushFailure();
+    } else if (a == .Null) {
+        return vm.push(b);
+    } else if (b == .Null) {
+        return vm.push(a);
+    } else {
+        return vm.runtimeError("@Divide expected two numbers", .{});
+    }
+}
+
+fn createPowerValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@Power");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
+        .arity = 2,
+    });
+
+    const native_code = try NativeCode.create(vm, "powerNative", powerNative);
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
+    const arg1 = try vm.strings.insert("A");
+    const arg2 = try vm.strings.insert("B");
+    try fun.locals.append(.{ .ValueVar = arg1 });
+    try fun.locals.append(.{ .ValueVar = arg2 });
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(0, loc);
+    try fun.chunk.writeOp(.GetLocal, loc);
+    try fun.chunk.write(1, loc);
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+fn powerNative(vm: *VM) VM.Error!void {
+    const b = vm.pop();
+    const a = vm.pop();
+
+    if (a.isNumber() and b.isNumber()) {
+        const n1 = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
+        const n2 = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+
+        const res = switch (n1) {
+            .Integer => |int1| switch (n2) {
+                .Integer => |int2| blk: {
+                    const int_res = std.math.powi(i64, int1, int2) catch null;
+                    if (int_res) |res| {
+                        break :blk Elem.integer(res);
+                    } else {
+                        break :blk Elem.float(
+                            std.math.pow(
+                                f64,
+                                @as(f64, @floatFromInt(int1)),
+                                @as(f64, @floatFromInt(int2)),
+                            ),
+                        );
+                    }
+                },
+                .Float => |float2| Elem.float(
+                    std.math.pow(f64, @as(f64, @floatFromInt(int1)), float2),
+                ),
+                else => @panic("Internal Error"),
+            },
+            .Float => |float1| switch (n2) {
+                .Integer => |int2| Elem.float(
+                    std.math.pow(f64, float1, @as(f64, @floatFromInt(int2))),
+                ),
+                .Float => |float2| Elem.float(
+                    std.math.pow(f64, float1, float2),
+                ),
+                else => @panic("Internal Error"),
+            },
+            else => @panic("Internal Error"),
+        };
+
+        return vm.push(res);
+    } else if (a == .Failure or b == .Failure) {
+        return vm.pushFailure();
+    } else if (a == .Null) {
+        return vm.push(b);
+    } else if (b == .Null) {
+        return vm.push(a);
+    } else {
+        return vm.runtimeError("@Power expected two numbers", .{});
+    }
 }
