@@ -302,7 +302,11 @@ pub const Scanner = struct {
     }
 
     fn scanLowercaseIdentifier(self: *Scanner) Token {
-        while (isAlpha(self.peek()) or isDigit(self.peek()) or self.peek() == '_') self.advance();
+        var c = self.peek();
+        while (isAlpha(c) or isDigit(c) or c == '_' or (c == '.' and self.peekNext() != '.')) {
+            self.advance();
+            c = self.peek();
+        }
 
         return self.makeToken(self.lowercaseIdentifierType());
     }
@@ -320,7 +324,11 @@ pub const Scanner = struct {
     }
 
     fn scanUppercaseIdentifier(self: *Scanner) Token {
-        while (isAlpha(self.peek()) or isDigit(self.peek()) or self.peek() == '_') self.advance();
+        var c = self.peek();
+        while (isAlpha(c) or isDigit(c) or c == '_' or (c == '.' and self.peekNext() != '.')) {
+            self.advance();
+            c = self.peek();
+        }
 
         return self.makeToken(.UppercaseIdentifier);
     }

@@ -522,3 +522,15 @@ AssertNonNegativeInteger(V) =
 LessThan(A, B) = A -> B ? @Fail : A -> ..B
 
 GreaterThan(A, B) = A -> B ? @Fail : A -> B..
+
+Num.Add = @Add
+
+Num.Sub = @Subtract
+
+Num.Mul = @Multiply
+
+Num.Div = @Divide
+
+Num.Pow = @Power
+
+Num.Abs(N) = N -> 0.. | -N

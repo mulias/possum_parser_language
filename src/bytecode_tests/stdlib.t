@@ -3328,4 +3328,16 @@
   0022    | DestructureRange
   0023    | End
   ========================================
+  
+  ================Num.Abs=================
+  0000    | SetInputMark
+  0001    | GetBoundLocal 0
+  0003    | GetConstant 0: 0
+  0005    | GetConstant 1: _
+  0007    | DestructureRange
+  0008    | Or 8 -> 14
+  0011    | GetBoundLocal 0
+  0013    | NegateNumber
+  0014    | End
+  ========================================
 
