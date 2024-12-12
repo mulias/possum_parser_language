@@ -37,6 +37,16 @@ pub const Config = struct {
     }
 };
 
+pub const Pos = struct {
+    offset: usize = 0,
+    line: usize = 1,
+    line_start: usize = 0,
+
+    fn lineOffset(self: Pos) usize {
+        return self.offset - self.line_start;
+    }
+};
+
 pub const VM = struct {
     allocator: Allocator,
     strings: StringTable,
@@ -46,8 +56,8 @@ pub const VM = struct {
     frames: ArrayList(CallFrame),
     source: []const u8,
     input: []const u8,
-    inputMarks: ArrayList(usize),
-    inputPos: usize,
+    inputMarks: ArrayList(Pos),
+    inputPos: Pos,
     uniqueIdCount: u64,
     writers: Writers,
     config: Config,
@@ -101,8 +111,8 @@ pub const VM = struct {
         self.frames = ArrayList(CallFrame).init(allocator);
         self.source = undefined;
         self.input = undefined;
-        self.inputMarks = ArrayList(usize).init(allocator);
-        self.inputPos = 0;
+        self.inputMarks = ArrayList(Pos).init(allocator);
+        self.inputPos = Pos{};
         self.uniqueIdCount = 0;
         self.writers = writers;
         self.config = config;
@@ -537,13 +547,17 @@ pub const VM = struct {
                 }
             },
             .ParseCharacter => {
-                const start = self.inputPos;
+                const start = self.inputPos.offset;
 
                 if (start < self.input.len) {
-                    const bytesLength = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
-                    const end = start + bytesLength;
+                    const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
+                    const end = start + bytes_length;
 
-                    self.inputPos = end;
+                    self.inputPos.offset = end;
+                    if (self.isNewlineChar(start, bytes_length)) {
+                        self.inputPos.line += 1;
+                        self.inputPos.line_start = end;
+                    }
 
                     const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
                     try self.push(substring);
@@ -665,29 +679,50 @@ pub const VM = struct {
             .String => |sId| {
                 assert(argCount == 0);
                 _ = self.pop();
-                const s = self.strings.get(sId);
-                const start = self.inputPos;
-                const end = start + s.len;
+                const str = self.strings.get(sId);
+                const start = self.inputPos.offset;
+                const end = start + str.len;
 
-                if (self.input.len >= end and std.mem.eql(u8, s, self.input[start..end])) {
-                    self.inputPos = end;
+                var newlines: usize = 0;
+                var line_start = self.inputPos.line_start;
+
+                if (self.input.len >= end) {
+                    for (str, self.input[start..end], 0..) |sc, ic, idx| {
+                        if (self.isNewlineChar(start + idx, 1) or
+                            (str[idx..].len >= 2 and self.isNewlineChar(start + idx, 2)) or
+                            (str[idx..].len >= 3 and self.isNewlineChar(start + idx, 3)))
+                        {
+                            newlines += 1;
+                            line_start = start + idx;
+                        }
+
+                        if (sc != ic) {
+                            try self.pushFailure();
+                            return;
+                        }
+                    }
+
+                    self.inputPos.offset = end;
+                    self.inputPos.line += newlines;
+                    self.inputPos.line_start = line_start;
 
                     const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
                     try self.push(substring);
 
                     return;
                 }
+
                 try self.pushFailure();
             },
             .NumberString => |n| {
                 assert(argCount == 0);
                 _ = self.pop();
                 const bytes = n.toString(self.strings);
-                const start = self.inputPos;
+                const start = self.inputPos.offset;
                 const end = start + bytes.len;
 
                 if (self.input.len >= end and std.mem.eql(u8, bytes, self.input[start..end])) {
-                    self.inputPos = end;
+                    self.inputPos.offset = end;
                     try self.push(elem);
                     return;
                 }
@@ -732,7 +767,7 @@ pub const VM = struct {
         const high = unicode.utf8Decode(self.strings.get(high_id)) catch @panic("Internal Error");
         const low_length = unicode.utf8CodepointSequenceLength(low) catch 1;
         const high_length = unicode.utf8CodepointSequenceLength(high) catch 1;
-        const start = self.inputPos;
+        const start = self.inputPos.offset;
 
         if (start < self.input.len) {
             const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
@@ -741,7 +776,11 @@ pub const VM = struct {
             if (low_length <= bytes_length and bytes_length <= high_length and end <= self.input.len) {
                 const codepoint = try unicode.utf8Decode(self.input[start..end]);
                 if (low <= codepoint and codepoint <= high) {
-                    self.inputPos = end;
+                    if (self.isNewlineChar(start, bytes_length)) {
+                        self.inputPos.line += 1;
+                        self.inputPos.line_start = end;
+                    }
+                    self.inputPos.offset = end;
 
                     const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
                     try self.push(substring);
@@ -756,7 +795,7 @@ pub const VM = struct {
     fn parseCharacterLowerBounded(self: *VM, low_id: StringTable.Id) !void {
         const low = unicode.utf8Decode(self.strings.get(low_id)) catch @panic("Internal Error");
         const low_length = unicode.utf8CodepointSequenceLength(low) catch @panic("Internal Error");
-        const start = self.inputPos;
+        const start = self.inputPos.offset;
 
         if (start < self.input.len) {
             const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
@@ -765,7 +804,11 @@ pub const VM = struct {
             if (low_length <= bytes_length and end <= self.input.len) {
                 const codepoint = try unicode.utf8Decode(self.input[start..end]);
                 if (low <= codepoint) {
-                    self.inputPos = end;
+                    self.inputPos.offset = end;
+                    if (self.isNewlineChar(start, bytes_length)) {
+                        self.inputPos.line += 1;
+                        self.inputPos.line_start = end;
+                    }
 
                     const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
                     try self.push(substring);
@@ -780,7 +823,7 @@ pub const VM = struct {
     fn parseCharacterUpperBounded(self: *VM, high_id: StringTable.Id) !void {
         const high = unicode.utf8Decode(self.strings.get(high_id)) catch @panic("Internal Error");
         const high_length = unicode.utf8CodepointSequenceLength(high) catch @panic("Internal Error");
-        const start = self.inputPos;
+        const start = self.inputPos.offset;
 
         if (start < self.input.len) {
             const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
@@ -789,7 +832,12 @@ pub const VM = struct {
             if (bytes_length <= high_length and end <= self.input.len) {
                 const codepoint = try unicode.utf8Decode(self.input[start..end]);
                 if (codepoint <= high) {
-                    self.inputPos = end;
+                    self.inputPos.offset = end;
+
+                    if (self.isNewlineChar(start, bytes_length)) {
+                        self.inputPos.line += 1;
+                        self.inputPos.line_start = end;
+                    }
 
                     const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
                     try self.push(substring);
@@ -804,7 +852,7 @@ pub const VM = struct {
     fn parseIntegerRange(self: *VM, low: i64, high: i64) !void {
         const lowIntLen = parsing.intAsStringLen(low);
         const highIntLen = parsing.intAsStringLen(high);
-        const start = self.inputPos;
+        const start = self.inputPos.offset;
         const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
         const longestMatchEnd = @min(start + highIntLen, self.input.len);
 
@@ -817,7 +865,7 @@ pub const VM = struct {
             const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
 
             if (inputInt) |i| if (low <= i and i <= high) {
-                self.inputPos = end;
+                self.inputPos.offset = end;
                 const int = Elem.integer(i);
                 try self.push(int);
                 return;
@@ -829,7 +877,7 @@ pub const VM = struct {
 
     fn parseIntegerLowerBounded(self: *VM, low: i64) !void {
         const lowIntLen = parsing.intAsStringLen(low);
-        const start = self.inputPos;
+        const start = self.inputPos.offset;
         const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
 
         var end = shortestMatchEnd;
@@ -842,7 +890,7 @@ pub const VM = struct {
         const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
 
         if (inputInt) |i| if (low <= i) {
-            self.inputPos = end;
+            self.inputPos.offset = end;
             const int = Elem.integer(i);
             try self.push(int);
             return;
@@ -852,10 +900,10 @@ pub const VM = struct {
     }
 
     fn parseIntegerUpperBounded(self: *VM, high: i64) !void {
-        if (self.input[self.inputPos] == '-') {
+        if (self.input[self.inputPos.offset] == '-') {
             // If it's a negative integer then the max number of digits is unbounded
             const lowIntLen = 2;
-            const start = self.inputPos;
+            const start = self.inputPos.offset;
             const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
 
             var end = shortestMatchEnd;
@@ -868,7 +916,7 @@ pub const VM = struct {
             const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
 
             if (inputInt) |i| if (i <= high) {
-                self.inputPos = end;
+                self.inputPos.offset = end;
                 const int = Elem.integer(i);
                 try self.push(int);
                 return;
@@ -1328,13 +1376,17 @@ pub const VM = struct {
         try self.inputMarks.append(self.inputPos);
     }
 
-    fn popInputMark(self: *VM) usize {
+    fn popInputMark(self: *VM) Pos {
         return self.inputMarks.pop();
     }
 
     fn printInput(self: *VM) !void {
         try self.writers.debug.print("input   | ", .{});
-        try self.writers.debug.print("{s} @ {d}\n", .{ self.input, self.inputPos });
+        try self.writers.debug.print("{s} @ Line {d} byte {d}\n", .{
+            self.inputLine(),
+            self.inputPos.line,
+            self.inputPos.lineOffset(),
+        });
     }
 
     fn printElems(self: *VM) !void {
@@ -1355,6 +1407,22 @@ pub const VM = struct {
         try self.writers.debug.print("\n", .{});
     }
 
+    fn inputLine(self: VM) []const u8 {
+        const line_start = self.inputPos.line_start;
+        var line_end = line_start;
+        while (true) {
+            if (self.input.len == line_end or
+                self.isNewlineChar(line_end, 1) or
+                (self.input[line_end..].len >= 2 and self.isNewlineChar(line_end, 2)) or
+                (self.input[line_end..].len >= 3 and self.isNewlineChar(line_end, 3)))
+                break;
+
+            line_end += 1;
+        }
+
+        return self.input[line_start..line_end];
+    }
+
     pub fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
         const region = self.chunk().regions.items[self.frame().ip];
         try region.printLineRelative(self.source, self.writers.err);
@@ -1371,6 +1439,24 @@ pub const VM = struct {
             const next = d.next;
             d.destroy(self);
             dyn = next;
+        }
+    }
+
+    fn isNewlineChar(self: VM, offset: usize, bytes_length: u3) bool {
+        if (bytes_length == 1) {
+            const b1 = self.input[offset];
+            return b1 == 0x0A or b1 == 0x0B or b1 == 0x0C or b1 == 0x0D;
+        } else if (bytes_length == 2) {
+            const b1 = self.input[offset];
+            const b2 = self.input[offset + 1];
+            return b1 == 0xC2 and b2 == 0x85;
+        } else if (bytes_length == 3) {
+            const b1 = self.input[offset];
+            const b2 = self.input[offset + 1];
+            const b3 = self.input[offset + 2];
+            return b1 == 0xE2 and b2 == 0x80 and (b3 == 0xA8 or b3 == 0xA9);
+        } else {
+            return false;
         }
     }
 };
