@@ -7,7 +7,7 @@ const Region = @import("region.zig").Region;
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
 
-pub fn functions(vm: *VM) ![13]*Function {
+pub fn functions(vm: *VM) ![16]*Function {
     return [_]*Function{
         try createFailParser(vm),
         try createFailValue(vm),
@@ -22,6 +22,9 @@ pub fn functions(vm: *VM) ![13]*Function {
         try createMultiplyValue(vm),
         try createDivideValue(vm),
         try createPowerValue(vm),
+        try createInputOffset(vm),
+        try createInputLine(vm),
+        try createInputLineOffset(vm),
     };
 }
 
@@ -604,4 +607,78 @@ fn powerNative(vm: *VM) VM.Error!void {
     } else {
         return vm.runtimeError("@Power expected number or null arguments", .{});
     }
+}
+
+fn createInputOffset(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@input.offset");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedParser,
+        .arity = 0,
+    });
+
+    const native_code = try NativeCode.create(vm, "inputOffsetNative", inputOffsetNative);
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+fn inputOffsetNative(vm: *VM) VM.Error!void {
+    return vm.push(Elem.integer(@as(i64, @intCast(vm.inputPos.offset))));
+}
+
+fn createInputLine(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@input.line");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedParser,
+        .arity = 0,
+    });
+
+    const native_code = try NativeCode.create(vm, "inputLineNative", inputLineNative);
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+fn inputLineNative(vm: *VM) VM.Error!void {
+    return vm.push(Elem.integer(@as(i64, @intCast(vm.inputPos.line))));
+}
+
+fn createInputLineOffset(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@input.line_offset");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedParser,
+        .arity = 0,
+    });
+
+    const native_code = try NativeCode.create(vm, "inputLineOffsetNative", inputLineOffsetNative);
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+fn inputLineOffsetNative(vm: *VM) VM.Error!void {
+    return vm.push(Elem.integer(
+        @as(i64, @intCast(vm.inputPos.offset - vm.inputPos.line_start)),
+    ));
 }
