@@ -24,7 +24,7 @@ pub const Region = struct {
         var line: usize = 1;
         var line_start: usize = 0;
 
-        while (pos < region.start) {
+        while (pos < region.start and pos < str.len) {
             if (str[pos] == '\n') {
                 line += 1;
                 line_start = pos + 1;
