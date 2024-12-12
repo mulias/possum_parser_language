@@ -7,7 +7,7 @@ const Region = @import("region.zig").Region;
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
 
-pub fn functions(vm: *VM) ![16]*Function {
+pub fn functions(vm: *VM) ![17]*Function {
     return [_]*Function{
         try createFailParser(vm),
         try createFailValue(vm),
@@ -17,6 +17,7 @@ pub fn functions(vm: *VM) ![16]*Function {
         try createCodepointValue(vm),
         try createSurrogatePairCodepointValue(vm),
         try createDbgParser(vm),
+        try createDbgValue(vm),
         try createAddValue(vm),
         try createSubtractValue(vm),
         try createMultiplyValue(vm),
@@ -259,6 +260,31 @@ fn createDbgParser(vm: *VM) !*Function {
     try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
     try fun.chunk.writeOp(.CallFunction, loc);
+    try fun.chunk.write(0, loc);
+    try fun.chunk.writeOp(.NativeCode, loc);
+    try fun.chunk.write(nc_id, loc);
+    try fun.chunk.writeOp(.End, loc);
+
+    return fun;
+}
+
+fn createDbgValue(vm: *VM) !*Function {
+    const name = try vm.strings.insert("@Dbg");
+    var fun = try Function.create(vm, .{
+        .name = name,
+        .functionType = .NamedValue,
+        .arity = 1,
+    });
+
+    const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
+    const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
+
+    const arg1 = try vm.strings.insert("p");
+    try fun.locals.append(.{ .ParserVar = arg1 });
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(.GetLocal, loc);
     try fun.chunk.write(0, loc);
     try fun.chunk.writeOp(.NativeCode, loc);
     try fun.chunk.write(nc_id, loc);
