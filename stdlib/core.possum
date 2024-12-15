@@ -1,3 +1,7 @@
+# Parsers
+
+## Strings
+
 char = "\u000000"..
 
 ascii = "\u000000".."\u00007F"
@@ -18,9 +22,21 @@ numeral = "0".."9"
 
 numerals = many(numeral)
 
+binary_numeral = "0" | "1"
+
+octal_numeral = "0".."7"
+
+hex_numeral = numeral | "a".."f" | "A".."F"
+
 alnum = alpha | numeral
 
 alnums = many(alnum)
+
+token = many(unless(char, whitespace))
+
+word = many(alnum | "_" | "-")
+
+line = chars_until(newline | end_of_input)
 
 space =
   " " | "\t" | "\u0000A0" | "\u002000".."\u00200A" | "\u00202F" | "\u00205F" | "\u003000"
@@ -35,19 +51,13 @@ newlines = many(newline)
 
 nls = newlines
 
-end_of_input = char ? @fail : succeed
-
-end = end_of_input
-
 whitespace = many(space | newline)
 
 ws = whitespace
 
-token = many(unless(char, whitespace))
+chars_until(stop) = many_until(char, stop)
 
-word = many(alnum | "_" | "-")
-
-line = chars_until(newline | end_of_input)
+## Numbers
 
 digit = 0..9
 
@@ -102,7 +112,9 @@ _number_fraction_part = "." + numerals
 
 _number_exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
 
-hex_numeral = numeral | "a".."f" | "A".."F"
+binary_digit = 0..1
+
+octal_digit = 0..7
 
 hex_digit =
   digit |
@@ -112,6 +124,14 @@ hex_digit =
   ("d" | "D" $ 13) |
   ("e" | "E" $ 14) |
   ("f" | "F" $ 15)
+
+binary_integer = array(binary_digit) -> Digits $ Num.FromBinaryDigits(Digits)
+
+octal_integer = array(octal_digit) -> Digits $ Num.FromOctalDigits(Digits)
+
+hex_integer = array(hex_digit) -> Digits $ Num.FromHexDigits(Digits)
+
+## Constants
 
 true(t) = t $ true
 
@@ -123,93 +143,7 @@ bool = boolean
 
 null(n) = n $ null
 
-peek(p) = p -> V ! const(V)
-
-maybe(p) = p | succeed
-
-unless(p, excluded) = excluded ? @fail : p
-
-skip(p) = null(p)
-
-find(p) = p | (char > find(p))
-
-find_all(p) = array(find(p)) < maybe(many(char))
-
-find_before(p, stop) = stop ? @fail :  p | (char > find_before(p, stop))
-
-find_all_before(p, stop) = array(find_before(p, stop)) < maybe(chars_until(stop))
-
-succeed = const(Null)
-
-default(p, D) = p | const(D)
-
-const(C) = "" $ C
-
-number_of = @number_of
-
-string_of(p) = "%(p)"
-
-surround(p, fill) = fill > p < fill
-
-input(p) = surround(p, maybe(whitespace)) < end_of_input
-
-many(p) = p -> First & _many(p, First)
-
-_many(p, Acc) = p -> Next ? _many(p, Acc + Next) : const(Acc)
-
-many_sep(p, sep) = p -> First & _many(sep > p, First)
-
-many_until(p, stop) = unless(p, stop) -> First & _many_until(p, stop, First)
-
-_many_until(p, stop, Acc) =
-  peek(stop) ?
-  const(Acc) :
-  p -> Next & _many_until(p, stop, Acc + Next)
-
-chars_until(stop) = many_until(char, stop)
-
-maybe_many(p) = many(p) | succeed
-
-maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
-
-repeat2(p) = p + p
-
-repeat3(p) = p + p + p
-
-repeat4(p) = p + p + p + p
-
-repeat5(p) = p + p + p + p + p
-
-repeat6(p) = p + p + p + p + p + p
-
-repeat7(p) = p + p + p + p + p + p + p
-
-repeat8(p) = p + p + p + p + p + p + p + p
-
-repeat9(p) = p + p + p + p + p + p + p + p + p
-
-repeat(p, N) =
-  const(AssertNonNegativeInteger(N)) &
-  _repeat(p, N, Null)
-
-_repeat(p, N, Acc) =
-  const(N -> ..0) ?
-  const(Acc) :
-  p -> Next & _repeat(p, Dec(N), Acc + Next)
-
-repeat_between(p, N, M) =
-  const(AssertNonNegativeInteger(N)) &
-  const(AssertNonNegativeInteger(M)) &
-  _repeat_between(p, N, M, Null)
-
-_repeat_between(p, N, M, Acc) =
-  const(M -> ..0) ?
-  const(Acc) :
-  p -> Next ?
-  _repeat_between(p, Dec(N), Dec(M), Acc + Next) :
-  const(N -> ..0) ?
-  const(Acc) :
-  @fail
+## Array
 
 array(elem) = elem -> First & _array(elem, [First])
 
@@ -251,22 +185,22 @@ tuple3_sep(elem1, sep1, elem2, sep2, elem3) =
   [E1, E2, E3]
 
 tuple(elem, N) =
-  const(AssertNonNegativeInteger(N)) &
+  const(_Assert.NonNegativeInteger(N)) &
   _tuple(elem, N, [])
 
 _tuple(elem, N, Acc) =
   const(N -> ..0) ?
   const(Acc) :
-  elem -> Elem & _tuple(elem, Dec(N), [...Acc, Elem])
+  elem -> Elem & _tuple(elem, Num.Dec(N), [...Acc, Elem])
 
 tuple_sep(elem, sep, N) =
-  const(AssertNonNegativeInteger(N)) &
+  const(_Assert.NonNegativeInteger(N)) &
   _tuple_sep(elem, sep, N, [])
 
 _tuple_sep(elem, sep, N, Acc) =
   const(N -> ..0) ?
   const(Acc) :
-  sep > elem -> Elem & _tuple_sep(elem, sep, Dec(N), [...Acc, Elem])
+  sep > elem -> Elem & _tuple_sep(elem, sep, Num.Dec(N), [...Acc, Elem])
 
 table_sep(elem, sep, row_sep) =
   elem -> First & _table_sep(elem, sep, row_sep, [First], [])
@@ -280,6 +214,8 @@ _table_sep(elem, sep, row_sep, AccRow, AccRows) =
 
 maybe_table_sep(elem, sep, row_sep) =
   default(table_sep(elem, sep, row_sep), [[]])
+
+## Objects
 
 object(key, value) =
   key -> K & value -> V &
@@ -337,23 +273,119 @@ record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3) =
   value3 -> V3 $
   {Key1: V1, Key2: V2, Key3: V3}
 
+## Repeated
+
+many(p) = p -> First & _many(p, First)
+
+_many(p, Acc) = p -> Next ? _many(p, Acc + Next) : const(Acc)
+
+many_sep(p, sep) = p -> First & _many(sep > p, First)
+
+many_until(p, stop) = unless(p, stop) -> First & _many_until(p, stop, First)
+
+_many_until(p, stop, Acc) =
+  peek(stop) ?
+  const(Acc) :
+  p -> Next & _many_until(p, stop, Acc + Next)
+
+maybe_many(p) = many(p) | succeed
+
+maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
+
+repeat2(p) = p + p
+
+repeat3(p) = p + p + p
+
+repeat4(p) = p + p + p + p
+
+repeat5(p) = p + p + p + p + p
+
+repeat6(p) = p + p + p + p + p + p
+
+repeat7(p) = p + p + p + p + p + p + p
+
+repeat8(p) = p + p + p + p + p + p + p + p
+
+repeat9(p) = p + p + p + p + p + p + p + p + p
+
+repeat(p, N) =
+  const(_Assert.NonNegativeInteger(N)) &
+  _repeat(p, N, $null)
+
+_repeat(p, N, Acc) =
+  const(N -> ..0) ?
+  const(Acc) :
+  p -> Next & _repeat(p, Num.Dec(N), Acc + Next)
+
+repeat_between(p, N, M) =
+  const(_Assert.NonNegativeInteger(N)) &
+  const(_Assert.NonNegativeInteger(M)) &
+  _repeat_between(p, N, M, $null)
+
+_repeat_between(p, N, M, Acc) =
+  const(M -> ..0) ?
+  const(Acc) :
+  p -> Next ?
+  _repeat_between(p, Num.Dec(N), Num.Dec(M), Acc + Next) :
+  const(N -> ..0) ?
+  const(Acc) :
+  @fail
+
+## Utility
+
+peek(p) = p -> V ! const(V)
+
+maybe(p) = p | succeed
+
+unless(p, excluded) = excluded ? @fail : p
+
+skip(p) = null(p)
+
+find(p) = p | (char > find(p))
+
+find_all(p) = array(find(p)) < maybe(many(char))
+
+find_before(p, stop) = stop ? @fail :  p | (char > find_before(p, stop))
+
+find_all_before(p, stop) = array(find_before(p, stop)) < maybe(chars_until(stop))
+
+succeed = const($null)
+
+default(p, D) = p | const(D)
+
+const(C) = "" $ C
+
+number_of = @number_of
+
+string_of(p) = "%(p)"
+
+surround(p, fill) = fill > p < fill
+
+end_of_input = char ? @fail : succeed
+
+end = end_of_input
+
+input(p) = surround(p, maybe(whitespace)) < end_of_input
+
+## JSON
+
 json =
-  json_boolean |
-  json_null |
-  json_number |
-  json_string |
-  json_array(json) |
-  json_object(json)
+  json.boolean |
+  json.null |
+  json.number |
+  json.string |
+  json.array(json) |
+  json.object(json)
 
-json_boolean = boolean("true", "false")
+json.boolean = boolean("true", "false")
 
-json_null = null("null")
+json.null = null("null")
 
-json_number = number
+json.number = number
 
-json_string = '"' > _json_string_body < '"'
+json.string = '"' > _json.string_body < '"'
 
-_json_string_body =
+_json.string_body =
   many(
     _escaped_ctrl_char |
     _escaped_unicode |
@@ -389,51 +421,53 @@ _low_surrogate =
 
 _escaped_codepoint = `\u` > repeat4(hex_numeral) -> U $ @Codepoint(U)
 
-json_array(elem) = "[" > maybe_array_sep(surround(elem, maybe(ws)), ",") < "]"
+json.array(elem) = "[" > maybe_array_sep(surround(elem, maybe(ws)), ",") < "]"
 
-json_object(value) =
+json.object(value) =
   "{" >
   maybe_object_sep(
-    surround(json_string, maybe(ws)), ":",
+    surround(json.string, maybe(ws)), ":",
     surround(value, maybe(ws)), ","
   )
   < "}"
 
-ast_with_operator_precedence(operand, prefix, infix, postfix) =
-  _ast_with_precedence_start(operand, prefix, infix, postfix, $0)
+## Abstract Syntax Trees
 
-_ast_with_precedence_start(operand, prefix, infix, postfix, LeftBindingPower) =
+ast.with_operator_precedence(operand, prefix, infix, postfix) =
+  _ast.with_precedence_start(operand, prefix, infix, postfix, $0)
+
+_ast.with_precedence_start(operand, prefix, infix, postfix, LeftBindingPower) =
   prefix -> [OpNode, PrefixBindingPower] ? (
-    _ast_with_precedence_start(
+    _ast.with_precedence_start(
       operand, prefix, infix, postfix,
       PrefixBindingPower
     ) -> PrefixedNode &
-    _ast_with_precedence_rest(
+    _ast.with_precedence_rest(
       operand, prefix, infix, postfix,
       LeftBindingPower,
       {...OpNode, "prefixed": PrefixedNode}
     )
   ) : (
     operand -> Node &
-    _ast_with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node)
+    _ast.with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node)
   )
 
-_ast_with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node) =
+_ast.with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node) =
   postfix -> [OpNode, RightBindingPower] &
-  const(LessThan(LeftBindingPower, RightBindingPower)) ? (
-    _ast_with_precedence_rest(
+  const(Is.LessThan(LeftBindingPower, RightBindingPower)) ? (
+    _ast.with_precedence_rest(
       operand, prefix, infix, postfix,
       LeftBindingPower,
       {...OpNode, "postfixed": Node}
     )
   ) :
   infix -> [OpNode, RightBindingPower, NextLeftBindingPower] &
-  const(LessThan(LeftBindingPower, RightBindingPower)) ? (
-    _ast_with_precedence_start(
+  const(Is.LessThan(LeftBindingPower, RightBindingPower)) ? (
+    _ast.with_precedence_start(
       operand, prefix, infix, postfix,
       NextLeftBindingPower
     ) -> RightNode &
-    _ast_with_precedence_rest(
+    _ast.with_precedence_rest(
       operand, prefix, infix, postfix,
       LeftBindingPower,
       {...OpNode, "left": Node, "right": RightNode}
@@ -441,87 +475,12 @@ _ast_with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Nod
   ) :
   const(Node)
 
-AstOpPrecedence(OpNode, BindingPower) = [OpNode, BindingPower]
+ast.node(Type, value) =
+  value -> Value $ {"type": Type, "value": Value}
 
-AstInfixOpPrecedence(OpNode, LeftBindingPower, RightBindingPower) =
-  [OpNode, LeftBindingPower, RightBindingPower]
+# Values
 
-ast_node(Type, value) = value -> Value $ {"type": Type, "value": Value}
-
-Null = null
-
-True = true
-
-False = false
-
-Inc(N) = N + 1
-
-Dec(N) = N - 1
-
-ZipIntoObject(Keys, Values) = _ZipIntoObject(Keys, Values, {})
-
-_ZipIntoObject(Keys, Values, Acc) =
-  Keys -> [K, ...KeysRest] & Values -> [V, ...ValuesRest] ?
-  _ZipIntoObject(KeysRest, ValuesRest, {...Acc, K: V}) :
-  Acc
-
-Map(Array, Fn) = _Map(Array, Fn, [])
-
-_Map(Array, Fn, Acc) =
-  Array -> [First, ...Rest] ?
-  _Map(Rest, Fn, [...Acc, Fn(First)]) :
-  Acc
-
-ArrayFirst(Array) = Array -> [F, ..._] & F
-
-ArrayRest(Array) = Array -> [_, ...R] & R
-
-TransposeTable(T) = _TransposeTable(T, [])
-
-_TransposeTable(T, Acc) =
-  Map(T, ArrayFirst) -> FirstPerRow &
-  Map(T, ArrayRest) -> RestPerRow ?
-  _TransposeTable(RestPerRow, [...Acc, FirstPerRow]) :
-  Acc
-
-RotateTableClockwise(T) = Map(TransposeTable(T), Reverse)
-
-Reverse(Array) = _Reverse(Array, [])
-
-_Reverse(Array, Acc) =
-  Array -> [First, ...Rest] ?
-  _Reverse(Rest, [First, ...Acc]) :
-  Acc
-
-Filter(Array, Pred) = _Filter(Array, Pred, [])
-
-_Filter(Array, Pred, Acc) =
-  Array -> [First, ...Rest] ?
-  _Filter(Rest, Pred, Pred(First) ? [...Acc, First] : Acc) :
-  Acc
-
-Reject(Array, Pred) = _Reject(Array, Pred, [])
-
-_Reject(Array, Pred, Acc) =
-  Array -> [First, ...Rest] ?
-  _Reject(Rest, Pred, Pred(First) ? Acc : [...Acc, First]) :
-  Acc
-
-IsNull(V) = V -> null
-
-Tabular(Headers, Rows) = _Tabular(Headers, Rows, [])
-
-_Tabular(Headers, Rows, Acc) =
-  Rows -> [Row, ...Rest] ?
-  _Tabular(Headers, Rest, [...Acc, ZipIntoObject(Headers, Row)]) :
-  Acc
-
-AssertNonNegativeInteger(V) =
-  V -> 0.. | @Crash("Expected a non-negative integer, got %(V)")
-
-LessThan(A, B) = A -> B ? @Fail : A -> ..B
-
-GreaterThan(A, B) = A -> B ? @Fail : A -> B..
+## Numbers
 
 Num.Add = @Add
 
@@ -533,4 +492,169 @@ Num.Div = @Divide
 
 Num.Pow = @Power
 
+Num.Inc(N) = @Add(N, 1)
+
+Num.Dec(N) = @Subtract(N, 1)
+
 Num.Abs(N) = N -> 0.. | -N
+
+Num.FromBinaryDigits(Bs) =
+  Array.Length(Bs) -> Len &
+  _Num.FromBinaryDigits(Bs, Len - 1, 0)
+
+_Num.FromBinaryDigits(Bs, Pos, Acc) =
+  Bs -> [B, ...Rest] ? (
+    B -> 0..1 &
+    _Num.FromBinaryDigits(
+      Rest,
+      Pos - 1,
+      Acc + Num.Mul(B, Num.Pow(2, Pos)),
+    )
+  ) :
+  Acc
+
+Num.FromOctalDigits(Os) =
+  Array.Length(Os) -> Len &
+  _Num.FromOctalDigits(Os, Len - 1, 0)
+
+_Num.FromOctalDigits(Os, Pos, Acc) =
+  Os -> [O, ...Rest] ? (
+    O -> 0..7 &
+    _Num.FromOctalDigits(
+      Rest,
+      Pos - 1,
+      Acc + Num.Mul(O, Num.Pow(8, Pos)),
+    )
+  ) :
+  Acc
+
+Num.FromHexDigits(Hs) =
+  Array.Length(Hs) -> Len &
+  _Num.FromHexDigits(Hs, Len - 1, 0)
+
+_Num.FromHexDigits(Hs, Pos, Acc) =
+  Hs -> [H, ...Rest] ? (
+    H -> 0..15 &
+    _Num.FromHexDigits(
+      Rest,
+      Pos - 1,
+      Acc + Num.Mul(H, Num.Pow(16, Pos)),
+    )
+  ) :
+  Acc
+
+## Arrays
+
+Array.First(Array) = Array -> [F, ..._] & F
+
+Array.Rest(Array) = Array -> [_, ...R] & R
+
+Array.Length(A) = _Array.Length(A, 0)
+
+_Array.Length(A, Acc) =
+  A -> [_, ...Rest] ?
+  _Array.Length(Rest, Acc + 1) :
+  Acc
+
+Array.Reverse(A) = _Array.Reverse(A, [])
+
+_Array.Reverse(A, Acc) =
+  A -> [First, ...Rest] ?
+  _Array.Reverse(Rest, [First, ...Acc]) :
+  Acc
+
+Array.Map(A, Fn) = _Array.Map(A, Fn, [])
+
+_Array.Map(A, Fn, Acc) =
+  A -> [First, ...Rest] ?
+  _Array.Map(Rest, Fn, [...Acc, Fn(First)]) :
+  Acc
+
+Array.Filter(A, Pred) = _Array.Filter(A, Pred, [])
+
+_Array.Filter(A, Pred, Acc) =
+  A -> [First, ...Rest] ?
+  _Array.Filter(Rest, Pred, Pred(First) ? [...Acc, First] : Acc) :
+  Acc
+
+Array.Reject(A, Pred) = _Array.Reject(A, Pred, [])
+
+_Array.Reject(A, Pred, Acc) =
+  A -> [First, ...Rest] ?
+  _Array.Reject(Rest, Pred, Pred(First) ? Acc : [...Acc, First]) :
+  Acc
+
+Array.ZipObject(Ks, Vs) = _Array.ZipObject(Ks, Vs, {})
+
+_Array.ZipObject(Ks, Vs, Acc) =
+  Ks -> [K, ...KsRest] & Vs -> [V, ...VsRest] ?
+  _Array.ZipObject(KsRest, VsRest, {...Acc, K: V}) :
+  Acc
+
+Array.ZipPairs(A1, A2) = _Array.ZipPairs(A1, A2, [])
+
+_Array.ZipPairs(A1, A2, Acc) =
+  A1 -> [First1, ...Rest1] & A2 -> [First2, ...Rest2] ?
+  _Array.ZipPairs(Rest1, Rest2, [...Acc, [First1, First2]]) :
+  Acc
+
+Table.Transpose(T) = _Table.Transpose(T, [])
+
+_Table.Transpose(T, Acc) =
+  Array.Map(T, Array.First) -> FirstPerRow &
+  Array.Map(T, Array.Rest) -> RestPerRow ?
+  _Table.Transpose(RestPerRow, [...Acc, FirstPerRow]) :
+  Acc
+
+Table.RotateClockwise(T) = Array.Map(Table.Transpose(T), Array.Reverse)
+
+Table.RotateCounterClockwise(T) = Array.Reverse(Table.Transpose(T))
+
+Table.ZipObjects(Ks, Rows) = _Table.ZipObjects(Ks, Rows, [])
+
+_Table.ZipObjects(Ks, Rows, Acc) =
+  Rows -> [Row, ...Rest] ?
+  _Table.ZipObjects(Ks, Rest, [...Acc, Array.ZipObject(Ks, Row)]) :
+  Acc
+
+## Objects
+
+Obj.Get(O, K) = O -> {K: V, ..._} & V
+
+Obj.Put(O, K, V) = {...O, K: V}
+
+## Abstract Syntax Trees
+
+Ast.Precedence(OpNode, BindingPower) = [OpNode, BindingPower]
+
+Ast.InfixPrecedence(OpNode, LeftBindingPower, RightBindingPower) =
+  [OpNode, LeftBindingPower, RightBindingPower]
+
+## Predicates
+
+Is.String(V) = V -> ("" + _)
+
+Is.Number(V) = V -> (0 + _)
+
+Is.Bool(V) = V -> (false + _)
+
+Is.Null(V) = V -> null
+
+Is.Array(V) = V -> [..._]
+
+Is.Object(V) = V -> {..._}
+
+Is.Equal(A, B) = A -> B
+
+Is.LessThan(A, B) = A -> B ? @Fail : A -> ..B
+
+Is.LessThanOrEqual(A, B) = A -> ..B
+
+Is.GreaterThan(A, B) = A -> B ? @Fail : A -> B..
+
+Is.GreaterThanOrEqual(A, B) = A -> B..
+
+## Utility
+
+_Assert.NonNegativeInteger(V) =
+  V -> 0.. | @Crash("Expected a non-negative integer, got %(V)")

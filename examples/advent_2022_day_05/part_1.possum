@@ -15,11 +15,11 @@ array_sep(move, nl) -> Steps $ (
 )
 
 CrateStacks(Labels, CargoRows) =
-  RotateTableClockwise(CargoRows) -> CargoCols &
-  Map(CargoCols, RejectNull) -> CrateCols &
-  ZipIntoObject(Labels, CrateCols)
+  Table.RotateClockwise(CargoRows) -> CargoCols &
+  Array.Map(CargoCols, RejectNull) -> CrateCols &
+  Array.ZipObject(Labels, CrateCols)
 
-RejectNull(Array) = Reject(Array, IsNull)
+RejectNull(A) = Array.Reject(A, Is.Null)
 
 Solve(Stacks, Steps) =
   Steps -> [{"count": Count, "from": From, "to": To}, ...StepsRest] ? (

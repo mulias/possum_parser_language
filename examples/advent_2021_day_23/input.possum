@@ -2,4 +2,4 @@ filler = many("#" | "." | " ")
 
 many(filler | nl) &
 table_sep(upper, filler, surround(nl, filler)) -> Rows $
-RotateTableClockwise(Rows)
+Table.RotateClockwise(Rows)

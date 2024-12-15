@@ -162,7 +162,7 @@
               "postfixed": {"type": "parser_variable", "name": "array", "is_meta": false, "is_underscored": false}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -294,7 +294,7 @@
             },
             {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -380,7 +380,7 @@
               "right": {"type": "parser_variable", "name": "postfix", "is_meta": false, "is_underscored": false}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_with_operator_precedence", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.with_operator_precedence", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -889,7 +889,7 @@
               "postfixed": {"type": "parser_variable", "name": "boolean", "is_meta": false, "is_underscored": false}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -972,7 +972,7 @@
               }
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -1171,7 +1171,7 @@
               }
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -1366,7 +1366,7 @@
             },
             {"type": "parser_variable", "name": "number", "is_meta": false, "is_underscored": false}
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -1490,9 +1490,17 @@
               "right": {
                 "type": "call_function",
                 "value": [
-                  {"type": "parser_variable", "name": "word", "is_meta": false, "is_underscored": false}
+                  {
+                    "type": "or",
+                    "left": {
+                      "type": "or",
+                      "left": {"type": "parser_variable", "name": "alnum", "is_meta": false, "is_underscored": false},
+                      "right": {"type": "string", "value": "_"}
+                    },
+                    "right": {"type": "string", "value": "."}
+                  }
                 ],
-                "postfixed": {"type": "parser_variable", "name": "maybe", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
               }
             }
           ],
@@ -1516,9 +1524,17 @@
               "right": {
                 "type": "call_function",
                 "value": [
-                  {"type": "parser_variable", "name": "word", "is_meta": false, "is_underscored": false}
+                  {
+                    "type": "or",
+                    "left": {
+                      "type": "or",
+                      "left": {"type": "parser_variable", "name": "alpha", "is_meta": false, "is_underscored": false},
+                      "right": {"type": "string", "value": "_"}
+                    },
+                    "right": {"type": "string", "value": "."}
+                  }
                 ],
-                "postfixed": {"type": "parser_variable", "name": "maybe", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
               }
             }
           ],
@@ -1544,7 +1560,7 @@
               "postfixed": {"type": "parser_variable", "name": "many", "is_meta": false, "is_underscored": false}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -1583,7 +1599,7 @@
               "right": {"type": "string", "value": "]"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -1622,7 +1638,7 @@
               "right": {"type": "string", "value": "}"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
       {
@@ -1799,7 +1815,7 @@
             },
             {"type": "parser_variable", "name": "function_args_or_params", "is_meta": false, "is_underscored": false}
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       }
     ]

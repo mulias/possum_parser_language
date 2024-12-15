@@ -2,7 +2,9 @@
 
 These parsers and value functions are always available in Possum programs, unless Possum is ran with the `--no-stdlib` flag.
 
-## Strings
+## Parsers
+
+### Strings
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -16,6 +18,8 @@ These parsers and value functions are always available in Possum programs, unles
 | `uppers`           | One or more `upper`s       | Matched string             |
 | `numeral`          | One Arabic numeral, "0" to "9" | Matched string         |
 | `numerals`         | One or more `numeral`s     | Matched string             |
+| `binary_numeral`   | One binary numeral, "0" or "1" | Matched string         |
+| `octal_numeral`    | One octal numeral, "0" to "7" | Matched string          |
 | `hex_numeral`      | One hexadecimal numeral, "0" to "9", "a" to "f", or "A" to "F" | Matched string |
 | `alnum`            | One `alpha` or `numeral`   | Matched string             |
 | `alnums`           | One or more `alnum`s       | Matched string             |
@@ -30,13 +34,13 @@ These parsers and value functions are always available in Possum programs, unles
 | `nls`              | Alias for `newlines`       | As above                   |
 | `whitespace`       | One or more space, tab, or newline characters | Matched string |
 | `ws`               | Alias for `whitespace`     | As above                   |
+| `chars_until(stop)` | One or more codepoints, must be followed by `stop` which is not consumed | Merged string of all matched codepoints |
 
-## Numbers
+### Numbers
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
 | `digit`            | One Arabic numeral, "0" to "9" | Integer number between 0 and 9 |
-| `hex_digit`        | One hexadecimal numeral, "0" to "9", "a" to "f", or "A" to "F" | Integer number between 0 and 15 |
 | `integer`          | Valid JSON integer         | Integer number             |
 | `int`              | Alias for `integer`        | As above                   |
 | `non_negative_integer` | Valid JSON integer without a leading minus sign | Integer number greater than or equal to zero |
@@ -48,8 +52,14 @@ These parsers and value functions are always available in Possum programs, unles
 | `num`              | Alias for `number`         | As above |
 | `non_negative_number` | Valid JSON number without a leading minus sign | Integer number greater than or equal to zero |
 | `negative_number`  | Valid JSON number with a leading minus sign | Integer number less than or equal to `-0` |
+| `binary_digit`     | One binary numeral "0" or "1" | Integer number 0 or 1   |
+| `octal_digit`      | One octal numeral "0" to "7" | Integer number between 0 and 7 |
+| `hex_digit`        | One hexadecimal numeral, "0" to "9", "a" to "f", or "A" to "F" | Integer number between 0 and 15 |
+| `binary_integer`   | Binary digits, no leading zeros | Integer number converted to base 10 |
+| `octal_integer`    | Octal digits, no leading zeros | Integer number converted to base 10 |
+| `hex_integer`      | hexadecimal digits, no leading zeros | Integer number converted to base 10 |
 
-## Constants
+### Constants
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -59,28 +69,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `bool(t, f)`       | Alias for `boolean`        | As above                   |
 | `null(n)`          | `n`                        | `null`                     |
 
-## Repeated Values
-
-| Parser             | Parses                     | Returns                    |
-| ------------------ | -------------------------- | -------------------------- |
-| `many(p)`          | One or more `p`            | Merged values parsed by `p` |
-| `many_sep(p, sep)` | One or more `p`, interspersed with `sep` | Marged values parsed by `p` |
-| `many_until(p, stop)` | One or more `p`, must be followed by `stop` which is not consumed | Merged values parsed by `p` |
-| `chars_until(stop)` | One or more codepoints, must be followed by `stop` which is not consumed | Merged string of all matched codepoints |
-| `maybe_many(p)`    | Zero or more `p`           | Merged values parsed by `p`, or `null` if `p` fails |
-| `maybe_many_sep(p, sep)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
-| `repeat2(p)`       | `p` two times              | Merged values parsed by `p` |
-| `repeat3(p)`       | `p` three times            | Merged values parsed by `p` |
-| `repeat4(p)`       | `p` four times             | Merged values parsed by `p` |
-| `repeat5(p)`       | `p` five times             | Merged values parsed by `p` |
-| `repeat6(p)`       | `p` six times              | Merged values parsed by `p` |
-| `repeat7(p)`       | `p` seven times            | Merged values parsed by `p` |
-| `repeat8(p)`       | `p` eight times            | Merged values parsed by `p` |
-| `repeat9(p)`       | `p` nine times             | Merged values parsed by `p` |
-| `repeat(p, N)`     | `p` exactly `N` times, where `N` is a non-negative integer | Merged values parsed by `p`, or `null` if `N` is 0 |
-| `repeat_between(p, N, M)` | `p` at least `N` times and up to `M` times, where `N` and `M` are non-negative integers | Merged values parsed by `p`, or `null` if `N` is 0 and no matches found |
-
-## Arrays
+### Arrays
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -99,7 +88,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `table_sep(elem, sep, row_sep)` | One or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem` |
 | `maybe_table_sep(elem, sep, row_sep)` | Zero or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem`, maybe empty |
 
-## Objects
+### Objects
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -116,7 +105,27 @@ These parsers and value functions are always available in Possum programs, unles
 | `record3(Key1, value1, Key2, value2, Key3, value3)` | three value parsers in order | Object with `Key1` associated to the parsed `value1`, etc |
 | `record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3)` | three value parsers, interspersed with separators | Object with `Key1` associated to the parsed `value1`, etc |
 
-## Utility Parsers
+### Repeated
+
+| Parser             | Parses                     | Returns                    |
+| ------------------ | -------------------------- | -------------------------- |
+| `many(p)`          | One or more `p`            | Merged values parsed by `p` |
+| `many_sep(p, sep)` | One or more `p`, interspersed with `sep` | Marged values parsed by `p` |
+| `many_until(p, stop)` | One or more `p`, must be followed by `stop` which is not consumed | Merged values parsed by `p` |
+| `maybe_many(p)`    | Zero or more `p`           | Merged values parsed by `p`, or `null` if `p` fails |
+| `maybe_many_sep(p, sep)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
+| `repeat2(p)`       | `p` two times              | Merged values parsed by `p` |
+| `repeat3(p)`       | `p` three times            | Merged values parsed by `p` |
+| `repeat4(p)`       | `p` four times             | Merged values parsed by `p` |
+| `repeat5(p)`       | `p` five times             | Merged values parsed by `p` |
+| `repeat6(p)`       | `p` six times              | Merged values parsed by `p` |
+| `repeat7(p)`       | `p` seven times            | Merged values parsed by `p` |
+| `repeat8(p)`       | `p` eight times            | Merged values parsed by `p` |
+| `repeat9(p)`       | `p` nine times             | Merged values parsed by `p` |
+| `repeat(p, N)`     | `p` exactly `N` times, where `N` is a non-negative integer | Merged values parsed by `p`, or `null` if `N` is 0 |
+| `repeat_between(p, N, M)` | `p` at least `N` times and up to `M` times, where `N` and `M` are non-negative integers | Merged values parsed by `p`, or `null` if `N` is 0 and no matches found |
+
+### Utility
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -138,56 +147,90 @@ These parsers and value functions are always available in Possum programs, unles
 | `end`              | Alias for `end_of_input`   | As above |
 | `input(p)`         | Strips leading and trailing whitespace, succeeds if `p` parses to end of input | Result of `p` |
 
-## JSON
+### JSON
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
 | `json`             | Any valid JSON             | Matched JSON               |
-| `json_string`      | Valid JSON string          | Matched string contents, not including quotes |
-| `json_number`      | Alias for `number`         | Number |
-| `json_boolean`     | JSON "true" or "false" keyword | `true` or `false`      |
-| `json_null`        | JSON "null" keyword        | `null`                     |
-| `json_array(elem)` | JSON formatted array with square brackets and comma separators, containing zero or more `elem`s | Array of values parsed by `elem` |
-| `json_object(value)` | JSON formatted object with braces, string keys, colon and comma separators, containing zero or more `value`s | Object with string keys and values parsed by `value` |
+| `json.string`      | Valid JSON string          | Matched string contents, not including quotes |
+| `json.number`      | Alias for `number`         | Number |
+| `json.boolean`     | JSON "true" or "false" keyword | `true` or `false`      |
+| `json.null`        | JSON "null" keyword        | `null`                     |
+| `json.array(elem)` | JSON formatted array with square brackets and comma separators, containing zero or more `elem`s | Array of values parsed by `elem` |
+| `json.object(value)` | JSON formatted object with braces, string keys, colon and comma separators, containing zero or more `value`s | Object with string keys and values parsed by `value` |
 
-## Abstract Syntax Trees
+### Abstract Syntax Trees
 
 See the `stdlib-ast` docs for more detailed documentation.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
-| `ast_with_operator_precedence(operand, prefix, infix, postfix)` | `operands`s with prefix and postfix operators, composed with infix operators | Abstract syntax tree |
-| `ast_node(Type, value)` | `value`               | Object with a `"type"` and `"value"` field |
+| `ast.with_operator_precedence(operand, prefix, infix, postfix)` | `operands`s with prefix and postfix operators, composed with infix operators | Abstract syntax tree |
+| `ast.node(Type, value)` | `value`               | Object with `"type"`, `"value"`, `"start"`, and `"end"` fields |
 
-| Value Function     | Behavior                                                |
+## Values
+
+### Numbers
+
+| Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
-| `AstOpPrecedence(OpNode, BindingPower)` | Returns array with two elements, `OpNode` and `BindingPower` |
-| `AstInfixOpPrecedence(OpNode, LeftBindingPower, RightBindingPower)` | Returns array with three elements, `OpNode`, `LeftBindingPower`, and `RightBindingPower` |
-
-## Value Functions
-
-| Value Function     | Behavior                                                |
-| ------------------ | ------------------------------------------------------- |
-| `True`             | Alias for the `true` constant                           |
-| `False`            | Alias for the `false` constant                          |
-| `Null`             | Alias for the `null` constant                           |
-| `Inc(N)`           | Increment, return `N + 1`                               |
-| `Dec(N)`           | Decrement, return `N - 1`                               |
-| `ArrayFirst(A)`    | Return the first element in `A`, fail if `A` is not an array with at least one element |
-| `ArrayRest(A)`     | Return the remaining array without the first element, fails if `A` is not an array with at least one element |
-| `Map(A, Fn)`       | Apply the function `Fn` to each element in the array `A` |
-| `Reverse(A)`       | Reverse elements of the array `A` so that the first element becomes the last, etc |
-| `ZipIntoObject(Ks, Vs)` | Pair together keys from `Ks` and values from `Vs` into an object |
-| `TransposeTable(T)` | Swap an array of arrays over the diagonal so that rows become columns |
-| `RotateTableClockwise(T)` | Rotate an array of arrays 90 degrees clockwise |
-| `Filter(A, Pred)`  | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` fails |
-| `Reject(A, Pred)`  | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` succeeds |
-| `IsNull(V)`        | Succeeds and returns `V` if the value is `null`, otherwise fails |
-| `Tabular(Headers, Rows)` | Transform an array of `Rows` into an array of objects where each column is paired with its header from `Headers` |
-| `LessThan(A, B)`   | Succeeds and returns `A` if `A` is strictly less than `B` |
-| `GreaterThan(A, B)` | Succeeds and returns `A` if `A` is strictly greater than `B` |
 | `Num.Add(A, B)`    | Sum `A` and `B`, error if values are not numbers or null |
 | `Num.Sub(A, B)`    | Subtract `B` from `A`, error if values are not numbers or null |
 | `Num.Mul(A, B)`    | Multiply `A` and `B`, error if values are not numbers or null |
 | `Num.Div(A, B)`    | Divide `A` by `B`, error if values are not numbers or null, or if `B` is 0 |
 | `Num.Pow(A, B)`    | Raise `A` to the exponent `B`, error if values are not numbers or null |
+| `Num.Inc(N)`       | Increment, return `N + 1`                               |
+| `Num.Dec(N)`       | Decrement, return `N - 1`                               |
+| `Num.FromBinaryDigits(Bs)` | Convert an array of `0`s and `1`s to a base 10 integer |
+| `Num.FromOctalDigits(Os)` | Convert an array of numbers between 0 and 7 to a base 10 integer |
+| `Num.FromHexDigits(Hs)` | Convert an array of numbers between 0 and 15 to a base 10 integer |
+
+### Arrays
+
+| Value              | Behavior                                                |
+| ------------------ | ------------------------------------------------------- |
+| `Array.First(A)`   | Get the first element in `A`, fail if `A` is not an array with at least one element |
+| `Array.Rest(A)`    | Return the remaining array without the first element, fails if `A` is not an array with at least one element |
+| `Array.Length(A)`  | Number of elements in `A`                               |
+| `Array.Reverse(A)` | Reverse elements of the array `A` so that the first element becomes the last, etc |
+| `Array.Map(A, Fn)` | Apply the function `Fn` to each element in the array `A` |
+| `Array.Filter(A, Pred)` | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` fails |
+| `Array.Reject(A, Pred)` | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` succeeds |
+| `Array.ZipObject(Ks, Vs)` | Pair together keys from `Ks` and values from `Vs` into an object |
+| `Array.ZipPairs(Ks, Vs)` | Pair together keys from `Ks` and values from `Vs` into an object |
+| `Table.Transpose(T)` | Swap an array of arrays over the diagonal so that rows become columns |
+| `Table.RotateClockwise(T)` | Rotate an array of arrays 90 degrees clockwise |
+| `Table.RotateCounterClockwise(T)` | Rotate an array of arrays 90 degrees clockwise |
+| `Table.ZipObjects(Ks, Rows)` | Transform an array of `Rows` into an array of objects where each column is paired with its header from `Headers` |
+
+### Objects
+
+| Value              | Behavior                                                |
+| ------------------ | ------------------------------------------------------- |
+| `Obj.Get(O, K)`    | Retrieve the value associated with the key `K`          |
+| `Obj.Put(O, K, V)` | Add the key `K` with value `V` to the object `O`        |
+
+### Abstract Syntax Trees
+
+See the `stdlib-ast` docs for more detailed documentation.
+
+| Value Function     | Behavior                                                |
+| ------------------ | ------------------------------------------------------- |
+| `Ast.OpPrecedence(OpNode, BindingPower)` | Returns array with two elements, `OpNode` and `BindingPower` |
+| `Ast.InfixOpPrecedence(OpNode, LeftBindingPower, RightBindingPower)` | Returns array with three elements, `OpNode`, `LeftBindingPower`, and `RightBindingPower` |
+
+### Predicates
+
+| Value              | Behavior                                                |
+| ------------------ | ------------------------------------------------------- |
+| `Is.String(V)`     | Return `V` if the value is a string, otherwise fail     |
+| `Is.Number(V)`     | Return `V` if the value is a number, otherwise fail     |
+| `Is.Bool(V)`       | Return `V` if the value is `true` or `false`, otherwise fail |
+| `Is.Null(V)`       | Return `V` if the value is `null`, otherwise fail       |
+| `Is.Array(V)`      | Return `V` if the value is an array, otherwise fail     |
+| `Is.Object(V)`     | Return `V` if the value is an object, otherwise fail    |
+| `Is.Equal(A, B)`   | Return `A` if `A` and `B` are structurally equal values |
+| `Is.LessThan(A, B)` | Return `A` if `A` is strictly less than `B`            |
+| `Is.LessThanOrEqual(A, B)` | Return `A` if `A` is less than or equal to `B`  |
+| `Is.GreaterThan(A, B)` | Return `A` if `A` is strictly greater than `B`      |
+| `Is.GreaterThanOrEqual(A, B)` | Return `A` if `A` is greater than or equal to `B` |

@@ -69,7 +69,7 @@ power: 0               0
 
 ## Parsers
 
-### `ast_with_operator_precedence(operand, prefix, infix, postfix)`
+### `ast.with_operator_precedence(operand, prefix, infix, postfix)`
 
 Parses an AST with customizable operands, operators and operator precedence. Takes four parser arguments:
 
@@ -120,11 +120,11 @@ Parses an AST with customizable operands, operators and operator precedence. Tak
 
 * `postfix`: Parser for operators that can be placed after any operand. The result of `postfix` must be an array with two elements. The first element must be an object, the node for the AST, and the second element must be a number, the operator's binding power. If there are no postfix operators to parse, use the `@fail` parser to skip this step. This parser is very similar to `prefix`, but the resulting AST node uses the key `"postfixed"` for the subtree modified by the operator.
 
-### `ast_node(Type, value)`
+### `ast.node(Type, value)`
 
 Helper parser for creating tagged nodes. Parses `value` and returns an object with a `"type"` and `"value"` field. For example
 ```
-ast_node("one_two_three", 123)
+ast.node("one_two_three", 123)
 ```
 would return
 ```
@@ -132,24 +132,24 @@ would return
 ```
 on success. It is very common to want AST nodes to all have a field that indicates the type of the node. If you don't want the type field to be called `"type"` or the value field to be called `"value"` then you can create a similar help with more appropriate names for your use case.
 
-### `AstOpPrecedence(op_node, BindingPower)`
+### `Ast.Precedence(op_node, BindingPower)`
 
 Helper for creating prefix and postfix operator parsers. With this function we can rewrite the `prefix` example above to ensure we match the necessary return format for precedence parsing.
 
 ```
 prefix =
-  ("-" $ AstOpPrecedence({"type": "negate_number"}, 6)) |
-  (word -> "not" $ AstOpPrecedence({"type": "negate_boolean"}, 5))
+  ("-" $ Ast.Precedence({"type": "negate_number"}, 6)) |
+  (word -> "not" $ Ast.Precedence({"type": "negate_boolean"}, 5))
 ```
 
-### `AstInfixOpPrecedence(op_node, LeftBindingPower, RightBindingPower)`
+### `Ast.InfixPrecedence(op_node, LeftBindingPower, RightBindingPower)`
 
 Helper for creating infix operator parsers. With this function we can rewrite the `infix` example above to ensure we match the necessary return format for precedence parsing.
 
 ```
 infix =
-  ("+" $ AstInfixOpPrecedence({"type": "add"}, 3, 4)) |
-  ("=" $ AstInfixOpPrecedence({"type": "assign"}, 2, 1))
+  ("+" $ Ast.InfixPrecedence({"type": "add"}, 3, 4)) |
+  ("=" $ Ast.InfixPrecedence({"type": "assign"}, 2, 1))
 ```
 
 ## Example
@@ -159,9 +159,9 @@ This example parses a single expression made up of variables, numbers, and opera
 ```
 w = maybe(whitespace)
 
-var_node = ast_node($"var", alphas)
+var_node = ast.node($"var", alphas)
 
-number_node = ast_node($"num", non_negative_number)
+number_node = ast.node($"num", non_negative_number)
 
 grouped_expr = "(" > w > expr < w < ")"
 
@@ -170,27 +170,27 @@ operand = var_node | number_node | grouped_expr
 conditional_infix =
   "?" & w & expr -> Middle & w & ":" $ {"type": "cond", "middle": Middle}
 
-index_postfix = ast_node($"index", "[" > w > expr < w < "]")
+index_postfix = ast.node($"index", "[" > w > expr < w < "]")
 
 prefix =
-  ("-" $ AstOpPrecedence({"type": "neg"}, 7))
+  ("-" $ Ast.Precedence({"type": "neg"}, 7))
 
 infix =
-  ("^"  $ AstInfixOpPrecedence({"type": "exp"},    6, 6.5)) |
-  ("*"  $ AstInfixOpPrecedence({"type": "mul"},    5, 5.5)) |
-  ("/"  $ AstInfixOpPrecedence({"type": "div"},    5, 5.5)) |
-  ("+"  $ AstInfixOpPrecedence({"type": "add"},    4, 4.5)) |
-  ("-"  $ AstInfixOpPrecedence({"type": "sub"},    4, 4.5)) |
-  ("==" $ AstInfixOpPrecedence({"type": "eql"},    3, 3.5)) |
+  ("^"  $ Ast.InfixPrecedence({"type": "exp"},    6, 6.5)) |
+  ("*"  $ Ast.InfixPrecedence({"type": "mul"},    5, 5.5)) |
+  ("/"  $ Ast.InfixPrecedence({"type": "div"},    5, 5.5)) |
+  ("+"  $ Ast.InfixPrecedence({"type": "add"},    4, 4.5)) |
+  ("-"  $ Ast.InfixPrecedence({"type": "sub"},    4, 4.5)) |
+  ("==" $ Ast.InfixPrecedence({"type": "eql"},    3, 3.5)) |
   (conditional_infix ->
-   Node $ AstInfixOpPrecedence(Node,               2.5, 2)) |
-  ("="  $ AstInfixOpPrecedence({"type": "assign"}, 1.5, 1))
+   Node $ Ast.InfixPrecedence(Node,               2.5, 2)) |
+  ("="  $ Ast.InfixPrecedence({"type": "assign"}, 1.5, 1))
 
 postfix =
-  ("!" $ AstOpPrecedence({"type": "fac"}, 8)) |
-  (index_postfix -> Node $ AstOpPrecedence(Node, 8))
+  ("!" $ Ast.Precedence({"type": "fac"}, 8)) |
+  (index_postfix -> Node $ Ast.Precedence(Node, 8))
 
-expr = ast_with_operator_precedence(
+expr = ast.with_operator_precedence(
   surround(operand, w),
   surround(prefix, w),
   surround(infix, w),

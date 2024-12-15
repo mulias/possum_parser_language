@@ -1,6 +1,6 @@
 input(program)
 
-program = ast_node($"program", array(w_arround(statement)))
+program = ast.node($"program", array(w_arround(statement)))
 
 statement = (named_function | main_parser) < statement_sep
 
@@ -12,7 +12,7 @@ named_function =
   "=" > expr -> Body $
   { "type": "named_function", "ident": Ident, "params": Params, "body": Body }
 
-main_parser = ast_node($"main_parser", expr)
+main_parser = ast.node($"main_parser", expr)
 
 comment = "#" > chars_until(nl | end)
 
@@ -21,7 +21,7 @@ w = maybe_many(comment | whitespace)
 w_arround(p) = surround(p, w)
 
 # Don't parse trailing whitespace so that we can detect newline expr separators.
-expr = ast_with_operator_precedence(
+expr = ast.with_operator_precedence(
   w > operand,
   w_arround(prefix),
   w_arround(infix),
@@ -67,14 +67,14 @@ postfix =
 
 grouped_expr = "(" > w > expr < w < ")"
 
-boolean_node = ast_node(
+boolean_node = ast.node(
   $"boolean",
   boolean("t" + word -> "true", "f" + word -> "false")
 )
 
 null_node = "n" + word -> "null" $ {"type": "null"}
 
-string_node = ast_node(
+string_node = ast.node(
   $"string",
   surround(quoted_string_body(`"`), `"`) |
   surround(quoted_string_body(`'`), `'`) |
@@ -96,7 +96,7 @@ string_escape_unicode = `\u` + repeat(hex_numeral, $6)
 
 backtick_string_body = chars_until("`") | const($"")
 
-template_string_node = ast_node(
+template_string_node = ast.node(
   $"template_string",
   surround(template_string_body(`"`, [], $""), `"`) |
   surround(template_string_body(`'`, [], $""), `'`)
@@ -119,7 +119,7 @@ template_string_body(end_quote, TemplateParts, Str) =
 AppendNonEmptyString(TemplateParts, Str) =
   Str -> "" ? TemplateParts : [...TemplateParts, {"type": "string", "value": Str}]
 
-number_node = ast_node($"number", number)
+number_node = ast.node($"number", number)
 
 variable_node(Type, name_format) =
   peek(tuple2(
@@ -134,18 +134,18 @@ variable_node(Type, name_format) =
     "is_underscored": IsUnderscored,
   }
 
-parser_variable_node = variable_node($"parser_variable", lower + maybe(word))
+parser_variable_node = variable_node($"parser_variable", lower + maybe_many(alnum | "_" | "."))
 
-value_variable_node = variable_node($"value_variable", upper + maybe(word))
+value_variable_node = variable_node($"value_variable", upper + maybe_many(alpha | "_" | "."))
 
-underscore_variable_node = ast_node($"underscore_variable", many("_"))
+underscore_variable_node = ast.node($"underscore_variable", many("_"))
 
-array_node = ast_node(
+array_node = ast.node(
   $"array",
   "[" > w > maybe_array_sep(expr, ",") < trailing_comma < "]"
 )
 
-object_node = ast_node(
+object_node = ast.node(
   $"object",
   "{" > w > maybe_array_sep(object_pair, ",") < trailing_comma < "}"
 )
@@ -169,4 +169,4 @@ lower_bounded_range_postfix =
   ".." & peek(w > (postfix | infix | end)) $
   {"type": "lower_bounded_range"}
 
-call_function_postfix = ast_node($"call_function", function_args_or_params)
+call_function_postfix = ast.node($"call_function", function_args_or_params)

@@ -2,6 +2,6 @@ input(produce)
 
 produce =
   table_sep(number | word, col_sep, nl) -> [Headers, ...Rows] $
-  Tabular(Headers, Rows)
+  Table.ZipObjects(Headers, Rows)
 
 col_sep = surround("|", maybe(ws))

@@ -1,8 +1,8 @@
 w = maybe(whitespace)
 
-var_node = ast_node($"var", alphas)
+var_node = ast.node($"var", alphas)
 
-number_node = ast_node($"num", non_negative_number)
+number_node = ast.node($"num", non_negative_number)
 
 grouped_expr = "(" > w > expr < w < ")"
 
@@ -11,27 +11,27 @@ operand = var_node | number_node | grouped_expr
 conditional_infix =
   "?" & w & expr -> Middle & w & ":" $ {"type": "cond", "middle": Middle}
 
-index_postfix = ast_node($"index", "[" > w > expr < w < "]")
+index_postfix = ast.node($"index", "[" > w > expr < w < "]")
 
 prefix =
-  ("-" $ AstOpPrecedence({"type": "neg"}, 7))
+  ("-" $ Ast.Precedence({"type": "neg"}, 7))
 
 infix =
-  ("^"  $ AstInfixOpPrecedence({"type": "exp"},    6, 6.5)) |
-  ("*"  $ AstInfixOpPrecedence({"type": "mul"},    5, 5.5)) |
-  ("/"  $ AstInfixOpPrecedence({"type": "div"},    5, 5.5)) |
-  ("+"  $ AstInfixOpPrecedence({"type": "add"},    4, 4.5)) |
-  ("-"  $ AstInfixOpPrecedence({"type": "sub"},    4, 4.5)) |
-  ("==" $ AstInfixOpPrecedence({"type": "eql"},    3, 3.5)) |
+  ("^"  $ Ast.InfixPrecedence({"type": "exp"},    6, 6.5)) |
+  ("*"  $ Ast.InfixPrecedence({"type": "mul"},    5, 5.5)) |
+  ("/"  $ Ast.InfixPrecedence({"type": "div"},    5, 5.5)) |
+  ("+"  $ Ast.InfixPrecedence({"type": "add"},    4, 4.5)) |
+  ("-"  $ Ast.InfixPrecedence({"type": "sub"},    4, 4.5)) |
+  ("==" $ Ast.InfixPrecedence({"type": "eql"},    3, 3.5)) |
   (conditional_infix ->
-   Node $ AstInfixOpPrecedence(Node,               2.5, 2)) |
-  ("="  $ AstInfixOpPrecedence({"type": "assign"}, 1.5, 1))
+   Node $ Ast.InfixPrecedence(Node,               2.5, 2)) |
+  ("="  $ Ast.InfixPrecedence({"type": "assign"}, 1.5, 1))
 
 postfix =
-  ("!" $ AstOpPrecedence({"type": "fac"}, 8)) |
-  (index_postfix -> Node $ AstOpPrecedence(Node, 8))
+  ("!" $ Ast.Precedence({"type": "fac"}, 8)) |
+  (index_postfix -> Node $ Ast.Precedence(Node, 8))
 
-expr = ast_with_operator_precedence(
+expr = ast.with_operator_precedence(
   surround(operand, w),
   surround(prefix, w),
   surround(infix, w),
