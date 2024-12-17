@@ -65,6 +65,7 @@ pub const CLI = struct {
 
             if (parsed == .Failure) {
                 try self.writers.err.print("Parser Failure\n", .{});
+                std.process.exit(1);
             } else {
                 try parsed.writeJson(.Pretty, vm, self.writers.out);
                 try self.writers.out.print("\n", .{});
