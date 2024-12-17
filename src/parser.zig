@@ -15,6 +15,7 @@ const parsing = @import("parsing.zig");
 pub const Parser = struct {
     vm: *VM,
     scanner: Scanner,
+    source: []const u8,
     current: Token,
     previous: Token,
     currentSkippedWhitespace: bool,
@@ -42,6 +43,7 @@ pub const Parser = struct {
         return Parser{
             .vm = vm,
             .scanner = undefined,
+            .source = undefined,
             .current = undefined,
             .previous = undefined,
             .currentSkippedWhitespace = false,
@@ -60,6 +62,7 @@ pub const Parser = struct {
 
     pub fn parse(self: *Parser, source: []const u8) !void {
         self.scanner = Scanner.init(source, self.writers, self.vm.config.printScanner);
+        self.source = source;
 
         try self.advance();
 
@@ -72,6 +75,7 @@ pub const Parser = struct {
 
     fn parseExpression(self: *Parser, source: []const u8) !*Ast.RNode {
         self.scanner = Scanner.init(source, self.writers, self.vm.config.printScanner);
+        self.source = source;
         try self.advance();
         return self.expression();
     }
@@ -802,7 +806,7 @@ pub const Parser = struct {
     }
 
     fn errorAt(self: *Parser, token: Token, message: []const u8) Error {
-        try token.region.printLineRelative(self.vm.source, self.writers.err);
+        try token.region.printLineRelative(self.source, self.writers.err);
 
         switch (token.tokenType) {
             .Eof => {
