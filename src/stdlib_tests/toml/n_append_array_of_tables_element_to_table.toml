@@ -1,0 +1,6 @@
+[fruit.physical]
+color = "red"
+shape = "round"
+
+[[fruit]]
+name = "apple"

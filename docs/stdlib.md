@@ -8,8 +8,8 @@ These parsers and value functions are always available in Possum programs, unles
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
-| `char`             | One [code point](https://en.wikipedia.org/wiki/Code_point), informally called a "character" | Matched string |
-| `ascii`            | One [ASCII](https://en.wikipedia.org/wiki/ASCII) code point | Matched string |
+| `char`             | One [code point], informally called a "character" | Matched string |
+| `ascii`            | One [ASCII] code point     | Matched string |
 | `alpha`            | One lower- or upper-case letter from the English alphabet, "a" to "z" or "A" to "Z" | Matched string |
 | `alphas`           | One or more `alpha`s       | Matched string             |
 | `lower`            | One lower-case letter from the English alphabet, "a" to "Z" | Matched string |
@@ -35,6 +35,9 @@ These parsers and value functions are always available in Possum programs, unles
 | `whitespace`       | One or more space, tab, or newline characters | Matched string |
 | `ws`               | Alias for `whitespace`     | As above                   |
 | `chars_until(stop)` | One or more codepoints, must be followed by `stop` which is not consumed | Merged string of all matched codepoints |
+
+[code point]: https://en.wikipedia.org/wiki/Code_point
+[ascii]: https://en.wikipedia.org/wiki/ASCII
 
 ### Numbers
 
@@ -156,8 +159,62 @@ These parsers and value functions are always available in Possum programs, unles
 | `json.number`      | Alias for `number`         | Number |
 | `json.boolean`     | JSON "true" or "false" keyword | `true` or `false`      |
 | `json.null`        | JSON "null" keyword        | `null`                     |
-| `json.array(elem)` | JSON formatted array with square brackets and comma separators, containing zero or more `elem`s | Array of values parsed by `elem` |
-| `json.object(value)` | JSON formatted object with braces, string keys, colon and comma separators, containing zero or more `value`s | Object with string keys and values parsed by `value` |
+| `json.array(elem)` | JSON array containing zero or more `elem`s | Array of values parsed by `elem` |
+| `json.object(value)` | JSON object containing zero or more `value`s | Object with values parsed by `value` |
+
+### TOML
+
+| Parser             | Parses                     | Returns                    |
+| ------------------ | -------------------------- | -------------------------- |
+| `toml`             | Alias for `toml.simple`    | As below                   |
+| `toml.simple`      | Valid TOML document        | Object with TOML values, unsupported types encoded as strings |
+| `toml.tagged`      | Valid TOML document        | Object with TOML values, unsupported types encoded as strings tagged with type information |
+| `toml.custom(value)` | TOML document with custom `value`s for each key/value pair | Object with parsed values |
+| `toml.root_table(value, Doc)` | [TOML table] without header | `Doc` object with additional parsed key/value pairs |
+| `toml.tables(value, Doc)` | One or more [TOML table]s with headers | `Doc` object with additional keys for each parsed table |
+| `toml.table(value, Doc)` | [TOML table] with header | `Doc` object with an additional key inserted at the header path |
+| `toml.array_of_tables(value, Doc)` | TOML table with array of tables header | `Doc` object with object inserted into an array at the header path |
+| `toml.simple_value` | Valid TOML value          | Parsed value, unsupported types encoded as strings |
+| `toml.tagged_value` | Valid TOML value          | Parsed value, unsupported types encoded as strings tagged with type information |
+| `toml.string`      | [TOML string]              | String                     |
+| `toml.datetime`    | [TOML date-time]           | String                     |
+| `toml.number`      | [TOML number]              | Integer, float, or string encoding of Infinity/NaN/Binary/Octal/Hex number |
+| `toml.boolean`     | [TOML boolean]             | `true` or `false`          |
+| `toml.array(elem)` | [TOML array] containing zero or more `elem`s | Array of values parsed by `elem` |
+| `toml.inline_table(value)` | [TOML inline table] containing zero or more `value`s | Object with values parsed by `value` |
+| `toml.string.basic` | TOML single-line [basic string] | String               |
+| `toml.string.literal` | TOML single-line [literal string] | String           |
+| `toml.string.multi_line_basic` | TOML multi-line [basic string] | String     |
+| `toml.string.multi_line_literal` | TOML multi-line [literal string] | String |
+| `toml.datetime.offset` | [TOML date-time] with timezone offset | String      |
+| `toml.datetime.local` | [TOML date-time] without timezone offset | String    |
+| `toml.datetime.local_date` | [TOML date] without time or offset | String     |
+| `toml.datetime.local_time` | [TOML time] without date or offset | String     |
+| `toml.number.integer` | [TOML integer]          | Integer number             |
+| `toml.number.float` | [TOML float]              | Float number               |
+| `toml.number.infinity` | TOML infinity          | String                     |
+| `toml.number.not_a_number` | TOML NaN           | String                     |
+| `toml.number.binary_numeral` | TOML binary integer | String                  |
+| `toml.number.octal_numeral` | TOML octal integer | String                    |
+| `toml.number.hex_numeral` | TOML hexadecimal integer | String                |
+| `toml.number.binary_integer` | TOML binary integer | Integer                 |
+| `toml.number.octal_integer` | TOML octal integer | Integer                   |
+| `toml.number.hex_integer` | TOML hexadecimal integer | Integer               |
+
+[TOML table]: https://toml.io/en/v1.0.0#table
+[array of tables]: https://toml.io/en/v1.0.0#array-of-tables
+[TOML string]: https://toml.io/en/v1.0.0#string
+[TOML date-time]: https://toml.io/en/v1.0.0#offset-date-time
+[TOML date]: https://toml.io/en/v1.0.0#local-date
+[TOML time]: https://toml.io/en/v1.0.0#local-time
+[TOML number]: https://toml.io/en/v1.0.0#integer
+[TOML boolean]: https://toml.io/en/v1.0.0#boolean
+[TOML array]: https://toml.io/en/v1.0.0#array
+[TOML inline table]: https://toml.io/en/v1.0.0#inline-table
+[basic string]: https://toml.io/en/v1.0.0#string
+[literal string]: https://toml.io/en/v1.0.0#string
+[TOML integer]: https://toml.io/en/v1.0.0#integer
+[TOML float]: https://toml.io/en/v1.0.0#float
 
 ### Abstract Syntax Trees
 

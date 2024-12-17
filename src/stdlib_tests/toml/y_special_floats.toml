@@ -1,0 +1,10 @@
+sf0 = +0.0
+sf00 = -0.0
+
+sf1 = inf
+sf2 = +inf
+sf3 = -inf
+
+sf4 = nan
+sf5 = +nan
+sf6 = -nan

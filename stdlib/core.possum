@@ -331,6 +331,8 @@ _repeat_between(p, N, M, Acc) =
   const(Acc) :
   @fail
 
+one_or_both(a, b) = (a + maybe(b)) | (maybe(a) + b)
+
 ## Utility
 
 peek(p) = p -> V ! const(V)
@@ -430,6 +432,300 @@ json.object(value) =
     surround(value, maybe(ws)), ","
   )
   < "}"
+
+## TOML
+
+toml = toml.simple
+
+toml.simple = toml.custom(toml.simple_value)
+
+toml.tagged = toml.custom(toml.tagged_value)
+
+toml.custom(value) =
+  default(toml.root_table(value, {}), {}) -> RootDoc &
+  toml.tables(value, RootDoc) -> FinalDoc &
+  maybe(maybe(ws) > _toml.comment) $
+  FinalDoc
+
+toml.root_table(value, Doc) = _toml.table_body(value, [], Doc)
+
+toml.tables(value, Doc) =
+  _toml.ws &
+  (toml.table(value, Doc) | toml.array_of_tables(value, Doc)) -> NewDoc ?
+  toml.tables(value, NewDoc) :
+  const(Doc)
+
+toml.table(value, Doc) =
+  _toml.table_header -> HeaderPath &
+  const(_Toml.InsertAtPath(Doc, HeaderPath, {})) -> NewDoc &
+  maybe(spaces) & maybe(_toml.comment) & maybe(spaces) &
+  (nl ? _toml.table_body(value, HeaderPath, NewDoc) : const(NewDoc))
+
+toml.array_of_tables(value, Doc) =
+  _toml.array_of_tables_header -> HeaderPath &
+  const(_Toml.AppendAtPath(Doc, HeaderPath, {})) -> NewDoc &
+  maybe(spaces) & maybe(_toml.comment) & maybe(spaces) &
+  (nl ? _toml.table_body(value, HeaderPath, NewDoc) : const(NewDoc))
+
+_toml.ws = maybe_many(ws | _toml.comment)
+
+_toml.table_header = "[" > maybe(ws) > _toml.path < maybe(ws) < "]"
+
+_toml.array_of_tables_header =
+  repeat2("[" > maybe(ws)) > _toml.path < repeat2(maybe(ws) < "]")
+
+_toml.table_body(value, HeaderPath, Doc) =
+  _toml.ws &
+  _toml.table_pair(value, HeaderPath, Doc) -> NewDoc ?
+  _toml.table_body(value, HeaderPath, NewDoc) :
+  const(Doc)
+
+_toml.table_pair(value, HeaderPath, Doc) =
+  _toml.path -> KeyPath &
+  maybe(spaces) & "=" & maybe(spaces) &
+  value -> Val &
+  maybe(spaces) & maybe(_toml.comment) & nl | end & maybe(ws) $
+  _Toml.InsertAtPath(Doc, HeaderPath + KeyPath, Val)
+
+_toml.path = array_sep(_toml.key, surround(".", maybe(ws)))
+
+_toml.key =
+  many(alpha | numeral | "_" | "-") |
+  toml.string.basic |
+  toml.string.literal
+
+_toml.comment = "#" > line
+
+toml.simple_value =
+  toml.string |
+  toml.datetime |
+  toml.number |
+  toml.boolean |
+  toml.array(toml.simple_value) |
+  toml.inline_table(toml.simple_value)
+
+toml.tagged_value =
+  toml.string |
+  _toml.tag($"datetime", $"offset", toml.datetime.offset) |
+  _toml.tag($"datetime", $"local", toml.datetime.local) |
+  _toml.tag($"datetime", $"date-local", toml.datetime.local_date) |
+  _toml.tag($"datetime", $"time-local", toml.datetime.local_time) |
+  _toml.tag($"integer", $"binary", toml.number.binary_numeral) |
+  _toml.tag($"integer", $"octal", toml.number.octal_numeral) |
+  _toml.tag($"integer", $"hexadecimal", toml.number.hex_numeral) |
+  _toml.tag($"float", $"infinity", toml.number.infinity) |
+  _toml.tag($"float", $"not-a-number", toml.number.not_a_number) |
+  toml.number.float |
+  toml.number.integer |
+  toml.boolean |
+  toml.array(toml.tagged_value) |
+  toml.inline_table(toml.tagged_value)
+
+_toml.tag(Type, Subtype, value) =
+  value -> Value $ {"type": Type, "subtype": Subtype, "value": Value}
+
+toml.string =
+  toml.string.multi_line_basic |
+  toml.string.multi_line_literal |
+  toml.string.basic |
+  toml.string.literal
+
+toml.datetime =
+  toml.datetime.offset |
+  toml.datetime.local |
+  toml.datetime.local_date |
+  toml.datetime.local_time
+
+toml.number =
+  toml.number.binary_numeral |
+  toml.number.octal_numeral |
+  toml.number.hex_numeral |
+  toml.number.infinity |
+  toml.number.not_a_number |
+  toml.number.float |
+  toml.number.integer
+
+toml.boolean = boolean("true", "false")
+
+toml.array(elem) =
+  "[" >
+  maybe_array_sep(surround(elem, maybe(ws)), ",")
+  < maybe(surround(",", maybe(ws)))
+  < "]"
+
+toml.inline_table(value) = "{" > _toml.inline_table_body(value, {}) < "}"
+
+_toml.inline_table_body(value, Doc) =
+  _toml.inline_table_pair(value, Doc) -> NewDoc &
+  ("," ? _toml.inline_table_body(value, NewDoc) : const(NewDoc))
+
+_toml.inline_table_pair(value, Doc) =
+  maybe(spaces) &
+  _toml.path -> Key &
+  maybe(spaces) & "=" & maybe(spaces) &
+  value -> Val &
+  maybe(spaces) $
+  _Toml.InsertAtPath(Doc, Key, Val)
+
+toml.string.multi_line_basic = `"""` > maybe(ws) > _toml.string.multi_line_basic_body < `"""`
+
+_toml.string.multi_line_basic_body =
+  many(
+    _toml.escaped_ctrl_char |
+    _toml.escaped_unicode |
+    ws |
+    skip(`\` + ws) |
+    (peek(`"""""`) > `""`) |
+    (peek(`""""`) > `"`) |
+    unless(char, _ctrl_char | `\` | `"""`)
+  ) | const($"")
+
+toml.string.multi_line_literal = `'''` > maybe(ws) > _toml.string.multi_line_literal_body < `'''`
+
+_toml.string.multi_line_literal_body =
+  many(
+    (peek(`'''''`) > `''`) |
+    (peek(`''''`) > `'`) |
+    unless(char, `'''`)
+  ) | const($"")
+
+toml.string.basic = '"' > _toml.string.basic_body < '"'
+
+_toml.string.basic_body =
+  many(
+    _toml.escaped_ctrl_char |
+    _toml.escaped_unicode |
+    unless(char, _ctrl_char | `\` | '"')
+  ) | const($"")
+
+toml.string.literal = "'" > default(chars_until("'"), $"") < "'"
+
+_toml.escaped_ctrl_char =
+  (`\b` $ "\b") |
+  (`\t` $ "\t") |
+  (`\n` $ "\n") |
+  (`\f` $ "\f") |
+  (`\r` $ "\r") |
+  (`\"` $ `"`) |
+  (`\\` $ `\`)
+
+_toml.escaped_unicode =
+  (`\u` > repeat4(hex_numeral) -> U $ @Codepoint(U)) |
+  (`\U` > repeat8(hex_numeral) -> U $ @Codepoint(U))
+
+toml.datetime.offset = toml.datetime.local_date + ("T" | " ") + _toml.datetime.time_offset
+
+toml.datetime.local = toml.datetime.local_date + ("T" | " ") + toml.datetime.local_time
+
+toml.datetime.local_date =
+  repeat4(numeral) + "-" + repeat2(numeral) + "-" + repeat2(numeral)
+
+toml.datetime.local_time =
+  repeat2(numeral) + ":" + repeat2(numeral) + ":" + repeat2(numeral) +
+  maybe("." + repeat6(numeral))
+
+_toml.datetime.time_offset = toml.datetime.local_time + ("Z" | _toml.datetime.time_numoffset)
+
+_toml.datetime.time_numoffset = ("+" | "-") + repeat2(numeral) + ":" + repeat2(numeral)
+
+toml.number.integer = number_of(
+  _toml.number.sign +
+  _toml.number.integer_part
+)
+
+_toml.number.sign = maybe("-" | skip("+"))
+
+_toml.number.integer_part =
+  ("1".."9" + many(maybe("_") > numeral)) | numeral
+
+toml.number.float = number_of(
+  _toml.number.sign +
+  _toml.number.integer_part + (
+    (_toml.number.fraction_part + maybe(_toml.number.exponent_part)) |
+    _toml.number.exponent_part
+  )
+)
+
+_toml.number.fraction_part = "." + numeral + maybe_many(maybe("_") > numeral)
+
+_toml.number.exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
+
+toml.number.infinity = maybe("+" | "-") + "inf"
+
+toml.number.not_a_number = maybe("+" | "-") + "nan"
+
+toml.number.binary_numeral =
+  "0b" + one_or_both(
+    many_sep("0", maybe("_")) + maybe(skip("_") < peek(binary_numeral)),
+    many_sep(binary_numeral, maybe("_"))
+  )
+
+toml.number.octal_numeral =
+  "0o" + one_or_both(
+    many_sep("0", maybe("_")) + maybe(skip("_") < peek(octal_numeral)),
+    many_sep(octal_numeral, maybe("_"))
+  )
+
+toml.number.hex_numeral =
+  "0x" + one_or_both(
+    many_sep("0", maybe("_")) + maybe(skip("_") < peek(hex_numeral)),
+    many_sep(hex_numeral, maybe("_"))
+  )
+
+toml.number.binary_integer =
+  "0b" & one_or_both(
+    array_sep(0, maybe("_")) + maybe(skip("_") < peek(binary_integer)),
+    array_sep(binary_integer, maybe("_"))
+  ) -> Digits $
+  Num.FromBinaryDigits(Digits)
+
+toml.number.octal_integer =
+  "0o" & one_or_both(
+    array_sep(0, maybe("_")) + maybe(skip("_") < peek(octal_integer)),
+    array_sep(octal_integer, maybe("_"))
+  ) -> Digits $
+  Num.FromOctalDigits(Digits)
+
+toml.number.hex_integer =
+  "0x" & one_or_both(
+    array_sep(0, maybe("_")) + maybe(skip("_") < peek(hex_integer)),
+    array_sep(hex_integer, maybe("_"))
+  ) -> Digits $
+  Num.FromHexDigits(Digits)
+
+_Toml.InsertAtPath(Obj, Path, Val) =
+  Path -> [Key] ? (
+    Obj -> {Key: _, ..._} ?
+    (Val -> {} ? Obj : @Fail) :
+    {...Obj, Key: Val}
+  ) :
+  Path -> [Key, ...PathRest] ? (
+    Obj -> {Key: ExistingVal, ..._} ? (
+      ExistingVal -> [...ArrayOfTables, {...NestedObj}] ?
+      {...Obj, Key: [...ArrayOfTables, _Toml.InsertAtPath(NestedObj, PathRest, Val)]} :
+      ExistingVal -> {...NestedObj} &
+      {...Obj, Key: _Toml.InsertAtPath(NestedObj, PathRest, Val)}
+    ) :
+    {...Obj, Key: _Toml.InsertAtPath({}, PathRest, Val)}
+  ) :
+  Obj
+
+_Toml.AppendAtPath(Obj, Path, Val) =
+  Path -> [Key] ? (
+    Obj -> {Key: ExistingVal, ..._} ?
+    Is.Array(ExistingVal) & {...Obj, Key: [...ExistingVal, Val]} :
+    {...Obj, Key: [Val]}
+  ) :
+  Path -> [Key, ...PathRest] ? (
+    Obj -> {Key: ExistingVal, ..._} ? (
+      ExistingVal -> [...ArrayOfTables, {...NestedObj}] ?
+      {...Obj, Key: [...ArrayOfTables, _Toml.AppendAtPath(NestedObj, PathRest, Val)]} :
+      ExistingVal -> {...NestedObj} &
+      {...Obj, Key: _Toml.AppendAtPath(NestedObj, PathRest, Val)}
+    ) :
+    {...Obj, Key: _Toml.AppendAtPath({}, PathRest, Val)}
+  ) :
+  Obj
 
 ## Abstract Syntax Trees
 
