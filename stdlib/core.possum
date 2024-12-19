@@ -614,18 +614,18 @@ _toml.escaped_unicode =
   (`\u` > repeat4(hex_numeral) -> U $ @Codepoint(U)) |
   (`\U` > repeat8(hex_numeral) -> U $ @Codepoint(U))
 
-toml.datetime.offset = toml.datetime.local_date + ("T" | " ") + _toml.datetime.time_offset
+toml.datetime.offset = toml.datetime.local_date + ("T" | "t" | " ") + _toml.datetime.time_offset
 
-toml.datetime.local = toml.datetime.local_date + ("T" | " ") + toml.datetime.local_time
+toml.datetime.local = toml.datetime.local_date + ("T" | "t" | " ") + toml.datetime.local_time
 
 toml.datetime.local_date =
   repeat4(numeral) + "-" + repeat2(numeral) + "-" + repeat2(numeral)
 
 toml.datetime.local_time =
   repeat2(numeral) + ":" + repeat2(numeral) + ":" + repeat2(numeral) +
-  maybe("." + repeat6(numeral))
+  maybe("." + repeat_between(numeral, $1, $9))
 
-_toml.datetime.time_offset = toml.datetime.local_time + ("Z" | _toml.datetime.time_numoffset)
+_toml.datetime.time_offset = toml.datetime.local_time + ("Z" | "z" | _toml.datetime.time_numoffset)
 
 _toml.datetime.time_numoffset = ("+" | "-") + repeat2(numeral) + ":" + repeat2(numeral)
 

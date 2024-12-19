@@ -235,13 +235,30 @@
     "ld1": {"type": "datetime", "subtype": "date-local", "value": "1979-05-27"}
   }
   
+  y_date_time.toml
+  space = 1987-07-05 17:45:00Z
+  
+  # ABNF is case-insensitive, both "Z" and "z" must be supported.
+  lower = 1987-07-05t17:45:00z
+  --------
+  {
+    "space": {"type": "datetime", "subtype": "offset", "value": "1987-07-05 17:45:00Z"},
+    "lower": {"type": "datetime", "subtype": "offset", "value": "1987-07-05t17:45:00z"}
+  }
+  
   y_date_time_local.toml
   ldt1 = 1979-05-27T07:32:00
   ldt2 = 1979-05-27T00:32:00.999999
+  local = 1987-07-05T17:45:00
+  milli = 1977-12-21T10:32:00.555
+  space = 1987-07-05 17:45:00
   --------
   {
     "ldt1": {"type": "datetime", "subtype": "local", "value": "1979-05-27T07:32:00"},
-    "ldt2": {"type": "datetime", "subtype": "local", "value": "1979-05-27T00:32:00.999999"}
+    "ldt2": {"type": "datetime", "subtype": "local", "value": "1979-05-27T00:32:00.999999"},
+    "local": {"type": "datetime", "subtype": "local", "value": "1987-07-05T17:45:00"},
+    "milli": {"type": "datetime", "subtype": "local", "value": "1977-12-21T10:32:00.555"},
+    "space": {"type": "datetime", "subtype": "local", "value": "1987-07-05 17:45:00"}
   }
   
   y_date_time_offset.toml

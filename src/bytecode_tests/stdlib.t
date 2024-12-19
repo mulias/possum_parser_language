@@ -3691,37 +3691,45 @@
   ==========toml.datetime.offset==========
   0000    | GetConstant 0: toml.datetime.local_date
   0002    | CallFunction 0
-  0004    | JumpIfFailure 4 -> 20
+  0004    | JumpIfFailure 4 -> 28
   0007    | SetInputMark
-  0008    | GetConstant 1: "T"
-  0010    | CallFunction 0
-  0012    | Or 12 -> 19
-  0015    | GetConstant 2: " "
-  0017    | CallFunction 0
-  0019    | Merge
-  0020    | JumpIfFailure 20 -> 28
-  0023    | GetConstant 3: _toml.datetime.time_offset
+  0008    | SetInputMark
+  0009    | GetConstant 1: "T"
+  0011    | CallFunction 0
+  0013    | Or 13 -> 20
+  0016    | GetConstant 2: "t"
+  0018    | CallFunction 0
+  0020    | Or 20 -> 27
+  0023    | GetConstant 3: " "
   0025    | CallFunction 0
   0027    | Merge
-  0028    | End
+  0028    | JumpIfFailure 28 -> 36
+  0031    | GetConstant 4: _toml.datetime.time_offset
+  0033    | CallFunction 0
+  0035    | Merge
+  0036    | End
   ========================================
   
   ==========toml.datetime.local===========
   0000    | GetConstant 0: toml.datetime.local_date
   0002    | CallFunction 0
-  0004    | JumpIfFailure 4 -> 20
+  0004    | JumpIfFailure 4 -> 28
   0007    | SetInputMark
-  0008    | GetConstant 1: "T"
-  0010    | CallFunction 0
-  0012    | Or 12 -> 19
-  0015    | GetConstant 2: " "
-  0017    | CallFunction 0
-  0019    | Merge
-  0020    | JumpIfFailure 20 -> 28
-  0023    | GetConstant 3: toml.datetime.local_time
+  0008    | SetInputMark
+  0009    | GetConstant 1: "T"
+  0011    | CallFunction 0
+  0013    | Or 13 -> 20
+  0016    | GetConstant 2: "t"
+  0018    | CallFunction 0
+  0020    | Or 20 -> 27
+  0023    | GetConstant 3: " "
   0025    | CallFunction 0
   0027    | Merge
-  0028    | End
+  0028    | JumpIfFailure 28 -> 36
+  0031    | GetConstant 4: toml.datetime.local_time
+  0033    | CallFunction 0
+  0035    | Merge
+  0036    | End
   ========================================
   
   ========toml.datetime.local_date========
@@ -3752,12 +3760,14 @@
   =================@fn964=================
   0000    | GetConstant 0: "."
   0002    | CallFunction 0
-  0004    | JumpIfFailure 4 -> 14
-  0007    | GetConstant 1: repeat6
+  0004    | JumpIfFailure 4 -> 18
+  0007    | GetConstant 1: repeat_between
   0009    | GetConstant 2: numeral
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | End
+  0011    | GetConstant 3: 1
+  0013    | GetConstant 4: 9
+  0015    | CallFunction 3
+  0017    | Merge
+  0018    | End
   ========================================
   
   ========toml.datetime.local_time========
@@ -3793,15 +3803,19 @@
   =======_toml.datetime.time_offset=======
   0000    | GetConstant 0: toml.datetime.local_time
   0002    | CallFunction 0
-  0004    | JumpIfFailure 4 -> 20
+  0004    | JumpIfFailure 4 -> 28
   0007    | SetInputMark
-  0008    | GetConstant 1: "Z"
-  0010    | CallFunction 0
-  0012    | Or 12 -> 19
-  0015    | GetConstant 2: _toml.datetime.time_numoffset
-  0017    | CallFunction 0
-  0019    | Merge
-  0020    | End
+  0008    | SetInputMark
+  0009    | GetConstant 1: "Z"
+  0011    | CallFunction 0
+  0013    | Or 13 -> 20
+  0016    | GetConstant 2: "z"
+  0018    | CallFunction 0
+  0020    | Or 20 -> 27
+  0023    | GetConstant 3: _toml.datetime.time_numoffset
+  0025    | CallFunction 0
+  0027    | Merge
+  0028    | End
   ========================================
   
   =====_toml.datetime.time_numoffset======
