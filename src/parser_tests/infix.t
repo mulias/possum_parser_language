@@ -53,7 +53,7 @@
               .end: usize = 23
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 5331
+                .String: u32 = 5317
 
   $ possum -p '"" $ (1-2)' -i ''
   []*ast.Ast.RNode

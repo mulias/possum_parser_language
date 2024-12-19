@@ -108,6 +108,17 @@
     "Foo Bar <foo@example.com>",
     { name = "Baz Qux", email = "bazqux@example.com", url = "https://example.com/bazqux" }
   ]
+  
+  dates = [
+    1987-07-05T17:45:00Z,
+    1979-05-27T07:32:00Z,
+    2006-06-01T11:00:00Z,
+  ]
+  
+  comments = [
+    1,
+    2, #this is ok
+  ]
   --------
   {
     "integers": [1, 2, 3],
@@ -125,7 +136,13 @@
     "contributors": [
       "Foo Bar <foo@example.com>",
       {"name": "Baz Qux", "email": "bazqux@example.com", "url": "https://example.com/bazqux"}
-    ]
+    ],
+    "dates": [
+      {"type": "datetime", "subtype": "offset", "value": "1987-07-05T17:45:00Z"},
+      {"type": "datetime", "subtype": "offset", "value": "1979-05-27T07:32:00Z"},
+      {"type": "datetime", "subtype": "offset", "value": "2006-06-01T11:00:00Z"}
+    ],
+    "comments": [1, 2]
   }
   
   y_bare_keys.toml

@@ -549,8 +549,8 @@ toml.boolean = boolean("true", "false")
 
 toml.array(elem) =
   "[" >
-  maybe_array_sep(surround(elem, maybe(ws)), ",")
-  < maybe(surround(",", maybe(ws)))
+  maybe_array_sep(surround(elem, _toml.ws), ",")
+  < maybe(surround(",", _toml.ws))
   < "]"
 
 toml.inline_table(value) = "{" > _toml.inline_table_body(value, {}) < "}"
