@@ -53,7 +53,7 @@
               .end: usize = 23
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 5346
+                .String: u32 = 5139
 
   $ possum -p '"" $ (1-2)' -i ''
   []*ast.Ast.RNode
@@ -98,7 +98,7 @@
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 3994
+                        .sId: u32 = 3892
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false

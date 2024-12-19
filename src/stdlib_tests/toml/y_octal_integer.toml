@@ -1,2 +1,3 @@
 oct1 = 0o01234567
 oct2 = 0o755 # useful for Unix file permissions
+oct3 = 0o7_6_5

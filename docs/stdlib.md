@@ -194,9 +194,6 @@ These parsers and value functions are always available in Possum programs, unles
 | `toml.number.float` | [TOML float]              | Float number               |
 | `toml.number.infinity` | TOML infinity          | String                     |
 | `toml.number.not_a_number` | TOML NaN           | String                     |
-| `toml.number.binary_numeral` | TOML binary integer | String                  |
-| `toml.number.octal_numeral` | TOML octal integer | String                    |
-| `toml.number.hex_numeral` | TOML hexadecimal integer | String                |
 | `toml.number.binary_integer` | TOML binary integer | Integer                 |
 | `toml.number.octal_integer` | TOML octal integer | Integer                   |
 | `toml.number.hex_integer` | TOML hexadecimal integer | Integer               |

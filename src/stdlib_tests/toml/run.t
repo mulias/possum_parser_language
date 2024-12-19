@@ -171,10 +171,9 @@
   
   y_binary_integer.toml
   bin1 = 0b11010110
+  bin2 = 0b1_0_1
   --------
-  {
-    "bin1": {"type": "integer", "subtype": "binary", "value": "0b11010110"}
-  }
+  {"bin1": 214, "bin2": 5}
   
   y_boolean.toml
   bool1 = true
@@ -384,12 +383,9 @@
   hex1 = 0xDEADBEEF
   hex2 = 0xdeadbeef
   hex3 = 0xdead_beef
+  hex4 = 0x00987
   --------
-  {
-    "hex1": {"type": "integer", "subtype": "hexadecimal", "value": "0xDEADBEEF"},
-    "hex2": {"type": "integer", "subtype": "hexadecimal", "value": "0xdeadbeef"},
-    "hex3": {"type": "integer", "subtype": "hexadecimal", "value": "0xdeadbeef"}
-  }
+  {"hex1": 3735928559, "hex2": 3735928559, "hex3": 3735928559, "hex4": 2439}
   
   y_indentation.toml
     fruit.name = "banana"
@@ -492,11 +488,9 @@
   y_octal_integer.toml
   oct1 = 0o01234567
   oct2 = 0o755 # useful for Unix file permissions
+  oct3 = 0o7_6_5
   --------
-  {
-    "oct1": {"type": "integer", "subtype": "octal", "value": "0o01234567"},
-    "oct2": {"type": "integer", "subtype": "octal", "value": "0o755"}
-  }
+  {"oct1": 342391, "oct2": 493, "oct3": 501}
   
   y_pair.toml
   key = "value"

@@ -510,9 +510,9 @@ toml.tagged_value =
   _toml.tag($"datetime", $"local", toml.datetime.local) |
   _toml.tag($"datetime", $"date-local", toml.datetime.local_date) |
   _toml.tag($"datetime", $"time-local", toml.datetime.local_time) |
-  _toml.tag($"integer", $"binary", toml.number.binary_numeral) |
-  _toml.tag($"integer", $"octal", toml.number.octal_numeral) |
-  _toml.tag($"integer", $"hexadecimal", toml.number.hex_numeral) |
+  toml.number.binary_integer |
+  toml.number.octal_integer |
+  toml.number.hex_integer |
   _toml.tag($"float", $"infinity", toml.number.infinity) |
   _toml.tag($"float", $"not-a-number", toml.number.not_a_number) |
   toml.number.float |
@@ -537,9 +537,9 @@ toml.datetime =
   toml.datetime.local_time
 
 toml.number =
-  toml.number.binary_numeral |
-  toml.number.octal_numeral |
-  toml.number.hex_numeral |
+  toml.number.binary_integer |
+  toml.number.octal_integer |
+  toml.number.hex_integer |
   toml.number.infinity |
   toml.number.not_a_number |
   toml.number.float |
@@ -656,42 +656,24 @@ toml.number.infinity = maybe("+" | "-") + "inf"
 
 toml.number.not_a_number = maybe("+" | "-") + "nan"
 
-toml.number.binary_numeral =
-  "0b" + one_or_both(
-    many_sep("0", maybe("_")) + maybe(skip("_") < peek(binary_numeral)),
-    many_sep(binary_numeral, maybe("_"))
-  )
-
-toml.number.octal_numeral =
-  "0o" + one_or_both(
-    many_sep("0", maybe("_")) + maybe(skip("_") < peek(octal_numeral)),
-    many_sep(octal_numeral, maybe("_"))
-  )
-
-toml.number.hex_numeral =
-  "0x" + one_or_both(
-    many_sep("0", maybe("_")) + maybe(skip("_") < peek(hex_numeral)),
-    many_sep(hex_numeral, maybe("_"))
-  )
-
 toml.number.binary_integer =
   "0b" & one_or_both(
-    array_sep(0, maybe("_")) + maybe(skip("_") < peek(binary_integer)),
-    array_sep(binary_integer, maybe("_"))
+    array_sep(0, maybe("_")) + maybe(skip("_") < peek(binary_numeral)),
+    array_sep(binary_digit, maybe("_"))
   ) -> Digits $
   Num.FromBinaryDigits(Digits)
 
 toml.number.octal_integer =
   "0o" & one_or_both(
-    array_sep(0, maybe("_")) + maybe(skip("_") < peek(octal_integer)),
-    array_sep(octal_integer, maybe("_"))
+    array_sep(0, maybe("_")) + maybe(skip("_") < peek(octal_numeral)),
+    array_sep(octal_digit, maybe("_"))
   ) -> Digits $
   Num.FromOctalDigits(Digits)
 
 toml.number.hex_integer =
   "0x" & one_or_both(
-    array_sep(0, maybe("_")) + maybe(skip("_") < peek(hex_integer)),
-    array_sep(hex_integer, maybe("_"))
+    array_sep(0, maybe("_")) + maybe(skip("_") < peek(hex_numeral)),
+    array_sep(hex_digit, maybe("_"))
   ) -> Digits $
   Num.FromHexDigits(Digits)
 
