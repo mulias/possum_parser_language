@@ -555,9 +555,10 @@ toml.array(elem) =
 
 toml.inline_table(value) = "{" > _toml.inline_table_body(value, {}) < "}"
 
-_toml.inline_table_body(value, Doc) =
-  _toml.inline_table_pair(value, Doc) -> NewDoc &
-  ("," ? _toml.inline_table_body(value, NewDoc) : const(NewDoc))
+_toml.inline_table_body(value, Table) =
+  _toml.inline_table_pair(value, Table) -> NewTable ?
+  ("," ? _toml.inline_table_body(value, NewTable) : const(NewTable)) :
+  const(Table)
 
 _toml.inline_table_pair(value, Doc) =
   maybe(spaces) &

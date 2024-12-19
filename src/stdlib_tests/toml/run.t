@@ -8,6 +8,17 @@
     "integers2": [1, 2, 3]
   }
   
+  y_array_nested_inline_table.toml
+  a = [ { b = {} } ]
+  --------
+  {
+    "a": [
+      {
+        "b": {}
+      }
+    ]
+  }
+  
   y_array_of_inline_tables.toml
   points = [ { x = 1, y = 2, z = 3 },
              { x = 7, y = 8, z = 9 },

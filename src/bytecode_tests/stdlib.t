@@ -3300,27 +3300,32 @@
   ========================================
   
   ========_toml.inline_table_body=========
-  0000    | GetConstant 0: NewDoc
-  0002    | GetConstant 1: _toml.inline_table_pair
-  0004    | GetBoundLocal 0
-  0006    | GetBoundLocal 1
-  0008    | CallFunction 2
-  0010    | GetLocal 2
-  0012    | Destructure
-  0013    | TakeRight 13 -> 41
-  0016    | SetInputMark
-  0017    | GetConstant 2: ","
-  0019    | CallFunction 0
-  0021    | ConditionalThen 21 -> 35
-  0024    | GetConstant 3: _toml.inline_table_body
-  0026    | GetBoundLocal 0
-  0028    | GetBoundLocal 2
-  0030    | CallTailFunction 2
-  0032    | ConditionalElse 32 -> 41
-  0035    | GetConstant 4: const
-  0037    | GetBoundLocal 2
-  0039    | CallTailFunction 1
-  0041    | End
+  0000    | GetConstant 0: NewTable
+  0002    | SetInputMark
+  0003    | GetConstant 1: _toml.inline_table_pair
+  0005    | GetBoundLocal 0
+  0007    | GetBoundLocal 1
+  0009    | CallFunction 2
+  0011    | GetLocal 2
+  0013    | Destructure
+  0014    | ConditionalThen 14 -> 45
+  0017    | SetInputMark
+  0018    | GetConstant 2: ","
+  0020    | CallFunction 0
+  0022    | ConditionalThen 22 -> 36
+  0025    | GetConstant 3: _toml.inline_table_body
+  0027    | GetBoundLocal 0
+  0029    | GetBoundLocal 2
+  0031    | CallTailFunction 2
+  0033    | ConditionalElse 33 -> 42
+  0036    | GetConstant 4: const
+  0038    | GetBoundLocal 2
+  0040    | CallTailFunction 1
+  0042    | ConditionalElse 42 -> 51
+  0045    | GetConstant 5: const
+  0047    | GetBoundLocal 1
+  0049    | CallTailFunction 1
+  0051    | End
   ========================================
   
   ========_toml.inline_table_pair=========
