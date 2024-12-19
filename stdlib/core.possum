@@ -647,9 +647,10 @@ toml.number.float = number_of(
   )
 )
 
-_toml.number.fraction_part = "." + numeral + maybe_many(maybe("_") > numeral)
+_toml.number.fraction_part = "." + many_sep(numerals, maybe("_"))
 
-_toml.number.exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
+_toml.number.exponent_part =
+  ("e" | "E") + maybe("-" | "+") + many_sep(numerals, maybe("_"))
 
 toml.number.infinity = maybe("+" | "-") + "inf"
 

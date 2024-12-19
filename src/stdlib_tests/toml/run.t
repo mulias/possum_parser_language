@@ -374,8 +374,11 @@
   
   y_floats_with_underscores.toml
   flt8 = 224_617.445_991_228
+  before = 3_141.5927
+  after = 3141.592_7
+  exponent = 3e1_4
   --------
-  {"flt8": 224617.445991228}
+  {"flt8": 224617.445991228, "before": 3141.5927, "after": 3141.5927, "exponent": 3e14}
   
   y_hexadecimal_integer.toml
   hex1 = 0xDEADBEEF
