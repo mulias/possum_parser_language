@@ -494,7 +494,7 @@ _toml.key =
   toml.string.basic |
   toml.string.literal
 
-_toml.comment = "#" > line
+_toml.comment = "#" > maybe(line)
 
 toml.simple_value =
   toml.string |
@@ -548,10 +548,10 @@ toml.number =
 toml.boolean = boolean("true", "false")
 
 toml.array(elem) =
-  "[" >
-  maybe_array_sep(surround(elem, _toml.ws), ",")
-  < maybe(surround(",", _toml.ws))
-  < "]"
+  "[" > _toml.ws > default(
+    array_sep(surround(elem, _toml.ws), ",") < maybe(surround(",", _toml.ws)),
+    []
+  ) < _toml.ws < "]"
 
 toml.inline_table(value) = "{" > _toml.inline_table_body(value, {}) < "}"
 

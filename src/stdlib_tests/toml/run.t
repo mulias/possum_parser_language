@@ -189,6 +189,45 @@
   --------
   {"key": "value", "another": "# This is not a comment"}
   
+  y_comments_everywhere.toml
+  # Top comment.
+   # Top comment.
+  # Top comment.
+  
+  # [no-extraneous-groups-please]
+  
+  [group] # Comment
+  answer = 42 # Comment
+  # no-extraneous-keys-please = 999
+  # Inbetween comment.
+  more = [ # Comment
+   # What about multiple # comments?
+   # Can you handle it?
+   #
+           # Evil.
+  # Evil.
+   42, 42, # Comments within arrays are fun.
+   # What about multiple # comments?
+   # Can you handle it?
+   #
+           # Evil.
+  # Evil.
+  # ] Did I fool you?
+  ] # Hopefully not.
+  
+  # Make sure the space between the datetime and "#" isn't lexed.
+  dt = 1979-05-27T07:32:12-07:00  # c
+  d = 1979-05-27 # Comment
+  --------
+  {
+    "group": {
+      "answer": 42,
+      "more": [42, 42],
+      "dt": {"type": "datetime", "subtype": "offset", "value": "1979-05-27T07:32:12-07:00"},
+      "d": {"type": "datetime", "subtype": "date-local", "value": "1979-05-27"}
+    }
+  }
+  
   y_date_local.toml
   ld1 = 1979-05-27
   --------
