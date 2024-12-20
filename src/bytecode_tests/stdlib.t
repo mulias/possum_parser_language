@@ -3297,16 +3297,25 @@
   ===========toml.inline_table============
   0000    | GetConstant 0: "{"
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 15
-  0007    | GetConstant 1: _toml.inline_table_body
-  0009    | GetBoundLocal 0
-  0011    | GetConstant 2: {}
-  0013    | CallFunction 2
-  0015    | JumpIfFailure 15 -> 23
-  0018    | GetConstant 3: "}"
-  0020    | CallFunction 0
-  0022    | TakeLeft
-  0023    | End
+  0004    | TakeRight 4 -> 13
+  0007    | GetConstant 1: maybe
+  0009    | GetConstant 2: spaces
+  0011    | CallFunction 1
+  0013    | TakeRight 13 -> 24
+  0016    | GetConstant 3: _toml.inline_table_body
+  0018    | GetBoundLocal 0
+  0020    | GetConstant 4: {}
+  0022    | CallFunction 2
+  0024    | JumpIfFailure 24 -> 34
+  0027    | GetConstant 5: maybe
+  0029    | GetConstant 6: spaces
+  0031    | CallFunction 1
+  0033    | TakeLeft
+  0034    | JumpIfFailure 34 -> 42
+  0037    | GetConstant 7: "}"
+  0039    | CallFunction 0
+  0041    | TakeLeft
+  0042    | End
   ========================================
   
   ========_toml.inline_table_body=========
