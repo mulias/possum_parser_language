@@ -3,3 +3,10 @@ quot15 = '''Here are fifteen quotation marks: """""""""""""""'''
 apos15 = "Here are fifteen apostrophes: '''''''''''''''"
 
 str = ''''That,' she said, 'is still pointless.''''
+
+lit_one = ''''one quote''''
+lit_two = '''''two quotes'''''
+lit_one_space = ''' 'one quote' '''
+lit_two_space = ''' ''two quotes'' '''
+
+mismatch2 = '''aaa"""bbb'''

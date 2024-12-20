@@ -571,20 +571,20 @@ _toml.inline_table_pair(value, Doc) =
   maybe(spaces) $
   _Toml.InsertAtPath(Doc, Key, Val)
 
-toml.string.multi_line_basic = `"""` > maybe(ws) > _toml.string.multi_line_basic_body < `"""`
+toml.string.multi_line_basic = `"""` > maybe(nl) > _toml.string.multi_line_basic_body < `"""`
 
 _toml.string.multi_line_basic_body =
   many(
     _toml.escaped_ctrl_char |
     _toml.escaped_unicode |
     ws |
-    skip(`\` + ws) |
+    (`\` + ws > "") |
     (peek(`"""""`) > `""`) |
     (peek(`""""`) > `"`) |
     unless(char, _ctrl_char | `\` | `"""`)
   ) | const($"")
 
-toml.string.multi_line_literal = `'''` > maybe(ws) > _toml.string.multi_line_literal_body < `'''`
+toml.string.multi_line_literal = `'''` > maybe(nl) > _toml.string.multi_line_literal_body < `'''`
 
 _toml.string.multi_line_literal_body =
   many(

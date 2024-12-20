@@ -468,8 +468,23 @@
   str1 = """
   Roses are red
   Violets are blue"""
+  
+  empty-1 = """"""
+  
+  # A newline immediately following the opening delimiter will be trimmed.
+  empty-2 = """
+  """
+  
+  # \ at the end of line trims newlines as well; note that last \ is followed by
+  # two spaces, which are ignored.
+  empty-3 = """\
+     """
+  empty-4 = """\
+    \
+    \
+    """
   --------
-  {"str1": "Roses are red\nViolets are blue"}
+  {"str1": "Roses are red\nViolets are blue", "empty-1": "", "empty-2": "", "empty-3": "", "empty-4": ""}
   
   y_multi_line_basic_string_line_ending_backslash.toml
   # The following strings are byte-for-byte equivalent:
@@ -534,15 +549,33 @@
   'key2' = "value"
   'quoted "value"' = "value"
   --------
-  {"127.0.0.1": "value", "character encoding": "value", "\xca\x8e\xc7\x9d\xca\x9e": "value", "key2": "value", "quoted "value"": "value"} (esc)
+  {"127.0.0.1": "value", "character encoding": "value", "\xca\x8e\xc7\x9d\xca\x9e": "value", "key2": "value", "quoted \\"value\\"": "value"} (esc)
   
   y_quotes_inside_multi_line_basic_string.toml
   str4 = """Here are two quotation marks: "". Simple enough."""
   str5 = """Here are three quotation marks: ""\"."""
   str6 = """Here are fifteen quotation marks: ""\"""\"""\"""\"""\"."""
   str7 = """"This," she said, "is just a pointless statement.""""
+  
+  one = """"one quote""""
+  two = """""two quotes"""""
+  one_space = """ "one quote" """
+  two_space = """ ""two quotes"" """
+  
+  mismatch1 = """aaa'''bbb"""
+  
+  # Three opening """, then one escaped ", then two "" (allowed), and then three
+  # closing """
+  escaped = """lol\""""""
+  
+  five-quotes = """
+  Closing with five quotes
+  """""
+  four-quotes = """
+  Closing with four quotes
+  """"
   --------
-  {"str4": "Here are two quotation marks: \"\". Simple enough.", "str5": "Here are three quotation marks: \"\"\".", "str6": "Here are fifteen quotation marks: \"\"\"\"\"\"\"\"\"\"\"\"\"\"\".", "str7": "\"This,\" she said, \"is just a pointless statement.\""}
+  {"str4": "Here are two quotation marks: \"\". Simple enough.", "str5": "Here are three quotation marks: \"\"\".", "str6": "Here are fifteen quotation marks: \"\"\"\"\"\"\"\"\"\"\"\"\"\"\".", "str7": "\"This,\" she said, \"is just a pointless statement.\"", "one": "\"one quote\"", "two": "\"\"two quotes\"\"", "one_space": " \"one quote\" ", "two_space": " \"\"two quotes\"\" ", "mismatch1": "aaa'''bbb", "escaped": "lol\"\"\"", "five-quotes": "Closing with five quotes\n\"\"", "four-quotes": "Closing with four quotes\n\""}
   
   y_quotes_inside_multi_line_literal_string.toml
   quot15 = '''Here are fifteen quotation marks: """""""""""""""'''
@@ -550,8 +583,15 @@
   apos15 = "Here are fifteen apostrophes: '''''''''''''''"
   
   str = ''''That,' she said, 'is still pointless.''''
+  
+  lit_one = ''''one quote''''
+  lit_two = '''''two quotes'''''
+  lit_one_space = ''' 'one quote' '''
+  lit_two_space = ''' ''two quotes'' '''
+  
+  mismatch2 = '''aaa"""bbb'''
   --------
-  {"quot15": "Here are fifteen quotation marks: \"\"\"\"\"\"\"\"\"\"\"\"\"\"\"", "apos15": "Here are fifteen apostrophes: '''''''''''''''", "str": "'That,' she said, 'is still pointless.'"}
+  {"quot15": "Here are fifteen quotation marks: \"\"\"\"\"\"\"\"\"\"\"\"\"\"\"", "apos15": "Here are fifteen apostrophes: '''''''''''''''", "str": "'That,' she said, 'is still pointless.'", "lit_one": "'one quote'", "lit_two": "''two quotes''", "lit_one_space": " 'one quote' ", "lit_two_space": " ''two quotes'' ", "mismatch2": "aaa\"\"\"bbb"}
   
   y_root_table.toml
   fruit.apple.color = "red"
