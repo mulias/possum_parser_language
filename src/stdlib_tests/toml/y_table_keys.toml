@@ -1,0 +1,35 @@
+"127.0.0.1" = "value"
+"character encoding" = "value"
+"ʎǝʞ" = "value"
+'key2' = "value"
+'quoted "value"' = "value"
+
+"a b"   = 1
+" c d " = 2
+
+"\u0000" = "null"
+'\u0000' = "different key"
+"\u0008 \u000c \U00000041 \u007f \u0080 \u00ff \ud7ff \ue000 \uffff \U00010000 \U0010ffff" = "escaped key"
+
+"~  ÿ ퟿   𐀀 " = "basic key"
+'l ~  ÿ ퟿   𐀀 ' = "literal key"
+
+"\n" = "newline"
+"\b" = "bell"
+"\u00c0" = "latin capital letter A with grave"
+"\"" = "just a quote"
+
+["backsp\b\b"]
+
+["\"quoted\""]
+quote = true
+
+["a.b"."\u00c0"]
+
+[ " tbl " ]
+"\ttab\ttab\t" = "tab"
+
+[a.b.c]            # this is best practice
+[ d.e.f ]          # same as [d.e.f]
+[ g .  h  . i ]    # same as [g.h.i]
+[ j . "ʞ" . 'l' ]  # same as [j."ʞ".'l']

@@ -70,7 +70,7 @@ pub fn WriteStream(comptime OutStream: type) type {
                     while (it.next()) |entry| {
                         if (use_indent) try self.writeIndentation();
 
-                        try self.stream.print("\"{s}\"", .{entry.key_ptr.*});
+                        try encodeJsonString(entry.key_ptr.*, self.stream);
                         try self.stream.writeByte(':');
                         if (self.format != .Compact) try self.stream.writeByte(' ');
                         try self.write(entry.value_ptr.*);

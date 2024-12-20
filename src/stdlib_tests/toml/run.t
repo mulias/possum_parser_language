@@ -704,13 +704,66 @@
     "animal": {}
   }
   
-  y_table_key_extra_whitespace.toml
+  y_table_keys.toml
+  "127.0.0.1" = "value"
+  "character encoding" = "value"
+  "\xca\x8e\xc7\x9d\xca\x9e" = "value" (esc)
+  'key2' = "value"
+  'quoted "value"' = "value"
+  
+  "a b"   = 1
+  " c d " = 2
+  
+  "\u0000" = "null"
+  '\u0000' = "different key"
+  "\u0008 \u000c \U00000041 \u007f \u0080 \u00ff \ud7ff \ue000 \uffff \U00010000 \U0010ffff" = "escaped key"
+  
+  "~  \xc3\xbf \xed\x9f\xbf \xee\x80\x80  \xf0\x90\x80\x80 " = "basic key" (esc)
+  'l ~  \xc3\xbf \xed\x9f\xbf \xee\x80\x80  \xf0\x90\x80\x80 ' = "literal key" (esc)
+  
+  "\n" = "newline"
+  "\b" = "bell"
+  "\u00c0" = "latin capital letter A with grave"
+  "\"" = "just a quote"
+  
+  ["backsp\b\b"]
+  
+  ["\"quoted\""]
+  quote = true
+  
+  ["a.b"."\u00c0"]
+  
+  [ " tbl " ]
+  "\ttab\ttab\t" = "tab"
+  
   [a.b.c]            # this is best practice
   [ d.e.f ]          # same as [d.e.f]
   [ g .  h  . i ]    # same as [g.h.i]
   [ j . "\xca\x9e" . 'l' ]  # same as [j."\xca\x9e".'l'] (esc)
   --------
   {
+    "127.0.0.1": "value",
+    "character encoding": "value",
+    "\xca\x8e\xc7\x9d\xca\x9e": "value", (esc)
+    "key2": "value",
+    "quoted \"value\"": "value",
+    "a b": 1,
+    " c d ": 2,
+    "\u0000": "null",
+    "\\u0000": "different key",
+    "\\b \\f A \x7f \xc2\x80 \xc3\xbf \xed\x9f\xbf \xee\x80\x80 \xef\xbf\xbf \xf0\x90\x80\x80 \xf4\x8f\xbf\xbf": "escaped key", (esc)
+    "~  \xc3\xbf \xed\x9f\xbf \xee\x80\x80  \xf0\x90\x80\x80 ": "basic key", (esc)
+    "l ~  \xc3\xbf \xed\x9f\xbf \xee\x80\x80  \xf0\x90\x80\x80 ": "literal key", (esc)
+    "\n": "newline",
+    "\b": "bell",
+    "\xc3\x80": "latin capital letter A with grave", (esc)
+    "\"": "just a quote",
+    "backsp\b\b": {},
+    "\"quoted\"": {"quote": true},
+    "a.b": {
+      "\xc3\x80": {} (esc)
+    },
+    " tbl ": {"\ttab\ttab\t": "tab"},
     "a": {
       "b": {
         "c": {}
@@ -729,6 +782,20 @@
     "j": {
       "\xca\x9e": { (esc)
         "l": {}
+      }
+    }
+  }
+  
+  y_table_literal_string_key.toml
+  ['a']
+  [a.'"b"']
+  [a.'"b"'.c]
+  answer = 42
+  --------
+  {
+    "a": {
+      "\"b\"": {
+        "c": {"answer": 42}
       }
     }
   }
