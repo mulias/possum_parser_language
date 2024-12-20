@@ -2652,10 +2652,12 @@
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallFunction 1
-  0006    | TakeRight 6 -> 13
-  0009    | GetConstant 2: _toml.comment
-  0011    | CallFunction 0
-  0013    | End
+  0006    | TakeRight 6 -> 17
+  0009    | GetConstant 2: many_sep
+  0011    | GetConstant 3: _toml.comment
+  0013    | GetConstant 4: whitespace
+  0015    | CallTailFunction 2
+  0017    | End
   ========================================
   
   ==============toml.custom===============

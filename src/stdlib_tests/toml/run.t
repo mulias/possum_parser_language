@@ -553,6 +553,24 @@
   --------
   {"quot15": "Here are fifteen quotation marks: \"\"\"\"\"\"\"\"\"\"\"\"\"\"\"", "apos15": "Here are fifteen apostrophes: '''''''''''''''", "str": "'That,' she said, 'is still pointless.'"}
   
+  y_root_table.toml
+  fruit.apple.color = "red"
+  # Defines a table named fruit
+  # Defines a table named fruit.apple
+  
+  fruit.apple.taste.sweet = true
+  # Defines a table named fruit.apple.taste
+  # fruit and fruit.apple were already created
+  --------
+  {
+    "fruit": {
+      "apple": {
+        "color": "red",
+        "taste": {"sweet": true}
+      }
+    }
+  }
+  
   y_special_floats.toml
   sf0 = +0.0
   sf00 = -0.0

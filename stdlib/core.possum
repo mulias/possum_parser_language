@@ -444,7 +444,7 @@ toml.tagged = toml.custom(toml.tagged_value)
 toml.custom(value) =
   default(toml.root_table(value, {}), {}) -> RootDoc &
   toml.tables(value, RootDoc) -> FinalDoc &
-  maybe(maybe(ws) > _toml.comment) $
+  maybe(maybe(ws) > many_sep(_toml.comment, ws)) $
   FinalDoc
 
 toml.root_table(value, Doc) = _toml.table_body(value, [], Doc)
