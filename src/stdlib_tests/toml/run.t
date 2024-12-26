@@ -843,13 +843,17 @@
   }
   
 
-  $ for f in $TESTDIR/n_*.toml; do echo "$(basename $f)"; cat $f; echo "--------"; possum -p 'input(json)' $f; echo ""; done
+  $ for f in $TESTDIR/n_*.toml; do echo "$(basename $f)"; cat $f; echo "--------"; possum -p 'input(toml)' $f; echo ""; done
   n_append_array_of_tables_element_to_array.toml
   fruits = []
   
   [[fruits]]
   --------
-  Parser Failure
+  {
+    "fruits": [
+      {}
+    ]
+  }
   
   n_append_array_of_tables_element_to_table.toml
   [fruit.physical]
@@ -866,12 +870,29 @@
   --------
   Parser Failure
   
+  n_extend_defined_array_of_tables.toml
+  [[tab.arr]]
+  [tab]
+  arr.val1=1
+  --------
+  {
+    "tab": {
+      "arr": [
+        {"val1": 1}
+      ]
+    }
+  }
+  
   n_extend_inline_table_with_table.toml
   [product]
   type = { name = "Nail" }
   type.edible = false
   --------
-  Parser Failure
+  {
+    "product": {
+      "type": {"name": "Nail", "edible": false}
+    }
+  }
   
   n_extend_table_with_inline_table.toml
   [product]
@@ -916,7 +937,9 @@
   [fruit]
   orange = "orange"
   --------
-  Parser Failure
+  {
+    "fruit": {"apple": "red", "orange": "orange"}
+  }
   
   n_table_repeated_nested_key.toml
   [fruit]
@@ -925,7 +948,7 @@
   [fruit.apple]
   texture = "smooth"
   --------
-  Parser Failure
+  [Line 1, 11-16145]Error: Merge type mismatch
   
   n_three_quotes_inside_multi_line_basic_string.toml
   str5 = """Here are three quotation marks: """."""
@@ -935,7 +958,7 @@
   n_three_quotes_inside_multi_line_literal_string.toml
   apos15 = '''Here are fifteen apostrophes: ''''''''''''''''''
   --------
-  Parser Failure
+  {"apos15": "Here are fifteen apostrophes: '''''''''''''''"}
   
   n_treat_non_table_value_as_table.toml
   # This defines the value of fruit.apple to be an integer.
@@ -945,5 +968,5 @@
   # You can't turn an integer into a table.
   fruit.apple.smooth = true
   --------
-  Parser Failure
+  [Line 1, 11-16145]Error: Merge type mismatch
   
