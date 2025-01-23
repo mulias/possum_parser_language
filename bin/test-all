@@ -8,3 +8,4 @@ zig build test
 ./bin/test-snapshot ./src/parser_tests/
 ./bin/test-snapshot ./src/bytecode_tests/
 ./bin/test-snapshot ./src/runtime_tests/
+./bin/test-snapshot ./src/stdlib_tests/

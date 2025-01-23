@@ -53,7 +53,7 @@
               .end: usize = 23
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 5132
+                .String: u32 = 5954
 
   $ possum -p '"" $ (1-2)' -i ''
   []*ast.Ast.RNode
@@ -71,7 +71,7 @@
               .end: usize = 2
             .node: ast.Ast.Node
               .ElemNode: elem.Elem
-                .String: u32 = 1768
+                .String: u32 = 1919
           .right: *ast.Ast.RNode
             .region: region.Region
               .start: usize = 7
@@ -98,7 +98,7 @@
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
                       .NumberString: elem.Elem.NumberString
-                        .sId: u32 = 3892
+                        .sId: u32 = 4644
                         .format: elem.Elem.NumberString.Format
                           .Integer
                         .negated: bool = false
