@@ -6,7 +6,7 @@ move =
   "move %(number -> C) from %(numeral -> F) to %(numeral -> T)" $
   {"count": C, "from": F, "to": T}
 
-table_sep(cargo, space, nl) -> CargoRows & ws &
+rows(cargo, space, nl) -> CargoRows & ws &
 array_sep(numeral, ws) -> _Labels & ws &
 array_sep(move, nl) -> Steps $
 {"cargo_rows": CargoRows, "steps": Steps}

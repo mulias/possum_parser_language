@@ -28,7 +28,7 @@ Possum is inspired by classic Unix utilities like [AWK] and [sed], as well as to
 ```
 
 ```
-  $ possum --parser='table_sep(int, ",", nl)' numbers.txt
+  $ possum --parser='rows(int, ",", nl)' numbers.txt
   [
     [31, 88, 35, 24, 46, 48, 95, 42, 18, 43, 71, 32, 92, 62, 97, 63, 50, 2, 60, 58, 74, 66],
     [15, 87, 57, 34, 14, 3, 54, 93, 75, 22, 45, 10],
@@ -153,7 +153,7 @@ This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/S
   }
 ```
 
-### Fibonacci Sequence
+### Calculate the Nth Fibonacci number
 
 ```
   $ cat fibonacci.possum

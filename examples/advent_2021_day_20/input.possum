@@ -1,4 +1,4 @@
 pixel = ("." $ 0) | ("#" $ 1) ;
 array(pixel) < ws -> Algorithm &
-table_sep(pixel, '', nl) -> Image $
+rows(pixel, '', nl) -> Image $
 {"algorithm": Algorithm, "image": Image}

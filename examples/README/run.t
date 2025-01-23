@@ -1,4 +1,4 @@
-  $ possum --parser='table_sep(int, ",", nl)' $TESTDIR/numbers.txt
+  $ possum --parser='rows(int, ",", nl)' $TESTDIR/numbers.txt
   [
     [31, 88, 35, 24, 46, 48, 95, 42, 18, 43, 71, 32, 92, 62, 97, 63, 50, 2, 60, 58, 74, 66],
     [15, 87, 57, 34, 14, 3, 54, 93, 75, 22, 45, 10],

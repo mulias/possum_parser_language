@@ -1,4 +1,4 @@
-bingo_board = table_sep(maybe(spaces) > int, spaces, nl)
+bingo_board = rows(maybe(spaces) > int, spaces, nl)
 
 record2_sep(
   $"numbers", array_sep(int, ','), ws,

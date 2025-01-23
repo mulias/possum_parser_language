@@ -1,7 +1,7 @@
 Advent of Code 2021 Day 3
 https://adventofcode.com/2021/day/3
 
-  $ possum -p 'table_sep(digit, "", nl)' $TESTDIR/input.txt
+  $ possum -p 'rows(digit, "", nl)' $TESTDIR/input.txt
   [
     [0, 0, 1, 0, 0],
     [1, 1, 1, 1, 0],

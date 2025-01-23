@@ -88,8 +88,12 @@ These parsers and value functions are always available in Possum programs, unles
 | `tuple3_sep(elem1, sep1, elem2, sep2, elem3)` | three element parsers, interspersed with separators | Array of length 3 containing parsed elements |
 | `tuple(elem, N)`   | `elem` exactly `N` times, where `N` is a non-negative integer | Array of values parsed by `elem` |
 | `tuple_sep(elem, sep, N)` | `elem` exactly `N` times, interspersed with `sep`, where `N` is a non-negative integer | Array of values parsed by `elem` |
-| `table_sep(elem, sep, row_sep)` | One or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem` |
-| `maybe_table_sep(elem, sep, row_sep)` | Zero or more `elem`, interspersed with `sep` or `row_sep` | Array of array of values parsed by `elem`, maybe empty |
+| `rows(elem, col_sep, row_sep)` | One or more `elem`, interspersed with `col_sep` or `row_sep` | Array of arrays of values in each row, rows may be of different lengths |
+| `rows_padded(elem, col_sep, row_sep, Pad)` | One or more `elem`, interspersed with `col_sep` or `row_sep` | Array of arrays of values in each row, short rows are padded with `Pad` to all be the same length |
+| `columns(elem, col_sep, row_sep)` | One or more `elem`, interspersed with `col_sep` or `row_sep` | Array of arrays of values in each column, columns may be of different lengths |
+| `cols(elem, col_sep, row_sep)` | Alias for `columns` | As above              |
+| `columns_padded(elem, col_sep, row_sep, Pad)` | One or more `elem`, interspersed with `col_sep` or `row_sep` | Array of arrays of values in each column, short rows are padded with `Pad` to all be the same length |
+| `cols_padded(elem, col_sep, row_sep, Pad)` | Alias for `columns_padded` | As above |
 
 ### Objects
 

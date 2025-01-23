@@ -1,5 +1,3 @@
 filler = many("#" | "." | " ")
 
-many(filler | nl) &
-table_sep(upper, filler, surround(nl, filler)) -> Rows $
-Table.RotateClockwise(Rows)
+find(cols(upper, filler, surround(nl, filler)))

@@ -6,7 +6,7 @@ move =
   "move %(number -> C) from %(numeral -> F) to %(numeral -> T)" $
   {"count": C, "from": F, "to": T}
 
-table_sep(cargo, space, nl) -> CargoRows & ws &
+rows(cargo, space, nl) -> CargoRows & ws &
 array_sep(numeral, ws) -> Labels & ws &
 array_sep(move, nl) -> Steps $ (
   CrateStacks(Labels, CargoRows) -> InitialState &

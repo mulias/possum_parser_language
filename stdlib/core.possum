@@ -202,18 +202,48 @@ _tuple_sep(elem, sep, N, Acc) =
   const(Acc) :
   sep > elem -> Elem & _tuple_sep(elem, sep, Num.Dec(N), [...Acc, Elem])
 
-table_sep(elem, sep, row_sep) =
-  elem -> First & _table_sep(elem, sep, row_sep, [First], [])
+rows(elem, col_sep, row_sep) =
+  elem -> First & _rows(elem, col_sep, row_sep, [First], [])
 
-_table_sep(elem, sep, row_sep, AccRow, AccRows) =
-  sep > elem -> Elem ?
-  _table_sep(elem, sep, row_sep, [...AccRow, Elem], AccRows) :
+_rows(elem, col_sep, row_sep, AccRow, AccRows) =
+  col_sep > elem -> Elem ?
+  _rows(elem, col_sep, row_sep, [...AccRow, Elem], AccRows) :
   row_sep > elem -> NextRow ?
-  _table_sep(elem, sep, row_sep, [NextRow], [...AccRows, AccRow]) :
+  _rows(elem, col_sep, row_sep, [NextRow], [...AccRows, AccRow]) :
   const([...AccRows, AccRow])
 
-maybe_table_sep(elem, sep, row_sep) =
-  default(table_sep(elem, sep, row_sep), [[]])
+rows_padded(elem, col_sep, row_sep, Pad) =
+  peek(_dimensions(elem, col_sep, row_sep)) -> [MaxRowLen, _] &
+  elem -> First & _rows_padded(elem, col_sep, row_sep, Pad, $1, MaxRowLen, [First], [])
+
+_rows_padded(elem, col_sep, row_sep, Pad, RowLen, MaxRowLen, AccRow, AccRows) =
+  col_sep > elem -> Elem ?
+  _rows_padded(elem, col_sep, row_sep, Pad, Num.Inc(RowLen), MaxRowLen, [...AccRow, Elem], AccRows) :
+  row_sep > elem -> NextRow ?
+  _rows_padded(elem, col_sep, row_sep, Pad, $1, MaxRowLen, [NextRow], [...AccRows, Array.AppendN(AccRow, Pad, MaxRowLen - RowLen)]) :
+  const([...AccRows, Array.AppendN(AccRow, Pad, MaxRowLen - RowLen)])
+
+_dimensions(elem, col_sep, row_sep) =
+  elem > __dimensions(elem, col_sep, row_sep, $1, $1, $0)
+
+__dimensions(elem, col_sep, row_sep, RowLen, ColLen, MaxRowLen) =
+  col_sep > elem ?
+  __dimensions(elem, col_sep, row_sep, Num.Inc(RowLen), ColLen, MaxRowLen) :
+  row_sep > elem ?
+  __dimensions(elem, col_sep, row_sep, $1, Num.Inc(ColLen), Num.Max(RowLen, MaxRowLen)) :
+  const([Num.Max(RowLen, MaxRowLen), ColLen])
+
+columns(elem, col_sep, row_sep) =
+  rows(elem, col_sep, row_sep) -> Rows $
+  Table.Transpose(Rows)
+
+cols = columns
+
+columns_padded(elem, col_sep, row_sep, Pad) =
+  rows_padded(elem, col_sep, row_sep, Pad) -> Rows $
+  Table.Transpose(Rows)
+
+cols_padded = columns_padded
 
 ## Objects
 
@@ -842,6 +872,8 @@ Num.Dec(N) = @Subtract(N, 1)
 
 Num.Abs(N) = N -> 0.. | -N
 
+Num.Max(A, B) = A -> B.. ? A : B
+
 Num.FromBinaryDigits(Bs) =
   Array.Length(Bs) -> Len &
   _Num.FromBinaryDigits(Bs, Len - 1, 0)
@@ -942,12 +974,35 @@ _Array.ZipPairs(A1, A2, Acc) =
   _Array.ZipPairs(Rest1, Rest2, [...Acc, [First1, First2]]) :
   Acc
 
+Array.AppendN(A, Val, N) =
+  _Assert.NonNegativeInteger(N) &
+  N -> 0 ? A : Array.AppendN([...A, Val], Val, N - 1)
+
 Table.Transpose(T) = _Table.Transpose(T, [])
 
 _Table.Transpose(T, Acc) =
-  Array.Map(T, Array.First) -> FirstPerRow &
-  Array.Map(T, Array.Rest) -> RestPerRow ?
+  _Table.FirstPerRow(T) -> FirstPerRow &
+  _Table.RestPerRow(T) -> RestPerRow ?
   _Table.Transpose(RestPerRow, [...Acc, FirstPerRow]) :
+  Acc
+
+_Table.FirstPerRow(T) =
+  T -> [Row, ...Rest] & Row -> [VeryFirst, ..._] &
+  __Table.FirstPerRow(Rest, [VeryFirst])
+
+__Table.FirstPerRow(T, Acc) =
+  T -> [Row, ...Rest] & Row -> [First, ..._] ?
+  __Table.FirstPerRow(Rest, [...Acc, First]) :
+  Acc
+
+_Table.RestPerRow(T) = __Table.RestPerRow(T, [])
+
+__Table.RestPerRow(T, Acc) =
+  T -> [Row, ...Rest] ? (
+    Row -> [_, ...RowRest] ?
+    __Table.RestPerRow(Rest, [...Acc, RowRest]) :
+    __Table.RestPerRow(Rest, [...Acc, []])
+  ) :
   Acc
 
 Table.RotateClockwise(T) = Array.Map(Table.Transpose(T), Array.Reverse)

@@ -480,10 +480,10 @@ Use `find(p)` to skip characters until the provided parser matches.
   83324
 ```
 
-Similar to how `array_sep(elem, sep)` handles one-dimensional data with separators, `table_sep(array, sep, row_sep)` handles two dimensional data with both column and row separators.
+Similar to how `array_sep(elem, sep)` handles one-dimensional data with separators, `rows(elem, col_sep, row_sep)` handles two dimensional data with both column and row separators.
 
 ```
-  $ possum -p 'input(table_sep(num, spaces, ws))' -i '
+  $ possum -p 'input(rows(num, spaces, ws))' -i '
     1 2 3 4 5
     0 1 2 3 4
     4 5 6 1 2

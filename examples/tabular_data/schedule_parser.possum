@@ -1,8 +1,6 @@
 input(schedule)
 
-schedule = table_sep(token, spaces, nl) -> Table $ Schedule(Table)
-
-Schedule(T) =
-  T -> [Weekdays, ...Rows] &
-  Table.Transpose(Rows) -> [Hours, ...SubjectRows] &
-  Array.ZipObject(Weekdays, Table.ZipObjects(Hours, SubjectRows))
+schedule =
+  array_sep(token, spaces) -> Weekdays & nl &
+  columns(token, spaces, nl) -> [Hours, ...Subjects] $
+  Array.ZipObject(Weekdays, Table.ZipObjects(Hours, Subjects))

@@ -1,7 +1,7 @@
 input(produce)
 
 produce =
-  table_sep(number | word, col_sep, nl) -> [Headers, ...Rows] $
+  rows(number | word, col_sep, nl) -> [Headers, ...Rows] $
   Table.ZipObjects(Headers, Rows)
 
 col_sep = surround("|", maybe(ws))
