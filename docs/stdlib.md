@@ -259,7 +259,7 @@ See the `stdlib-ast` docs for more detailed documentation.
 
 | Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
-| `Obj.Get(O, K)`    | Retrieve the value associated with the key `K`          |
+| `Obj.Get(O, K)`    | Retrieve the value associated with the key `K` in the object `O` |
 | `Obj.Put(O, K, V)` | Add the key `K` with value `V` to the object `O`        |
 
 ### Abstract Syntax Trees
