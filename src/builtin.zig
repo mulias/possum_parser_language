@@ -279,8 +279,8 @@ fn createDbgValue(vm: *VM) !*Function {
     const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
     const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
 
-    const arg1 = try vm.strings.insert("p");
-    try fun.locals.append(.{ .ParserVar = arg1 });
+    const arg1 = try vm.strings.insert("V");
+    try fun.locals.append(.{ .ValueVar = arg1 });
 
     const loc = Region.new(0, 0);
 
