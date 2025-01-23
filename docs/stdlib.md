@@ -170,10 +170,6 @@ These parsers and value functions are always available in Possum programs, unles
 | `toml.simple`      | Valid TOML document        | Object with TOML values, unsupported types encoded as strings |
 | `toml.tagged`      | Valid TOML document        | Object with TOML values, unsupported types encoded as strings tagged with type information |
 | `toml.custom(value)` | TOML document with custom `value`s for each key/value pair | Object with parsed values |
-| `toml.root_table(value, Doc)` | [TOML table] without header | `Doc` object with additional parsed key/value pairs |
-| `toml.tables(value, Doc)` | One or more [TOML table]s with headers | `Doc` object with additional keys for each parsed table |
-| `toml.table(value, Doc)` | [TOML table] with header | `Doc` object with an additional key inserted at the header path |
-| `toml.array_of_tables(value, Doc)` | TOML table with array of tables header | `Doc` object with object inserted into an array at the header path |
 | `toml.simple_value` | Valid TOML value          | Parsed value, unsupported types encoded as strings |
 | `toml.tagged_value` | Valid TOML value          | Parsed value, unsupported types encoded as strings tagged with type information |
 | `toml.string`      | [TOML string]              | String                     |
@@ -198,8 +194,6 @@ These parsers and value functions are always available in Possum programs, unles
 | `toml.number.octal_integer` | TOML octal integer | Integer                   |
 | `toml.number.hex_integer` | TOML hexadecimal integer | Integer               |
 
-[TOML table]: https://toml.io/en/v1.0.0#table
-[array of tables]: https://toml.io/en/v1.0.0#array-of-tables
 [TOML string]: https://toml.io/en/v1.0.0#string
 [TOML date-time]: https://toml.io/en/v1.0.0#offset-date-time
 [TOML date]: https://toml.io/en/v1.0.0#local-date

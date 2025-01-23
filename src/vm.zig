@@ -389,11 +389,12 @@ pub const VM = struct {
             .InsertAtIndex => {
                 const index = self.readByte();
                 const elem = self.pop();
-                const array = self.pop().asDyn().asArray();
+                const array_elem = self.pop();
 
-                if (elem.isFailure()) {
+                if (elem.isFailure() or array_elem.isFailure()) {
                     try self.pushFailure();
                 } else {
+                    const array = array_elem.asDyn().asArray();
                     var copy = try Elem.Dyn.Array.copy(self, array.elems.items);
                     copy.elems.items[index] = elem;
                     try self.push(copy.dyn.elem());
@@ -403,11 +404,12 @@ pub const VM = struct {
                 const idx = self.readByte();
                 const keyElem = self.chunk().getConstant(idx);
                 const val = self.pop();
-                const object = self.pop().asDyn().asObject();
+                const object_elem = self.pop();
 
-                if (val.isFailure()) {
+                if (val.isFailure() or object_elem.isFailure()) {
                     try self.pushFailure();
                 } else {
+                    const object = object_elem.asDyn().asObject();
                     const key = switch (keyElem) {
                         .String => |sId| sId,
                         else => @panic("Internal Error"),
@@ -421,11 +423,12 @@ pub const VM = struct {
             .InsertKeyVal => {
                 const val = self.pop();
                 const keyElem = self.pop();
-                const object = self.pop().asDyn().asObject();
+                const object_elem = self.pop();
 
-                if (val.isFailure() or keyElem.isFailure()) {
+                if (val.isFailure() or keyElem.isFailure() or object_elem.isFailure()) {
                     try self.pushFailure();
                 } else {
+                    const object = object_elem.asDyn().asObject();
                     var key: StringTable.Id = undefined;
 
                     if (keyElem.isType(.String)) {

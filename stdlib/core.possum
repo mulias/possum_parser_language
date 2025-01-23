@@ -442,50 +442,59 @@ toml.simple = toml.custom(toml.simple_value)
 toml.tagged = toml.custom(toml.tagged_value)
 
 toml.custom(value) =
-  default(toml.root_table(value, {}), {}) -> RootDoc &
-  toml.tables(value, RootDoc) -> FinalDoc &
-  maybe(maybe(ws) > many_sep(_toml.comment, ws)) $
-  FinalDoc
+  maybe(_toml.comments + maybe(ws)) &
+  _toml.with_root_table(value) | _toml.no_root_table(value) -> Doc &
+  maybe(maybe(ws) + _toml.comments) $
+  _Toml.Doc.Value(Doc)
 
-toml.root_table(value, Doc) = _toml.table_body(value, [], Doc)
+_toml.with_root_table(value) =
+  _toml.root_table(value, _Toml.Doc.Empty) -> RootDoc &
+  (_toml.ws > _toml.tables(value, RootDoc)) | const(RootDoc)
 
-toml.tables(value, Doc) =
-  _toml.ws &
-  (toml.table(value, Doc) | toml.array_of_tables(value, Doc)) -> NewDoc ?
-  toml.tables(value, NewDoc) :
+_toml.root_table(value, Doc) =
+  _toml.table_body(value, [], Doc)
+
+_toml.no_root_table(value) =
+  _toml.table(value, _Toml.Doc.Empty) | _toml.array_of_tables(value, _Toml.Doc.Empty) -> NewDoc &
+  _toml.tables(value, NewDoc)
+
+_toml.tables(value, Doc) =
+  _toml.ws >
+  _toml.table(value, Doc) | _toml.array_of_tables(value, Doc) -> NewDoc ?
+  _toml.tables(value, NewDoc) :
   const(Doc)
 
-toml.table(value, Doc) =
-  _toml.table_header -> HeaderPath &
-  const(_Toml.InsertAtPath(Doc, HeaderPath, {})) -> NewDoc &
-  maybe(spaces) & maybe(_toml.comment) & maybe(spaces) &
-  (nl ? _toml.table_body(value, HeaderPath, NewDoc) : const(NewDoc))
+_toml.table(value, Doc) =
+  _toml.table_header -> HeaderPath & _toml.ws_newline & (
+    _toml.table_body(value, HeaderPath, Doc) |
+    const(_Toml.Doc.EnsureTableAtPath(Doc, HeaderPath))
+  )
 
-toml.array_of_tables(value, Doc) =
-  _toml.array_of_tables_header -> HeaderPath &
-  const(_Toml.AppendAtPath(Doc, HeaderPath, {})) -> NewDoc &
-  maybe(spaces) & maybe(_toml.comment) & maybe(spaces) &
-  (nl ? _toml.table_body(value, HeaderPath, NewDoc) : const(NewDoc))
+_toml.array_of_tables(value, Doc) =
+  _toml.array_of_tables_header -> HeaderPath & _toml.ws_newline &
+  default(_toml.table_body(value, [], _Toml.Doc.Empty), _Toml.Doc.Empty) -> InnerDoc $
+  _Toml.Doc.AppendAtPath(Doc, HeaderPath, _Toml.Doc.Value(InnerDoc))
 
 _toml.ws = maybe_many(ws | _toml.comment)
 
-_toml.table_header = "[" > maybe(ws) > _toml.path < maybe(ws) < "]"
+_toml.ws_line = maybe_many(spaces | _toml.comment)
+
+_toml.ws_newline = _toml.ws_line + (nl | end) + _toml.ws
+
+_toml.comments = many_sep(_toml.comment, ws)
+
+_toml.table_header = "[" > surround(_toml.path, maybe(ws)) < "]"
 
 _toml.array_of_tables_header =
-  repeat2("[" > maybe(ws)) > _toml.path < repeat2(maybe(ws) < "]")
+  "[[" > surround(_toml.path, maybe(ws)) < "]]"
 
 _toml.table_body(value, HeaderPath, Doc) =
-  _toml.ws &
-  _toml.table_pair(value, HeaderPath, Doc) -> NewDoc ?
-  _toml.table_body(value, HeaderPath, NewDoc) :
-  const(Doc)
+  _toml.table_pair(value) -> [KeyPath, Val] & _toml.ws_newline &
+  const(_Toml.Doc.InsertAtPath(Doc, HeaderPath + KeyPath, Val)) -> NewDoc &
+  _toml.table_body(value, HeaderPath, NewDoc) | const(NewDoc)
 
-_toml.table_pair(value, HeaderPath, Doc) =
-  _toml.path -> KeyPath &
-  maybe(spaces) & "=" & maybe(spaces) &
-  value -> Val &
-  maybe(spaces) & maybe(_toml.comment) & nl | end & maybe(ws) $
-  _Toml.InsertAtPath(Doc, HeaderPath + KeyPath, Val)
+_toml.table_pair(value) =
+  tuple2_sep(_toml.path, surround("=", maybe(spaces)), value)
 
 _toml.path = array_sep(_toml.key, surround(".", maybe(ws)))
 
@@ -554,14 +563,21 @@ toml.array(elem) =
   ) < _toml.ws < "]"
 
 toml.inline_table(value) =
+  _toml.empty_inline_table | _toml.nonempty_inline_table(value) -> InlineDoc $
+  _Toml.Doc.Value(InlineDoc)
+
+_toml.empty_inline_table = "{" > maybe(spaces) < "}" $ _Toml.Doc.Empty
+
+_toml.nonempty_inline_table(value) =
   "{" > maybe(spaces) >
-  _toml.inline_table_body(value, {})
+  _toml.inline_table_pair(value, _Toml.Doc.Empty) -> DocWithFirstPair &
+  _toml.inline_table_body(value, DocWithFirstPair)
   < maybe(spaces) < "}"
 
-_toml.inline_table_body(value, Table) =
-  _toml.inline_table_pair(value, Table) -> NewTable ?
-  ("," ? _toml.inline_table_body(value, NewTable) : const(NewTable)) :
-  const(Table)
+_toml.inline_table_body(value, Doc) =
+  "," > _toml.inline_table_pair(value, Doc) -> NewDoc ?
+  _toml.inline_table_body(value, NewDoc) :
+  const(Doc)
 
 _toml.inline_table_pair(value, Doc) =
   maybe(spaces) &
@@ -569,29 +585,30 @@ _toml.inline_table_pair(value, Doc) =
   maybe(spaces) & "=" & maybe(spaces) &
   value -> Val &
   maybe(spaces) $
-  _Toml.InsertAtPath(Doc, Key, Val)
+  _Toml.Doc.InsertAtPath(Doc, Key, Val)
 
-toml.string.multi_line_basic = `"""` > maybe(nl) > _toml.string.multi_line_basic_body < `"""`
+toml.string.multi_line_basic = `"""` > maybe(nl) > _toml.string.multi_line_basic($"")
 
-_toml.string.multi_line_basic_body =
-  many(
+_toml.string.multi_line_basic(Acc) =
+  (`"""""` $ (Acc + `""`)) |
+  (`""""` $ (Acc + `"`)) |
+  (`"""` $ Acc) |
+  (
     _toml.escaped_ctrl_char |
     _toml.escaped_unicode |
     ws |
     (`\` + ws > "") |
-    (peek(`"""""`) > `""`) |
-    (peek(`""""`) > `"`) |
-    unless(char, _ctrl_char | `\` | `"""`)
-  ) | const($"")
+    unless(char, _ctrl_char | `\`) -> C &
+    _toml.string.multi_line_basic(Acc + C)
+  )
 
-toml.string.multi_line_literal = `'''` > maybe(nl) > _toml.string.multi_line_literal_body < `'''`
+toml.string.multi_line_literal = `'''` > maybe(nl) > _toml.string.multi_line_literal($"")
 
-_toml.string.multi_line_literal_body =
-  many(
-    (peek(`'''''`) > `''`) |
-    (peek(`''''`) > `'`) |
-    unless(char, `'''`)
-  ) | const($"")
+_toml.string.multi_line_literal(Acc) =
+  (`'''''` $ (Acc + `''`)) |
+  (`''''` $ (Acc + `'`)) |
+  (`'''` $ Acc) |
+  (char -> C & _toml.string.multi_line_literal(Acc + C))
 
 toml.string.basic = '"' > _toml.string.basic_body < '"'
 
@@ -605,13 +622,13 @@ _toml.string.basic_body =
 toml.string.literal = "'" > default(chars_until("'"), $"") < "'"
 
 _toml.escaped_ctrl_char =
-  (`\b` $ "\b") |
-  (`\t` $ "\t") |
-  (`\n` $ "\n") |
-  (`\f` $ "\f") |
-  (`\r` $ "\r") |
   (`\"` $ `"`) |
-  (`\\` $ `\`)
+  (`\\` $ `\`) |
+  (`\b` $ "\b") |
+  (`\f` $ "\f") |
+  (`\n` $ "\n") |
+  (`\r` $ "\r") |
+  (`\t` $ "\t")
 
 _toml.escaped_unicode =
   (`\u` > repeat4(hex_numeral) -> U $ @Codepoint(U)) |
@@ -622,15 +639,29 @@ toml.datetime.offset = toml.datetime.local_date + ("T" | "t" | " ") + _toml.date
 toml.datetime.local = toml.datetime.local_date + ("T" | "t" | " ") + toml.datetime.local_time
 
 toml.datetime.local_date =
-  repeat4(numeral) + "-" + repeat2(numeral) + "-" + repeat2(numeral)
+  _toml.datetime.year + "-" + _toml.datetime.month + "-" + _toml.datetime.mday
+
+_toml.datetime.year = repeat4(numeral)
+
+_toml.datetime.month = ("0" + "1".."9") | "11" | "12"
+
+_toml.datetime.mday = ("0".."2" + "1".."9") | "30" | "31"
 
 toml.datetime.local_time =
-  repeat2(numeral) + ":" + repeat2(numeral) + ":" + repeat2(numeral) +
+  _toml.datetime.hours + ":" +
+  _toml.datetime.minutes + ":" +
+  _toml.datetime.seconds +
   maybe("." + repeat_between(numeral, $1, $9))
 
 _toml.datetime.time_offset = toml.datetime.local_time + ("Z" | "z" | _toml.datetime.time_numoffset)
 
-_toml.datetime.time_numoffset = ("+" | "-") + repeat2(numeral) + ":" + repeat2(numeral)
+_toml.datetime.time_numoffset = ("+" | "-") + _toml.datetime.hours + ":" + _toml.datetime.minutes
+
+_toml.datetime.hours = ("0".."1" + "0".."9") | ("2" + "0".."3")
+
+_toml.datetime.minutes = "0".."5" + "0".."9"
+
+_toml.datetime.seconds = ("0".."5" + "0".."9") | "60"
 
 toml.number.integer = number_of(
   _toml.number.sign +
@@ -680,39 +711,69 @@ toml.number.hex_integer =
   ) -> Digits $
   Num.FromHexDigits(Digits)
 
-_Toml.InsertAtPath(Obj, Path, Val) =
-  Path -> [Key] ? (
-    Obj -> {Key: _, ..._} ?
-    (Val -> {} ? Obj : @Fail) :
-    {...Obj, Key: Val}
-  ) :
-  Path -> [Key, ...PathRest] ? (
-    Obj -> {Key: ExistingVal, ..._} ? (
-      ExistingVal -> [...ArrayOfTables, {...NestedObj}] ?
-      {...Obj, Key: [...ArrayOfTables, _Toml.InsertAtPath(NestedObj, PathRest, Val)]} :
-      ExistingVal -> {...NestedObj} &
-      {...Obj, Key: _Toml.InsertAtPath(NestedObj, PathRest, Val)}
-    ) :
-    {...Obj, Key: _Toml.InsertAtPath({}, PathRest, Val)}
-  ) :
-  Obj
+_Toml.Doc.Empty = {"value": {}, "type": {}}
 
-_Toml.AppendAtPath(Obj, Path, Val) =
-  Path -> [Key] ? (
-    Obj -> {Key: ExistingVal, ..._} ?
-    Is.Array(ExistingVal) & {...Obj, Key: [...ExistingVal, Val]} :
-    {...Obj, Key: [Val]}
-  ) :
+_Toml.Doc.Value(Doc) = Obj.Get(Doc, "value")
+
+_Toml.Doc.Type(Doc) = Obj.Get(Doc, "type")
+
+_Toml.Doc.Has(Doc, Key) = Obj.Has(_Toml.Doc.Type(Doc), Key)
+
+_Toml.Doc.Get(Doc, Key) = {
+  "value": Obj.Get(_Toml.Doc.Value(Doc), Key),
+  "type": Obj.Get(_Toml.Doc.Type(Doc), Key),
+}
+
+_Toml.Doc.IsTable(Doc) = Is.Object(_Toml.Doc.Type(Doc))
+
+_Toml.Doc.Insert(Doc, Key, Val, Type) =
+  _Toml.Doc.IsTable(Doc) &
+  {
+    "value": Obj.Put(_Toml.Doc.Value(Doc), Key, Val),
+    "type": Obj.Put(_Toml.Doc.Type(Doc), Key, Type),
+  }
+
+_Toml.Doc.AppendToArrayOfTables(Doc, Key, Val) =
+  _Toml.Doc.Get(Doc, Key) -> {"value": AoT, "type": "array_of_tables"} &
+  _Toml.Doc.Insert(Doc, Key, [...AoT, Val], "array_of_tables")
+
+_Toml.Doc.InsertAtPath(Doc, Path, Val) =
+  _Toml.Doc.UpdateAtPath(Doc, Path, Val, _Toml.Doc.ValueUpdater)
+
+_Toml.Doc.EnsureTableAtPath(Doc, Path) =
+  _Toml.Doc.UpdateAtPath(Doc, Path, {}, _Toml.Doc.MissingTableUpdater)
+
+_Toml.Doc.AppendAtPath(Doc, Path, Val) =
+  _Toml.Doc.UpdateAtPath(Doc, Path, Val, _Toml.Doc.AppendUpdater)
+
+_Toml.Doc.UpdateAtPath(Doc, Path, Val, Updater) =
+  Path -> [Key] ? Updater(Doc, Key, Val) :
   Path -> [Key, ...PathRest] ? (
-    Obj -> {Key: ExistingVal, ..._} ? (
-      ExistingVal -> [...ArrayOfTables, {...NestedObj}] ?
-      {...Obj, Key: [...ArrayOfTables, _Toml.AppendAtPath(NestedObj, PathRest, Val)]} :
-      ExistingVal -> {...NestedObj} &
-      {...Obj, Key: _Toml.AppendAtPath(NestedObj, PathRest, Val)}
-    ) :
-    {...Obj, Key: _Toml.AppendAtPath({}, PathRest, Val)}
+    (
+      _Toml.Doc.Has(Doc, Key) ? (
+        _Toml.Doc.IsTable(_Toml.Doc.Get(Doc, Key)) &
+        _Toml.Doc.UpdateAtPath(_Toml.Doc.Get(Doc, Key), PathRest, Val, Updater)
+      ) :
+      _Toml.Doc.UpdateAtPath(_Toml.Doc.Empty, PathRest, Val, Updater)
+    ) -> InnerDoc &
+    _Toml.Doc.Insert(Doc, Key, _Toml.Doc.Value(InnerDoc), _Toml.Doc.Type(InnerDoc))
   ) :
-  Obj
+  Doc
+
+_Toml.Doc.ValueUpdater(Doc, Key, Val) =
+  _Toml.Doc.Has(Doc, Key) ? @Fail : _Toml.Doc.Insert(Doc, Key, Val, "value")
+
+_Toml.Doc.MissingTableUpdater(Doc, Key, _Val) =
+  _Toml.Doc.IsTable(_Toml.Doc.Get(Doc, Key)) ? Doc :
+  _Toml.Doc.Insert(Doc, Key, {}, {})
+
+_Toml.Doc.AppendUpdater(Doc, Key, Val) =
+  (
+    _Toml.Doc.Has(Doc, Key) ? Doc :
+    _Toml.Doc.Insert(Doc, Key, [], "array_of_tables")
+  ) -> DocWithKey &
+  _Toml.Doc.AppendToArrayOfTables(DocWithKey, Key, Val)
+
 
 ## Abstract Syntax Trees
 
@@ -902,6 +963,8 @@ _Table.ZipObjects(Ks, Rows, Acc) =
 
 ## Objects
 
+Obj.Has(O, K) = O -> {K: _, ..._}
+
 Obj.Get(O, K) = O -> {K: V, ..._} & V
 
 Obj.Put(O, K, V) = {...O, K: V}
@@ -925,7 +988,7 @@ Is.Null(V) = V -> null
 
 Is.Array(V) = V -> [..._]
 
-Is.Object(V) = V -> {..._}
+Is.Object(V) = V -> ({} + {..._})
 
 Is.Equal(A, B) = A -> B
 

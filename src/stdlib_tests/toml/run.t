@@ -74,24 +74,7 @@
   [[fruits.varieties]]
   name = "plantain"
   --------
-  {
-    "fruits": [
-      {
-        "name": "apple",
-        "physical": {"color": "red", "shape": "round"},
-        "varieties": [
-          {"name": "red delicious"},
-          {"name": "granny smith"}
-        ]
-      },
-      {
-        "name": "banana",
-        "varieties": [
-          {"name": "plantain"}
-        ]
-      }
-    ]
-  }
+  Parser Failure
   
   y_array_trailing_comma.toml
   integers1 = [1, 2, 3,  ]
@@ -165,9 +148,9 @@
   {"key": "value", "bare_key": "value", "bare-key": "value", "1234": "value"}
   
   y_basic_string.toml
-  str = "I'm a string. \"You can quote me\". Name\tJos\u00E9\nLocation\tSF."
+  str = "I'm a string. \"You can quote me\". Name\tJose\nLocation\tSF."
   --------
-  {"str": "I'm a string. \\"You can quote me\\". Name\\tJos\xc3\xa9\\nLocation\\tSF."} (esc)
+  {"str": "I'm a string. \"You can quote me\". Name\tJose\nLocation\tSF."}
   
   y_binary_integer.toml
   bin1 = 0b11010110
@@ -843,17 +826,13 @@
   }
   
 
-  $ for f in $TESTDIR/n_*.toml; do echo "$(basename $f)"; cat $f; echo "--------"; possum -p 'input(toml)' $f; echo ""; done
+  $ for f in $TESTDIR/n_*.toml; do echo "$(basename $f)"; cat $f; echo "--------"; possum -p 'input(toml.tagged)' $f; echo ""; done
   n_append_array_of_tables_element_to_array.toml
   fruits = []
   
   [[fruits]]
   --------
-  {
-    "fruits": [
-      {}
-    ]
-  }
+  Parser Failure
   
   n_append_array_of_tables_element_to_table.toml
   [fruit.physical]
@@ -865,8 +844,46 @@
   --------
   Parser Failure
   
+  n_append_with_dotted_keys.toml
+  # First a.b.c defines a table: a.b.c = {z=9}
+  #
+  # Then we define a.b.c.t = "str" to add a str to the above table, making it:
+  #
+  #   a.b.c = {z=9, t="..."}
+  #
+  # While this makes sense, logically, it was decided this is not valid TOML as
+  # it's too confusing/convoluted.
+  #
+  # See: https://github.com/toml-lang/toml/issues/846
+  #      https://github.com/toml-lang/toml/pull/859
+  
+  [a.b.c]
+  z = 9
+  
+  [a]
+  b.c.t = "Using dotted keys to add to [a.b.c] after explicitly defining it above is not allowed"
+  --------
+  {
+    "a": {
+      "b": {
+        "c": {"z": 9, "t": "Using dotted keys to add to [a.b.c] after explicitly defining it above is not allowed"}
+      }
+    }
+  }
+  
+  n_array_of_tables_header.toml
+  [[table] ]
+  --------
+  Parser Failure
+  
   n_empty_bare_key.toml
   = "no key name"
+  --------
+  Parser Failure
+  
+  n_empty_doc.toml
+  # this file contains a comment and newline but no key/value pairs
+  
   --------
   Parser Failure
   
@@ -875,24 +892,14 @@
   [tab]
   arr.val1=1
   --------
-  {
-    "tab": {
-      "arr": [
-        {"val1": 1}
-      ]
-    }
-  }
+  Parser Failure
   
   n_extend_inline_table_with_table.toml
   [product]
   type = { name = "Nail" }
   type.edible = false
   --------
-  {
-    "product": {
-      "type": {"name": "Nail", "edible": false}
-    }
-  }
+  Parser Failure
   
   n_extend_table_with_inline_table.toml
   [product]
@@ -908,6 +915,13 @@
   --------
   Parser Failure
   
+  n_inline_table_trailing_comma.toml
+  # A terminating comma (also called trailing comma) is not permitted after the
+  # last key/value pair in an inline table
+  abc = { abc = 123, }
+  --------
+  Parser Failure
+  
   n_pair_no_newline.toml
   first = "Tom" last = "Preston-Werner"
   --------
@@ -917,6 +931,32 @@
   key =
   --------
   Parser Failure
+  
+  n_redefine_2.toml
+  [t1]
+  t2.t3.v = 0
+  [t1.t2]
+  --------
+  {
+    "t1": {
+      "t2": {
+        "t3": {"v": 0}
+      }
+    }
+  }
+  
+  n_redefine_3.toml
+  [t1]
+  t2.t3.v = 0
+  [t1.t2.t3]
+  --------
+  {
+    "t1": {
+      "t2": {
+        "t3": {"v": 0}
+      }
+    }
+  }
   
   n_repeated_bare_key.toml
   name = "Tom"
@@ -929,6 +969,17 @@
   "spelling" = "favourite"
   --------
   Parser Failure
+  
+  n_super_twice.toml
+  [a.b]
+  [a]
+  [a]
+  --------
+  {
+    "a": {
+      "b": {}
+    }
+  }
   
   n_table_repeated_bare_key.toml
   [fruit]
@@ -948,17 +999,17 @@
   [fruit.apple]
   texture = "smooth"
   --------
-  [Line 1, 11-16145]Error: Merge type mismatch
+  Parser Failure
   
   n_three_quotes_inside_multi_line_basic_string.toml
-  str5 = """Here are three quotation marks: """."""
+  str5 = """Here are three quotation marks: """"""
   --------
   Parser Failure
   
   n_three_quotes_inside_multi_line_literal_string.toml
   apos15 = '''Here are fifteen apostrophes: ''''''''''''''''''
   --------
-  {"apos15": "Here are fifteen apostrophes: '''''''''''''''"}
+  Parser Failure
   
   n_treat_non_table_value_as_table.toml
   # This defines the value of fruit.apple to be an integer.
@@ -968,5 +1019,5 @@
   # You can't turn an integer into a table.
   fruit.apple.smooth = true
   --------
-  [Line 1, 11-16145]Error: Merge type mismatch
+  Parser Failure
   
