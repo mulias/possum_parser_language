@@ -16,7 +16,7 @@ const Writers = @import("writer.zig").Writers;
 pub const Compiler = struct {
     vm: *VM,
     ast: Ast,
-    functions: ArrayList(*Elem.Dyn.Function),
+    functions: ArrayList(*Elem.DynElem.Function),
     writers: Writers,
     printBytecode: bool,
 
@@ -50,13 +50,13 @@ pub const Compiler = struct {
     } || WriterError;
 
     pub fn init(vm: *VM, ast: Ast, printBytecode: bool) !Compiler {
-        const main = try Elem.Dyn.Function.create(vm, .{
+        const main = try Elem.DynElem.Function.create(vm, .{
             .name = try vm.strings.insert("@main"),
             .functionType = .Main,
             .arity = 0,
         });
 
-        var functions = ArrayList(*Elem.Dyn.Function).init(vm.allocator);
+        var functions = ArrayList(*Elem.DynElem.Function).init(vm.allocator);
         try functions.append(main);
 
         // Ensure that the strings table includes the placeholder var, which
@@ -76,7 +76,7 @@ pub const Compiler = struct {
         self.functions.deinit();
     }
 
-    pub fn compile(self: *Compiler) !?*Elem.Dyn.Function {
+    pub fn compile(self: *Compiler) !?*Elem.DynElem.Function {
         try self.declareGlobals();
         try self.validateGlobals();
         try self.resolveGlobalAliases();
@@ -116,7 +116,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileMain(self: *Compiler) !?*Elem.Dyn.Function {
+    fn compileMain(self: *Compiler) !?*Elem.DynElem.Function {
         var main: ?*Ast.RNode = null;
 
         for (self.ast.roots.items) |root| {
@@ -186,13 +186,13 @@ pub const Compiler = struct {
             .ParserVar => |sId| sId,
             else => return Error.InvalidAst,
         };
-        const functionType: Elem.Dyn.FunctionType = switch (nameVar) {
+        const functionType: Elem.DynElem.FunctionType = switch (nameVar) {
             .ValueVar => .NamedValue,
             .ParserVar => .NamedParser,
             else => return Error.InvalidAst,
         };
 
-        var function = try Elem.Dyn.Function.create(self.vm, .{
+        var function = try Elem.DynElem.Function.create(self.vm, .{
             .name = name_sid,
             .functionType = functionType,
             .arity = 0,
@@ -657,7 +657,7 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
-        var function: ?*Elem.Dyn.Function = null;
+        var function: ?*Elem.DynElem.Function = null;
 
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
@@ -763,7 +763,7 @@ pub const Compiler = struct {
 
     const ArgType = enum { Parser, Value, Unspecified };
 
-    fn writeParserFunctionArguments(self: *Compiler, first_arg: *Ast.RNode, function: ?*Elem.Dyn.Function) Error!u8 {
+    fn writeParserFunctionArguments(self: *Compiler, first_arg: *Ast.RNode, function: ?*Elem.DynElem.Function) Error!u8 {
         var argCount: u8 = 0;
         var arg = first_arg;
         var argType: ArgType = .Unspecified;
@@ -853,10 +853,10 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeAnonymousFunction(self: *Compiler, rnode: *Ast.RNode) !*Elem.Dyn.Function {
+    fn writeAnonymousFunction(self: *Compiler, rnode: *Ast.RNode) !*Elem.DynElem.Function {
         const region = rnode.region;
 
-        const function = try Elem.Dyn.Function.createAnonParser(self.vm, .{ .arity = 0 });
+        const function = try Elem.DynElem.Function.createAnonParser(self.vm, .{ .arity = 0 });
 
         try self.functions.append(function);
 
@@ -876,7 +876,7 @@ pub const Compiler = struct {
         return self.functions.pop();
     }
 
-    fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.Dyn.Function, region: Region) !void {
+    fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.DynElem.Function, region: Region) !void {
         for (self.currentFunction().locals.items, 0..) |local, fromSlot| {
             if (targetFunction.localSlot(local.name())) |toSlot| {
                 try self.emitOp(.CaptureLocal, region);
@@ -1484,7 +1484,7 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
-        var function: ?*Elem.Dyn.Function = null;
+        var function: ?*Elem.DynElem.Function = null;
 
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
@@ -1508,7 +1508,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValueFunctionArguments(self: *Compiler, first_arg: *Ast.RNode, function: ?*Elem.Dyn.Function) Error!u8 {
+    fn writeValueFunctionArguments(self: *Compiler, first_arg: *Ast.RNode, function: ?*Elem.DynElem.Function) Error!u8 {
         var argCount: u8 = 0;
         var arg = first_arg;
 
@@ -1612,7 +1612,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn appendArrayElems(self: *Compiler, array: *Elem.Dyn.Array, first_item: *Ast.RNode, context: ArrayContext) !void {
+    fn appendArrayElems(self: *Compiler, array: *Elem.DynElem.Array, first_item: *Ast.RNode, context: ArrayContext) !void {
         var item = first_item;
         var index: u8 = 0;
 
@@ -1639,7 +1639,7 @@ pub const Compiler = struct {
         try self.appendArrayElem(array, item, index, context);
     }
 
-    fn appendArrayElem(self: *Compiler, array: *Elem.Dyn.Array, rnode: *Ast.RNode, index: u8, context: ArrayContext) Error!void {
+    fn appendArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, context: ArrayContext) Error!void {
         switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .ArrayHead => {
@@ -1784,7 +1784,7 @@ pub const Compiler = struct {
         try self.writePatternObjectDynamicKey(rnode);
     }
 
-    fn appendPatternObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, first_item: *Ast.RNode, jump_list: *ArrayList(usize)) !void {
+    fn appendPatternObjectMembers(self: *Compiler, object: *Elem.DynElem.Object, first_item: *Ast.RNode, jump_list: *ArrayList(usize)) !void {
         var rnode = first_item;
 
         while (true) {
@@ -1803,7 +1803,7 @@ pub const Compiler = struct {
         try self.appendPatternObjectPair(object, rnode, jump_list);
     }
 
-    fn appendValueObjectMembers(self: *Compiler, object: *Elem.Dyn.Object, first_item: *Ast.RNode) !void {
+    fn appendValueObjectMembers(self: *Compiler, object: *Elem.DynElem.Object, first_item: *Ast.RNode) !void {
         var rnode = first_item;
 
         while (true) {
@@ -1853,7 +1853,7 @@ pub const Compiler = struct {
         };
     }
 
-    fn appendPatternObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pair_rnode: *Ast.RNode, jump_list: *ArrayList(usize)) Error!void {
+    fn appendPatternObjectPair(self: *Compiler, object: *Elem.DynElem.Object, pair_rnode: *Ast.RNode, jump_list: *ArrayList(usize)) Error!void {
         const pair_node = pair_rnode.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
 
         const key_elem = pair_node.left.node.asElem().?;
@@ -1897,7 +1897,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn appendValueObjectPair(self: *Compiler, object: *Elem.Dyn.Object, pair_rnode: *Ast.RNode) Error!void {
+    fn appendValueObjectPair(self: *Compiler, object: *Elem.DynElem.Object, pair_rnode: *Ast.RNode) Error!void {
         const pair_node = pair_rnode.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
         const pair_region = pair_rnode.region;
 
@@ -2058,11 +2058,11 @@ pub const Compiler = struct {
         return &self.currentFunction().chunk;
     }
 
-    fn currentFunction(self: *Compiler) *Elem.Dyn.Function {
+    fn currentFunction(self: *Compiler) *Elem.DynElem.Function {
         return self.functions.items[self.functions.items.len - 1];
     }
 
-    fn parentFunction(self: *Compiler) *Elem.Dyn.Function {
+    fn parentFunction(self: *Compiler) *Elem.DynElem.Function {
         var parentIndex = self.functions.items.len - 2;
         while (true) {
             if (self.functions.items[parentIndex].functionType == .AnonParser) {
@@ -2074,7 +2074,7 @@ pub const Compiler = struct {
     }
 
     fn addLocal(self: *Compiler, elem: Elem, region: Region) !?u8 {
-        const local: Elem.Dyn.Function.Local = switch (elem) {
+        const local: Elem.DynElem.Function.Local = switch (elem) {
             .ParserVar => |sId| .{ .ParserVar = sId },
             .ValueVar => |sId| .{ .ValueVar = sId },
             else => return Error.InvalidAst,

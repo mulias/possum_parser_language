@@ -1,6 +1,6 @@
 const std = @import("std");
 const unicode = std.unicode;
-const NumberString = @import("elem.zig").Elem.NumberString;
+const NumberStringElem = @import("elem.zig").Elem.NumberStringElem;
 const Scanner = @import("scanner.zig").Scanner;
 
 pub fn parseCodepoint(bytes: []const u8) ?u21 {
@@ -31,7 +31,7 @@ pub fn parseSurrogatePair(highSurrogate: []const u8, lowSurrogate: []const u8) ?
     }
 }
 
-pub fn numberStringFormat(bytes: []const u8) ?NumberString.Format {
+pub fn numberStringFormat(bytes: []const u8) ?NumberStringElem.Format {
     var scanner = Scanner.initInternal(bytes);
     const token = scanner.scanNumber();
 

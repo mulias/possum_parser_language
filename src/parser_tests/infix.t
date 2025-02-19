@@ -86,9 +86,9 @@
                     .end: usize = 7
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .NumberString: elem.Elem.NumberString
+                      .NumberString: elem.Elem.NumberStringElem
                         .sId: u32 = 786
-                        .format: elem.Elem.NumberString.Format
+                        .format: elem.Elem.NumberStringElem.Format
                           .Integer
                         .negated: bool = false
                 .right: *ast.Ast.RNode
@@ -97,8 +97,8 @@
                     .end: usize = 9
                   .node: ast.Ast.Node
                     .ElemNode: elem.Elem
-                      .NumberString: elem.Elem.NumberString
+                      .NumberString: elem.Elem.NumberStringElem
                         .sId: u32 = 4644
-                        .format: elem.Elem.NumberString.Format
+                        .format: elem.Elem.NumberStringElem.Format
                           .Integer
                         .negated: bool = false

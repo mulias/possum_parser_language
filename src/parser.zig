@@ -537,7 +537,7 @@ pub const Parser = struct {
     fn fullOrLowerBoundedRange(self: *Parser, lower_bound_node: *Ast.RNode) !*Ast.RNode {
         const range_token = self.previous;
 
-        const lower_bounded_range_node = .{ .LowerBoundedRange = lower_bound_node };
+        const lower_bounded_range_node: Ast.Node = .{ .LowerBoundedRange = lower_bound_node };
         const lower_bounded_range_region = lower_bound_node.region.merge(range_token.region);
 
         // If there's whitespace then the range is done
@@ -577,7 +577,7 @@ pub const Parser = struct {
 
     fn array(self: *Parser) Error!*Ast.RNode {
         const region = self.previous.region;
-        var a = try Elem.Dyn.Array.create(self.vm, 0);
+        var a = try Elem.DynElem.Array.create(self.vm, 0);
         const elem_rnode = try self.ast.createElem(a.dyn.elem(), region);
 
         if (try self.match(.RightBracket)) {
@@ -645,7 +645,7 @@ pub const Parser = struct {
 
     fn object(self: *Parser) Error!*Ast.RNode {
         const r = self.previous.region;
-        var o = try Elem.Dyn.Object.create(self.vm, 0);
+        var o = try Elem.DynElem.Object.create(self.vm, 0);
 
         if (try self.match(.DotDotDot)) {
             return self.objectSpread(null);

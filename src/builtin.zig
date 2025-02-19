@@ -1,8 +1,8 @@
 const std = @import("std");
 const unicode = std.unicode;
 const Elem = @import("elem.zig").Elem;
-const Function = @import("elem.zig").Elem.Dyn.Function;
-const NativeCode = @import("elem.zig").Elem.Dyn.NativeCode;
+const Function = @import("elem.zig").Elem.DynElem.Function;
+const NativeCode = @import("elem.zig").Elem.DynElem.NativeCode;
 const Region = @import("region.zig").Region;
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
@@ -166,7 +166,7 @@ fn stringToCodepoint(vm: *VM) VM.Error!void {
                 const buffer = try vm.allocator.alloc(u8, len);
                 defer vm.allocator.free(buffer);
                 _ = try unicode.utf8Encode(c, buffer);
-                var str = try Elem.Dyn.String.copy(vm, buffer);
+                var str = try Elem.DynElem.String.copy(vm, buffer);
                 try vm.push(str.dyn.elem());
             } else {
                 try vm.pushFailure();
@@ -225,7 +225,7 @@ fn stringsToSurrogateCodepoint(vm: *VM) VM.Error!void {
                     const buffer = try vm.allocator.alloc(u8, len);
                     defer vm.allocator.free(buffer);
                     _ = try unicode.utf8Encode(c, buffer);
-                    var str = try Elem.Dyn.String.copy(vm, buffer);
+                    var str = try Elem.DynElem.String.copy(vm, buffer);
                     try vm.push(str.dyn.elem());
                 } else {
                     try vm.pushFailure();

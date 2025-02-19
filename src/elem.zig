@@ -32,15 +32,15 @@ pub const Elem = union(ElemType) {
     ValueVar: StringTable.Id,
     String: StringTable.Id,
     InputSubstring: Tuple(&.{ u32, u32 }),
-    NumberString: NumberString,
+    NumberString: NumberStringElem,
     Integer: i64,
     Float: f64,
     Boolean: bool,
     Null: void,
     Failure: void,
-    Dyn: *Dyn,
+    Dyn: *DynElem,
 
-    pub const NumberString = struct {
+    pub const NumberStringElem = struct {
         sId: StringTable.Id,
         format: Format,
         negated: bool,
@@ -51,21 +51,21 @@ pub const Elem = union(ElemType) {
             Scientific,
         };
 
-        pub fn new(bytes: []const u8, format: Format, vm: *VM) !NumberString {
+        pub fn new(bytes: []const u8, format: Format, vm: *VM) !NumberStringElem {
             if (bytes[0] == '-') {
                 const sId = try vm.strings.insert(bytes);
-                return NumberString{ .sId = sId, .format = format, .negated = true };
+                return NumberStringElem{ .sId = sId, .format = format, .negated = true };
             } else {
                 var buffer = try vm.allocator.alloc(u8, bytes.len + 1);
                 defer vm.allocator.free(buffer);
                 buffer[0] = '-';
                 @memcpy(buffer[1..], bytes);
                 const sId = try vm.strings.insert(buffer);
-                return NumberString{ .sId = sId, .format = format, .negated = false };
+                return NumberStringElem{ .sId = sId, .format = format, .negated = false };
             }
         }
 
-        pub fn toString(self: NumberString, strings: StringTable) []const u8 {
+        pub fn toString(self: NumberStringElem, strings: StringTable) []const u8 {
             const bs = strings.get(self.sId);
             if (self.negated) {
                 return bs;
@@ -74,15 +74,15 @@ pub const Elem = union(ElemType) {
             }
         }
 
-        pub fn negate(self: NumberString) NumberString {
-            return NumberString{
+        pub fn negate(self: NumberStringElem) NumberStringElem {
+            return NumberStringElem{
                 .sId = self.sId,
                 .format = self.format,
                 .negated = !self.negated,
             };
         }
 
-        pub fn toNumberElem(self: NumberString, strings: StringTable) !Elem {
+        pub fn toNumberElem(self: NumberStringElem, strings: StringTable) !Elem {
             const bytes = self.toString(strings);
 
             switch (self.format) {
@@ -121,8 +121,8 @@ pub const Elem = union(ElemType) {
         return Elem{ .InputSubstring = .{ start, end } };
     }
 
-    pub fn numberString(bytes: []const u8, format: NumberString.Format, vm: *VM) !Elem {
-        return Elem{ .NumberString = try NumberString.new(bytes, format, vm) };
+    pub fn numberString(bytes: []const u8, format: NumberStringElem.Format, vm: *VM) !Elem {
+        return Elem{ .NumberString = try NumberStringElem.new(bytes, format, vm) };
     }
 
     pub fn integer(i: i64) Elem {
@@ -177,7 +177,7 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn asDyn(self: Elem) *Dyn {
+    pub fn asDyn(self: Elem) *DynElem {
         return switch (self) {
             .Dyn => |d| return d,
             else => @panic("internal error"),
@@ -457,7 +457,7 @@ pub const Elem = union(ElemType) {
                 .String => |sId2| {
                     const s1 = vm.strings.get(sId1);
                     const s2 = vm.strings.get(sId2);
-                    const s = try Elem.Dyn.String.create(vm, s1.len + s2.len);
+                    const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                     try s.concatBytes(s1);
                     try s.concatBytes(s2);
                     return s.dyn.elem();
@@ -465,7 +465,7 @@ pub const Elem = union(ElemType) {
                 .InputSubstring => |is2| {
                     const s1 = vm.strings.get(sId1);
                     const s2 = vm.input[is2[0]..is2[1]];
-                    const s = try Elem.Dyn.String.create(vm, s1.len + s2.len);
+                    const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                     try s.concatBytes(s1);
                     try s.concatBytes(s2);
                     return s.dyn.elem();
@@ -474,7 +474,7 @@ pub const Elem = union(ElemType) {
                     .String => {
                         const s1 = vm.strings.get(sId1);
                         const ds2 = d.asString();
-                        const s = try Elem.Dyn.String.create(vm, s1.len + ds2.buffer.size);
+                        const s = try Elem.DynElem.String.create(vm, s1.len + ds2.buffer.size);
                         try s.concatBytes(s1);
                         try s.concat(ds2);
                         return s.dyn.elem();
@@ -487,7 +487,7 @@ pub const Elem = union(ElemType) {
                 .String => |sId2| {
                     const s1 = vm.input[is1[0]..is1[1]];
                     const s2 = vm.strings.get(sId2);
-                    const s = try Elem.Dyn.String.create(vm, s1.len + s2.len);
+                    const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                     try s.concatBytes(s1);
                     try s.concatBytes(s2);
                     return s.dyn.elem();
@@ -498,7 +498,7 @@ pub const Elem = union(ElemType) {
                     } else {
                         const s1 = vm.input[is1[0]..is1[1]];
                         const s2 = vm.input[is2[0]..is2[1]];
-                        const s = try Elem.Dyn.String.create(vm, s1.len + s2.len);
+                        const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                         try s.concatBytes(s1);
                         try s.concatBytes(s2);
                         return s.dyn.elem();
@@ -508,7 +508,7 @@ pub const Elem = union(ElemType) {
                     .String => {
                         const s1 = vm.input[is1[0]..is1[1]];
                         const ds2 = d.asString();
-                        const s = try Elem.Dyn.String.create(vm, s1.len + ds2.buffer.size);
+                        const s = try Elem.DynElem.String.create(vm, s1.len + ds2.buffer.size);
                         try s.concatBytes(s1);
                         try s.concat(ds2);
                         return s.dyn.elem();
@@ -554,14 +554,14 @@ pub const Elem = union(ElemType) {
                     return switch (elemB) {
                         .String => |sId2| {
                             const s2 = vm.strings.get(sId2);
-                            const s = try Elem.Dyn.String.create(vm, ds1.buffer.size + s2.len);
+                            const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + s2.len);
                             try s.concat(ds1);
                             try s.concatBytes(s2);
                             return s.dyn.elem();
                         },
                         .InputSubstring => |is2| {
                             const s2 = vm.input[is2[0]..is2[1]];
-                            const s = try Elem.Dyn.String.create(vm, ds1.buffer.size + s2.len);
+                            const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + s2.len);
                             try s.concat(ds1);
                             try s.concatBytes(s2);
                             return s.dyn.elem();
@@ -569,7 +569,7 @@ pub const Elem = union(ElemType) {
                         .Dyn => |d2| switch (d2.dynType) {
                             .String => {
                                 const ds2 = d2.asString();
-                                const s = try Elem.Dyn.String.create(vm, ds1.buffer.size + ds2.buffer.size);
+                                const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + ds2.buffer.size);
                                 try s.concat(ds1);
                                 try s.concat(ds2);
                                 return s.dyn.elem();
@@ -585,7 +585,7 @@ pub const Elem = union(ElemType) {
                         .Dyn => |d2| switch (d2.dynType) {
                             .Array => {
                                 const a2 = d2.asArray();
-                                const a = try Elem.Dyn.Array.create(vm, a1.elems.items.len + a2.elems.items.len);
+                                const a = try Elem.DynElem.Array.create(vm, a1.elems.items.len + a2.elems.items.len);
                                 try a.concat(a1);
                                 try a.concat(a2);
                                 return a.dyn.elem();
@@ -601,7 +601,7 @@ pub const Elem = union(ElemType) {
                         .Dyn => |d2| switch (d2.dynType) {
                             .Object => {
                                 const o2 = d2.asObject();
-                                const o = try Elem.Dyn.Object.create(vm, o1.members.count() + o2.members.count());
+                                const o = try Elem.DynElem.Object.create(vm, o1.members.count() + o2.members.count());
                                 try o.concat(o1);
                                 try o.concat(o2);
                                 return o.dyn.elem();
@@ -672,7 +672,7 @@ pub const Elem = union(ElemType) {
             try self.writeJson(.Compact, vm.*, bytes.writer());
             defer bytes.deinit();
 
-            const s = try Elem.Dyn.String.copy(vm, bytes.items);
+            const s = try Elem.DynElem.String.copy(vm, bytes.items);
             return s.dyn.elem();
         }
     }
@@ -765,16 +765,16 @@ pub const Elem = union(ElemType) {
         Closure,
     };
 
-    pub const Dyn = struct {
+    pub const DynElem = struct {
         id: u64,
         dynType: DynType,
-        next: ?*Dyn,
+        next: ?*DynElem,
 
-        pub fn allocate(vm: *VM, comptime T: type, dynType: DynType) !*Dyn {
+        pub fn allocate(vm: *VM, comptime T: type, dynType: DynType) !*DynElem {
             const ptr = try vm.allocator.create(T);
             const id = vm.nextUniqueId();
 
-            ptr.dyn = Dyn{
+            ptr.dyn = DynElem{
                 .id = id,
                 .dynType = dynType,
                 .next = vm.dynList,
@@ -784,7 +784,7 @@ pub const Elem = union(ElemType) {
             return &ptr.dyn;
         }
 
-        pub fn destroy(self: *Dyn, vm: *VM) void {
+        pub fn destroy(self: *DynElem, vm: *VM) void {
             switch (self.dynType) {
                 .String => self.asString().destroy(vm),
                 .Array => self.asArray().destroy(vm),
@@ -795,11 +795,11 @@ pub const Elem = union(ElemType) {
             }
         }
 
-        pub fn elem(self: *Dyn) Elem {
+        pub fn elem(self: *DynElem) Elem {
             return Elem{ .Dyn = self };
         }
 
-        pub fn print(self: *Dyn, vm: VM, writer: VMWriter) !void {
+        pub fn print(self: *DynElem, vm: VM, writer: VMWriter) !void {
             return switch (self.dynType) {
                 .String => self.asString().print(writer),
                 .Array => self.asArray().print(vm, writer),
@@ -810,7 +810,7 @@ pub const Elem = union(ElemType) {
             };
         }
 
-        pub fn isEql(self: *Dyn, other: *Dyn, vm: VM) bool {
+        pub fn isEql(self: *DynElem, other: *DynElem, vm: VM) bool {
             return switch (self.dynType) {
                 .String => self.asString().isEql(other),
                 .Array => self.asArray().isEql(other, vm),
@@ -821,36 +821,36 @@ pub const Elem = union(ElemType) {
             };
         }
 
-        pub fn isType(self: *Dyn, dynType: DynType) bool {
+        pub fn isType(self: *DynElem, dynType: DynType) bool {
             return self.dynType == dynType;
         }
 
-        pub fn asString(self: *Dyn) *String {
+        pub fn asString(self: *DynElem) *String {
             return @fieldParentPtr("dyn", self);
         }
 
-        pub fn asArray(self: *Dyn) *Array {
+        pub fn asArray(self: *DynElem) *Array {
             return @fieldParentPtr("dyn", self);
         }
 
-        pub fn asObject(self: *Dyn) *Object {
+        pub fn asObject(self: *DynElem) *Object {
             return @fieldParentPtr("dyn", self);
         }
 
-        pub fn asFunction(self: *Dyn) *Function {
+        pub fn asFunction(self: *DynElem) *Function {
             return @fieldParentPtr("dyn", self);
         }
 
-        pub fn asNativeCode(self: *Dyn) *NativeCode {
+        pub fn asNativeCode(self: *DynElem) *NativeCode {
             return @fieldParentPtr("dyn", self);
         }
 
-        pub fn asClosure(self: *Dyn) *Closure {
+        pub fn asClosure(self: *DynElem) *Closure {
             return @fieldParentPtr("dyn", self);
         }
 
         pub const String = struct {
-            dyn: Dyn,
+            dyn: DynElem,
             buffer: StringBuffer,
 
             pub fn copy(vm: *VM, source: []const u8) !*String {
@@ -860,7 +860,7 @@ pub const Elem = union(ElemType) {
             }
 
             pub fn create(vm: *VM, size: usize) !*String {
-                const dyn = try Dyn.allocate(vm, String, .String);
+                const dyn = try DynElem.allocate(vm, String, .String);
                 const str = dyn.asString();
                 var buffer = StringBuffer.init(vm.allocator);
                 try buffer.allocate(size);
@@ -882,7 +882,7 @@ pub const Elem = union(ElemType) {
                 try writer.print("\"{s}\"", .{self.buffer.str()});
             }
 
-            pub fn isEql(self: *String, other: *Dyn) bool {
+            pub fn isEql(self: *String, other: *DynElem) bool {
                 return other.isType(.String) and std.mem.eql(
                     u8,
                     self.buffer.str(),
@@ -912,7 +912,7 @@ pub const Elem = union(ElemType) {
         };
 
         pub const Array = struct {
-            dyn: Dyn,
+            dyn: DynElem,
             elems: ArrayList(Elem),
 
             pub fn copy(vm: *VM, elems: []const Elem) !*Array {
@@ -922,7 +922,7 @@ pub const Elem = union(ElemType) {
             }
 
             pub fn create(vm: *VM, capacity: usize) !*Array {
-                const dyn = try Dyn.allocate(vm, Array, .Array);
+                const dyn = try DynElem.allocate(vm, Array, .Array);
                 const array = dyn.asArray();
 
                 var elems = ArrayList(Elem).init(vm.allocator);
@@ -957,7 +957,7 @@ pub const Elem = union(ElemType) {
                 }
             }
 
-            pub fn isEql(self: *Array, other: *Dyn, vm: VM) bool {
+            pub fn isEql(self: *Array, other: *DynElem, vm: VM) bool {
                 if (!other.isType(.Array)) return false;
 
                 const otherArray = other.asArray();
@@ -990,11 +990,11 @@ pub const Elem = union(ElemType) {
         };
 
         pub const Object = struct {
-            dyn: Dyn,
+            dyn: DynElem,
             members: AutoArrayHashMap(StringTable.Id, Elem),
 
             pub fn create(vm: *VM, capacity: usize) !*Object {
-                const dyn = try Dyn.allocate(vm, Object, .Object);
+                const dyn = try DynElem.allocate(vm, Object, .Object);
                 const object = dyn.asObject();
 
                 var members = AutoArrayHashMap(StringTable.Id, Elem).init(vm.allocator);
@@ -1039,7 +1039,7 @@ pub const Elem = union(ElemType) {
                 }
             }
 
-            pub fn isEql(self: *Object, other: *Dyn, vm: VM) bool {
+            pub fn isEql(self: *Object, other: *DynElem, vm: VM) bool {
                 if (!other.isType(.Object)) return false;
 
                 var otherObject = other.asObject();
@@ -1074,7 +1074,7 @@ pub const Elem = union(ElemType) {
         };
 
         pub const Function = struct {
-            dyn: Dyn,
+            dyn: DynElem,
             arity: u8,
             chunk: Chunk,
             name: StringTable.Id,
@@ -1101,7 +1101,7 @@ pub const Elem = union(ElemType) {
             };
 
             pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8 }) !*Function {
-                const dyn = try Dyn.allocate(vm, Function, .Function);
+                const dyn = try DynElem.allocate(vm, Function, .Function);
                 const function = dyn.asFunction();
 
                 function.* = Function{
@@ -1117,7 +1117,7 @@ pub const Elem = union(ElemType) {
             }
 
             pub fn createAnonParser(vm: *VM, fields: struct { arity: u8 }) !*Function {
-                const dyn = try Dyn.allocate(vm, Function, .Function);
+                const dyn = try DynElem.allocate(vm, Function, .Function);
                 const function = dyn.asFunction();
 
                 const name_str = try std.fmt.allocPrint(vm.allocator, "@fn{d}", .{dyn.id});
@@ -1146,7 +1146,7 @@ pub const Elem = union(ElemType) {
                 try writer.print("{s}", .{vm.strings.get(self.name)});
             }
 
-            pub fn isEql(self: *Function, other: *Dyn) bool {
+            pub fn isEql(self: *Function, other: *DynElem) bool {
                 if (!other.isType(.Function)) return false;
                 return self == other.asFunction();
             }
@@ -1191,14 +1191,14 @@ pub const Elem = union(ElemType) {
         };
 
         pub const NativeCode = struct {
-            dyn: Dyn,
+            dyn: DynElem,
             name: []const u8,
             handle: NativeCodeHandle,
 
             pub const NativeCodeHandle = *const fn (vm: *VM) VM.Error!void;
 
             pub fn create(vm: *VM, name: []const u8, handle: NativeCodeHandle) !*NativeCode {
-                const dyn = try Dyn.allocate(vm, NativeCode, .NativeCode);
+                const dyn = try DynElem.allocate(vm, NativeCode, .NativeCode);
                 const nc = dyn.asNativeCode();
 
                 nc.* = NativeCode{
@@ -1218,19 +1218,19 @@ pub const Elem = union(ElemType) {
                 try writer.print("{s}", .{self.name});
             }
 
-            pub fn isEql(self: *NativeCode, other: *Dyn) bool {
+            pub fn isEql(self: *NativeCode, other: *DynElem) bool {
                 if (!other.isType(.NativeCode)) return false;
                 return self == other.asNativeCode();
             }
         };
 
         pub const Closure = struct {
-            dyn: Dyn,
+            dyn: DynElem,
             function: *Function,
             captures: []?Elem,
 
             pub fn create(vm: *VM, function: *Function) !*Closure {
-                const dyn = try Dyn.allocate(vm, Closure, .Closure);
+                const dyn = try DynElem.allocate(vm, Closure, .Closure);
                 const closure = dyn.asClosure();
 
                 const captures = try vm.allocator.alloc(?Elem, function.locals.items.len);
@@ -1274,7 +1274,7 @@ pub const Elem = union(ElemType) {
                 try writer.print("|", .{});
             }
 
-            pub fn isEql(self: *Closure, other: *Dyn) bool {
+            pub fn isEql(self: *Closure, other: *DynElem) bool {
                 if (!other.isType(.Closure)) return false;
                 return self == other.asClosure();
             }
@@ -1295,10 +1295,10 @@ pub const Elem = union(ElemType) {
 
 test "struct size" {
     try std.testing.expectEqual(16, @sizeOf(Elem));
-    try std.testing.expectEqual(24, @sizeOf(Elem.Dyn));
-    try std.testing.expectEqual(64, @sizeOf(Elem.Dyn.String));
-    try std.testing.expectEqual(64, @sizeOf(Elem.Dyn.Array));
-    try std.testing.expectEqual(80, @sizeOf(Elem.Dyn.Object));
-    try std.testing.expectEqual(208, @sizeOf(Elem.Dyn.Function));
-    try std.testing.expectEqual(48, @sizeOf(Elem.Dyn.Closure));
+    try std.testing.expectEqual(24, @sizeOf(Elem.DynElem));
+    try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.String));
+    try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.Array));
+    try std.testing.expectEqual(80, @sizeOf(Elem.DynElem.Object));
+    try std.testing.expectEqual(208, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(48, @sizeOf(Elem.DynElem.Closure));
 }

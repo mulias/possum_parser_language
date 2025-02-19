@@ -723,7 +723,7 @@ test "double(p) = p + p ; double('a' + 'b') + double('x' < 'y')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ababxyxy"),
-            (try Elem.Dyn.String.copy(&vm, "ababxx")).dyn.elem(),
+            (try Elem.DynElem.String.copy(&vm, "ababxx")).dyn.elem(),
             vm,
         );
     }
@@ -1278,7 +1278,7 @@ test "'aa' $ []" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
-            (try Elem.Dyn.Array.create(&vm, 0)).dyn.elem(),
+            (try Elem.DynElem.Array.create(&vm, 0)).dyn.elem(),
             vm,
         );
     }
@@ -1295,7 +1295,7 @@ test "'aa' $ [1, 2, 3]" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -1313,8 +1313,8 @@ test "'a' -> A $ [[A]]" {
         const result = try vm.interpret(parser, "a");
 
         const innerArray = [_]Elem{Elem.string(vm.strings.getId("a"))};
-        const outerArray = [_]Elem{(try Elem.Dyn.Array.copy(&vm, &innerArray)).dyn.elem()};
-        const array = (try Elem.Dyn.Array.copy(&vm, &outerArray)).dyn.elem();
+        const outerArray = [_]Elem{(try Elem.DynElem.Array.copy(&vm, &innerArray)).dyn.elem()};
+        const array = (try Elem.DynElem.Array.copy(&vm, &outerArray)).dyn.elem();
 
         try testing.expectSuccess(result, array, vm);
     }
@@ -1331,7 +1331,7 @@ test "('a' $ [1, 2]) + ('b' $ [true, false])" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "abc"),
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -1347,7 +1347,7 @@ test "('a' + 'b') -> S $ (S + 'c') $ (S + 'd')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "ab"),
-            (try Elem.Dyn.String.copy(&vm, "abd")).dyn.elem(),
+            (try Elem.DynElem.String.copy(&vm, "abd")).dyn.elem(),
             vm,
         );
     }
@@ -1364,7 +1364,7 @@ test "('' $ [1, 2]) -> [A, B] $ [B, A]" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -1381,7 +1381,7 @@ test "('' $ [[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -1688,7 +1688,7 @@ test "'aa' $ {}" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "aa"),
-            (try Elem.Dyn.Object.create(&vm, 0)).dyn.elem(),
+            (try Elem.DynElem.Object.create(&vm, 0)).dyn.elem(),
             vm,
         );
     }
@@ -1705,7 +1705,7 @@ test "'aa' $ {'a': 1, 'b': 2, 'c': 3}" {
         const result = try vm.interpret(parser, "aa");
 
         // Do this after running the VM to make sure strings are interned
-        var object = try Elem.Dyn.Object.create(&vm, 3);
+        var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.strings.getId("a"), Elem.integer(1));
         try object.members.put(vm.strings.getId("b"), Elem.integer(2));
         try object.members.put(vm.strings.getId("c"), Elem.integer(3));
@@ -1725,7 +1725,7 @@ test "1 -> A & 2 -> B $ {'a': A, 'b': B}" {
         const result = try vm.interpret(parser, "12");
 
         // Do this after running the VM to make sure strings are interned
-        var object = try Elem.Dyn.Object.create(&vm, 3);
+        var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.strings.getId("a"), Elem.integer(1));
         try object.members.put(vm.strings.getId("b"), Elem.integer(2));
 
@@ -1744,7 +1744,7 @@ test "'Z' -> A $ {A: 1, 'A': 2}" {
         const result = try vm.interpret(parser, "Z");
 
         // Do this after running the VM to make sure strings are interned
-        var object = try Elem.Dyn.Object.create(&vm, 3);
+        var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.strings.getId("Z"), Elem.integer(1));
         try object.members.put(vm.strings.getId("A"), Elem.integer(2));
 
@@ -1774,7 +1774,7 @@ test "object('a'..'z', 0..9)" {
         const result = try vm.interpret(parser, "a1b2c3");
 
         // Do this after running the VM to make sure strings are interned
-        var object = try Elem.Dyn.Object.create(&vm, 3);
+        var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.strings.getId("a"), Elem.integer(1));
         try object.members.put(vm.strings.getId("b"), Elem.integer(2));
         try object.members.put(vm.strings.getId("c"), Elem.integer(3));
@@ -1794,7 +1794,7 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
         const result = try vm.interpret(parser, "123456");
 
         // Do this after running the VM to make sure strings are interned
-        var object = try Elem.Dyn.Object.create(&vm, 3);
+        var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.strings.getId("a"), Elem.boolean(false));
         try object.members.put(vm.strings.getId("b"), Elem.nullConst);
 
@@ -1813,7 +1813,7 @@ test "('' $ {'a': true}) -> {'a': true}" {
         const result = try vm.interpret(parser, "");
 
         // Do this after running the VM to make sure strings are interned
-        var object = try Elem.Dyn.Object.create(&vm, 1);
+        var object = try Elem.DynElem.Object.create(&vm, 1);
         try object.members.put(vm.strings.getId("a"), Elem.boolean(true));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm);
@@ -1870,7 +1870,7 @@ test "('' $ [1, 2, 3 + 10, 4])" {
 
         try testing.expectSuccess(
             result,
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -1894,7 +1894,7 @@ test "('' $ [1, 2, 3 - 10, 4])" {
 
         try testing.expectSuccess(
             result,
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -1916,12 +1916,12 @@ test "'' $ [1, 2, [1+1+1]]" {
         const array = [_]Elem{
             Elem.integer(1),
             Elem.integer(2),
-            (try Elem.Dyn.Array.copy(&vm, &innerArray)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &innerArray)).dyn.elem(),
         };
 
         try testing.expectSuccess(
             result,
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -1988,7 +1988,7 @@ test "array(digit) -> [A, B]" {
 
         try testing.expectSuccess(
             result,
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -2103,7 +2103,7 @@ test "('' $ [1,[2],2,3]) -> ([1,A] + A + [3]) $ A" {
         const array = [_]Elem{Elem.integer(2)};
         try testing.expectSuccess(
             try vm.interpret(parser, "a"),
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -2119,7 +2119,7 @@ test "'foobar' -> ('fo' + Ob + 'ar') $ Ob" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, "foobar"),
-            (try Elem.Dyn.String.copy(&vm, "ob")).dyn.elem(),
+            (try Elem.DynElem.String.copy(&vm, "ob")).dyn.elem(),
             vm,
         );
     }
@@ -2144,7 +2144,7 @@ test "('' $ [1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]" {
 
         try testing.expectSuccess(
             try vm.interpret(parser, "a"),
-            (try Elem.Dyn.Array.copy(&vm, &array)).dyn.elem(),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
             vm,
         );
     }
@@ -2184,7 +2184,7 @@ test "A = 1 ; B = 2 ; ('' $ '%(A) + %(A) = %(B)')" {
         defer vm.deinit();
         try testing.expectSuccess(
             try vm.interpret(parser, ""),
-            (try Elem.Dyn.String.copy(&vm, "1 + 1 = 2")).dyn.elem(),
+            (try Elem.DynElem.String.copy(&vm, "1 + 1 = 2")).dyn.elem(),
             vm,
         );
     }
@@ -2484,7 +2484,7 @@ test "0.. -> I & ..0 -> -I" {
 //         defer vm.deinit();
 //         try testing.expectSuccess(
 //             try vm.interpret(parser, "123"),
-//             (try Elem.Dyn.String.copy(&vm, "Your number was 123.")).dyn.elem(),
+//             (try Elem.DynElem.String.copy(&vm, "Your number was 123.")).dyn.elem(),
 //             vm,
 //         );
 //     }

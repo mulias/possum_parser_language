@@ -418,7 +418,7 @@ test {
     });
 
     try case.run(struct_1,
-        \\[Struct] .{ .field1: [Bool], .field2: [Int], .field3: [Float] }
+        \\[struct] .{ .field1: [bool], .field2: [int], .field3: [float] }
     , .{
         .inline_mode = true,
         .show_type_names = false,
@@ -427,9 +427,9 @@ test {
     });
 
     try case.run(struct_1,
-        \\.field1: [Bool]
-        \\.field2: [Int]
-        \\.field3: [Float]
+        \\.field1: [bool]
+        \\.field2: [int]
+        \\.field3: [float]
     , .{
         .filter_depths = .{ .exclude = &.{0} },
         .show_type_tags = true,
@@ -441,14 +441,14 @@ test {
         \\.field2: u8 = 42
     , .{
         .filter_depths = .{ .exclude = &.{0} },
-        .filter_field_type_tags = .{ .exclude = &.{ .Bool, .Float } },
+        .filter_field_type_tags = .{ .exclude = &.{ .bool, .float } },
     });
 
     try case.run(struct_1,
         \\.field2: u8 = 42
     , .{
         .filter_depths = .{ .exclude = &.{0} },
-        .filter_field_type_tags = .{ .exclude = &.{.Bool} },
+        .filter_field_type_tags = .{ .exclude = &.{.bool} },
         .filter_field_names = .{ .exclude = &.{"field3"} },
     });
 
@@ -752,7 +752,7 @@ test {
     // const case = @typeName(@TypeOf(Union.a));
 
     try case.run(Type_1.a,
-        \\@typeInfo(pretty.test.test_0.Type_1).Union.tag_type.?
+        \\@typeInfo(pretty.test.test_0.Type_1).@"union".tag_type.?
         \\  .a
     , .{});
 
@@ -761,7 +761,7 @@ test {
     // ------------------------
     try case.run(@typeInfo(struct { f1: bool, f2: u8 }),
         \\builtin.Type
-        \\  .Struct: builtin.Type.Struct
+        \\  .struct: builtin.Type.Struct
         \\    .layout: builtin.Type.ContainerLayout
         \\      .auto
         \\    .backing_integer: ?type
@@ -772,7 +772,7 @@ test {
         \\          "f1"
         \\        .type: type
         \\          bool
-        \\        .default_value: ?*const anyopaque
+        \\        .default_value_ptr: ?*const anyopaque
         \\          null
         \\        .is_comptime: bool = false
         \\        .alignment: comptime_int = 1
@@ -781,7 +781,7 @@ test {
         \\          "f2"
         \\        .type: type
         \\          u8
-        \\        .default_value: ?*const anyopaque
+        \\        .default_value_ptr: ?*const anyopaque
         \\          null
         \\        .is_comptime: bool = false
         \\        .alignment: comptime_int = 1

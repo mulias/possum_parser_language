@@ -51,7 +51,7 @@ pub const VM = struct {
     allocator: Allocator,
     strings: StringTable,
     globals: AutoHashMap(StringTable.Id, Elem),
-    dynList: ?*Elem.Dyn,
+    dynList: ?*Elem.DynElem,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
     source: []const u8,
@@ -63,7 +63,7 @@ pub const VM = struct {
     config: Config,
 
     const CallFrame = struct {
-        function: *Elem.Dyn.Function,
+        function: *Elem.DynElem.Function,
         ip: usize,
         elemsOffset: usize,
     };
@@ -243,7 +243,7 @@ pub const VM = struct {
                     .Dyn => |dyn| switch (dyn.dynType) {
                         .Function => {
                             const function = dyn.asFunction();
-                            var closure = try Elem.Dyn.Closure.create(self, function);
+                            var closure = try Elem.DynElem.Closure.create(self, function);
                             closure.capture(toSlot, self.getLocal(fromSlot));
                             try self.push(closure.dyn.elem());
                         },
@@ -395,7 +395,7 @@ pub const VM = struct {
                     try self.pushFailure();
                 } else {
                     const array = array_elem.asDyn().asArray();
-                    var copy = try Elem.Dyn.Array.copy(self, array.elems.items);
+                    var copy = try Elem.DynElem.Array.copy(self, array.elems.items);
                     copy.elems.items[index] = elem;
                     try self.push(copy.dyn.elem());
                 }
@@ -414,7 +414,7 @@ pub const VM = struct {
                         .String => |sId| sId,
                         else => @panic("Internal Error"),
                     };
-                    var copy = try Elem.Dyn.Object.create(self, object.members.count());
+                    var copy = try Elem.DynElem.Object.create(self, object.members.count());
                     try copy.concat(object);
                     try copy.members.put(key, val);
                     try self.push(copy.dyn.elem());
@@ -439,7 +439,7 @@ pub const VM = struct {
                         return self.runtimeError("Insert key error: Object key must be a string", .{});
                     }
 
-                    var copy = try Elem.Dyn.Object.create(self, object.members.count());
+                    var copy = try Elem.DynElem.Object.create(self, object.members.count());
                     try copy.concat(object);
                     try copy.members.put(key, val);
                     try self.push(copy.dyn.elem());
@@ -1183,8 +1183,8 @@ pub const VM = struct {
                 if (value.isDynType(.Object)) {
                     const valueObj = value.asDyn().asObject();
 
-                    var unboundObj: ?*Elem.Dyn.Object = null;
-                    if (foundUnboundVar) unboundObj = try Elem.Dyn.Object.copy(self, valueObj);
+                    var unboundObj: ?*Elem.DynElem.Object = null;
+                    if (foundUnboundVar) unboundObj = try Elem.DynElem.Object.copy(self, valueObj);
 
                     // For each pattern segment, copy a subset of valueObj
                     // containing the keys in the pattern. If there is an
@@ -1196,7 +1196,7 @@ pub const VM = struct {
                         } else {
                             const segmentObj = segment.asDyn().asObject();
 
-                            const subObj = try Elem.Dyn.Object.create(self, segmentObj.members.count());
+                            const subObj = try Elem.DynElem.Object.create(self, segmentObj.members.count());
 
                             var iterator = segmentObj.members.iterator();
                             while (iterator.next()) |entry| {
@@ -1236,7 +1236,7 @@ pub const VM = struct {
                                 assert(valueIndex == sc.preVarLength);
 
                                 const length = valueLength - sc.preVarLength - sc.postVarLength;
-                                const substring = try Elem.Dyn.String.copy(self, bytes[valueIndex..(valueIndex + length)]);
+                                const substring = try Elem.DynElem.String.copy(self, bytes[valueIndex..(valueIndex + length)]);
 
                                 valueIndex += length;
                                 patternSegments[i] = substring.dyn.elem();
@@ -1246,7 +1246,7 @@ pub const VM = struct {
                                 else
                                     segment.asDyn().asString().bytes();
 
-                                const substring = try Elem.Dyn.String.copy(self, bytes[valueIndex..(valueIndex + segmentString.len)]);
+                                const substring = try Elem.DynElem.String.copy(self, bytes[valueIndex..(valueIndex + segmentString.len)]);
 
                                 valueIndex += substring.len();
                                 patternSegments[i] = substring.dyn.elem();
@@ -1293,7 +1293,7 @@ pub const VM = struct {
         return &self.frame().function.chunk;
     }
 
-    fn addFrame(self: *VM, function: *Elem.Dyn.Function) !void {
+    fn addFrame(self: *VM, function: *Elem.DynElem.Function) !void {
         try self.frames.append(CallFrame{
             .function = function,
             .ip = 0,
