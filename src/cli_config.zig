@@ -64,9 +64,11 @@ pub fn run(allocator: Allocator) !Mode {
     if (result.args.version != 0) return .{ .Version = undefined };
     if (result.args.docs) |docs| return .{ .Docs = docs };
 
+    const files = result.positionals[0];
+
     // For Parse mode require one parser param and one input param, either
     // named or positional
-    var requiredArgsCount = result.positionals.len;
+    var requiredArgsCount = files.len;
     if (result.args.parser != null) requiredArgsCount += 1;
     if (result.args.input != null) requiredArgsCount += 1;
 
@@ -76,21 +78,21 @@ pub fn run(allocator: Allocator) !Mode {
         var parser: Source = undefined;
         if (result.args.parser) |parserStr| {
             parser = .{ .String = parserStr };
-        } else if (isSingleDash(result.positionals[positionalArg])) {
+        } else if (isSingleDash(files[positionalArg])) {
             positionalArg += 1;
             parser = .{ .Stdin = undefined };
         } else {
+            parser = .{ .Path = files[positionalArg] };
             positionalArg += 1;
-            parser = .{ .Path = result.positionals[0] };
         }
 
         var input: Source = undefined;
         if (result.args.input) |inputStr| {
             input = .{ .String = inputStr };
-        } else if (isSingleDash(result.positionals[positionalArg])) {
+        } else if (isSingleDash(files[positionalArg])) {
             input = .{ .Stdin = undefined };
         } else {
-            input = .{ .Path = result.positionals[positionalArg] };
+            input = .{ .Path = files[positionalArg] };
         }
 
         return .{
