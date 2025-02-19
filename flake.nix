@@ -3,8 +3,9 @@
 
   inputs.nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
   inputs.nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1.*.tar.gz";
+  inputs.zig.url = "github:mitchellh/zig-overlay";
 
-  outputs = { self, nixpkgs, nixpkgs-unstable }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, zig }:
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forEachSupportedSystem = f: nixpkgs.lib.genAttrs supportedSystems (system: f {
@@ -16,7 +17,7 @@
       devShells = forEachSupportedSystem ({ pkgs, unstable }: {
         default = pkgs.mkShell {
           packages = [
-            unstable.zig
+            zig.packages.x86_64-linux.master
             unstable.zls
             pkgs.python311Packages.cram
             pkgs.pandoc
