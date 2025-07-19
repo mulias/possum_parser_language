@@ -9,16 +9,26 @@
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forEachSupportedSystem = f: nixpkgs.lib.genAttrs supportedSystems (system: f {
-        pkgs = import nixpkgs { inherit system; };
-        unstable = import nixpkgs-unstable { inherit system; };
+        pkgs = import nixpkgs {
+          inherit system;
+          config = {
+            allowUnfree = true;
+          };
+        };
+        unstable = import nixpkgs-unstable {
+          inherit system;
+          config = {
+            allowUnfree = true;
+          };
+        };
       });
     in
     {
       devShells = forEachSupportedSystem ({ pkgs, unstable }: {
         default = pkgs.mkShell {
           packages = [
-            zig.packages.x86_64-linux.master
-            unstable.zls
+            pkgs.zig
+            pkgs.zls
             pkgs.python311Packages.cram
             pkgs.pandoc
           ];
