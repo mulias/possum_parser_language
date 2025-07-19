@@ -796,14 +796,22 @@ test {
         \\mem.Allocator
         \\  .ptr: *anyopaque
         \\  .vtable: *const mem.Allocator.VTable
-        \\    .alloc: *const fn (*anyopaque, usize, u8, usize) ?[*]u8
-        \\    .resize: *const fn (*anyopaque, []u8, u8, usize, usize) bool
-        \\    .free: *const fn (*anyopaque, []u8, u8, usize) void
-    , .{});
+        \\    .alloc: *const fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8
+        \\    .resize: *const fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool
+        \\    .remap: *const fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8
+        \\    .free: *const fn (*anyopaque, []u8, mem.Alignment, usize) void
+    , .{
+        .struct_max_len = 20,
+        .str_max_len = 500,
+        .type_name_max_len = 200,
+    });
 
     try case.run(std.testing.allocator,
-        \\mem.Allocator{ .ptr: *anyopaque, .vtable: *const mem.Allocator.VTable{ .alloc: *const fn (*anyopaque, usize, u8, usize) ?[*]u8, .resize: *const fn (*anyopaque, []u8, u8, usize, usize) bool, .free: *const fn (*anyopaque, []u8, u8, usize) void } }
+        \\mem.Allocator{ .ptr: *anyopaque, .vtable: *const mem.Allocator.VTable{ .alloc: *const fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8, .resize: *const fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool, .remap: *const fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8, .free: *const fn (*anyopaque, []u8, mem.Alignment, usize) void } }
     , .{
         .inline_mode = true,
+        .struct_max_len = 20,
+        .str_max_len = 500,
+        .type_name_max_len = 200,
     });
 }
