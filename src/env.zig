@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 
-pub const IS_WASM_FREESTANDING = builtin.target.isWasm() and builtin.target.os.tag == .freestanding;
+pub const IS_WASM_FREESTANDING = builtin.target.cpu.arch.isWasm() and builtin.target.os.tag == .freestanding;
 
 pub const Env = struct {
     printScanner: bool,

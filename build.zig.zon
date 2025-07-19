@@ -1,6 +1,7 @@
 .{
-    .name = "possum",
+    .name = .possum,
     .version = "1.0.0",
+    .fingerprint = 0xeff405d3b9392e14,
     .paths = .{""},
     .dependencies = .{
         .clap = .{
