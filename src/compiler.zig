@@ -134,7 +134,7 @@ pub const Compiler = struct {
             try self.writeParser(main_rnode, false);
             try self.emitEnd();
 
-            const main_fn = self.functions.pop();
+            const main_fn = self.functions.pop() orelse @panic("Internal Error: No Main Function");
 
             if (self.printBytecode) {
                 try main_fn.disassemble(self.vm.*, self.writers.debug);
@@ -873,7 +873,7 @@ pub const Compiler = struct {
             try function.disassemble(self.vm.*, self.writers.debug);
         }
 
-        return self.functions.pop();
+        return self.functions.pop() orelse @panic("Internal Error");
     }
 
     fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.DynElem.Function, region: Region) !void {

@@ -336,7 +336,7 @@ pub const VM = struct {
             .End => {
                 // End of function cleanup. Remove everything from the stack
                 // frame except the final function result.
-                const prevFrame = self.frames.pop();
+                const prevFrame = self.frames.pop() orelse @panic("VM frame underflow");
                 const result = self.pop();
 
                 try self.stack.resize(prevFrame.elemsOffset);
@@ -1359,7 +1359,7 @@ pub const VM = struct {
     }
 
     pub fn pop(self: *VM) Elem {
-        return self.stack.pop();
+        return self.stack.pop() orelse @panic("VM stack underflow");
     }
 
     pub fn peek(self: *VM, distance: usize) Elem {
@@ -1380,7 +1380,7 @@ pub const VM = struct {
     }
 
     fn popInputMark(self: *VM) Pos {
-        return self.inputMarks.pop();
+        return self.inputMarks.pop() orelse @panic("VM input marks underflow");
     }
 
     fn printInput(self: *VM) !void {
