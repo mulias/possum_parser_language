@@ -25,6 +25,7 @@ pub const Ast = struct {
         LowerBoundedRange,
         Negation,
         ValueLabel,
+        Array,
     };
 
     pub const Node = union(NodeType) {
@@ -34,6 +35,7 @@ pub const Ast = struct {
         LowerBoundedRange: *RNode,
         Negation: *RNode,
         ValueLabel: *RNode,
+        Array: ArrayList(*RNode),
 
         pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
             return switch (self) {
@@ -51,8 +53,6 @@ pub const Ast = struct {
     };
 
     pub const InfixType = enum {
-        ArrayCons,
-        ArrayHead,
         Backtrack,
         CallOrDefineFunction,
         Range,
@@ -112,6 +112,10 @@ pub const Ast = struct {
             .left = left,
             .right = right,
         } }, loc);
+    }
+
+    pub fn createArray(self: *Ast, elements: ArrayList(*RNode), loc: Region) !*RNode {
+        return self.create(.{ .Array = elements }, loc);
     }
 
     pub fn print(self: *Ast, vm: VM) !void {

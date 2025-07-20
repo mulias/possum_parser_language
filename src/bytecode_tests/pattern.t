@@ -612,3 +612,139 @@
   0008    | DestructureRange
   0009    | End
   ========================================
+
+  $ possum -p 'const(Is.Array([1])) ; Is.Array(V) = V -> [..._]' -i '1'
+  
+  ================Is.Array================
+  0000    | GetConstant 0: _
+  0002    | GetBoundLocal 0
+  0004    | GetConstant 1: []
+  0006    | GetLocal 1
+  0008    | PrepareMergePattern 2
+  0010    | JumpIfFailure 10 -> 32
+  0013    | GetConstant 2: []
+  0015    | Destructure
+  0016    | JumpIfFailure 16 -> 30
+  0019    | Pop
+  0020    | GetLocal 1
+  0022    | Destructure
+  0023    | JumpIfFailure 23 -> 30
+  0026    | Pop
+  0027    | JumpIfSuccess 27 -> 32
+  0030    | Swap
+  0031    | Pop
+  0032    | End
+  ========================================
+  
+  =================@main==================
+  0000    | GetConstant 0: const
+  0002    | GetConstant 1: Is.Array
+  0004    | GetConstant 2: [1]
+  0006    | CallFunction 1
+  0008    | CallFunction 1
+  0010    | End
+  ========================================
+
+  $ possum -p '
+  > __Table.RestPerRow(T, Acc) =
+  >   T -> [Row, ...Rest] ? (
+  >     Row -> [_, ...RowRest] ?
+  >     __Table.RestPerRow(Rest, [...Acc, RowRest]) :
+  >     __Table.RestPerRow(Rest, [...Acc, []])
+  >   ) :
+  >   Acc
+  > 1
+  > ' -i '1'
+  
+  ===========__Table.RestPerRow===========
+  0000    | GetConstant 0: Row
+  0002    | GetConstant 1: Rest
+  0004    | GetConstant 2: _
+  0006    | GetConstant 3: RowRest
+  0008    | SetInputMark
+  0009    | GetBoundLocal 0
+  0011    | GetConstant 4: [_]
+  0013    | GetLocal 3
+  0015    | PrepareMergePattern 2
+  0017    | JumpIfFailure 17 -> 56
+  0020    | GetConstant 5: [_]
+  0022    | Destructure
+  0023    | JumpIfFailure 23 -> 40
+  0026    | GetAtIndex 0
+  0028    | GetLocal 2
+  0030    | Destructure
+  0031    | JumpIfFailure 31 -> 38
+  0034    | Pop
+  0035    | JumpIfSuccess 35 -> 40
+  0038    | Swap
+  0039    | Pop
+  0040    | JumpIfFailure 40 -> 54
+  0043    | Pop
+  0044    | GetLocal 3
+  0046    | Destructure
+  0047    | JumpIfFailure 47 -> 54
+  0050    | Pop
+  0051    | JumpIfSuccess 51 -> 56
+  0054    | Swap
+  0055    | Pop
+  0056    | ConditionalThen 56 -> 160
+  0059    | SetInputMark
+  0060    | GetBoundLocal 2
+  0062    | GetConstant 6: [_]
+  0064    | GetLocal 5
+  0066    | PrepareMergePattern 2
+  0068    | JumpIfFailure 68 -> 107
+  0071    | GetConstant 7: [_]
+  0073    | Destructure
+  0074    | JumpIfFailure 74 -> 91
+  0077    | GetAtIndex 0
+  0079    | GetLocal 4
+  0081    | Destructure
+  0082    | JumpIfFailure 82 -> 89
+  0085    | Pop
+  0086    | JumpIfSuccess 86 -> 91
+  0089    | Swap
+  0090    | Pop
+  0091    | JumpIfFailure 91 -> 105
+  0094    | Pop
+  0095    | GetLocal 5
+  0097    | Destructure
+  0098    | JumpIfFailure 98 -> 105
+  0101    | Pop
+  0102    | JumpIfSuccess 102 -> 107
+  0105    | Swap
+  0106    | Pop
+  0107    | ConditionalThen 107 -> 137
+  0110    | GetConstant 8: __Table.RestPerRow
+  0112    | GetBoundLocal 3
+  0114    | GetConstant 9: []
+  0116    | JumpIfFailure 116 -> 122
+  0119    | GetBoundLocal 1
+  0121    | Merge
+  0122    | JumpIfFailure 122 -> 132
+  0125    | GetConstant 10: [_]
+  0127    | GetBoundLocal 5
+  0129    | InsertAtIndex 0
+  0131    | Merge
+  0132    | CallTailFunction 2
+  0134    | ConditionalElse 134 -> 157
+  0137    | GetConstant 11: __Table.RestPerRow
+  0139    | GetBoundLocal 3
+  0141    | GetConstant 12: []
+  0143    | JumpIfFailure 143 -> 149
+  0146    | GetBoundLocal 1
+  0148    | Merge
+  0149    | JumpIfFailure 149 -> 155
+  0152    | GetConstant 13: [[]]
+  0154    | Merge
+  0155    | CallTailFunction 2
+  0157    | ConditionalElse 157 -> 162
+  0160    | GetBoundLocal 1
+  0162    | End
+  ========================================
+  
+  =================@main==================
+  0000    | GetConstant 0: 1
+  0002    | CallFunction 0
+  0004    | End
+  ========================================

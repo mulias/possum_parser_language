@@ -1,5 +1,6 @@
 const std = @import("std");
 const unicode = std.unicode;
+const ArrayList = std.ArrayListUnmanaged;
 const Ast = @import("ast.zig").Ast;
 const Elem = @import("elem.zig").Elem;
 const Region = @import("region.zig").Region;
@@ -577,70 +578,38 @@ pub const Parser = struct {
 
     fn array(self: *Parser) Error!*Ast.RNode {
         const region = self.previous.region;
-        var a = try Elem.DynElem.Array.create(self.vm, 0);
-        const elem_rnode = try self.ast.createElem(a.dyn.elem(), region);
+        var elements = ArrayList(*Ast.RNode){};
 
-        if (try self.match(.RightBracket)) {
-            return elem_rnode;
-        } else if (try self.match(.DotDotDot)) {
-            return self.arraySpread(elem_rnode);
-        } else {
-            return self.arrayNonEmpty(elem_rnode);
+        // Parse elements until we hit closing bracket
+        while (!self.check(.RightBracket)) {
+            if (try self.match(.DotDotDot)) {
+                // Handle spread syntax [...expr]
+                const spread_region = self.previous.region;
+                const spread_expr = try self.expression();
+                const array_so_far = try self.ast.createArray(elements, region);
+                var result = try self.ast.createInfix(.Merge, array_so_far, spread_expr, spread_region);
+
+                _ = try self.match(.Comma);
+
+                // Handle continuation after spread: [...expr, more_elements]
+                if (!self.check(.RightBracket)) {
+                    const comma_region = self.previous.region;
+                    const remaining_array = try self.array();
+                    result = try self.ast.createInfix(.Merge, result, remaining_array, comma_region);
+                } else {
+                    try self.consume(.RightBracket, "Expected closing ']'");
+                }
+                return result;
+            } else {
+                const expr = try self.expression();
+                try elements.append(self.ast.arena.allocator(), expr);
+
+                _ = try self.match(.Comma);
+            }
         }
-    }
 
-    fn arrayNonEmpty(self: *Parser, head: *Ast.RNode) !*Ast.RNode {
-        const r = self.previous.region;
-        const array_elems = try self.arrayElems();
-
-        const left_array = try self.ast.createInfix(
-            .ArrayHead,
-            head,
-            array_elems,
-            r,
-        );
-
-        if (try self.match(.DotDotDot)) {
-            return try self.arraySpread(left_array);
-        } else {
-            try self.consume(.RightBracket, "Expected closing ']'");
-            return left_array;
-        }
-    }
-
-    fn arraySpread(self: *Parser, left: *Ast.RNode) !*Ast.RNode {
-        const r = self.previous.region;
-        const spread = try self.expression();
-
-        const left_merge = try self.ast.createInfix(.Merge, left, spread, r);
-
-        if (try self.match(.Comma)) {
-            const comma_region = self.previous.region;
-            const right_array = try self.array();
-
-            return self.ast.createInfix(.Merge, left_merge, right_array, comma_region);
-        } else {
-            try self.consume(.RightBracket, "Expected closing ']'");
-            return left_merge;
-        }
-    }
-
-    fn arrayElems(self: *Parser) !*Ast.RNode {
-        const expr = try self.expression();
-
-        // Comsume a comma if there is one, and then parse another elem unless
-        // it's a spread or it was a trailing comma at the end of the array
-        if (try self.match(.Comma) and !(self.check(.DotDotDot) or self.check(.RightBracket))) {
-            const comma_region = self.previous.region;
-            return self.ast.createInfix(
-                .ArrayCons,
-                expr,
-                try self.arrayElems(),
-                comma_region,
-            );
-        } else {
-            return expr;
-        }
+        try self.consume(.RightBracket, "Expected closing ']'");
+        return self.ast.createArray(elements, region);
     }
 
     fn object(self: *Parser) Error!*Ast.RNode {

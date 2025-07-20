@@ -170,6 +170,7 @@ pub const Compiler = struct {
             .LowerBoundedRange,
             .Negation,
             .ValueLabel,
+            .Array,
             => return Error.InvalidAst,
         }
     }
@@ -234,6 +235,7 @@ pub const Compiler = struct {
                     .LowerBoundedRange,
                     .Negation,
                     .ValueLabel,
+                    .Array,
                     => return Error.InvalidAst,
                 }
             }
@@ -262,6 +264,7 @@ pub const Compiler = struct {
             .LowerBoundedRange,
             .Negation,
             .ValueLabel,
+            .Array,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -405,6 +408,7 @@ pub const Compiler = struct {
             .LowerBoundedRange,
             .Negation,
             .ValueLabel,
+            .Array,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -543,8 +547,6 @@ pub const Compiler = struct {
                     try self.writeParserFunctionCall(infix.left, infix.right, isTailPosition);
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
-                .ArrayHead,
-                .ArrayCons,
                 .ObjectCons,
                 .ObjectPair,
                 .NumberSubtract,
@@ -623,6 +625,7 @@ pub const Compiler = struct {
             },
             .ElemNode => try self.writeParserElem(rnode),
             .ValueLabel,
+            .Array,
             => return Error.InvalidAst,
         }
     }
@@ -837,6 +840,7 @@ pub const Compiler = struct {
                     },
                 },
                 .ValueLabel => @panic("todo"),
+                .Array => @panic("Internal Error: Array should never be a parser"),
             },
             .Value => try self.writeValueArgument(rnode, false),
             .Unspecified => {
@@ -892,9 +896,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ArrayHead => {
-                    try self.writePatternArray(infix.left, infix.right);
-                },
                 .ObjectCons => {
                     try self.writePatternObject(infix.left, infix.right);
                 },
@@ -937,6 +938,9 @@ pub const Compiler = struct {
                 try self.emitOp(.Destructure, region);
             },
             .ValueLabel => return error.InvalidAst,
+            .Array => |elements| {
+                try self.writeDestructurePatternArray(elements, region);
+            },
         }
     }
 
@@ -946,9 +950,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ArrayHead => {
-                    try self.writePatternArray(infix.left, infix.right);
-                },
                 .ObjectCons => {
                     try self.writePatternObject(infix.left, infix.right);
                 },
@@ -961,7 +962,6 @@ pub const Compiler = struct {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
                 .Merge,
-                .ArrayCons,
                 .ObjectPair,
                 .StringTemplateCons,
                 => @panic("Internal Error"),
@@ -974,6 +974,7 @@ pub const Compiler = struct {
             .LowerBoundedRange,
             .ValueLabel,
             => @panic("todo"),
+            .Array => @panic("Internal Error"), // handled by writeDestructurePatternArray
             .Negation => {
                 if (simplifyNegatedNumberNode(rnode)) |elem| {
                     const constId = try self.makeConstant(elem);
@@ -1066,15 +1067,23 @@ pub const Compiler = struct {
                     try self.writePrepareMergePatternPart(infix.right);
                     return totalCount;
                 },
-                else => {},
+                else => {
+                    // Default case
+                },
             },
-            .ElemNode => {},
+            .ElemNode,
+            .Array,
+            => {
+                // Default case
+            },
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
             .ValueLabel,
             => @panic("todo"),
         }
+
+        // Default case
         try self.writePrepareMergePatternPart(rnode);
         return count + 1;
     }
@@ -1082,14 +1091,6 @@ pub const Compiler = struct {
     fn writePrepareMergePatternPart(self: *Compiler, rnode: *Ast.RNode) Error!void {
         switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ArrayHead => {
-                    // At this point the array/object is empty, but in a
-                    // later step we'll mutate to add elements.
-                    const elem = infix.left.node.asElem() orelse @panic("Internal Error");
-                    const region = infix.left.region;
-                    const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, region);
-                },
                 .ObjectCons => {
                     // At this point the array/object is empty, but in a
                     // later step we'll mutate to add elements.
@@ -1108,6 +1109,19 @@ pub const Compiler = struct {
             .Negation,
             .ValueLabel,
             => @panic("todo"),
+            .Array => |elements| {
+                var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
+                for (elements.items) |element| {
+                    if (self.isLiteralPattern(element)) {
+                        const elem = element.node.asElem() orelse @panic("Internal Error");
+                        try array.append(elem);
+                    } else {
+                        try array.append(self.placeholderVar());
+                    }
+                }
+                const constId = try self.makeConstant(array.dyn.elem());
+                try self.emitUnaryOp(.GetConstant, constId, rnode.region);
+            },
             .ElemNode => {
                 try self.writePattern(rnode);
             },
@@ -1127,16 +1141,23 @@ pub const Compiler = struct {
                     try jumpList.append(jumpIndex);
                     return;
                 },
-                else => {},
+                else => {
+                    // Default case
+                },
+            },
+            .Array,
+            .ElemNode,
+            => {
+                // Default case
             },
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
             .ValueLabel,
             => @panic("todo"),
-            .ElemNode => {},
         }
 
+        // Default case
         try self.writeDestructurePattern(rnode);
         const jumpIndex = try self.emitJump(.JumpIfFailure, region);
         try self.emitOp(.Pop, region);
@@ -1157,6 +1178,11 @@ pub const Compiler = struct {
             .Negation,
             .ValueLabel,
             => |inner| try self.addValueLocals(inner),
+            .Array => |elements| {
+                for (elements.items) |element| {
+                    try self.addValueLocals(element);
+                }
+            },
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => |varName| if (self.vm.globals.get(varName) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
@@ -1184,6 +1210,11 @@ pub const Compiler = struct {
             .Negation,
             .ValueLabel,
             => |inner| try self.addClosureLocals(inner),
+            .Array => |elements| {
+                for (elements.items) |element| {
+                    try self.addClosureLocals(element);
+                }
+            },
             .ElemNode => |elem| {
                 const varName = switch (elem) {
                     .ValueVar => |name| name,
@@ -1312,9 +1343,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ArrayHead => {
-                    try self.writeValueArray(infix.left, infix.right);
-                },
                 .ObjectCons => {
                     try self.writeValueObject(infix.left, infix.right);
                 },
@@ -1397,7 +1425,6 @@ pub const Compiler = struct {
                     try self.printError("Character and integer ranges are not valid in value", region);
                     return Error.InvalidAst;
                 },
-                .ArrayCons, // handled by writeArray
                 .ConditionalThenElse, // handled by ConditionalIfThen
                 .DeclareGlobal, // handled by top-level compiler functions
                 .ParamsOrArgs, // handled by CallOrDefineFunction
@@ -1414,6 +1441,9 @@ pub const Compiler = struct {
             },
             .ValueLabel => |inner| {
                 try self.writeValue(inner, isTailPosition);
+            },
+            .Array => |elements| {
+                try self.writeValueArray(elements, region);
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
@@ -1547,153 +1577,93 @@ pub const Compiler = struct {
         return argCount;
     }
 
-    const ArrayContext = union(enum) {
-        Pattern: *ArrayList(usize),
-        Value: void,
+    fn writeDestructurePatternArray(self: *Compiler, elements: std.ArrayListUnmanaged(*Ast.RNode), region: Region) Error!void {
+        var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
 
-        pub fn emitPatternJumpIfFailure(self: ArrayContext, compiler: *Compiler, region: Region) !void {
-            switch (self) {
-                .Pattern => |jumpList| {
-                    const index = try compiler.emitJump(.JumpIfFailure, region);
-                    try jumpList.append(index);
-                },
-                .Value => {},
+        for (elements.items) |element| {
+            if (self.isLiteralPattern(element)) {
+                const elem = element.node.asElem() orelse @panic("Internal Error");
+                try array.append(elem);
+            } else {
+                try array.append(self.placeholderVar());
             }
         }
 
-        pub fn patchPatternJumps(self: ArrayContext, compiler: *Compiler, region: Region) !void {
-            switch (self) {
-                .Pattern => |jumpList| {
-                    for (jumpList.items) |index| {
-                        try compiler.patchJump(index, region);
-                    }
-                },
-                .Value => {},
-            }
-        }
-    };
+        const constId = try self.makeConstant(array.dyn.elem());
+        try self.emitUnaryOp(.GetConstant, constId, region);
+        try self.emitOp(.Destructure, region);
 
-    fn writePatternArray(self: *Compiler, start_array: *Ast.RNode, first_item: *Ast.RNode) !void {
-        var jumpList = ArrayList(usize).init(self.vm.allocator);
+        // Note: This is an optimization which is probably incorrect.
+        if (elements.items.len == 0) {
+            return;
+        }
+
+        const failureJumpIndex = try self.emitJump(.JumpIfFailure, region);
+        var jumpList = std.ArrayList(usize).init(self.vm.allocator);
         defer jumpList.deinit();
-        try self.writeArray(start_array, first_item, ArrayContext{ .Pattern = &jumpList });
-    }
 
-    fn writeValueArray(self: *Compiler, start_array: *Ast.RNode, first_item: *Ast.RNode) !void {
-        try self.writeArray(start_array, first_item, ArrayContext{ .Value = undefined });
-    }
-
-    fn writeArray(self: *Compiler, array_start: *Ast.RNode, first_item: *Ast.RNode, context: ArrayContext) !void {
-        // The first left node is the empty array
-        const arrayElem = array_start.node.asElem() orelse @panic("Internal Error");
-
-        const array = arrayElem.asDyn().asArray();
-        const constId = try self.makeConstant(arrayElem);
-
-        try self.emitUnaryOp(.GetConstant, constId, array_start.region);
-
-        if (context == .Pattern) {
-            try self.emitOp(.Destructure, array_start.region);
-            const failureJumpIndex = try self.emitJump(.JumpIfFailure, array_start.region);
-
-            try self.appendArrayElems(array, first_item, context);
-
-            const successJumpIndex = try self.emitJump(.JumpIfSuccess, array_start.region);
-
-            try context.patchPatternJumps(self, array_start.region);
-
-            try self.emitOp(.Swap, array_start.region);
-            try self.emitOp(.Pop, array_start.region);
-
-            try self.patchJump(failureJumpIndex, array_start.region);
-            try self.patchJump(successJumpIndex, array_start.region);
-        } else {
-            try self.appendArrayElems(array, first_item, context);
-        }
-    }
-
-    fn appendArrayElems(self: *Compiler, array: *Elem.DynElem.Array, first_item: *Ast.RNode, context: ArrayContext) !void {
-        var item = first_item;
-        var index: u8 = 0;
-
-        while (true) {
-            switch (item.node) {
-                .InfixNode => |infix| switch (infix.infixType) {
-                    .ArrayCons => {
-                        try self.appendArrayElem(array, infix.left, index, context);
-                        item = infix.right;
-                        index += 1;
-                    },
-                    else => break,
-                },
-                .ElemNode,
-                .UpperBoundedRange,
-                .LowerBoundedRange,
-                .Negation,
-                .ValueLabel,
-                => break,
+        for (elements.items, 0..) |element, index| {
+            if (!self.isLiteralPattern(element)) {
+                try self.emitUnaryOp(.GetAtIndex, @intCast(index), element.region);
+                try self.writeDestructurePattern(element);
+                const jumpIndex = try self.emitJump(.JumpIfFailure, element.region);
+                try jumpList.append(jumpIndex);
+                try self.emitOp(.Pop, element.region);
             }
         }
 
-        // The last array element
-        try self.appendArrayElem(array, item, index, context);
+        const successJumpIndex = try self.emitJump(.JumpIfSuccess, region);
+
+        for (jumpList.items) |jumpIndex| {
+            try self.patchJump(jumpIndex, region);
+        }
+
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Pop, region);
+
+        try self.patchJump(failureJumpIndex, region);
+        try self.patchJump(successJumpIndex, region);
     }
 
-    fn appendArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, context: ArrayContext) Error!void {
+    fn writeValueArray(self: *Compiler, elements: std.ArrayListUnmanaged(*Ast.RNode), region: Region) Error!void {
+        var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
+        const constId = try self.makeConstant(array.dyn.elem());
+        try self.emitUnaryOp(.GetConstant, constId, region);
+
+        for (elements.items, 0..) |element, index| {
+            try self.writeArrayElem(array, element, @intCast(index), region);
+        }
+    }
+
+    fn appendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) !void {
+        try self.writeValue(rnode, false);
+        try self.emitUnaryOp(.InsertAtIndex, index, region);
+        try array.append(self.placeholderVar());
+    }
+
+    fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) Error!void {
         switch (rnode.node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .ArrayHead => {
-                    try self.writeArrayElem(rnode, index, context);
-                    try array.append(self.placeholderVar());
-                },
-                .ObjectCons,
-                .Merge,
-                .NumberSubtract,
-                => {
-                    try self.writeArrayElem(rnode, index, context);
-                    try array.append(self.placeholderVar());
-                },
-                .CallOrDefineFunction => {
-                    if (context == .Value) {
-                        try self.writeArrayElem(rnode, index, context);
-                        try array.append(self.placeholderVar());
-                    } else {
-                        @panic("todo");
-                    }
-                },
-                else => {
-                    @panic("Internal Error");
-                },
-            },
             .ElemNode => |elem| switch (elem) {
-                .ValueVar => {
-                    try self.writeArrayElem(rnode, index, context);
-                    try array.append(self.placeholderVar());
-                },
+                .ValueVar => try self.appendDynamicValue(array, rnode, index, region),
                 else => {
                     try array.append(elem);
                 },
+            },
+            .InfixNode => try self.appendDynamicValue(array, rnode, index, region),
+            .Array => |elements| {
+                // Special case: empty arrays should be treated as literals
+                if (elements.items.len == 0) {
+                    var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
+                    try array.append(emptyArray.dyn.elem());
+                } else {
+                    try self.appendDynamicValue(array, rnode, index, region);
+                }
             },
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
             .ValueLabel,
             => @panic("todo"),
-        }
-    }
-
-    fn writeArrayElem(self: *Compiler, rnode: *Ast.RNode, index: u8, context: ArrayContext) Error!void {
-        switch (context) {
-            .Value => {
-                try self.writeValue(rnode, false);
-                try self.emitUnaryOp(.InsertAtIndex, index, rnode.region);
-            },
-            .Pattern => {
-                try self.emitUnaryOp(.GetAtIndex, index, rnode.region);
-                try self.writeDestructurePattern(rnode);
-                try context.emitPatternJumpIfFailure(self, rnode.region);
-                try self.emitOp(.Pop, rnode.region);
-            },
         }
     }
 
@@ -1832,7 +1802,6 @@ pub const Compiler = struct {
 
         if (key_elem == .ValueVar) switch (val_rnode.node) {
             .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                .ArrayHead,
                 .ObjectCons,
                 .Merge,
                 .NumberSubtract,
@@ -1861,7 +1830,6 @@ pub const Compiler = struct {
 
         switch (val_rnode.node) {
             .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                .ArrayHead,
                 .ObjectCons,
                 .Merge,
                 .NumberSubtract,
@@ -1893,6 +1861,7 @@ pub const Compiler = struct {
             .LowerBoundedRange,
             .Negation,
             .ValueLabel,
+            .Array,
             => @panic("todo"),
         }
     }
@@ -1907,7 +1876,6 @@ pub const Compiler = struct {
 
         switch (val_rnode.node) {
             .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                .ArrayHead,
                 .ObjectCons,
                 .Merge,
                 .NumberSubtract,
@@ -1956,6 +1924,17 @@ pub const Compiler = struct {
             .Negation,
             .ValueLabel,
             => @panic("todo"),
+            .Array => {
+                switch (key_elem) {
+                    .String => try self.writeValueObjectVal(val_rnode, key_elem),
+                    .ValueVar => {
+                        try self.writeGetVar(key_elem, key_region, .Value);
+                        try self.writeValue(val_rnode, false);
+                        try self.emitOp(.InsertKeyVal, pair_region);
+                    },
+                    else => @panic("Internal Error"),
+                }
+            },
         }
     }
 
@@ -2023,6 +2002,7 @@ pub const Compiler = struct {
                 .LowerBoundedRange,
                 .Negation,
                 .ValueLabel,
+                .Array,
                 => @panic("todo"),
             }
         }
@@ -2033,6 +2013,17 @@ pub const Compiler = struct {
             .Parser => try self.writeParser(rnode, false),
             .Value => try self.writeValue(rnode, false),
         }
+    }
+
+    fn isLiteralPattern(self: *Compiler, rnode: *Ast.RNode) bool {
+        _ = self;
+        return switch (rnode.node) {
+            .ElemNode => |elem| switch (elem) {
+                .String, .InputSubstring, .NumberString, .Integer, .Float, .Boolean, .Null => true,
+                else => false,
+            },
+            else => false,
+        };
     }
 
     fn simplifyNegatedNumberNode(rnode: *Ast.RNode) ?Elem {
