@@ -219,3 +219,35 @@
   0017    | MergeAsString
   0018    | End
   ========================================
+
+  $ possum -p 'Obj.Put(O, K, V) = {...O, K: V} ; 1' -i '1'
+  
+  ================Obj.Put=================
+  0000    | GetBoundLocal 0
+  0002    | JumpIfFailure 2 -> 13
+  0005    | GetConstant 0: {}
+  0007    | GetBoundLocal 1
+  0009    | GetBoundLocal 2
+  0011    | InsertKeyVal
+  0012    | Merge
+  0013    | End
+  ========================================
+  
+  =================@main==================
+  0000    | GetConstant 0: 1
+  0002    | CallFunction 0
+  0004    | End
+  ========================================
+
+  $ possum -p '_Toml.Doc.Empty = {"value": {}, "type": {}} ; 1' -i '1'
+  
+  ============_Toml.Doc.Empty=============
+  0000    | GetConstant 0: {"value": {}, "type": {}}
+  0002    | End
+  ========================================
+  
+  =================@main==================
+  0000    | GetConstant 0: 1
+  0002    | CallFunction 0
+  0004    | End
+  ========================================

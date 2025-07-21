@@ -26,6 +26,12 @@ pub const Ast = struct {
         Negation,
         ValueLabel,
         Array,
+        Object,
+    };
+
+    pub const ObjectPair = struct {
+        key: *RNode,
+        value: *RNode,
     };
 
     pub const Node = union(NodeType) {
@@ -36,6 +42,7 @@ pub const Ast = struct {
         Negation: *RNode,
         ValueLabel: *RNode,
         Array: ArrayList(*RNode),
+        Object: ArrayList(ObjectPair),
 
         pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
             return switch (self) {
@@ -62,8 +69,6 @@ pub const Ast = struct {
         Destructure,
         Merge,
         NumberSubtract,
-        ObjectCons,
-        ObjectPair,
         Or,
         ParamsOrArgs,
         Return,
@@ -116,6 +121,10 @@ pub const Ast = struct {
 
     pub fn createArray(self: *Ast, elements: ArrayList(*RNode), loc: Region) !*RNode {
         return self.create(.{ .Array = elements }, loc);
+    }
+
+    pub fn createObject(self: *Ast, pairs: ArrayList(ObjectPair), loc: Region) !*RNode {
+        return self.create(.{ .Object = pairs }, loc);
     }
 
     pub fn print(self: *Ast, vm: VM) !void {

@@ -171,6 +171,7 @@ pub const Compiler = struct {
             .Negation,
             .ValueLabel,
             .Array,
+            .Object,
             => return Error.InvalidAst,
         }
     }
@@ -236,6 +237,7 @@ pub const Compiler = struct {
                     .Negation,
                     .ValueLabel,
                     .Array,
+                    .Object,
                     => return Error.InvalidAst,
                 }
             }
@@ -265,6 +267,7 @@ pub const Compiler = struct {
             .Negation,
             .ValueLabel,
             .Array,
+            .Object,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -409,6 +412,7 @@ pub const Compiler = struct {
             .Negation,
             .ValueLabel,
             .Array,
+            .Object,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -547,8 +551,6 @@ pub const Compiler = struct {
                     try self.writeParserFunctionCall(infix.left, infix.right, isTailPosition);
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
-                .ObjectCons,
-                .ObjectPair,
                 .NumberSubtract,
                 .StringTemplateCons,
                 => return Error.InvalidAst,
@@ -626,6 +628,7 @@ pub const Compiler = struct {
             .ElemNode => try self.writeParserElem(rnode),
             .ValueLabel,
             .Array,
+            .Object,
             => return Error.InvalidAst,
         }
     }
@@ -841,6 +844,7 @@ pub const Compiler = struct {
                 },
                 .ValueLabel => @panic("todo"),
                 .Array => @panic("Internal Error: Array should never be a parser"),
+                .Object => @panic("Internal Error: Object should never be a parser"),
             },
             .Value => try self.writeValueArgument(rnode, false),
             .Unspecified => {
@@ -896,9 +900,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ObjectCons => {
-                    try self.writePatternObject(infix.left, infix.right);
-                },
                 .Merge => {
                     try self.writePatternMerge(rnode);
                 },
@@ -941,6 +942,9 @@ pub const Compiler = struct {
             .Array => |elements| {
                 try self.writeDestructurePatternArray(elements, region);
             },
+            .Object => |pairs| {
+                try self.writeDestructurePatternObject(pairs, region);
+            },
         }
     }
 
@@ -950,9 +954,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ObjectCons => {
-                    try self.writePatternObject(infix.left, infix.right);
-                },
                 .NumberSubtract,
                 .StringTemplate,
                 => {
@@ -962,7 +963,6 @@ pub const Compiler = struct {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
                 .Merge,
-                .ObjectPair,
                 .StringTemplateCons,
                 => @panic("Internal Error"),
                 else => {
@@ -975,6 +975,7 @@ pub const Compiler = struct {
             .ValueLabel,
             => @panic("todo"),
             .Array => @panic("Internal Error"), // handled by writeDestructurePatternArray
+            .Object => @panic("Internal Error"), // handled by writeDestructurePatternObject
             .Negation => {
                 if (simplifyNegatedNumberNode(rnode)) |elem| {
                     const constId = try self.makeConstant(elem);
@@ -1073,6 +1074,7 @@ pub const Compiler = struct {
             },
             .ElemNode,
             .Array,
+            .Object,
             => {
                 // Default case
             },
@@ -1090,16 +1092,34 @@ pub const Compiler = struct {
 
     fn writePrepareMergePatternPart(self: *Compiler, rnode: *Ast.RNode) Error!void {
         switch (rnode.node) {
+            .Object => |pairs| {
+                var object = try Elem.DynElem.Object.create(self.vm, 0);
+                const constId = try self.makeConstant(object.dyn.elem());
+                try self.emitUnaryOp(.GetConstant, constId, rnode.region);
+
+                for (pairs.items) |pair| {
+                    if (try self.literalPatternToElem(pair.key)) |key_elem| {
+                        if (try self.literalPatternToElem(pair.value)) |value_elem| {
+                            const key_id = switch (key_elem) {
+                                .String => |s| s,
+                                else => @panic("Object key must be string"),
+                            };
+                            try object.members.put(key_id, value_elem);
+                        } else {
+                            const key_id = switch (key_elem) {
+                                .String => |s| s,
+                                else => @panic("Object key must be string"),
+                            };
+                            try object.members.put(key_id, self.placeholderVar());
+                        }
+                    } else {
+                        try self.writePattern(pair.key);
+                        try self.writePattern(pair.value);
+                        try self.emitOp(.InsertKeyVal, rnode.region);
+                    }
+                }
+            },
             .InfixNode => |infix| switch (infix.infixType) {
-                .ObjectCons => {
-                    // At this point the array/object is empty, but in a
-                    // later step we'll mutate to add elements.
-                    const elem = infix.left.node.asElem() orelse @panic("Internal Error");
-                    const region = infix.left.region;
-                    const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, region);
-                    try self.writePatternObjectDynamicKeys(infix.right);
-                },
                 else => {
                     try self.writePattern(rnode);
                 },
@@ -1112,8 +1132,7 @@ pub const Compiler = struct {
             .Array => |elements| {
                 var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
                 for (elements.items) |element| {
-                    if (self.isLiteralPattern(element)) {
-                        const elem = element.node.asElem() orelse @panic("Internal Error");
+                    if (try self.literalPatternToElem(element)) |elem| {
                         try array.append(elem);
                     } else {
                         try array.append(self.placeholderVar());
@@ -1147,6 +1166,7 @@ pub const Compiler = struct {
             },
             .Array,
             .ElemNode,
+            .Object,
             => {
                 // Default case
             },
@@ -1183,6 +1203,12 @@ pub const Compiler = struct {
                     try self.addValueLocals(element);
                 }
             },
+            .Object => |pairs| {
+                for (pairs.items) |pair| {
+                    try self.addValueLocals(pair.key);
+                    try self.addValueLocals(pair.value);
+                }
+            },
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => |varName| if (self.vm.globals.get(varName) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
@@ -1213,6 +1239,12 @@ pub const Compiler = struct {
             .Array => |elements| {
                 for (elements.items) |element| {
                     try self.addClosureLocals(element);
+                }
+            },
+            .Object => |pairs| {
+                for (pairs.items) |pair| {
+                    try self.addClosureLocals(pair.key);
+                    try self.addClosureLocals(pair.value);
                 }
             },
             .ElemNode => |elem| {
@@ -1343,9 +1375,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .ObjectCons => {
-                    try self.writeValueObject(infix.left, infix.right);
-                },
                 .StringTemplate => {
                     try self.writeStringTemplate(infix.left, infix.right, .Value);
                 },
@@ -1428,7 +1457,6 @@ pub const Compiler = struct {
                 .ConditionalThenElse, // handled by ConditionalIfThen
                 .DeclareGlobal, // handled by top-level compiler functions
                 .ParamsOrArgs, // handled by CallOrDefineFunction
-                .ObjectPair, // handled by ObjectCons
                 .StringTemplateCons, // handled by StringTemplate
                 => @panic("internal error"),
             },
@@ -1444,6 +1472,9 @@ pub const Compiler = struct {
             },
             .Array => |elements| {
                 try self.writeValueArray(elements, region);
+            },
+            .Object => |pairs| {
+                try self.writeValueObject(pairs, region);
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
@@ -1581,8 +1612,7 @@ pub const Compiler = struct {
         var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
 
         for (elements.items) |element| {
-            if (self.isLiteralPattern(element)) {
-                const elem = element.node.asElem() orelse @panic("Internal Error");
+            if (try self.literalPatternToElem(element)) |elem| {
                 try array.append(elem);
             } else {
                 try array.append(self.placeholderVar());
@@ -1609,6 +1639,74 @@ pub const Compiler = struct {
                 const jumpIndex = try self.emitJump(.JumpIfFailure, element.region);
                 try jumpList.append(jumpIndex);
                 try self.emitOp(.Pop, element.region);
+            }
+        }
+
+        const successJumpIndex = try self.emitJump(.JumpIfSuccess, region);
+
+        for (jumpList.items) |jumpIndex| {
+            try self.patchJump(jumpIndex, region);
+        }
+
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Pop, region);
+
+        try self.patchJump(failureJumpIndex, region);
+        try self.patchJump(successJumpIndex, region);
+    }
+
+    fn writeDestructurePatternObject(self: *Compiler, pairs: std.ArrayListUnmanaged(Ast.ObjectPair), region: Region) Error!void {
+        var object = try Elem.DynElem.Object.create(self.vm, 0);
+        const constId = try self.makeConstant(object.dyn.elem());
+        try self.emitUnaryOp(.GetConstant, constId, region);
+
+        for (pairs.items) |pair| {
+            if (try self.literalPatternToElem(pair.key)) |key_elem| {
+                if (try self.literalPatternToElem(pair.value)) |value_elem| {
+                    const key_id = switch (key_elem) {
+                        .String => |s| s,
+                        else => @panic("Object key must be string"),
+                    };
+                    try object.members.put(key_id, value_elem);
+                } else {
+                    const key_id = switch (key_elem) {
+                        .String => |s| s,
+                        else => @panic("Object key must be string"),
+                    };
+                    try object.members.put(key_id, self.placeholderVar());
+                }
+            } else {
+                try self.writePattern(pair.key);
+                try self.writePattern(pair.value);
+                try self.emitOp(.InsertKeyVal, region);
+            }
+        }
+
+        try self.emitOp(.Destructure, region);
+
+        // Note: This is an optimization which is probably incorrect.
+        if (pairs.items.len == 0) {
+            return;
+        }
+
+        const failureJumpIndex = try self.emitJump(.JumpIfFailure, region);
+        var jumpList = std.ArrayList(usize).init(self.vm.allocator);
+        defer jumpList.deinit();
+
+        for (pairs.items) |pair| {
+            if (!self.isLiteralPattern(pair.value)) {
+                if (try self.literalPatternToElem(pair.key)) |key_elem| {
+                    const constId_key = try self.makeConstant(key_elem);
+                    try self.emitUnaryOp(.GetConstant, constId_key, pair.key.region);
+                } else {
+                    // Dynamic key case
+                    try self.writePattern(pair.key);
+                }
+                try self.emitOp(.GetAtKey, pair.key.region);
+                try self.writeDestructurePattern(pair.value);
+                const jumpIndex = try self.emitJump(.JumpIfFailure, pair.value.region);
+                try jumpList.append(jumpIndex);
+                try self.emitOp(.Pop, pair.value.region);
             }
         }
 
@@ -1659,306 +1757,42 @@ pub const Compiler = struct {
                     try self.appendDynamicValue(array, rnode, index, region);
                 }
             },
-            .UpperBoundedRange,
-            .LowerBoundedRange,
-            .Negation,
-            .ValueLabel,
-            => @panic("todo"),
-        }
-    }
-
-    const ObjectContext = union(enum) {
-        Pattern: *ArrayList(usize),
-        Value: void,
-
-        pub fn emitPatternJumpIfFailure(self: ObjectContext, compiler: *Compiler, region: Region) !void {
-            switch (self) {
-                .Pattern => |jumpList| {
-                    const index = try compiler.emitJump(.JumpIfFailure, region);
-                    try jumpList.append(index);
-                },
-                .Value => {},
-            }
-        }
-
-        pub fn patchPatternJumps(self: ObjectContext, compiler: *Compiler, region: Region) !void {
-            switch (self) {
-                .Pattern => |jumpList| {
-                    for (jumpList.items) |index| {
-                        try compiler.patchJump(index, region);
-                    }
-                },
-                .Value => {},
-            }
-        }
-    };
-
-    fn writePatternObject(self: *Compiler, object_start: *Ast.RNode, first_item: *Ast.RNode) Error!void {
-        var jumpList = ArrayList(usize).init(self.vm.allocator);
-        defer jumpList.deinit();
-
-        var object_elem = object_start.node.asElem() orelse @panic("Internal Error");
-
-        const object = object_elem.asDyn().asObject();
-        const constId = try self.makeConstant(object_elem);
-
-        try self.emitUnaryOp(.GetConstant, constId, object_start.region);
-
-        try self.writePatternObjectDynamicKeys(first_item);
-
-        try self.emitOp(.Destructure, object_start.region);
-        const failureJumpIndex = try self.emitJump(.JumpIfFailure, object_start.region);
-
-        try self.appendPatternObjectMembers(object, first_item, &jumpList);
-
-        const successJumpIndex = try self.emitJump(.JumpIfSuccess, object_start.region);
-
-        for (jumpList.items) |index| {
-            try self.patchJump(index, object_start.region);
-        }
-
-        try self.emitOp(.Swap, object_start.region);
-        try self.emitOp(.Pop, object_start.region);
-
-        try self.patchJump(failureJumpIndex, object_start.region);
-        try self.patchJump(successJumpIndex, object_start.region);
-    }
-
-    fn writeValueObject(self: *Compiler, object_start: *Ast.RNode, first_item: *Ast.RNode) !void {
-        var object_elem = object_start.node.asElem() orelse @panic("Internal Error");
-
-        const object = object_elem.asDyn().asObject();
-        const constId = try self.makeConstant(object_elem);
-
-        try self.emitUnaryOp(.GetConstant, constId, object_start.region);
-
-        try self.appendValueObjectMembers(object, first_item);
-    }
-
-    fn writePatternObjectDynamicKeys(self: *Compiler, first_item: *Ast.RNode) !void {
-        var rnode = first_item;
-
-        while (true) {
-            switch (rnode.node) {
-                .InfixNode => |infix| switch (infix.infixType) {
-                    .ObjectCons => {
-                        try self.writePatternObjectDynamicKey(infix.left);
-                        rnode = infix.right;
-                    },
-                    else => break,
-                },
-                else => break,
-            }
-        }
-
-        try self.writePatternObjectDynamicKey(rnode);
-    }
-
-    fn appendPatternObjectMembers(self: *Compiler, object: *Elem.DynElem.Object, first_item: *Ast.RNode, jump_list: *ArrayList(usize)) !void {
-        var rnode = first_item;
-
-        while (true) {
-            switch (rnode.node) {
-                .InfixNode => |infix| switch (infix.infixType) {
-                    .ObjectCons => {
-                        try self.appendPatternObjectPair(object, infix.left, jump_list);
-                        rnode = infix.right;
-                    },
-                    else => break,
-                },
-                else => break,
-            }
-        }
-
-        try self.appendPatternObjectPair(object, rnode, jump_list);
-    }
-
-    fn appendValueObjectMembers(self: *Compiler, object: *Elem.DynElem.Object, first_item: *Ast.RNode) !void {
-        var rnode = first_item;
-
-        while (true) {
-            switch (rnode.node) {
-                .InfixNode => |infix| switch (infix.infixType) {
-                    .ObjectCons => {
-                        try self.appendValueObjectPair(object, infix.left);
-                        rnode = infix.right;
-                    },
-                    else => break,
-                },
-                else => break,
-            }
-        }
-
-        try self.appendValueObjectPair(object, rnode);
-    }
-
-    fn writePatternObjectDynamicKey(self: *Compiler, pair_rnode: *Ast.RNode) !void {
-        const pair_node = pair_rnode.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
-        const pair_region = pair_rnode.region;
-
-        const key_region = pair_node.left.region;
-        const key_elem = pair_node.left.node.asElem().?;
-        const val_rnode = pair_node.right;
-
-        if (key_elem == .ValueVar) switch (val_rnode.node) {
-            .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                .ObjectCons,
-                .Merge,
-                .NumberSubtract,
-                => {
-                    try self.writeGetVar(key_elem, key_region, .Pattern);
-                    try self.writePattern(val_rnode);
-                    try self.emitOp(.InsertKeyVal, pair_region);
-                },
-                .CallOrDefineFunction => @panic("todo"),
-                else => @panic("Internal Error"),
-            },
-            .ElemNode => {
-                try self.writeGetVar(key_elem, key_region, .Pattern);
-                try self.writePattern(val_rnode);
-                try self.emitOp(.InsertKeyVal, pair_region);
-            },
-            else => {},
-        };
-    }
-
-    fn appendPatternObjectPair(self: *Compiler, object: *Elem.DynElem.Object, pair_rnode: *Ast.RNode, jump_list: *ArrayList(usize)) Error!void {
-        const pair_node = pair_rnode.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
-
-        const key_elem = pair_node.left.node.asElem().?;
-        const val_rnode = pair_node.right;
-
-        switch (val_rnode.node) {
-            .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                .ObjectCons,
-                .Merge,
-                .NumberSubtract,
-                => {
-                    try self.writePatternObjectVal(val_rnode, key_elem, jump_list);
-
-                    if (key_elem == .String) {
-                        try object.members.put(key_elem.String, self.placeholderVar());
-                    }
-                },
-                .CallOrDefineFunction => @panic("todo"),
-                else => @panic("Internal Error"),
-            },
-            .ElemNode => |elem| switch (elem) {
-                .ValueVar => {
-                    try self.writePatternObjectVal(val_rnode, key_elem, jump_list);
-
-                    if (key_elem == .String) {
-                        try object.members.put(key_elem.String, self.placeholderVar());
-                    }
-                },
-                else => {
-                    if (key_elem == .String) {
-                        try object.members.put(key_elem.String, elem);
-                    }
-                },
-            },
-            .UpperBoundedRange,
-            .LowerBoundedRange,
-            .Negation,
-            .ValueLabel,
-            .Array,
-            => @panic("todo"),
-        }
-    }
-
-    fn appendValueObjectPair(self: *Compiler, object: *Elem.DynElem.Object, pair_rnode: *Ast.RNode) Error!void {
-        const pair_node = pair_rnode.node.asInfixOfType(.ObjectPair) orelse @panic("Internal Error");
-        const pair_region = pair_rnode.region;
-
-        const key_region = pair_node.left.region;
-        const key_elem = pair_node.left.node.asElem().?;
-        const val_rnode = pair_node.right;
-
-        switch (val_rnode.node) {
-            .InfixNode => |nestedInfix| switch (nestedInfix.infixType) {
-                .ObjectCons,
-                .Merge,
-                .NumberSubtract,
-                .CallOrDefineFunction,
-                => {
-                    switch (key_elem) {
-                        .String => try self.writeValueObjectVal(val_rnode, key_elem),
-                        .ValueVar => {
-                            try self.writeGetVar(key_elem, key_region, .Value);
-                            try self.writeValue(val_rnode, false);
-                            try self.emitOp(.InsertKeyVal, pair_region);
-                        },
-                        else => @panic("Internal Error"),
-                    }
-                },
-                else => {
-                    @panic("Internal Error");
-                },
-            },
-            .ElemNode => |elem| switch (elem) {
-                .ValueVar => {
-                    switch (key_elem) {
-                        .String => try self.writeValueObjectVal(val_rnode, key_elem),
-                        .ValueVar => {
-                            try self.writeGetVar(key_elem, key_region, .Value);
-                            try self.writeValue(val_rnode, false);
-                            try self.emitOp(.InsertKeyVal, pair_region);
-                        },
-                        else => @panic("Internal Error"),
-                    }
-                },
-                else => {
-                    switch (key_elem) {
-                        .String => |sId| try object.members.put(sId, elem),
-                        .ValueVar => {
-                            try self.writeGetVar(key_elem, key_region, .Value);
-                            try self.writeValue(val_rnode, false);
-                            try self.emitOp(.InsertKeyVal, pair_region);
-                        },
-                        else => @panic("Internal Error"),
-                    }
-                },
-            },
-            .UpperBoundedRange,
-            .LowerBoundedRange,
-            .Negation,
-            .ValueLabel,
-            => @panic("todo"),
-            .Array => {
-                switch (key_elem) {
-                    .String => try self.writeValueObjectVal(val_rnode, key_elem),
-                    .ValueVar => {
-                        try self.writeGetVar(key_elem, key_region, .Value);
-                        try self.writeValue(val_rnode, false);
-                        try self.emitOp(.InsertKeyVal, pair_region);
-                    },
-                    else => @panic("Internal Error"),
+            .Object => |pairs| {
+                // Special case: empty objects should be treated as literals
+                if (pairs.items.len == 0) {
+                    var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
+                    try array.append(emptyObject.dyn.elem());
+                } else {
+                    try self.appendDynamicValue(array, rnode, index, region);
                 }
             },
+            .UpperBoundedRange,
+            .LowerBoundedRange,
+            .Negation,
+            .ValueLabel,
+            => @panic("todo"),
         }
     }
 
-    fn writePatternObjectVal(self: *Compiler, rnode: *Ast.RNode, key: Elem, jump_list: *ArrayList(usize)) Error!void {
-        const region = rnode.region;
+    fn writeValueObject(self: *Compiler, pairs: std.ArrayListUnmanaged(Ast.ObjectPair), region: Region) Error!void {
+        var object = try Elem.DynElem.Object.create(self.vm, 0);
+        const constId = try self.makeConstant(object.dyn.elem());
+        try self.emitUnaryOp(.GetConstant, constId, region);
 
-        switch (key) {
-            .String => {
-                const constId = try self.makeConstant(key);
-                try self.emitUnaryOp(.GetConstant, constId, region);
-            },
-            .ValueVar => {
-                try self.writeGetVar(key, region, .Pattern);
-            },
-            else => @panic("Internal Error"),
+        for (pairs.items) |pair| {
+            if (try self.literalPatternToElem(pair.key)) |key_elem| {
+                if (try self.literalPatternToElem(pair.value)) |val_elem| {
+                    const key_sId = key_elem.String;
+                    try object.members.put(key_sId, val_elem);
+                } else {
+                    try self.writeValueObjectVal(pair.value, key_elem);
+                }
+            } else {
+                try self.writeValue(pair.key, false);
+                try self.writeValue(pair.value, false);
+                try self.emitOp(.InsertKeyVal, pair.key.region);
+            }
         }
-
-        try self.emitOp(.GetAtKey, region);
-        try self.writeDestructurePattern(rnode);
-
-        const index = try self.emitJump(.JumpIfFailure, region);
-        try jump_list.append(index);
-
-        try self.emitOp(.Pop, region);
     }
 
     fn writeValueObjectVal(self: *Compiler, rnode: *Ast.RNode, key: Elem) Error!void {
@@ -2003,6 +1837,7 @@ pub const Compiler = struct {
                 .Negation,
                 .ValueLabel,
                 .Array,
+                .Object,
                 => @panic("todo"),
             }
         }
@@ -2022,7 +1857,27 @@ pub const Compiler = struct {
                 .String, .InputSubstring, .NumberString, .Integer, .Float, .Boolean, .Null => true,
                 else => false,
             },
+            .Array => |elements| elements.items.len == 0,
+            .Object => |pairs| pairs.items.len == 0,
             else => false,
+        };
+    }
+
+    fn literalPatternToElem(self: *Compiler, rnode: *Ast.RNode) !?Elem {
+        return switch (rnode.node) {
+            .ElemNode => |elem| switch (elem) {
+                .String, .InputSubstring, .NumberString, .Integer, .Float, .Boolean, .Null => elem,
+                else => null,
+            },
+            .Array => |elements| if (elements.items.len == 0) blk: {
+                var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
+                break :blk emptyArray.dyn.elem();
+            } else null,
+            .Object => |pairs| if (pairs.items.len == 0) blk: {
+                var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
+                break :blk emptyObject.dyn.elem();
+            } else null,
+            else => null,
         };
     }
 

@@ -748,3 +748,51 @@
   0002    | CallFunction 0
   0004    | End
   ========================================
+
+  $ possum -p 'Obj.Get(O, K) = O -> {K: V, ..._} & V ; 1' -i '1'
+  
+  ================Obj.Get=================
+  0000    | GetConstant 0: V
+  0002    | GetConstant 1: _
+  0004    | GetBoundLocal 0
+  0006    | GetConstant 2: {}
+  0008    | GetLocal 1
+  0010    | GetLocal 2
+  0012    | InsertKeyVal
+  0013    | GetLocal 3
+  0015    | PrepareMergePattern 2
+  0017    | JumpIfFailure 17 -> 62
+  0020    | GetConstant 3: {}
+  0022    | GetLocal 1
+  0024    | GetLocal 2
+  0026    | InsertKeyVal
+  0027    | Destructure
+  0028    | JumpIfFailure 28 -> 46
+  0031    | GetLocal 1
+  0033    | GetAtKey
+  0034    | GetLocal 2
+  0036    | Destructure
+  0037    | JumpIfFailure 37 -> 44
+  0040    | Pop
+  0041    | JumpIfSuccess 41 -> 46
+  0044    | Swap
+  0045    | Pop
+  0046    | JumpIfFailure 46 -> 60
+  0049    | Pop
+  0050    | GetLocal 3
+  0052    | Destructure
+  0053    | JumpIfFailure 53 -> 60
+  0056    | Pop
+  0057    | JumpIfSuccess 57 -> 62
+  0060    | Swap
+  0061    | Pop
+  0062    | TakeRight 62 -> 67
+  0065    | GetBoundLocal 2
+  0067    | End
+  ========================================
+  
+  =================@main==================
+  0000    | GetConstant 0: 1
+  0002    | CallFunction 0
+  0004    | End
+  ========================================

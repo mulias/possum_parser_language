@@ -614,36 +614,45 @@ pub const Parser = struct {
 
     fn object(self: *Parser) Error!*Ast.RNode {
         const r = self.previous.region;
-        var o = try Elem.DynElem.Object.create(self.vm, 0);
 
         if (try self.match(.DotDotDot)) {
             return self.objectSpread(null);
         } else {
-            const elem_rnode = try self.ast.createElem(o.dyn.elem(), r);
             if (try self.match(.RightBrace)) {
-                return elem_rnode;
+                const empty_pairs = ArrayList(Ast.ObjectPair){};
+                return self.ast.createObject(empty_pairs, r);
             } else {
-                return self.objectNonEmpty(elem_rnode);
+                var pairs = ArrayList(Ast.ObjectPair){};
+
+                // Parse the first member
+                const first_pair = try self.objectPair();
+                try pairs.append(self.ast.arena.allocator(), first_pair);
+
+                // Parse remaining members
+                while (try self.match(.Comma)) {
+                    // Check if there's a spread after the comma
+                    if (self.check(.DotDotDot)) {
+                        // This object has spread syntax, so we need to use the old merge-based approach
+                        // First create an object with the pairs we've collected so far
+                        const obj_so_far = try self.ast.createObject(pairs, r);
+
+                        // Consume the ... token and handle the spread
+                        try self.advance();
+                        return self.objectSpread(obj_so_far);
+                    } else if (self.check(.RightBrace)) {
+                        // Trailing comma before closing brace
+                        break;
+                    } else {
+                        // Regular object pair
+                        const pair = try self.objectPair();
+                        try pairs.append(self.ast.arena.allocator(), pair);
+                    }
+                }
+
+                // Pure object without spread, use Object AST node
+                try self.consume(.RightBrace, "Expected closing '}'");
+                return self.ast.createObject(pairs, r);
             }
-        }
-    }
-
-    fn objectNonEmpty(self: *Parser, head: *Ast.RNode) !*Ast.RNode {
-        const r = self.previous.region;
-        const members = try self.objectMembers();
-
-        const left_object = try self.ast.createInfix(
-            .ObjectCons,
-            head,
-            members,
-            r,
-        );
-
-        if (try self.match(.DotDotDot)) {
-            return try self.objectSpread(left_object);
-        } else {
-            try self.consume(.RightBrace, "Expected closing '}'");
-            return left_object;
         }
     }
 
@@ -674,26 +683,19 @@ pub const Parser = struct {
         }
     }
 
-    fn objectMembers(self: *Parser) !*Ast.RNode {
+    fn objectMembers(self: *Parser, pairs: *ArrayList(Ast.ObjectPair)) !void {
         const pair = try self.objectPair();
+        try pairs.append(self.ast.arena.allocator(), pair);
 
-        // Comsume a comma if there is one, and then parse another object
+        // Consume a comma if there is one, and then parse another object
         // member unless it's a spread or it was a trailing comma at the end of
         // the object
         if (try self.match(.Comma) and !(self.check(.DotDotDot) or self.check(.RightBrace))) {
-            const comma_region = self.previous.region;
-            return self.ast.createInfix(
-                .ObjectCons,
-                pair,
-                try self.objectMembers(),
-                comma_region,
-            );
-        } else {
-            return pair;
+            try self.objectMembers(pairs);
         }
     }
 
-    fn objectPair(self: *Parser) !*Ast.RNode {
+    fn objectPair(self: *Parser) !Ast.ObjectPair {
         var key: *Ast.RNode = undefined;
 
         if (try self.match(.UppercaseIdentifier)) {
@@ -707,12 +709,10 @@ pub const Parser = struct {
 
         const val = try self.expression();
 
-        return self.ast.createInfix(
-            .ObjectPair,
-            key,
-            val,
-            key.region.merge(val.region),
-        );
+        return Ast.ObjectPair{
+            .key = key,
+            .value = val,
+        };
     }
 
     pub fn advance(self: *Parser) !void {
