@@ -47,6 +47,8 @@ pub const Compiler = struct {
         UnlabeledNumberValue,
         UnlabeledBooleanValue,
         UnlabeledNullValue,
+        RangeNotValidInMergePattern,
+        RangeNotValidInValueContext,
     } || WriterError;
 
     pub fn init(vm: *VM, ast: Ast, printBytecode: bool) !Compiler {
@@ -975,6 +977,7 @@ pub const Compiler = struct {
             },
             .UpperBoundedRange,
             .LowerBoundedRange,
+            => @panic("Internal Error: handled by writeDestructurePattern"),
             .ValueLabel,
             => @panic("todo"),
             .Array => @panic("Internal Error"), // handled by writeDestructurePatternArray
@@ -1142,6 +1145,10 @@ pub const Compiler = struct {
             },
             .UpperBoundedRange,
             .LowerBoundedRange,
+            => {
+                try self.printError("Range is not valid in merge pattern", rnode.region);
+                return Error.RangeNotValidInMergePattern;
+            },
             .Negation,
             .ValueLabel,
             => @panic("todo"),
@@ -1450,7 +1457,10 @@ pub const Compiler = struct {
             },
             .UpperBoundedRange,
             .LowerBoundedRange,
-            => @panic("Internal Error"),
+            => {
+                try self.printError("Range is not valid in value context", region);
+                return Error.RangeNotValidInValueContext;
+            },
             .Negation => |inner| {
                 try self.writeValue(inner, false);
                 try self.emitOp(.NegateNumber, region);
@@ -1770,6 +1780,10 @@ pub const Compiler = struct {
             .StringTemplate => try self.appendDynamicValue(array, rnode, index, region),
             .UpperBoundedRange,
             .LowerBoundedRange,
+            => {
+                try self.printError("Range is not valid in value context", region);
+                return Error.RangeNotValidInValueContext;
+            },
             .Negation,
             .ValueLabel,
             .Conditional,
