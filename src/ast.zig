@@ -28,11 +28,18 @@ pub const Ast = struct {
         Array,
         Object,
         StringTemplate,
+        Conditional,
     };
 
     pub const ObjectPair = struct {
         key: *RNode,
         value: *RNode,
+    };
+
+    pub const ConditionalNode = struct {
+        condition: *RNode,
+        then_branch: *RNode,
+        else_branch: *RNode,
     };
 
     pub const Node = union(NodeType) {
@@ -45,6 +52,7 @@ pub const Ast = struct {
         Array: ArrayList(*RNode),
         Object: ArrayList(ObjectPair),
         StringTemplate: ArrayList(*RNode),
+        Conditional: ConditionalNode,
 
         pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
             return switch (self) {
@@ -65,8 +73,6 @@ pub const Ast = struct {
         Backtrack,
         CallOrDefineFunction,
         Range,
-        ConditionalIfThen,
-        ConditionalThenElse,
         DeclareGlobal,
         Destructure,
         Merge,
@@ -129,6 +135,14 @@ pub const Ast = struct {
 
     pub fn createStringTemplate(self: *Ast, parts: ArrayList(*RNode), loc: Region) !*RNode {
         return self.create(.{ .StringTemplate = parts }, loc);
+    }
+
+    pub fn createConditional(self: *Ast, condition: *RNode, then_branch: *RNode, else_branch: *RNode, loc: Region) !*RNode {
+        return self.create(.{ .Conditional = .{
+            .condition = condition,
+            .then_branch = then_branch,
+            .else_branch = else_branch,
+        } }, loc);
     }
 
     pub fn print(self: *Ast, vm: VM) !void {

@@ -173,6 +173,7 @@ pub const Compiler = struct {
             .Array,
             .Object,
             .StringTemplate,
+            .Conditional,
             => return Error.InvalidAst,
         }
     }
@@ -240,6 +241,7 @@ pub const Compiler = struct {
                     .Array,
                     .Object,
                     .StringTemplate,
+                    .Conditional,
                     => return Error.InvalidAst,
                 }
             }
@@ -271,6 +273,7 @@ pub const Compiler = struct {
             .Array,
             .Object,
             .StringTemplate,
+            .Conditional,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -417,6 +420,7 @@ pub const Compiler = struct {
             .Array,
             .Object,
             .StringTemplate,
+            .Conditional,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -527,26 +531,6 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, region);
                 },
-                .ConditionalIfThen => {
-                    // Then/Else is always the right-side node
-                    const thenElseOp = infix.right.node.asInfixOfType(.ConditionalThenElse) orelse return Error.InvalidAst;
-                    const thenElseregion = infix.right.region;
-
-                    // Get each part of `if ? then : else`
-                    const if_rnode = infix.left;
-                    const then_rnode = thenElseOp.left;
-                    const else_rnode = thenElseOp.right;
-
-                    try self.emitOp(.SetInputMark, region);
-                    try self.writeParser(if_rnode, false);
-                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
-                    try self.writeParser(then_rnode, isTailPosition);
-                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseregion);
-                    try self.patchJump(ifThenJumpIndex, region);
-                    try self.writeParser(else_rnode, isTailPosition);
-                    try self.patchJump(thenElseJumpIndex, thenElseregion);
-                },
-                .ConditionalThenElse => @panic("internal error"), // always handled via ConditionalIfThen
                 .DeclareGlobal => unreachable,
                 .CallOrDefineFunction => {
                     try self.writeParserFunctionCall(infix.left, infix.right, isTailPosition);
@@ -628,6 +612,16 @@ pub const Compiler = struct {
             .ElemNode => try self.writeParserElem(rnode),
             .StringTemplate => |parts| {
                 try self.writeStringTemplate(parts, region, .Parser);
+            },
+            .Conditional => |conditional| {
+                try self.emitOp(.SetInputMark, region);
+                try self.writeParser(conditional.condition, false);
+                const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
+                try self.writeParser(conditional.then_branch, isTailPosition);
+                const thenElseJumpIndex = try self.emitJump(.ConditionalElse, region);
+                try self.patchJump(ifThenJumpIndex, region);
+                try self.writeParser(conditional.else_branch, isTailPosition);
+                try self.patchJump(thenElseJumpIndex, region);
             },
             .ValueLabel,
             .Array,
@@ -832,6 +826,7 @@ pub const Compiler = struct {
                 .UpperBoundedRange,
                 .LowerBoundedRange,
                 .Negation,
+                .Conditional,
                 => {
                     const function = try self.writeAnonymousFunction(rnode);
                     const constId = try self.makeConstant(function.dyn.elem());
@@ -953,6 +948,7 @@ pub const Compiler = struct {
                 try self.writePattern(rnode);
                 try self.emitOp(.Destructure, region);
             },
+            .Conditional => return error.InvalidAst,
         }
     }
 
@@ -1041,6 +1037,10 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.GetConstant, constId, region);
                     },
                 },
+            },
+            .Conditional => {
+                try self.printError("Conditional expressions not valid in patterns", region);
+                return Error.InvalidAst;
             },
         }
     }
@@ -1163,6 +1163,10 @@ pub const Compiler = struct {
             .ElemNode => {
                 try self.writePattern(rnode);
             },
+            .Conditional => {
+                try self.printError("Conditional expressions not valid in patterns", rnode.region);
+                return Error.InvalidAst;
+            },
         }
     }
 
@@ -1211,6 +1215,11 @@ pub const Compiler = struct {
                     try self.addValueLocals(part);
                 }
             },
+            .Conditional => |conditional| {
+                try self.addValueLocals(conditional.condition);
+                try self.addValueLocals(conditional.then_branch);
+                try self.addValueLocals(conditional.else_branch);
+            },
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => |varName| if (self.vm.globals.get(varName) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
@@ -1253,6 +1262,11 @@ pub const Compiler = struct {
                 for (parts.items) |part| {
                     try self.addClosureLocals(part);
                 }
+            },
+            .Conditional => |conditional| {
+                try self.addClosureLocals(conditional.condition);
+                try self.addClosureLocals(conditional.then_branch);
+                try self.addClosureLocals(conditional.else_branch);
             },
             .ElemNode => |elem| {
                 const varName = switch (elem) {
@@ -1330,25 +1344,6 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, region);
                 },
-                .ConditionalIfThen => {
-                    // Then/Else is always the right-side node
-                    const thenElseOp = infix.right.node.asInfixOfType(.ConditionalThenElse) orelse return Error.InvalidAst;
-                    const thenElseregion = infix.right.region;
-
-                    // Get each part of `if ? then : else`
-                    const if_rnode = infix.left;
-                    const then_rnode = thenElseOp.left;
-                    const else_rnode = thenElseOp.right;
-
-                    try self.emitOp(.SetInputMark, region);
-                    try self.writeValueArgument(if_rnode, false);
-                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
-                    try self.writeValueArgument(then_rnode, isTailPosition);
-                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseregion);
-                    try self.patchJump(ifThenJumpIndex, region);
-                    try self.writeValueArgument(else_rnode, isTailPosition);
-                    try self.patchJump(thenElseJumpIndex, thenElseregion);
-                },
                 else => try writeValue(self, rnode, isTailPosition),
             },
             .Negation => |inner| {
@@ -1360,6 +1355,16 @@ pub const Compiler = struct {
             },
             .StringTemplate => {
                 return error.UnlabeledStringValue;
+            },
+            .Conditional => |conditional| {
+                try self.emitOp(.SetInputMark, region);
+                try self.writeValueArgument(conditional.condition, false);
+                const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
+                try self.writeValueArgument(conditional.then_branch, isTailPosition);
+                const thenElseJumpIndex = try self.emitJump(.ConditionalElse, region);
+                try self.patchJump(ifThenJumpIndex, region);
+                try self.writeValueArgument(conditional.else_branch, isTailPosition);
+                try self.patchJump(thenElseJumpIndex, region);
             },
             .ElemNode => |elem| switch (elem) {
                 .String => {
@@ -1432,25 +1437,6 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, region);
                 },
-                .ConditionalIfThen => {
-                    // Then/Else is always the right-side node
-                    const thenElseOp = infix.right.node.asInfixOfType(.ConditionalThenElse) orelse return Error.InvalidAst;
-                    const thenElseregion = infix.right.region;
-
-                    // Get each part of `if ? then : else`
-                    const if_rnode = infix.left;
-                    const then_rnode = thenElseOp.left;
-                    const else_rnode = thenElseOp.right;
-
-                    try self.emitOp(.SetInputMark, region);
-                    try self.writeValue(if_rnode, false);
-                    const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
-                    try self.writeValue(then_rnode, isTailPosition);
-                    const thenElseJumpIndex = try self.emitJump(.ConditionalElse, thenElseregion);
-                    try self.patchJump(ifThenJumpIndex, region);
-                    try self.writeValue(else_rnode, isTailPosition);
-                    try self.patchJump(thenElseJumpIndex, thenElseregion);
-                },
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
                 },
@@ -1458,7 +1444,6 @@ pub const Compiler = struct {
                     try self.printError("Character and integer ranges are not valid in value", region);
                     return Error.InvalidAst;
                 },
-                .ConditionalThenElse, // handled by ConditionalIfThen
                 .DeclareGlobal, // handled by top-level compiler functions
                 .ParamsOrArgs, // handled by CallOrDefineFunction
                 => @panic("internal error"),
@@ -1481,6 +1466,16 @@ pub const Compiler = struct {
             },
             .StringTemplate => |parts| {
                 try self.writeStringTemplate(parts, region, .Value);
+            },
+            .Conditional => |conditional| {
+                try self.emitOp(.SetInputMark, region);
+                try self.writeValue(conditional.condition, false);
+                const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
+                try self.writeValue(conditional.then_branch, isTailPosition);
+                const thenElseJumpIndex = try self.emitJump(.ConditionalElse, region);
+                try self.patchJump(ifThenJumpIndex, region);
+                try self.writeValue(conditional.else_branch, isTailPosition);
+                try self.patchJump(thenElseJumpIndex, region);
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
@@ -1777,6 +1772,7 @@ pub const Compiler = struct {
             .LowerBoundedRange,
             .Negation,
             .ValueLabel,
+            .Conditional,
             => @panic("todo"),
         }
     }

@@ -177,8 +177,7 @@ pub const Parser = struct {
             .Minus,
             .Equal,
             => self.binaryOp(leftNode),
-            .QuestionMark => self.conditionalIfThenOp(leftNode),
-            .Colon => self.conditionalThenElseOp(leftNode),
+            .QuestionMark => self.conditionalOp(leftNode),
             .LeftParen => {
                 if (!self.previousSkippedWhitespace) {
                     return self.callOrDefineFunction(leftNode);
@@ -461,28 +460,20 @@ pub const Parser = struct {
         return self.ast.createInfix(infixType, left, right, t.region);
     }
 
-    fn conditionalIfThenOp(self: *Parser, if_rnode: *Ast.RNode) !*Ast.RNode {
-        if (self.printDebug) self.writers.debugPrint("conditional if/then {}\n", .{self.previous.tokenType});
+    fn conditionalOp(self: *Parser, condition: *Ast.RNode) !*Ast.RNode {
+        if (self.printDebug) self.writers.debugPrint("conditional {}\n", .{self.previous.tokenType});
 
-        const if_then_region = self.previous.region;
+        const conditional_region = self.previous.region;
 
-        const then_else_rnode = try self.parseWithPrecedence(.Conditional);
+        const then_branch = try self.parseWithPrecedence(.Conditional);
 
-        const if_then_rnode = try self.ast.createInfix(.ConditionalIfThen, if_rnode, then_else_rnode, if_then_region);
+        try self.consume(.Colon, "Expected ':' after then branch in conditional");
 
-        return if_then_rnode;
-    }
+        const else_branch = try self.parseWithPrecedence(.Conditional);
 
-    fn conditionalThenElseOp(self: *Parser, then_rnode: *Ast.RNode) !*Ast.RNode {
-        if (self.printDebug) self.writers.debugPrint("conditional then/else {}\n", .{self.previous.tokenType});
+        const conditional_rnode = try self.ast.createConditional(condition, then_branch, else_branch, conditional_region);
 
-        const then_else_region = self.previous.region;
-
-        const else_rnode = try self.parseWithPrecedence(.Conditional);
-
-        const then_else_rnode = try self.ast.createInfix(.ConditionalThenElse, then_rnode, else_rnode, then_else_region);
-
-        return then_else_rnode;
+        return conditional_rnode;
     }
 
     fn callOrDefineFunction(self: *Parser, function_ident: *Ast.RNode) !*Ast.RNode {
@@ -954,9 +945,7 @@ pub const Parser = struct {
             .DollarSign,
             => .StandardInfix,
             .Ampersand => .Sequence,
-            .QuestionMark,
-            .Colon,
-            => .Conditional,
+            .QuestionMark => .Conditional,
             .Equal => .DeclareGlobal,
             else => .None,
         };
