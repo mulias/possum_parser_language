@@ -27,6 +27,7 @@ pub const Ast = struct {
         ValueLabel,
         Array,
         Object,
+        StringTemplate,
     };
 
     pub const ObjectPair = struct {
@@ -43,6 +44,7 @@ pub const Ast = struct {
         ValueLabel: *RNode,
         Array: ArrayList(*RNode),
         Object: ArrayList(ObjectPair),
+        StringTemplate: ArrayList(*RNode),
 
         pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
             return switch (self) {
@@ -72,8 +74,6 @@ pub const Ast = struct {
         Or,
         ParamsOrArgs,
         Return,
-        StringTemplate,
-        StringTemplateCons,
         TakeLeft,
         TakeRight,
     };
@@ -125,6 +125,10 @@ pub const Ast = struct {
 
     pub fn createObject(self: *Ast, pairs: ArrayList(ObjectPair), loc: Region) !*RNode {
         return self.create(.{ .Object = pairs }, loc);
+    }
+
+    pub fn createStringTemplate(self: *Ast, parts: ArrayList(*RNode), loc: Region) !*RNode {
+        return self.create(.{ .StringTemplate = parts }, loc);
     }
 
     pub fn print(self: *Ast, vm: VM) !void {

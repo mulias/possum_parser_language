@@ -231,23 +231,24 @@ pub const Parser = struct {
     fn stringTemplate(self: *Parser, first_part: *Ast.RNode, rest: []const u8) !*Ast.RNode {
         const r = self.previous.region;
 
+        // Create ArrayList to collect all template parts
+        var parts = ArrayList(*Ast.RNode){};
+        try parts.append(self.ast.arena.allocator(), first_part);
+
         // Don't deinit, we want the shared ast to persist
         var templateParser = initWithAst(self.vm, self.ast);
 
-        // There will be at least one more template part
-        const templatePartsRest = try templateParser.stringTemplateParts(rest);
+        // Collect all remaining template parts
+        try templateParser.collectStringTemplateParts(rest, &parts);
 
         self.ast = templateParser.ast;
 
-        return self.ast.createInfix(
-            .StringTemplate,
-            first_part,
-            templatePartsRest,
-            r,
-        );
+        return self.ast.createStringTemplate(parts, r);
     }
 
-    fn stringTemplateParts(templateParser: *Parser, str: []const u8) !*Ast.RNode {
+    fn collectStringTemplateParts(templateParser: *Parser, str: []const u8, parts: *ArrayList(*Ast.RNode)) Error!void {
+        if (str.len == 0) return;
+
         const r = templateParser.previous.region;
         var template: *Ast.RNode = undefined;
         var rest_bytes: []const u8 = undefined;
@@ -271,17 +272,10 @@ pub const Parser = struct {
             rest_bytes = result.rest;
         }
 
-        if (rest_bytes.len == 0) {
-            return template;
-        } else {
-            const rest = try templateParser.stringTemplateParts(rest_bytes);
+        try parts.append(templateParser.ast.arena.allocator(), template);
 
-            return templateParser.ast.createInfix(
-                .StringTemplateCons,
-                template,
-                rest,
-                r,
-            );
+        if (rest_bytes.len > 0) {
+            try templateParser.collectStringTemplateParts(rest_bytes, parts);
         }
     }
 

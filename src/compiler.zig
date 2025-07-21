@@ -172,6 +172,7 @@ pub const Compiler = struct {
             .ValueLabel,
             .Array,
             .Object,
+            .StringTemplate,
             => return Error.InvalidAst,
         }
     }
@@ -238,6 +239,7 @@ pub const Compiler = struct {
                     .ValueLabel,
                     .Array,
                     .Object,
+                    .StringTemplate,
                     => return Error.InvalidAst,
                 }
             }
@@ -268,6 +270,7 @@ pub const Compiler = struct {
             .ValueLabel,
             .Array,
             .Object,
+            .StringTemplate,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -413,6 +416,7 @@ pub const Compiler = struct {
             .ValueLabel,
             .Array,
             .Object,
+            .StringTemplate,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -443,9 +447,6 @@ pub const Compiler = struct {
                     try self.writeParser(infix.right, false);
                     try self.emitOp(.Merge, region);
                     try self.patchJump(jumpIndex, region);
-                },
-                .StringTemplate => {
-                    try self.writeStringTemplate(infix.left, infix.right, .Parser);
                 },
                 .Range => {
                     const low = infix.left;
@@ -552,7 +553,6 @@ pub const Compiler = struct {
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
                 .NumberSubtract,
-                .StringTemplateCons,
                 => return Error.InvalidAst,
             },
             .UpperBoundedRange => |high| {
@@ -626,6 +626,9 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
             .ElemNode => try self.writeParserElem(rnode),
+            .StringTemplate => |parts| {
+                try self.writeStringTemplate(parts, region, .Parser);
+            },
             .ValueLabel,
             .Array,
             .Object,
@@ -845,6 +848,7 @@ pub const Compiler = struct {
                 .ValueLabel => @panic("todo"),
                 .Array => @panic("Internal Error: Array should never be a parser"),
                 .Object => @panic("Internal Error: Object should never be a parser"),
+                .StringTemplate => @panic("Internal Error: StringTemplate should be handled in main parser switch"),
             },
             .Value => try self.writeValueArgument(rnode, false),
             .Unspecified => {
@@ -945,6 +949,10 @@ pub const Compiler = struct {
             .Object => |pairs| {
                 try self.writeDestructurePatternObject(pairs, region);
             },
+            .StringTemplate => {
+                try self.writePattern(rnode);
+                try self.emitOp(.Destructure, region);
+            },
         }
     }
 
@@ -955,7 +963,6 @@ pub const Compiler = struct {
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .NumberSubtract,
-                .StringTemplate,
                 => {
                     @panic("todo");
                 },
@@ -965,8 +972,6 @@ pub const Compiler = struct {
                 .Merge => {
                     try self.writePatternMerge(rnode);
                 },
-                .StringTemplateCons,
-                => @panic("Internal Error"),
                 else => {
                     try self.printError("Invalid infix operator in pattern", region);
                     return Error.InvalidAst;
@@ -978,6 +983,9 @@ pub const Compiler = struct {
             => @panic("todo"),
             .Array => @panic("Internal Error"), // handled by writeDestructurePatternArray
             .Object => @panic("Internal Error"), // handled by writeDestructurePatternObject
+            .StringTemplate => |parts| {
+                try self.writeStringTemplate(parts, region, .Value);
+            },
             .Negation => {
                 if (simplifyNegatedNumberNode(rnode)) |elem| {
                     const constId = try self.makeConstant(elem);
@@ -1149,6 +1157,9 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(array.dyn.elem());
                 try self.emitUnaryOp(.GetConstant, constId, rnode.region);
             },
+            .StringTemplate => {
+                try self.writePattern(rnode);
+            },
             .ElemNode => {
                 try self.writePattern(rnode);
             },
@@ -1195,6 +1206,11 @@ pub const Compiler = struct {
                     try self.addValueLocals(pair.value);
                 }
             },
+            .StringTemplate => |parts| {
+                for (parts.items) |part| {
+                    try self.addValueLocals(part);
+                }
+            },
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => |varName| if (self.vm.globals.get(varName) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
@@ -1233,6 +1249,11 @@ pub const Compiler = struct {
                     try self.addClosureLocals(pair.value);
                 }
             },
+            .StringTemplate => |parts| {
+                for (parts.items) |part| {
+                    try self.addClosureLocals(part);
+                }
+            },
             .ElemNode => |elem| {
                 const varName = switch (elem) {
                     .ValueVar => |name| name,
@@ -1259,9 +1280,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .StringTemplate => {
-                    return error.UnlabeledStringValue;
-                },
                 .Backtrack => {
                     try self.emitOp(.SetInputMark, region);
                     try self.writeValueArgument(infix.left, false);
@@ -1340,6 +1358,9 @@ pub const Compiler = struct {
             .ValueLabel => |inner| {
                 try self.writeValue(inner, isTailPosition);
             },
+            .StringTemplate => {
+                return error.UnlabeledStringValue;
+            },
             .ElemNode => |elem| switch (elem) {
                 .String => {
                     return error.UnlabeledStringValue;
@@ -1361,9 +1382,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .StringTemplate => {
-                    try self.writeStringTemplate(infix.left, infix.right, .Value);
-                },
                 .Backtrack => {
                     try self.emitOp(.SetInputMark, region);
                     try self.writeValue(infix.left, false);
@@ -1443,7 +1461,6 @@ pub const Compiler = struct {
                 .ConditionalThenElse, // handled by ConditionalIfThen
                 .DeclareGlobal, // handled by top-level compiler functions
                 .ParamsOrArgs, // handled by CallOrDefineFunction
-                .StringTemplateCons, // handled by StringTemplate
                 => @panic("internal error"),
             },
             .UpperBoundedRange,
@@ -1461,6 +1478,9 @@ pub const Compiler = struct {
             },
             .Object => |pairs| {
                 try self.writeValueObject(pairs, region);
+            },
+            .StringTemplate => |parts| {
+                try self.writeStringTemplate(parts, region, .Value);
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
@@ -1752,6 +1772,7 @@ pub const Compiler = struct {
                     try self.appendDynamicValue(array, rnode, index, region);
                 }
             },
+            .StringTemplate => try self.appendDynamicValue(array, rnode, index, region),
             .UpperBoundedRange,
             .LowerBoundedRange,
             .Negation,
@@ -1791,41 +1812,16 @@ pub const Compiler = struct {
 
     const StringTemplateContext = enum { Parser, Value };
 
-    fn writeStringTemplate(self: *Compiler, string_start: *Ast.RNode, string_rest: *Ast.RNode, context: StringTemplateContext) Error!void {
-        const region = string_start.region;
+    fn writeStringTemplate(self: *Compiler, parts: std.ArrayListUnmanaged(*Ast.RNode), region: Region, context: StringTemplateContext) Error!void {
+        // Write the first part
+        if (parts.items.len > 0) {
+            try self.writeStringTemplatePart(parts.items[0], context);
+        }
 
-        try self.writeStringTemplatePart(string_start, context);
-
-        var rnode = string_rest;
-
-        while (true) {
-            switch (rnode.node) {
-                .InfixNode => |infix| switch (infix.infixType) {
-                    .StringTemplateCons => {
-                        try self.writeStringTemplatePart(infix.left, context);
-                        try self.emitOp(.MergeAsString, region);
-
-                        rnode = infix.right;
-                    },
-                    else => {
-                        try self.writeStringTemplatePart(rnode, context);
-                        try self.emitOp(.MergeAsString, region);
-                        break;
-                    },
-                },
-                .ElemNode => {
-                    try self.writeStringTemplatePart(rnode, context);
-                    try self.emitOp(.MergeAsString, region);
-                    break;
-                },
-                .UpperBoundedRange,
-                .LowerBoundedRange,
-                .Negation,
-                .ValueLabel,
-                .Array,
-                .Object,
-                => @panic("todo"),
-            }
+        // Write remaining parts with MergeAsString between each
+        for (parts.items[1..]) |part| {
+            try self.writeStringTemplatePart(part, context);
+            try self.emitOp(.MergeAsString, region);
         }
     }
 
