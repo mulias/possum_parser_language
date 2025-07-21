@@ -578,109 +578,263 @@ pub const Parser = struct {
 
     fn array(self: *Parser) Error!*Ast.RNode {
         const region = self.previous.region;
+
         var elements = ArrayList(*Ast.RNode){};
 
-        // Parse elements until we hit closing bracket
-        while (!self.check(.RightBracket)) {
+        // Initial spread: [...expr]
+        if (try self.match(.DotDotDot)) {
+            const empty_array = try self.ast.createArray(elements, region);
+            return self.arraySpread(empty_array);
+        }
+
+        // Empty array: []
+        if (try self.match(.RightBracket)) {
+            return self.ast.createArray(elements, region.merge(self.previous.region));
+        }
+
+        // First element
+        const first_expr = try self.expression();
+        try elements.append(self.ast.arena.allocator(), first_expr);
+
+        // Remaining elements
+        while (try self.match(.Comma)) {
             if (try self.match(.DotDotDot)) {
-                // Handle spread syntax [...expr]
-                const spread_region = self.previous.region;
-                const spread_expr = try self.expression();
+                // Middle/end spread
                 const array_so_far = try self.ast.createArray(elements, region);
-                var result = try self.ast.createInfix(.Merge, array_so_far, spread_expr, spread_region);
-
-                _ = try self.match(.Comma);
-
-                // Handle continuation after spread: [...expr, more_elements]
-                if (!self.check(.RightBracket)) {
-                    const comma_region = self.previous.region;
-                    const remaining_array = try self.array();
-                    result = try self.ast.createInfix(.Merge, result, remaining_array, comma_region);
-                } else {
-                    try self.consume(.RightBracket, "Expected closing ']'");
-                }
-                return result;
+                return self.arraySpread(array_so_far);
+            } else if (self.check(.RightBracket)) {
+                // Trailing comma before closing bracket
+                break;
             } else {
+                // Regular array element
                 const expr = try self.expression();
                 try elements.append(self.ast.arena.allocator(), expr);
-
-                _ = try self.match(.Comma);
             }
         }
 
-        try self.consume(.RightBracket, "Expected closing ']'");
-        return self.ast.createArray(elements, region);
+        return self.finishArray(elements, region);
     }
 
     fn object(self: *Parser) Error!*Ast.RNode {
-        const r = self.previous.region;
+        const region = self.previous.region;
 
+        // Initial spread: {...expr}
         if (try self.match(.DotDotDot)) {
-            return self.objectSpread(null);
-        } else {
-            if (try self.match(.RightBrace)) {
-                const empty_pairs = ArrayList(Ast.ObjectPair){};
-                return self.ast.createObject(empty_pairs, r);
+            const empty_pairs = ArrayList(Ast.ObjectPair){};
+            const empty_object = try self.ast.createObject(empty_pairs, region);
+            return self.objectSpread(empty_object);
+        }
+
+        // Empty object: {}
+        if (try self.match(.RightBrace)) {
+            const empty_pairs = ArrayList(Ast.ObjectPair){};
+            return self.ast.createObject(empty_pairs, region);
+        }
+
+        var pairs = ArrayList(Ast.ObjectPair){};
+
+        // First member
+        const first_pair = try self.objectPair();
+        try pairs.append(self.ast.arena.allocator(), first_pair);
+
+        // Remaining members
+        while (try self.match(.Comma)) {
+            // Check if there's a spread after the comma
+            if (try self.match(.DotDotDot)) {
+                const obj_so_far = try self.ast.createObject(pairs, region);
+                return self.objectSpread(obj_so_far);
+            } else if (self.check(.RightBrace)) {
+                // Trailing comma before closing brace
+                break;
             } else {
-                var pairs = ArrayList(Ast.ObjectPair){};
-
-                // Parse the first member
-                const first_pair = try self.objectPair();
-                try pairs.append(self.ast.arena.allocator(), first_pair);
-
-                // Parse remaining members
-                while (try self.match(.Comma)) {
-                    // Check if there's a spread after the comma
-                    if (self.check(.DotDotDot)) {
-                        // This object has spread syntax, so we need to use the old merge-based approach
-                        // First create an object with the pairs we've collected so far
-                        const obj_so_far = try self.ast.createObject(pairs, r);
-
-                        // Consume the ... token and handle the spread
-                        try self.advance();
-                        return self.objectSpread(obj_so_far);
-                    } else if (self.check(.RightBrace)) {
-                        // Trailing comma before closing brace
-                        break;
-                    } else {
-                        // Regular object pair
-                        const pair = try self.objectPair();
-                        try pairs.append(self.ast.arena.allocator(), pair);
-                    }
-                }
-
-                // Pure object without spread, use Object AST node
-                try self.consume(.RightBrace, "Expected closing '}'");
-                return self.ast.createObject(pairs, r);
+                // Regular object pair
+                const pair = try self.objectPair();
+                try pairs.append(self.ast.arena.allocator(), pair);
             }
         }
+
+        // Pure object without spread, use Object AST node
+        try self.consume(.RightBrace, "Expected closing '}'");
+        return self.ast.createObject(pairs, region);
     }
 
-    fn objectSpread(self: *Parser, left: ?*Ast.RNode) !*Ast.RNode {
+    fn objectSpread(self: *Parser, left_object: *Ast.RNode) !*Ast.RNode {
         const dots = self.previous;
         const spread = try self.expression();
-        var new_left: *Ast.RNode = undefined;
-
-        if (left) |left_node| {
-            new_left = try self.ast.createInfix(
-                .Merge,
-                left_node,
-                spread,
-                dots.region.merge(spread.region),
-            );
-        } else {
-            new_left = spread;
-        }
+        var result = try self.ast.createInfix(.Merge, left_object, spread, dots.region.merge(spread.region));
 
         if (try self.match(.Comma)) {
-            const comma_region = self.previous.region;
-            const right_object = try self.object();
-
-            return self.ast.createInfix(.Merge, new_left, right_object, comma_region);
+            // Check if there's actually more content after the comma
+            if (self.check(.RightBrace)) {
+                // Trailing comma - just close and return
+                try self.consume(.RightBrace, "Expected closing '}'");
+                return result;
+            } else {
+                // More content after comma - parse it without creating another object() call
+                const comma_region = self.previous.region;
+                const remaining = try self.parseObjectContinuation();
+                result = try self.ast.createInfix(.Merge, result, remaining, comma_region);
+            }
         } else {
             try self.consume(.RightBrace, "Expected closing '}'");
-            return new_left;
         }
+        return result;
+    }
+
+    fn arraySpread(self: *Parser, left_array: *Ast.RNode) !*Ast.RNode {
+        const spread_region = self.previous.region;
+        const spread_expr = try self.expression();
+        var result = try self.ast.createInfix(.Merge, left_array, spread_expr, spread_region);
+
+        if (try self.match(.Comma)) {
+            // Check if there's actually more content after the comma
+            if (self.check(.RightBracket)) {
+                // Trailing comma - just close and return
+                try self.consume(.RightBracket, "Expected closing ']'");
+                return result;
+            } else {
+                // More content after comma - parse it
+                const comma_region = self.previous.region;
+                const remaining_elements = try self.parseArrayContinuation();
+                result = try self.ast.createInfix(.Merge, result, remaining_elements, comma_region);
+            }
+        } else {
+            try self.consume(.RightBracket, "Expected closing ']'");
+        }
+        return result;
+    }
+
+    // Like array() but handles spreads differently - doesn't wrap them in Merge([], ...)
+    fn parseArrayContinuation(self: *Parser) !*Ast.RNode {
+        const region = self.current.region;
+
+        // Check for immediate spread
+        if (try self.match(.DotDotDot)) {
+            // Direct spread - return the spread expression, not Merge([], spread)
+            const spread_expr = try self.expression();
+
+            if (try self.match(.Comma)) {
+                // Check if there's actually more content after the comma
+                if (self.check(.RightBracket)) {
+                    // Trailing comma - just close and return
+                    try self.consume(.RightBracket, "Expected closing ']'");
+                    return spread_expr;
+                } else {
+                    // More content after comma - parse it
+                    const remaining = try self.parseArrayContinuation();
+                    return try self.ast.createInfix(.Merge, spread_expr, remaining, self.previous.region);
+                }
+            } else {
+                try self.consume(.RightBracket, "Expected closing ']'");
+                return spread_expr;
+            }
+        }
+
+        // Standard array parsing for non-spread elements
+        var elements = ArrayList(*Ast.RNode){};
+
+        // Parse the first element
+        const first_expr = try self.expression();
+        try elements.append(self.ast.arena.allocator(), first_expr);
+
+        // Parse remaining elements
+        while (try self.match(.Comma)) {
+            if (try self.match(.DotDotDot)) {
+                // Handle spread: create array with elements so far, then merge with spread
+                const array_so_far = try self.ast.createArray(elements, region);
+                const spread_expr = try self.expression();
+                var result = try self.ast.createInfix(.Merge, array_so_far, spread_expr, self.previous.region);
+
+                _ = try self.match(.Comma);
+
+                if (!self.check(.RightBracket)) {
+                    const remaining = try self.parseArrayContinuation();
+                    result = try self.ast.createInfix(.Merge, result, remaining, self.current.region);
+                } else {
+                    try self.consume(.RightBracket, "Expected closing ']'");
+                }
+
+                return result;
+            } else if (self.check(.RightBracket)) {
+                // Trailing comma before closing bracket
+                break;
+            } else {
+                const expr = try self.expression();
+                try elements.append(self.ast.arena.allocator(), expr);
+            }
+        }
+
+        return self.finishArray(elements, region);
+    }
+
+    // Like object() but handles spreads differently - doesn't wrap them in Merge({}, ...)
+    fn parseObjectContinuation(self: *Parser) !*Ast.RNode {
+        const region = self.current.region;
+
+        // Check for immediate spread
+        if (try self.match(.DotDotDot)) {
+            // Direct spread - return the spread expression, not Merge({}, spread)
+            const spread_expr = try self.expression();
+
+            if (try self.match(.Comma)) {
+                // Check if there's actually more content after the comma
+                if (self.check(.RightBrace)) {
+                    // Trailing comma - just close and return
+                    try self.consume(.RightBrace, "Expected closing '}'");
+                    return spread_expr;
+                } else {
+                    // More content after comma - parse it
+                    const remaining = try self.parseObjectContinuation();
+                    return try self.ast.createInfix(.Merge, spread_expr, remaining, self.previous.region);
+                }
+            } else {
+                try self.consume(.RightBrace, "Expected closing '}'");
+                return spread_expr;
+            }
+        }
+
+        // Standard object parsing for non-spread elements
+        var pairs = ArrayList(Ast.ObjectPair){};
+
+        // Parse the first pair
+        const first_pair = try self.objectPair();
+        try pairs.append(self.ast.arena.allocator(), first_pair);
+
+        // Parse remaining pairs
+        while (try self.match(.Comma)) {
+            if (try self.match(.DotDotDot)) {
+                // Handle spread: create object with pairs so far, then merge with spread
+                const object_so_far = try self.ast.createObject(pairs, region);
+                const spread_expr = try self.expression();
+                var result = try self.ast.createInfix(.Merge, object_so_far, spread_expr, self.previous.region);
+
+                _ = try self.match(.Comma);
+
+                if (!self.check(.RightBrace)) {
+                    const remaining = try self.parseObjectContinuation();
+                    result = try self.ast.createInfix(.Merge, result, remaining, self.current.region);
+                } else {
+                    try self.consume(.RightBrace, "Expected closing '}'");
+                }
+
+                return result;
+            } else if (self.check(.RightBrace)) {
+                // Trailing comma before closing brace
+                break;
+            } else {
+                const pair = try self.objectPair();
+                try pairs.append(self.ast.arena.allocator(), pair);
+            }
+        }
+
+        try self.consume(.RightBrace, "Expected closing '}'");
+        return self.ast.createObject(pairs, region);
+    }
+
+    fn finishArray(self: *Parser, elements: ArrayList(*Ast.RNode), start_region: Region) !*Ast.RNode {
+        const end_region = self.current.region;
+        try self.consume(.RightBracket, "Expected closing ']'");
+        return self.ast.createArray(elements, start_region.merge(end_region));
     }
 
     fn objectMembers(self: *Parser, pairs: *ArrayList(Ast.ObjectPair)) !void {

@@ -962,7 +962,9 @@ pub const Compiler = struct {
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
-                .Merge,
+                .Merge => {
+                    try self.writePatternMerge(rnode);
+                },
                 .StringTemplateCons,
                 => @panic("Internal Error"),
                 else => {
@@ -1041,7 +1043,7 @@ pub const Compiler = struct {
         var jumpList = ArrayList(usize).init(self.vm.allocator);
         defer jumpList.deinit();
 
-        const count = try self.writePrepareMergePattern(rnode, 0);
+        const count = try self.writePrepareMergePattern(rnode);
         try self.emitUnaryOp(.PrepareMergePattern, count, region);
         const failureJumpIndex = try self.emitJump(.JumpIfFailure, region);
 
@@ -1060,34 +1062,35 @@ pub const Compiler = struct {
         try self.patchJump(successJumpIndex, region);
     }
 
-    fn writePrepareMergePattern(self: *Compiler, rnode: *Ast.RNode, count: u8) !u8 {
+    fn writePrepareMergePattern(self: *Compiler, rnode: *Ast.RNode) !u8 {
+        // Collect all merge parts into a flat list before emitting any bytecode
+        var parts = ArrayList(*Ast.RNode).init(self.vm.allocator);
+        defer parts.deinit();
+
+        try self.collectMergePatternParts(rnode, &parts);
+
+        for (parts.items) |part| {
+            try self.writePrepareMergePatternPart(part);
+        }
+
+        return @intCast(parts.items.len);
+    }
+
+    fn collectMergePatternParts(self: *Compiler, rnode: *Ast.RNode, parts: *ArrayList(*Ast.RNode)) !void {
         switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
-                    const totalCount = try self.writePrepareMergePattern(infix.left, count + 1);
-                    try self.writePrepareMergePatternPart(infix.right);
-                    return totalCount;
+                    try self.collectMergePatternParts(infix.left, parts);
+                    try self.collectMergePatternParts(infix.right, parts);
                 },
                 else => {
-                    // Default case
+                    try parts.append(rnode);
                 },
             },
-            .ElemNode,
-            .Array,
-            .Object,
-            => {
-                // Default case
+            else => {
+                try parts.append(rnode);
             },
-            .UpperBoundedRange,
-            .LowerBoundedRange,
-            .Negation,
-            .ValueLabel,
-            => @panic("todo"),
         }
-
-        // Default case
-        try self.writePrepareMergePatternPart(rnode);
-        return count + 1;
     }
 
     fn writePrepareMergePatternPart(self: *Compiler, rnode: *Ast.RNode) Error!void {
@@ -1120,6 +1123,11 @@ pub const Compiler = struct {
                 }
             },
             .InfixNode => |infix| switch (infix.infixType) {
+                .Merge => {
+                    // Merge nodes within merge patterns should not generate separate merge bytecode
+                    // This should not happen if collectMergePatternParts is working correctly
+                    @panic("Unexpected merge node in writePrepareMergePatternPart");
+                },
                 else => {
                     try self.writePattern(rnode);
                 },
@@ -1150,38 +1158,16 @@ pub const Compiler = struct {
     fn writeMergePattern(self: *Compiler, rnode: *Ast.RNode, jumpList: *ArrayList(usize)) Error!void {
         const region = rnode.region;
 
-        switch (rnode.node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .Merge => {
-                    try self.writeMergePattern(infix.left, jumpList);
-                    try self.writeDestructurePattern(infix.right);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                    try self.emitOp(.Pop, region);
-                    try jumpList.append(jumpIndex);
-                    return;
-                },
-                else => {
-                    // Default case
-                },
-            },
-            .Array,
-            .ElemNode,
-            .Object,
-            => {
-                // Default case
-            },
-            .UpperBoundedRange,
-            .LowerBoundedRange,
-            .Negation,
-            .ValueLabel,
-            => @panic("todo"),
-        }
+        var parts = ArrayList(*Ast.RNode).init(self.vm.allocator);
+        defer parts.deinit();
+        try self.collectMergePatternParts(rnode, &parts);
 
-        // Default case
-        try self.writeDestructurePattern(rnode);
-        const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-        try self.emitOp(.Pop, region);
-        try jumpList.append(jumpIndex);
+        for (parts.items) |part| {
+            try self.writeDestructurePattern(part);
+            const jumpIndex = try self.emitJump(.JumpIfFailure, region);
+            try self.emitOp(.Pop, region);
+            try jumpList.append(jumpIndex);
+        }
     }
 
     fn addValueLocals(self: *Compiler, rnode: *Ast.RNode) !void {

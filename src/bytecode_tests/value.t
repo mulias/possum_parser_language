@@ -141,15 +141,12 @@
   0007    | GetConstant 2: A
   0009    | CallFunction 0
   0011    | Merge
-  0012    | JumpIfFailure 12 -> 26
-  0015    | GetConstant 3: []
-  0017    | JumpIfFailure 17 -> 25
-  0020    | GetConstant 4: A
-  0022    | CallFunction 0
-  0024    | Merge
-  0025    | Merge
-  0026    | CallFunction 1
-  0028    | End
+  0012    | JumpIfFailure 12 -> 20
+  0015    | GetConstant 3: A
+  0017    | CallFunction 0
+  0019    | Merge
+  0020    | CallFunction 1
+  0022    | End
   ========================================
 
   $ possum -p '1 -> A & 2 -> B $ {"a": A, "b": B}' -i '12'
@@ -223,14 +220,17 @@
   $ possum -p 'Obj.Put(O, K, V) = {...O, K: V} ; 1' -i '1'
   
   ================Obj.Put=================
-  0000    | GetBoundLocal 0
-  0002    | JumpIfFailure 2 -> 13
-  0005    | GetConstant 0: {}
-  0007    | GetBoundLocal 1
-  0009    | GetBoundLocal 2
-  0011    | InsertKeyVal
-  0012    | Merge
-  0013    | End
+  0000    | GetConstant 0: {}
+  0002    | JumpIfFailure 2 -> 8
+  0005    | GetBoundLocal 0
+  0007    | Merge
+  0008    | JumpIfFailure 8 -> 19
+  0011    | GetConstant 1: {}
+  0013    | GetBoundLocal 1
+  0015    | GetBoundLocal 2
+  0017    | InsertKeyVal
+  0018    | Merge
+  0019    | End
   ========================================
   
   =================@main==================
