@@ -251,3 +251,35 @@
   0002    | CallFunction 0
   0004    | End
   ========================================
+
+  $ possum -p '"" $ (1 ? 2 : 3)' -i ''
+  
+  =================@main==================
+  0000    | GetConstant 0: ""
+  0002    | CallFunction 0
+  0004    | TakeRight 4 -> 20
+  0007    | SetInputMark
+  0008    | GetConstant 1: 1
+  0010    | ConditionalThen 10 -> 18
+  0013    | GetConstant 2: 2
+  0015    | ConditionalElse 15 -> 20
+  0018    | GetConstant 3: 3
+  0020    | End
+  ========================================
+
+  $ possum -p '"" $ [1 ? 2 : 3]' -i ''
+  
+  =================@main==================
+  0000    | GetConstant 0: ""
+  0002    | CallFunction 0
+  0004    | TakeRight 4 -> 24
+  0007    | GetConstant 1: [_]
+  0009    | SetInputMark
+  0010    | GetConstant 2: 1
+  0012    | ConditionalThen 12 -> 20
+  0015    | GetConstant 3: 2
+  0017    | ConditionalElse 17 -> 22
+  0020    | GetConstant 4: 3
+  0022    | InsertAtIndex 0
+  0024    | End
+  ========================================

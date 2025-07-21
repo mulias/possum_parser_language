@@ -1784,9 +1784,9 @@ pub const Compiler = struct {
                 try self.printError("Range is not valid in value context", region);
                 return Error.RangeNotValidInValueContext;
             },
+            .Conditional => try self.appendDynamicValue(array, rnode, index, region),
             .Negation,
             .ValueLabel,
-            .Conditional,
             => @panic("todo"),
         }
     }
