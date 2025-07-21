@@ -1043,7 +1043,7 @@ Is.Null(V) = V -> null
 
 Is.Array(V) = V -> [..._]
 
-Is.Object(V) = V -> ({} + {..._})
+Is.Object(V) = V -> {..._}
 
 Is.Equal(A, B) = A -> B
 
