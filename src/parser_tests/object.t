@@ -1,24 +1,24 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum -p '"" $ {}' -i ''
-  (Return 3-4
+  (Return 0-6
     (String 0-2 "")
     (Object 5-6)
 
   $ possum -p '"" $ {"a": 1}' -i ''
-  (Return 3-4
+  (Return 0-6
     (String 0-2 "")
     (Object 5-6
       ((String 6-9 "a") (NumberString 11-12 1))
 
   $ possum -p '"" $ {A: 1,}' -i ''
-  (Return 3-4
+  (Return 0-6
     (String 0-2 "")
     (Object 5-6
       ((ValueVar 6-7 A) (NumberString 9-10 1))
 
   $ possum -p '"" $ {...{"x": Z}}' -i ''
-  (Return 3-4
+  (Return 0-10
     (String 0-2 "")
     (Merge 6-10
       (Object 5-6)
@@ -26,7 +26,7 @@
         ((String 10-13 "x") (ValueVar 15-16 Z))
 
   $ possum -p '"" $ {...{"x": Z},}' -i ''
-  (Return 3-4
+  (Return 0-10
     (String 0-2 "")
     (Merge 6-10
       (Object 5-6)
@@ -34,7 +34,7 @@
         ((String 10-13 "x") (ValueVar 15-16 Z))
 
   $ possum -p '"" $ {...{"a": 1}, ...{"b": 2}}' -i ''
-  (Return 3-4
+  (Return 0-18
     (String 0-2 "")
     (Merge 17-18
       (Merge 6-10
@@ -45,7 +45,7 @@
         ((String 23-26 "b") (NumberString 28-29 2))
 
   $ possum -p '"" $ {"a": 1, ...{"b": 2}}' -i ''
-  (Return 3-4
+  (Return 0-18
     (String 0-2 "")
     (Merge 14-18
       (Object 5-6
@@ -54,7 +54,7 @@
         ((String 18-21 "b") (NumberString 23-24 2))
 
   $ possum -p '"" $ {"a": 1, ...{"b": 2}, "c": 3}' -i ''
-  (Return 3-4
+  (Return 0-26
     (String 0-2 "")
     (Merge 25-26
       (Merge 14-18
@@ -66,7 +66,7 @@
         ((String 27-30 "c") (NumberString 32-33 3))
 
   $ possum -p '"" $ {...{"a": 1}, "b": 2, ...{"c": 3}}' -i ''
-  (Return 3-4
+  (Return 0-18
     (String 0-2 "")
     (Merge 17-18
       (Merge 6-10

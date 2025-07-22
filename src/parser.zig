@@ -446,7 +446,7 @@ pub const Parser = struct {
         // Trasnform subtraction into Merge with negated right operand
         if (t.tokenType == .Minus) {
             const negated_right = try self.ast.create(.{ .Negation = right }, right.region);
-            return self.ast.createInfix(.Merge, left, negated_right, t.region);
+            return self.ast.createInfix(.Merge, left, negated_right, left.region.merge(negated_right.region));
         }
 
         const infixType: Ast.InfixType = switch (t.tokenType) {
@@ -462,7 +462,7 @@ pub const Parser = struct {
             else => unreachable,
         };
 
-        return self.ast.createInfix(infixType, left, right, t.region);
+        return self.ast.createInfix(infixType, left, right, left.region.merge(right.region));
     }
 
     fn conditionalOp(self: *Parser, condition: *Ast.RNode) !*Ast.RNode {
@@ -482,8 +482,6 @@ pub const Parser = struct {
     }
 
     fn callOrDefineFunction(self: *Parser, function_ident: *Ast.RNode) !*Ast.RNode {
-        const call_or_define_region = self.previous.region;
-
         if (try self.match(.RightParen)) {
             return function_ident;
         } else {
@@ -494,7 +492,7 @@ pub const Parser = struct {
                 .CallOrDefineFunction,
                 function_ident,
                 params_or_args,
-                call_or_define_region,
+                function_ident.region.merge(params_or_args.region),
             );
         }
     }
@@ -503,12 +501,12 @@ pub const Parser = struct {
         const expr = try self.expression();
 
         if (try self.match(.Comma) and !self.check(.RightParen)) {
-            const comma_region = self.previous.region;
+            const remaining_params = try self.paramsOrArgs();
             return self.ast.createInfix(
                 .ParamsOrArgs,
                 expr,
-                try self.paramsOrArgs(),
-                comma_region,
+                remaining_params,
+                expr.region.merge(remaining_params.region),
             );
         } else {
             return expr;
