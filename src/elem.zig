@@ -628,7 +628,6 @@ pub const Elem = union(ElemType) {
 
         return switch (elem) {
             .ParserVar,
-            .ValueVar,
             .Failure,
             => @panic("Internal error"),
             .NumberString => |n| Elem{ .NumberString = n.negate() },

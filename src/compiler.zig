@@ -930,9 +930,14 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetConstant, high_id, region);
                 try self.emitOp(.DestructureRange, region);
             },
-            .Negation => {
-                try self.writePattern(rnode);
-                try self.emitOp(.Destructure, region);
+            .Negation => |inner| {
+                if (inner.node.asInfixOfType(.Merge)) |_| {
+                    // Negated merge pattern - no extra destructure needed
+                    try self.writePattern(rnode);
+                } else {
+                    try self.writePattern(rnode);
+                    try self.emitOp(.Destructure, region);
+                }
             },
             .ValueLabel => return error.InvalidAst,
             .Array => |elements| {
@@ -976,12 +981,13 @@ pub const Compiler = struct {
             .StringTemplate => |parts| {
                 try self.writeStringTemplate(parts, region, .Value);
             },
-            .Negation => {
+            .Negation => |inner| {
                 if (simplifyNegatedNumberNode(rnode)) |elem| {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, region);
                 } else {
-                    @panic("todo");
+                    try self.emitOp(.NegateNumber, region);
+                    try self.writePattern(inner);
                 }
             },
             .ElemNode => |elem| switch (elem) {
