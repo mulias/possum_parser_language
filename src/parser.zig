@@ -616,7 +616,8 @@ pub const Parser = struct {
         // Empty object: {}
         if (try self.match(.RightBrace)) {
             const empty_pairs = ArrayList(Ast.ObjectPair){};
-            return self.ast.createObject(empty_pairs, region);
+            const end_region = self.previous.region;
+            return self.ast.createObject(empty_pairs, region.merge(end_region));
         }
 
         var pairs = ArrayList(Ast.ObjectPair){};
@@ -643,7 +644,8 @@ pub const Parser = struct {
 
         // Pure object without spread, use Object AST node
         try self.consume(.RightBrace, "Expected closing '}'");
-        return self.ast.createObject(pairs, region);
+        const end_region = self.previous.region;
+        return self.ast.createObject(pairs, region.merge(end_region));
     }
 
     fn objectSpread(self: *Parser, left_object: *Ast.RNode) !*Ast.RNode {
