@@ -1,644 +1,78 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum -p '"" $ []' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 5
-              .end: usize = 7
-            .node: ast.Ast.Node
-              .Array: array_list.ArrayListAlignedUnmanaged(..)
-                .items: []*ast.Ast.RNode
-                  (empty)
-                .capacity: usize = 0
+  (Return 3-4
+    (String 0-2 "")
+    (Array 5-7 ())
+
 
   $ possum -p '"" $ [1, 2, 3]' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 5
-              .end: usize = 14
-            .node: ast.Ast.Node
-              .Array: array_list.ArrayListAlignedUnmanaged(..)
-                .items: []*ast.Ast.RNode
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 6
-                      .end: usize = 7
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .NumberString: elem.Elem.NumberStringElem
-                          .sId: u32 = 786
-                          .format: elem.Elem.NumberStringElem.Format
-                            .Integer
-                          .negated: bool = false
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 9
-                      .end: usize = 10
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .NumberString: elem.Elem.NumberStringElem
-                          .sId: u32 = 4644
-                          .format: elem.Elem.NumberStringElem.Format
-                            .Integer
-                          .negated: bool = false
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 12
-                      .end: usize = 13
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .NumberString: elem.Elem.NumberStringElem
-                          .sId: u32 = 5954
-                          .format: elem.Elem.NumberStringElem.Format
-                            .Integer
-                          .negated: bool = false
-                .capacity: usize = 16
+  (Return 3-4
+    (String 0-2 "")
+    (Array 5-14 ((NumberString 6-7 1) (NumberString 9-10 2) (NumberString 12-13 3)))
 
   $ possum -p '"" $ [1, 2, 3,]' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 5
-              .end: usize = 15
-            .node: ast.Ast.Node
-              .Array: array_list.ArrayListAlignedUnmanaged(..)
-                .items: []*ast.Ast.RNode
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 6
-                      .end: usize = 7
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .NumberString: elem.Elem.NumberStringElem
-                          .sId: u32 = 786
-                          .format: elem.Elem.NumberStringElem.Format
-                            .Integer
-                          .negated: bool = false
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 9
-                      .end: usize = 10
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .NumberString: elem.Elem.NumberStringElem
-                          .sId: u32 = 4644
-                          .format: elem.Elem.NumberStringElem.Format
-                            .Integer
-                          .negated: bool = false
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 12
-                      .end: usize = 13
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .NumberString: elem.Elem.NumberStringElem
-                          .sId: u32 = 5954
-                          .format: elem.Elem.NumberStringElem.Format
-                            .Integer
-                          .negated: bool = false
-                .capacity: usize = 16
+  (Return 3-4
+    (String 0-2 "")
+    (Array 5-15 ((NumberString 6-7 1) (NumberString 9-10 2) (NumberString 12-13 3)))
 
   $ possum -p '"" $ [...[1]]' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 6
-              .end: usize = 9
-            .node: ast.Ast.Node
-              .InfixNode: ast.Ast.Infix
-                .infixType: ast.Ast.InfixType
-                  .Merge
-                .left: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 5
-                    .end: usize = 6
-                  .node: ast.Ast.Node
-                    .Array: array_list.ArrayListAlignedUnmanaged(..)
-                      .items: []*ast.Ast.RNode
-                        (empty)
-                      .capacity: usize = 0
-                .right: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 9
-                    .end: usize = 12
-                  .node: ast.Ast.Node
-                    .Array: array_list.ArrayListAlignedUnmanaged(..)
-                      .items: []*ast.Ast.RNode
-                        *ast.Ast.RNode
-                          .region: region.Region
-                            .start: usize = 10
-                            .end: usize = 11
-                          .node: ast.Ast.Node
-                            .ElemNode: elem.Elem
-                              .NumberString: elem.Elem.NumberStringElem
-                                .sId: u32 = 786
-                                .format: elem.Elem.NumberStringElem.Format
-                                  .Integer
-                                .negated: bool = false
-                      .capacity: usize = 16
+  (Return 3-4
+    (String 0-2 "")
+    (Merge 6-9
+      (Array 5-6 ())
+      (Array 9-12 ((NumberString 10-11 1)))
 
   $ possum -p '"" $ [...[1],]' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 6
-              .end: usize = 9
-            .node: ast.Ast.Node
-              .InfixNode: ast.Ast.Infix
-                .infixType: ast.Ast.InfixType
-                  .Merge
-                .left: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 5
-                    .end: usize = 6
-                  .node: ast.Ast.Node
-                    .Array: array_list.ArrayListAlignedUnmanaged(..)
-                      .items: []*ast.Ast.RNode
-                        (empty)
-                      .capacity: usize = 0
-                .right: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 9
-                    .end: usize = 12
-                  .node: ast.Ast.Node
-                    .Array: array_list.ArrayListAlignedUnmanaged(..)
-                      .items: []*ast.Ast.RNode
-                        *ast.Ast.RNode
-                          .region: region.Region
-                            .start: usize = 10
-                            .end: usize = 11
-                          .node: ast.Ast.Node
-                            .ElemNode: elem.Elem
-                              .NumberString: elem.Elem.NumberStringElem
-                                .sId: u32 = 786
-                                .format: elem.Elem.NumberStringElem.Format
-                                  .Integer
-                                .negated: bool = false
-                      .capacity: usize = 16
+  (Return 3-4
+    (String 0-2 "")
+    (Merge 6-9
+      (Array 5-6 ())
+      (Array 9-12 ((NumberString 10-11 1)))
 
   $ possum -p '"" $ [...[1], ...[2]]' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 12
-              .end: usize = 13
-            .node: ast.Ast.Node
-              .InfixNode: ast.Ast.Infix
-                .infixType: ast.Ast.InfixType
-                  .Merge
-                .left: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 6
-                    .end: usize = 9
-                  .node: ast.Ast.Node
-                    .InfixNode: ast.Ast.Infix
-                      .infixType: ast.Ast.InfixType
-                        .Merge
-                      .left: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 5
-                          .end: usize = 6
-                        .node: ast.Ast.Node
-                          .Array: array_list.ArrayListAlignedUnmanaged(..)
-                            .items: []*ast.Ast.RNode
-                              (empty)
-                            .capacity: usize = 0
-                      .right: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 9
-                          .end: usize = 12
-                        .node: ast.Ast.Node
-                          .Array: array_list.ArrayListAlignedUnmanaged(..)
-                            .items: []*ast.Ast.RNode
-                              *ast.Ast.RNode
-                                .region: region.Region
-                                  .start: usize = 10
-                                  .end: usize = 11
-                                .node: ast.Ast.Node
-                                  .ElemNode: elem.Elem
-                                    .NumberString: elem.Elem.NumberStringElem
-                                      .sId: u32 = 786
-                                      .format: elem.Elem.NumberStringElem.Format
-                                        .Integer
-                                      .negated: bool = false
-                            .capacity: usize = 16
-                .right: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 17
-                    .end: usize = 20
-                  .node: ast.Ast.Node
-                    .Array: array_list.ArrayListAlignedUnmanaged(..)
-                      .items: []*ast.Ast.RNode
-                        *ast.Ast.RNode
-                          .region: region.Region
-                            .start: usize = 18
-                            .end: usize = 19
-                          .node: ast.Ast.Node
-                            .ElemNode: elem.Elem
-                              .NumberString: elem.Elem.NumberStringElem
-                                .sId: u32 = 4644
-                                .format: elem.Elem.NumberStringElem.Format
-                                  .Integer
-                                .negated: bool = false
-                      .capacity: usize = 16
+  (Return 3-4
+    (String 0-2 "")
+    (Merge 12-13
+      (Merge 6-9
+        (Array 5-6 ())
+        (Array 9-12 ((NumberString 10-11 1)))
+      (Array 17-20 ((NumberString 18-19 2)))
 
 
   $ possum -p '"" $ [1, ...[2]]' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 9
-              .end: usize = 12
-            .node: ast.Ast.Node
-              .InfixNode: ast.Ast.Infix
-                .infixType: ast.Ast.InfixType
-                  .Merge
-                .left: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 5
-                    .end: usize = 6
-                  .node: ast.Ast.Node
-                    .Array: array_list.ArrayListAlignedUnmanaged(..)
-                      .items: []*ast.Ast.RNode
-                        *ast.Ast.RNode
-                          .region: region.Region
-                            .start: usize = 6
-                            .end: usize = 7
-                          .node: ast.Ast.Node
-                            .ElemNode: elem.Elem
-                              .NumberString: elem.Elem.NumberStringElem
-                                .sId: u32 = 786
-                                .format: elem.Elem.NumberStringElem.Format
-                                  .Integer
-                                .negated: bool = false
-                      .capacity: usize = 16
-                .right: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 12
-                    .end: usize = 15
-                  .node: ast.Ast.Node
-                    .Array: array_list.ArrayListAlignedUnmanaged(..)
-                      .items: []*ast.Ast.RNode
-                        *ast.Ast.RNode
-                          .region: region.Region
-                            .start: usize = 13
-                            .end: usize = 14
-                          .node: ast.Ast.Node
-                            .ElemNode: elem.Elem
-                              .NumberString: elem.Elem.NumberStringElem
-                                .sId: u32 = 4644
-                                .format: elem.Elem.NumberStringElem.Format
-                                  .Integer
-                                .negated: bool = false
-                      .capacity: usize = 16
+  (Return 3-4
+    (String 0-2 "")
+    (Merge 9-12
+      (Array 5-6 ((NumberString 6-7 1)))
+      (Array 12-15 ((NumberString 13-14 2)))
 
   $ possum -p '"" $ [1, ...[2], 3]' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 15
-              .end: usize = 16
-            .node: ast.Ast.Node
-              .InfixNode: ast.Ast.Infix
-                .infixType: ast.Ast.InfixType
-                  .Merge
-                .left: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 9
-                    .end: usize = 12
-                  .node: ast.Ast.Node
-                    .InfixNode: ast.Ast.Infix
-                      .infixType: ast.Ast.InfixType
-                        .Merge
-                      .left: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 5
-                          .end: usize = 6
-                        .node: ast.Ast.Node
-                          .Array: array_list.ArrayListAlignedUnmanaged(..)
-                            .items: []*ast.Ast.RNode
-                              *ast.Ast.RNode
-                                .region: region.Region
-                                  .start: usize = 6
-                                  .end: usize = 7
-                                .node: ast.Ast.Node
-                                  .ElemNode: elem.Elem
-                                    .NumberString: elem.Elem.NumberStringElem
-                                      .sId: u32 = 786
-                                      .format: elem.Elem.NumberStringElem.Format
-                                        .Integer
-                                      .negated: bool = false
-                            .capacity: usize = 16
-                      .right: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 12
-                          .end: usize = 15
-                        .node: ast.Ast.Node
-                          .Array: array_list.ArrayListAlignedUnmanaged(..)
-                            .items: []*ast.Ast.RNode
-                              *ast.Ast.RNode
-                                .region: region.Region
-                                  .start: usize = 13
-                                  .end: usize = 14
-                                .node: ast.Ast.Node
-                                  .ElemNode: elem.Elem
-                                    .NumberString: elem.Elem.NumberStringElem
-                                      .sId: u32 = 4644
-                                      .format: elem.Elem.NumberStringElem.Format
-                                        .Integer
-                                      .negated: bool = false
-                            .capacity: usize = 16
-                .right: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 17
-                    .end: usize = 19
-                  .node: ast.Ast.Node
-                    .Array: array_list.ArrayListAlignedUnmanaged(..)
-                      .items: []*ast.Ast.RNode
-                        *ast.Ast.RNode
-                          .region: region.Region
-                            .start: usize = 17
-                            .end: usize = 18
-                          .node: ast.Ast.Node
-                            .ElemNode: elem.Elem
-                              .NumberString: elem.Elem.NumberStringElem
-                                .sId: u32 = 5954
-                                .format: elem.Elem.NumberStringElem.Format
-                                  .Integer
-                                .negated: bool = false
-                      .capacity: usize = 16
+  (Return 3-4
+    (String 0-2 "")
+    (Merge 15-16
+      (Merge 9-12
+        (Array 5-6 ((NumberString 6-7 1)))
+        (Array 12-15 ((NumberString 13-14 2)))
+      (Array 17-19 ((NumberString 17-18 3)))
 
   $ possum -p '"" $ [...[1], 2, ...[3]]' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 12
-              .end: usize = 13
-            .node: ast.Ast.Node
-              .InfixNode: ast.Ast.Infix
-                .infixType: ast.Ast.InfixType
-                  .Merge
-                .left: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 6
-                    .end: usize = 9
-                  .node: ast.Ast.Node
-                    .InfixNode: ast.Ast.Infix
-                      .infixType: ast.Ast.InfixType
-                        .Merge
-                      .left: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 5
-                          .end: usize = 6
-                        .node: ast.Ast.Node
-                          .Array: array_list.ArrayListAlignedUnmanaged(..)
-                            .items: []*ast.Ast.RNode
-                              (empty)
-                            .capacity: usize = 0
-                      .right: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 9
-                          .end: usize = 12
-                        .node: ast.Ast.Node
-                          .Array: array_list.ArrayListAlignedUnmanaged(..)
-                            .items: []*ast.Ast.RNode
-                              *ast.Ast.RNode
-                                .region: region.Region
-                                  .start: usize = 10
-                                  .end: usize = 11
-                                .node: ast.Ast.Node
-                                  .ElemNode: elem.Elem
-                                    .NumberString: elem.Elem.NumberStringElem
-                                      .sId: u32 = 786
-                                      .format: elem.Elem.NumberStringElem.Format
-                                        .Integer
-                                      .negated: bool = false
-                            .capacity: usize = 16
-                .right: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 22
-                    .end: usize = 23
-                  .node: ast.Ast.Node
-                    .InfixNode: ast.Ast.Infix
-                      .infixType: ast.Ast.InfixType
-                        .Merge
-                      .left: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 14
-                          .end: usize = 15
-                        .node: ast.Ast.Node
-                          .Array: array_list.ArrayListAlignedUnmanaged(..)
-                            .items: []*ast.Ast.RNode
-                              *ast.Ast.RNode
-                                .region: region.Region
-                                  .start: usize = 14
-                                  .end: usize = 15
-                                .node: ast.Ast.Node
-                                  .ElemNode: elem.Elem
-                                    .NumberString: elem.Elem.NumberStringElem
-                                      .sId: u32 = 4644
-                                      .format: elem.Elem.NumberStringElem.Format
-                                        .Integer
-                                      .negated: bool = false
-                            .capacity: usize = 16
-                      .right: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 20
-                          .end: usize = 23
-                        .node: ast.Ast.Node
-                          .Array: array_list.ArrayListAlignedUnmanaged(..)
-                            .items: []*ast.Ast.RNode
-                              *ast.Ast.RNode
-                                .region: region.Region
-                                  .start: usize = 21
-                                  .end: usize = 22
-                                .node: ast.Ast.Node
-                                  .ElemNode: elem.Elem
-                                    .NumberString: elem.Elem.NumberStringElem
-                                      .sId: u32 = 5954
-                                      .format: elem.Elem.NumberStringElem.Format
-                                        .Integer
-                                      .negated: bool = false
-                            .capacity: usize = 16
+  (Return 3-4
+    (String 0-2 "")
+    (Merge 12-13
+      (Merge 6-9
+        (Array 5-6 ())
+        (Array 9-12 ((NumberString 10-11 1)))
+      (Merge 22-23
+        (Array 14-15 ((NumberString 14-15 2)))
+        (Array 20-23 ((NumberString 21-22 3)))
 
   $ possum -p '"" -> [..._]' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 5
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Destructure
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 7
-              .end: usize = 10
-            .node: ast.Ast.Node
-              .InfixNode: ast.Ast.Infix
-                .infixType: ast.Ast.InfixType
-                  .Merge
-                .left: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 6
-                    .end: usize = 7
-                  .node: ast.Ast.Node
-                    .Array: array_list.ArrayListAlignedUnmanaged(..)
-                      .items: []*ast.Ast.RNode
-                        (empty)
-                      .capacity: usize = 0
-                .right: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 10
-                    .end: usize = 11
-                  .node: ast.Ast.Node
-                    .ElemNode: elem.Elem
-                      .ValueVar: u32 = 398
+  (Destructure 3-5
+    (String 0-2 "")
+    (Merge 7-10
+      (Array 6-7 ())
+      (ValueVar 10-11 _)
 
   $ possum -p '"" $ [1, 2 3]' -i '' 2> /dev/null || echo "missing comma error"
   missing comma error

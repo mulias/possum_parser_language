@@ -1,109 +1,17 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum -p '"a" > "b" > "c" | "abz"' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 16
-        .end: usize = 17
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Or
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 10
-              .end: usize = 11
-            .node: ast.Ast.Node
-              .InfixNode: ast.Ast.Infix
-                .infixType: ast.Ast.InfixType
-                  .TakeRight
-                .left: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 4
-                    .end: usize = 5
-                  .node: ast.Ast.Node
-                    .InfixNode: ast.Ast.Infix
-                      .infixType: ast.Ast.InfixType
-                        .TakeRight
-                      .left: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 0
-                          .end: usize = 3
-                        .node: ast.Ast.Node
-                          .ElemNode: elem.Elem
-                            .String: u32 = 242
-                      .right: *ast.Ast.RNode
-                        .region: region.Region
-                          .start: usize = 6
-                          .end: usize = 9
-                        .node: ast.Ast.Node
-                          .ElemNode: elem.Elem
-                            .String: u32 = 818
-                .right: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 12
-                    .end: usize = 15
-                  .node: ast.Ast.Node
-                    .ElemNode: elem.Elem
-                      .String: u32 = 824
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 18
-              .end: usize = 23
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 5954
+  (Or 16-17
+    (TakeRight 10-11
+      (TakeRight 4-5
+        (String 0-3 "a")
+        (String 6-9 "b")
+      (String 12-15 "c")
+    (String 18-23 "abz")
 
   $ possum -p '"" $ (1-2)' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 7
-              .end: usize = 8
-            .node: ast.Ast.Node
-              .InfixNode: ast.Ast.Infix
-                .infixType: ast.Ast.InfixType
-                  .Merge
-                .left: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 6
-                    .end: usize = 7
-                  .node: ast.Ast.Node
-                    .ElemNode: elem.Elem
-                      .NumberString: elem.Elem.NumberStringElem
-                        .sId: u32 = 786
-                        .format: elem.Elem.NumberStringElem.Format
-                          .Integer
-                        .negated: bool = false
-                .right: *ast.Ast.RNode
-                  .region: region.Region
-                    .start: usize = 8
-                    .end: usize = 9
-                  .node: ast.Ast.Node
-                    .Negation: *ast.Ast.RNode
-                      .region: region.Region
-                        .start: usize = 8
-                        .end: usize = 9
-                      .node: ast.Ast.Node
-                        .ElemNode: elem.Elem
-                          .NumberString: elem.Elem.NumberStringElem
-                            .sId: u32 = 4644
-                            .format: elem.Elem.NumberStringElem.Format
-                              .Integer
-                            .negated: bool = false
+  (Return 3-4
+    (String 0-2 "")
+    (Merge 7-8
+      (NumberString 6-7 1)
+      (Negation 8-9 (NumberString 8-9 2))

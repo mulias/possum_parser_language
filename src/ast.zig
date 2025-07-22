@@ -144,12 +144,190 @@ pub const Ast = struct {
         } }, loc);
     }
 
-    pub fn print(self: *Ast, vm: VM) !void {
-        try prettyPrint(vm.allocator, vm.writers.debug, self.roots.items, .{
-            .array_show_item_idx = false,
-            .max_depth = 0,
-            .array_max_len = 0,
-        });
+    pub fn printSexpr(self: *Ast, vm: VM) VMWriter.Error!void {
+        for (self.roots.items) |root| {
+            try self.printRNodeSexpr(root, vm.writers.debug, vm, 0);
+            try vm.writers.debug.print("\n", .{});
+        }
+    }
+
+    fn printRNodeSexpr(self: *Ast, rnode: *RNode, writer: VMWriter, vm: VM, indent: u32) VMWriter.Error!void {
+        try self.printNodeSexpr(rnode.node, writer, vm, indent, rnode.region);
+    }
+
+    fn printIndent(self: *Ast, writer: VMWriter, indent: u32) VMWriter.Error!void {
+        _ = self;
+        var i: u32 = 0;
+        while (i < indent * 2) : (i += 1) {
+            try writer.print(" ", .{});
+        }
+    }
+
+    fn shouldBeMultiline(self: *Ast, node: Node, vm: VM) VMWriter.Error!bool {
+        return switch (node) {
+            .InfixNode => true, // InfixNodes have 2 children, so always multiline
+            .Array => |array| {
+                // Always multiline if more than 3 members
+                if (array.items.len > 3) return true;
+                // Otherwise multiline if any child is multiline
+                for (array.items) |item| {
+                    if (try self.shouldBeMultiline(item.node, vm)) return true;
+                }
+                return false;
+            },
+            .Object => |obj| {
+                // Always multiline if more than 3 members or if non-empty
+                if (obj.items.len > 3) return true;
+                return obj.items.len > 0;
+            },
+            .StringTemplate => |template| template.items.len > 1,
+            .Conditional => true, // Conditionals have 3 children, so always multiline
+            .UpperBoundedRange => |child| try self.shouldBeMultiline(child.node, vm),
+            .LowerBoundedRange => |child| try self.shouldBeMultiline(child.node, vm),
+            .Negation => |child| try self.shouldBeMultiline(child.node, vm),
+            .ValueLabel => |child| try self.shouldBeMultiline(child.node, vm),
+            .ElemNode => false,
+        };
+    }
+
+    fn printNodeSexpr(self: *Ast, node: Node, writer: VMWriter, vm: VM, indent: u32, region: Region) VMWriter.Error!void {
+        switch (node) {
+            .InfixNode => |infix| {
+                try writer.print("({s} {}-{}\n", .{ @tagName(infix.infixType), region.start, region.end });
+                try self.printIndent(writer, indent + 1);
+                try self.printRNodeSexpr(infix.left, writer, vm, indent + 1);
+                try writer.print("\n", .{});
+                try self.printIndent(writer, indent + 1);
+                try self.printRNodeSexpr(infix.right, writer, vm, indent + 1);
+            },
+            .ElemNode => |elem| {
+                try writer.print("({s} {}-{} ", .{ @tagName(elem), region.start, region.end });
+                try elem.print(vm, writer);
+                try writer.print(")", .{});
+            },
+            .UpperBoundedRange => |child| {
+                const child_multiline = try self.shouldBeMultiline(child.node, vm);
+                if (child_multiline) {
+                    try writer.print("(UpperBoundedRange {}-{}\n", .{ region.start, region.end });
+                    try self.printIndent(writer, indent + 1);
+                    try self.printRNodeSexpr(child, writer, vm, indent + 1);
+                } else {
+                    try writer.print("(UpperBoundedRange {}-{} ", .{ region.start, region.end });
+                    try self.printRNodeSexpr(child, writer, vm, indent);
+                    try writer.print(")", .{});
+                }
+            },
+            .LowerBoundedRange => |child| {
+                const child_multiline = try self.shouldBeMultiline(child.node, vm);
+                if (child_multiline) {
+                    try writer.print("(LowerBoundedRange {}-{}\n", .{ region.start, region.end });
+                    try self.printIndent(writer, indent + 1);
+                    try self.printRNodeSexpr(child, writer, vm, indent + 1);
+                } else {
+                    try writer.print("(LowerBoundedRange {}-{} ", .{ region.start, region.end });
+                    try self.printRNodeSexpr(child, writer, vm, indent);
+                    try writer.print(")", .{});
+                }
+            },
+            .Negation => |child| {
+                const child_multiline = try self.shouldBeMultiline(child.node, vm);
+                if (child_multiline) {
+                    try writer.print("(Negation {}-{}\n", .{ region.start, region.end });
+                    try self.printIndent(writer, indent + 1);
+                    try self.printRNodeSexpr(child, writer, vm, indent + 1);
+                } else {
+                    try writer.print("(Negation {}-{} ", .{ region.start, region.end });
+                    try self.printRNodeSexpr(child, writer, vm, indent);
+                    try writer.print(")", .{});
+                }
+            },
+            .ValueLabel => |child| {
+                const child_multiline = try self.shouldBeMultiline(child.node, vm);
+                if (child_multiline) {
+                    try writer.print("(ValueLabel {}-{}\n", .{ region.start, region.end });
+                    try self.printIndent(writer, indent + 1);
+                    try self.printRNodeSexpr(child, writer, vm, indent + 1);
+                } else {
+                    try writer.print("(ValueLabel {}-{} ", .{ region.start, region.end });
+                    try self.printRNodeSexpr(child, writer, vm, indent);
+                    try writer.print(")", .{});
+                }
+            },
+            .Array => |array| {
+                const is_multiline = try self.shouldBeMultiline(node, vm);
+                if (is_multiline) {
+                    try writer.print("(Array {}-{} (\n", .{ region.start, region.end });
+                    for (array.items, 0..) |item, i| {
+                        try self.printIndent(writer, indent + 1);
+                        try self.printRNodeSexpr(item, writer, vm, indent + 1);
+                        if (i < array.items.len - 1) try writer.print("\n", .{});
+                    }
+                    if (array.items.len > 0) {
+                        try writer.print("\n", .{});
+                        try self.printIndent(writer, indent);
+                    }
+                    try writer.print("))", .{});
+                } else {
+                    try writer.print("(Array {}-{} (", .{ region.start, region.end });
+                    for (array.items, 0..) |item, i| {
+                        if (i > 0) try writer.print(" ", .{});
+                        try self.printRNodeSexpr(item, writer, vm, indent);
+                    }
+                    try writer.print("))", .{});
+                }
+            },
+            .Object => |obj| {
+                if (obj.items.len == 0) {
+                    try writer.print("(Object {}-{})", .{ region.start, region.end });
+                } else {
+                    try writer.print("(Object {}-{}\n", .{ region.start, region.end });
+                    for (obj.items, 0..) |pair, i| {
+                        try self.printIndent(writer, indent + 1);
+                        try writer.print("(", .{});
+                        try self.printRNodeSexpr(pair.key, writer, vm, indent + 2);
+                        try writer.print(" ", .{});
+                        try self.printRNodeSexpr(pair.value, writer, vm, indent + 2);
+                        try writer.print(")", .{});
+                        if (i < obj.items.len - 1) try writer.print("\n", .{});
+                    }
+                }
+            },
+            .StringTemplate => |template| {
+                if (template.items.len <= 1) {
+                    try writer.print("(StringTemplate {}-{} ", .{ region.start, region.end });
+                    if (template.items.len == 1) {
+                        try self.printRNodeSexpr(template.items[0], writer, vm, indent);
+                    }
+                    try writer.print(")", .{});
+                } else {
+                    try writer.print("(StringTemplate {}-{}\n", .{ region.start, region.end });
+                    for (template.items, 0..) |part, i| {
+                        try self.printIndent(writer, indent + 1);
+                        try self.printRNodeSexpr(part, writer, vm, indent + 1);
+                        if (i < template.items.len - 1) try writer.print("\n", .{});
+                    }
+                }
+            },
+            .Conditional => |cond| {
+                try writer.print("(Conditional {}-{}\n", .{ region.start, region.end });
+                try self.printIndent(writer, indent + 1);
+                try writer.print("(condition ", .{});
+                try self.printRNodeSexpr(cond.condition, writer, vm, indent + 2);
+                try writer.print(")\n", .{});
+                try self.printIndent(writer, indent + 1);
+                try writer.print("(then ", .{});
+                try self.printRNodeSexpr(cond.then_branch, writer, vm, indent + 2);
+                try writer.print(")\n", .{});
+                try self.printIndent(writer, indent + 1);
+                try writer.print("(else ", .{});
+                try self.printRNodeSexpr(cond.else_branch, writer, vm, indent + 2);
+                try writer.print(")", .{});
+            },
+        }
+    }
+
+    pub fn print(self: *Ast, vm: VM) VMWriter.Error!void {
+        try self.printSexpr(vm);
     }
 };
 

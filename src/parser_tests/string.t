@@ -1,276 +1,54 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum -p '""' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 0
-        .end: usize = 2
-      .node: ast.Ast.Node
-        .ElemNode: elem.Elem
-          .String: u32 = 1919
+  (String 0-2 "")
 
   $ possum -p '"hello"' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 0
-        .end: usize = 7
-      .node: ast.Ast.Node
-        .ElemNode: elem.Elem
-          .String: u32 = 5954
+  (String 0-7 "hello")
 
   $ possum -p "'world'" -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 0
-        .end: usize = 7
-      .node: ast.Ast.Node
-        .ElemNode: elem.Elem
-          .String: u32 = 5954
+  (String 0-7 "world")
 
   $ possum -p '"%(word)"' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 0
-        .end: usize = 9
-      .node: ast.Ast.Node
-        .StringTemplate: array_list.ArrayListAlignedUnmanaged(..)
-          .items: []*ast.Ast.RNode
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 9
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .String: u32 = 1919
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 4
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .ParserVar: u32 = 393
-          .capacity: usize = 16
+  (StringTemplate 0-9
+    (String 0-9 "")
+    (ParserVar 0-4 word)
 
   $ possum -p '"Hello %(word)"' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 0
-        .end: usize = 15
-      .node: ast.Ast.Node
-        .StringTemplate: array_list.ArrayListAlignedUnmanaged(..)
-          .items: []*ast.Ast.RNode
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 15
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .String: u32 = 5954
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 4
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .ParserVar: u32 = 393
-          .capacity: usize = 16
+  (StringTemplate 0-15
+    (String 0-15 "Hello ")
+    (ParserVar 0-4 word)
 
   $ possum -p '"%(word) World"' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 0
-        .end: usize = 15
-      .node: ast.Ast.Node
-        .StringTemplate: array_list.ArrayListAlignedUnmanaged(..)
-          .items: []*ast.Ast.RNode
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 15
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .String: u32 = 1919
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 4
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .ParserVar: u32 = 393
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 4
-                .end: usize = 5
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .String: u32 = 5954
-          .capacity: usize = 16
+  (StringTemplate 0-15
+    (String 0-15 "")
+    (ParserVar 0-4 word)
+    (String 4-5 " World")
 
   $ possum -p '"Hello %(word) and %(word)"' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 0
-        .end: usize = 27
-      .node: ast.Ast.Node
-        .StringTemplate: array_list.ArrayListAlignedUnmanaged(..)
-          .items: []*ast.Ast.RNode
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 27
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .String: u32 = 5954
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 4
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .ParserVar: u32 = 393
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 4
-                .end: usize = 5
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .String: u32 = 5961
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 4
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .ParserVar: u32 = 393
-          .capacity: usize = 16
+  (StringTemplate 0-27
+    (String 0-27 "Hello ")
+    (ParserVar 0-4 word)
+    (String 4-5 " and ")
+    (ParserVar 0-4 word)
 
   $ possum -p '"" $ "%(5)"' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 4
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Return
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 5
-              .end: usize = 11
-            .node: ast.Ast.Node
-              .StringTemplate: array_list.ArrayListAlignedUnmanaged(..)
-                .items: []*ast.Ast.RNode
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 5
-                      .end: usize = 11
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .String: u32 = 1919
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 0
-                      .end: usize = 1
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .NumberString: elem.Elem.NumberStringElem
-                          .sId: u32 = 5954
-                          .format: elem.Elem.NumberStringElem.Format
-                            .Integer
-                          .negated: bool = false
-                .capacity: usize = 16
+  (Return 3-4
+    (String 0-2 "")
+    (StringTemplate 5-11
+      (String 5-11 "")
+      (NumberString 0-1 5)
 
   $ possum -p '"" -> "%(Str)"' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 3
-        .end: usize = 5
-      .node: ast.Ast.Node
-        .InfixNode: ast.Ast.Infix
-          .infixType: ast.Ast.InfixType
-            .Destructure
-          .left: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 0
-              .end: usize = 2
-            .node: ast.Ast.Node
-              .ElemNode: elem.Elem
-                .String: u32 = 1919
-          .right: *ast.Ast.RNode
-            .region: region.Region
-              .start: usize = 6
-              .end: usize = 14
-            .node: ast.Ast.Node
-              .StringTemplate: array_list.ArrayListAlignedUnmanaged(..)
-                .items: []*ast.Ast.RNode
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 6
-                      .end: usize = 14
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .String: u32 = 1919
-                  *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 0
-                      .end: usize = 3
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .ValueVar: u32 = 5954
-                .capacity: usize = 16
+  (Destructure 3-5
+    (String 0-2 "")
+    (StringTemplate 6-14
+      (String 6-14 "")
+      (ValueVar 0-3 Str)
 
   $ possum -p '"Hello %(int + word)"' -i ''
-  []*ast.Ast.RNode
-    *ast.Ast.RNode
-      .region: region.Region
-        .start: usize = 0
-        .end: usize = 21
-      .node: ast.Ast.Node
-        .StringTemplate: array_list.ArrayListAlignedUnmanaged(..)
-          .items: []*ast.Ast.RNode
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 0
-                .end: usize = 21
-              .node: ast.Ast.Node
-                .ElemNode: elem.Elem
-                  .String: u32 = 5954
-            *ast.Ast.RNode
-              .region: region.Region
-                .start: usize = 4
-                .end: usize = 5
-              .node: ast.Ast.Node
-                .InfixNode: ast.Ast.Infix
-                  .infixType: ast.Ast.InfixType
-                    .Merge
-                  .left: *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 0
-                      .end: usize = 3
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .ParserVar: u32 = 590
-                  .right: *ast.Ast.RNode
-                    .region: region.Region
-                      .start: usize = 6
-                      .end: usize = 10
-                    .node: ast.Ast.Node
-                      .ElemNode: elem.Elem
-                        .ParserVar: u32 = 393
-          .capacity: usize = 16
+  (StringTemplate 0-21
+    (String 0-21 "Hello ")
+    (Merge 4-5
+      (ParserVar 0-3 int)
+      (ParserVar 6-10 word)
