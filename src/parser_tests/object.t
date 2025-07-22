@@ -34,9 +34,9 @@
         ((String 10-13 "x") (ValueVar 15-16 Z))
 
   $ possum -p '"" $ {...{"a": 1}, ...{"b": 2}}' -i ''
-  (Return 0-18
+  (Return 0-30
     (String 0-2 "")
-    (Merge 17-18
+    (Merge 6-30
       (Merge 6-17
         (Object 5-6)
         (Object 9-17
@@ -54,9 +54,9 @@
         ((String 18-21 "b") (NumberString 23-24 2))
 
   $ possum -p '"" $ {"a": 1, ...{"b": 2}, "c": 3}' -i ''
-  (Return 0-26
+  (Return 0-30
     (String 0-2 "")
-    (Merge 25-26
+    (Merge 14-30
       (Merge 14-25
         (Object 5-13
           ((String 6-9 "a") (NumberString 11-12 1))
@@ -66,14 +66,14 @@
         ((String 27-30 "c") (NumberString 32-33 3))
 
   $ possum -p '"" $ {...{"a": 1}, "b": 2, ...{"c": 3}}' -i ''
-  (Return 0-18
+  (Return 0-38
     (String 0-2 "")
-    (Merge 17-18
+    (Merge 6-38
       (Merge 6-17
         (Object 5-6)
         (Object 9-17
           ((String 10-13 "a") (NumberString 15-16 1))
-      (Merge 37-38
+      (Merge 19-38
         (Object 19-22
           ((String 19-22 "b") (NumberString 24-25 2))
         (Object 30-38
