@@ -33,14 +33,14 @@
     (ParserVar 0-4 word)
 
   $ possum -p '"" $ "%(5)"' -i ''
-  (Return 3-4
+  (Return 0-11
     (String 0-2 "")
     (StringTemplate 5-11
       (String 5-11 "")
       (NumberString 0-1 5)
 
   $ possum -p '"" -> "%(Str)"' -i ''
-  (Destructure 3-5
+  (Destructure 0-14
     (String 0-2 "")
     (StringTemplate 6-14
       (String 6-14 "")
@@ -49,6 +49,6 @@
   $ possum -p '"Hello %(int + word)"' -i ''
   (StringTemplate 0-21
     (String 0-21 "Hello ")
-    (Merge 4-5
+    (Merge 0-10
       (ParserVar 0-3 int)
       (ParserVar 6-10 word)
