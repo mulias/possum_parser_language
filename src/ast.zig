@@ -199,6 +199,7 @@ pub const Ast = struct {
                 try writer.print("\n", .{});
                 try self.printIndent(writer, indent + 1);
                 try self.printRNodeSexpr(infix.right, writer, vm, indent + 1);
+                try writer.print(")", .{});
             },
             .ElemNode => |elem| {
                 try writer.print("({s} {}-{} ", .{ @tagName(elem), region.start, region.end });
@@ -211,6 +212,7 @@ pub const Ast = struct {
                     try writer.print("(UpperBoundedRange {}-{}\n", .{ region.start, region.end });
                     try self.printIndent(writer, indent + 1);
                     try self.printRNodeSexpr(child, writer, vm, indent + 1);
+                    try writer.print(")", .{});
                 } else {
                     try writer.print("(UpperBoundedRange {}-{} ", .{ region.start, region.end });
                     try self.printRNodeSexpr(child, writer, vm, indent);
@@ -223,6 +225,7 @@ pub const Ast = struct {
                     try writer.print("(LowerBoundedRange {}-{}\n", .{ region.start, region.end });
                     try self.printIndent(writer, indent + 1);
                     try self.printRNodeSexpr(child, writer, vm, indent + 1);
+                    try writer.print(")", .{});
                 } else {
                     try writer.print("(LowerBoundedRange {}-{} ", .{ region.start, region.end });
                     try self.printRNodeSexpr(child, writer, vm, indent);
@@ -235,6 +238,7 @@ pub const Ast = struct {
                     try writer.print("(Negation {}-{}\n", .{ region.start, region.end });
                     try self.printIndent(writer, indent + 1);
                     try self.printRNodeSexpr(child, writer, vm, indent + 1);
+                    try writer.print(")", .{});
                 } else {
                     try writer.print("(Negation {}-{} ", .{ region.start, region.end });
                     try self.printRNodeSexpr(child, writer, vm, indent);
@@ -247,6 +251,7 @@ pub const Ast = struct {
                     try writer.print("(ValueLabel {}-{}\n", .{ region.start, region.end });
                     try self.printIndent(writer, indent + 1);
                     try self.printRNodeSexpr(child, writer, vm, indent + 1);
+                    try writer.print(")", .{});
                 } else {
                     try writer.print("(ValueLabel {}-{} ", .{ region.start, region.end });
                     try self.printRNodeSexpr(child, writer, vm, indent);
@@ -290,6 +295,7 @@ pub const Ast = struct {
                         try writer.print(")", .{});
                         if (i < obj.items.len - 1) try writer.print("\n", .{});
                     }
+                    try writer.print(")", .{});
                 }
             },
             .StringTemplate => |template| {
@@ -306,6 +312,7 @@ pub const Ast = struct {
                         try self.printRNodeSexpr(part, writer, vm, indent + 1);
                         if (i < template.items.len - 1) try writer.print("\n", .{});
                     }
+                    try writer.print(")", .{});
                 }
             },
             .Conditional => |cond| {
@@ -321,7 +328,7 @@ pub const Ast = struct {
                 try self.printIndent(writer, indent + 1);
                 try writer.print("(else ", .{});
                 try self.printRNodeSexpr(cond.else_branch, writer, vm, indent + 2);
-                try writer.print(")", .{});
+                try writer.print("))", .{});
             },
         }
     }
