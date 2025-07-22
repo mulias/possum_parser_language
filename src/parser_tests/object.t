@@ -48,7 +48,7 @@
   (Return 0-25
     (String 0-2 "")
     (Merge 14-25
-      (Object 5-6
+      (Object 5-13
         ((String 6-9 "a") (NumberString 11-12 1))
       (Object 17-25
         ((String 18-21 "b") (NumberString 23-24 2))
@@ -58,7 +58,7 @@
     (String 0-2 "")
     (Merge 25-26
       (Merge 14-25
-        (Object 5-6
+        (Object 5-13
           ((String 6-9 "a") (NumberString 11-12 1))
         (Object 17-25
           ((String 18-21 "b") (NumberString 23-24 2))
