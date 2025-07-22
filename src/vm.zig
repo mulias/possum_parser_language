@@ -1163,20 +1163,38 @@ pub const VM = struct {
                 }
             },
             .Number => |nc| {
-                const subtrahend = nc.acc.negateNumber() catch @panic("Internal Error");
-                if (try Elem.merge(value, subtrahend, self)) |diff| {
-                    var i: usize = patternSegments.len;
-                    while (i > 0) {
-                        i -= 1;
-                        if (patternSegments[i] == .ValueVar) {
-                            try self.push(diff);
-                        } else {
+                if (!foundUnboundVar) {
+                    if (nc.acc.isEql(value, self.*)) {
+                        // Pattern matches - push back the original pattern
+                        // segments for individual destructuring, which will
+                        // succeed
+                        var i: usize = patternSegments.len;
+                        while (i > 0) {
+                            i -= 1;
                             try self.push(patternSegments[i]);
                         }
+                    } else {
+                        // Pattern doesn't match
+                        _ = self.pop();
+                        try self.pushFailure();
                     }
                 } else {
-                    _ = self.pop();
-                    try self.pushFailure();
+                    const subtrahend = nc.acc.negateNumber() catch @panic("Internal Error");
+                    if (try Elem.merge(value, subtrahend, self)) |diff| {
+                        // Assign diff to the unbound variable
+                        var i: usize = patternSegments.len;
+                        while (i > 0) {
+                            i -= 1;
+                            if (patternSegments[i] == .ValueVar) {
+                                try self.push(diff);
+                            } else {
+                                try self.push(patternSegments[i]);
+                            }
+                        }
+                    } else {
+                        _ = self.pop();
+                        try self.pushFailure();
+                    }
                 }
             },
             .Object => {

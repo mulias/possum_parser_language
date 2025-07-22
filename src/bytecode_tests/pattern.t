@@ -796,3 +796,131 @@
   0002    | CallFunction 0
   0004    | End
   ========================================
+
+  $ possum -p '4 -> (1 + 1 + 2)' -i '4'
+  
+  =================@main==================
+  0000    | GetConstant 0: 4
+  0002    | CallFunction 0
+  0004    | GetConstant 1: 1
+  0006    | GetConstant 2: 1
+  0008    | GetConstant 3: 2
+  0010    | PrepareMergePattern 3
+  0012    | JumpIfFailure 12 -> 41
+  0015    | GetConstant 4: 1
+  0017    | Destructure
+  0018    | JumpIfFailure 18 -> 39
+  0021    | Pop
+  0022    | GetConstant 5: 1
+  0024    | Destructure
+  0025    | JumpIfFailure 25 -> 39
+  0028    | Pop
+  0029    | GetConstant 6: 2
+  0031    | Destructure
+  0032    | JumpIfFailure 32 -> 39
+  0035    | Pop
+  0036    | JumpIfSuccess 36 -> 41
+  0039    | Swap
+  0040    | Pop
+  0041    | End
+  ========================================
+
+  $ possum -p '5 -> (2 + 3)' -i '5'
+  
+  =================@main==================
+  0000    | GetConstant 0: 5
+  0002    | CallFunction 0
+  0004    | GetConstant 1: 2
+  0006    | GetConstant 2: 3
+  0008    | PrepareMergePattern 2
+  0010    | JumpIfFailure 10 -> 32
+  0013    | GetConstant 3: 2
+  0015    | Destructure
+  0016    | JumpIfFailure 16 -> 30
+  0019    | Pop
+  0020    | GetConstant 4: 3
+  0022    | Destructure
+  0023    | JumpIfFailure 23 -> 30
+  0026    | Pop
+  0027    | JumpIfSuccess 27 -> 32
+  0030    | Swap
+  0031    | Pop
+  0032    | End
+  ========================================
+
+  $ possum -p 'X = 3; 7 -> (X + 4)' -i '7'
+  
+  =================@main==================
+  0000    | GetConstant 0: 7
+  0002    | CallFunction 0
+  0004    | GetConstant 1: 3
+  0006    | GetConstant 2: 4
+  0008    | PrepareMergePattern 2
+  0010    | JumpIfFailure 10 -> 32
+  0013    | GetConstant 3: 3
+  0015    | Destructure
+  0016    | JumpIfFailure 16 -> 30
+  0019    | Pop
+  0020    | GetConstant 4: 4
+  0022    | Destructure
+  0023    | JumpIfFailure 23 -> 30
+  0026    | Pop
+  0027    | JumpIfSuccess 27 -> 32
+  0030    | Swap
+  0031    | Pop
+  0032    | End
+  ========================================
+
+  $ possum -p 'X = 2; Y = 3; 5 -> (X + Y)' -i '5'
+  
+  =================@main==================
+  0000    | GetConstant 0: 5
+  0002    | CallFunction 0
+  0004    | GetConstant 1: 2
+  0006    | GetConstant 2: 3
+  0008    | PrepareMergePattern 2
+  0010    | JumpIfFailure 10 -> 32
+  0013    | GetConstant 3: 2
+  0015    | Destructure
+  0016    | JumpIfFailure 16 -> 30
+  0019    | Pop
+  0020    | GetConstant 4: 3
+  0022    | Destructure
+  0023    | JumpIfFailure 23 -> 30
+  0026    | Pop
+  0027    | JumpIfSuccess 27 -> 32
+  0030    | Swap
+  0031    | Pop
+  0032    | End
+  ========================================
+
+  $ possum -p '6 -> (1 + X + 3) $ X' -i '6'
+  
+  =================@main==================
+  0000    | GetConstant 0: X
+  0002    | GetConstant 1: 6
+  0004    | CallFunction 0
+  0006    | GetConstant 2: 1
+  0008    | GetLocal 0
+  0010    | GetConstant 3: 3
+  0012    | PrepareMergePattern 3
+  0014    | JumpIfFailure 14 -> 43
+  0017    | GetConstant 4: 1
+  0019    | Destructure
+  0020    | JumpIfFailure 20 -> 41
+  0023    | Pop
+  0024    | GetLocal 0
+  0026    | Destructure
+  0027    | JumpIfFailure 27 -> 41
+  0030    | Pop
+  0031    | GetConstant 5: 3
+  0033    | Destructure
+  0034    | JumpIfFailure 34 -> 41
+  0037    | Pop
+  0038    | JumpIfSuccess 38 -> 43
+  0041    | Swap
+  0042    | Pop
+  0043    | TakeRight 43 -> 48
+  0046    | GetBoundLocal 0
+  0048    | End
+  ========================================
