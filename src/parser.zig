@@ -628,9 +628,10 @@ pub const Parser = struct {
 
         // Remaining members
         while (try self.match(.Comma)) {
+            const comma_region = self.previous.region;
             // Check if there's a spread after the comma
             if (try self.match(.DotDotDot)) {
-                const obj_so_far = try self.ast.createObject(pairs, region);
+                const obj_so_far = try self.ast.createObject(pairs, region.merge(comma_region));
                 return self.objectSpread(obj_so_far);
             } else if (self.check(.RightBrace)) {
                 // Trailing comma before closing brace
