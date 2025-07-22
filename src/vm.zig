@@ -522,6 +522,21 @@ pub const VM = struct {
                 };
                 try self.push(value);
             },
+            .NegateNumberPattern => {
+                const elem = self.peek(0);
+
+                if (elem == .ValueVar) {
+                    // Do nothing. This is because in patterns we handle
+                    // negated unbound variables by negating the other value
+                    // before destructuring.
+                } else {
+                    const num = self.pop();
+                    const value = Elem.negateNumber(num) catch |err| switch (err) {
+                        error.ExpectedNumber => return self.runtimeError("Negation and subtraction is only supported for numbers.", .{}),
+                    };
+                    try self.push(value);
+                }
+            },
             .Null => {
                 // Push singleton null value.
                 try self.push(Elem.nullConst);

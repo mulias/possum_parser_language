@@ -79,7 +79,7 @@
             .node: ast.Ast.Node
               .InfixNode: ast.Ast.Infix
                 .infixType: ast.Ast.InfixType
-                  .NumberSubtract
+                  .Merge
                 .left: *ast.Ast.RNode
                   .region: region.Region
                     .start: usize = 6
@@ -96,9 +96,14 @@
                     .start: usize = 8
                     .end: usize = 9
                   .node: ast.Ast.Node
-                    .ElemNode: elem.Elem
-                      .NumberString: elem.Elem.NumberStringElem
-                        .sId: u32 = 4644
-                        .format: elem.Elem.NumberStringElem.Format
-                          .Integer
-                        .negated: bool = false
+                    .Negation: *ast.Ast.RNode
+                      .region: region.Region
+                        .start: usize = 8
+                        .end: usize = 9
+                      .node: ast.Ast.Node
+                        .ElemNode: elem.Elem
+                          .NumberString: elem.Elem.NumberStringElem
+                            .sId: u32 = 4644
+                            .format: elem.Elem.NumberStringElem.Format
+                              .Integer
+                            .negated: bool = false

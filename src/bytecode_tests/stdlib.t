@@ -1227,7 +1227,7 @@
   0057    | Merge
   0058    | GetBoundLocal 7
   0060    | CallTailFunction 8
-  0062    | ConditionalElse 62 -> 172
+  0062    | ConditionalElse 62 -> 178
   0065    | SetInputMark
   0066    | GetBoundLocal 2
   0068    | CallFunction 0
@@ -1236,7 +1236,7 @@
   0075    | CallFunction 0
   0077    | GetLocal 9
   0079    | Destructure
-  0080    | ConditionalThen 80 -> 138
+  0080    | ConditionalThen 80 -> 141
   0083    | GetConstant 6: _rows_padded
   0085    | GetBoundLocal 0
   0087    | GetBoundLocal 1
@@ -1251,39 +1251,41 @@
   0105    | JumpIfFailure 105 -> 111
   0108    | GetBoundLocal 7
   0110    | Merge
-  0111    | JumpIfFailure 111 -> 133
+  0111    | JumpIfFailure 111 -> 136
   0114    | GetConstant 10: [_]
   0116    | GetConstant 11: Array.AppendN
   0118    | GetBoundLocal 6
   0120    | GetBoundLocal 3
   0122    | GetBoundLocal 5
-  0124    | GetBoundLocal 4
-  0126    | NegateNumber
-  0127    | Merge
-  0128    | CallFunction 3
-  0130    | InsertAtIndex 0
-  0132    | Merge
-  0133    | CallTailFunction 8
-  0135    | ConditionalElse 135 -> 172
-  0138    | GetConstant 12: const
-  0140    | GetConstant 13: []
-  0142    | JumpIfFailure 142 -> 148
-  0145    | GetBoundLocal 7
-  0147    | Merge
-  0148    | JumpIfFailure 148 -> 170
-  0151    | GetConstant 14: [_]
-  0153    | GetConstant 15: Array.AppendN
-  0155    | GetBoundLocal 6
-  0157    | GetBoundLocal 3
-  0159    | GetBoundLocal 5
-  0161    | GetBoundLocal 4
-  0163    | NegateNumber
-  0164    | Merge
-  0165    | CallFunction 3
-  0167    | InsertAtIndex 0
-  0169    | Merge
-  0170    | CallTailFunction 1
-  0172    | End
+  0124    | JumpIfFailure 124 -> 131
+  0127    | GetBoundLocal 4
+  0129    | NegateNumber
+  0130    | Merge
+  0131    | CallFunction 3
+  0133    | InsertAtIndex 0
+  0135    | Merge
+  0136    | CallTailFunction 8
+  0138    | ConditionalElse 138 -> 178
+  0141    | GetConstant 12: const
+  0143    | GetConstant 13: []
+  0145    | JumpIfFailure 145 -> 151
+  0148    | GetBoundLocal 7
+  0150    | Merge
+  0151    | JumpIfFailure 151 -> 176
+  0154    | GetConstant 14: [_]
+  0156    | GetConstant 15: Array.AppendN
+  0158    | GetBoundLocal 6
+  0160    | GetBoundLocal 3
+  0162    | GetBoundLocal 5
+  0164    | JumpIfFailure 164 -> 171
+  0167    | GetBoundLocal 4
+  0169    | NegateNumber
+  0170    | Merge
+  0171    | CallFunction 3
+  0173    | InsertAtIndex 0
+  0175    | Merge
+  0176    | CallTailFunction 1
+  0178    | End
   ========================================
   
   ==============_dimensions===============
@@ -5188,16 +5190,17 @@
   0006    | CallFunction 1
   0008    | GetLocal 1
   0010    | Destructure
-  0011    | TakeRight 11 -> 28
+  0011    | TakeRight 11 -> 31
   0014    | GetConstant 2: _Num.FromBinaryDigits
   0016    | GetBoundLocal 0
   0018    | GetBoundLocal 1
-  0020    | GetConstant 3: 1
-  0022    | NegateNumber
-  0023    | Merge
-  0024    | GetConstant 4: 0
-  0026    | CallTailFunction 3
-  0028    | End
+  0020    | JumpIfFailure 20 -> 27
+  0023    | GetConstant 3: 1
+  0025    | NegateNumber
+  0026    | Merge
+  0027    | GetConstant 4: 0
+  0029    | CallTailFunction 3
+  0031    | End
   ========================================
   
   =========_Num.FromBinaryDigits==========
@@ -5229,32 +5232,33 @@
   0047    | JumpIfSuccess 47 -> 52
   0050    | Swap
   0051    | Pop
-  0052    | ConditionalThen 52 -> 100
+  0052    | ConditionalThen 52 -> 103
   0055    | GetBoundLocal 3
   0057    | GetConstant 4: 0
   0059    | GetConstant 5: 1
   0061    | DestructureRange
-  0062    | TakeRight 62 -> 97
+  0062    | TakeRight 62 -> 100
   0065    | GetConstant 6: _Num.FromBinaryDigits
   0067    | GetBoundLocal 4
   0069    | GetBoundLocal 1
-  0071    | GetConstant 7: 1
-  0073    | NegateNumber
-  0074    | Merge
-  0075    | GetBoundLocal 2
-  0077    | JumpIfFailure 77 -> 95
-  0080    | GetConstant 8: @Multiply
-  0082    | GetBoundLocal 3
-  0084    | GetConstant 9: @Power
-  0086    | GetConstant 10: 2
-  0088    | GetBoundLocal 1
-  0090    | CallFunction 2
-  0092    | CallFunction 2
-  0094    | Merge
-  0095    | CallTailFunction 3
-  0097    | ConditionalElse 97 -> 102
-  0100    | GetBoundLocal 2
-  0102    | End
+  0071    | JumpIfFailure 71 -> 78
+  0074    | GetConstant 7: 1
+  0076    | NegateNumber
+  0077    | Merge
+  0078    | GetBoundLocal 2
+  0080    | JumpIfFailure 80 -> 98
+  0083    | GetConstant 8: @Multiply
+  0085    | GetBoundLocal 3
+  0087    | GetConstant 9: @Power
+  0089    | GetConstant 10: 2
+  0091    | GetBoundLocal 1
+  0093    | CallFunction 2
+  0095    | CallFunction 2
+  0097    | Merge
+  0098    | CallTailFunction 3
+  0100    | ConditionalElse 100 -> 105
+  0103    | GetBoundLocal 2
+  0105    | End
   ========================================
   
   ==========Num.FromOctalDigits===========
@@ -5264,16 +5268,17 @@
   0006    | CallFunction 1
   0008    | GetLocal 1
   0010    | Destructure
-  0011    | TakeRight 11 -> 28
+  0011    | TakeRight 11 -> 31
   0014    | GetConstant 2: _Num.FromOctalDigits
   0016    | GetBoundLocal 0
   0018    | GetBoundLocal 1
-  0020    | GetConstant 3: 1
-  0022    | NegateNumber
-  0023    | Merge
-  0024    | GetConstant 4: 0
-  0026    | CallTailFunction 3
-  0028    | End
+  0020    | JumpIfFailure 20 -> 27
+  0023    | GetConstant 3: 1
+  0025    | NegateNumber
+  0026    | Merge
+  0027    | GetConstant 4: 0
+  0029    | CallTailFunction 3
+  0031    | End
   ========================================
   
   ==========_Num.FromOctalDigits==========
@@ -5305,32 +5310,33 @@
   0047    | JumpIfSuccess 47 -> 52
   0050    | Swap
   0051    | Pop
-  0052    | ConditionalThen 52 -> 100
+  0052    | ConditionalThen 52 -> 103
   0055    | GetBoundLocal 3
   0057    | GetConstant 4: 0
   0059    | GetConstant 5: 7
   0061    | DestructureRange
-  0062    | TakeRight 62 -> 97
+  0062    | TakeRight 62 -> 100
   0065    | GetConstant 6: _Num.FromOctalDigits
   0067    | GetBoundLocal 4
   0069    | GetBoundLocal 1
-  0071    | GetConstant 7: 1
-  0073    | NegateNumber
-  0074    | Merge
-  0075    | GetBoundLocal 2
-  0077    | JumpIfFailure 77 -> 95
-  0080    | GetConstant 8: @Multiply
-  0082    | GetBoundLocal 3
-  0084    | GetConstant 9: @Power
-  0086    | GetConstant 10: 8
-  0088    | GetBoundLocal 1
-  0090    | CallFunction 2
-  0092    | CallFunction 2
-  0094    | Merge
-  0095    | CallTailFunction 3
-  0097    | ConditionalElse 97 -> 102
-  0100    | GetBoundLocal 2
-  0102    | End
+  0071    | JumpIfFailure 71 -> 78
+  0074    | GetConstant 7: 1
+  0076    | NegateNumber
+  0077    | Merge
+  0078    | GetBoundLocal 2
+  0080    | JumpIfFailure 80 -> 98
+  0083    | GetConstant 8: @Multiply
+  0085    | GetBoundLocal 3
+  0087    | GetConstant 9: @Power
+  0089    | GetConstant 10: 8
+  0091    | GetBoundLocal 1
+  0093    | CallFunction 2
+  0095    | CallFunction 2
+  0097    | Merge
+  0098    | CallTailFunction 3
+  0100    | ConditionalElse 100 -> 105
+  0103    | GetBoundLocal 2
+  0105    | End
   ========================================
   
   ===========Num.FromHexDigits============
@@ -5340,16 +5346,17 @@
   0006    | CallFunction 1
   0008    | GetLocal 1
   0010    | Destructure
-  0011    | TakeRight 11 -> 28
+  0011    | TakeRight 11 -> 31
   0014    | GetConstant 2: _Num.FromHexDigits
   0016    | GetBoundLocal 0
   0018    | GetBoundLocal 1
-  0020    | GetConstant 3: 1
-  0022    | NegateNumber
-  0023    | Merge
-  0024    | GetConstant 4: 0
-  0026    | CallTailFunction 3
-  0028    | End
+  0020    | JumpIfFailure 20 -> 27
+  0023    | GetConstant 3: 1
+  0025    | NegateNumber
+  0026    | Merge
+  0027    | GetConstant 4: 0
+  0029    | CallTailFunction 3
+  0031    | End
   ========================================
   
   ===========_Num.FromHexDigits===========
@@ -5381,32 +5388,33 @@
   0047    | JumpIfSuccess 47 -> 52
   0050    | Swap
   0051    | Pop
-  0052    | ConditionalThen 52 -> 100
+  0052    | ConditionalThen 52 -> 103
   0055    | GetBoundLocal 3
   0057    | GetConstant 4: 0
   0059    | GetConstant 5: 15
   0061    | DestructureRange
-  0062    | TakeRight 62 -> 97
+  0062    | TakeRight 62 -> 100
   0065    | GetConstant 6: _Num.FromHexDigits
   0067    | GetBoundLocal 4
   0069    | GetBoundLocal 1
-  0071    | GetConstant 7: 1
-  0073    | NegateNumber
-  0074    | Merge
-  0075    | GetBoundLocal 2
-  0077    | JumpIfFailure 77 -> 95
-  0080    | GetConstant 8: @Multiply
-  0082    | GetBoundLocal 3
-  0084    | GetConstant 9: @Power
-  0086    | GetConstant 10: 16
-  0088    | GetBoundLocal 1
-  0090    | CallFunction 2
-  0092    | CallFunction 2
-  0094    | Merge
-  0095    | CallTailFunction 3
-  0097    | ConditionalElse 97 -> 102
-  0100    | GetBoundLocal 2
-  0102    | End
+  0071    | JumpIfFailure 71 -> 78
+  0074    | GetConstant 7: 1
+  0076    | NegateNumber
+  0077    | Merge
+  0078    | GetBoundLocal 2
+  0080    | JumpIfFailure 80 -> 98
+  0083    | GetConstant 8: @Multiply
+  0085    | GetBoundLocal 3
+  0087    | GetConstant 9: @Power
+  0089    | GetConstant 10: 16
+  0091    | GetBoundLocal 1
+  0093    | CallFunction 2
+  0095    | CallFunction 2
+  0097    | Merge
+  0098    | CallTailFunction 3
+  0100    | ConditionalElse 100 -> 105
+  0103    | GetBoundLocal 2
+  0105    | End
   ========================================
   
   ==============Array.First===============
@@ -5950,7 +5958,7 @@
   0014    | Destructure
   0015    | ConditionalThen 15 -> 23
   0018    | GetBoundLocal 0
-  0020    | ConditionalElse 20 -> 53
+  0020    | ConditionalElse 20 -> 56
   0023    | GetConstant 2: Array.AppendN
   0025    | GetConstant 3: []
   0027    | JumpIfFailure 27 -> 33
@@ -5963,11 +5971,12 @@
   0042    | Merge
   0043    | GetBoundLocal 1
   0045    | GetBoundLocal 2
-  0047    | GetConstant 5: 1
-  0049    | NegateNumber
-  0050    | Merge
-  0051    | CallTailFunction 3
-  0053    | End
+  0047    | JumpIfFailure 47 -> 54
+  0050    | GetConstant 5: 1
+  0052    | NegateNumber
+  0053    | Merge
+  0054    | CallTailFunction 3
+  0056    | End
   ========================================
   
   ============Table.Transpose=============

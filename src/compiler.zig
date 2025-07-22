@@ -538,8 +538,6 @@ pub const Compiler = struct {
                     try self.writeParserFunctionCall(infix.left, infix.right, isTailPosition);
                 },
                 .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
-                .NumberSubtract,
-                => return Error.InvalidAst,
             },
             .UpperBoundedRange => |high| {
                 const high_elem = try getParserRangeElemNode(high);
@@ -904,9 +902,6 @@ pub const Compiler = struct {
                 .Merge => {
                     try self.writePatternMerge(rnode);
                 },
-                .NumberSubtract => {
-                    @panic("TODO");
-                },
                 .Range => {
                     try self.writePattern(infix.left);
                     try self.writePattern(infix.right);
@@ -960,10 +955,6 @@ pub const Compiler = struct {
 
         switch (node) {
             .InfixNode => |infix| switch (infix.infixType) {
-                .NumberSubtract,
-                => {
-                    @panic("todo");
-                },
                 .CallOrDefineFunction => {
                     try self.writeValueFunctionCall(infix.left, infix.right, false);
                 },
@@ -1048,6 +1039,11 @@ pub const Compiler = struct {
         }
     }
 
+    const PatternPart = struct {
+        node: *Ast.RNode,
+        negated: bool,
+    };
+
     fn writePatternMerge(self: *Compiler, rnode: *Ast.RNode) !void {
         const region = rnode.region;
 
@@ -1075,31 +1071,39 @@ pub const Compiler = struct {
 
     fn writePrepareMergePattern(self: *Compiler, rnode: *Ast.RNode) !u8 {
         // Collect all merge parts into a flat list before emitting any bytecode
-        var parts = ArrayList(*Ast.RNode).init(self.vm.allocator);
+        // Track if each part has been negated. At runtime negation is applied
+        // to numbers, and throws an error for all other values.
+        var parts = ArrayList(PatternPart).init(self.vm.allocator);
         defer parts.deinit();
 
-        try self.collectMergePatternParts(rnode, &parts);
+        try self.collectMergePatternParts(rnode, &parts, false);
 
         for (parts.items) |part| {
-            try self.writePrepareMergePatternPart(part);
+            try self.writePrepareMergePatternPart(part.node);
+            if (part.negated) {
+                try self.emitOp(.NegateNumberPattern, part.node.region);
+            }
         }
 
         return @intCast(parts.items.len);
     }
 
-    fn collectMergePatternParts(self: *Compiler, rnode: *Ast.RNode, parts: *ArrayList(*Ast.RNode)) !void {
+    fn collectMergePatternParts(self: *Compiler, rnode: *Ast.RNode, parts: *ArrayList(PatternPart), negated: bool) !void {
         switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
-                    try self.collectMergePatternParts(infix.left, parts);
-                    try self.collectMergePatternParts(infix.right, parts);
+                    try self.collectMergePatternParts(infix.left, parts, negated);
+                    try self.collectMergePatternParts(infix.right, parts, negated);
                 },
                 else => {
-                    try parts.append(rnode);
+                    try parts.append(.{ .node = rnode, .negated = negated });
                 },
             },
+            .Negation => |inner| {
+                try self.collectMergePatternParts(inner, parts, !negated);
+            },
             else => {
-                try parts.append(rnode);
+                try parts.append(.{ .node = rnode, .negated = negated });
             },
         }
     }
@@ -1180,12 +1184,15 @@ pub const Compiler = struct {
     fn writeMergePattern(self: *Compiler, rnode: *Ast.RNode, jumpList: *ArrayList(usize)) Error!void {
         const region = rnode.region;
 
-        var parts = ArrayList(*Ast.RNode).init(self.vm.allocator);
+        var parts = ArrayList(PatternPart).init(self.vm.allocator);
         defer parts.deinit();
-        try self.collectMergePatternParts(rnode, &parts);
+        try self.collectMergePatternParts(rnode, &parts, false);
 
         for (parts.items) |part| {
-            try self.writeDestructurePattern(part);
+            if (part.negated) {
+                try self.emitOp(.NegateNumberPattern, part.node.region);
+            }
+            try self.writeDestructurePattern(part.node);
             const jumpIndex = try self.emitJump(.JumpIfFailure, region);
             try self.emitOp(.Pop, region);
             try jumpList.append(jumpIndex);
@@ -1315,12 +1322,6 @@ pub const Compiler = struct {
                     try self.emitOp(.Merge, region);
                     try self.patchJump(jumpIndex, region);
                 },
-                .NumberSubtract => {
-                    try self.writeValueArgument(infix.left, false);
-                    try self.writeValueArgument(infix.right, false);
-                    try self.emitOp(.NegateNumber, region);
-                    try self.emitOp(.Merge, region);
-                },
                 .TakeLeft => {
                     try self.writeValueArgument(infix.left, false);
                     const jumpIndex = try self.emitJump(.JumpIfFailure, region);
@@ -1407,12 +1408,6 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, false);
                     try self.emitOp(.Merge, region);
                     try self.patchJump(jumpIndex, region);
-                },
-                .NumberSubtract => {
-                    try self.writeValue(infix.left, false);
-                    try self.writeValue(infix.right, false);
-                    try self.emitOp(.NegateNumber, region);
-                    try self.emitOp(.Merge, region);
                 },
                 .TakeLeft => {
                     try self.writeValue(infix.left, false);

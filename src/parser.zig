@@ -443,6 +443,12 @@ pub const Parser = struct {
 
         const right = try self.parseWithPrecedence(operatorPrecedence(t.tokenType));
 
+        // Trasnform subtraction into Merge with negated right operand
+        if (t.tokenType == .Minus) {
+            const negated_right = try self.ast.create(.{ .Negation = right }, right.region);
+            return self.ast.createInfix(.Merge, left, negated_right, t.region);
+        }
+
         const infixType: Ast.InfixType = switch (t.tokenType) {
             .Ampersand => .TakeRight,
             .Bang => .Backtrack,
@@ -452,7 +458,6 @@ pub const Parser = struct {
             .GreaterThan => .TakeRight,
             .LessThan => .TakeLeft,
             .Plus => .Merge,
-            .Minus => .NumberSubtract,
             .Equal => .DeclareGlobal,
             else => unreachable,
         };

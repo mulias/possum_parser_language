@@ -924,3 +924,136 @@
   0046    | GetBoundLocal 0
   0048    | End
   ========================================
+
+  $ possum -p '5 -> (2 - 3)' -i '5'
+  
+  =================@main==================
+  0000    | GetConstant 0: 5
+  0002    | CallFunction 0
+  0004    | GetConstant 1: 2
+  0006    | GetConstant 2: 3
+  0008    | NegateNumberPattern
+  0009    | PrepareMergePattern 2
+  0011    | JumpIfFailure 11 -> 34
+  0014    | GetConstant 3: 2
+  0016    | Destructure
+  0017    | JumpIfFailure 17 -> 32
+  0020    | Pop
+  0021    | NegateNumberPattern
+  0022    | GetConstant 4: 3
+  0024    | Destructure
+  0025    | JumpIfFailure 25 -> 32
+  0028    | Pop
+  0029    | JumpIfSuccess 29 -> 34
+  0032    | Swap
+  0033    | Pop
+  0034    | End
+  ========================================
+
+  $ possum -p '6 -> (1 + X - 3) $ X' -i '6'
+  
+  =================@main==================
+  0000    | GetConstant 0: X
+  0002    | GetConstant 1: 6
+  0004    | CallFunction 0
+  0006    | GetConstant 2: 1
+  0008    | GetLocal 0
+  0010    | GetConstant 3: 3
+  0012    | NegateNumberPattern
+  0013    | PrepareMergePattern 3
+  0015    | JumpIfFailure 15 -> 45
+  0018    | GetConstant 4: 1
+  0020    | Destructure
+  0021    | JumpIfFailure 21 -> 43
+  0024    | Pop
+  0025    | GetLocal 0
+  0027    | Destructure
+  0028    | JumpIfFailure 28 -> 43
+  0031    | Pop
+  0032    | NegateNumberPattern
+  0033    | GetConstant 5: 3
+  0035    | Destructure
+  0036    | JumpIfFailure 36 -> 43
+  0039    | Pop
+  0040    | JumpIfSuccess 40 -> 45
+  0043    | Swap
+  0044    | Pop
+  0045    | TakeRight 45 -> 50
+  0048    | GetBoundLocal 0
+  0050    | End
+  ========================================
+
+  $ possum -p '6 -> (1 - X + 3) $ X' -i '6'
+  
+  =================@main==================
+  0000    | GetConstant 0: X
+  0002    | GetConstant 1: 6
+  0004    | CallFunction 0
+  0006    | GetConstant 2: 1
+  0008    | GetLocal 0
+  0010    | NegateNumberPattern
+  0011    | GetConstant 3: 3
+  0013    | PrepareMergePattern 3
+  0015    | JumpIfFailure 15 -> 45
+  0018    | GetConstant 4: 1
+  0020    | Destructure
+  0021    | JumpIfFailure 21 -> 43
+  0024    | Pop
+  0025    | NegateNumberPattern
+  0026    | GetLocal 0
+  0028    | Destructure
+  0029    | JumpIfFailure 29 -> 43
+  0032    | Pop
+  0033    | GetConstant 5: 3
+  0035    | Destructure
+  0036    | JumpIfFailure 36 -> 43
+  0039    | Pop
+  0040    | JumpIfSuccess 40 -> 45
+  0043    | Swap
+  0044    | Pop
+  0045    | TakeRight 45 -> 50
+  0048    | GetBoundLocal 0
+  0050    | End
+  ========================================
+
+  $ possum -p '5 -> (1 + 6 + 3 - (2 + 3))' -i '5'
+  
+  =================@main==================
+  0000    | GetConstant 0: 5
+  0002    | CallFunction 0
+  0004    | GetConstant 1: 1
+  0006    | GetConstant 2: 6
+  0008    | GetConstant 3: 3
+  0010    | GetConstant 4: 2
+  0012    | NegateNumberPattern
+  0013    | GetConstant 5: 3
+  0015    | NegateNumberPattern
+  0016    | PrepareMergePattern 5
+  0018    | JumpIfFailure 18 -> 63
+  0021    | GetConstant 6: 1
+  0023    | Destructure
+  0024    | JumpIfFailure 24 -> 61
+  0027    | Pop
+  0028    | GetConstant 7: 6
+  0030    | Destructure
+  0031    | JumpIfFailure 31 -> 61
+  0034    | Pop
+  0035    | GetConstant 8: 3
+  0037    | Destructure
+  0038    | JumpIfFailure 38 -> 61
+  0041    | Pop
+  0042    | NegateNumberPattern
+  0043    | GetConstant 9: 2
+  0045    | Destructure
+  0046    | JumpIfFailure 46 -> 61
+  0049    | Pop
+  0050    | NegateNumberPattern
+  0051    | GetConstant 10: 3
+  0053    | Destructure
+  0054    | JumpIfFailure 54 -> 61
+  0057    | Pop
+  0058    | JumpIfSuccess 58 -> 63
+  0061    | Swap
+  0062    | Pop
+  0063    | End
+  ========================================
