@@ -662,9 +662,8 @@ pub const Parser = struct {
                 return result;
             } else {
                 // More content after comma - parse it without creating another object() call
-                const comma_region = self.previous.region;
                 const remaining = try self.parseObjectContinuation();
-                result = try self.ast.createInfix(.Merge, result, remaining, comma_region);
+                result = try self.ast.createInfix(.Merge, result, remaining, result.region.merge(remaining.region));
             }
         } else {
             try self.consume(.RightBrace, "Expected closing '}'");
@@ -685,9 +684,8 @@ pub const Parser = struct {
                 return result;
             } else {
                 // More content after comma - parse it
-                const comma_region = self.previous.region;
                 const remaining_elements = try self.parseArrayContinuation();
-                result = try self.ast.createInfix(.Merge, result, remaining_elements, comma_region);
+                result = try self.ast.createInfix(.Merge, result, remaining_elements, result.region.merge(remaining_elements.region));
             }
         } else {
             try self.consume(.RightBracket, "Expected closing ']'");
@@ -713,7 +711,7 @@ pub const Parser = struct {
                 } else {
                     // More content after comma - parse it
                     const remaining = try self.parseArrayContinuation();
-                    return try self.ast.createInfix(.Merge, spread_expr, remaining, self.previous.region);
+                    return try self.ast.createInfix(.Merge, spread_expr, remaining, spread_expr.region.merge(remaining.region));
                 }
             } else {
                 try self.consume(.RightBracket, "Expected closing ']'");
@@ -734,13 +732,13 @@ pub const Parser = struct {
                 // Handle spread: create array with elements so far, then merge with spread
                 const array_so_far = try self.ast.createArray(elements, region);
                 const spread_expr = try self.expression();
-                var result = try self.ast.createInfix(.Merge, array_so_far, spread_expr, self.previous.region);
+                var result = try self.ast.createInfix(.Merge, array_so_far, spread_expr, array_so_far.region.merge(spread_expr.region));
 
                 _ = try self.match(.Comma);
 
                 if (!self.check(.RightBracket)) {
                     const remaining = try self.parseArrayContinuation();
-                    result = try self.ast.createInfix(.Merge, result, remaining, self.current.region);
+                    result = try self.ast.createInfix(.Merge, result, remaining, result.region.merge(remaining.region));
                 } else {
                     try self.consume(.RightBracket, "Expected closing ']'");
                 }
@@ -776,7 +774,7 @@ pub const Parser = struct {
                 } else {
                     // More content after comma - parse it
                     const remaining = try self.parseObjectContinuation();
-                    return try self.ast.createInfix(.Merge, spread_expr, remaining, self.previous.region);
+                    return try self.ast.createInfix(.Merge, spread_expr, remaining, spread_expr.region.merge(remaining.region));
                 }
             } else {
                 try self.consume(.RightBrace, "Expected closing '}'");
@@ -797,13 +795,13 @@ pub const Parser = struct {
                 // Handle spread: create object with pairs so far, then merge with spread
                 const object_so_far = try self.ast.createObject(pairs, region);
                 const spread_expr = try self.expression();
-                var result = try self.ast.createInfix(.Merge, object_so_far, spread_expr, self.previous.region);
+                var result = try self.ast.createInfix(.Merge, object_so_far, spread_expr, object_so_far.region.merge(spread_expr.region));
 
                 _ = try self.match(.Comma);
 
                 if (!self.check(.RightBrace)) {
                     const remaining = try self.parseObjectContinuation();
-                    result = try self.ast.createInfix(.Merge, result, remaining, self.current.region);
+                    result = try self.ast.createInfix(.Merge, result, remaining, result.region.merge(remaining.region));
                 } else {
                     try self.consume(.RightBrace, "Expected closing '}'");
                 }
