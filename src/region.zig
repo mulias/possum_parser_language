@@ -1,4 +1,5 @@
 const VMWriter = @import("writer.zig").VMWriter;
+const highlightModule = @import("highlight.zig");
 
 pub const Region = struct {
     start: usize,
@@ -39,5 +40,10 @@ pub const Region = struct {
             "[Line {d}, {d}-{d}]",
             .{ line, relative_start, relative_end },
         );
+    }
+
+    /// Highlight this region in the given source code with context lines and underlines
+    pub fn highlight(region: Region, source: []const u8, writer: anytype) !void {
+        return highlightModule.highlightRegion(source, region, writer);
     }
 };

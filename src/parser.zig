@@ -958,15 +958,17 @@ pub const Parser = struct {
     }
 
     fn errorAt(self: *Parser, token: Token, message: []const u8) Error {
-        try token.region.printLineRelative(self.source, self.writers.err);
+        // Print highlighted source code with error region
+        try token.region.highlight(self.source, self.writers.err);
 
+        // Print error message with context
         switch (token.tokenType) {
             .Eof => {
-                try self.writers.err.print(" Error at end", .{});
+                try self.writers.err.print("Error at end", .{});
             },
             .Error => {},
             else => {
-                try self.writers.err.print(" Error at '{s}'", .{token.lexeme});
+                try self.writers.err.print("Error at '{s}'", .{token.lexeme});
             },
         }
 
