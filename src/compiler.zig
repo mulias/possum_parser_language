@@ -840,7 +840,10 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.GetConstant, constId, region);
                     },
                 },
-                .ValueLabel => @panic("todo"),
+                .ValueLabel => {
+                    try self.printError("Labeled value is not valid as parser function argument.", region);
+                    return Error.InvalidAst;
+                },
                 .Array => @panic("Internal Error: Array should never be a parser"),
                 .Object => @panic("Internal Error: Object should never be a parser"),
                 .StringTemplate => @panic("Internal Error: StringTemplate should be handled in main parser switch"),
@@ -974,8 +977,10 @@ pub const Compiler = struct {
             .UpperBoundedRange,
             .LowerBoundedRange,
             => @panic("Internal Error: handled by writeDestructurePattern"),
-            .ValueLabel,
-            => @panic("todo"),
+            .ValueLabel => {
+                try self.printError("Value label `$` is not necessary in pattern.", region);
+                return Error.InvalidAst;
+            },
             .Array => @panic("Internal Error"), // handled by writeDestructurePatternArray
             .Object => @panic("Internal Error"), // handled by writeDestructurePatternObject
             .StringTemplate => |parts| {
@@ -1163,7 +1168,10 @@ pub const Compiler = struct {
                 // Negation is handled in pre-processing of the merge parts.
                 @panic("Internal Error");
             },
-            .ValueLabel => @panic("todo"),
+            .ValueLabel => {
+                try self.printError("Value label `$` is not necessary in pattern.", rnode.region);
+                return Error.InvalidAst;
+            },
             .Array => |elements| {
                 var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
                 for (elements.items) |element| {
@@ -1802,7 +1810,10 @@ pub const Compiler = struct {
                     try self.negateAndAppendDynamicValue(array, inner, index, region);
                 }
             },
-            .ValueLabel => @panic("todo"),
+            .ValueLabel => {
+                try self.printError("Value label `$` is not necessary inside array.", region);
+                return Error.InvalidAst;
+            },
         }
     }
 
