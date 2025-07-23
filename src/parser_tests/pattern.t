@@ -7,9 +7,9 @@
       (Merge 6-15
         (Merge 6-11
           (NumberString 6-7 1)
-          (NumberString 10-11 6)
-        (NumberString 14-15 3)
+          (NumberString 10-11 6))
+        (NumberString 14-15 3))
       (Negation 19-24
         (Merge 19-24
           (NumberString 19-20 2)
-          (NumberString 23-24 3)
+          (NumberString 23-24 3)))))
