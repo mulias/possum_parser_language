@@ -3,6 +3,12 @@ const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
 const Writers = @import("writer.zig").Writers;
 
+pub const ScanMode = enum {
+    Normal,
+    String,
+    BacktickString,
+};
+
 pub const Scanner = struct {
     source: []const u8,
     offset: usize,
@@ -11,6 +17,8 @@ pub const Scanner = struct {
     atEnd: bool,
     writers: Writers,
     printDebug: bool,
+    mode: ScanMode,
+    stringQuote: ?u8,
 
     pub fn init(source: []const u8, writers: Writers, printDebug: bool) Scanner {
         return Scanner{
@@ -21,6 +29,8 @@ pub const Scanner = struct {
             .atEnd = false,
             .writers = writers,
             .printDebug = printDebug,
+            .mode = .Normal,
+            .stringQuote = null,
         };
     }
 
@@ -33,12 +43,14 @@ pub const Scanner = struct {
             .atEnd = false,
             .writers = undefined,
             .printDebug = false,
+            .mode = .Normal,
+            .stringQuote = null,
         };
     }
 
     pub fn next(self: *Scanner) ?Token {
         if (self.atEnd) return null;
-        const token = self.scanToken();
+        const token = self.scanToken(self.mode);
         if (self.printDebug) {
             self.writers.debugPrint("Scanned token: ", .{});
             token.print(self.writers.debug) catch {};
@@ -48,12 +60,42 @@ pub const Scanner = struct {
         return token;
     }
 
-    fn scanToken(self: *Scanner) Token {
+    pub fn setNormalMode(self: *Scanner) void {
+        self.mode = .Normal;
+        self.stringQuote = null;
+        if (self.printDebug) self.writers.debugPrint("Scanner mode: Normal\n", .{});
+    }
+
+    pub fn setBacktickStringMode(self: *Scanner) void {
+        self.mode = .BacktickString;
+        self.stringQuote = '`';
+        if (self.printDebug) self.writers.debugPrint("Scanner mode: Backtick String\n", .{});
+    }
+
+    pub fn setStringMode(self: *Scanner, startType: TokenType) void {
+        self.mode = .String;
+        self.stringQuote = if (startType == .SingleQuoteStringStart) '\'' else '"';
+        if (self.printDebug) self.writers.debugPrint("Scanner mode: String\n", .{});
+    }
+
+    fn scanToken(self: *Scanner, mode: ScanMode) Token {
         self.commit();
 
-        if (self.whitespace()) |whitespaceToken| return whitespaceToken;
-
         if (self.isAtEnd()) return self.makeToken(.Eof);
+
+        const token = switch (mode) {
+            .Normal => self.scanNormalMode(),
+            .String => self.scanStringMode(),
+            .BacktickString => self.scanBacktickStringMode(),
+        };
+
+        return token;
+    }
+
+    fn scanNormalMode(self: *Scanner) Token {
+        if (self.whitespace()) |token| {
+            return token;
+        }
 
         return switch (self.take()) {
             0 => self.makeToken(.Eof),
@@ -79,9 +121,9 @@ pub const Scanner = struct {
             '<' => self.makeToken(.LessThan),
             '>' => self.makeToken(.GreaterThan),
             '|' => self.makeToken(.Bar),
-            '"' => self.scanString('"'),
-            '\'' => self.scanString('\''),
-            '`' => self.scanBacktickString(),
+            '\'' => self.makeToken(.SingleQuoteStringStart),
+            '"' => self.makeToken(.DoubleQuoteStringStart),
+            '`' => self.makeToken(.BacktickStringStart),
             '@' => self.scanAtSignIdentifier(),
             '_' => self.scanUnderscoreIdentifier(),
             '-' => if (self.match('>'))
@@ -95,6 +137,82 @@ pub const Scanner = struct {
                 return self.makeError("Unexpected character.");
             },
         };
+    }
+
+    fn scanStringMode(self: *Scanner) Token {
+        const start_pos = self.pos - self.offset;
+
+        if (self.peek() == self.stringQuote.?) {
+            self.advance();
+            return self.makeToken(.StringEnd);
+        }
+
+        if (self.peek() == '%' and self.peekNext() == '(') {
+            self.advance();
+            self.advance();
+            return self.makeToken(.TemplateStart);
+        }
+
+        while (!self.isAtEnd()) {
+            const c = self.peek();
+
+            if (c == self.stringQuote.?) {
+                break;
+            }
+
+            if (c == '%' and self.peekNext() == '(') {
+                break;
+            }
+
+            if (c == '\n') {
+                self.advance();
+                self.line += 1;
+            } else if (c == '\\') {
+                self.advance();
+                if (!self.isAtEnd()) self.advance();
+            } else {
+                self.advance();
+            }
+        }
+
+        if (self.offset > 0) {
+            return Token.new(.StringContent, self.source[0..self.offset], .{
+                .start = start_pos,
+                .end = start_pos + self.offset,
+            });
+        }
+
+        return self.makeToken(.Eof);
+    }
+
+    fn scanBacktickStringMode(self: *Scanner) Token {
+        const start_pos = self.pos - self.offset;
+
+        if (self.peek() == self.stringQuote.?) {
+            self.advance();
+            return self.makeToken(.StringEnd);
+        }
+
+        while (!self.isAtEnd()) {
+            const c = self.peek();
+
+            if (c == self.stringQuote.?) {
+                break;
+            }
+
+            if (c == '\n') self.line += 1;
+
+            self.advance();
+        }
+
+        if (self.offset > 0) {
+            return Token.new(.StringContent, self.source[0..self.offset], .{
+                .start = start_pos,
+                .end = start_pos + self.offset,
+            });
+        }
+
+        return self.makeToken(.Eof);
     }
 
     fn commit(self: *Scanner) void {
@@ -152,87 +270,6 @@ pub const Scanner = struct {
         return Token.new(.Error, message, .{
             .start = self.pos - self.offset,
             .end = self.pos,
-        });
-    }
-
-    fn scanString(self: *Scanner, mark: u8) Token {
-        // if we've already consumed input then assume it was string
-        const start = self.pos - self.offset;
-
-        var p = self.peek();
-        var templateParenDepth: u64 = 0;
-
-        while ((p != mark or templateParenDepth > 0) and !self.isAtEnd()) {
-            switch (p) {
-                '\\' => {
-                    // Assume next char is an sequences, validate in the compiler.
-                    self.advance();
-                    self.advance();
-                },
-                '\n' => {
-                    self.advance();
-                    self.line += 1;
-                },
-                '(' => {
-                    self.advance();
-                    if (templateParenDepth > 0) templateParenDepth += 1;
-                },
-                ')' => {
-                    self.advance();
-                    if (templateParenDepth > 0) templateParenDepth -= 1;
-                },
-                '%' => if (self.peekNext() == '(' and templateParenDepth == 0) {
-                    self.advance();
-                    self.advance();
-                    templateParenDepth = 1;
-                } else {
-                    self.advance();
-                },
-                '"' => {
-                    self.advance();
-                    if (templateParenDepth > 0) _ = self.scanString('"');
-                },
-                '\'' => {
-                    self.advance();
-                    if (templateParenDepth > 0) _ = self.scanString('\'');
-                },
-                else => {
-                    self.advance();
-                },
-            }
-
-            p = self.peek();
-        }
-
-        if (self.isAtEnd()) return self.makeError("Unterminated string.");
-
-        // The closing quote
-        self.advance();
-
-        return Token.new(.String, self.source[0..self.offset], .{
-            .start = start,
-            .end = start + self.offset,
-        });
-    }
-
-    fn scanBacktickString(self: *Scanner) Token {
-        // if we've already consumed input then assume it was string
-        const start = self.pos - self.offset;
-
-        while (self.peek() != '`' and !self.isAtEnd()) {
-            if (self.peek() == '\n') self.line += 1;
-
-            self.advance();
-        }
-
-        if (self.isAtEnd()) return self.makeError("Unterminated string.");
-
-        // The closing quote
-        self.advance();
-
-        return Token.new(.String, self.source[0..self.offset], .{
-            .start = start,
-            .end = start + self.offset,
         });
     }
 

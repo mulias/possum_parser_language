@@ -28,11 +28,10 @@
   
   =================@main==================
   0000    | GetConstant 0: ""
-  0002    | CallFunction 0
-  0004    | GetConstant 1: word
-  0006    | CallFunction 0
-  0008    | MergeAsString
-  0009    | End
+  0002    | GetConstant 1: word
+  0004    | CallFunction 0
+  0006    | MergeAsString
+  0007    | End
   ========================================
 
   $ possum -p '"Hello %(word)"' -i ''
@@ -50,14 +49,13 @@
   
   =================@main==================
   0000    | GetConstant 0: ""
-  0002    | CallFunction 0
-  0004    | GetConstant 1: word
-  0006    | CallFunction 0
-  0008    | MergeAsString
-  0009    | GetConstant 2: " World"
-  0011    | CallFunction 0
-  0013    | MergeAsString
-  0014    | End
+  0002    | GetConstant 1: word
+  0004    | CallFunction 0
+  0006    | MergeAsString
+  0007    | GetConstant 2: " World"
+  0009    | CallFunction 0
+  0011    | MergeAsString
+  0012    | End
   ========================================
 
   $ possum -p '"Hello %(word) and %(word)"' -i ''

@@ -17,12 +17,9 @@ pub const Parser = struct {
     vm: *VM,
     scanner: Scanner,
     source: []const u8,
-    current: Token,
-    previous: Token,
-    currentSkippedWhitespace: bool,
-    currentSkippedNewline: bool,
-    previousSkippedWhitespace: bool,
-    previousSkippedNewline: bool,
+    token: Token,
+    tokenSkippedWhitespace: bool,
+    tokenSkippedNewline: bool,
     ast: Ast,
     writers: Writers,
     printDebug: bool,
@@ -45,12 +42,9 @@ pub const Parser = struct {
             .vm = vm,
             .scanner = undefined,
             .source = undefined,
-            .current = undefined,
-            .previous = undefined,
-            .currentSkippedWhitespace = false,
-            .currentSkippedNewline = false,
-            .previousSkippedWhitespace = false,
-            .previousSkippedNewline = false,
+            .token = undefined,
+            .tokenSkippedWhitespace = false,
+            .tokenSkippedNewline = false,
             .ast = ast,
             .writers = vm.writers,
             .printDebug = vm.config.printParser,
@@ -84,11 +78,11 @@ pub const Parser = struct {
     fn statement(self: *Parser) !*Ast.RNode {
         const node = try self.parseWithPrecedence(.None);
 
-        if (self.check(.Eof) or self.currentSkippedNewline or try self.match(.Semicolon)) {
+        if (self.check(.Eof) or self.tokenSkippedNewline or try self.match(.Semicolon)) {
             return node;
         }
 
-        return self.errorAtCurrent("Expected newline or semicolon between statements");
+        return self.errorAtToken("Expected newline or semicolon between statements");
     }
 
     fn expression(self: *Parser) Error!*Ast.RNode {
@@ -98,11 +92,9 @@ pub const Parser = struct {
     fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!*Ast.RNode {
         if (self.printDebug) self.writers.debugPrint("parse with precedence {}\n", .{precedence});
 
-        try self.advance();
-
         // This node var is returned either as an ElemNode if there's no infix,
         // or an OpNode if updated in the while loop.
-        var node = try self.prefix(self.previous.tokenType);
+        var node = try self.prefix(self.token.tokenType);
 
         // Binding power of the operator to the left of `node`. If `node` is
         // the very start of the code then the precedence is `.None` and
@@ -112,7 +104,7 @@ pub const Parser = struct {
         // Binding power of the operator to the right of `node`. If `node` is
         // the very end of the code then the token referenced here will be
         // `.Eof` which has precedence `.None` and binding power 0.
-        var rightOpBindingPower = operatorPrecedence(self.current.tokenType).bindingPower().left;
+        var rightOpBindingPower = operatorPrecedence(self.token.tokenType).bindingPower().left;
 
         if (self.printDebug) self.writers.debugPrint("Binding power {d} < {d}\n", .{ leftOpBindingPower, rightOpBindingPower });
 
@@ -131,9 +123,8 @@ pub const Parser = struct {
         // AST where the root node has the lowest binding power, while nodes
         // farther out in the AST have higher binding power.
         while (leftOpBindingPower < rightOpBindingPower) {
-            try self.advance();
-            node = try self.infix(self.previous.tokenType, node);
-            rightOpBindingPower = operatorPrecedence(self.current.tokenType).bindingPower().left;
+            node = try self.infix(self.token.tokenType, node);
+            rightOpBindingPower = operatorPrecedence(self.token.tokenType).bindingPower().left;
         }
 
         return node;
@@ -151,14 +142,17 @@ pub const Parser = struct {
             .UnderscoreIdentifier,
             .UppercaseIdentifier,
             => self.valueVar(),
-            .String => self.string(),
+            .SingleQuoteStringStart,
+            .DoubleQuoteStringStart,
+            => self.string(),
+            .BacktickStringStart => self.backtickString(),
             .Integer => self.integer(),
             .Float => self.float(),
             .Scientific => self.scientific(),
             .True, .False, .Null => self.literal(),
             .DotDot => self.upperBoundedRange(),
             .DollarSign => self.valueLabel(),
-            else => self.errorAtPrevious("Expect expression."),
+            else => self.errorAtToken("Expect expression."),
         };
     }
 
@@ -179,115 +173,157 @@ pub const Parser = struct {
             => self.binaryOp(leftNode),
             .QuestionMark => self.conditionalOp(leftNode),
             .LeftParen => {
-                if (!self.previousSkippedWhitespace) {
+                if (!self.tokenSkippedWhitespace) {
                     return self.callOrDefineFunction(leftNode);
                 } else {
-                    return self.errorAtPrevious("Expected infix operator.");
+                    return self.errorAtToken("Expected infix operator.");
                 }
             },
             .DotDot => {
-                if (!self.previousSkippedWhitespace) {
+                if (!self.tokenSkippedWhitespace) {
                     return self.fullOrLowerBoundedRange(leftNode);
                 } else {
-                    return self.errorAtPrevious("Expected infix operator.");
+                    return self.errorAtToken("Expected infix operator.");
                 }
             },
-            else => self.errorAtPrevious("Expect infix operator."),
+            else => self.errorAtToken("Expect infix operator."),
         };
     }
 
     fn parserVar(self: *Parser) !*Ast.RNode {
-        const t = self.previous;
+        const t = self.token;
+        try self.advance();
         const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.createElem(Elem.parserVar(sId), t.region);
     }
 
     fn valueVar(self: *Parser) !*Ast.RNode {
-        const t = self.previous;
+        const t = self.token;
+        try self.advance();
         const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.createElem(Elem.valueVar(sId), t.region);
     }
 
-    fn string(self: *Parser) !*Ast.RNode {
-        const t1 = self.previous;
-        const s1 = stringContents(t1.lexeme);
+    fn string(self: *Parser) Error!*Ast.RNode {
+        const start_token = self.token;
+        const quote_type = start_token.tokenType;
 
-        if (t1.isBacktickString()) {
-            const sId = try self.vm.strings.insert(s1);
-            return self.ast.createElem(Elem.string(sId), t1.region);
-        }
+        self.scanner.setStringMode(quote_type);
 
-        const result = try self.internUnescaped(s1);
-        const rnode = try self.ast.createElem(Elem.string(result.sId), t1.region);
+        var first_part_token: ?Token = null;
+        var template_parts = ArrayList(*Ast.RNode){};
+        var final: *Ast.RNode = undefined;
 
-        if (result.rest.len == 0) {
-            return rnode;
-        } else {
-            return self.stringTemplate(rnode, result.rest);
-        }
-    }
+        while (true) {
+            try self.advance();
 
-    fn stringTemplate(self: *Parser, first_part: *Ast.RNode, rest: []const u8) !*Ast.RNode {
-        const r = self.previous.region;
+            switch (self.token.tokenType) {
+                .StringContent => {
+                    const token = self.token;
 
-        // Create ArrayList to collect all template parts
-        var parts = ArrayList(*Ast.RNode){};
-        try parts.append(self.ast.arena.allocator(), first_part);
+                    if (template_parts.items.len > 0) {
+                        const sid = self.internUnescaped(token.lexeme) catch |e| switch (e) {
+                            error.InvalidEscapeSequence => return self.errorAt(token, "Invalid escape sequence in string."),
+                            else => |unhandled| return unhandled,
+                        };
+                        const part = try self.ast.createElem(Elem.string(sid), token.region);
 
-        // Don't deinit, we want the shared ast to persist
-        var templateParser = initWithAst(self.vm, self.ast);
+                        try template_parts.append(self.ast.arena.allocator(), part);
+                    } else {
+                        first_part_token = token;
+                    }
+                },
+                .TemplateStart => {
+                    if (template_parts.items.len == 0) {
+                        if (first_part_token) |leading_string_part| {
+                            const sid = self.internUnescaped(leading_string_part.lexeme) catch |e| switch (e) {
+                                error.InvalidEscapeSequence => return self.errorAt(leading_string_part, "Invalid escape sequence in string."),
+                                else => |unhandled| return unhandled,
+                            };
+                            const part = try self.ast.createElem(Elem.string(sid), leading_string_part.region);
+                            try template_parts.append(self.ast.arena.allocator(), part);
+                        }
+                    }
 
-        // Collect all remaining template parts
-        try templateParser.collectStringTemplateParts(rest, &parts);
+                    self.scanner.setNormalMode();
+                    try self.advance();
 
-        self.ast = templateParser.ast;
+                    if (self.token.tokenType != .RightParen) {
+                        const expr = try self.expression();
+                        try template_parts.append(self.ast.arena.allocator(), expr);
 
-        return self.ast.createStringTemplate(parts, r);
-    }
+                        if (self.token.tokenType != .RightParen) {
+                            return self.errorAtToken("Expect ')' after expression.");
+                        }
+                    }
+                    self.scanner.setStringMode(quote_type);
+                },
+                .StringEnd => {
+                    const end_token = self.token;
+                    const string_region = start_token.region.merge(end_token.region);
 
-    fn collectStringTemplateParts(templateParser: *Parser, str: []const u8, parts: *ArrayList(*Ast.RNode)) Error!void {
-        if (str.len == 0) return;
+                    if (template_parts.items.len > 0) {
+                        final = try self.ast.createStringTemplate(template_parts, string_region);
+                    } else if (first_part_token) |body_token| {
+                        const sid = self.internUnescaped(body_token.lexeme) catch |e| switch (e) {
+                            error.InvalidEscapeSequence => return self.errorAt(body_token, "Invalid escape sequence in string."),
+                            else => |unhandled| return unhandled,
+                        };
+                        final = try self.ast.createElem(Elem.string(sid), string_region);
+                    } else {
+                        const sid = self.internUnescaped("") catch |e| switch (e) {
+                            error.InvalidEscapeSequence => return self.errorAt(start_token, "Invalid escape sequence in string."),
+                            else => |unhandled| return unhandled,
+                        };
 
-        const r = templateParser.previous.region;
-        var template: *Ast.RNode = undefined;
-        var rest_bytes: []const u8 = undefined;
+                        final = try self.ast.createElem(Elem.string(sid), string_region);
+                    }
 
-        if (str[0] == '%' and str[1] == '(') {
-            // Next template part is an expression
-            template = try templateParser.parseExpression(str[2..]);
-
-            // Make sure not to strip whitespace after the template part
-            if (templateParser.check(.RightParen)) {
-                try templateParser.advanceKeepWhitespace();
-            } else {
-                return templateParser.errorAtCurrent("Expect ')' after expression.");
+                    break;
+                },
+                else => return self.errorAtToken("Unexpected token in string"),
             }
-
-            rest_bytes = templateParser.scanner.source;
-        } else {
-            // Next template part is a string
-            const result = try templateParser.internUnescaped(str);
-            template = try templateParser.ast.createElem(Elem.string(result.sId), r);
-            rest_bytes = result.rest;
         }
 
-        try parts.append(templateParser.ast.arena.allocator(), template);
+        self.scanner.setNormalMode();
+        try self.advance();
+        return final;
+    }
 
-        if (rest_bytes.len > 0) {
-            try templateParser.collectStringTemplateParts(rest_bytes, parts);
+    fn backtickString(self: *Parser) !*Ast.RNode {
+        const start_token = self.token;
+
+        self.scanner.setBacktickStringMode();
+        try self.advance();
+
+        switch (self.token.tokenType) {
+            .StringContent => {
+                const body_token = self.token;
+                try self.advance(); // advance to StringEnd
+                if (self.token.tokenType != .StringEnd) {
+                    return self.errorAtToken("Expected end of string");
+                }
+                const end_token = self.token;
+                self.scanner.setNormalMode();
+                try self.advance(); // advance past the StringEnd
+
+                const sid = try self.vm.strings.insert(body_token.lexeme);
+                return self.ast.createElem(Elem.string(sid), start_token.region.merge(end_token.region));
+            },
+            .StringEnd => {
+                const end_token = self.token;
+                self.scanner.setNormalMode();
+                try self.advance(); // advance past the StringEnd
+
+                const sid = try self.vm.strings.insert("");
+                return self.ast.createElem(Elem.string(sid), start_token.region.merge(end_token.region));
+            },
+            .Eof => return self.errorAtToken("Unterminated backtick string"),
+            else => return self.errorAtToken("Unexpected token in backtick string"),
         }
     }
 
-    fn stringContents(str: []const u8) []const u8 {
-        return str[1 .. str.len - 1];
-    }
-
-    const InternUnescapedResult = struct {
-        sId: StringTable.Id,
-        rest: []const u8,
-    };
-
-    fn internUnescaped(self: *Parser, str: []const u8) !InternUnescapedResult {
+    fn internUnescaped(self: *Parser, str: []const u8) !StringTable.Id {
         var buffer = try self.vm.allocator.alloc(u8, str.len);
         defer self.vm.allocator.free(buffer);
         var bufferLen: usize = 0;
@@ -302,7 +338,7 @@ pub const Parser = struct {
                         bufferLen += bytesWritten;
                         s = s[8..];
                     } else {
-                        return self.errorAtPrevious("Invalid escape sequence in string.");
+                        return error.InvalidEscapeSequence;
                     }
                 } else {
                     // ascii escape
@@ -318,15 +354,12 @@ pub const Parser = struct {
                         '"' => 34,
                         '\'' => 39,
                         '\\' => 92,
-                        else => return self.errorAtPrevious("Invalid escape sequence in string."),
+                        else => return error.InvalidEscapeSequence,
                     };
                     buffer[bufferLen] = byte;
                     bufferLen += 1;
                     s = s[2..];
                 }
-            } else if (s[0] == '%' and s[1] == '(') {
-                // Start of a string interpolation template.
-                break;
             } else {
                 // Otherwise copy the current byte and iterate.
                 buffer[bufferLen] = s[0];
@@ -335,56 +368,12 @@ pub const Parser = struct {
             }
         }
 
-        return .{
-            .sId = try self.vm.strings.insert(buffer[0..bufferLen]),
-            .rest = s,
-        };
-    }
-
-    fn characterStringToCodepoint(strToken: Token) ?u21 {
-        const str = stringContents(strToken.lexeme);
-
-        if (str.len == 0) return null; // must be at least one byte long
-
-        if (strToken.isBacktickString()) {
-            if (str.len == 1) return @as(u21, @intCast(str[1]));
-            return null;
-        }
-
-        // unicode codepoint escape
-        if (str[0] == '\\' and str[1] == 'u' and str.len == 8) {
-            return parsing.parseCodepoint(str[2..8]);
-        }
-
-        // ascii escape
-        if (str[0] == '\\' and str.len == 2) {
-            return switch (str[1]) {
-                '0' => 0x00,
-                'a' => 0x07,
-                'b' => 0x08,
-                't' => 0x09,
-                'n' => 0x0A,
-                'v' => 0x0B,
-                'f' => 0x0C,
-                'r' => 0x0D,
-                '"' => 0x22,
-                '\'' => 0x27,
-                '\\' => 0x5C,
-                else => null,
-            };
-        }
-
-        // Otherwise must be exactly one codepoint
-        const codepointLength = unicode.utf8ByteSequenceLength(str[0]) catch 1;
-        if (codepointLength == str.len) {
-            return unicode.utf8Decode(str) catch null;
-        }
-
-        return null;
+        return self.vm.strings.insert(buffer[0..bufferLen]);
     }
 
     fn integer(self: *Parser) !*Ast.RNode {
-        const t = self.previous;
+        const t = self.token;
+        try self.advance();
 
         if (t.tokenType == .Integer) {
             return self.ast.createElem(try Elem.numberString(t.lexeme, .Integer, self.vm), t.region);
@@ -394,17 +383,20 @@ pub const Parser = struct {
     }
 
     fn float(self: *Parser) !*Ast.RNode {
-        const t = self.previous;
+        const t = self.token;
+        try self.advance();
         return self.ast.createElem(try Elem.numberString(t.lexeme, .Float, self.vm), t.region);
     }
 
     fn scientific(self: *Parser) !*Ast.RNode {
-        const t = self.previous;
+        const t = self.token;
+        try self.advance();
         return self.ast.createElem(try Elem.numberString(t.lexeme, .Scientific, self.vm), t.region);
     }
 
     fn literal(self: *Parser) !*Ast.RNode {
-        const t = self.previous;
+        const t = self.token;
+        try self.advance();
         return switch (t.tokenType) {
             .True => try self.ast.createElem(Elem.boolean(true), t.region),
             .False => try self.ast.createElem(Elem.boolean(false), t.region),
@@ -414,15 +406,20 @@ pub const Parser = struct {
     }
 
     fn grouping(self: *Parser) !*Ast.RNode {
+        try self.advance(); // consume the '('
         const expr = try self.expression();
-        try self.consume(.RightParen, "Expect ')' after expression.");
+        if (self.token.tokenType != .RightParen) {
+            return self.errorAtToken("Expect ')' after expression.");
+        }
+        try self.advance(); // advance past the ')'
         return expr;
     }
 
     fn negate(self: *Parser) !*Ast.RNode {
-        const t = self.previous;
+        const t = self.token;
+        try self.advance(); // consume the '-'
 
-        if (self.currentSkippedWhitespace) {
+        if (self.tokenSkippedWhitespace) {
             return self.errorAtPrevious("Expected expression");
         }
 
@@ -431,15 +428,17 @@ pub const Parser = struct {
     }
 
     fn valueLabel(self: *Parser) !*Ast.RNode {
-        const t = self.previous;
+        const t = self.token;
+        try self.advance(); // consume the '$'
         const inner = try self.parseWithPrecedence(.Prefix);
         return self.ast.create(.{ .ValueLabel = inner }, t.region);
     }
 
     fn binaryOp(self: *Parser, left: *Ast.RNode) !*Ast.RNode {
-        if (self.printDebug) self.writers.debugPrint("binary op {}\n", .{self.previous.tokenType});
+        if (self.printDebug) self.writers.debugPrint("binary op {}\n", .{self.token.tokenType});
 
-        const t = self.previous;
+        const t = self.token;
+        try self.advance(); // advance past the operator token
 
         const right = try self.parseWithPrecedence(operatorPrecedence(t.tokenType));
 
@@ -466,13 +465,17 @@ pub const Parser = struct {
     }
 
     fn conditionalOp(self: *Parser, condition: *Ast.RNode) !*Ast.RNode {
-        if (self.printDebug) self.writers.debugPrint("conditional {}\n", .{self.previous.tokenType});
+        if (self.printDebug) self.writers.debugPrint("conditional {}\n", .{self.token.tokenType});
 
-        const conditional_region = self.previous.region;
+        const conditional_region = self.token.region;
+        try self.advance(); // advance past the '?' token
 
         const then_branch = try self.parseWithPrecedence(.Conditional);
 
-        try self.consume(.Colon, "Expected ':' after then branch in conditional");
+        if (self.token.tokenType != .Colon) {
+            return self.errorAtToken("Expected ':' after then branch in conditional");
+        }
+        try self.advance(); // advance past the ':'
 
         const else_branch = try self.parseWithPrecedence(.Conditional);
 
@@ -482,11 +485,16 @@ pub const Parser = struct {
     }
 
     fn callOrDefineFunction(self: *Parser, function_ident: *Ast.RNode) !*Ast.RNode {
-        if (try self.match(.RightParen)) {
+        try self.advance(); // advance past the '('
+        if (self.check(.RightParen)) {
+            try self.advance(); // advance past the ')'
             return function_ident;
         } else {
             const params_or_args = try self.paramsOrArgs();
-            try self.consume(.RightParen, "Expected closing ')'");
+            if (self.token.tokenType != .RightParen) {
+                return self.errorAtToken("Expected closing ')'");
+            }
+            try self.advance(); // advance past the ')'
 
             return self.ast.createInfix(
                 .CallOrDefineFunction,
@@ -514,7 +522,8 @@ pub const Parser = struct {
     }
 
     fn upperBoundedRange(self: *Parser) !*Ast.RNode {
-        const range_token = self.previous;
+        const range_token = self.token;
+        try self.advance(); // consume the '..'
         const upper_bound_node = try self.parseWithPrecedence(operatorPrecedence(range_token.tokenType));
 
         return self.ast.create(
@@ -524,22 +533,25 @@ pub const Parser = struct {
     }
 
     fn fullOrLowerBoundedRange(self: *Parser, lower_bound_node: *Ast.RNode) !*Ast.RNode {
-        const range_token = self.previous;
+        const range_token = self.token;
+        try self.advance(); // advance past the '..' token
 
         const lower_bounded_range_node: Ast.Node = .{ .LowerBoundedRange = lower_bound_node };
         const lower_bounded_range_region = lower_bound_node.region.merge(range_token.region);
 
         // If there's whitespace then the range is done
-        if (self.currentSkippedWhitespace) {
+        if (self.tokenSkippedWhitespace) {
             return self.ast.create(
                 lower_bounded_range_node,
                 lower_bounded_range_region,
             );
         }
 
-        switch (self.current.tokenType) {
+        switch (self.token.tokenType) {
             .Integer,
-            .String,
+            .SingleQuoteStringStart,
+            .DoubleQuoteStringStart,
+            .BacktickStringStart,
             .Minus,
             .LeftParen,
             .UnderscoreIdentifier,
@@ -565,7 +577,8 @@ pub const Parser = struct {
     }
 
     fn array(self: *Parser) Error!*Ast.RNode {
-        const region = self.previous.region;
+        const region = self.token.region;
+        try self.advance(); // consume the '['
 
         var elements = ArrayList(*Ast.RNode){};
 
@@ -577,7 +590,7 @@ pub const Parser = struct {
 
         // Empty array: []
         if (try self.match(.RightBracket)) {
-            return self.ast.createArray(elements, region.merge(self.previous.region));
+            return self.ast.createArray(elements, region.merge(self.token.region));
         }
 
         // First element
@@ -604,7 +617,8 @@ pub const Parser = struct {
     }
 
     fn object(self: *Parser) Error!*Ast.RNode {
-        const region = self.previous.region;
+        const region = self.token.region;
+        try self.advance(); // consume the '{'
 
         // Initial spread: {...expr}
         if (try self.match(.DotDotDot)) {
@@ -616,7 +630,7 @@ pub const Parser = struct {
         // Empty object: {}
         if (try self.match(.RightBrace)) {
             const empty_pairs = ArrayList(Ast.ObjectPair){};
-            const end_region = self.previous.region;
+            const end_region = self.token.region;
             return self.ast.createObject(empty_pairs, region.merge(end_region));
         }
 
@@ -628,7 +642,7 @@ pub const Parser = struct {
 
         // Remaining members
         while (try self.match(.Comma)) {
-            const comma_region = self.previous.region;
+            const comma_region = self.token.region;
             // Check if there's a spread after the comma
             if (try self.match(.DotDotDot)) {
                 const obj_so_far = try self.ast.createObject(pairs, region.merge(comma_region));
@@ -644,13 +658,16 @@ pub const Parser = struct {
         }
 
         // Pure object without spread, use Object AST node
-        try self.consume(.RightBrace, "Expected closing '}'");
-        const end_region = self.previous.region;
+        if (self.token.tokenType != .RightBrace) {
+            return self.errorAtToken("Expected closing '}'");
+        }
+        const end_region = self.token.region;
+        try self.advance(); // advance past the '}'
         return self.ast.createObject(pairs, region.merge(end_region));
     }
 
     fn objectSpread(self: *Parser, left_object: *Ast.RNode) !*Ast.RNode {
-        const dots = self.previous;
+        const dots = self.token;
         const spread = try self.expression();
         var result = try self.ast.createInfix(.Merge, left_object, spread, dots.region.merge(spread.region));
 
@@ -658,7 +675,7 @@ pub const Parser = struct {
             // Check if there's actually more content after the comma
             if (self.check(.RightBrace)) {
                 // Trailing comma - just close and return
-                try self.consume(.RightBrace, "Expected closing '}'");
+                try self.advance(); // advance past the '}'
                 return result;
             } else {
                 // More content after comma - parse it without creating another object() call
@@ -666,36 +683,39 @@ pub const Parser = struct {
                 result = try self.ast.createInfix(.Merge, result, remaining, result.region.merge(remaining.region));
             }
         } else {
-            try self.consume(.RightBrace, "Expected closing '}'");
+            if (self.token.tokenType != .RightBrace) {
+                return self.errorAtToken("Expected closing '}'");
+            }
+            try self.advance(); // advance past the '}'
         }
         return result;
     }
 
     fn arraySpread(self: *Parser, left_array: *Ast.RNode) !*Ast.RNode {
-        const spread_region = self.previous.region;
+        const spread_region = self.token.region;
         const spread_expr = try self.expression();
         var result = try self.ast.createInfix(.Merge, left_array, spread_expr, spread_region);
 
         if (try self.match(.Comma)) {
             // Check if there's actually more content after the comma
-            if (self.check(.RightBracket)) {
-                // Trailing comma - just close and return
-                try self.consume(.RightBracket, "Expected closing ']'");
+            if (try self.match(.RightBracket)) {
                 return result;
             } else {
-                // More content after comma - parse it
                 const remaining_elements = try self.parseArrayContinuation();
                 result = try self.ast.createInfix(.Merge, result, remaining_elements, result.region.merge(remaining_elements.region));
             }
         } else {
-            try self.consume(.RightBracket, "Expected closing ']'");
+            if (self.token.tokenType != .RightBracket) {
+                return self.errorAtToken("Expected closing ']'");
+            }
+            try self.advance(); // advance past the ']'
         }
         return result;
     }
 
     // Like array() but handles spreads differently - doesn't wrap them in Merge([], ...)
     fn parseArrayContinuation(self: *Parser) !*Ast.RNode {
-        const region = self.current.region;
+        const region = self.token.region;
 
         // Check for immediate spread
         if (try self.match(.DotDotDot)) {
@@ -706,7 +726,7 @@ pub const Parser = struct {
                 // Check if there's actually more content after the comma
                 if (self.check(.RightBracket)) {
                     // Trailing comma - just close and return
-                    try self.consume(.RightBracket, "Expected closing ']'");
+                    try self.advance(); // advance past the ']'
                     return spread_expr;
                 } else {
                     // More content after comma - parse it
@@ -714,7 +734,10 @@ pub const Parser = struct {
                     return try self.ast.createInfix(.Merge, spread_expr, remaining, spread_expr.region.merge(remaining.region));
                 }
             } else {
-                try self.consume(.RightBracket, "Expected closing ']'");
+                if (self.token.tokenType != .RightBracket) {
+                    return self.errorAtToken("Expected closing ']'");
+                }
+                try self.advance(); // advance past the ']'
                 return spread_expr;
             }
         }
@@ -740,7 +763,10 @@ pub const Parser = struct {
                     const remaining = try self.parseArrayContinuation();
                     result = try self.ast.createInfix(.Merge, result, remaining, result.region.merge(remaining.region));
                 } else {
-                    try self.consume(.RightBracket, "Expected closing ']'");
+                    if (self.token.tokenType != .RightBracket) {
+                        return self.errorAtToken("Expected closing ']'");
+                    }
+                    try self.advance(); // advance past the ']'
                 }
 
                 return result;
@@ -758,7 +784,7 @@ pub const Parser = struct {
 
     // Like object() but handles spreads differently - doesn't wrap them in Merge({}, ...)
     fn parseObjectContinuation(self: *Parser) !*Ast.RNode {
-        const region = self.current.region;
+        const region = self.token.region;
 
         // Check for immediate spread
         if (try self.match(.DotDotDot)) {
@@ -769,7 +795,7 @@ pub const Parser = struct {
                 // Check if there's actually more content after the comma
                 if (self.check(.RightBrace)) {
                     // Trailing comma - just close and return
-                    try self.consume(.RightBrace, "Expected closing '}'");
+                    try self.advance(); // advance past the '}'
                     return spread_expr;
                 } else {
                     // More content after comma - parse it
@@ -777,7 +803,10 @@ pub const Parser = struct {
                     return try self.ast.createInfix(.Merge, spread_expr, remaining, spread_expr.region.merge(remaining.region));
                 }
             } else {
-                try self.consume(.RightBrace, "Expected closing '}'");
+                if (self.token.tokenType != .RightBrace) {
+                    return self.errorAtToken("Expected closing '}'");
+                }
+                try self.advance(); // advance past the '}'
                 return spread_expr;
             }
         }
@@ -803,7 +832,10 @@ pub const Parser = struct {
                     const remaining = try self.parseObjectContinuation();
                     result = try self.ast.createInfix(.Merge, result, remaining, result.region.merge(remaining.region));
                 } else {
-                    try self.consume(.RightBrace, "Expected closing '}'");
+                    if (self.token.tokenType != .RightBrace) {
+                        return self.errorAtToken("Expected closing '}'");
+                    }
+                    try self.advance(); // advance past the '}'
                 }
 
                 return result;
@@ -816,13 +848,19 @@ pub const Parser = struct {
             }
         }
 
-        try self.consume(.RightBrace, "Expected closing '}'");
+        if (self.token.tokenType != .RightBrace) {
+            return self.errorAtToken("Expected closing '}'");
+        }
+        try self.advance(); // advance past the '}'
         return self.ast.createObject(pairs, region);
     }
 
     fn finishArray(self: *Parser, elements: ArrayList(*Ast.RNode), start_region: Region) !*Ast.RNode {
-        const end_region = self.current.region;
-        try self.consume(.RightBracket, "Expected closing ']'");
+        if (self.token.tokenType != .RightBracket) {
+            return self.errorAtToken("Expected closing ']'");
+        }
+        const end_region = self.token.region;
+        try self.advance(); // advance past the ']'
         return self.ast.createArray(elements, start_region.merge(end_region));
     }
 
@@ -841,14 +879,20 @@ pub const Parser = struct {
     fn objectPair(self: *Parser) !Ast.ObjectPair {
         var key: *Ast.RNode = undefined;
 
-        if (try self.match(.UppercaseIdentifier)) {
+        if (self.check(.UppercaseIdentifier)) {
             key = try self.valueVar();
-        } else {
-            try self.consume(.String, "Expected object member key");
+        } else if (self.check(.SingleQuoteStringStart) or self.check(.DoubleQuoteStringStart)) {
             key = try self.string();
+        } else if (self.check(.BacktickStringStart)) {
+            key = try self.backtickString();
+        } else {
+            return self.errorAtToken("Expected object member key");
         }
 
-        try self.consume(.Colon, "Expected ':' after object member key");
+        if (self.token.tokenType != .Colon) {
+            return self.errorAtToken("Expected ':' after object member key");
+        }
+        try self.advance(); // advance past the ':'
 
         const val = try self.expression();
 
@@ -859,47 +903,43 @@ pub const Parser = struct {
     }
 
     pub fn advance(self: *Parser) !void {
-        self.previous = self.current;
-        self.previousSkippedWhitespace = self.currentSkippedWhitespace;
-        self.previousSkippedNewline = self.currentSkippedNewline;
-        self.currentSkippedWhitespace = false;
-        self.currentSkippedNewline = false;
+        self.tokenSkippedWhitespace = false;
+        self.tokenSkippedNewline = false;
 
         while (self.scanner.next()) |token| {
             if (token.isType(.Error)) {
                 return self.errorAt(token, token.lexeme);
             } else if (token.isType(.WhitespaceWithNewline)) {
-                self.currentSkippedWhitespace = true;
-                self.currentSkippedNewline = true;
+                self.tokenSkippedWhitespace = true;
+                self.tokenSkippedNewline = true;
             } else if (token.isType(.Whitespace)) {
-                self.currentSkippedWhitespace = true;
+                self.tokenSkippedWhitespace = true;
             } else {
-                self.current = token;
+                self.token = token;
                 break;
             }
         }
     }
 
     pub fn advanceKeepWhitespace(self: *Parser) !void {
-        self.previous = self.current;
+        self.token = self.token;
         if (self.scanner.next()) |token| {
             if (token.isType(.Error)) {
                 return self.errorAt(token, token.lexeme);
             } else {
-                self.current = token;
+                self.token = token;
             }
         }
     }
 
     fn check(self: *Parser, tokenType: TokenType) bool {
-        return self.current.tokenType == tokenType;
+        return self.token.tokenType == tokenType;
     }
 
     fn consume(self: *Parser, tokenType: TokenType, message: []const u8) !void {
-        if (self.check(tokenType)) {
-            return self.advance();
-        } else {
-            return self.errorAtCurrent(message);
+        try self.advance();
+        if (self.token.tokenType != tokenType) {
+            return self.errorAtToken(message);
         }
     }
 
@@ -909,12 +949,12 @@ pub const Parser = struct {
         return true;
     }
 
-    fn errorAtCurrent(self: *Parser, message: []const u8) Error {
-        return self.errorAt(self.current, message);
+    fn errorAtToken(self: *Parser, message: []const u8) Error {
+        return self.errorAt(self.token, message);
     }
 
     fn errorAtPrevious(self: *Parser, message: []const u8) Error {
-        return self.errorAt(self.previous, message);
+        return self.errorAt(self.token, message);
     }
 
     fn errorAt(self: *Parser, token: Token, message: []const u8) Error {

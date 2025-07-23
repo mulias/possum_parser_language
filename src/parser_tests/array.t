@@ -3,76 +3,76 @@
   $ possum -p '"" $ []' -i ''
   (Return 0-7
     (String 0-2 "")
-    (Array 5-7 ())
+    (Array 5-7 ()))
 
 
   $ possum -p '"" $ [1, 2, 3]' -i ''
   (Return 0-14
     (String 0-2 "")
-    (Array 5-14 ((NumberString 6-7 1) (NumberString 9-10 2) (NumberString 12-13 3)))
+    (Array 5-14 ((NumberString 6-7 1) (NumberString 9-10 2) (NumberString 12-13 3))))
 
   $ possum -p '"" $ [1, 2, 3,]' -i ''
   (Return 0-15
     (String 0-2 "")
-    (Array 5-15 ((NumberString 6-7 1) (NumberString 9-10 2) (NumberString 12-13 3)))
+    (Array 5-15 ((NumberString 6-7 1) (NumberString 9-10 2) (NumberString 12-13 3))))
 
   $ possum -p '"" $ [...[1]]' -i ''
-  (Return 0-9
+  (Return 0-10
     (String 0-2 "")
-    (Merge 6-9
+    (Merge 9-10
       (Array 5-6 ())
-      (Array 9-12 ((NumberString 10-11 1)))
+      (Array 9-12 ((NumberString 10-11 1)))))
 
   $ possum -p '"" $ [...[1],]' -i ''
-  (Return 0-9
+  (Return 0-10
     (String 0-2 "")
-    (Merge 6-9
+    (Merge 9-10
       (Array 5-6 ())
-      (Array 9-12 ((NumberString 10-11 1)))
+      (Array 9-12 ((NumberString 10-11 1)))))
 
   $ possum -p '"" $ [...[1], ...[2]]' -i ''
   (Return 0-20
     (String 0-2 "")
-    (Merge 6-20
-      (Merge 6-9
+    (Merge 9-20
+      (Merge 9-10
         (Array 5-6 ())
-        (Array 9-12 ((NumberString 10-11 1)))
-      (Array 17-20 ((NumberString 18-19 2)))
+        (Array 9-12 ((NumberString 10-11 1))))
+      (Array 17-20 ((NumberString 18-19 2)))))
 
 
   $ possum -p '"" $ [1, ...[2]]' -i ''
-  (Return 0-12
+  (Return 0-13
     (String 0-2 "")
-    (Merge 9-12
+    (Merge 12-13
       (Array 5-6 ((NumberString 6-7 1)))
-      (Array 12-15 ((NumberString 13-14 2)))
+      (Array 12-15 ((NumberString 13-14 2)))))
 
   $ possum -p '"" $ [1, ...[2], 3]' -i ''
   (Return 0-19
     (String 0-2 "")
-    (Merge 9-19
-      (Merge 9-12
+    (Merge 12-19
+      (Merge 12-13
         (Array 5-6 ((NumberString 6-7 1)))
-        (Array 12-15 ((NumberString 13-14 2)))
-      (Array 17-19 ((NumberString 17-18 3)))
+        (Array 12-15 ((NumberString 13-14 2))))
+      (Array 17-19 ((NumberString 17-18 3)))))
 
   $ possum -p '"" $ [...[1], 2, ...[3]]' -i ''
   (Return 0-23
     (String 0-2 "")
-    (Merge 6-23
-      (Merge 6-9
+    (Merge 9-23
+      (Merge 9-10
         (Array 5-6 ())
-        (Array 9-12 ((NumberString 10-11 1)))
+        (Array 9-12 ((NumberString 10-11 1))))
       (Merge 14-23
         (Array 14-15 ((NumberString 14-15 2)))
-        (Array 20-23 ((NumberString 21-22 3)))
+        (Array 20-23 ((NumberString 21-22 3))))))
 
   $ possum -p '"" -> [..._]' -i ''
-  (Destructure 0-10
+  (Destructure 0-11
     (String 0-2 "")
-    (Merge 7-10
+    (Merge 10-11
       (Array 6-7 ())
-      (ValueVar 10-11 _)
+      (ValueVar 10-11 _)))
 
   $ possum -p '"" $ [1, 2 3]' -i '' 2> /dev/null || echo "missing comma error"
   missing comma error

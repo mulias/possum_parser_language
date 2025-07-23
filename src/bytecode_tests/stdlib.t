@@ -2429,11 +2429,10 @@
   
   ===============string_of================
   0000    | GetConstant 0: ""
-  0002    | CallFunction 0
-  0004    | GetBoundLocal 0
-  0006    | CallFunction 0
-  0008    | MergeAsString
-  0009    | End
+  0002    | GetBoundLocal 0
+  0004    | CallFunction 0
+  0006    | MergeAsString
+  0007    | End
   ========================================
   
   ================surround================

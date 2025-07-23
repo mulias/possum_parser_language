@@ -1824,15 +1824,25 @@ pub const Compiler = struct {
     const StringTemplateContext = enum { Parser, Value };
 
     fn writeStringTemplate(self: *Compiler, parts: std.ArrayListUnmanaged(*Ast.RNode), region: Region, context: StringTemplateContext) Error!void {
-        // Write the first part
-        if (parts.items.len > 0) {
-            try self.writeStringTemplatePart(parts.items[0], context);
+        // String template should not be empty
+        std.debug.assert(parts.items.len > 0);
+
+        // Check if the first part is a string - if not, we need an empty
+        // string on the stack for `MergeAsString`
+        const firstPart = parts.items[0];
+        const firstPartIsString = firstPart.node.asElem() != null and firstPart.node.asElem().? == .String;
+
+        if (!firstPartIsString) {
+            const empty_string = try self.makeConstant(Elem.string(try self.vm.strings.insert("")));
+            try self.emitUnaryOp(.GetConstant, empty_string, region);
         }
 
-        // Write remaining parts with MergeAsString between each
-        for (parts.items[1..]) |part| {
+        // Write all parts with MergeAsString between each part after the first two
+        for (parts.items, 0..) |part, i| {
             try self.writeStringTemplatePart(part, context);
-            try self.emitOp(.MergeAsString, region);
+            if (i > 0 or !firstPartIsString) {
+                try self.emitOp(.MergeAsString, region);
+            }
         }
     }
 
