@@ -79,14 +79,30 @@
         (Object 30-38
           ((String 31-34 "c") (NumberString 36-37 3))))))
 
-  $ possum -p '"" $ {"a": 1 "b": 2}' -i '' 2> /dev/null || echo "missing comma error"
-  missing comma error
+  $ possum -p '"" $ {"a": 1 "b": 2}' -i ''
+  "" $ {"a": 1 "b": 2}
+               ^
+  Error at '"': Expected closing '}'
+  error.UnexpectedInput
+  [1]
 
-  $ possum -p '"" $ {"a": 1, "b": 2,,}' -i '' 2> /dev/null || echo "too much comma error"
-  too much comma error
+  $ possum -p '"" $ {"a": 1, "b": 2,,}' -i ''
+  "" $ {"a": 1, "b": 2,,}
+                       ^
+  Error at ',': Expected object member key
+  error.UnexpectedInput
+  [1]
 
-  $ possum -p '"" $ {...{} ...{}}' -i '' 2> /dev/null || echo "missing comma in spread error"
-  missing comma in spread error
+  $ possum -p '"" $ {...{} ...{}}' -i ''
+  "" $ {...{} ...{}}
+              ^^^
+  Error at '...': Expected closing '}'
+  error.UnexpectedInput
+  [1]
 
-  $ possum -p '"" $ {...{}, ...{} ...{}}' -i '' 2> /dev/null || echo "missing comma in spread error"
-  missing comma in spread error
+  $ possum -p '"" $ {...{}, ...{} ...{}}' -i ''
+  "" $ {...{}, ...{} ...{}}
+                     ^^^
+  Error at '...': Expected closing '}'
+  error.UnexpectedInput
+  [1]

@@ -74,14 +74,30 @@
       (Array 6-7 ())
       (ValueVar 10-11 _)))
 
-  $ possum -p '"" $ [1, 2 3]' -i '' 2> /dev/null || echo "missing comma error"
-  missing comma error
+  $ possum -p '"" $ [1, 2 3]' -i ''
+  "" $ [1, 2 3]
+             ^
+  Error at '3': Expected closing ']'
+  error.UnexpectedInput
+  [1]
 
-  $ possum -p '"" $ [1, 2, 3,,]' -i '' 2> /dev/null || echo "too much comma error"
-  too much comma error
+  $ possum -p '"" $ [1, 2, 3,,]' -i ''
+  "" $ [1, 2, 3,,]
+                ^
+  Error at ',': Expect expression.
+  error.UnexpectedInput
+  [1]
 
-  $ possum -p '"" $ [...[] ...[]]' -i '' 2> /dev/null || echo "missing comma in spread error"
-  missing comma in spread error
+  $ possum -p '"" $ [...[] ...[]]' -i ''
+  "" $ [...[] ...[]]
+              ^^^
+  Error at '...': Expected closing ']'
+  error.UnexpectedInput
+  [1]
 
-  $ possum -p '"" $ [...[], ...[] ...[]]' -i '' 2> /dev/null || echo "missing comma in spread error"
-  missing comma in spread error
+  $ possum -p '"" $ [...[], ...[] ...[]]' -i ''
+  "" $ [...[], ...[] ...[]]
+                     ^^^
+  Error at '...': Expected closing ']'
+  error.UnexpectedInput
+  [1]

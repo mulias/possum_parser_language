@@ -31,12 +31,19 @@ pub const CLI = struct {
 
     pub fn run(self: CLI) !void {
         switch (try cli_config.run(self.allocator)) {
-            .Parse => |args| try self.parse(args),
+            .Parse => |args| self.parseAndHandleErrors(args),
             .Docs => |doc| try self.printDocs(doc),
             .Help => try self.printHelp(),
             .Version => try self.printVersion(),
             .UsageError => |err| try self.printUsageError(err),
         }
+    }
+
+    fn parseAndHandleErrors(self: CLI, args: cli_config.ParseArgs) void {
+        self.parse(args) catch |e| {
+            self.writers.err.print("{}\n", .{e}) catch {};
+            std.process.exit(1);
+        };
     }
 
     fn parse(self: CLI, args: cli_config.ParseArgs) !void {
