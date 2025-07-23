@@ -7,7 +7,6 @@ const Region = @import("region.zig").Region;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 const VMWriter = @import("writer.zig").VMWriter;
-const prettyPrint = @import("pretty.zig").print;
 
 pub const Ast = struct {
     arena: ArenaAllocator,
