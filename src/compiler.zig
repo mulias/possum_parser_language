@@ -1159,9 +1159,11 @@ pub const Compiler = struct {
                 try self.printError("Range is not valid in merge pattern", rnode.region);
                 return Error.RangeNotValidInMergePattern;
             },
-            .Negation,
-            .ValueLabel,
-            => @panic("todo"),
+            .Negation => {
+                // Negation is handled in pre-processing of the merge parts.
+                @panic("Internal Error");
+            },
+            .ValueLabel => @panic("todo"),
             .Array => |elements| {
                 var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
                 for (elements.items) |element| {
@@ -1751,6 +1753,13 @@ pub const Compiler = struct {
         try array.append(self.placeholderVar());
     }
 
+    fn negateAndAppendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) !void {
+        try self.writeValue(rnode, false);
+        try self.emitOp(.NegateNumber, region);
+        try self.emitUnaryOp(.InsertAtIndex, index, region);
+        try array.append(self.placeholderVar());
+    }
+
     fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) Error!void {
         switch (rnode.node) {
             .ElemNode => |elem| switch (elem) {
@@ -1786,9 +1795,14 @@ pub const Compiler = struct {
                 return Error.RangeNotValidInValueContext;
             },
             .Conditional => try self.appendDynamicValue(array, rnode, index, region),
-            .Negation,
-            .ValueLabel,
-            => @panic("todo"),
+            .Negation => |inner| {
+                if (simplifyNegatedNumberNode(rnode)) |elem| {
+                    try array.append(elem);
+                } else {
+                    try self.negateAndAppendDynamicValue(array, inner, index, region);
+                }
+            },
+            .ValueLabel => @panic("todo"),
         }
     }
 

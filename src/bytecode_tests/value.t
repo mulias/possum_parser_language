@@ -283,3 +283,16 @@
   0022    | InsertAtIndex 0
   0024    | End
   ========================================
+
+  $ possum -p 'X = 1 ; "" $ [1, -X, 3]' -i ''
+  
+  =================@main==================
+  0000    | GetConstant 0: ""
+  0002    | CallFunction 0
+  0004    | TakeRight 4 -> 14
+  0007    | GetConstant 1: [1, _, 3]
+  0009    | GetConstant 2: 1
+  0011    | NegateNumber
+  0012    | InsertAtIndex 1
+  0014    | End
+  ========================================
