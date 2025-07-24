@@ -129,19 +129,13 @@ pub const VM = struct {
     pub fn deinit(self: *VM) void {
         self.strings.deinit();
         for (self.modules.items) |*module| {
-            module.deinit();
+            module.deinit(self.allocator);
         }
         self.modules.deinit();
         self.freeDynList();
         self.stack.deinit();
         self.frames.deinit();
         self.inputMarks.deinit();
-    }
-
-    pub fn addModule(self: *VM, filename: []const u8, source: []const u8) !*Module {
-        const module = Module.init(self.allocator, filename, source);
-        try self.modules.append(module);
-        return &self.modules.items[self.modules.items.len - 1];
     }
 
     fn findGlobal(self: *VM, name: StringTable.Id) ?Elem {
@@ -156,31 +150,37 @@ pub const VM = struct {
         return null;
     }
 
-    pub fn interpret(self: *VM, programSource: []const u8, input: []const u8) !Elem {
+    pub fn interpret(self: *VM, module: Module, input: []const u8) !Elem {
         if (input.len > std.math.maxInt(u32)) return error.InputTooLong;
 
-        self.source = programSource;
+        self.source = module.source;
         self.input = input;
-        try self.compile(programSource);
+        try self.compile(module);
         try self.run();
         assert(self.stack.items.len == 1);
 
         return self.pop();
     }
 
-    pub fn compile(self: *VM, programSource: []const u8) !void {
-        const userModule = try self.addModule("user", programSource);
+    pub fn compile(self: *VM, module: Module) !void {
+        try self.modules.append(module);
 
-        var parser = Parser.init(self);
+        var parser = Parser.init(self, module);
         defer parser.deinit();
 
-        try parser.parse(programSource);
+        try parser.parse();
 
         if (self.config.printAst) {
             try parser.ast.print(self.*);
         }
 
-        var compiler = try Compiler.init(self, userModule, parser.ast, self.config.printCompiledBytecode);
+        const modulePtr = &self.modules.items[self.modules.items.len - 1];
+        var compiler = try Compiler.init(
+            self,
+            modulePtr,
+            parser.ast,
+            self.config.printCompiledBytecode,
+        );
         defer compiler.deinit();
 
         const function = try compiler.compile();
@@ -192,24 +192,35 @@ pub const VM = struct {
     }
 
     fn loadBuiltinFunctions(self: *VM) !void {
-        const builtinModule = try self.addModule("builtin", "");
+        const builtinModule = Module{ .source = "" };
+
+        try self.modules.append(builtinModule);
+        const modulePtr = &self.modules.items[self.modules.items.len - 1];
+
         const functions = try builtin.functions(self);
 
         for (functions) |function| {
-            try builtinModule.addGlobal(function.name, function.dyn.elem());
+            try modulePtr.addGlobal(self.allocator, function.name, function.dyn.elem());
         }
     }
 
     fn loadStdlib(self: *VM) !void {
-        const stdlibSource = @embedFile("stdlib/core.possum");
-        const stdlibModule = try self.addModule("stdlib/core.possum", stdlibSource);
+        const filename = "stdlib/core.possum";
+        const stdlibModule = Module{
+            .name = filename,
+            .source = @embedFile(filename),
+            .showLineNumbers = true,
+        };
 
-        var parser = Parser.init(self);
+        try self.modules.append(stdlibModule);
+
+        var parser = Parser.init(self, stdlibModule);
         defer parser.deinit();
 
-        try parser.parse(stdlibSource);
+        try parser.parse();
 
-        var compiler = try Compiler.init(self, stdlibModule, parser.ast, false);
+        const modulePtr = &self.modules.items[self.modules.items.len - 1];
+        var compiler = try Compiler.init(self, modulePtr, parser.ast, false);
         defer compiler.deinit();
 
         _ = try compiler.compile();

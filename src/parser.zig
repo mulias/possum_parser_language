@@ -3,6 +3,9 @@ const unicode = std.unicode;
 const ArrayList = std.ArrayListUnmanaged;
 const Ast = @import("ast.zig").Ast;
 const Elem = @import("elem.zig").Elem;
+const HighlightConfig = @import("highlight.zig").HighlightConfig;
+const highlightRegion = @import("highlight.zig").highlightRegion;
+const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
 const Scanner = @import("scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
@@ -17,6 +20,7 @@ pub const Parser = struct {
     vm: *VM,
     scanner: Scanner,
     source: []const u8,
+    module: Module,
     token: Token,
     tokenSkippedWhitespace: bool,
     tokenSkippedNewline: bool,
@@ -32,16 +36,17 @@ pub const Parser = struct {
         IntegerOverflow,
     } || WriterError;
 
-    pub fn init(vm: *VM) Parser {
+    pub fn init(vm: *VM, module: Module) Parser {
         const ast = Ast.init(vm.allocator);
-        return initWithAst(vm, ast);
+        return initWithAst(vm, module, ast);
     }
 
-    fn initWithAst(vm: *VM, ast: Ast) Parser {
+    fn initWithAst(vm: *VM, module: Module, ast: Ast) Parser {
         return Parser{
             .vm = vm,
             .scanner = undefined,
             .source = undefined,
+            .module = module,
             .token = undefined,
             .tokenSkippedWhitespace = false,
             .tokenSkippedNewline = false,
@@ -55,9 +60,9 @@ pub const Parser = struct {
         self.ast.deinit();
     }
 
-    pub fn parse(self: *Parser, source: []const u8) !void {
-        self.scanner = Scanner.init(source, self.writers, self.vm.config.printScanner);
-        self.source = source;
+    pub fn parse(self: *Parser) !void {
+        self.scanner = Scanner.init(self.module.source, self.writers, self.vm.config.printScanner);
+        self.source = self.module.source;
 
         try self.advance();
 
@@ -958,21 +963,25 @@ pub const Parser = struct {
     }
 
     fn errorAt(self: *Parser, token: Token, message: []const u8) Error {
-        // Print highlighted source code with error region
-        try token.region.highlight(self.source, self.writers.err);
-
-        // Print error message with context
+        try self.writers.err.print("\nError at ", .{});
         switch (token.tokenType) {
             .Eof => {
-                try self.writers.err.print("Error at end", .{});
+                try self.writers.err.print("end", .{});
             },
             .Error => {},
             else => {
-                try self.writers.err.print("Error at '{s}'", .{token.lexeme});
+                try self.writers.err.print("'{s}'", .{token.lexeme});
             },
         }
+        try self.writers.err.print(": {s}\n\n", .{message});
 
-        try self.writers.err.print(": {s}\n", .{message});
+        if (self.module.name) |name| {
+            try self.writers.err.print("{s}: \n", .{name});
+        }
+
+        try self.module.highlight(token.region, self.writers.err);
+
+        try self.writers.err.print("\n", .{});
 
         return Error.UnexpectedInput;
     }

@@ -224,7 +224,7 @@ pub const Compiler = struct {
             .arity = 0,
         });
 
-        try self.targetModule.addGlobal(name_sid, function.dyn.elem());
+        try self.targetModule.addGlobal(self.vm.allocator, name_sid, function.dyn.elem());
 
         try self.functions.append(function);
 
@@ -281,7 +281,7 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
-        try self.targetModule.addGlobal(name, bodyElem);
+        try self.targetModule.addGlobal(self.vm.allocator, name, bodyElem);
     }
 
     fn validateGlobal(self: *Compiler, head: *Ast.RNode) !void {
@@ -381,7 +381,7 @@ pub const Compiler = struct {
                     .ValueVar => |name| name,
                     .ParserVar => |name| name,
                     else => {
-                        try self.targetModule.addGlobal(globalName, foundValue);
+                        try self.targetModule.addGlobal(self.vm.allocator, globalName, foundValue);
                         break;
                     },
                 };
