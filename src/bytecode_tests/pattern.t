@@ -1122,3 +1122,72 @@
   0059    | End
   ========================================
 
+  $ possum -p '"1" -> "%(1)"' -i '1'
+  
+  =================@main==================
+  0000    | GetConstant 0: "1"
+  0002    | CallFunction 0
+  0004    | GetConstant 1: 1
+  0006    | PrepareMergePatternWithCasting 1
+  0008    | JumpIfFailure 8 -> 24
+  0011    | GetConstant 2: 1
+  0013    | Destructure
+  0014    | JumpIfFailure 14 -> 22
+  0017    | Pop
+  0018    | Pop
+  0019    | JumpIfSuccess 19 -> 24
+  0022    | Swap
+  0023    | Pop
+  0024    | End
+  ========================================
+
+  $ possum -p '"2" -> "%(1 + 1)"' -i '2'
+  
+  =================@main==================
+  0000    | GetConstant 0: "2"
+  0002    | CallFunction 0
+  0004    | GetConstant 1: 1
+  0006    | GetConstant 2: 1
+  0008    | PrepareMergePatternWithCasting 2
+  0010    | JumpIfFailure 10 -> 33
+  0013    | GetConstant 3: 1
+  0015    | Destructure
+  0016    | JumpIfFailure 16 -> 31
+  0019    | Pop
+  0020    | GetConstant 4: 1
+  0022    | Destructure
+  0023    | JumpIfFailure 23 -> 31
+  0026    | Pop
+  0027    | Pop
+  0028    | JumpIfSuccess 28 -> 33
+  0031    | Swap
+  0032    | Pop
+  0033    | End
+  ========================================
+
+  $ possum -p '"50" -> "%(0 + N)" $ N' -i '50'
+  
+  =================@main==================
+  0000    | GetConstant 0: N
+  0002    | GetConstant 1: "50"
+  0004    | CallFunction 0
+  0006    | GetConstant 2: 0
+  0008    | GetLocal 0
+  0010    | PrepareMergePatternWithCasting 2
+  0012    | JumpIfFailure 12 -> 35
+  0015    | GetConstant 3: 0
+  0017    | Destructure
+  0018    | JumpIfFailure 18 -> 33
+  0021    | Pop
+  0022    | GetLocal 0
+  0024    | Destructure
+  0025    | JumpIfFailure 25 -> 33
+  0028    | Pop
+  0029    | Pop
+  0030    | JumpIfSuccess 30 -> 35
+  0033    | Swap
+  0034    | Pop
+  0035    | TakeRight 35 -> 40
+  0038    | GetBoundLocal 0
+  0040    | End
+  ========================================

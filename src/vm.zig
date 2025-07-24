@@ -619,15 +619,28 @@ pub const VM = struct {
                 _ = self.pop();
             },
             .PrepareMergePattern => {
-                // Set up the stack for destructuring each part of a merge pattern.
-                // Pop `count` number of elems off the stack, these are the
-                // pattern segments to destructure against. Do some analysis
-                // and then push `count` new elements back onto the stack.
-                // These elements are sub-values of the destructure value, which
-                // will each get destructured separately.
+                // - Set up the stack for destructuring each part of a merge pattern.
+                // - Pop `count` number of elems off the stack, these are the
+                //   pattern segments to destructure against.
+                // - Do some analysis to determin the kind of pattern getting merged.
+                // - Push `count` new elements back onto the stack. These
+                //   elements are sub-values of the destructure value, which
+                //   will each get destructured separately.
                 const count = self.readByte();
-
                 try self.prepareMergePattern(count);
+            },
+            .PrepareMergePatternWithCasting => {
+                // - Set up the stack for destructuring each part of a merge pattern.
+                // - Pop `count` number of elems off the stack, these are the
+                //   pattern segments to destructure against.
+                // - Do some analysis to determin the kind of pattern getting merged.
+                // - Convert the destructure value from a string to the type of
+                //   the merge pattern.
+                // - Push `count` new elements back onto the stack. These
+                //   elements are sub-values of the (converted) destructure
+                //   value, which will each get destructured separately.
+                const count = self.readByte();
+                try self.prepareMergePatternWithCasting(count);
             },
             .Swap => {
                 const a = self.pop();
@@ -965,33 +978,94 @@ pub const VM = struct {
         Array: struct {
             preVarLength: usize,
             postVarLength: usize,
+            foundUnboundVar: bool,
         },
         Boolean: struct {
             acc: Elem,
+            foundUnboundVar: bool,
         },
         Number: struct {
             acc: Elem,
+            foundUnboundVar: bool,
         },
-        Object: void,
+        Object: struct {
+            foundUnboundVar: bool,
+        },
         String: struct {
             preVarLength: usize,
             postVarLength: usize,
+            foundUnboundVar: bool,
         },
-        Unknown: void,
+        Unknown: struct {
+            foundUnboundVar: bool,
+        },
     };
 
     fn prepareMergePattern(self: *VM, count: u8) !void {
-        var patternSegments = try self.allocator.alloc(Elem, count);
-        defer self.allocator.free(patternSegments);
+        var patternParts = try self.allocator.alloc(Elem, count);
+        defer self.allocator.free(patternParts);
 
+        const context = try self.collectMergePatternParts(&patternParts, count);
+
+        try self.applyMergePatternParts(&patternParts, context);
+    }
+
+    fn prepareMergePatternWithCasting(self: *VM, count: u8) !void {
+        var patternParts = try self.allocator.alloc(Elem, count);
+        defer self.allocator.free(patternParts);
+
+        const context = try self.collectMergePatternParts(&patternParts, count);
+
+        var value = self.peek(0);
+
+        if (value.stringBytes(self.*)) |valueBytes| {
+            switch (context) {
+                .Array => {},
+                .Boolean => {
+                    if (std.mem.eql(u8, valueBytes, "true")) {
+                        try self.push(Elem.boolean(true));
+                    } else if (std.mem.eql(u8, valueBytes, "false")) {
+                        try self.push(Elem.boolean(false));
+                    } else {
+                        _ = self.pop();
+                        try self.pushFailure();
+                        return;
+                    }
+                },
+                .Number => {
+                    if (try value.toNumber(self)) |n| {
+                        value = n;
+                        try self.push(value);
+                    } else {
+                        _ = self.pop();
+                        try self.pushFailure();
+                        return;
+                    }
+                },
+                .Object => {},
+                .String => {
+                    try self.push(value);
+                },
+                .Unknown => {},
+            }
+        } else {
+            _ = self.pop();
+            try self.pushFailure();
+            return;
+        }
+
+        try self.applyMergePatternParts(&patternParts, context);
+    }
+
+    fn collectMergePatternParts(self: *VM, patternParts: *[]Elem, count: u8) !PatternMergeContext {
         var foundUnboundVar = false;
-        var context = PatternMergeContext{ .Unknown = undefined };
+        var context = PatternMergeContext{ .Unknown = .{ .foundUnboundVar = undefined } };
 
         // Iterate BACKWARDS by poping pattern segments off the stack
         for (0..count) |offset| {
             const index = count - offset - 1;
             const segment = self.pop();
-            patternSegments[index] = segment;
+            patternParts.*[index] = segment;
 
             switch (segment) {
                 .ValueVar => {
@@ -1003,7 +1077,11 @@ pub const VM = struct {
                 },
                 .String => |sId| {
                     if (context == .Unknown) {
-                        context = .{ .String = .{ .preVarLength = 0, .postVarLength = 0 } };
+                        context = .{ .String = .{
+                            .preVarLength = 0,
+                            .postVarLength = 0,
+                            .foundUnboundVar = undefined,
+                        } };
                     } else if (context != .String) {
                         return self.runtimeError("Merge type mismatch in pattern", .{});
                     }
@@ -1018,7 +1096,11 @@ pub const VM = struct {
                 },
                 .InputSubstring => |is| {
                     if (context == .Unknown) {
-                        context = .{ .String = .{ .preVarLength = 0, .postVarLength = 0 } };
+                        context = .{ .String = .{
+                            .preVarLength = 0,
+                            .postVarLength = 0,
+                            .foundUnboundVar = undefined,
+                        } };
                     } else if (context != .String) {
                         return self.runtimeError("Merge type mismatch in pattern", .{});
                     }
@@ -1036,7 +1118,10 @@ pub const VM = struct {
                 .Float,
                 => {
                     if (context == .Unknown) {
-                        context = .{ .Number = .{ .acc = Elem.integer(0) } };
+                        context = .{ .Number = .{
+                            .acc = Elem.integer(0),
+                            .foundUnboundVar = undefined,
+                        } };
                     } else if (context != .Number) {
                         return self.runtimeError("Merge type mismatch in pattern", .{});
                     }
@@ -1045,7 +1130,10 @@ pub const VM = struct {
                 },
                 .Boolean => {
                     if (context == .Unknown) {
-                        context = .{ .Boolean = .{ .acc = Elem.boolean(false) } };
+                        context = .{ .Boolean = .{
+                            .acc = Elem.boolean(false),
+                            .foundUnboundVar = undefined,
+                        } };
                     } else if (context != .Boolean) {
                         return self.runtimeError("Merge type mismatch in pattern", .{});
                     }
@@ -1059,7 +1147,11 @@ pub const VM = struct {
                 .Dyn => |dyn| switch (dyn.dynType) {
                     .String => {
                         if (context == .Unknown) {
-                            context = .{ .String = .{ .preVarLength = 0, .postVarLength = 0 } };
+                            context = .{ .String = .{
+                                .preVarLength = 0,
+                                .postVarLength = 0,
+                                .foundUnboundVar = undefined,
+                            } };
                         } else if (context != .String) {
                             return self.runtimeError("Merge type mismatch in pattern", .{});
                         }
@@ -1074,7 +1166,11 @@ pub const VM = struct {
                     },
                     .Array => {
                         if (context == .Unknown) {
-                            context = .{ .Array = .{ .preVarLength = 0, .postVarLength = 0 } };
+                            context = .{ .Array = .{
+                                .preVarLength = 0,
+                                .postVarLength = 0,
+                                .foundUnboundVar = undefined,
+                            } };
                         } else if (context != .Array) {
                             return self.runtimeError("Merge type mismatch in pattern", .{});
                         }
@@ -1102,8 +1198,21 @@ pub const VM = struct {
             }
         }
 
-        const value = self.peek(0);
+        switch (context) {
+            .Array => context.Array.foundUnboundVar = foundUnboundVar,
+            .Boolean => context.Boolean.foundUnboundVar = foundUnboundVar,
+            .Number => context.Number.foundUnboundVar = foundUnboundVar,
+            .Object => context.Object.foundUnboundVar = foundUnboundVar,
+            .String => context.String.foundUnboundVar = foundUnboundVar,
+            .Unknown => context.Unknown.foundUnboundVar = foundUnboundVar,
+        }
 
+        return context;
+    }
+
+    fn applyMergePatternParts(self: *VM, patternParts: *[]Elem, context: PatternMergeContext) !void {
+        const parts = patternParts.*;
+        const value = self.peek(0);
         switch (context) {
             .Array => |ac| {
                 if (value.isDynType(.Array)) {
@@ -1111,9 +1220,9 @@ pub const VM = struct {
                     const valueLength = valueArray.elems.items.len;
                     const patternMinLength = ac.preVarLength + ac.postVarLength;
 
-                    if ((foundUnboundVar and valueLength >= patternMinLength) or valueLength == patternMinLength) {
+                    if ((ac.foundUnboundVar and valueLength >= patternMinLength) or valueLength == patternMinLength) {
                         var valueIndex: usize = 0;
-                        for (patternSegments, 0..) |segment, i| {
+                        for (parts, 0..) |segment, i| {
                             if (segment == .ValueVar) {
                                 assert(valueIndex == ac.preVarLength);
 
@@ -1121,21 +1230,21 @@ pub const VM = struct {
                                 const subarray = try valueArray.subarray(self, valueIndex, length);
 
                                 valueIndex += length;
-                                patternSegments[i] = subarray.dyn.elem();
+                                parts[i] = subarray.dyn.elem();
                             } else {
                                 const segmentArray = segment.asDyn().asArray();
 
                                 const subarray = try valueArray.subarray(self, valueIndex, segmentArray.len());
 
                                 valueIndex += subarray.len();
-                                patternSegments[i] = subarray.dyn.elem();
+                                parts[i] = subarray.dyn.elem();
                             }
                         }
 
-                        var i = patternSegments.len;
+                        var i = parts.len;
                         while (i > 0) {
                             i -= 1;
-                            try self.push(patternSegments[i]);
+                            try self.push(parts[i]);
                         }
                     } else {
                         _ = self.pop();
@@ -1149,10 +1258,10 @@ pub const VM = struct {
             .Boolean => |bc| {
                 if (value == .Boolean) {
                     if (value.Boolean) {
-                        var i: usize = patternSegments.len;
+                        var i: usize = parts.len;
                         while (i > 0) {
                             i -= 1;
-                            if (patternSegments[i] == .ValueVar) {
+                            if (parts[i] == .ValueVar) {
                                 // Only assign the unbound variable to true if it
                                 // has to be true to make the pattern match.
                                 // Otherwise default to false, the identity value.
@@ -1162,13 +1271,13 @@ pub const VM = struct {
                                     try self.push(Elem.boolean(true));
                                 }
                             } else {
-                                try self.push(patternSegments[i]);
+                                try self.push(parts[i]);
                             }
                         }
                     } else {
                         // To successfully destructure, all pattern
                         // segments must be false.
-                        for (patternSegments) |_| {
+                        for (parts) |_| {
                             try self.push(Elem.boolean(false));
                         }
                     }
@@ -1178,15 +1287,15 @@ pub const VM = struct {
                 }
             },
             .Number => |nc| {
-                if (!foundUnboundVar) {
+                if (!nc.foundUnboundVar) {
                     if (nc.acc.isEql(value, self.*)) {
                         // Pattern matches - push back the original pattern
                         // segments for individual destructuring, which will
                         // succeed
-                        var i: usize = patternSegments.len;
+                        var i: usize = parts.len;
                         while (i > 0) {
                             i -= 1;
-                            try self.push(patternSegments[i]);
+                            try self.push(parts[i]);
                         }
                     } else {
                         // Pattern doesn't match
@@ -1197,13 +1306,13 @@ pub const VM = struct {
                     const subtrahend = nc.acc.negateNumber() catch @panic("Internal Error");
                     if (try Elem.merge(value, subtrahend, self)) |diff| {
                         // Assign diff to the unbound variable
-                        var i: usize = patternSegments.len;
+                        var i: usize = parts.len;
                         while (i > 0) {
                             i -= 1;
-                            if (patternSegments[i] == .ValueVar) {
+                            if (parts[i] == .ValueVar) {
                                 try self.push(diff);
                             } else {
-                                try self.push(patternSegments[i]);
+                                try self.push(parts[i]);
                             }
                         }
                     } else {
@@ -1212,20 +1321,20 @@ pub const VM = struct {
                     }
                 }
             },
-            .Object => {
+            .Object => |oc| {
                 if (value.isDynType(.Object)) {
                     const valueObj = value.asDyn().asObject();
 
                     var unboundObj: ?*Elem.DynElem.Object = null;
-                    if (foundUnboundVar) unboundObj = try Elem.DynElem.Object.copy(self, valueObj);
+                    if (oc.foundUnboundVar) unboundObj = try Elem.DynElem.Object.copy(self, valueObj);
 
                     // For each pattern segment, copy a subset of valueObj
                     // containing the keys in the pattern. If there is an
                     // unbound variable, make a copy of valueObj and delete
                     // keys that are in other pattern segments.
-                    for (patternSegments, 0..) |segment, i| {
+                    for (parts, 0..) |segment, i| {
                         if (segment == .ValueVar) {
-                            patternSegments[i] = unboundObj.?.dyn.elem();
+                            parts[i] = unboundObj.?.dyn.elem();
                         } else {
                             const segmentObj = segment.asDyn().asObject();
 
@@ -1241,14 +1350,14 @@ pub const VM = struct {
                                 }
                             }
 
-                            patternSegments[i] = subObj.dyn.elem();
+                            parts[i] = subObj.dyn.elem();
                         }
                     }
 
-                    var i = patternSegments.len;
+                    var i = parts.len;
                     while (i > 0) {
                         i -= 1;
-                        try self.push(patternSegments[i]);
+                        try self.push(parts[i]);
                     }
                 } else {
                     _ = self.pop();
@@ -1262,9 +1371,9 @@ pub const VM = struct {
                     const valueLength = bytes.len;
                     const patternMinLength = sc.preVarLength + sc.postVarLength;
 
-                    if ((foundUnboundVar and valueLength >= patternMinLength) or valueLength == patternMinLength) {
+                    if ((sc.foundUnboundVar and valueLength >= patternMinLength) or valueLength == patternMinLength) {
                         var valueIndex: usize = 0;
-                        for (patternSegments, 0..) |segment, i| {
+                        for (parts, 0..) |segment, i| {
                             if (segment == .ValueVar) {
                                 assert(valueIndex == sc.preVarLength);
 
@@ -1272,7 +1381,7 @@ pub const VM = struct {
                                 const substring = try Elem.DynElem.String.copy(self, bytes[valueIndex..(valueIndex + length)]);
 
                                 valueIndex += length;
-                                patternSegments[i] = substring.dyn.elem();
+                                parts[i] = substring.dyn.elem();
                             } else {
                                 const segmentString = if (segment == .String)
                                     self.strings.get(segment.String)
@@ -1282,14 +1391,14 @@ pub const VM = struct {
                                 const substring = try Elem.DynElem.String.copy(self, bytes[valueIndex..(valueIndex + segmentString.len)]);
 
                                 valueIndex += substring.len();
-                                patternSegments[i] = substring.dyn.elem();
+                                parts[i] = substring.dyn.elem();
                             }
                         }
 
-                        var i = patternSegments.len;
+                        var i = parts.len;
                         while (i > 0) {
                             i -= 1;
-                            try self.push(patternSegments[i]);
+                            try self.push(parts[i]);
                         }
                     } else {
                         _ = self.pop();
@@ -1305,13 +1414,13 @@ pub const VM = struct {
                 // of unbound variables and nulls. If there's an
                 // unbound variable it should get bound to the full
                 // value.
-                var i: usize = patternSegments.len;
+                var i: usize = parts.len;
                 while (i > 0) {
                     i -= 1;
-                    if (patternSegments[i] == .ValueVar) {
+                    if (parts[i] == .ValueVar) {
                         try self.push(value);
                     } else {
-                        try self.push(patternSegments[i]);
+                        try self.push(parts[i]);
                     }
                 }
             },

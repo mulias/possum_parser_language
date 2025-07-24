@@ -93,11 +93,18 @@
   0000    | GetConstant 0: Str
   0002    | GetConstant 1: ""
   0004    | CallFunction 0
-  0006    | GetConstant 2: ""
-  0008    | GetBoundLocal 0
-  0010    | MergeAsString
-  0011    | Destructure
-  0012    | End
+  0006    | GetLocal 0
+  0008    | PrepareMergePatternWithCasting 1
+  0010    | JumpIfFailure 10 -> 26
+  0013    | GetLocal 0
+  0015    | Destructure
+  0016    | JumpIfFailure 16 -> 24
+  0019    | Pop
+  0020    | Pop
+  0021    | JumpIfSuccess 21 -> 26
+  0024    | Swap
+  0025    | Pop
+  0026    | End
   ========================================
 
   $ possum -p '"Hello %(int + word)"' -i ''

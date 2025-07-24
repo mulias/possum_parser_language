@@ -387,7 +387,7 @@ default(p, D) = p | const(D)
 
 const(C) = "" $ C
 
-number_of = @number_of
+number_of(p) = p -> "%(0 + N)" $ N
 
 string_of(p) = "%(p)"
 

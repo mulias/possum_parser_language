@@ -949,9 +949,15 @@ pub const Compiler = struct {
             .Object => |pairs| {
                 try self.writeDestructurePatternObject(pairs, region);
             },
-            .StringTemplate => {
-                try self.writePattern(rnode);
-                try self.emitOp(.Destructure, region);
+            .StringTemplate => |parts| {
+                // Currently a single part string template will always be interpolation.
+                if (parts.items.len == 1) {
+                    const part = parts.items[0];
+                    try self.writeStringTemplateMergePatternWithCasting(part);
+                } else {
+                    try self.writePattern(rnode);
+                    try self.emitOp(.Destructure, region);
+                }
             },
             .Conditional => return error.InvalidAst,
         }
@@ -1067,6 +1073,32 @@ pub const Compiler = struct {
 
         try self.writeMergePattern(rnode, &jumpList);
 
+        const successJumpIndex = try self.emitJump(.JumpIfSuccess, region);
+
+        for (jumpList.items) |jumpIndex| {
+            try self.patchJump(jumpIndex, region);
+        }
+
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Pop, region);
+
+        try self.patchJump(failureJumpIndex, region);
+        try self.patchJump(successJumpIndex, region);
+    }
+
+    fn writeStringTemplateMergePatternWithCasting(self: *Compiler, rnode: *Ast.RNode) !void {
+        const region = rnode.region;
+
+        var jumpList = ArrayList(usize).init(self.vm.allocator);
+        defer jumpList.deinit();
+
+        const count = try self.writePrepareMergePattern(rnode);
+        try self.emitUnaryOp(.PrepareMergePatternWithCasting, count, region);
+        const failureJumpIndex = try self.emitJump(.JumpIfFailure, region);
+
+        try self.writeMergePattern(rnode, &jumpList);
+
+        try self.emitOp(.Pop, region);
         const successJumpIndex = try self.emitJump(.JumpIfSuccess, region);
 
         for (jumpList.items) |jumpIndex| {
