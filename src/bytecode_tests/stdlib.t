@@ -330,18 +330,18 @@
   ========================================
   
   ================integer=================
-  integer = number_of(maybe("-") + _number_integer_part)
+  integer = as_number(maybe("-") + _number_integer_part)
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn839
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
   ==========non_negative_integer==========
-  non_negative_integer = number_of(_number_integer_part)
+  non_negative_integer = as_number(_number_integer_part)
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: _number_integer_part
   0004    | CallTailFunction 1
   0006    | End
@@ -360,9 +360,9 @@
   ========================================
   
   ============negative_integer============
-  negative_integer = number_of("-" + _number_integer_part)
+  negative_integer = as_number("-" + _number_integer_part)
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn840
   0004    | CallTailFunction 1
   0006    | End
@@ -386,9 +386,9 @@
   ========================================
   
   =================float==================
-  float = number_of(maybe("-") + _number_integer_part + _number_fraction_part)
+  float = as_number(maybe("-") + _number_integer_part + _number_fraction_part)
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn841
   0004    | CallTailFunction 1
   0006    | End
@@ -414,13 +414,13 @@
   ========================================
   
   ===========scientific_integer===========
-  scientific_integer = number_of(
+  scientific_integer = as_number(
     maybe("-") +
     _number_integer_part +
     _number_exponent_part
   )
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn842
   0004    | CallTailFunction 1
   0006    | End
@@ -451,14 +451,14 @@
   ========================================
   
   ============scientific_float============
-  scientific_float = number_of(
+  scientific_float = as_number(
     maybe("-") +
     _number_integer_part +
     _number_fraction_part +
     _number_exponent_part
   )
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn843
   0004    | CallTailFunction 1
   0006    | End
@@ -491,14 +491,14 @@
   ========================================
   
   =================number=================
-  number = number_of(
+  number = as_number(
     maybe("-") +
     _number_integer_part +
     maybe(_number_fraction_part) +
     maybe(_number_exponent_part)
   )
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn844
   0004    | CallTailFunction 1
   0006    | End
@@ -525,13 +525,13 @@
   ========================================
   
   ==========non_negative_number===========
-  non_negative_number = number_of(
+  non_negative_number = as_number(
     _number_integer_part +
     maybe(_number_fraction_part) +
     maybe(_number_exponent_part)
   )
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn845
   0004    | CallTailFunction 1
   0006    | End
@@ -563,14 +563,14 @@
   ========================================
   
   ============negative_number=============
-  negative_number = number_of(
+  negative_number = as_number(
     "-" +
     _number_integer_part +
     maybe(_number_fraction_part) +
     maybe(_number_exponent_part)
   )
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn846
   0004    | CallTailFunction 1
   0006    | End
@@ -2849,8 +2849,8 @@
   0009    | End
   ========================================
   
-  ===============number_of================
-  number_of(p) = p -> "%(0 + N)" $ N
+  ===============as_number================
+  as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | GetConstant 0: N
   0002    | GetBoundLocal 0
@@ -5052,12 +5052,12 @@
   ========================================
   
   ==========toml.number.integer===========
-  toml.number.integer = number_of(
+  toml.number.integer = as_number(
     _toml.number.sign +
     _toml.number.integer_part
   )
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn951
   0004    | CallTailFunction 1
   0006    | End
@@ -5144,7 +5144,7 @@
   ========================================
   
   ===========toml.number.float============
-  toml.number.float = number_of(
+  toml.number.float = as_number(
     _toml.number.sign +
     _toml.number.integer_part + (
       (_toml.number.fraction_part + maybe(_toml.number.exponent_part)) |
@@ -5152,7 +5152,7 @@
     )
   )
   ========================================
-  0000    | GetConstant 0: number_of
+  0000    | GetConstant 0: as_number
   0002    | GetConstant 1: @fn954
   0004    | CallTailFunction 1
   0006    | End
@@ -7805,6 +7805,37 @@
   0004    | GetConstant 0: _
   0006    | DestructureRange
   0007    | End
+  ========================================
+  
+  ===============As.Number================
+  As.Number(V) = Is.Number(V) | (V -> "%(0 + N)" $ N)
+  ========================================
+  0000    | GetConstant 0: N
+  0002    | SetInputMark
+  0003    | GetConstant 1: Is.Number
+  0005    | GetBoundLocal 0
+  0007    | CallFunction 1
+  0009    | Or 9 -> 48
+  0012    | GetBoundLocal 0
+  0014    | GetConstant 2: 0
+  0016    | GetLocal 1
+  0018    | PrepareMergePatternWithCasting 2
+  0020    | JumpIfFailure 20 -> 43
+  0023    | GetConstant 3: 0
+  0025    | Destructure
+  0026    | JumpIfFailure 26 -> 41
+  0029    | Pop
+  0030    | GetLocal 1
+  0032    | Destructure
+  0033    | JumpIfFailure 33 -> 41
+  0036    | Pop
+  0037    | Pop
+  0038    | JumpIfSuccess 38 -> 43
+  0041    | Swap
+  0042    | Pop
+  0043    | TakeRight 43 -> 48
+  0046    | GetBoundLocal 1
+  0048    | End
   ========================================
   
   =======_Assert.NonNegativeInteger=======
