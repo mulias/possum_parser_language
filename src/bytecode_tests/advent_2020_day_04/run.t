@@ -3,6 +3,8 @@
   $ possum $TESTDIR/part_1.possum $TESTDIR/input.txt
   
   =================@fn563=================
+  space | nl
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: space
   0003    | CallFunction 0
@@ -13,6 +15,8 @@
   ========================================
   
   ================passport================
+  passport = object_sep(alphas, ":", token, space | nl)
+  ========================================
   0000    | GetConstant 0: object_sep
   0002    | GetConstant 1: alphas
   0004    | GetConstant 2: ":"
@@ -23,6 +27,12 @@
   ========================================
   
   =============valid_passport=============
+  valid_passport =
+    passport -> {
+      "byr": _, "iyr": _, "eyr": _, "hgt": _,
+      "hcl": _, "ecl": _, "pid": _, ..._,
+    }
+  ========================================
   0000    | GetConstant 0: _
   0002    | GetConstant 1: passport
   0004    | CallFunction 0
@@ -91,6 +101,8 @@
   ========================================
   
   ==========count_valid_passport==========
+  count_valid_passport = (valid_passport $ 1) | (passport $ 0)
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: valid_passport
   0003    | CallFunction 0
@@ -105,6 +117,8 @@
   ========================================
   
   =================@fn566=================
+  nl+nl
+  ========================================
   0000    | GetConstant 0: newline
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -115,6 +129,8 @@
   ========================================
   
   =================@main==================
+  many_sep(count_valid_passport, nl+nl)
+  ========================================
   0000    | GetConstant 0: many_sep
   0002    | GetConstant 1: count_valid_passport
   0004    | GetConstant 2: @fn566

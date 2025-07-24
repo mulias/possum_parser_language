@@ -35,6 +35,7 @@ fn createFailParser(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedParser,
         .arity = 0,
+        .region = Region.new(0, 0),
     });
 
     const loc = Region.new(0, 0);
@@ -51,6 +52,7 @@ fn createFailValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 0,
+        .region = Region.new(0, 0),
     });
 
     const loc = Region.new(0, 0);
@@ -67,6 +69,7 @@ fn createNumberOfParser(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedParser,
         .arity = 1,
+        .region = Region.new(0, 0),
     });
 
     const argName = try vm.strings.insert("p");
@@ -90,6 +93,7 @@ fn createNumberOfValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 1,
+        .region = Region.new(0, 0),
     });
 
     const argName = try vm.strings.insert("V");
@@ -111,6 +115,7 @@ fn createCrashValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 1,
+        .region = Region.new(0, 0),
     });
 
     const argName = try vm.strings.insert("Message");
@@ -132,6 +137,7 @@ fn createCodepointValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 1,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(
@@ -185,6 +191,7 @@ fn createSurrogatePairCodepointValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(
@@ -247,6 +254,7 @@ fn createDbgParser(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedParser,
         .arity = 1,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
@@ -274,6 +282,7 @@ fn createDbgValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 1,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
@@ -308,6 +317,7 @@ fn createAddValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "addNative", addNative);
@@ -370,6 +380,7 @@ fn createSubtractValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "subtractNative", subtractNative);
@@ -432,6 +443,7 @@ fn createMultiplyValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "multiplyNative", multiplyNative);
@@ -494,6 +506,7 @@ fn createDivideValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "divideNative", divideNative);
@@ -560,6 +573,7 @@ fn createPowerValue(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "powerNative", powerNative);
@@ -641,6 +655,7 @@ fn createInputOffset(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedParser,
         .arity = 0,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "inputOffsetNative", inputOffsetNative);
@@ -665,6 +680,7 @@ fn createInputLine(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedParser,
         .arity = 0,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "inputLineNative", inputLineNative);
@@ -689,6 +705,7 @@ fn createInputLineOffset(vm: *VM) !*Function {
         .name = name,
         .functionType = .NamedParser,
         .arity = 0,
+        .region = Region.new(0, 0),
     });
 
     const native_code = try NativeCode.create(vm, "inputLineOffsetNative", inputLineOffsetNative);
