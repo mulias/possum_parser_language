@@ -75,29 +75,41 @@
       (ValueVar 10-11 _)))
 
   $ possum -p '"" $ [1, 2 3]' -i ''
+  
+  Error at '3': Expected closing ']'
+  
   "" $ [1, 2 3]
              ^
-  Error at '3': Expected closing ']'
-  error.UnexpectedInput
+  
+  [UnexpectedInput]
   [1]
 
   $ possum -p '"" $ [1, 2, 3,,]' -i ''
+  
+  Error at ',': Expect expression.
+  
   "" $ [1, 2, 3,,]
                 ^
-  Error at ',': Expect expression.
-  error.UnexpectedInput
+  
+  [UnexpectedInput]
   [1]
 
   $ possum -p '"" $ [...[] ...[]]' -i ''
+  
+  Error at '...': Expected closing ']'
+  
   "" $ [...[] ...[]]
               ^^^
-  Error at '...': Expected closing ']'
-  error.UnexpectedInput
+  
+  [UnexpectedInput]
   [1]
 
   $ possum -p '"" $ [...[], ...[] ...[]]' -i ''
+  
+  Error at '...': Expected closing ']'
+  
   "" $ [...[], ...[] ...[]]
                      ^^^
-  Error at '...': Expected closing ']'
-  error.UnexpectedInput
+  
+  [UnexpectedInput]
   [1]
