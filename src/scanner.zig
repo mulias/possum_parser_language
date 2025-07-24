@@ -334,6 +334,7 @@ pub const Scanner = struct {
 
     fn tokenHasExtraLeadingZero(self: *Scanner) bool {
         const lexeme = self.source[0..self.offset];
+        if (lexeme.len == 0) return false;
         const number = if (lexeme[0] == '-') lexeme[1..] else lexeme;
         return number.len >= 2 and number[0] == '0' and isDigit(number[1]);
     }
