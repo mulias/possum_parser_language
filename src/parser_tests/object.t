@@ -80,29 +80,41 @@
           ((String 31-34 "c") (NumberString 36-37 3))))))
 
   $ possum -p '"" $ {"a": 1 "b": 2}' -i ''
+  
+  Error at '"': Expected closing '}'
+  
   "" $ {"a": 1 "b": 2}
                ^
-  Error at '"': Expected closing '}'
-  error.UnexpectedInput
+  
+  [UnexpectedInput]
   [1]
 
   $ possum -p '"" $ {"a": 1, "b": 2,,}' -i ''
+  
+  Error at ',': Expected object member key
+  
   "" $ {"a": 1, "b": 2,,}
                        ^
-  Error at ',': Expected object member key
-  error.UnexpectedInput
+  
+  [UnexpectedInput]
   [1]
 
   $ possum -p '"" $ {...{} ...{}}' -i ''
+  
+  Error at '...': Expected closing '}'
+  
   "" $ {...{} ...{}}
               ^^^
-  Error at '...': Expected closing '}'
-  error.UnexpectedInput
+  
+  [UnexpectedInput]
   [1]
 
   $ possum -p '"" $ {...{}, ...{} ...{}}' -i ''
+  
+  Error at '...': Expected closing '}'
+  
   "" $ {...{}, ...{} ...{}}
                      ^^^
-  Error at '...': Expected closing '}'
-  error.UnexpectedInput
+  
+  [UnexpectedInput]
   [1]
