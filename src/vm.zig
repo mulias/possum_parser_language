@@ -8,6 +8,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const Compiler = @import("compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 const Env = @import("env.zig").Env;
+const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Parser = @import("parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
@@ -50,7 +51,7 @@ pub const Pos = struct {
 pub const VM = struct {
     allocator: Allocator,
     strings: StringTable,
-    globals: AutoHashMap(StringTable.Id, Elem),
+    modules: ArrayList(Module),
     dynList: ?*Elem.DynElem,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
@@ -86,7 +87,7 @@ pub const VM = struct {
         const self = VM{
             .allocator = undefined,
             .strings = undefined,
-            .globals = undefined,
+            .modules = undefined,
             .dynList = undefined,
             .stack = undefined,
             .frames = undefined,
@@ -105,7 +106,7 @@ pub const VM = struct {
     pub fn init(self: *VM, allocator: Allocator, writers: Writers, config: Config) !void {
         self.allocator = allocator;
         self.strings = StringTable.init(allocator);
-        self.globals = AutoHashMap(StringTable.Id, Elem).init(allocator);
+        self.modules = ArrayList(Module).init(allocator);
         self.dynList = null;
         self.stack = ArrayList(Elem).init(allocator);
         self.frames = ArrayList(CallFrame).init(allocator);
@@ -127,11 +128,32 @@ pub const VM = struct {
 
     pub fn deinit(self: *VM) void {
         self.strings.deinit();
-        self.globals.deinit();
+        for (self.modules.items) |*module| {
+            module.deinit();
+        }
+        self.modules.deinit();
         self.freeDynList();
         self.stack.deinit();
         self.frames.deinit();
         self.inputMarks.deinit();
+    }
+
+    pub fn addModule(self: *VM, filename: []const u8, source: []const u8) !*Module {
+        const module = Module.init(self.allocator, filename, source);
+        try self.modules.append(module);
+        return &self.modules.items[self.modules.items.len - 1];
+    }
+
+    fn findGlobal(self: *VM, name: StringTable.Id) ?Elem {
+        // Search backwards through modules
+        var i = self.modules.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.modules.items[i].getGlobal(name)) |elem| {
+                return elem;
+            }
+        }
+        return null;
     }
 
     pub fn interpret(self: *VM, programSource: []const u8, input: []const u8) !Elem {
@@ -147,6 +169,8 @@ pub const VM = struct {
     }
 
     pub fn compile(self: *VM, programSource: []const u8) !void {
+        const userModule = try self.addModule("user", programSource);
+
         var parser = Parser.init(self);
         defer parser.deinit();
 
@@ -156,7 +180,7 @@ pub const VM = struct {
             try parser.ast.print(self.*);
         }
 
-        var compiler = try Compiler.init(self, parser.ast, self.config.printCompiledBytecode);
+        var compiler = try Compiler.init(self, userModule, parser.ast, self.config.printCompiledBytecode);
         defer compiler.deinit();
 
         const function = try compiler.compile();
@@ -168,21 +192,24 @@ pub const VM = struct {
     }
 
     fn loadBuiltinFunctions(self: *VM) !void {
+        const builtinModule = try self.addModule("builtin", "");
         const functions = try builtin.functions(self);
 
         for (functions) |function| {
-            try self.globals.put(function.name, function.dyn.elem());
+            try builtinModule.addGlobal(function.name, function.dyn.elem());
         }
     }
 
     fn loadStdlib(self: *VM) !void {
         const stdlibSource = @embedFile("stdlib/core.possum");
+        const stdlibModule = try self.addModule("stdlib/core.possum", stdlibSource);
+
         var parser = Parser.init(self);
         defer parser.deinit();
 
         try parser.parse(stdlibSource);
 
-        var compiler = try Compiler.init(self, parser.ast, false);
+        var compiler = try Compiler.init(self, stdlibModule, parser.ast, false);
         defer compiler.deinit();
 
         _ = try compiler.compile();
@@ -698,7 +725,7 @@ pub const VM = struct {
     fn callFunction(self: *VM, elem: Elem, argCount: u8, isTailPosition: bool) Error!void {
         switch (elem) {
             .ParserVar => |varName| {
-                if (self.globals.get(varName)) |varElem| {
+                if (self.findGlobal(varName)) |varElem| {
                     // Swap the var with the thing it's aliasing on the stack
                     self.stack.items[self.frame().elemsOffset] = varElem;
                     try self.callFunction(varElem, argCount, isTailPosition);

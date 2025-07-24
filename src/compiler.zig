@@ -12,9 +12,11 @@ const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 const WriterError = @import("writer.zig").VMWriter.Error;
 const Writers = @import("writer.zig").Writers;
+const Module = @import("module.zig").Module;
 
 pub const Compiler = struct {
     vm: *VM,
+    targetModule: *Module,
     ast: Ast,
     functions: ArrayList(*Elem.DynElem.Function),
     writers: Writers,
@@ -51,7 +53,7 @@ pub const Compiler = struct {
         RangeNotValidInValueContext,
     } || WriterError;
 
-    pub fn init(vm: *VM, ast: Ast, printBytecode: bool) !Compiler {
+    pub fn init(vm: *VM, targetModule: *Module, ast: Ast, printBytecode: bool) !Compiler {
         const main = try Elem.DynElem.Function.create(vm, .{
             .name = try vm.strings.insert("@main"),
             .functionType = .Main,
@@ -67,11 +69,29 @@ pub const Compiler = struct {
 
         return Compiler{
             .vm = vm,
+            .targetModule = targetModule,
             .ast = ast,
             .functions = functions,
             .writers = vm.writers,
             .printBytecode = printBytecode,
         };
+    }
+
+    fn findGlobalForCompilation(self: *Compiler, name: StringTable.Id) ?Elem {
+        // Search backwards through available modules to find the index of our target module
+        const targetIndex = for (self.vm.modules.items, 0..) |*module, i| {
+            if (module == self.targetModule) break i;
+        } else return null;
+
+        // Search backwards through modules up to and including the target module
+        var i = targetIndex + 1;
+        while (i > 0) {
+            i -= 1;
+            if (self.vm.modules.items[i].getGlobal(name)) |elem| {
+                return elem;
+            }
+        }
+        return null;
     }
 
     pub fn deinit(self: *Compiler) void {
@@ -204,7 +224,7 @@ pub const Compiler = struct {
             .arity = 0,
         });
 
-        try self.vm.globals.put(name_sid, function.dyn.elem());
+        try self.targetModule.addGlobal(name_sid, function.dyn.elem());
 
         try self.functions.append(function);
 
@@ -261,7 +281,7 @@ pub const Compiler = struct {
             else => return Error.InvalidAst,
         };
 
-        try self.vm.globals.put(name, bodyElem);
+        try self.targetModule.addGlobal(name, bodyElem);
     }
 
     fn validateGlobal(self: *Compiler, head: *Ast.RNode) !void {
@@ -281,7 +301,7 @@ pub const Compiler = struct {
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
 
         switch (nameVar) {
-            .ValueVar => |name| switch (self.vm.globals.get(name).?) {
+            .ValueVar => |name| switch (self.findGlobalForCompilation(name).?) {
                 .ValueVar,
                 .String,
                 .NumberString,
@@ -309,7 +329,7 @@ pub const Compiler = struct {
                 .Failure,
                 => @panic("Internal Error"),
             },
-            .ParserVar => |name| switch (self.vm.globals.get(name).?) {
+            .ParserVar => |name| switch (self.findGlobalForCompilation(name).?) {
                 .ParserVar,
                 .String,
                 .NumberString,
@@ -344,7 +364,7 @@ pub const Compiler = struct {
     fn resolveGlobalAlias(self: *Compiler, head: *Ast.RNode) !void {
         const globalName = try self.getGlobalName(head);
         var aliasName = globalName;
-        var value = self.vm.globals.get(aliasName);
+        var value = self.findGlobalForCompilation(aliasName);
 
         if (!value.?.isType(.ValueVar) and !value.?.isType(.ParserVar)) {
             return;
@@ -361,7 +381,7 @@ pub const Compiler = struct {
                     .ValueVar => |name| name,
                     .ParserVar => |name| name,
                     else => {
-                        try self.vm.globals.put(globalName, foundValue);
+                        try self.targetModule.addGlobal(globalName, foundValue);
                         break;
                     },
                 };
@@ -372,7 +392,7 @@ pub const Compiler = struct {
                     }
                 }
 
-                value = self.vm.globals.get(aliasName);
+                value = self.findGlobalForCompilation(aliasName);
             } else {
                 return Error.UnknownVariable;
             }
@@ -381,7 +401,7 @@ pub const Compiler = struct {
 
     fn compileGlobalFunction(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode) !void {
         const globalName = try self.getGlobalName(head);
-        const globalVal = self.vm.globals.get(globalName).?;
+        const globalVal = self.findGlobalForCompilation(globalName).?;
 
         // Exit early if the node is an alias, not a function def
         if (head.node.asElem() != null and body.node.asElem() != null) {
@@ -665,7 +685,7 @@ pub const Compiler = struct {
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
-            if (self.vm.globals.get(functionName)) |global| {
+            if (self.findGlobalForCompilation(functionName)) |global| {
                 function = global.asDyn().asFunction();
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, function_region);
@@ -743,7 +763,7 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetBoundLocal, slot, region);
             }
         } else {
-            if (self.vm.globals.get(varName)) |globalElem| {
+            if (self.findGlobalForCompilation(varName)) |globalElem| {
                 const constId = try self.makeConstant(globalElem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
             } else {
@@ -1009,7 +1029,7 @@ pub const Compiler = struct {
                 .ValueVar => |name| {
                     if (self.localSlot(name)) |slot| {
                         try self.emitUnaryOp(.GetLocal, slot, region);
-                    } else if (self.vm.globals.get(name)) |globalElem| {
+                    } else if (self.findGlobalForCompilation(name)) |globalElem| {
                         const constId = try self.makeConstant(globalElem);
                         try self.emitUnaryOp(.GetConstant, constId, region);
                         if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
@@ -1283,7 +1303,7 @@ pub const Compiler = struct {
                 try self.addValueLocals(conditional.else_branch);
             },
             .ElemNode => |elem| switch (elem) {
-                .ValueVar => |varName| if (self.vm.globals.get(varName) == null) {
+                .ValueVar => |varName| if (self.findGlobalForCompilation(varName) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
                     if (newLocalId) |_| {
                         const constId = try self.makeConstant(elem);
@@ -1545,7 +1565,7 @@ pub const Compiler = struct {
                         // the outer function, and the value used when calling
                         // the outer function will be concrete.
                         try self.emitUnaryOp(.GetBoundLocal, slot, region);
-                    } else if (self.vm.globals.get(name)) |globalElem| {
+                    } else if (self.findGlobalForCompilation(name)) |globalElem| {
                         const constId = try self.makeConstant(globalElem);
                         try self.emitUnaryOp(.GetConstant, constId, region);
                         if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
@@ -1604,7 +1624,7 @@ pub const Compiler = struct {
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
-            if (self.vm.globals.get(functionName)) |global| {
+            if (self.findGlobalForCompilation(functionName)) |global| {
                 function = global.asDyn().asFunction();
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, function_region);
