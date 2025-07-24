@@ -1,33 +1,31 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const AutoHashMap = std.AutoHashMap;
+const AutoHashMap = std.AutoHashMapUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const StringTable = @import("string_table.zig").StringTable;
+const highlightRegion = @import("highlight.zig").highlightRegion;
+const Region = @import("region.zig").Region;
 
 pub const Module = struct {
-    filename: []const u8,
+    name: ?[]const u8 = null,
     source: []const u8,
-    globals: AutoHashMap(StringTable.Id, Elem),
-    allocator: Allocator,
+    globals: AutoHashMap(StringTable.Id, Elem) = AutoHashMap(StringTable.Id, Elem){},
+    showLineNumbers: bool = false,
 
-    pub fn init(allocator: Allocator, filename: []const u8, source: []const u8) Module {
-        return Module{
-            .filename = filename,
-            .source = source,
-            .globals = AutoHashMap(StringTable.Id, Elem).init(allocator),
-            .allocator = allocator,
-        };
+    pub fn deinit(self: *Module, allocator: Allocator) void {
+        self.globals.deinit(allocator);
     }
 
-    pub fn deinit(self: *Module) void {
-        self.globals.deinit();
-    }
-
-    pub fn addGlobal(self: *Module, name: StringTable.Id, elem: Elem) !void {
-        try self.globals.put(name, elem);
+    pub fn addGlobal(self: *Module, allocator: Allocator, name: StringTable.Id, elem: Elem) !void {
+        try self.globals.put(allocator, name, elem);
     }
 
     pub fn getGlobal(self: *Module, name: StringTable.Id) ?Elem {
         return self.globals.get(name);
+    }
+
+    /// Highlight this region in the module source code with context lines and underlines
+    pub fn highlight(module: Module, region: Region, writer: anytype) !void {
+        return highlightRegion(module.source, region, writer, .{ .show_line_numbers = module.showLineNumbers });
     }
 };

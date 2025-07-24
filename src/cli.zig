@@ -4,6 +4,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const Env = @import("env.zig").Env;
 const OpCode = @import("op_code.zig").OpCode;
 const VM = @import("vm.zig").VM;
+const Module = @import("module.zig").Module;
 const VMConfig = @import("vm.zig").Config;
 const Writers = @import("writer.zig").Writers;
 const build_options = @import("build_options");
@@ -41,7 +42,7 @@ pub const CLI = struct {
 
     fn parseAndHandleErrors(self: CLI, args: cli_config.ParseArgs) void {
         self.parse(args) catch |e| {
-            self.writers.err.print("{}\n", .{e}) catch {};
+            self.writers.err.print("[{s}]\n", .{@errorName(e)}) catch {};
             std.process.exit(1);
         };
     }
@@ -51,10 +52,19 @@ pub const CLI = struct {
         var config = VMConfig{ .includeStdlib = args.stdlib };
         config.setEnv(env);
 
-        const parser = switch (args.parser) {
-            .String => |str| str,
-            .Path => |path| try self.readFile(path),
-            .Stdin => try self.readStdin("parser"),
+        const userModule = switch (args.parser) {
+            .String => |str| Module{
+                .source = str,
+            },
+            .Path => |path| Module{
+                .source = try self.readFile(path),
+                .name = path,
+                .showLineNumbers = true,
+            },
+            .Stdin => Module{
+                .source = try self.readStdin("parser"),
+                .showLineNumbers = true,
+            },
         };
 
         const input = switch (args.input) {
@@ -68,7 +78,7 @@ pub const CLI = struct {
         defer vm.deinit();
 
         if (config.runVM) {
-            const parsed = try vm.interpret(parser, input);
+            const parsed = try vm.interpret(userModule, input);
 
             if (parsed == .Failure) {
                 try self.writers.err.print("Parser Failure\n", .{});
@@ -78,7 +88,7 @@ pub const CLI = struct {
                 try self.writers.out.print("\n", .{});
             }
         } else {
-            try vm.compile(parser);
+            try vm.compile(userModule);
         }
     }
 

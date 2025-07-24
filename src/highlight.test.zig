@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const Region = @import("region.zig").Region;
 const highlight = @import("highlight.zig");
+const HighlightConfig = highlight.HighlightConfig;
 
 // Test helper to capture writer output
 var test_buffer: std.ArrayList(u8) = undefined;
@@ -52,7 +53,7 @@ test "highlight single line - no line numbers" {
     const source = "hello world";
     const region = Region.new(6, 11); // "world"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\hello world
@@ -69,7 +70,7 @@ test "highlight single line - region at start" {
     const source = "hello world";
     const region = Region.new(0, 5); // "hello"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\hello world
@@ -86,7 +87,7 @@ test "highlight single line - region at end" {
     const source = "hello world";
     const region = Region.new(10, 11); // "d"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\hello world
@@ -103,7 +104,7 @@ test "highlight multiline - with line numbers" {
     const source = "line 1\nline 2\nline 3";
     const region = Region.new(7, 13); // "line 2"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -129,7 +130,7 @@ test "highlight multiline - with context lines" {
     ;
     const region = Region.new(14, 20); // "line 3"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -154,7 +155,7 @@ test "highlight multiline - region spans multiple lines" {
     ;
     const region = Region.new(4, 9); // " 1\nli"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -174,7 +175,7 @@ test "highlight with tabs" {
     const source = "hello\tworld";
     const region = Region.new(6, 11); // "world"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected = "hello\tworld\n     \t^^^^^\n";
     try testing.expectEqualStrings(expected, getTestOutput());
@@ -187,7 +188,7 @@ test "highlight empty source" {
     const source = "";
     const region = Region.new(0, 0);
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected = "";
     try testing.expectEqualStrings(expected, getTestOutput());
@@ -200,7 +201,7 @@ test "highlight zero-length region in single line" {
     const source = "hello world";
     const region = Region.new(5, 5); // position between "hello" and " world"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected = "hello world\n";
     try testing.expectEqualStrings(expected, getTestOutput());
@@ -219,7 +220,7 @@ test "highlight zero-length region in multi-line source" {
     ;
     const region = Region.new(14, 14); // position at start of "line 3"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -239,7 +240,7 @@ test "highlight region outside source bounds" {
     const source = "hello";
     const region = Region.new(10, 15); // beyond source, clamped to (5, 5)
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected = "hello\n";
     try testing.expectEqualStrings(expected, getTestOutput());
@@ -252,7 +253,7 @@ test "highlight region partially outside bounds - clamps correctly" {
     const source = "hello";
     const region = Region.new(3, 10);
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\hello
@@ -269,7 +270,7 @@ test "highlight at start of multiline" {
     const source = "line 1\nline 2\nline 3";
     const region = Region.new(0, 4);
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -288,7 +289,7 @@ test "highlight at end of multiline" {
     const source = "line 1\nline 2\nline 3";
     const region = Region.new(18, 20);
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -311,7 +312,7 @@ test "highlight with limited context at start" {
     ;
     const region = Region.new(0, 4); // "line" in first line
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -334,7 +335,7 @@ test "highlight with limited context at end" {
     ;
     const region = Region.new(14, 20); // "line 3"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -363,7 +364,7 @@ test "highlight line numbers width calculation" {
     const source = source_buffer.items;
     const region = Region.new(772, 774);
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\ 96 ▏ line 96
@@ -384,7 +385,7 @@ test "highlight unicode characters" {
     const source = "héllo wörld";
     const region = Region.new(6, 11); // "wörld" (note: byte positions)
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\héllo wörld
@@ -401,7 +402,7 @@ test "highlight newline only source" {
     const source = "\n";
     const region = Region.new(0, 0); // position at start of first line
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏
@@ -418,7 +419,7 @@ test "highlight source with only newlines" {
     const source = "\n\n\n";
     const region = Region.new(1, 2); // middle newline - no visible underline expected
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected = "1 ▏\n2 ▏\n3 ▏\n4 ▏\n";
     try testing.expectEqualStrings(expected, getTestOutput());
@@ -437,7 +438,7 @@ test "highlight multi-line with indentation - leading whitespace handling" {
     ;
     const region = Region.new(21, 58);
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ function foo() {
@@ -468,7 +469,7 @@ test "highlight region spanning more than 4 lines - should truncate" {
     // Region spans from "line 2" to "line 6" (5 lines)
     const region = Region.new(7, 41); // "line 2\nline 3\nline 4\nline 5\nline 6"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -500,7 +501,7 @@ test "highlight region spanning exactly 4 lines - should not truncate" {
     // Region spans from "line 2" to "line 5" (exactly 4 lines)
     const region = Region.new(7, 34); // "line 2\nline 3\nline 4\nline 5"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\1 ▏ line 1
@@ -537,7 +538,7 @@ test "highlight very long region - truncates to first and last line" {
     // Region spans from "line 02" to "line 09" (8 lines)
     const region = Region.new(8, 71); // "line 02\n...line 09"
 
-    try highlight.highlightRegion(source, region, getTestWriter());
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
         \\ 1 ▏ line 01

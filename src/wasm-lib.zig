@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 const ExternalWriter = @import("writer.zig").ExternalWriter;
 const VM = @import("vm.zig").VM;
 const VMConfig = @import("vm.zig").Config;
+const Module = @import("module.zig").Module;
 const Writers = @import("writer.zig").Writers;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
@@ -56,7 +57,9 @@ export fn interpret(vm: *VM, parser_ptr: [*]const u8, parser_len: usize, input_p
     const parser = parser_ptr[0..parser_len];
     const input = input_ptr[0..input_len];
 
-    const parsed = vm.interpret(parser, input) catch |err| {
+    const module = Module{ .source = parser };
+
+    const parsed = vm.interpret(module, input) catch |err| {
         writers.err.print("Error: {s}", .{@errorName(err)}) catch return 1;
         return 1;
     };

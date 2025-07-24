@@ -10,7 +10,7 @@ const LineInfo = struct {
 };
 
 /// Configuration for highlighting
-const HighlightConfig = struct {
+pub const HighlightConfig = struct {
     context_lines: usize = 2,
     underline_char: u8 = '^',
     show_line_numbers: bool = true,
@@ -200,13 +200,10 @@ fn isSingleLine(source: []const u8) bool {
     return true;
 }
 
-/// Main function to highlight a region in source code
-pub fn highlightRegion(source: []const u8, region: Region, writer: anytype) !void {
+pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, config: HighlightConfig) !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-
-    const config = HighlightConfig{};
 
     // Handle empty source - return empty output
     if (source.len == 0) {
@@ -235,10 +232,10 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype) !voi
     const show_line_numbers = config.show_line_numbers and !isSingleLine(source);
 
     // Find affected lines
-    const affected = if (is_zero_length) 
+    const affected = if (is_zero_length)
         // For zero-length regions, find the line containing the position
         findPositionLine(lines.items, clamped_region.start)
-    else 
+    else
         findAffectedLines(lines.items, clamped_region);
 
     if (affected.start_line == null or affected.end_line == null) {
@@ -265,9 +262,9 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype) !voi
         affected.end_line.? - affected.start_line.? + 1
     else
         0;
-    
+
     const should_truncate = !is_zero_length and region_line_count > 4;
-    
+
     // Display lines
     for (lines.items[display_range.start..display_range.end], display_range.start..) |line, line_index| {
         // Check if we should skip this line due to truncation
@@ -277,10 +274,10 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype) !voi
                 // Write truncation message with proper format
                 if (show_line_numbers) {
                     const skipped_lines = affected.end_line.? - affected.start_line.? - 1;
-                    
+
                     // Empty line before message
                     try writer.print("\n", .{});
-                    
+
                     // Centered message "... N lines ..."
                     var padding = line_number_width + 3; // for number width + " ▏ "
                     while (padding > 0) {
@@ -288,14 +285,14 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype) !voi
                         padding -= 1;
                     }
                     try writer.print("... {} lines ...\n", .{skipped_lines});
-                    
+
                     // Empty line after message
                     try writer.print("\n", .{});
                 }
             }
             continue;
         }
-        
+
         // Write line number if needed
         if (show_line_numbers) {
             // Format line number with right alignment and proper width
