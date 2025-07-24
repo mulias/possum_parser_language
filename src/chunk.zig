@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Elem = @import("elem.zig").Elem;
+const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable;
@@ -18,6 +19,7 @@ pub const Chunk = struct {
     code: ArrayList(u8),
     constants: ArrayList(Elem),
     regions: ArrayList(Region),
+    sourceRegion: Region,
 
     pub fn init(allocator: Allocator) Chunk {
         return Chunk{
@@ -25,6 +27,7 @@ pub const Chunk = struct {
             .code = ArrayList(u8).init(allocator),
             .constants = ArrayList(Elem).init(allocator),
             .regions = ArrayList(Region).init(allocator),
+            .sourceRegion = undefined,
         };
     }
 
@@ -90,8 +93,13 @@ pub const Chunk = struct {
         return @as(u8, @intCast(idx));
     }
 
-    pub fn disassemble(self: *Chunk, vm: VM, writer: VMWriter, name: []const u8) !void {
+    pub fn disassemble(self: *Chunk, vm: VM, writer: VMWriter, name: []const u8, module: ?*Module) !void {
         try writer.print("\n{s:=^40}\n", .{name});
+
+        if (module) |mod| {
+            try mod.printSourceRange(self.sourceRegion, writer);
+            try writer.print("\n{s:=^40}\n", .{""});
+        }
 
         var offset: usize = 0;
         while (offset < self.code.items.len) {

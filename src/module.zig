@@ -28,4 +28,13 @@ pub const Module = struct {
     pub fn highlight(module: Module, region: Region, writer: anytype) !void {
         return highlightRegion(module.source, region, writer, .{ .show_line_numbers = module.showLineNumbers });
     }
+
+    /// Print raw source code for the given region
+    pub fn printSourceRange(module: Module, region: Region, writer: anytype) !void {
+        const start = @min(region.start, module.source.len);
+        const end = @min(region.end, module.source.len);
+        if (start < end) {
+            try writer.print("{s}", .{module.source[start..end]});
+        }
+    }
 };

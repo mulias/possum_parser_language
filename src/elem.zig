@@ -7,6 +7,8 @@ const json = std.json;
 const json_pretty = @import("json_pretty.zig");
 const unicode = std.unicode;
 const Chunk = @import("chunk.zig").Chunk;
+const Module = @import("module.zig").Module;
+const Region = @import("region.zig").Region;
 const StringBuffer = @import("string_buffer.zig").StringBuffer;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
@@ -1125,14 +1127,17 @@ pub const Elem = union(ElemType) {
                 }
             };
 
-            pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8 }) !*Function {
+            pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8, region: Region }) !*Function {
                 const dyn = try DynElem.allocate(vm, Function, .Function);
                 const function = dyn.asFunction();
+
+                var chunk = Chunk.init(vm.allocator);
+                chunk.sourceRegion = fields.region;
 
                 function.* = Function{
                     .dyn = dyn.*,
                     .arity = fields.arity,
-                    .chunk = Chunk.init(vm.allocator),
+                    .chunk = chunk,
                     .name = fields.name,
                     .functionType = fields.functionType,
                     .locals = ArrayList(Local).init(vm.allocator),
@@ -1141,7 +1146,7 @@ pub const Elem = union(ElemType) {
                 return function;
             }
 
-            pub fn createAnonParser(vm: *VM, fields: struct { arity: u8 }) !*Function {
+            pub fn createAnonParser(vm: *VM, fields: struct { arity: u8, region: Region }) !*Function {
                 const dyn = try DynElem.allocate(vm, Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1149,10 +1154,13 @@ pub const Elem = union(ElemType) {
                 defer vm.allocator.free(name_str);
                 const name = try vm.strings.insert(name_str);
 
+                var chunk = Chunk.init(vm.allocator);
+                chunk.sourceRegion = fields.region;
+
                 function.* = Function{
                     .dyn = dyn.*,
                     .arity = fields.arity,
-                    .chunk = Chunk.init(vm.allocator),
+                    .chunk = chunk,
                     .name = name,
                     .functionType = .AnonParser,
                     .locals = ArrayList(Local).init(vm.allocator),
@@ -1176,9 +1184,9 @@ pub const Elem = union(ElemType) {
                 return self == other.asFunction();
             }
 
-            pub fn disassemble(self: *Function, vm: VM, writer: VMWriter) !void {
+            pub fn disassemble(self: *Function, vm: VM, writer: VMWriter, module: ?*Module) !void {
                 const label = vm.strings.get(self.name);
-                try self.chunk.disassemble(vm, writer, label);
+                try self.chunk.disassemble(vm, writer, label, module);
             }
 
             pub fn addLocal(self: *Function, local: Local) !?u8 {
@@ -1324,6 +1332,6 @@ test "struct size" {
     try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(80, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(208, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(224, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(48, @sizeOf(Elem.DynElem.Closure));
 }

@@ -226,13 +226,36 @@ pub const VM = struct {
         _ = try compiler.compile();
     }
 
+    pub fn findModuleForFunction(self: *VM, function: *Elem.DynElem.Function) ?*Module {
+        const function_name = function.name;
+
+        // Search backwards through modules (most recent first)
+        var i = self.modules.items.len;
+        while (i > 0) {
+            i -= 1;
+            const module = &self.modules.items[i];
+
+            if (module.getGlobal(function_name)) |stored_elem| {
+                // Compare function pointers directly since they should be the same instance
+                if (stored_elem == .Dyn and stored_elem.Dyn.isType(.Function)) {
+                    const stored_function = stored_elem.Dyn.asFunction();
+                    if (stored_function == function) {
+                        return module;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     pub fn run(self: *VM) !void {
         if (self.frames.items.len == 0) {
             return Error.NoMainParser;
         }
 
         if (self.config.printExecutedBytecode) {
-            try self.frame().function.disassemble(self.*, self.writers.debug);
+            const module = self.findModuleForFunction(self.frame().function);
+            try self.frame().function.disassemble(self.*, self.writers.debug, module);
         }
 
         while (true) {
@@ -802,7 +825,8 @@ pub const VM = struct {
                     var function = dyn.asFunction();
 
                     if (self.config.printExecutedBytecode) {
-                        try function.disassemble(self.*, self.writers.debug);
+                        const module = self.findModuleForFunction(function);
+                        try function.disassemble(self.*, self.writers.debug, module);
                     }
 
                     if (function.arity == argCount) {

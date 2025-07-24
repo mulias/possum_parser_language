@@ -58,6 +58,7 @@ pub const Compiler = struct {
             .name = try vm.strings.insert("@main"),
             .functionType = .Main,
             .arity = 0,
+            .region = undefined,
         });
 
         var functions = ArrayList(*Elem.DynElem.Function).init(vm.allocator);
@@ -109,7 +110,7 @@ pub const Compiler = struct {
     fn declareGlobals(self: *Compiler) !void {
         for (self.ast.roots.items) |root| {
             if (root.node.asInfixOfType(.DeclareGlobal)) |infix| {
-                try self.declareGlobal(infix.left, infix.right);
+                try self.declareGlobal(infix.left, infix.right, root.region);
             }
         }
     }
@@ -158,8 +159,11 @@ pub const Compiler = struct {
 
             const main_fn = self.functions.pop() orelse @panic("Internal Error: No Main Function");
 
+            // Update the main function's source region with the actual main parser region
+            main_fn.chunk.sourceRegion = main_rnode.region;
+
             if (self.printBytecode) {
-                try main_fn.disassemble(self.vm.*, self.writers.debug);
+                try main_fn.disassemble(self.vm.*, self.writers.debug, self.targetModule);
             }
 
             return main_fn;
@@ -168,14 +172,14 @@ pub const Compiler = struct {
         }
     }
 
-    fn declareGlobal(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode) !void {
+    fn declareGlobal(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode, region: Region) !void {
         switch (head.node) {
             .InfixNode => |infix| switch (infix.infixType) {
                 .CallOrDefineFunction => {
                     // A function with params
                     const name = infix.left;
                     const params = infix.right;
-                    try self.declareGlobalFunction(name, params);
+                    try self.declareGlobalFunction(name, params, region);
                 },
                 else => return Error.InvalidAst,
             },
@@ -185,7 +189,7 @@ pub const Compiler = struct {
                 },
                 else => {
                     // A function without params
-                    try self.declareGlobalFunction(head, null);
+                    try self.declareGlobalFunction(head, null, region);
                 },
             },
             .UpperBoundedRange,
@@ -200,7 +204,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn declareGlobalFunction(self: *Compiler, name: *Ast.RNode, params: ?*Ast.RNode) !void {
+    fn declareGlobalFunction(self: *Compiler, name: *Ast.RNode, params: ?*Ast.RNode, region: Region) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
@@ -222,6 +226,7 @@ pub const Compiler = struct {
             .name = name_sid,
             .functionType = functionType,
             .arity = 0,
+            .region = region,
         });
 
         try self.targetModule.addGlobal(self.vm.allocator, name_sid, function.dyn.elem());
@@ -424,7 +429,7 @@ pub const Compiler = struct {
             try self.emitEnd();
 
             if (self.printBytecode) {
-                try function.disassemble(self.vm.*, self.writers.debug);
+                try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
             }
 
             _ = self.functions.pop();
@@ -886,7 +891,10 @@ pub const Compiler = struct {
     fn writeAnonymousFunction(self: *Compiler, rnode: *Ast.RNode) !*Elem.DynElem.Function {
         const region = rnode.region;
 
-        const function = try Elem.DynElem.Function.createAnonParser(self.vm, .{ .arity = 0 });
+        const function = try Elem.DynElem.Function.createAnonParser(
+            self.vm,
+            .{ .arity = 0, .region = region },
+        );
 
         try self.functions.append(function);
 
@@ -900,7 +908,7 @@ pub const Compiler = struct {
         try self.emitEnd();
 
         if (self.printBytecode) {
-            try function.disassemble(self.vm.*, self.writers.debug);
+            try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
         }
 
         return self.functions.pop() orelse @panic("Internal Error");

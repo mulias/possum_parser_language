@@ -3,16 +3,22 @@
   $ possum $TESTDIR/../../stdlib/core.possum -i ''
   
   ==================char==================
+  char = "\u000000"..
+  ========================================
   0000    | ParseCharacter
   0001    | End
   ========================================
   
   =================ascii==================
+  ascii = "\u000000".."\u00007F"
+  ========================================
   0000    | ParseRange 0 1: "\x00" "\x7f" (esc)
   0003    | End
   ========================================
   
   =================alpha==================
+  alpha = "a".."z" | "A".."Z"
+  ========================================
   0000    | SetInputMark
   0001    | ParseRange 0 1: "a" "z"
   0004    | Or 4 -> 10
@@ -21,6 +27,8 @@
   ========================================
   
   =================alphas=================
+  alphas = many(alpha)
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: alpha
   0004    | CallTailFunction 1
@@ -28,11 +36,15 @@
   ========================================
   
   =================lower==================
+  lower = "a".."z"
+  ========================================
   0000    | ParseRange 0 1: "a" "z"
   0003    | End
   ========================================
   
   =================lowers=================
+  lowers = many(lower)
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: lower
   0004    | CallTailFunction 1
@@ -40,11 +52,15 @@
   ========================================
   
   =================upper==================
+  upper = "A".."Z"
+  ========================================
   0000    | ParseRange 0 1: "A" "Z"
   0003    | End
   ========================================
   
   =================uppers=================
+  uppers = many(upper)
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: upper
   0004    | CallTailFunction 1
@@ -52,11 +68,15 @@
   ========================================
   
   ================numeral=================
+  numeral = "0".."9"
+  ========================================
   0000    | ParseRange 0 1: "0" "9"
   0003    | End
   ========================================
   
   ================numerals================
+  numerals = many(numeral)
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: numeral
   0004    | CallTailFunction 1
@@ -64,6 +84,8 @@
   ========================================
   
   =============binary_numeral=============
+  binary_numeral = "0" | "1"
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: "0"
   0003    | CallFunction 0
@@ -74,11 +96,15 @@
   ========================================
   
   =============octal_numeral==============
+  octal_numeral = "0".."7"
+  ========================================
   0000    | ParseRange 0 1: "0" "7"
   0003    | End
   ========================================
   
   ==============hex_numeral===============
+  hex_numeral = numeral | "a".."f" | "A".."F"
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: numeral
@@ -91,6 +117,8 @@
   ========================================
   
   =================alnum==================
+  alnum = alpha | numeral
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: alpha
   0003    | CallFunction 0
@@ -101,6 +129,8 @@
   ========================================
   
   =================alnums=================
+  alnums = many(alnum)
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: alnum
   0004    | CallTailFunction 1
@@ -108,6 +138,8 @@
   ========================================
   
   =================@fn835=================
+  unless(char, whitespace)
+  ========================================
   0000    | GetConstant 0: unless
   0002    | GetConstant 1: char
   0004    | GetConstant 2: whitespace
@@ -116,6 +148,8 @@
   ========================================
   
   =================token==================
+  token = many(unless(char, whitespace))
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: @fn835
   0004    | CallTailFunction 1
@@ -123,6 +157,8 @@
   ========================================
   
   =================@fn836=================
+  alnum | "_" | "-"
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: alnum
@@ -137,6 +173,8 @@
   ========================================
   
   ==================word==================
+  word = many(alnum | "_" | "-")
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: @fn836
   0004    | CallTailFunction 1
@@ -144,6 +182,8 @@
   ========================================
   
   =================@fn837=================
+  newline | end_of_input
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: newline
   0003    | CallFunction 0
@@ -154,6 +194,8 @@
   ========================================
   
   ==================line==================
+  line = chars_until(newline | end_of_input)
+  ========================================
   0000    | GetConstant 0: chars_until
   0002    | GetConstant 1: @fn837
   0004    | CallTailFunction 1
@@ -161,6 +203,9 @@
   ========================================
   
   =================space==================
+  space =
+    " " | "\t" | "\u0000A0" | "\u002000".."\u00200A" | "\u00202F" | "\u00205F" | "\u003000"
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -190,6 +235,8 @@
   ========================================
   
   =================spaces=================
+  spaces = many(space)
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: space
   0004    | CallTailFunction 1
@@ -197,6 +244,8 @@
   ========================================
   
   ================newline=================
+  newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -221,6 +270,8 @@
   ========================================
   
   ================newlines================
+  newlines = many(newline)
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: newline
   0004    | CallTailFunction 1
@@ -228,6 +279,8 @@
   ========================================
   
   =================@fn838=================
+  space | newline
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: space
   0003    | CallFunction 0
@@ -238,6 +291,8 @@
   ========================================
   
   ===============whitespace===============
+  whitespace = many(space | newline)
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: @fn838
   0004    | CallTailFunction 1
@@ -245,6 +300,8 @@
   ========================================
   
   ==============chars_until===============
+  chars_until(stop) = many_until(char, stop)
+  ========================================
   0000    | GetConstant 0: many_until
   0002    | GetConstant 1: char
   0004    | GetBoundLocal 0
@@ -253,11 +310,15 @@
   ========================================
   
   =================digit==================
+  digit = 0..9
+  ========================================
   0000    | ParseRange 0 1: 0 9
   0003    | End
   ========================================
   
   =================@fn839=================
+  maybe("-") + _number_integer_part
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -269,6 +330,8 @@
   ========================================
   
   ================integer=================
+  integer = number_of(maybe("-") + _number_integer_part)
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn839
   0004    | CallTailFunction 1
@@ -276,6 +339,8 @@
   ========================================
   
   ==========non_negative_integer==========
+  non_negative_integer = number_of(_number_integer_part)
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: _number_integer_part
   0004    | CallTailFunction 1
@@ -283,6 +348,8 @@
   ========================================
   
   =================@fn840=================
+  "-" + _number_integer_part
+  ========================================
   0000    | GetConstant 0: "-"
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -293,6 +360,8 @@
   ========================================
   
   ============negative_integer============
+  negative_integer = number_of("-" + _number_integer_part)
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn840
   0004    | CallTailFunction 1
@@ -300,6 +369,8 @@
   ========================================
   
   =================@fn841=================
+  maybe("-") + _number_integer_part + _number_fraction_part
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -315,6 +386,8 @@
   ========================================
   
   =================float==================
+  float = number_of(maybe("-") + _number_integer_part + _number_fraction_part)
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn841
   0004    | CallTailFunction 1
@@ -322,6 +395,10 @@
   ========================================
   
   =================@fn842=================
+  maybe("-") +
+    _number_integer_part +
+    _number_exponent_part
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -337,6 +414,12 @@
   ========================================
   
   ===========scientific_integer===========
+  scientific_integer = number_of(
+    maybe("-") +
+    _number_integer_part +
+    _number_exponent_part
+  )
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn842
   0004    | CallTailFunction 1
@@ -344,6 +427,11 @@
   ========================================
   
   =================@fn843=================
+  maybe("-") +
+    _number_integer_part +
+    _number_fraction_part +
+    _number_exponent_part
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -363,6 +451,13 @@
   ========================================
   
   ============scientific_float============
+  scientific_float = number_of(
+    maybe("-") +
+    _number_integer_part +
+    _number_fraction_part +
+    _number_exponent_part
+  )
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn843
   0004    | CallTailFunction 1
@@ -370,6 +465,11 @@
   ========================================
   
   =================@fn844=================
+  maybe("-") +
+    _number_integer_part +
+    maybe(_number_fraction_part) +
+    maybe(_number_exponent_part)
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "-"
   0004    | CallFunction 1
@@ -391,6 +491,13 @@
   ========================================
   
   =================number=================
+  number = number_of(
+    maybe("-") +
+    _number_integer_part +
+    maybe(_number_fraction_part) +
+    maybe(_number_exponent_part)
+  )
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn844
   0004    | CallTailFunction 1
@@ -398,6 +505,10 @@
   ========================================
   
   =================@fn845=================
+  _number_integer_part +
+    maybe(_number_fraction_part) +
+    maybe(_number_exponent_part)
+  ========================================
   0000    | GetConstant 0: _number_integer_part
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 14
@@ -414,6 +525,12 @@
   ========================================
   
   ==========non_negative_number===========
+  non_negative_number = number_of(
+    _number_integer_part +
+    maybe(_number_fraction_part) +
+    maybe(_number_exponent_part)
+  )
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn845
   0004    | CallTailFunction 1
@@ -421,6 +538,11 @@
   ========================================
   
   =================@fn846=================
+  "-" +
+    _number_integer_part +
+    maybe(_number_fraction_part) +
+    maybe(_number_exponent_part)
+  ========================================
   0000    | GetConstant 0: "-"
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -441,6 +563,13 @@
   ========================================
   
   ============negative_number=============
+  negative_number = number_of(
+    "-" +
+    _number_integer_part +
+    maybe(_number_fraction_part) +
+    maybe(_number_exponent_part)
+  )
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn846
   0004    | CallTailFunction 1
@@ -448,6 +577,8 @@
   ========================================
   
   ==========_number_integer_part==========
+  _number_integer_part = ("1".."9" + numerals) | numeral
+  ========================================
   0000    | SetInputMark
   0001    | ParseRange 0 1: "1" "9"
   0004    | JumpIfFailure 4 -> 12
@@ -461,6 +592,8 @@
   ========================================
   
   =========_number_fraction_part==========
+  _number_fraction_part = "." + numerals
+  ========================================
   0000    | GetConstant 0: "."
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -471,6 +604,8 @@
   ========================================
   
   =================@fn847=================
+  "-" | "+"
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: "-"
   0003    | CallFunction 0
@@ -481,6 +616,8 @@
   ========================================
   
   =========_number_exponent_part==========
+  _number_exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: "e"
   0003    | CallFunction 0
@@ -500,16 +637,29 @@
   ========================================
   
   ==============binary_digit==============
+  binary_digit = 0..1
+  ========================================
   0000    | ParseRange 0 1: 0 1
   0003    | End
   ========================================
   
   ==============octal_digit===============
+  octal_digit = 0..7
+  ========================================
   0000    | ParseRange 0 1: 0 7
   0003    | End
   ========================================
   
   ===============hex_digit================
+  hex_digit =
+    digit |
+    ("a" | "A" $ 10) |
+    ("b" | "B" $ 11) |
+    ("c" | "C" $ 12) |
+    ("d" | "D" $ 13) |
+    ("e" | "E" $ 14) |
+    ("f" | "F" $ 15)
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -576,6 +726,8 @@
   ========================================
   
   =============binary_integer=============
+  binary_integer = array(binary_digit) -> Digits $ Num.FromBinaryDigits(Digits)
+  ========================================
   0000    | GetConstant 0: Digits
   0002    | GetConstant 1: array
   0004    | GetConstant 2: binary_digit
@@ -590,6 +742,8 @@
   ========================================
   
   =============octal_integer==============
+  octal_integer = array(octal_digit) -> Digits $ Num.FromOctalDigits(Digits)
+  ========================================
   0000    | GetConstant 0: Digits
   0002    | GetConstant 1: array
   0004    | GetConstant 2: octal_digit
@@ -604,6 +758,8 @@
   ========================================
   
   ==============hex_integer===============
+  hex_integer = array(hex_digit) -> Digits $ Num.FromHexDigits(Digits)
+  ========================================
   0000    | GetConstant 0: Digits
   0002    | GetConstant 1: array
   0004    | GetConstant 2: hex_digit
@@ -618,6 +774,8 @@
   ========================================
   
   ==================true==================
+  true(t) = t $ true
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 8
@@ -626,6 +784,8 @@
   ========================================
   
   =================false==================
+  false(f) = f $ false
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 8
@@ -634,6 +794,8 @@
   ========================================
   
   ================boolean=================
+  boolean(t, f) = true(t) | false(f)
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: true
   0003    | GetBoundLocal 0
@@ -646,6 +808,8 @@
   ========================================
   
   ==================null==================
+  null(n) = n $ null
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 8
@@ -654,6 +818,8 @@
   ========================================
   
   =================array==================
+  array(elem) = elem -> First & _array(elem, [First])
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
@@ -670,6 +836,11 @@
   ========================================
   
   =================_array=================
+  _array(elem, Acc) =
+    elem -> Elem ?
+    _array(elem, [...Acc, Elem]) :
+    const(Acc)
+  ========================================
   0000    | GetConstant 0: Elem
   0002    | SetInputMark
   0003    | GetBoundLocal 0
@@ -697,6 +868,8 @@
   ========================================
   
   =================@fn851=================
+  sep > elem
+  ========================================
   0000    | GetConstant 0: sep
   0002    | GetConstant 1: elem
   0004    | SetClosureCaptures
@@ -709,6 +882,8 @@
   ========================================
   
   ===============array_sep================
+  array_sep(elem, sep) = elem -> First & _array(sep > elem, [First])
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
@@ -727,6 +902,9 @@
   ========================================
   
   ==============array_until===============
+  array_until(elem, stop) =
+    unless(elem, stop) -> First & _array_until(elem, stop, [First])
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetConstant 1: unless
   0004    | GetBoundLocal 0
@@ -746,6 +924,11 @@
   ========================================
   
   ==============_array_until==============
+  _array_until(elem, stop, Acc) =
+    peek(stop) ?
+    const(Acc) :
+    elem -> Elem & _array_until(elem, stop, [...Acc, Elem])
+  ========================================
   0000    | GetConstant 0: Elem
   0002    | SetInputMark
   0003    | GetConstant 1: peek
@@ -778,6 +961,8 @@
   ========================================
   
   =================@fn856=================
+  array(elem)
+  ========================================
   0000    | GetConstant 0: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 1: array
@@ -787,6 +972,8 @@
   ========================================
   
   ==============maybe_array===============
+  maybe_array(elem) = default(array(elem), [])
+  ========================================
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn856
   0004    | CaptureLocal 0 0
@@ -796,6 +983,8 @@
   ========================================
   
   =================@fn858=================
+  array_sep(elem, sep)
+  ========================================
   0000    | GetConstant 0: elem
   0002    | GetConstant 1: sep
   0004    | SetClosureCaptures
@@ -807,6 +996,8 @@
   ========================================
   
   ============maybe_array_sep=============
+  maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
+  ========================================
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn858
   0004    | CaptureLocal 0 0
@@ -817,6 +1008,8 @@
   ========================================
   
   =================tuple1=================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
   0000    | GetConstant 0: Elem
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
@@ -830,6 +1023,8 @@
   ========================================
   
   =================tuple2=================
+  tuple2(elem1, elem2) = elem1 -> E1 & elem2 -> E2 $ [E1, E2]
+  ========================================
   0000    | GetConstant 0: E1
   0002    | GetConstant 1: E2
   0004    | GetBoundLocal 0
@@ -851,6 +1046,8 @@
   ========================================
   
   ===============tuple2_sep===============
+  tuple2_sep(elem1, sep, elem2) = elem1 -> E1 & sep & elem2 -> E2 $ [E1, E2]
+  ========================================
   0000    | GetConstant 0: E1
   0002    | GetConstant 1: E2
   0004    | GetBoundLocal 0
@@ -875,6 +1072,12 @@
   ========================================
   
   =================tuple3=================
+  tuple3(elem1, elem2, elem3) =
+    elem1 -> E1 &
+    elem2 -> E2 &
+    elem3 -> E3 $
+    [E1, E2, E3]
+  ========================================
   0000    | GetConstant 0: E1
   0002    | GetConstant 1: E2
   0004    | GetConstant 2: E3
@@ -904,6 +1107,12 @@
   ========================================
   
   ===============tuple3_sep===============
+  tuple3_sep(elem1, sep1, elem2, sep2, elem3) =
+    elem1 -> E1 & sep1 &
+    elem2 -> E2 & sep2 &
+    elem3 -> E3 $
+    [E1, E2, E3]
+  ========================================
   0000    | GetConstant 0: E1
   0002    | GetConstant 1: E2
   0004    | GetConstant 2: E3
@@ -939,6 +1148,10 @@
   ========================================
   
   =================tuple==================
+  tuple(elem, N) =
+    const(_Assert.NonNegativeInteger(N)) &
+    _tuple(elem, N, [])
+  ========================================
   0000    | GetConstant 0: const
   0002    | GetConstant 1: _Assert.NonNegativeInteger
   0004    | GetBoundLocal 1
@@ -954,6 +1167,11 @@
   ========================================
   
   =================_tuple=================
+  _tuple(elem, N, Acc) =
+    const(N -> ..0) ?
+    const(Acc) :
+    elem -> Elem & _tuple(elem, Num.Dec(N), [...Acc, Elem])
+  ========================================
   0000    | GetConstant 0: Elem
   0002    | SetInputMark
   0003    | GetConstant 1: const
@@ -991,6 +1209,10 @@
   ========================================
   
   ===============tuple_sep================
+  tuple_sep(elem, sep, N) =
+    const(_Assert.NonNegativeInteger(N)) &
+    _tuple_sep(elem, sep, N, [])
+  ========================================
   0000    | GetConstant 0: const
   0002    | GetConstant 1: _Assert.NonNegativeInteger
   0004    | GetBoundLocal 2
@@ -1007,6 +1229,11 @@
   ========================================
   
   ===============_tuple_sep===============
+  _tuple_sep(elem, sep, N, Acc) =
+    const(N -> ..0) ?
+    const(Acc) :
+    sep > elem -> Elem & _tuple_sep(elem, sep, Num.Dec(N), [...Acc, Elem])
+  ========================================
   0000    | GetConstant 0: Elem
   0002    | SetInputMark
   0003    | GetConstant 1: const
@@ -1048,6 +1275,9 @@
   ========================================
   
   ==================rows==================
+  rows(elem, col_sep, row_sep) =
+    elem -> First & _rows(elem, col_sep, row_sep, [First], [])
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
@@ -1067,6 +1297,13 @@
   ========================================
   
   =================_rows==================
+  _rows(elem, col_sep, row_sep, AccRow, AccRows) =
+    col_sep > elem -> Elem ?
+    _rows(elem, col_sep, row_sep, [...AccRow, Elem], AccRows) :
+    row_sep > elem -> NextRow ?
+    _rows(elem, col_sep, row_sep, [NextRow], [...AccRows, AccRow]) :
+    const([...AccRows, AccRow])
+  ========================================
   0000    | GetConstant 0: Elem
   0002    | GetConstant 1: NextRow
   0004    | SetInputMark
@@ -1136,6 +1373,8 @@
   ========================================
   
   =================@fn880=================
+  _dimensions(elem, col_sep, row_sep)
+  ========================================
   0000    | GetConstant 0: elem
   0002    | GetConstant 1: col_sep
   0004    | GetConstant 2: row_sep
@@ -1149,6 +1388,10 @@
   ========================================
   
   ==============rows_padded===============
+  rows_padded(elem, col_sep, row_sep, Pad) =
+    peek(_dimensions(elem, col_sep, row_sep)) -> [MaxRowLen, _] &
+    elem -> First & _rows_padded(elem, col_sep, row_sep, Pad, $1, MaxRowLen, [First], [])
+  ========================================
   0000    | GetConstant 0: MaxRowLen
   0002    | GetConstant 1: _
   0004    | GetConstant 2: First
@@ -1196,6 +1439,13 @@
   ========================================
   
   ==============_rows_padded==============
+  _rows_padded(elem, col_sep, row_sep, Pad, RowLen, MaxRowLen, AccRow, AccRows) =
+    col_sep > elem -> Elem ?
+    _rows_padded(elem, col_sep, row_sep, Pad, Num.Inc(RowLen), MaxRowLen, [...AccRow, Elem], AccRows) :
+    row_sep > elem -> NextRow ?
+    _rows_padded(elem, col_sep, row_sep, Pad, $1, MaxRowLen, [NextRow], [...AccRows, Array.AppendN(AccRow, Pad, MaxRowLen - RowLen)]) :
+    const([...AccRows, Array.AppendN(AccRow, Pad, MaxRowLen - RowLen)])
+  ========================================
   0000    | GetConstant 0: Elem
   0002    | GetConstant 1: NextRow
   0004    | SetInputMark
@@ -1289,6 +1539,9 @@
   ========================================
   
   ==============_dimensions===============
+  _dimensions(elem, col_sep, row_sep) =
+    elem > __dimensions(elem, col_sep, row_sep, $1, $1, $0)
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 23
@@ -1304,6 +1557,13 @@
   ========================================
   
   ==============__dimensions==============
+  __dimensions(elem, col_sep, row_sep, RowLen, ColLen, MaxRowLen) =
+    col_sep > elem ?
+    __dimensions(elem, col_sep, row_sep, Num.Inc(RowLen), ColLen, MaxRowLen) :
+    row_sep > elem ?
+    __dimensions(elem, col_sep, row_sep, $1, Num.Inc(ColLen), Num.Max(RowLen, MaxRowLen)) :
+    const([Num.Max(RowLen, MaxRowLen), ColLen])
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 1
   0003    | CallFunction 0
@@ -1357,6 +1617,10 @@
   ========================================
   
   ================columns=================
+  columns(elem, col_sep, row_sep) =
+    rows(elem, col_sep, row_sep) -> Rows $
+    Table.Transpose(Rows)
+  ========================================
   0000    | GetConstant 0: Rows
   0002    | GetConstant 1: rows
   0004    | GetBoundLocal 0
@@ -1373,6 +1637,10 @@
   ========================================
   
   =============columns_padded=============
+  columns_padded(elem, col_sep, row_sep, Pad) =
+    rows_padded(elem, col_sep, row_sep, Pad) -> Rows $
+    Table.Transpose(Rows)
+  ========================================
   0000    | GetConstant 0: Rows
   0002    | GetConstant 1: rows_padded
   0004    | GetBoundLocal 0
@@ -1390,6 +1658,10 @@
   ========================================
   
   =================object=================
+  object(key, value) =
+    key -> K & value -> V &
+    _object(key, value, {K: V})
+  ========================================
   0000    | GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | GetBoundLocal 0
@@ -1414,6 +1686,11 @@
   ========================================
   
   ================_object=================
+  _object(key, value, Acc) =
+    key -> K & value -> V ?
+    _object(key, value, {...Acc, K: V}) :
+    const(Acc)
+  ========================================
   0000    | GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | SetInputMark
@@ -1449,6 +1726,8 @@
   ========================================
   
   =================@fn895=================
+  sep > key
+  ========================================
   0000    | GetConstant 0: sep
   0002    | GetConstant 1: key
   0004    | SetClosureCaptures
@@ -1461,6 +1740,8 @@
   ========================================
   
   =================@fn896=================
+  pair_sep > value
+  ========================================
   0000    | GetConstant 0: pair_sep
   0002    | GetConstant 1: value
   0004    | SetClosureCaptures
@@ -1473,6 +1754,10 @@
   ========================================
   
   ===============object_sep===============
+  object_sep(key, pair_sep, value, sep) =
+    key -> K & pair_sep & value -> V &
+    _object(sep > key, pair_sep > value, {K: V})
+  ========================================
   0000    | GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | GetBoundLocal 0
@@ -1504,6 +1789,11 @@
   ========================================
   
   ==============object_until==============
+  object_until(key, value, stop) =
+    unless(key, stop) -> K &
+    value -> V &
+    _object_until(key, value, stop, {K: V})
+  ========================================
   0000    | GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | GetConstant 2: unless
@@ -1531,6 +1821,11 @@
   ========================================
   
   =============_object_until==============
+  _object_until(key, value, stop, Acc) =
+    peek(stop) ?
+    const(Acc) :
+    key -> K & value -> V & _object_until(key, value, stop, {...Acc, K: V})
+  ========================================
   0000    | GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | SetInputMark
@@ -1571,6 +1866,8 @@
   ========================================
   
   =================@fn901=================
+  object(key, value)
+  ========================================
   0000    | GetConstant 0: key
   0002    | GetConstant 1: value
   0004    | SetClosureCaptures
@@ -1582,6 +1879,8 @@
   ========================================
   
   ==============maybe_object==============
+  maybe_object(key, value) = default(object(key, value), {})
+  ========================================
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn901
   0004    | CaptureLocal 0 0
@@ -1592,6 +1891,8 @@
   ========================================
   
   =================@fn903=================
+  object_sep(key, pair_sep, value, sep)
+  ========================================
   0000    | GetConstant 0: key
   0002    | GetConstant 1: pair_sep
   0004    | GetConstant 2: value
@@ -1607,6 +1908,9 @@
   ========================================
   
   ============maybe_object_sep============
+  maybe_object_sep(key, pair_sep, value, sep) =
+    default(object_sep(key, pair_sep, value, sep), {})
+  ========================================
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn903
   0004    | CaptureLocal 0 0
@@ -1619,6 +1923,8 @@
   ========================================
   
   ==================pair==================
+  pair(key, value) = key -> K & value -> V $ {K: V}
+  ========================================
   0000    | GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | GetBoundLocal 0
@@ -1639,6 +1945,8 @@
   ========================================
   
   ================pair_sep================
+  pair_sep(key, sep, value) = key -> K & sep & value -> V $ {K: V}
+  ========================================
   0000    | GetConstant 0: K
   0002    | GetConstant 1: V
   0004    | GetBoundLocal 0
@@ -1662,6 +1970,8 @@
   ========================================
   
   ================record1=================
+  record1(Key, value) = value -> Value $ {Key: Value}
+  ========================================
   0000    | GetConstant 0: Value
   0002    | GetBoundLocal 1
   0004    | CallFunction 0
@@ -1676,6 +1986,11 @@
   ========================================
   
   ================record2=================
+  record2(Key1, value1, Key2, value2) =
+    value1 -> V1 &
+    value2 -> V2 $
+    {Key1: V1, Key2: V2}
+  ========================================
   0000    | GetConstant 0: V1
   0002    | GetConstant 1: V2
   0004    | GetBoundLocal 1
@@ -1699,6 +2014,11 @@
   ========================================
   
   ==============record2_sep===============
+  record2_sep(Key1, value1, sep, Key2, value2) =
+    value1 -> V1 & sep &
+    value2 -> V2 $
+    {Key1: V1, Key2: V2}
+  ========================================
   0000    | GetConstant 0: V1
   0002    | GetConstant 1: V2
   0004    | GetBoundLocal 1
@@ -1725,6 +2045,12 @@
   ========================================
   
   ================record3=================
+  record3(Key1, value1, Key2, value2, Key3, value3) =
+    value1 -> V1 &
+    value2 -> V2 &
+    value3 -> V3 $
+    {Key1: V1, Key2: V2, Key3: V3}
+  ========================================
   0000    | GetConstant 0: V1
   0002    | GetConstant 1: V2
   0004    | GetConstant 2: V3
@@ -1757,6 +2083,12 @@
   ========================================
   
   ==============record3_sep===============
+  record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3) =
+    value1 -> V1 & sep1 &
+    value2 -> V2 & sep2 &
+    value3 -> V3 $
+    {Key1: V1, Key2: V2, Key3: V3}
+  ========================================
   0000    | GetConstant 0: V1
   0002    | GetConstant 1: V2
   0004    | GetConstant 2: V3
@@ -1795,6 +2127,8 @@
   ========================================
   
   ==================many==================
+  many(p) = p -> First & _many(p, First)
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
@@ -1809,6 +2143,8 @@
   ========================================
   
   =================_many==================
+  _many(p, Acc) = p -> Next ? _many(p, Acc + Next) : const(Acc)
+  ========================================
   0000    | GetConstant 0: Next
   0002    | SetInputMark
   0003    | GetBoundLocal 0
@@ -1831,6 +2167,8 @@
   ========================================
   
   =================@fn912=================
+  sep > p
+  ========================================
   0000    | GetConstant 0: sep
   0002    | GetConstant 1: p
   0004    | SetClosureCaptures
@@ -1843,6 +2181,8 @@
   ========================================
   
   ================many_sep================
+  many_sep(p, sep) = p -> First & _many(sep > p, First)
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
@@ -1859,6 +2199,8 @@
   ========================================
   
   ===============many_until===============
+  many_until(p, stop) = unless(p, stop) -> First & _many_until(p, stop, First)
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetConstant 1: unless
   0004    | GetBoundLocal 0
@@ -1876,6 +2218,11 @@
   ========================================
   
   ==============_many_until===============
+  _many_until(p, stop, Acc) =
+    peek(stop) ?
+    const(Acc) :
+    p -> Next & _many_until(p, stop, Acc + Next)
+  ========================================
   0000    | GetConstant 0: Next
   0002    | SetInputMark
   0003    | GetConstant 1: peek
@@ -1903,6 +2250,8 @@
   ========================================
   
   ===============maybe_many===============
+  maybe_many(p) = many(p) | succeed
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many
   0003    | GetBoundLocal 0
@@ -1914,6 +2263,8 @@
   ========================================
   
   =============maybe_many_sep=============
+  maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many_sep
   0003    | GetBoundLocal 0
@@ -1926,6 +2277,8 @@
   ========================================
   
   ================repeat2=================
+  repeat2(p) = p + p
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -1936,6 +2289,8 @@
   ========================================
   
   ================repeat3=================
+  repeat3(p) = p + p + p
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -1950,6 +2305,8 @@
   ========================================
   
   ================repeat4=================
+  repeat4(p) = p + p + p + p
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -1968,6 +2325,8 @@
   ========================================
   
   ================repeat5=================
+  repeat5(p) = p + p + p + p + p
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -1990,6 +2349,8 @@
   ========================================
   
   ================repeat6=================
+  repeat6(p) = p + p + p + p + p + p
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -2016,6 +2377,8 @@
   ========================================
   
   ================repeat7=================
+  repeat7(p) = p + p + p + p + p + p + p
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -2046,6 +2409,8 @@
   ========================================
   
   ================repeat8=================
+  repeat8(p) = p + p + p + p + p + p + p + p
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -2080,6 +2445,8 @@
   ========================================
   
   ================repeat9=================
+  repeat9(p) = p + p + p + p + p + p + p + p + p
+  ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -2118,6 +2485,10 @@
   ========================================
   
   =================repeat=================
+  repeat(p, N) =
+    const(_Assert.NonNegativeInteger(N)) &
+    _repeat(p, N, $null)
+  ========================================
   0000    | GetConstant 0: const
   0002    | GetConstant 1: _Assert.NonNegativeInteger
   0004    | GetBoundLocal 1
@@ -2133,6 +2504,11 @@
   ========================================
   
   ================_repeat=================
+  _repeat(p, N, Acc) =
+    const(N -> ..0) ?
+    const(Acc) :
+    p -> Next & _repeat(p, Num.Dec(N), Acc + Next)
+  ========================================
   0000    | GetConstant 0: Next
   0002    | SetInputMark
   0003    | GetConstant 1: const
@@ -2165,6 +2541,11 @@
   ========================================
   
   =============repeat_between=============
+  repeat_between(p, N, M) =
+    const(_Assert.NonNegativeInteger(N)) &
+    const(_Assert.NonNegativeInteger(M)) &
+    _repeat_between(p, N, M, $null)
+  ========================================
   0000    | GetConstant 0: const
   0002    | GetConstant 1: _Assert.NonNegativeInteger
   0004    | GetBoundLocal 1
@@ -2187,6 +2568,15 @@
   ========================================
   
   ============_repeat_between=============
+  _repeat_between(p, N, M, Acc) =
+    const(M -> ..0) ?
+    const(Acc) :
+    p -> Next ?
+    _repeat_between(p, Num.Dec(N), Num.Dec(M), Acc + Next) :
+    const(N -> ..0) ?
+    const(Acc) :
+    @fail
+  ========================================
   0000    | GetConstant 0: Next
   0002    | SetInputMark
   0003    | GetConstant 1: const
@@ -2238,6 +2628,8 @@
   ========================================
   
   ==============one_or_both===============
+  one_or_both(a, b) = (a + maybe(b)) | (maybe(a) + b)
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | CallFunction 0
@@ -2258,6 +2650,8 @@
   ========================================
   
   ==================peek==================
+  peek(p) = p -> V ! const(V)
+  ========================================
   0000    | GetConstant 0: V
   0002    | SetInputMark
   0003    | GetBoundLocal 0
@@ -2272,6 +2666,8 @@
   ========================================
   
   =================maybe==================
+  maybe(p) = p | succeed
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | CallFunction 0
@@ -2282,6 +2678,8 @@
   ========================================
   
   =================unless=================
+  unless(p, excluded) = excluded ? @fail : p
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 1
   0003    | CallFunction 0
@@ -2295,6 +2693,8 @@
   ========================================
   
   ==================skip==================
+  skip(p) = null(p)
+  ========================================
   0000    | GetConstant 0: null
   0002    | GetBoundLocal 0
   0004    | CallTailFunction 1
@@ -2302,6 +2702,8 @@
   ========================================
   
   ==================find==================
+  find(p) = p | (char > find(p))
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | CallFunction 0
@@ -2316,6 +2718,8 @@
   ========================================
   
   =================@fn913=================
+  find(p)
+  ========================================
   0000    | GetConstant 0: p
   0002    | SetClosureCaptures
   0003    | GetConstant 1: find
@@ -2325,6 +2729,8 @@
   ========================================
   
   =================@fn914=================
+  many(char)
+  ========================================
   0000    | GetConstant 0: many
   0002    | GetConstant 1: char
   0004    | CallTailFunction 1
@@ -2332,6 +2738,8 @@
   ========================================
   
   ================find_all================
+  find_all(p) = array(find(p)) < maybe(many(char))
+  ========================================
   0000    | GetConstant 0: array
   0002    | GetConstant 1: @fn913
   0004    | CaptureLocal 0 0
@@ -2345,6 +2753,8 @@
   ========================================
   
   ==============find_before===============
+  find_before(p, stop) = stop ? @fail :  p | (char > find_before(p, stop))
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 1
   0003    | CallFunction 0
@@ -2367,6 +2777,8 @@
   ========================================
   
   =================@fn915=================
+  find_before(p, stop)
+  ========================================
   0000    | GetConstant 0: p
   0002    | GetConstant 1: stop
   0004    | SetClosureCaptures
@@ -2378,6 +2790,8 @@
   ========================================
   
   =================@fn916=================
+  chars_until(stop)
+  ========================================
   0000    | GetConstant 0: stop
   0002    | SetClosureCaptures
   0003    | GetConstant 1: chars_until
@@ -2387,6 +2801,8 @@
   ========================================
   
   ============find_all_before=============
+  find_all_before(p, stop) = array(find_before(p, stop)) < maybe(chars_until(stop))
+  ========================================
   0000    | GetConstant 0: array
   0002    | GetConstant 1: @fn915
   0004    | CaptureLocal 0 0
@@ -2402,6 +2818,8 @@
   ========================================
   
   ================succeed=================
+  succeed = const($null)
+  ========================================
   0000    | GetConstant 0: const
   0002    | Null
   0003    | CallTailFunction 1
@@ -2409,6 +2827,8 @@
   ========================================
   
   ================default=================
+  default(p, D) = p | const(D)
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | CallFunction 0
@@ -2420,6 +2840,8 @@
   ========================================
   
   =================const==================
+  const(C) = "" $ C
+  ========================================
   0000    | GetConstant 0: ""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 9
@@ -2428,6 +2850,8 @@
   ========================================
   
   ===============number_of================
+  number_of(p) = p -> "%(0 + N)" $ N
+  ========================================
   0000    | GetConstant 0: N
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
@@ -2453,6 +2877,8 @@
   ========================================
   
   ===============string_of================
+  string_of(p) = "%(p)"
+  ========================================
   0000    | GetConstant 0: ""
   0002    | GetBoundLocal 0
   0004    | CallFunction 0
@@ -2461,6 +2887,8 @@
   ========================================
   
   ================surround================
+  surround(p, fill) = fill > p < fill
+  ========================================
   0000    | GetBoundLocal 1
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 11
@@ -2474,6 +2902,8 @@
   ========================================
   
   ==============end_of_input==============
+  end_of_input = char ? @fail : succeed
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: char
   0003    | CallFunction 0
@@ -2487,6 +2917,8 @@
   ========================================
   
   =================@fn917=================
+  maybe(whitespace)
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
@@ -2494,6 +2926,8 @@
   ========================================
   
   =================input==================
+  input(p) = surround(p, maybe(whitespace)) < end_of_input
+  ========================================
   0000    | GetConstant 0: surround
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: @fn917
@@ -2506,6 +2940,14 @@
   ========================================
   
   ==================json==================
+  json =
+    json.boolean |
+    json.null |
+    json.number |
+    json.string |
+    json.array(json) |
+    json.object(json)
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -2534,6 +2976,8 @@
   ========================================
   
   ==============json.boolean==============
+  json.boolean = boolean("true", "false")
+  ========================================
   0000    | GetConstant 0: boolean
   0002    | GetConstant 1: "true"
   0004    | GetConstant 2: "false"
@@ -2542,6 +2986,8 @@
   ========================================
   
   ===============json.null================
+  json.null = null("null")
+  ========================================
   0000    | GetConstant 0: null
   0002    | GetConstant 1: "null"
   0004    | CallTailFunction 1
@@ -2549,6 +2995,8 @@
   ========================================
   
   ==============json.string===============
+  json.string = '"' > _json.string_body < '"'
+  ========================================
   0000    | GetConstant 0: """
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 11
@@ -2562,6 +3010,8 @@
   ========================================
   
   =================@fn919=================
+  _ctrl_char | `\` | '"'
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: _ctrl_char
@@ -2576,6 +3026,10 @@
   ========================================
   
   =================@fn918=================
+  _escaped_ctrl_char |
+      _escaped_unicode |
+      unless(char, _ctrl_char | `\` | '"')
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: _escaped_ctrl_char
@@ -2592,6 +3046,13 @@
   ========================================
   
   ===========_json.string_body============
+  _json.string_body =
+    many(
+      _escaped_ctrl_char |
+      _escaped_unicode |
+      unless(char, _ctrl_char | `\` | '"')
+    ) | const($"")
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many
   0003    | GetConstant 1: @fn918
@@ -2604,11 +3065,23 @@
   ========================================
   
   ===============_ctrl_char===============
+  _ctrl_char = "\u000000".."\u00001F"
+  ========================================
   0000    | ParseRange 0 1: "\x00" "\x1f" (esc)
   0003    | End
   ========================================
   
   ===========_escaped_ctrl_char===========
+  _escaped_ctrl_char =
+    (`\"` $ `"`) |
+    (`\\` $ `\`) |
+    (`\/` $ `/`) |
+    (`\b` $ "\b") |
+    (`\f` $ "\f") |
+    (`\n` $ "\n") |
+    (`\r` $ "\r") |
+    (`\t` $ "\t")
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -2661,6 +3134,8 @@
   ========================================
   
   ============_escaped_unicode============
+  _escaped_unicode = _escaped_surrogate_pair | _escaped_codepoint
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: _escaped_surrogate_pair
   0003    | CallFunction 0
@@ -2671,6 +3146,8 @@
   ========================================
   
   ========_escaped_surrogate_pair=========
+  _escaped_surrogate_pair = _valid_surrogate_pair | _invalid_surrogate_pair
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: _valid_surrogate_pair
   0003    | CallFunction 0
@@ -2681,6 +3158,9 @@
   ========================================
   
   =========_valid_surrogate_pair==========
+  _valid_surrogate_pair =
+    _high_surrogate -> H & _low_surrogate -> L $ @SurrogatePairCodepoint(H, L)
+  ========================================
   0000    | GetConstant 0: H
   0002    | GetConstant 1: L
   0004    | GetConstant 2: _high_surrogate
@@ -2701,6 +3181,8 @@
   ========================================
   
   ========_invalid_surrogate_pair=========
+  _invalid_surrogate_pair = _low_surrogate | _high_surrogate $ "\u00FFFD"
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: _low_surrogate
   0003    | CallFunction 0
@@ -2713,6 +3195,9 @@
   ========================================
   
   ============_high_surrogate=============
+  _high_surrogate =
+    `\u` > ("D" | "d") + ("8" | "9" | "A" | "B" | "a" | "b") + hex_numeral + hex_numeral
+  ========================================
   0000    | GetConstant 0: "\u"
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 19
@@ -2758,6 +3243,9 @@
   ========================================
   
   =============_low_surrogate=============
+  _low_surrogate =
+    `\u` > ("D" | "d") + ("C".."F" | "c".."f") + hex_numeral + hex_numeral
+  ========================================
   0000    | GetConstant 0: "\u"
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 19
@@ -2785,6 +3273,8 @@
   ========================================
   
   ===========_escaped_codepoint===========
+  _escaped_codepoint = `\u` > repeat4(hex_numeral) -> U $ @Codepoint(U)
+  ========================================
   0000    | GetConstant 0: U
   0002    | GetConstant 1: "\u"
   0004    | CallFunction 0
@@ -2802,6 +3292,8 @@
   ========================================
   
   =================@fn921=================
+  maybe(ws)
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
@@ -2809,6 +3301,8 @@
   ========================================
   
   =================@fn920=================
+  surround(elem, maybe(ws))
+  ========================================
   0000    | GetConstant 0: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 1: surround
@@ -2819,6 +3313,8 @@
   ========================================
   
   ===============json.array===============
+  json.array(elem) = "[" > maybe_array_sep(surround(elem, maybe(ws)), ",") < "]"
+  ========================================
   0000    | GetConstant 0: "["
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 18
@@ -2835,6 +3331,8 @@
   ========================================
   
   =================@fn923=================
+  maybe(ws)
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
@@ -2842,6 +3340,8 @@
   ========================================
   
   =================@fn922=================
+  surround(json.string, maybe(ws))
+  ========================================
   0000    | GetConstant 0: surround
   0002    | GetConstant 1: json.string
   0004    | GetConstant 2: @fn923
@@ -2850,6 +3350,8 @@
   ========================================
   
   =================@fn925=================
+  maybe(ws)
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
@@ -2857,6 +3359,8 @@
   ========================================
   
   =================@fn924=================
+  surround(value, maybe(ws))
+  ========================================
   0000    | GetConstant 0: value
   0002    | SetClosureCaptures
   0003    | GetConstant 1: surround
@@ -2867,6 +3371,14 @@
   ========================================
   
   ==============json.object===============
+  json.object(value) =
+    "{" >
+    maybe_object_sep(
+      surround(json.string, maybe(ws)), ":",
+      surround(value, maybe(ws)), ","
+    )
+    < "}"
+  ========================================
   0000    | GetConstant 0: "{"
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 22
@@ -2885,6 +3397,8 @@
   ========================================
   
   ==============toml.simple===============
+  toml.simple = toml.custom(toml.simple_value)
+  ========================================
   0000    | GetConstant 0: toml.custom
   0002    | GetConstant 1: toml.simple_value
   0004    | CallTailFunction 1
@@ -2892,6 +3406,8 @@
   ========================================
   
   ==============toml.tagged===============
+  toml.tagged = toml.custom(toml.tagged_value)
+  ========================================
   0000    | GetConstant 0: toml.custom
   0002    | GetConstant 1: toml.tagged_value
   0004    | CallTailFunction 1
@@ -2899,6 +3415,8 @@
   ========================================
   
   =================@fn926=================
+  _toml.comments + maybe(ws)
+  ========================================
   0000    | GetConstant 0: _toml.comments
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 14
@@ -2910,6 +3428,8 @@
   ========================================
   
   =================@fn927=================
+  maybe(ws) + _toml.comments
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallFunction 1
@@ -2921,6 +3441,12 @@
   ========================================
   
   ==============toml.custom===============
+  toml.custom(value) =
+    maybe(_toml.comments + maybe(ws)) &
+    _toml.with_root_table(value) | _toml.no_root_table(value) -> Doc &
+    maybe(maybe(ws) + _toml.comments) $
+    _Toml.Doc.Value(Doc)
+  ========================================
   0000    | GetConstant 0: Doc
   0002    | GetConstant 1: maybe
   0004    | GetConstant 2: @fn926
@@ -2948,6 +3474,10 @@
   ========================================
   
   =========_toml.with_root_table==========
+  _toml.with_root_table(value) =
+    _toml.root_table(value, _Toml.Doc.Empty) -> RootDoc &
+    (_toml.ws > _toml.tables(value, RootDoc)) | const(RootDoc)
+  ========================================
   0000    | GetConstant 0: RootDoc
   0002    | GetConstant 1: _toml.root_table
   0004    | GetBoundLocal 0
@@ -2973,6 +3503,9 @@
   ========================================
   
   ============_toml.root_table============
+  _toml.root_table(value, Doc) =
+    _toml.table_body(value, [], Doc)
+  ========================================
   0000    | GetConstant 0: _toml.table_body
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: []
@@ -2982,6 +3515,10 @@
   ========================================
   
   ==========_toml.no_root_table===========
+  _toml.no_root_table(value) =
+    _toml.table(value, _Toml.Doc.Empty) | _toml.array_of_tables(value, _Toml.Doc.Empty) -> NewDoc &
+    _toml.tables(value, NewDoc)
+  ========================================
   0000    | GetConstant 0: NewDoc
   0002    | SetInputMark
   0003    | GetConstant 1: _toml.table
@@ -3006,6 +3543,12 @@
   ========================================
   
   ==============_toml.tables==============
+  _toml.tables(value, Doc) =
+    _toml.ws >
+    _toml.table(value, Doc) | _toml.array_of_tables(value, Doc) -> NewDoc ?
+    _toml.tables(value, NewDoc) :
+    const(Doc)
+  ========================================
   0000    | GetConstant 0: NewDoc
   0002    | SetInputMark
   0003    | SetInputMark
@@ -3036,6 +3579,12 @@
   ========================================
   
   ==============_toml.table===============
+  _toml.table(value, Doc) =
+    _toml.table_header -> HeaderPath & _toml.ws_newline & (
+      _toml.table_body(value, HeaderPath, Doc) |
+      const(_Toml.Doc.EnsureTableAtPath(Doc, HeaderPath))
+    )
+  ========================================
   0000    | GetConstant 0: HeaderPath
   0002    | GetConstant 1: _toml.table_header
   0004    | CallFunction 0
@@ -3062,6 +3611,8 @@
   ========================================
   
   =================@fn929=================
+  _toml.table_body(value, [], _Toml.Doc.Empty)
+  ========================================
   0000    | GetConstant 0: value
   0002    | SetClosureCaptures
   0003    | GetConstant 1: _toml.table_body
@@ -3074,6 +3625,11 @@
   ========================================
   
   =========_toml.array_of_tables==========
+  _toml.array_of_tables(value, Doc) =
+    _toml.array_of_tables_header -> HeaderPath & _toml.ws_newline &
+    default(_toml.table_body(value, [], _Toml.Doc.Empty), _Toml.Doc.Empty) -> InnerDoc $
+    _Toml.Doc.AppendAtPath(Doc, HeaderPath, _Toml.Doc.Value(InnerDoc))
+  ========================================
   0000    | GetConstant 0: HeaderPath
   0002    | GetConstant 1: InnerDoc
   0004    | GetConstant 2: _toml.array_of_tables_header
@@ -3104,6 +3660,8 @@
   ========================================
   
   =================@fn931=================
+  ws | _toml.comment
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: whitespace
   0003    | CallFunction 0
@@ -3114,6 +3672,8 @@
   ========================================
   
   ================_toml.ws================
+  _toml.ws = maybe_many(ws | _toml.comment)
+  ========================================
   0000    | GetConstant 0: maybe_many
   0002    | GetConstant 1: @fn931
   0004    | CallTailFunction 1
@@ -3121,6 +3681,8 @@
   ========================================
   
   =================@fn932=================
+  spaces | _toml.comment
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: spaces
   0003    | CallFunction 0
@@ -3131,6 +3693,8 @@
   ========================================
   
   =============_toml.ws_line==============
+  _toml.ws_line = maybe_many(spaces | _toml.comment)
+  ========================================
   0000    | GetConstant 0: maybe_many
   0002    | GetConstant 1: @fn932
   0004    | CallTailFunction 1
@@ -3138,6 +3702,8 @@
   ========================================
   
   ============_toml.ws_newline============
+  _toml.ws_newline = _toml.ws_line + (nl | end) + _toml.ws
+  ========================================
   0000    | GetConstant 0: _toml.ws_line
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 20
@@ -3156,6 +3722,8 @@
   ========================================
   
   =============_toml.comments=============
+  _toml.comments = many_sep(_toml.comment, ws)
+  ========================================
   0000    | GetConstant 0: many_sep
   0002    | GetConstant 1: _toml.comment
   0004    | GetConstant 2: whitespace
@@ -3164,6 +3732,8 @@
   ========================================
   
   =================@fn933=================
+  maybe(ws)
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
@@ -3171,6 +3741,8 @@
   ========================================
   
   ===========_toml.table_header===========
+  _toml.table_header = "[" > surround(_toml.path, maybe(ws)) < "]"
+  ========================================
   0000    | GetConstant 0: "["
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 15
@@ -3186,6 +3758,8 @@
   ========================================
   
   =================@fn934=================
+  maybe(ws)
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
@@ -3193,6 +3767,9 @@
   ========================================
   
   ======_toml.array_of_tables_header======
+  _toml.array_of_tables_header =
+    "[[" > surround(_toml.path, maybe(ws)) < "]]"
+  ========================================
   0000    | GetConstant 0: "[["
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 15
@@ -3208,6 +3785,11 @@
   ========================================
   
   ============_toml.table_body============
+  _toml.table_body(value, HeaderPath, Doc) =
+    _toml.table_pair(value) -> [KeyPath, Val] & _toml.ws_newline &
+    const(_Toml.Doc.InsertAtPath(Doc, HeaderPath + KeyPath, Val)) -> NewDoc &
+    _toml.table_body(value, HeaderPath, NewDoc) | const(NewDoc)
+  ========================================
   0000    | GetConstant 0: KeyPath
   0002    | GetConstant 1: Val
   0004    | GetConstant 2: NewDoc
@@ -3261,6 +3843,8 @@
   ========================================
   
   =================@fn937=================
+  maybe(spaces)
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: spaces
   0004    | CallTailFunction 1
@@ -3268,6 +3852,8 @@
   ========================================
   
   =================@fn936=================
+  surround("=", maybe(spaces))
+  ========================================
   0000    | GetConstant 0: surround
   0002    | GetConstant 1: "="
   0004    | GetConstant 2: @fn937
@@ -3276,6 +3862,9 @@
   ========================================
   
   ============_toml.table_pair============
+  _toml.table_pair(value) =
+    tuple2_sep(_toml.path, surround("=", maybe(spaces)), value)
+  ========================================
   0000    | GetConstant 0: tuple2_sep
   0002    | GetConstant 1: _toml.path
   0004    | GetConstant 2: @fn936
@@ -3285,6 +3874,8 @@
   ========================================
   
   =================@fn939=================
+  maybe(ws)
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: whitespace
   0004    | CallTailFunction 1
@@ -3292,6 +3883,8 @@
   ========================================
   
   =================@fn938=================
+  surround(".", maybe(ws))
+  ========================================
   0000    | GetConstant 0: surround
   0002    | GetConstant 1: "."
   0004    | GetConstant 2: @fn939
@@ -3300,6 +3893,8 @@
   ========================================
   
   ===============_toml.path===============
+  _toml.path = array_sep(_toml.key, surround(".", maybe(ws)))
+  ========================================
   0000    | GetConstant 0: array_sep
   0002    | GetConstant 1: _toml.key
   0004    | GetConstant 2: @fn938
@@ -3308,6 +3903,8 @@
   ========================================
   
   =================@fn940=================
+  alpha | numeral | "_" | "-"
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -3326,6 +3923,11 @@
   ========================================
   
   ===============_toml.key================
+  _toml.key =
+    many(alpha | numeral | "_" | "-") |
+    toml.string.basic |
+    toml.string.literal
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: many
@@ -3341,6 +3943,8 @@
   ========================================
   
   =============_toml.comment==============
+  _toml.comment = "#" > maybe(line)
+  ========================================
   0000    | GetConstant 0: "#"
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 13
@@ -3351,6 +3955,14 @@
   ========================================
   
   ===========toml.simple_value============
+  toml.simple_value =
+    toml.string |
+    toml.datetime |
+    toml.number |
+    toml.boolean |
+    toml.array(toml.simple_value) |
+    toml.inline_table(toml.simple_value)
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -3379,6 +3991,23 @@
   ========================================
   
   ===========toml.tagged_value============
+  toml.tagged_value =
+    toml.string |
+    _toml.tag($"datetime", $"offset", toml.datetime.offset) |
+    _toml.tag($"datetime", $"local", toml.datetime.local) |
+    _toml.tag($"datetime", $"date-local", toml.datetime.local_date) |
+    _toml.tag($"datetime", $"time-local", toml.datetime.local_time) |
+    toml.number.binary_integer |
+    toml.number.octal_integer |
+    toml.number.hex_integer |
+    _toml.tag($"float", $"infinity", toml.number.infinity) |
+    _toml.tag($"float", $"not-a-number", toml.number.not_a_number) |
+    toml.number.float |
+    toml.number.integer |
+    toml.boolean |
+    toml.array(toml.tagged_value) |
+    toml.inline_table(toml.tagged_value)
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -3461,6 +4090,9 @@
   ========================================
   
   ===============_toml.tag================
+  _toml.tag(Type, Subtype, value) =
+    value -> Value $ {"type": Type, "subtype": Subtype, "value": Value}
+  ========================================
   0000    | GetConstant 0: Value
   0002    | GetBoundLocal 2
   0004    | CallFunction 0
@@ -3478,6 +4110,12 @@
   ========================================
   
   ==============toml.string===============
+  toml.string =
+    toml.string.multi_line_basic |
+    toml.string.multi_line_literal |
+    toml.string.basic |
+    toml.string.literal
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -3496,6 +4134,12 @@
   ========================================
   
   =============toml.datetime==============
+  toml.datetime =
+    toml.datetime.offset |
+    toml.datetime.local |
+    toml.datetime.local_date |
+    toml.datetime.local_time
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -3514,6 +4158,15 @@
   ========================================
   
   ==============toml.number===============
+  toml.number =
+    toml.number.binary_integer |
+    toml.number.octal_integer |
+    toml.number.hex_integer |
+    toml.number.infinity |
+    toml.number.not_a_number |
+    toml.number.float |
+    toml.number.integer
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -3544,6 +4197,8 @@
   ========================================
   
   ==============toml.boolean==============
+  toml.boolean = boolean("true", "false")
+  ========================================
   0000    | GetConstant 0: boolean
   0002    | GetConstant 1: "true"
   0004    | GetConstant 2: "false"
@@ -3552,6 +4207,8 @@
   ========================================
   
   =================@fn943=================
+  surround(elem, _toml.ws)
+  ========================================
   0000    | GetConstant 0: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 1: surround
@@ -3562,6 +4219,8 @@
   ========================================
   
   =================@fn944=================
+  surround(",", _toml.ws)
+  ========================================
   0000    | GetConstant 0: surround
   0002    | GetConstant 1: ","
   0004    | GetConstant 2: _toml.ws
@@ -3570,6 +4229,8 @@
   ========================================
   
   =================@fn942=================
+  array_sep(surround(elem, _toml.ws), ",") < maybe(surround(",", _toml.ws))
+  ========================================
   0000    | GetConstant 0: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 1: array_sep
@@ -3586,6 +4247,12 @@
   ========================================
   
   ===============toml.array===============
+  toml.array(elem) =
+    "[" > _toml.ws > default(
+      array_sep(surround(elem, _toml.ws), ",") < maybe(surround(",", _toml.ws)),
+      []
+    ) < _toml.ws < "]"
+  ========================================
   0000    | GetConstant 0: "["
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 11
@@ -3609,6 +4276,10 @@
   ========================================
   
   ===========toml.inline_table============
+  toml.inline_table(value) =
+    _toml.empty_inline_table | _toml.nonempty_inline_table(value) -> InlineDoc $
+    _Toml.Doc.Value(InlineDoc)
+  ========================================
   0000    | GetConstant 0: InlineDoc
   0002    | SetInputMark
   0003    | GetConstant 1: _toml.empty_inline_table
@@ -3627,6 +4298,8 @@
   ========================================
   
   ========_toml.empty_inline_table========
+  _toml.empty_inline_table = "{" > maybe(spaces) < "}" $ _Toml.Doc.Empty
+  ========================================
   0000    | GetConstant 0: "{"
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 13
@@ -3644,6 +4317,12 @@
   ========================================
   
   ======_toml.nonempty_inline_table=======
+  _toml.nonempty_inline_table(value) =
+    "{" > maybe(spaces) >
+    _toml.inline_table_pair(value, _Toml.Doc.Empty) -> DocWithFirstPair &
+    _toml.inline_table_body(value, DocWithFirstPair)
+    < maybe(spaces) < "}"
+  ========================================
   0000    | GetConstant 0: DocWithFirstPair
   0002    | GetConstant 1: "{"
   0004    | CallFunction 0
@@ -3677,6 +4356,11 @@
   ========================================
   
   ========_toml.inline_table_body=========
+  _toml.inline_table_body(value, Doc) =
+    "," > _toml.inline_table_pair(value, Doc) -> NewDoc ?
+    _toml.inline_table_body(value, NewDoc) :
+    const(Doc)
+  ========================================
   0000    | GetConstant 0: NewDoc
   0002    | SetInputMark
   0003    | GetConstant 1: ","
@@ -3701,6 +4385,14 @@
   ========================================
   
   ========_toml.inline_table_pair=========
+  _toml.inline_table_pair(value, Doc) =
+    maybe(spaces) &
+    _toml.path -> Key &
+    maybe(spaces) & "=" & maybe(spaces) &
+    value -> Val &
+    maybe(spaces) $
+    _Toml.Doc.InsertAtPath(Doc, Key, Val)
+  ========================================
   0000    | GetConstant 0: Key
   0002    | GetConstant 1: Val
   0004    | GetConstant 2: maybe
@@ -3741,6 +4433,8 @@
   ========================================
   
   ======toml.string.multi_line_basic======
+  toml.string.multi_line_basic = `"""` > maybe(nl) > _toml.string.multi_line_basic($"")
+  ========================================
   0000    | GetConstant 0: """""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 13
@@ -3755,6 +4449,8 @@
   ========================================
   
   =================@fn946=================
+  _ctrl_char | `\`
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: _ctrl_char
   0003    | CallFunction 0
@@ -3765,6 +4461,19 @@
   ========================================
   
   =====_toml.string.multi_line_basic======
+  _toml.string.multi_line_basic(Acc) =
+    (`"""""` $ (Acc + `""`)) |
+    (`""""` $ (Acc + `"`)) |
+    (`"""` $ Acc) |
+    (
+      _toml.escaped_ctrl_char |
+      _toml.escaped_unicode |
+      ws |
+      (`\` + ws > "") |
+      unless(char, _ctrl_char | `\`) -> C &
+      _toml.string.multi_line_basic(Acc + C)
+    )
+  ========================================
   0000    | GetConstant 0: C
   0002    | SetInputMark
   0003    | SetInputMark
@@ -3830,6 +4539,8 @@
   ========================================
   
   =====toml.string.multi_line_literal=====
+  toml.string.multi_line_literal = `'''` > maybe(nl) > _toml.string.multi_line_literal($"")
+  ========================================
   0000    | GetConstant 0: "'''"
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 13
@@ -3844,6 +4555,12 @@
   ========================================
   
   ====_toml.string.multi_line_literal=====
+  _toml.string.multi_line_literal(Acc) =
+    (`'''''` $ (Acc + `''`)) |
+    (`''''` $ (Acc + `'`)) |
+    (`'''` $ Acc) |
+    (char -> C & _toml.string.multi_line_literal(Acc + C))
+  ========================================
   0000    | GetConstant 0: C
   0002    | SetInputMark
   0003    | SetInputMark
@@ -3884,6 +4601,8 @@
   ========================================
   
   ===========toml.string.basic============
+  toml.string.basic = '"' > _toml.string.basic_body < '"'
+  ========================================
   0000    | GetConstant 0: """
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 11
@@ -3897,6 +4616,8 @@
   ========================================
   
   =================@fn948=================
+  _ctrl_char | `\` | '"'
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: _ctrl_char
@@ -3911,6 +4632,10 @@
   ========================================
   
   =================@fn947=================
+  _toml.escaped_ctrl_char |
+      _toml.escaped_unicode |
+      unless(char, _ctrl_char | `\` | '"')
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: _toml.escaped_ctrl_char
@@ -3927,6 +4652,13 @@
   ========================================
   
   ========_toml.string.basic_body=========
+  _toml.string.basic_body =
+    many(
+      _toml.escaped_ctrl_char |
+      _toml.escaped_unicode |
+      unless(char, _ctrl_char | `\` | '"')
+    ) | const($"")
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many
   0003    | GetConstant 1: @fn947
@@ -3939,6 +4671,8 @@
   ========================================
   
   =================@fn949=================
+  chars_until("'")
+  ========================================
   0000    | GetConstant 0: chars_until
   0002    | GetConstant 1: "'"
   0004    | CallTailFunction 1
@@ -3946,6 +4680,8 @@
   ========================================
   
   ==========toml.string.literal===========
+  toml.string.literal = "'" > default(chars_until("'"), $"") < "'"
+  ========================================
   0000    | GetConstant 0: "'"
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 15
@@ -3961,6 +4697,15 @@
   ========================================
   
   ========_toml.escaped_ctrl_char=========
+  _toml.escaped_ctrl_char =
+    (`\"` $ `"`) |
+    (`\\` $ `\`) |
+    (`\b` $ "\b") |
+    (`\f` $ "\f") |
+    (`\n` $ "\n") |
+    (`\r` $ "\r") |
+    (`\t` $ "\t")
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | SetInputMark
@@ -4007,6 +4752,10 @@
   ========================================
   
   =========_toml.escaped_unicode==========
+  _toml.escaped_unicode =
+    (`\u` > repeat4(hex_numeral) -> U $ @Codepoint(U)) |
+    (`\U` > repeat8(hex_numeral) -> U $ @Codepoint(U))
+  ========================================
   0000    | GetConstant 0: U
   0002    | SetInputMark
   0003    | GetConstant 1: "\u"
@@ -4038,6 +4787,8 @@
   ========================================
   
   ==========toml.datetime.offset==========
+  toml.datetime.offset = toml.datetime.local_date + ("T" | "t" | " ") + _toml.datetime.time_offset
+  ========================================
   0000    | GetConstant 0: toml.datetime.local_date
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 28
@@ -4060,6 +4811,8 @@
   ========================================
   
   ==========toml.datetime.local===========
+  toml.datetime.local = toml.datetime.local_date + ("T" | "t" | " ") + toml.datetime.local_time
+  ========================================
   0000    | GetConstant 0: toml.datetime.local_date
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 28
@@ -4082,6 +4835,9 @@
   ========================================
   
   ========toml.datetime.local_date========
+  toml.datetime.local_date =
+    _toml.datetime.year + "-" + _toml.datetime.month + "-" + _toml.datetime.mday
+  ========================================
   0000    | GetConstant 0: _toml.datetime.year
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -4104,6 +4860,8 @@
   ========================================
   
   ==========_toml.datetime.year===========
+  _toml.datetime.year = repeat4(numeral)
+  ========================================
   0000    | GetConstant 0: repeat4
   0002    | GetConstant 1: numeral
   0004    | CallTailFunction 1
@@ -4111,6 +4869,8 @@
   ========================================
   
   ==========_toml.datetime.month==========
+  _toml.datetime.month = ("0" + "1".."9") | "11" | "12"
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | GetConstant 0: "0"
@@ -4128,6 +4888,8 @@
   ========================================
   
   ==========_toml.datetime.mday===========
+  _toml.datetime.mday = ("0".."2" + "1".."9") | "30" | "31"
+  ========================================
   0000    | SetInputMark
   0001    | SetInputMark
   0002    | ParseRange 0 1: "0" "2"
@@ -4144,6 +4906,8 @@
   ========================================
   
   =================@fn950=================
+  "." + repeat_between(numeral, $1, $9)
+  ========================================
   0000    | GetConstant 0: "."
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 18
@@ -4157,6 +4921,12 @@
   ========================================
   
   ========toml.datetime.local_time========
+  toml.datetime.local_time =
+    _toml.datetime.hours + ":" +
+    _toml.datetime.minutes + ":" +
+    _toml.datetime.seconds +
+    maybe("." + repeat_between(numeral, $1, $9))
+  ========================================
   0000    | GetConstant 0: _toml.datetime.hours
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -4184,6 +4954,8 @@
   ========================================
   
   =======_toml.datetime.time_offset=======
+  _toml.datetime.time_offset = toml.datetime.local_time + ("Z" | "z" | _toml.datetime.time_numoffset)
+  ========================================
   0000    | GetConstant 0: toml.datetime.local_time
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 28
@@ -4202,6 +4974,8 @@
   ========================================
   
   =====_toml.datetime.time_numoffset======
+  _toml.datetime.time_numoffset = ("+" | "-") + _toml.datetime.hours + ":" + _toml.datetime.minutes
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: "+"
   0003    | CallFunction 0
@@ -4224,6 +4998,8 @@
   ========================================
   
   ==========_toml.datetime.hours==========
+  _toml.datetime.hours = ("0".."1" + "0".."9") | ("2" + "0".."3")
+  ========================================
   0000    | SetInputMark
   0001    | ParseRange 0 1: "0" "1"
   0004    | JumpIfFailure 4 -> 11
@@ -4239,6 +5015,8 @@
   ========================================
   
   =========_toml.datetime.minutes=========
+  _toml.datetime.minutes = "0".."5" + "0".."9"
+  ========================================
   0000    | ParseRange 0 1: "0" "5"
   0003    | JumpIfFailure 3 -> 10
   0006    | ParseRange 2 3: "0" "9"
@@ -4247,6 +5025,8 @@
   ========================================
   
   =========_toml.datetime.seconds=========
+  _toml.datetime.seconds = ("0".."5" + "0".."9") | "60"
+  ========================================
   0000    | SetInputMark
   0001    | ParseRange 0 1: "0" "5"
   0004    | JumpIfFailure 4 -> 11
@@ -4259,6 +5039,9 @@
   ========================================
   
   =================@fn951=================
+  _toml.number.sign +
+    _toml.number.integer_part
+  ========================================
   0000    | GetConstant 0: _toml.number.sign
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -4269,6 +5052,11 @@
   ========================================
   
   ==========toml.number.integer===========
+  toml.number.integer = number_of(
+    _toml.number.sign +
+    _toml.number.integer_part
+  )
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn951
   0004    | CallTailFunction 1
@@ -4276,6 +5064,8 @@
   ========================================
   
   =================@fn952=================
+  "-" | skip("+")
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: "-"
   0003    | CallFunction 0
@@ -4287,6 +5077,8 @@
   ========================================
   
   ===========_toml.number.sign============
+  _toml.number.sign = maybe("-" | skip("+"))
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: @fn952
   0004    | CallTailFunction 1
@@ -4294,6 +5086,8 @@
   ========================================
   
   =================@fn953=================
+  maybe("_") > numeral
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "_"
   0004    | CallFunction 1
@@ -4304,6 +5098,9 @@
   ========================================
   
   =======_toml.number.integer_part========
+  _toml.number.integer_part =
+    ("1".."9" + many(maybe("_") > numeral)) | numeral
+  ========================================
   0000    | SetInputMark
   0001    | ParseRange 0 1: "1" "9"
   0004    | JumpIfFailure 4 -> 14
@@ -4318,6 +5115,12 @@
   ========================================
   
   =================@fn954=================
+  _toml.number.sign +
+    _toml.number.integer_part + (
+      (_toml.number.fraction_part + maybe(_toml.number.exponent_part)) |
+      _toml.number.exponent_part
+    )
+  ========================================
   0000    | GetConstant 0: _toml.number.sign
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 12
@@ -4341,6 +5144,14 @@
   ========================================
   
   ===========toml.number.float============
+  toml.number.float = number_of(
+    _toml.number.sign +
+    _toml.number.integer_part + (
+      (_toml.number.fraction_part + maybe(_toml.number.exponent_part)) |
+      _toml.number.exponent_part
+    )
+  )
+  ========================================
   0000    | GetConstant 0: number_of
   0002    | GetConstant 1: @fn954
   0004    | CallTailFunction 1
@@ -4348,6 +5159,8 @@
   ========================================
   
   =================@fn955=================
+  maybe("_")
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "_"
   0004    | CallTailFunction 1
@@ -4355,6 +5168,8 @@
   ========================================
   
   =======_toml.number.fraction_part=======
+  _toml.number.fraction_part = "." + many_sep(numerals, maybe("_"))
+  ========================================
   0000    | GetConstant 0: "."
   0002    | CallFunction 0
   0004    | JumpIfFailure 4 -> 16
@@ -4367,6 +5182,8 @@
   ========================================
   
   =================@fn956=================
+  "-" | "+"
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: "-"
   0003    | CallFunction 0
@@ -4377,6 +5194,8 @@
   ========================================
   
   =================@fn957=================
+  maybe("_")
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "_"
   0004    | CallTailFunction 1
@@ -4384,6 +5203,9 @@
   ========================================
   
   =======_toml.number.exponent_part=======
+  _toml.number.exponent_part =
+    ("e" | "E") + maybe("-" | "+") + many_sep(numerals, maybe("_"))
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: "e"
   0003    | CallFunction 0
@@ -4405,6 +5227,8 @@
   ========================================
   
   =================@fn958=================
+  "+" | "-"
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: "+"
   0003    | CallFunction 0
@@ -4415,6 +5239,8 @@
   ========================================
   
   ==========toml.number.infinity==========
+  toml.number.infinity = maybe("+" | "-") + "inf"
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: @fn958
   0004    | CallFunction 1
@@ -4426,6 +5252,8 @@
   ========================================
   
   =================@fn959=================
+  "+" | "-"
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: "+"
   0003    | CallFunction 0
@@ -4436,6 +5264,8 @@
   ========================================
   
   ========toml.number.not_a_number========
+  toml.number.not_a_number = maybe("+" | "-") + "nan"
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: @fn959
   0004    | CallFunction 1
@@ -4447,6 +5277,8 @@
   ========================================
   
   =================@fn961=================
+  maybe("_")
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "_"
   0004    | CallTailFunction 1
@@ -4454,6 +5286,8 @@
   ========================================
   
   =================@fn962=================
+  skip("_") < peek(binary_numeral)
+  ========================================
   0000    | GetConstant 0: skip
   0002    | GetConstant 1: "_"
   0004    | CallFunction 1
@@ -4466,6 +5300,8 @@
   ========================================
   
   =================@fn960=================
+  array_sep(0, maybe("_")) + maybe(skip("_") < peek(binary_numeral))
+  ========================================
   0000    | GetConstant 0: array_sep
   0002    | GetConstant 1: 0
   0004    | GetConstant 2: @fn961
@@ -4479,6 +5315,8 @@
   ========================================
   
   =================@fn964=================
+  maybe("_")
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "_"
   0004    | CallTailFunction 1
@@ -4486,6 +5324,8 @@
   ========================================
   
   =================@fn963=================
+  array_sep(binary_digit, maybe("_"))
+  ========================================
   0000    | GetConstant 0: array_sep
   0002    | GetConstant 1: binary_digit
   0004    | GetConstant 2: @fn964
@@ -4494,6 +5334,13 @@
   ========================================
   
   =======toml.number.binary_integer=======
+  toml.number.binary_integer =
+    "0b" & one_or_both(
+      array_sep(0, maybe("_")) + maybe(skip("_") < peek(binary_numeral)),
+      array_sep(binary_digit, maybe("_"))
+    ) -> Digits $
+    Num.FromBinaryDigits(Digits)
+  ========================================
   0000    | GetConstant 0: Digits
   0002    | GetConstant 1: "0b"
   0004    | CallFunction 0
@@ -4512,6 +5359,8 @@
   ========================================
   
   =================@fn966=================
+  maybe("_")
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "_"
   0004    | CallTailFunction 1
@@ -4519,6 +5368,8 @@
   ========================================
   
   =================@fn967=================
+  skip("_") < peek(octal_numeral)
+  ========================================
   0000    | GetConstant 0: skip
   0002    | GetConstant 1: "_"
   0004    | CallFunction 1
@@ -4531,6 +5382,8 @@
   ========================================
   
   =================@fn965=================
+  array_sep(0, maybe("_")) + maybe(skip("_") < peek(octal_numeral))
+  ========================================
   0000    | GetConstant 0: array_sep
   0002    | GetConstant 1: 0
   0004    | GetConstant 2: @fn966
@@ -4544,6 +5397,8 @@
   ========================================
   
   =================@fn969=================
+  maybe("_")
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "_"
   0004    | CallTailFunction 1
@@ -4551,6 +5406,8 @@
   ========================================
   
   =================@fn968=================
+  array_sep(octal_digit, maybe("_"))
+  ========================================
   0000    | GetConstant 0: array_sep
   0002    | GetConstant 1: octal_digit
   0004    | GetConstant 2: @fn969
@@ -4559,6 +5416,13 @@
   ========================================
   
   =======toml.number.octal_integer========
+  toml.number.octal_integer =
+    "0o" & one_or_both(
+      array_sep(0, maybe("_")) + maybe(skip("_") < peek(octal_numeral)),
+      array_sep(octal_digit, maybe("_"))
+    ) -> Digits $
+    Num.FromOctalDigits(Digits)
+  ========================================
   0000    | GetConstant 0: Digits
   0002    | GetConstant 1: "0o"
   0004    | CallFunction 0
@@ -4577,6 +5441,8 @@
   ========================================
   
   =================@fn971=================
+  maybe("_")
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "_"
   0004    | CallTailFunction 1
@@ -4584,6 +5450,8 @@
   ========================================
   
   =================@fn972=================
+  skip("_") < peek(hex_numeral)
+  ========================================
   0000    | GetConstant 0: skip
   0002    | GetConstant 1: "_"
   0004    | CallFunction 1
@@ -4596,6 +5464,8 @@
   ========================================
   
   =================@fn970=================
+  array_sep(0, maybe("_")) + maybe(skip("_") < peek(hex_numeral))
+  ========================================
   0000    | GetConstant 0: array_sep
   0002    | GetConstant 1: 0
   0004    | GetConstant 2: @fn971
@@ -4609,6 +5479,8 @@
   ========================================
   
   =================@fn974=================
+  maybe("_")
+  ========================================
   0000    | GetConstant 0: maybe
   0002    | GetConstant 1: "_"
   0004    | CallTailFunction 1
@@ -4616,6 +5488,8 @@
   ========================================
   
   =================@fn973=================
+  array_sep(hex_digit, maybe("_"))
+  ========================================
   0000    | GetConstant 0: array_sep
   0002    | GetConstant 1: hex_digit
   0004    | GetConstant 2: @fn974
@@ -4624,6 +5498,13 @@
   ========================================
   
   ========toml.number.hex_integer=========
+  toml.number.hex_integer =
+    "0x" & one_or_both(
+      array_sep(0, maybe("_")) + maybe(skip("_") < peek(hex_numeral)),
+      array_sep(hex_digit, maybe("_"))
+    ) -> Digits $
+    Num.FromHexDigits(Digits)
+  ========================================
   0000    | GetConstant 0: Digits
   0002    | GetConstant 1: "0x"
   0004    | CallFunction 0
@@ -4642,11 +5523,15 @@
   ========================================
   
   ============_Toml.Doc.Empty=============
+  _Toml.Doc.Empty = {"value": {}, "type": {}}
+  ========================================
   0000    | GetConstant 0: {"value": {}, "type": {}}
   0002    | End
   ========================================
   
   ============_Toml.Doc.Value=============
+  _Toml.Doc.Value(Doc) = Obj.Get(Doc, "value")
+  ========================================
   0000    | GetConstant 0: Obj.Get
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: "value"
@@ -4655,6 +5540,8 @@
   ========================================
   
   =============_Toml.Doc.Type=============
+  _Toml.Doc.Type(Doc) = Obj.Get(Doc, "type")
+  ========================================
   0000    | GetConstant 0: Obj.Get
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: "type"
@@ -4663,6 +5550,8 @@
   ========================================
   
   =============_Toml.Doc.Has==============
+  _Toml.Doc.Has(Doc, Key) = Obj.Has(_Toml.Doc.Type(Doc), Key)
+  ========================================
   0000    | GetConstant 0: Obj.Has
   0002    | GetConstant 1: _Toml.Doc.Type
   0004    | GetBoundLocal 0
@@ -4673,6 +5562,11 @@
   ========================================
   
   =============_Toml.Doc.Get==============
+  _Toml.Doc.Get(Doc, Key) = {
+    "value": Obj.Get(_Toml.Doc.Value(Doc), Key),
+    "type": Obj.Get(_Toml.Doc.Type(Doc), Key),
+  }
+  ========================================
   0000    | GetConstant 0: {}
   0002    | GetConstant 2: Obj.Get
   0004    | GetConstant 3: _Toml.Doc.Value
@@ -4692,6 +5586,8 @@
   ========================================
   
   ===========_Toml.Doc.IsTable============
+  _Toml.Doc.IsTable(Doc) = Is.Object(_Toml.Doc.Type(Doc))
+  ========================================
   0000    | GetConstant 0: Is.Object
   0002    | GetConstant 1: _Toml.Doc.Type
   0004    | GetBoundLocal 0
@@ -4701,6 +5597,13 @@
   ========================================
   
   ============_Toml.Doc.Insert============
+  _Toml.Doc.Insert(Doc, Key, Val, Type) =
+    _Toml.Doc.IsTable(Doc) &
+    {
+      "value": Obj.Put(_Toml.Doc.Value(Doc), Key, Val),
+      "type": Obj.Put(_Toml.Doc.Type(Doc), Key, Type),
+    }
+  ========================================
   0000    | GetConstant 0: _Toml.Doc.IsTable
   0002    | GetBoundLocal 0
   0004    | CallFunction 1
@@ -4726,6 +5629,10 @@
   ========================================
   
   ====_Toml.Doc.AppendToArrayOfTables=====
+  _Toml.Doc.AppendToArrayOfTables(Doc, Key, Val) =
+    _Toml.Doc.Get(Doc, Key) -> {"value": AoT, "type": "array_of_tables"} &
+    _Toml.Doc.Insert(Doc, Key, [...AoT, Val], "array_of_tables")
+  ========================================
   0000    | GetConstant 0: AoT
   0002    | GetConstant 1: _Toml.Doc.Get
   0004    | GetBoundLocal 0
@@ -4762,6 +5669,9 @@
   ========================================
   
   =========_Toml.Doc.InsertAtPath=========
+  _Toml.Doc.InsertAtPath(Doc, Path, Val) =
+    _Toml.Doc.UpdateAtPath(Doc, Path, Val, _Toml.Doc.ValueUpdater)
+  ========================================
   0000    | GetConstant 0: _Toml.Doc.UpdateAtPath
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -4772,6 +5682,9 @@
   ========================================
   
   ======_Toml.Doc.EnsureTableAtPath=======
+  _Toml.Doc.EnsureTableAtPath(Doc, Path) =
+    _Toml.Doc.UpdateAtPath(Doc, Path, {}, _Toml.Doc.MissingTableUpdater)
+  ========================================
   0000    | GetConstant 0: _Toml.Doc.UpdateAtPath
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -4782,6 +5695,9 @@
   ========================================
   
   =========_Toml.Doc.AppendAtPath=========
+  _Toml.Doc.AppendAtPath(Doc, Path, Val) =
+    _Toml.Doc.UpdateAtPath(Doc, Path, Val, _Toml.Doc.AppendUpdater)
+  ========================================
   0000    | GetConstant 0: _Toml.Doc.UpdateAtPath
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -4792,6 +5708,20 @@
   ========================================
   
   =========_Toml.Doc.UpdateAtPath=========
+  _Toml.Doc.UpdateAtPath(Doc, Path, Val, Updater) =
+    Path -> [Key] ? Updater(Doc, Key, Val) :
+    Path -> [Key, ...PathRest] ? (
+      (
+        _Toml.Doc.Has(Doc, Key) ? (
+          _Toml.Doc.IsTable(_Toml.Doc.Get(Doc, Key)) &
+          _Toml.Doc.UpdateAtPath(_Toml.Doc.Get(Doc, Key), PathRest, Val, Updater)
+        ) :
+        _Toml.Doc.UpdateAtPath(_Toml.Doc.Empty, PathRest, Val, Updater)
+      ) -> InnerDoc &
+      _Toml.Doc.Insert(Doc, Key, _Toml.Doc.Value(InnerDoc), _Toml.Doc.Type(InnerDoc))
+    ) :
+    Doc
+  ========================================
   0000    | GetConstant 0: Key
   0002    | GetConstant 1: PathRest
   0004    | GetConstant 2: InnerDoc
@@ -4891,6 +5821,9 @@
   ========================================
   
   =========_Toml.Doc.ValueUpdater=========
+  _Toml.Doc.ValueUpdater(Doc, Key, Val) =
+    _Toml.Doc.Has(Doc, Key) ? @Fail : _Toml.Doc.Insert(Doc, Key, Val, "value")
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: _Toml.Doc.Has
   0003    | GetBoundLocal 0
@@ -4910,6 +5843,10 @@
   ========================================
   
   =====_Toml.Doc.MissingTableUpdater======
+  _Toml.Doc.MissingTableUpdater(Doc, Key, _Val) =
+    _Toml.Doc.IsTable(_Toml.Doc.Get(Doc, Key)) ? Doc :
+    _Toml.Doc.Insert(Doc, Key, {}, {})
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: _Toml.Doc.IsTable
   0003    | GetConstant 1: _Toml.Doc.Get
@@ -4930,6 +5867,13 @@
   ========================================
   
   ========_Toml.Doc.AppendUpdater=========
+  _Toml.Doc.AppendUpdater(Doc, Key, Val) =
+    (
+      _Toml.Doc.Has(Doc, Key) ? Doc :
+      _Toml.Doc.Insert(Doc, Key, [], "array_of_tables")
+    ) -> DocWithKey &
+    _Toml.Doc.AppendToArrayOfTables(DocWithKey, Key, Val)
+  ========================================
   0000    | GetConstant 0: DocWithKey
   0002    | SetInputMark
   0003    | GetConstant 1: _Toml.Doc.Has
@@ -4957,6 +5901,9 @@
   ========================================
   
   ======ast.with_operator_precedence======
+  ast.with_operator_precedence(operand, prefix, infix, postfix) =
+    _ast.with_precedence_start(operand, prefix, infix, postfix, $0)
+  ========================================
   0000    | GetConstant 0: _ast.with_precedence_start
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -4968,6 +5915,22 @@
   ========================================
   
   =======_ast.with_precedence_start=======
+  _ast.with_precedence_start(operand, prefix, infix, postfix, LeftBindingPower) =
+    prefix -> [OpNode, PrefixBindingPower] ? (
+      _ast.with_precedence_start(
+        operand, prefix, infix, postfix,
+        PrefixBindingPower
+      ) -> PrefixedNode &
+      _ast.with_precedence_rest(
+        operand, prefix, infix, postfix,
+        LeftBindingPower,
+        {...OpNode, "prefixed": PrefixedNode}
+      )
+    ) : (
+      operand -> Node &
+      _ast.with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node)
+    )
+  ========================================
   0000    | GetConstant 0: OpNode
   0002    | GetConstant 1: PrefixBindingPower
   0004    | GetConstant 2: PrefixedNode
@@ -5036,6 +5999,29 @@
   ========================================
   
   =======_ast.with_precedence_rest========
+  _ast.with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node) =
+    postfix -> [OpNode, RightBindingPower] &
+    const(Is.LessThan(LeftBindingPower, RightBindingPower)) ? (
+      _ast.with_precedence_rest(
+        operand, prefix, infix, postfix,
+        LeftBindingPower,
+        {...OpNode, "postfixed": Node}
+      )
+    ) :
+    infix -> [OpNode, RightBindingPower, NextLeftBindingPower] &
+    const(Is.LessThan(LeftBindingPower, RightBindingPower)) ? (
+      _ast.with_precedence_start(
+        operand, prefix, infix, postfix,
+        NextLeftBindingPower
+      ) -> RightNode &
+      _ast.with_precedence_rest(
+        operand, prefix, infix, postfix,
+        LeftBindingPower,
+        {...OpNode, "left": Node, "right": RightNode}
+      )
+    ) :
+    const(Node)
+  ========================================
   0000    | GetConstant 0: OpNode
   0002    | GetConstant 1: RightBindingPower
   0004    | GetConstant 2: NextLeftBindingPower
@@ -5152,6 +6138,9 @@
   ========================================
   
   ================ast.node================
+  ast.node(Type, value) =
+    value -> Value $ {"type": Type, "value": Value}
+  ========================================
   0000    | GetConstant 0: Value
   0002    | GetBoundLocal 1
   0004    | CallFunction 0
@@ -5167,6 +6156,8 @@
   ========================================
   
   ================Num.Inc=================
+  Num.Inc(N) = @Add(N, 1)
+  ========================================
   0000    | GetConstant 0: @Add
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: 1
@@ -5175,6 +6166,8 @@
   ========================================
   
   ================Num.Dec=================
+  Num.Dec(N) = @Subtract(N, 1)
+  ========================================
   0000    | GetConstant 0: @Subtract
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: 1
@@ -5183,6 +6176,8 @@
   ========================================
   
   ================Num.Abs=================
+  Num.Abs(N) = N -> 0.. | -
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | GetConstant 0: 0
@@ -5195,6 +6190,8 @@
   ========================================
   
   ================Num.Max=================
+  Num.Max(A, B) = A -> B.. ? A : B
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | GetLocal 1
@@ -5208,6 +6205,10 @@
   ========================================
   
   ==========Num.FromBinaryDigits==========
+  Num.FromBinaryDigits(Bs) =
+    Array.Length(Bs) -> Len &
+    _Num.FromBinaryDigits(Bs, Len - 1, 0)
+  ========================================
   0000    | GetConstant 0: Len
   0002    | GetConstant 1: Array.Length
   0004    | GetBoundLocal 0
@@ -5228,6 +6229,17 @@
   ========================================
   
   =========_Num.FromBinaryDigits==========
+  _Num.FromBinaryDigits(Bs, Pos, Acc) =
+    Bs -> [B, ...Rest] ? (
+      B -> 0..1 &
+      _Num.FromBinaryDigits(
+        Rest,
+        Pos - 1,
+        Acc + Num.Mul(B, Num.Pow(2, Pos)),
+      )
+    ) :
+    Acc
+  ========================================
   0000    | GetConstant 0: B
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
@@ -5286,6 +6298,10 @@
   ========================================
   
   ==========Num.FromOctalDigits===========
+  Num.FromOctalDigits(Os) =
+    Array.Length(Os) -> Len &
+    _Num.FromOctalDigits(Os, Len - 1, 0)
+  ========================================
   0000    | GetConstant 0: Len
   0002    | GetConstant 1: Array.Length
   0004    | GetBoundLocal 0
@@ -5306,6 +6322,17 @@
   ========================================
   
   ==========_Num.FromOctalDigits==========
+  _Num.FromOctalDigits(Os, Pos, Acc) =
+    Os -> [O, ...Rest] ? (
+      O -> 0..7 &
+      _Num.FromOctalDigits(
+        Rest,
+        Pos - 1,
+        Acc + Num.Mul(O, Num.Pow(8, Pos)),
+      )
+    ) :
+    Acc
+  ========================================
   0000    | GetConstant 0: O
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
@@ -5364,6 +6391,10 @@
   ========================================
   
   ===========Num.FromHexDigits============
+  Num.FromHexDigits(Hs) =
+    Array.Length(Hs) -> Len &
+    _Num.FromHexDigits(Hs, Len - 1, 0)
+  ========================================
   0000    | GetConstant 0: Len
   0002    | GetConstant 1: Array.Length
   0004    | GetBoundLocal 0
@@ -5384,6 +6415,17 @@
   ========================================
   
   ===========_Num.FromHexDigits===========
+  _Num.FromHexDigits(Hs, Pos, Acc) =
+    Hs -> [H, ...Rest] ? (
+      H -> 0..15 &
+      _Num.FromHexDigits(
+        Rest,
+        Pos - 1,
+        Acc + Num.Mul(H, Num.Pow(16, Pos)),
+      )
+    ) :
+    Acc
+  ========================================
   0000    | GetConstant 0: H
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
@@ -5442,6 +6484,8 @@
   ========================================
   
   ==============Array.First===============
+  Array.First(Array) = Array -> [F, ..._] & F
+  ========================================
   0000    | GetConstant 0: F
   0002    | GetConstant 1: _
   0004    | GetBoundLocal 0
@@ -5475,6 +6519,8 @@
   ========================================
   
   ===============Array.Rest===============
+  Array.Rest(Array) = Array -> [_, ...R] & R
+  ========================================
   0000    | GetConstant 0: _
   0002    | GetConstant 1: R
   0004    | GetBoundLocal 0
@@ -5508,6 +6554,8 @@
   ========================================
   
   ==============Array.Length==============
+  Array.Length(A) = _Array.Length(A, 0)
+  ========================================
   0000    | GetConstant 0: _Array.Length
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: 0
@@ -5516,6 +6564,11 @@
   ========================================
   
   =============_Array.Length==============
+  _Array.Length(A, Acc) =
+    A -> [_, ...Rest] ?
+    _Array.Length(Rest, Acc + 1) :
+    Acc
+  ========================================
   0000    | GetConstant 0: _
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
@@ -5558,6 +6611,8 @@
   ========================================
   
   =============Array.Reverse==============
+  Array.Reverse(A) = _Array.Reverse(A, [])
+  ========================================
   0000    | GetConstant 0: _Array.Reverse
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: []
@@ -5566,6 +6621,11 @@
   ========================================
   
   =============_Array.Reverse=============
+  _Array.Reverse(A, Acc) =
+    A -> [First, ...Rest] ?
+    _Array.Reverse(Rest, [First, ...Acc]) :
+    Acc
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
@@ -5610,6 +6670,8 @@
   ========================================
   
   ===============Array.Map================
+  Array.Map(A, Fn) = _Array.Map(A, Fn, [])
+  ========================================
   0000    | GetConstant 0: _Array.Map
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -5619,6 +6681,11 @@
   ========================================
   
   ===============_Array.Map===============
+  _Array.Map(A, Fn, Acc) =
+    A -> [First, ...Rest] ?
+    _Array.Map(Rest, Fn, [...Acc, Fn(First)]) :
+    Acc
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
@@ -5669,6 +6736,8 @@
   ========================================
   
   ==============Array.Filter==============
+  Array.Filter(A, Pred) = _Array.Filter(A, Pred, [])
+  ========================================
   0000    | GetConstant 0: _Array.Filter
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -5678,6 +6747,11 @@
   ========================================
   
   =============_Array.Filter==============
+  _Array.Filter(A, Pred, Acc) =
+    A -> [First, ...Rest] ?
+    _Array.Filter(Rest, Pred, Pred(First) ? [...Acc, First] : Acc) :
+    Acc
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
@@ -5733,6 +6807,8 @@
   ========================================
   
   ==============Array.Reject==============
+  Array.Reject(A, Pred) = _Array.Reject(A, Pred, [])
+  ========================================
   0000    | GetConstant 0: _Array.Reject
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -5742,6 +6818,11 @@
   ========================================
   
   =============_Array.Reject==============
+  _Array.Reject(A, Pred, Acc) =
+    A -> [First, ...Rest] ?
+    _Array.Reject(Rest, Pred, Pred(First) ? Acc : [...Acc, First]) :
+    Acc
+  ========================================
   0000    | GetConstant 0: First
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
@@ -5797,6 +6878,8 @@
   ========================================
   
   ============Array.ZipObject=============
+  Array.ZipObject(Ks, Vs) = _Array.ZipObject(Ks, Vs, {})
+  ========================================
   0000    | GetConstant 0: _Array.ZipObject
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -5806,6 +6889,11 @@
   ========================================
   
   ============_Array.ZipObject============
+  _Array.ZipObject(Ks, Vs, Acc) =
+    Ks -> [K, ...KsRest] & Vs -> [V, ...VsRest] ?
+    _Array.ZipObject(KsRest, VsRest, {...Acc, K: V}) :
+    Acc
+  ========================================
   0000    | GetConstant 0: K
   0002    | GetConstant 1: KsRest
   0004    | GetConstant 2: V
@@ -5883,6 +6971,8 @@
   ========================================
   
   =============Array.ZipPairs=============
+  Array.ZipPairs(A1, A2) = _Array.ZipPairs(A1, A2, [])
+  ========================================
   0000    | GetConstant 0: _Array.ZipPairs
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -5892,6 +6982,11 @@
   ========================================
   
   ============_Array.ZipPairs=============
+  _Array.ZipPairs(A1, A2, Acc) =
+    A1 -> [First1, ...Rest1] & A2 -> [First2, ...Rest2] ?
+    _Array.ZipPairs(Rest1, Rest2, [...Acc, [First1, First2]]) :
+    Acc
+  ========================================
   0000    | GetConstant 0: First1
   0002    | GetConstant 1: Rest1
   0004    | GetConstant 2: First2
@@ -5972,6 +7067,10 @@
   ========================================
   
   =============Array.AppendN==============
+  Array.AppendN(A, Val, N) =
+    _Assert.NonNegativeInteger(N) &
+    N -> 0 ? A : Array.AppendN([...A, Val], Val, N - 1)
+  ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: _Assert.NonNegativeInteger
   0003    | GetBoundLocal 2
@@ -6004,6 +7103,8 @@
   ========================================
   
   ============Table.Transpose=============
+  Table.Transpose(T) = _Table.Transpose(T, [])
+  ========================================
   0000    | GetConstant 0: _Table.Transpose
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: []
@@ -6012,6 +7113,12 @@
   ========================================
   
   ============_Table.Transpose============
+  _Table.Transpose(T, Acc) =
+    _Table.FirstPerRow(T) -> FirstPerRow &
+    _Table.RestPerRow(T) -> RestPerRow ?
+    _Table.Transpose(RestPerRow, [...Acc, FirstPerRow]) :
+    Acc
+  ========================================
   0000    | GetConstant 0: FirstPerRow
   0002    | GetConstant 1: RestPerRow
   0004    | SetInputMark
@@ -6045,6 +7152,10 @@
   ========================================
   
   ===========_Table.FirstPerRow===========
+  _Table.FirstPerRow(T) =
+    T -> [Row, ...Rest] & Row -> [VeryFirst, ..._] &
+    __Table.FirstPerRow(Rest, [VeryFirst])
+  ========================================
   0000    | GetConstant 0: Row
   0002    | GetConstant 1: Rest
   0004    | GetConstant 2: VeryFirst
@@ -6111,6 +7222,11 @@
   ========================================
   
   ==========__Table.FirstPerRow===========
+  __Table.FirstPerRow(T, Acc) =
+    T -> [Row, ...Rest] & Row -> [First, ..._] ?
+    __Table.FirstPerRow(Rest, [...Acc, First]) :
+    Acc
+  ========================================
   0000    | GetConstant 0: Row
   0002    | GetConstant 1: Rest
   0004    | GetConstant 2: First
@@ -6186,6 +7302,8 @@
   ========================================
   
   ===========_Table.RestPerRow============
+  _Table.RestPerRow(T) = __Table.RestPerRow(T, [])
+  ========================================
   0000    | GetConstant 0: __Table.RestPerRow
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: []
@@ -6194,6 +7312,14 @@
   ========================================
   
   ===========__Table.RestPerRow===========
+  __Table.RestPerRow(T, Acc) =
+    T -> [Row, ...Rest] ? (
+      Row -> [_, ...RowRest] ?
+      __Table.RestPerRow(Rest, [...Acc, RowRest]) :
+      __Table.RestPerRow(Rest, [...Acc, []])
+    ) :
+    Acc
+  ========================================
   0000    | GetConstant 0: Row
   0002    | GetConstant 1: Rest
   0004    | GetConstant 2: _
@@ -6281,6 +7407,8 @@
   ========================================
   
   =========Table.RotateClockwise==========
+  Table.RotateClockwise(T) = Array.Map(Table.Transpose(T), Array.Reverse)
+  ========================================
   0000    | GetConstant 0: Array.Map
   0002    | GetConstant 1: Table.Transpose
   0004    | GetBoundLocal 0
@@ -6291,6 +7419,8 @@
   ========================================
   
   ======Table.RotateCounterClockwise======
+  Table.RotateCounterClockwise(T) = Array.Reverse(Table.Transpose(T))
+  ========================================
   0000    | GetConstant 0: Array.Reverse
   0002    | GetConstant 1: Table.Transpose
   0004    | GetBoundLocal 0
@@ -6300,6 +7430,8 @@
   ========================================
   
   ============Table.ZipObjects============
+  Table.ZipObjects(Ks, Rows) = _Table.ZipObjects(Ks, Rows, [])
+  ========================================
   0000    | GetConstant 0: _Table.ZipObjects
   0002    | GetBoundLocal 0
   0004    | GetBoundLocal 1
@@ -6309,6 +7441,11 @@
   ========================================
   
   ===========_Table.ZipObjects============
+  _Table.ZipObjects(Ks, Rows, Acc) =
+    Rows -> [Row, ...Rest] ?
+    _Table.ZipObjects(Ks, Rest, [...Acc, Array.ZipObject(Ks, Row)]) :
+    Acc
+  ========================================
   0000    | GetConstant 0: Row
   0002    | GetConstant 1: Rest
   0004    | SetInputMark
@@ -6360,6 +7497,8 @@
   ========================================
   
   ================Obj.Has=================
+  Obj.Has(O, K) = O -> {K: _, ..._}
+  ========================================
   0000    | GetConstant 0: _
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: {}
@@ -6397,6 +7536,8 @@
   ========================================
   
   ================Obj.Get=================
+  Obj.Get(O, K) = O -> {K: V, ..._} & V
+  ========================================
   0000    | GetConstant 0: V
   0002    | GetConstant 1: _
   0004    | GetBoundLocal 0
@@ -6437,6 +7578,8 @@
   ========================================
   
   ================Obj.Put=================
+  Obj.Put(O, K, V) = {...O, K: V}
+  ========================================
   0000    | GetConstant 0: {}
   0002    | JumpIfFailure 2 -> 8
   0005    | GetBoundLocal 0
@@ -6451,6 +7594,8 @@
   ========================================
   
   =============Ast.Precedence=============
+  Ast.Precedence(OpNode, BindingPower) = [OpNode, BindingPower]
+  ========================================
   0000    | GetConstant 0: [_, _]
   0002    | GetBoundLocal 0
   0004    | InsertAtIndex 0
@@ -6460,6 +7605,9 @@
   ========================================
   
   ==========Ast.InfixPrecedence===========
+  Ast.InfixPrecedence(OpNode, LeftBindingPower, RightBindingPower) =
+    [OpNode, LeftBindingPower, RightBindingPower]
+  ========================================
   0000    | GetConstant 0: [_, _, _]
   0002    | GetBoundLocal 0
   0004    | InsertAtIndex 0
@@ -6471,6 +7619,8 @@
   ========================================
   
   ===============Is.String================
+  Is.String(V) = V -> ("" + _)
+  ========================================
   0000    | GetConstant 0: _
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: ""
@@ -6492,6 +7642,8 @@
   ========================================
   
   ===============Is.Number================
+  Is.Number(V) = V -> (0 + _)
+  ========================================
   0000    | GetConstant 0: _
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: 0
@@ -6513,6 +7665,8 @@
   ========================================
   
   ================Is.Bool=================
+  Is.Bool(V) = V -> (false + _)
+  ========================================
   0000    | GetConstant 0: _
   0002    | GetBoundLocal 0
   0004    | False
@@ -6534,6 +7688,8 @@
   ========================================
   
   ================Is.Null=================
+  Is.Null(V) = V -> null
+  ========================================
   0000    | GetBoundLocal 0
   0002    | Null
   0003    | Destructure
@@ -6541,6 +7697,8 @@
   ========================================
   
   ================Is.Array================
+  Is.Array(V) = V -> [..._]
+  ========================================
   0000    | GetConstant 0: _
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: []
@@ -6562,6 +7720,8 @@
   ========================================
   
   ===============Is.Object================
+  Is.Object(V) = V -> {..._}
+  ========================================
   0000    | GetConstant 0: _
   0002    | GetBoundLocal 0
   0004    | GetConstant 1: {}
@@ -6583,6 +7743,8 @@
   ========================================
   
   ================Is.Equal================
+  Is.Equal(A, B) = A -> B
+  ========================================
   0000    | GetBoundLocal 0
   0002    | GetLocal 1
   0004    | Destructure
@@ -6590,6 +7752,8 @@
   ========================================
   
   ==============Is.LessThan===============
+  Is.LessThan(A, B) = A -> B ? @Fail : A -> ..B
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | GetLocal 1
@@ -6606,6 +7770,8 @@
   ========================================
   
   ===========Is.LessThanOrEqual===========
+  Is.LessThanOrEqual(A, B) = A -> ..B
+  ========================================
   0000    | GetBoundLocal 0
   0002    | GetConstant 0: _
   0004    | GetLocal 1
@@ -6614,6 +7780,8 @@
   ========================================
   
   =============Is.GreaterThan=============
+  Is.GreaterThan(A, B) = A -> B ? @Fail : A -> B..
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | GetLocal 1
@@ -6630,6 +7798,8 @@
   ========================================
   
   =========Is.GreaterThanOrEqual==========
+  Is.GreaterThanOrEqual(A, B) = A -> B..
+  ========================================
   0000    | GetBoundLocal 0
   0002    | GetLocal 1
   0004    | GetConstant 0: _
@@ -6638,6 +7808,9 @@
   ========================================
   
   =======_Assert.NonNegativeInteger=======
+  _Assert.NonNegativeInteger(V) =
+    V -> 0.. | @Crash("Expected a non-negative integer, got %(V)")
+  ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | GetConstant 0: 0
