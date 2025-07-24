@@ -10,8 +10,8 @@
     (String 18-23 "abz"))
 
   $ possum -p '"" $ (1-2)' -i ''
-  (Return 0-9
+  (Return 0-10
     (String 0-2 "")
-    (Merge 6-9
+    (Merge 5-10
       (NumberString 6-7 1)
       (Negation 8-9 (NumberString 8-9 2))))

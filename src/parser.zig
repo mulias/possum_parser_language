@@ -411,12 +411,19 @@ pub const Parser = struct {
     }
 
     fn grouping(self: *Parser) !*Ast.RNode {
+        const start_region = self.token.region;
         try self.advance(); // consume the '('
         const expr = try self.expression();
         if (self.token.tokenType != .RightParen) {
             return self.errorAtToken("Expect ')' after expression.");
         }
+        const end_region = self.token.region;
         try self.advance(); // advance past the ')'
+
+        // TODO: make a grouping ast node so that the expr region can just be
+        // the inner part
+        const grouped_region = start_region.merge(end_region);
+        expr.region = grouped_region;
         return expr;
     }
 
@@ -472,7 +479,6 @@ pub const Parser = struct {
     fn conditionalOp(self: *Parser, condition: *Ast.RNode) !*Ast.RNode {
         if (self.printDebug) self.writers.debugPrint("conditional {}\n", .{self.token.tokenType});
 
-        const conditional_region = self.token.region;
         try self.advance(); // advance past the '?' token
 
         const then_branch = try self.parseWithPrecedence(.Conditional);
@@ -484,28 +490,35 @@ pub const Parser = struct {
 
         const else_branch = try self.parseWithPrecedence(.Conditional);
 
-        const conditional_rnode = try self.ast.createConditional(condition, then_branch, else_branch, conditional_region);
-
-        return conditional_rnode;
+        return try self.ast.createConditional(
+            condition,
+            then_branch,
+            else_branch,
+            condition.region.merge(else_branch.region),
+        );
     }
 
     fn callOrDefineFunction(self: *Parser, function_ident: *Ast.RNode) !*Ast.RNode {
         try self.advance(); // advance past the '('
         if (self.check(.RightParen)) {
+            const closing_paren_region = self.token.region;
             try self.advance(); // advance past the ')'
+            // For empty parentheses, extend the function identifier region to include both parens
+            function_ident.region = function_ident.region.merge(closing_paren_region);
             return function_ident;
         } else {
             const params_or_args = try self.paramsOrArgs();
             if (self.token.tokenType != .RightParen) {
                 return self.errorAtToken("Expected closing ')'");
             }
+            const closing_paren_region = self.token.region;
             try self.advance(); // advance past the ')'
 
             return self.ast.createInfix(
                 .CallOrDefineFunction,
                 function_ident,
                 params_or_args,
-                function_ident.region.merge(params_or_args.region),
+                function_ident.region.merge(closing_paren_region),
             );
         }
     }
@@ -680,7 +693,9 @@ pub const Parser = struct {
             // Check if there's actually more content after the comma
             if (self.check(.RightBrace)) {
                 // Trailing comma - just close and return
+                const closing_brace = self.token;
                 try self.advance(); // advance past the '}'
+                result.region = result.region.merge(closing_brace.region);
                 return result;
             } else {
                 // More content after comma - parse it without creating another object() call
@@ -691,7 +706,9 @@ pub const Parser = struct {
             if (self.token.tokenType != .RightBrace) {
                 return self.errorAtToken("Expected closing '}'");
             }
+            const closing_brace = self.token;
             try self.advance(); // advance past the '}'
+            result.region = result.region.merge(closing_brace.region);
         }
         return result;
     }
@@ -703,7 +720,10 @@ pub const Parser = struct {
 
         if (try self.match(.Comma)) {
             // Check if there's actually more content after the comma
-            if (try self.match(.RightBracket)) {
+            if (self.check(.RightBracket)) {
+                const closing_bracket = self.token;
+                try self.advance(); // advance past the ']'
+                result.region = result.region.merge(closing_bracket.region);
                 return result;
             } else {
                 const remaining_elements = try self.parseArrayContinuation();
@@ -713,7 +733,9 @@ pub const Parser = struct {
             if (self.token.tokenType != .RightBracket) {
                 return self.errorAtToken("Expected closing ']'");
             }
+            const closing_bracket = self.token;
             try self.advance(); // advance past the ']'
+            result.region = result.region.merge(closing_bracket.region);
         }
         return result;
     }
@@ -731,7 +753,9 @@ pub const Parser = struct {
                 // Check if there's actually more content after the comma
                 if (self.check(.RightBracket)) {
                     // Trailing comma - just close and return
+                    const closing_bracket = self.token;
                     try self.advance(); // advance past the ']'
+                    spread_expr.region = spread_expr.region.merge(closing_bracket.region);
                     return spread_expr;
                 } else {
                     // More content after comma - parse it
@@ -742,7 +766,9 @@ pub const Parser = struct {
                 if (self.token.tokenType != .RightBracket) {
                     return self.errorAtToken("Expected closing ']'");
                 }
+                const closing_bracket = self.token;
                 try self.advance(); // advance past the ']'
+                spread_expr.region = spread_expr.region.merge(closing_bracket.region);
                 return spread_expr;
             }
         }
@@ -771,7 +797,9 @@ pub const Parser = struct {
                     if (self.token.tokenType != .RightBracket) {
                         return self.errorAtToken("Expected closing ']'");
                     }
+                    const closing_bracket = self.token;
                     try self.advance(); // advance past the ']'
+                    result.region = result.region.merge(closing_bracket.region);
                 }
 
                 return result;
@@ -800,7 +828,9 @@ pub const Parser = struct {
                 // Check if there's actually more content after the comma
                 if (self.check(.RightBrace)) {
                     // Trailing comma - just close and return
+                    const closing_brace = self.token;
                     try self.advance(); // advance past the '}'
+                    spread_expr.region = spread_expr.region.merge(closing_brace.region);
                     return spread_expr;
                 } else {
                     // More content after comma - parse it
@@ -811,7 +841,9 @@ pub const Parser = struct {
                 if (self.token.tokenType != .RightBrace) {
                     return self.errorAtToken("Expected closing '}'");
                 }
+                const closing_brace = self.token;
                 try self.advance(); // advance past the '}'
+                spread_expr.region = spread_expr.region.merge(closing_brace.region);
                 return spread_expr;
             }
         }
@@ -840,7 +872,9 @@ pub const Parser = struct {
                     if (self.token.tokenType != .RightBrace) {
                         return self.errorAtToken("Expected closing '}'");
                     }
+                    const closing_brace = self.token;
                     try self.advance(); // advance past the '}'
+                    result.region = result.region.merge(closing_brace.region);
                 }
 
                 return result;
@@ -856,8 +890,9 @@ pub const Parser = struct {
         if (self.token.tokenType != .RightBrace) {
             return self.errorAtToken("Expected closing '}'");
         }
+        const closing_brace = self.token;
         try self.advance(); // advance past the '}'
-        return self.ast.createObject(pairs, region);
+        return self.ast.createObject(pairs, region.merge(closing_brace.region));
     }
 
     fn finishArray(self: *Parser, elements: ArrayList(*Ast.RNode), start_region: Region) !*Ast.RNode {
