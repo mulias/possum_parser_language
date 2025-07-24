@@ -518,16 +518,30 @@ pub const Elem = union(ElemType) {
                 else => null,
             },
             .NumberString => |n1| {
-                const elem1 = try n1.toNumberElem(vm.strings);
-                return merge(elem1, elemB, vm);
+                if (elemB.isZero(vm)) {
+                    return elemA;
+                } else {
+                    const elem1 = try n1.toNumberElem(vm.strings);
+                    return merge(elem1, elemB, vm);
+                }
             },
             .Integer => |int1| switch (elemB) {
                 .NumberString => |n2| {
-                    const elem2 = try n2.toNumberElem(vm.strings);
-                    return merge(elemA, elem2, vm);
+                    if (elemA.isZero(vm)) {
+                        return elemB;
+                    } else {
+                        const elem2 = try n2.toNumberElem(vm.strings);
+                        return merge(elemA, elem2, vm);
+                    }
                 },
                 .Integer => |int2| integer(int1 + int2),
-                .Float => |float2| float(@as(f64, @floatFromInt(int1)) + float2),
+                .Float => |float2| {
+                    if (elemB.isZero(vm)) {
+                        return elemA;
+                    } else {
+                        return float(@as(f64, @floatFromInt(int1)) + float2);
+                    }
+                },
                 else => null,
             },
             .Float => |float1| switch (elemB) {
@@ -661,6 +675,18 @@ pub const Elem = union(ElemType) {
         }
 
         return ns;
+    }
+
+    pub fn isZero(self: Elem, vm: *VM) bool {
+        return switch (self) {
+            .NumberString => |ns| {
+                const n = ns.toNumberElem(vm.strings) catch return false;
+                return n.isZero(vm);
+            },
+            .Integer => |i| i == 0,
+            .Float => |f| f == 0,
+            else => false,
+        };
     }
 
     pub fn toString(self: Elem, vm: *VM) !Elem {
