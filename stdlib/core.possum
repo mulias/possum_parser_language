@@ -61,30 +61,30 @@ chars_until(stop) = many_until(char, stop)
 
 digit = 0..9
 
-integer = number_of(maybe("-") + _number_integer_part)
+integer = as_number(maybe("-") + _number_integer_part)
 
 int = integer
 
-non_negative_integer = number_of(_number_integer_part)
+non_negative_integer = as_number(_number_integer_part)
 
-negative_integer = number_of("-" + _number_integer_part)
+negative_integer = as_number("-" + _number_integer_part)
 
-float = number_of(maybe("-") + _number_integer_part + _number_fraction_part)
+float = as_number(maybe("-") + _number_integer_part + _number_fraction_part)
 
-scientific_integer = number_of(
+scientific_integer = as_number(
   maybe("-") +
   _number_integer_part +
   _number_exponent_part
 )
 
-scientific_float = number_of(
+scientific_float = as_number(
   maybe("-") +
   _number_integer_part +
   _number_fraction_part +
   _number_exponent_part
 )
 
-number = number_of(
+number = as_number(
   maybe("-") +
   _number_integer_part +
   maybe(_number_fraction_part) +
@@ -93,13 +93,13 @@ number = number_of(
 
 num = number
 
-non_negative_number = number_of(
+non_negative_number = as_number(
   _number_integer_part +
   maybe(_number_fraction_part) +
   maybe(_number_exponent_part)
 )
 
-negative_number = number_of(
+negative_number = as_number(
   "-" +
   _number_integer_part +
   maybe(_number_fraction_part) +
@@ -387,7 +387,7 @@ default(p, D) = p | const(D)
 
 const(C) = "" $ C
 
-number_of(p) = p -> "%(0 + N)" $ N
+as_number(p) = p -> "%(0 + N)" $ N
 
 string_of(p) = "%(p)"
 
@@ -693,7 +693,7 @@ _toml.datetime.minutes = "0".."5" + "0".."9"
 
 _toml.datetime.seconds = ("0".."5" + "0".."9") | "60"
 
-toml.number.integer = number_of(
+toml.number.integer = as_number(
   _toml.number.sign +
   _toml.number.integer_part
 )
@@ -703,7 +703,7 @@ _toml.number.sign = maybe("-" | skip("+"))
 _toml.number.integer_part =
   ("1".."9" + many(maybe("_") > numeral)) | numeral
 
-toml.number.float = number_of(
+toml.number.float = as_number(
   _toml.number.sign +
   _toml.number.integer_part + (
     (_toml.number.fraction_part + maybe(_toml.number.exponent_part)) |
@@ -1054,6 +1054,10 @@ Is.LessThanOrEqual(A, B) = A -> ..B
 Is.GreaterThan(A, B) = A -> B ? @Fail : A -> B..
 
 Is.GreaterThanOrEqual(A, B) = A -> B..
+
+## Conversion
+
+As.Number(V) = Is.Number(V) | (V -> "%(0 + N)" $ N)
 
 ## Utility
 

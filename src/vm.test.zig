@@ -1051,9 +1051,10 @@ test "a = b ; b = c('bar') ; c(a) = d(a, 'foo') ; d(a, b) = a + b; a" {
     }
 }
 
-test "@number_of('123')" {
+test "as_number('123')" {
     const parser =
-        \\@number_of('123')
+        \\as_number(p) = p -> "%(0 + N)" $ N
+        \\as_number('123')
     ;
     {
         var vm = VM.create();
@@ -1068,9 +1069,10 @@ test "@number_of('123')" {
     }
 }
 
-test "@number_of('123.456')" {
+test "as_number('123.456')" {
     const parser =
-        \\@number_of('123.456')
+        \\as_number(p) = p -> "%(0 + N)" $ N
+        \\as_number('123.456')
     ;
     {
         var vm = VM.create();

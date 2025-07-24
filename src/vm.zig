@@ -602,16 +602,6 @@ pub const VM = struct {
                 // Push singleton null value.
                 try self.push(Elem.nullConst);
             },
-            .NumberOf => {
-                if (self.peekIsSuccess()) {
-                    const value = self.pop();
-                    if (try value.toNumber(self)) |n| {
-                        try self.push(n);
-                    } else {
-                        try self.pushFailure();
-                    }
-                }
-            },
             .Or => {
                 // Infix, lhs on stack.
                 // If lhs succeeded then jump to skip rhs ops.

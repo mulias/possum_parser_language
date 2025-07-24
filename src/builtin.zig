@@ -7,12 +7,10 @@ const Region = @import("region.zig").Region;
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
 
-pub fn functions(vm: *VM) ![17]*Function {
+pub fn functions(vm: *VM) ![15]*Function {
     return [_]*Function{
         try createFailParser(vm),
         try createFailValue(vm),
-        try createNumberOfParser(vm),
-        try createNumberOfValue(vm),
         try createCrashValue(vm),
         try createCodepointValue(vm),
         try createSurrogatePairCodepointValue(vm),
@@ -58,52 +56,6 @@ fn createFailValue(vm: *VM) !*Function {
     const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(.Fail, loc);
-    try fun.chunk.writeOp(.End, loc);
-
-    return fun;
-}
-
-fn createNumberOfParser(vm: *VM) !*Function {
-    const name = try vm.strings.insert("@number_of");
-    var fun = try Function.create(vm, .{
-        .name = name,
-        .functionType = .NamedParser,
-        .arity = 1,
-        .region = Region.new(0, 0),
-    });
-
-    const argName = try vm.strings.insert("p");
-    try fun.locals.append(.{ .ParserVar = argName });
-
-    const loc = Region.new(0, 0);
-
-    try fun.chunk.writeOp(.GetLocal, loc);
-    try fun.chunk.write(0, loc);
-    try fun.chunk.writeOp(.CallFunction, loc);
-    try fun.chunk.write(0, loc);
-    try fun.chunk.writeOp(.NumberOf, loc);
-    try fun.chunk.writeOp(.End, loc);
-
-    return fun;
-}
-
-fn createNumberOfValue(vm: *VM) !*Function {
-    const name = try vm.strings.insert("@NumberOf");
-    var fun = try Function.create(vm, .{
-        .name = name,
-        .functionType = .NamedValue,
-        .arity = 1,
-        .region = Region.new(0, 0),
-    });
-
-    const argName = try vm.strings.insert("V");
-    try fun.locals.append(.{ .ValueVar = argName });
-
-    const loc = Region.new(0, 0);
-
-    try fun.chunk.writeOp(.GetLocal, loc);
-    try fun.chunk.write(0, loc);
-    try fun.chunk.writeOp(.NumberOf, loc);
     try fun.chunk.writeOp(.End, loc);
 
     return fun;

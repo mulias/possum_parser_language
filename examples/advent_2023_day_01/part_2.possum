@@ -15,6 +15,6 @@ calibration_value =
 CalibrationValue(Digits) =
   Digits -> [First, ..._] &
   Digits -> [..._, Last] &
-  @NumberOf(First + Last)
+  As.Number(First + Last)
 
 many_sep(calibration_value, ws)
