@@ -1799,9 +1799,9 @@ test "'aa' $ {'a': 1, 'b': 2, 'c': 3}" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.DynElem.Object.create(&vm, 3);
-        try object.members.put(vm.strings.getId("a"), Elem.integer(1));
-        try object.members.put(vm.strings.getId("b"), Elem.integer(2));
-        try object.members.put(vm.strings.getId("c"), Elem.integer(3));
+        try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.integer(1));
+        try object.members.put(vm.allocator, vm.strings.getId("b"), Elem.integer(2));
+        try object.members.put(vm.allocator, vm.strings.getId("c"), Elem.integer(3));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
@@ -1820,8 +1820,8 @@ test "1 -> A & 2 -> B $ {'a': A, 'b': B}" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.DynElem.Object.create(&vm, 3);
-        try object.members.put(vm.strings.getId("a"), Elem.integer(1));
-        try object.members.put(vm.strings.getId("b"), Elem.integer(2));
+        try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.integer(1));
+        try object.members.put(vm.allocator, vm.strings.getId("b"), Elem.integer(2));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
@@ -1840,8 +1840,8 @@ test "'Z' -> A $ {A: 1, 'A': 2}" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.DynElem.Object.create(&vm, 3);
-        try object.members.put(vm.strings.getId("Z"), Elem.integer(1));
-        try object.members.put(vm.strings.getId("A"), Elem.integer(2));
+        try object.members.put(vm.allocator, vm.strings.getId("Z"), Elem.integer(1));
+        try object.members.put(vm.allocator, vm.strings.getId("A"), Elem.integer(2));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
@@ -1871,9 +1871,9 @@ test "object('a'..'z', 0..9)" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.DynElem.Object.create(&vm, 3);
-        try object.members.put(vm.strings.getId("a"), Elem.integer(1));
-        try object.members.put(vm.strings.getId("b"), Elem.integer(2));
-        try object.members.put(vm.strings.getId("c"), Elem.integer(3));
+        try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.integer(1));
+        try object.members.put(vm.allocator, vm.strings.getId("b"), Elem.integer(2));
+        try object.members.put(vm.allocator, vm.strings.getId("c"), Elem.integer(3));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
@@ -1892,8 +1892,8 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.DynElem.Object.create(&vm, 3);
-        try object.members.put(vm.strings.getId("a"), Elem.boolean(false));
-        try object.members.put(vm.strings.getId("b"), Elem.nullConst);
+        try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.boolean(false));
+        try object.members.put(vm.allocator, vm.strings.getId("b"), Elem.nullConst);
 
         try testing.expectSuccess(result, object.dyn.elem(), vm);
     }
@@ -1912,7 +1912,7 @@ test "('' $ {'a': true}) -> {'a': true}" {
 
         // Do this after running the VM to make sure strings are interned
         var object = try Elem.DynElem.Object.create(&vm, 1);
-        try object.members.put(vm.strings.getId("a"), Elem.boolean(true));
+        try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.boolean(true));
 
         try testing.expectSuccess(result, object.dyn.elem(), vm);
     }

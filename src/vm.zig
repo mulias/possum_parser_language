@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
-const AutoHashMap = std.AutoHashMap;
+const ArrayList = std.ArrayListUnmanaged;
+const AutoHashMap = std.AutoHashMapUnmanaged;
 const assert = std.debug.assert;
 const unicode = std.unicode;
 const Chunk = @import("chunk.zig").Chunk;
@@ -113,13 +113,13 @@ pub const VM = struct {
     pub fn init(self: *VM, allocator: Allocator, writers: Writers, config: Config) !void {
         self.allocator = allocator;
         self.strings = StringTable.init(allocator);
-        self.modules = ArrayList(Module).init(allocator);
+        self.modules = ArrayList(Module){};
         self.dynList = null;
-        self.stack = ArrayList(Elem).init(allocator);
-        self.frames = ArrayList(CallFrame).init(allocator);
+        self.stack = ArrayList(Elem){};
+        self.frames = ArrayList(CallFrame){};
         self.source = undefined;
         self.input = undefined;
-        self.inputMarks = ArrayList(Pos).init(allocator);
+        self.inputMarks = ArrayList(Pos){};
         self.inputPos = Pos{};
         self.uniqueIdCount = 0;
         self.writers = writers;
@@ -139,11 +139,11 @@ pub const VM = struct {
         for (self.modules.items) |*module| {
             module.deinit(self.allocator);
         }
-        self.modules.deinit();
+        self.modules.deinit(self.allocator);
         self.freeDynList();
-        self.stack.deinit();
-        self.frames.deinit();
-        self.inputMarks.deinit();
+        self.stack.deinit(self.allocator);
+        self.frames.deinit(self.allocator);
+        self.inputMarks.deinit(self.allocator);
         self.pattern_solver.deinit();
     }
 
@@ -172,7 +172,7 @@ pub const VM = struct {
     }
 
     pub fn compile(self: *VM, module: Module) !void {
-        try self.modules.append(module);
+        try self.modules.append(self.allocator, module);
 
         var parser = Parser.init(self, module);
         defer parser.deinit();
@@ -203,7 +203,7 @@ pub const VM = struct {
     fn loadBuiltinFunctions(self: *VM) !void {
         const builtinModule = Module{ .source = "" };
 
-        try self.modules.append(builtinModule);
+        try self.modules.append(self.allocator, builtinModule);
         const modulePtr = &self.modules.items[self.modules.items.len - 1];
 
         const functions = try builtin.functions(self);
@@ -221,7 +221,7 @@ pub const VM = struct {
             .showLineNumbers = true,
         };
 
-        try self.modules.append(stdlibModule);
+        try self.modules.append(self.allocator, stdlibModule);
 
         var parser = Parser.init(self, stdlibModule);
         defer parser.deinit();
@@ -395,7 +395,7 @@ pub const VM = struct {
                 const prevFrame = self.frames.pop() orelse @panic("VM frame underflow");
                 const result = self.pop();
 
-                try self.stack.resize(prevFrame.elemsOffset);
+                try self.stack.resize(self.allocator, prevFrame.elemsOffset);
                 try self.push(result);
             },
             .Fail => {
@@ -471,8 +471,8 @@ pub const VM = struct {
                         else => @panic("Internal Error"),
                     };
                     var copy = try Elem.DynElem.Object.create(self, object.members.count());
-                    try copy.concat(object);
-                    try copy.members.put(key, val);
+                    try copy.concat(self.allocator, object);
+                    try copy.members.put(self.allocator, key, val);
                     try self.push(copy.dyn.elem());
                 }
             },
@@ -496,8 +496,8 @@ pub const VM = struct {
                     }
 
                     var copy = try Elem.DynElem.Object.create(self, object.members.count());
-                    try copy.concat(object);
-                    try copy.members.put(key, val);
+                    try copy.concat(self.allocator, object);
+                    try copy.members.put(self.allocator, key, val);
                     try self.push(copy.dyn.elem());
                 }
             },
@@ -766,7 +766,7 @@ pub const VM = struct {
                             const frameStart = self.frame().elemsOffset;
                             const frameEnd = self.stack.items.len - function.arity - 1;
                             const length = frameEnd - frameStart;
-                            try self.stack.replaceRange(frameStart, length, &[0]Elem{});
+                            try self.stack.replaceRange(self.allocator, frameStart, length, &[0]Elem{});
                             _ = self.frames.pop();
                         }
                         try self.addFrame(function);
@@ -968,7 +968,7 @@ pub const VM = struct {
     }
 
     fn addFrame(self: *VM, function: *Elem.DynElem.Function) !void {
-        try self.frames.append(CallFrame{
+        try self.frames.append(self.allocator, CallFrame{
             .function = function,
             .ip = 0,
             .elemsOffset = self.stack.items.len - function.arity - 1,
@@ -1025,7 +1025,7 @@ pub const VM = struct {
     }
 
     pub fn push(self: *VM, elem: Elem) !void {
-        try self.stack.append(elem);
+        try self.stack.append(self.allocator, elem);
     }
 
     pub fn pushFailure(self: *VM) !void {
@@ -1050,7 +1050,7 @@ pub const VM = struct {
     }
 
     fn pushInputMark(self: *VM) !void {
-        try self.inputMarks.append(self.inputPos);
+        try self.inputMarks.append(self.allocator, self.inputPos);
     }
 
     fn popInputMark(self: *VM) Pos {

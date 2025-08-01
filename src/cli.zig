@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayListUnmanaged;
 const Chunk = @import("chunk.zig").Chunk;
 const Env = @import("env.zig").Env;
 const OpCode = @import("op_code.zig").OpCode;
@@ -113,9 +114,13 @@ pub const CLI = struct {
     }
 
     pub fn readStreamAlloc(self: CLI, streamReader: anytype) anyerror![]u8 {
-        var input = std.ArrayList(u8).init(self.allocator);
+        var input = ArrayList(u8){};
 
-        streamReader.streamUntilDelimiter(input.writer(), 0, null) catch |err| switch (err) {
+        streamReader.streamUntilDelimiter(
+            input.writer(self.allocator),
+            0,
+            null,
+        ) catch |err| switch (err) {
             error.EndOfStream => {
                 // This is expected
             },

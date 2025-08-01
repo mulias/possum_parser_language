@@ -1,5 +1,5 @@
 const std = @import("std");
-const ArrayList = std.ArrayList;
+const ArrayList = std.ArrayListUnmanaged;
 const unicode = std.unicode;
 const Ast = @import("ast.zig").Ast;
 const Chunk = @import("chunk.zig").Chunk;
@@ -63,8 +63,8 @@ pub const Compiler = struct {
             .region = undefined,
         });
 
-        var functions = ArrayList(*Elem.DynElem.Function).init(vm.allocator);
-        try functions.append(main);
+        var functions = ArrayList(*Elem.DynElem.Function){};
+        try functions.append(vm.allocator, main);
 
         // Ensure that the strings table includes the placeholder var, which
         // might be used directly by the compiler.
@@ -97,7 +97,7 @@ pub const Compiler = struct {
     }
 
     pub fn deinit(self: *Compiler) void {
-        self.functions.deinit();
+        self.functions.deinit(self.vm.allocator);
     }
 
     pub fn compile(self: *Compiler) !?*Elem.DynElem.Function {
@@ -232,7 +232,7 @@ pub const Compiler = struct {
 
         try self.targetModule.addGlobal(self.vm.allocator, name_sid, function.dyn.elem());
 
-        try self.functions.append(function);
+        try self.functions.append(self.vm.allocator, function);
 
         if (params) |first_param| {
             var param = first_param;
@@ -376,12 +376,12 @@ pub const Compiler = struct {
             return;
         }
 
-        var path = ArrayList(StringTable.Id).init(self.vm.allocator);
-        defer path.deinit();
+        var path = ArrayList(StringTable.Id){};
+        defer path.deinit(self.vm.allocator);
 
         while (true) {
             if (value) |foundValue| {
-                try path.append(aliasName);
+                try path.append(self.vm.allocator, aliasName);
 
                 aliasName = switch (foundValue) {
                     .ValueVar => |name| name,
@@ -417,7 +417,7 @@ pub const Compiler = struct {
         if (globalVal.isDynType(.Function)) {
             const function = globalVal.asDyn().asFunction();
 
-            try self.functions.append(function);
+            try self.functions.append(self.vm.allocator, function);
 
             if (function.functionType == .NamedParser) {
                 try self.addValueLocals(body);
@@ -894,7 +894,7 @@ pub const Compiler = struct {
             .{ .arity = 0, .region = region },
         );
 
-        try self.functions.append(function);
+        try self.functions.append(self.vm.allocator, function);
 
         try self.addClosureLocals(rnode);
 
@@ -1597,14 +1597,14 @@ pub const Compiler = struct {
     fn appendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) !void {
         try self.writeValue(rnode, false);
         try self.emitUnaryOp(.InsertAtIndex, index, region);
-        try array.append(self.placeholderVar());
+        try array.append(self.vm.allocator, self.placeholderVar());
     }
 
     fn negateAndAppendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) !void {
         try self.writeValue(rnode, false);
         try self.emitOp(.NegateNumber, region);
         try self.emitUnaryOp(.InsertAtIndex, index, region);
-        try array.append(self.placeholderVar());
+        try array.append(self.vm.allocator, self.placeholderVar());
     }
 
     fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) Error!void {
@@ -1612,7 +1612,7 @@ pub const Compiler = struct {
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => try self.appendDynamicValue(array, rnode, index, region),
                 else => {
-                    try array.append(elem);
+                    try array.append(self.vm.allocator, elem);
                 },
             },
             .InfixNode => try self.appendDynamicValue(array, rnode, index, region),
@@ -1620,7 +1620,7 @@ pub const Compiler = struct {
                 // Special case: empty arrays should be treated as literals
                 if (elements.items.len == 0) {
                     var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
-                    try array.append(emptyArray.dyn.elem());
+                    try array.append(self.vm.allocator, emptyArray.dyn.elem());
                 } else {
                     try self.appendDynamicValue(array, rnode, index, region);
                 }
@@ -1629,7 +1629,7 @@ pub const Compiler = struct {
                 // Special case: empty objects should be treated as literals
                 if (pairs.items.len == 0) {
                     var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
-                    try array.append(emptyObject.dyn.elem());
+                    try array.append(self.vm.allocator, emptyObject.dyn.elem());
                 } else {
                     try self.appendDynamicValue(array, rnode, index, region);
                 }
@@ -1644,7 +1644,7 @@ pub const Compiler = struct {
             .Conditional => try self.appendDynamicValue(array, rnode, index, region),
             .Negation => |inner| {
                 if (simplifyNegatedNumberNode(rnode)) |elem| {
-                    try array.append(elem);
+                    try array.append(self.vm.allocator, elem);
                 } else {
                     try self.negateAndAppendDynamicValue(array, inner, index, region);
                 }
@@ -1665,7 +1665,7 @@ pub const Compiler = struct {
             if (try self.literalPatternToElem(pair.key)) |key_elem| {
                 if (try self.literalPatternToElem(pair.value)) |val_elem| {
                     const key_sId = key_elem.String;
-                    try object.members.put(key_sId, val_elem);
+                    try object.members.put(self.vm.allocator, key_sId, val_elem);
                 } else {
                     try self.writeValueObjectVal(pair.value, key_elem);
                 }
@@ -1806,7 +1806,10 @@ pub const Compiler = struct {
             return Error.InvalidAst;
         }
 
-        return self.currentFunction().addLocal(local) catch |err| switch (err) {
+        return self.currentFunction().addLocal(
+            self.vm.allocator,
+            local,
+        ) catch |err| switch (err) {
             error.MaxFunctionLocals => {
                 try self.printError(
                     std.fmt.comptimePrint(

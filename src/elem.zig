@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
-const AutoArrayHashMap = std.AutoArrayHashMap;
+const ArrayList = std.ArrayListUnmanaged;
+const AutoArrayHashMap = std.AutoArrayHashMapUnmanaged;
 const Tuple = std.meta.Tuple;
 const json = std.json;
 const json_pretty = @import("json_pretty.zig");
@@ -520,8 +520,8 @@ pub const Elem = union(ElemType) {
                             .Array => {
                                 const a2 = d2.asArray();
                                 const a = try Elem.DynElem.Array.create(vm, a1.elems.items.len + a2.elems.items.len);
-                                try a.concat(a1);
-                                try a.concat(a2);
+                                try a.concat(vm.allocator, a1);
+                                try a.concat(vm.allocator, a2);
                                 return a.dyn.elem();
                             },
                             else => null,
@@ -536,8 +536,8 @@ pub const Elem = union(ElemType) {
                             .Object => {
                                 const o2 = d2.asObject();
                                 const o = try Elem.DynElem.Object.create(vm, o1.members.count() + o2.members.count());
-                                try o.concat(o1);
-                                try o.concat(o2);
+                                try o.concat(vm.allocator, o1);
+                                try o.concat(vm.allocator, o2);
                                 return o.dyn.elem();
                             },
                             else => null,
@@ -613,9 +613,9 @@ pub const Elem = union(ElemType) {
         if (self.isType(.String) or self.isType(.InputSubstring) or self.isDynType(.String)) {
             return self;
         } else {
-            var bytes = ArrayList(u8).init(vm.allocator);
-            try self.writeJson(.Compact, vm.*, bytes.writer());
-            defer bytes.deinit();
+            var bytes = ArrayList(u8){};
+            try self.writeJson(.Compact, vm.*, bytes.writer(vm.allocator));
+            defer bytes.deinit(vm.allocator);
 
             const s = try Elem.DynElem.String.copy(vm, bytes.items);
             return s.dyn.elem();
@@ -731,7 +731,7 @@ pub const Elem = union(ElemType) {
             .array => |a| {
                 const array = try Elem.DynElem.Array.create(vm, a.items.len);
                 for (a.items) |array_value| {
-                    try array.append(try fromJson(array_value, vm));
+                    try array.append(vm.allocator, try fromJson(array_value, vm));
                 }
                 return array.dyn.elem();
             },
@@ -741,7 +741,7 @@ pub const Elem = union(ElemType) {
                 while (iterator.next()) |entry| {
                     const elem_key = try vm.strings.insert(entry.key_ptr.*);
                     const elem_value = try fromJson(entry.value_ptr.*, vm);
-                    try obj.members.put(elem_key, elem_value);
+                    try obj.members.put(vm.allocator, elem_key, elem_value);
                 }
                 return obj.dyn.elem();
             },
@@ -909,7 +909,7 @@ pub const Elem = union(ElemType) {
 
             pub fn copy(vm: *VM, elems: []const Elem) !*Array {
                 const a = try create(vm, elems.len);
-                try a.elems.appendSlice(elems);
+                try a.elems.appendSlice(vm.allocator, elems);
                 return a;
             }
 
@@ -917,8 +917,8 @@ pub const Elem = union(ElemType) {
                 const dyn = try DynElem.allocate(vm, Array, .Array);
                 const array = dyn.asArray();
 
-                var elems = ArrayList(Elem).init(vm.allocator);
-                try elems.ensureTotalCapacity(capacity);
+                var elems = ArrayList(Elem){};
+                try elems.ensureTotalCapacity(vm.allocator, capacity);
 
                 array.* = Array{
                     .dyn = dyn.*,
@@ -929,7 +929,7 @@ pub const Elem = union(ElemType) {
             }
 
             pub fn destroy(self: *Array, vm: *VM) void {
-                self.elems.deinit();
+                self.elems.deinit(vm.allocator);
                 vm.allocator.destroy(self);
             }
 
@@ -963,12 +963,12 @@ pub const Elem = union(ElemType) {
                 return true;
             }
 
-            pub fn append(self: *Array, item: Elem) !void {
-                try self.elems.append(item);
+            pub fn append(self: *Array, allocator: Allocator, item: Elem) !void {
+                try self.elems.append(allocator, item);
             }
 
-            pub fn concat(self: *Array, other: *Array) !void {
-                try self.elems.appendSlice(other.elems.items);
+            pub fn concat(self: *Array, allocator: Allocator, other: *Array) !void {
+                try self.elems.appendSlice(allocator, other.elems.items);
             }
 
             pub fn len(self: *Array) usize {
@@ -989,8 +989,8 @@ pub const Elem = union(ElemType) {
                 const dyn = try DynElem.allocate(vm, Object, .Object);
                 const object = dyn.asObject();
 
-                var members = AutoArrayHashMap(StringTable.Id, Elem).init(vm.allocator);
-                try members.ensureTotalCapacity(capacity);
+                var members = AutoArrayHashMap(StringTable.Id, Elem){};
+                try members.ensureTotalCapacity(vm.allocator, capacity);
 
                 object.* = Object{
                     .dyn = dyn.*,
@@ -1002,12 +1002,12 @@ pub const Elem = union(ElemType) {
 
             pub fn copy(vm: *VM, other: *Object) !*Object {
                 const obj = try create(vm, other.members.count());
-                try obj.concat(other);
+                try obj.concat(vm.allocator, other);
                 return obj;
             }
 
             pub fn destroy(self: *Object, vm: *VM) void {
-                self.members.deinit();
+                self.members.deinit(vm.allocator);
                 vm.allocator.destroy(self);
             }
 
@@ -1050,10 +1050,10 @@ pub const Elem = union(ElemType) {
                 return true;
             }
 
-            pub fn concat(self: *Object, other: *Object) !void {
+            pub fn concat(self: *Object, allocator: Allocator, other: *Object) !void {
                 var iterator = other.members.iterator();
                 while (iterator.next()) |entry| {
-                    try self.members.put(entry.key_ptr.*, entry.value_ptr.*);
+                    try self.members.put(allocator, entry.key_ptr.*, entry.value_ptr.*);
                 }
             }
         };
@@ -1105,7 +1105,7 @@ pub const Elem = union(ElemType) {
                     .chunk = chunk,
                     .name = fields.name,
                     .functionType = fields.functionType,
-                    .locals = ArrayList(Local).init(vm.allocator),
+                    .locals = ArrayList(Local){},
                 };
 
                 return function;
@@ -1128,7 +1128,7 @@ pub const Elem = union(ElemType) {
                     .chunk = chunk,
                     .name = name,
                     .functionType = .AnonParser,
-                    .locals = ArrayList(Local).init(vm.allocator),
+                    .locals = ArrayList(Local){},
                 };
 
                 return function;
@@ -1136,7 +1136,7 @@ pub const Elem = union(ElemType) {
 
             pub fn destroy(self: *Function, vm: *VM) void {
                 self.chunk.deinit();
-                self.locals.deinit();
+                self.locals.deinit(vm.allocator);
                 vm.allocator.destroy(self);
             }
 
@@ -1154,7 +1154,7 @@ pub const Elem = union(ElemType) {
                 try self.chunk.disassemble(vm, writer, label, module);
             }
 
-            pub fn addLocal(self: *Function, local: Local) !?u8 {
+            pub fn addLocal(self: *Function, allocator: Allocator, local: Local) !?u8 {
                 if (self.locals.items.len >= std.math.maxInt(u8)) {
                     return error.MaxFunctionLocals;
                 }
@@ -1165,7 +1165,7 @@ pub const Elem = union(ElemType) {
                     }
                 }
 
-                try self.locals.append(local);
+                try self.locals.append(allocator, local);
 
                 return @as(u8, @intCast(self.locals.items.len - 1));
             }
@@ -1295,8 +1295,8 @@ test "struct size" {
     try std.testing.expectEqual(16, @sizeOf(Elem));
     try std.testing.expectEqual(24, @sizeOf(Elem.DynElem));
     try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.String));
-    try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.Array));
-    try std.testing.expectEqual(80, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(264, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(48, @sizeOf(Elem.DynElem.Array));
+    try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.Object));
+    try std.testing.expectEqual(184, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(48, @sizeOf(Elem.DynElem.Closure));
 }

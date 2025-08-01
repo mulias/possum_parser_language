@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayList = std.ArrayListUnmanaged;
 const Tuple = std.meta.Tuple;
 const Chunk = @import("chunk.zig").Chunk;
 const Elem = @import("elem.zig").Elem;
@@ -8,9 +8,9 @@ const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 
 pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {
-    var str = ArrayList(u8).init(std.testing.allocator);
-    defer str.deinit();
-    try std.json.stringify(actual, .{}, str.writer());
+    var str = ArrayList(u8){};
+    defer str.deinit(std.testing.allocator);
+    try std.json.stringify(actual, .{}, str.writer(std.testing.allocator));
     try std.testing.expectEqualStrings(expected, str.items);
 }
 
