@@ -1,5 +1,6 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
+const HashMap = std.AutoHashMapUnmanaged;
 const VM = @import("vm.zig").VM;
 const Pattern = @import("pattern.zig").Pattern;
 const Elem = @import("elem.zig").Elem;
@@ -415,7 +416,7 @@ fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool
         // Create an array element containing the unbound range
         const unbound_elems = value_array.elems.items[unbound_start..unbound_end];
         const unbound_array = try Elem.DynElem.Array.create(self.vm, unbound_elems.len);
-        try unbound_array.elems.appendSlice(unbound_elems);
+        try unbound_array.elems.appendSlice(self.vm.allocator, unbound_elems);
         const unbound_elem = unbound_array.dyn.elem();
 
         if (!(try self.matchPattern(unbound_elem, pattern))) {
@@ -560,12 +561,12 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(
     var value_object = value.asDyn().asObject();
 
     // Initialize a set of all keys in the value object
-    var unmatched_keys = std.AutoHashMap(StringTable.Id, void).init(self.vm.allocator);
-    defer unmatched_keys.deinit();
+    var unmatched_keys = HashMap(StringTable.Id, void){};
+    defer unmatched_keys.deinit(self.vm.allocator);
 
     var iterator = value_object.members.iterator();
     while (iterator.next()) |entry| {
-        try unmatched_keys.put(entry.key_ptr.*, {});
+        try unmatched_keys.put(self.vm.allocator, entry.key_ptr.*, {});
     }
 
     var unbound_part: ?Pattern = null;
@@ -649,7 +650,7 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(
         while (key_iterator.next()) |entry| {
             const key_sid = entry.key_ptr.*;
             const value_elem = value_object.members.get(key_sid).?;
-            try unbound_object.members.put(key_sid, value_elem);
+            try unbound_object.members.put(self.vm.allocator, key_sid, value_elem);
         }
 
         const unbound_elem = unbound_object.dyn.elem();
@@ -835,7 +836,7 @@ fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Patt
             }
 
             // Use a set to track which keys we have matched
-            var matched_keys = std.AutoHashMapUnmanaged(StringTable.Id, void){};
+            var matched_keys = HashMap(StringTable.Id, void){};
             defer matched_keys.deinit(self.vm.allocator);
 
             for (pattern_object.items) |pattern_pair| {

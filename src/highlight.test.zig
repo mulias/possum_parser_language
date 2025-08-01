@@ -5,7 +5,7 @@ const highlight = @import("highlight.zig");
 const HighlightConfig = highlight.HighlightConfig;
 
 // Test helper to capture writer output
-var test_buffer: std.ArrayList(u8) = undefined;
+var test_buffer: std.ArrayListUnmanaged(u8) = undefined;
 
 const TestWriter = struct {
     const Self = @This();
@@ -14,13 +14,13 @@ const TestWriter = struct {
 
     pub fn write(self: Self, bytes: []const u8) Error!usize {
         _ = self;
-        try test_buffer.appendSlice(bytes);
+        try test_buffer.appendSlice(testing.allocator, bytes);
         return bytes.len;
     }
 
     pub fn print(self: Self, comptime format: []const u8, args: anytype) Error!void {
         _ = self;
-        try test_buffer.writer().print(format, args);
+        try test_buffer.writer(testing.allocator).print(format, args);
     }
 };
 
@@ -31,11 +31,11 @@ fn getTestWriter() TestWriterType {
 }
 
 fn initTestBuffer() void {
-    test_buffer = std.ArrayList(u8).init(testing.allocator);
+    test_buffer = std.ArrayListUnmanaged(u8){};
 }
 
 fn deinitTestBuffer() void {
-    test_buffer.deinit();
+    test_buffer.deinit(testing.allocator);
 }
 
 fn clearTestBuffer() void {
@@ -352,12 +352,12 @@ test "highlight line numbers width calculation" {
     defer deinitTestBuffer();
 
     // Create source with many lines to test line number width
-    var source_buffer = std.ArrayList(u8).init(testing.allocator);
-    defer source_buffer.deinit();
+    var source_buffer = std.ArrayListUnmanaged(u8){};
+    defer source_buffer.deinit(testing.allocator);
 
     var i: usize = 1;
     while (i <= 100) {
-        try source_buffer.writer().print("line {d}\n", .{i});
+        try source_buffer.writer(testing.allocator).print("line {d}\n", .{i});
         i += 1;
     }
 

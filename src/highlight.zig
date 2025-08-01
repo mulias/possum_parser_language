@@ -17,8 +17,8 @@ pub const HighlightConfig = struct {
 };
 
 /// Parse source code into line information
-fn parseLines(source: []const u8, allocator: std.mem.Allocator) !std.ArrayList(LineInfo) {
-    var lines = std.ArrayList(LineInfo).init(allocator);
+fn parseLines(source: []const u8, allocator: std.mem.Allocator) !std.ArrayListUnmanaged(LineInfo) {
+    var lines = std.ArrayListUnmanaged(LineInfo){};
 
     if (source.len == 0) {
         return lines;
@@ -29,7 +29,7 @@ fn parseLines(source: []const u8, allocator: std.mem.Allocator) !std.ArrayList(L
 
     for (source, 0..) |char, i| {
         if (char == '\n') {
-            try lines.append(LineInfo{
+            try lines.append(allocator, LineInfo{
                 .start = line_start,
                 .end = i,
                 .line_number = line_number,
@@ -41,7 +41,7 @@ fn parseLines(source: []const u8, allocator: std.mem.Allocator) !std.ArrayList(L
 
     // Add the last line if it doesn't end with newline, or if it ends with newline (empty final line)
     if (line_start <= source.len) {
-        try lines.append(LineInfo{
+        try lines.append(allocator, LineInfo{
             .start = line_start,
             .end = source.len,
             .line_number = line_number,
@@ -221,7 +221,7 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, conf
 
     // Parse lines
     var lines = try parseLines(source, allocator);
-    defer lines.deinit();
+    defer lines.deinit(allocator);
 
     if (lines.items.len == 0) {
         try writer.print("(no lines found)\n", .{});

@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const Pattern = @import("pattern.zig").Pattern;
 const Module = @import("module.zig").Module;
@@ -27,22 +27,22 @@ pub const Chunk = struct {
     pub fn init(allocator: Allocator) Chunk {
         return Chunk{
             .allocator = allocator,
-            .code = ArrayList(u8).init(allocator),
-            .constants = ArrayList(Elem).init(allocator),
-            .patterns = ArrayList(Pattern).init(allocator),
-            .regions = ArrayList(Region).init(allocator),
+            .code = ArrayList(u8){},
+            .constants = ArrayList(Elem){},
+            .patterns = ArrayList(Pattern){},
+            .regions = ArrayList(Region){},
             .sourceRegion = undefined,
         };
     }
 
     pub fn deinit(self: *Chunk) void {
-        self.code.deinit();
-        self.constants.deinit();
+        self.code.deinit(self.allocator);
+        self.constants.deinit(self.allocator);
         for (self.patterns.items) |*pattern| {
             pattern.deinit(self.allocator);
         }
-        self.patterns.deinit();
-        self.regions.deinit();
+        self.patterns.deinit(self.allocator);
+        self.regions.deinit(self.allocator);
     }
 
     pub fn read(self: *Chunk, pos: usize) u8 {
@@ -66,8 +66,8 @@ pub const Chunk = struct {
     }
 
     pub fn write(self: *Chunk, byte: u8, loc: Region) !void {
-        try self.code.append(byte);
-        try self.regions.append(loc);
+        try self.code.append(self.allocator, byte);
+        try self.regions.append(self.allocator, loc);
     }
 
     pub fn writeOp(self: *Chunk, op: OpCode, loc: Region) !void {
@@ -101,14 +101,14 @@ pub const Chunk = struct {
     pub fn addConstant(self: *Chunk, e: Elem) !u8 {
         const idx = self.constants.items.len;
         if (idx > std.math.maxInt(u8)) return ChunkError.TooManyConstants;
-        try self.constants.append(e);
+        try self.constants.append(self.allocator, e);
         return @as(u8, @intCast(idx));
     }
 
     pub fn addPattern(self: *Chunk, pattern: Pattern) !u8 {
         const idx = self.patterns.items.len;
         if (idx > std.math.maxInt(u8)) return ChunkError.TooManyPatterns;
-        try self.patterns.append(pattern);
+        try self.patterns.append(self.allocator, pattern);
         return @as(u8, @intCast(idx));
     }
 

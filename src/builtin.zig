@@ -71,7 +71,7 @@ fn createCrashValue(vm: *VM) !*Function {
     });
 
     const argName = try vm.strings.insert("Message");
-    try fun.locals.append(.{ .ValueVar = argName });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = argName });
 
     const loc = Region.new(0, 0);
 
@@ -101,7 +101,7 @@ fn createCodepointValue(vm: *VM) !*Function {
     const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
 
     const argName = try vm.strings.insert("HexString");
-    try fun.locals.append(.{ .ValueVar = argName });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = argName });
 
     const loc = Region.new(0, 0);
 
@@ -156,8 +156,8 @@ fn createSurrogatePairCodepointValue(vm: *VM) !*Function {
 
     const arg1 = try vm.strings.insert("HighSurrogate");
     const arg2 = try vm.strings.insert("LowSurrogate");
-    try fun.locals.append(.{ .ValueVar = arg1 });
-    try fun.locals.append(.{ .ValueVar = arg2 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg1 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg2 });
 
     const loc = Region.new(0, 0);
 
@@ -213,7 +213,7 @@ fn createDbgParser(vm: *VM) !*Function {
     const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
 
     const arg1 = try vm.strings.insert("p");
-    try fun.locals.append(.{ .ParserVar = arg1 });
+    try fun.locals.append(vm.allocator, .{ .ParserVar = arg1 });
 
     const loc = Region.new(0, 0);
 
@@ -241,7 +241,7 @@ fn createDbgValue(vm: *VM) !*Function {
     const nc_id = try fun.chunk.addConstant(native_code.dyn.elem());
 
     const arg1 = try vm.strings.insert("V");
-    try fun.locals.append(.{ .ValueVar = arg1 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg1 });
 
     const loc = Region.new(0, 0);
 
@@ -277,8 +277,8 @@ fn createAddValue(vm: *VM) !*Function {
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
-    try fun.locals.append(.{ .ValueVar = arg1 });
-    try fun.locals.append(.{ .ValueVar = arg2 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg1 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg2 });
 
     const loc = Region.new(0, 0);
 
@@ -340,8 +340,8 @@ fn createSubtractValue(vm: *VM) !*Function {
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
-    try fun.locals.append(.{ .ValueVar = arg1 });
-    try fun.locals.append(.{ .ValueVar = arg2 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg1 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg2 });
 
     const loc = Region.new(0, 0);
 
@@ -403,8 +403,8 @@ fn createMultiplyValue(vm: *VM) !*Function {
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
-    try fun.locals.append(.{ .ValueVar = arg1 });
-    try fun.locals.append(.{ .ValueVar = arg2 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg1 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg2 });
 
     const loc = Region.new(0, 0);
 
@@ -466,8 +466,8 @@ fn createDivideValue(vm: *VM) !*Function {
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
-    try fun.locals.append(.{ .ValueVar = arg1 });
-    try fun.locals.append(.{ .ValueVar = arg2 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg1 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg2 });
 
     const loc = Region.new(0, 0);
 
@@ -533,8 +533,8 @@ fn createPowerValue(vm: *VM) !*Function {
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
-    try fun.locals.append(.{ .ValueVar = arg1 });
-    try fun.locals.append(.{ .ValueVar = arg2 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg1 });
+    try fun.locals.append(vm.allocator, .{ .ValueVar = arg2 });
 
     const loc = Region.new(0, 0);
 
