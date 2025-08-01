@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Elem = @import("elem.zig").Elem;
+const Pattern = @import("pattern.zig").Pattern;
 const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
 const OpCode = @import("op_code.zig").OpCode;
@@ -11,6 +12,7 @@ const VM = @import("vm.zig").VM;
 
 pub const ChunkError = error{
     TooManyConstants,
+    TooManyPatterns,
     ShortOverflow,
 };
 
@@ -18,6 +20,7 @@ pub const Chunk = struct {
     allocator: Allocator,
     code: ArrayList(u8),
     constants: ArrayList(Elem),
+    patterns: ArrayList(Pattern),
     regions: ArrayList(Region),
     sourceRegion: Region,
 
@@ -26,6 +29,7 @@ pub const Chunk = struct {
             .allocator = allocator,
             .code = ArrayList(u8).init(allocator),
             .constants = ArrayList(Elem).init(allocator),
+            .patterns = ArrayList(Pattern).init(allocator),
             .regions = ArrayList(Region).init(allocator),
             .sourceRegion = undefined,
         };
@@ -34,6 +38,10 @@ pub const Chunk = struct {
     pub fn deinit(self: *Chunk) void {
         self.code.deinit();
         self.constants.deinit();
+        for (self.patterns.items) |*pattern| {
+            pattern.deinit(self.allocator);
+        }
+        self.patterns.deinit();
         self.regions.deinit();
     }
 
@@ -51,6 +59,10 @@ pub const Chunk = struct {
 
     pub fn getConstant(self: *Chunk, idx: u8) Elem {
         return self.constants.items[idx];
+    }
+
+    pub fn getPattern(self: *Chunk, idx: u8) Pattern {
+        return self.patterns.items[idx];
     }
 
     pub fn write(self: *Chunk, byte: u8, loc: Region) !void {
@@ -90,6 +102,13 @@ pub const Chunk = struct {
         const idx = self.constants.items.len;
         if (idx > std.math.maxInt(u8)) return ChunkError.TooManyConstants;
         try self.constants.append(e);
+        return @as(u8, @intCast(idx));
+    }
+
+    pub fn addPattern(self: *Chunk, pattern: Pattern) !u8 {
+        const idx = self.patterns.items.len;
+        if (idx > std.math.maxInt(u8)) return ChunkError.TooManyPatterns;
+        try self.patterns.append(pattern);
         return @as(u8, @intCast(idx));
     }
 

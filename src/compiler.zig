@@ -5,6 +5,7 @@ const Ast = @import("ast.zig").Ast;
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
 const Elem = @import("elem.zig").Elem;
+const Pattern = @import("pattern.zig").Pattern;
 const Region = @import("region.zig").Region;
 const OpCode = @import("op_code.zig").OpCode;
 const Scanner = @import("scanner.zig").Scanner;
@@ -31,6 +32,7 @@ pub const Compiler = struct {
         MaxFunctionLocals,
         OutOfMemory,
         TooManyConstants,
+        TooManyPatterns,
         ShortOverflow,
         VariableNameUsedInScope,
         InvalidGlobalValue,
@@ -78,14 +80,13 @@ pub const Compiler = struct {
         };
     }
 
-    fn findGlobalForCompilation(self: *Compiler, name: StringTable.Id) ?Elem {
-        // Search backwards through available modules to find the index of our target module
-        const targetIndex = for (self.vm.modules.items, 0..) |*module, i| {
+    fn findGlobal(self: *Compiler, name: StringTable.Id) ?Elem {
+        const targetModuleIndex = for (self.vm.modules.items, 0..) |*module, i| {
             if (module == self.targetModule) break i;
         } else return null;
 
         // Search backwards through modules up to and including the target module
-        var i = targetIndex + 1;
+        var i = targetModuleIndex + 1;
         while (i > 0) {
             i -= 1;
             if (self.vm.modules.items[i].getGlobal(name)) |elem| {
@@ -306,7 +307,7 @@ pub const Compiler = struct {
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
 
         switch (nameVar) {
-            .ValueVar => |name| switch (self.findGlobalForCompilation(name).?) {
+            .ValueVar => |name| switch (self.findGlobal(name).?) {
                 .ValueVar,
                 .String,
                 .NumberString,
@@ -334,7 +335,7 @@ pub const Compiler = struct {
                 .Failure,
                 => @panic("Internal Error"),
             },
-            .ParserVar => |name| switch (self.findGlobalForCompilation(name).?) {
+            .ParserVar => |name| switch (self.findGlobal(name).?) {
                 .ParserVar,
                 .String,
                 .NumberString,
@@ -369,7 +370,7 @@ pub const Compiler = struct {
     fn resolveGlobalAlias(self: *Compiler, head: *Ast.RNode) !void {
         const globalName = try self.getGlobalName(head);
         var aliasName = globalName;
-        var value = self.findGlobalForCompilation(aliasName);
+        var value = self.findGlobal(aliasName);
 
         if (!value.?.isType(.ValueVar) and !value.?.isType(.ParserVar)) {
             return;
@@ -397,7 +398,7 @@ pub const Compiler = struct {
                     }
                 }
 
-                value = self.findGlobalForCompilation(aliasName);
+                value = self.findGlobal(aliasName);
             } else {
                 return Error.UnknownVariable;
             }
@@ -406,7 +407,7 @@ pub const Compiler = struct {
 
     fn compileGlobalFunction(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode) !void {
         const globalName = try self.getGlobalName(head);
-        const globalVal = self.findGlobalForCompilation(globalName).?;
+        const globalVal = self.findGlobal(globalName).?;
 
         // Exit early if the node is an alias, not a function def
         if (head.node.asElem() != null and body.node.asElem() != null) {
@@ -543,7 +544,8 @@ pub const Compiler = struct {
                 },
                 .Destructure => {
                     try self.writeParser(infix.left, false);
-                    try self.writeDestructurePattern(infix.right);
+                    const patternId = try self.createPattern(infix.right);
+                    try self.emitUnaryOp(.Destructure, patternId, region);
                 },
                 .Or => {
                     try self.emitOp(.SetInputMark, region);
@@ -690,7 +692,7 @@ pub const Compiler = struct {
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
-            if (self.findGlobalForCompilation(functionName)) |global| {
+            if (self.findGlobal(functionName)) |global| {
                 function = global.asDyn().asFunction();
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, function_region);
@@ -716,7 +718,7 @@ pub const Compiler = struct {
             .ElemNode => |elem| {
                 switch (elem) {
                     .ParserVar => {
-                        try self.writeGetVar(elem, region, .Parser);
+                        try self.writeGetVar(elem, region);
                         try self.emitUnaryOp(.CallFunction, 0, region);
                     },
                     .ValueVar => {
@@ -732,12 +734,12 @@ pub const Compiler = struct {
                     },
                     .Boolean => {
                         // In this context `true`/`false` could be a zero-arg function call
-                        try self.writeGetVar(elem, region, .Parser);
+                        try self.writeGetVar(elem, region);
                         try self.emitUnaryOp(.CallFunction, 0, region);
                     },
                     .Null => {
                         // In this context `null` could be a zero-arg function call
-                        try self.writeGetVar(elem, region, .Parser);
+                        try self.writeGetVar(elem, region);
                         try self.emitUnaryOp(.CallFunction, 0, region);
                     },
                     .Failure,
@@ -752,7 +754,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGetVar(self: *Compiler, elem: Elem, region: Region, context: enum { Parser, Pattern, Value }) !void {
+    fn writeGetVar(self: *Compiler, elem: Elem, region: Region) !void {
         const varName = switch (elem) {
             .ParserVar => |sId| sId,
             .ValueVar => |sId| sId,
@@ -762,13 +764,9 @@ pub const Compiler = struct {
         };
 
         if (self.localSlot(varName)) |slot| {
-            if (context == .Pattern) {
-                try self.emitUnaryOp(.GetLocal, slot, region);
-            } else {
-                try self.emitUnaryOp(.GetBoundLocal, slot, region);
-            }
+            try self.emitUnaryOp(.GetBoundLocal, slot, region);
         } else {
-            if (self.findGlobalForCompilation(varName)) |globalElem| {
+            if (self.findGlobal(varName)) |globalElem| {
                 const constId = try self.makeConstant(globalElem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
             } else {
@@ -859,7 +857,7 @@ pub const Compiler = struct {
                     try self.writeCaptureLocals(function, region);
                 },
                 .ElemNode => |elem| switch (elem) {
-                    .ParserVar => try self.writeGetVar(elem, region, .Value),
+                    .ParserVar => try self.writeGetVar(elem, region),
                     else => {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, region);
@@ -924,355 +922,249 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeDestructurePattern(self: *Compiler, rnode: *Ast.RNode) !void {
-        const node = rnode.node;
-        const region = rnode.region;
-
-        switch (node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .Merge => {
-                    try self.writePatternMerge(rnode);
-                },
-                .Range => {
-                    try self.writePattern(infix.left);
-                    try self.writePattern(infix.right);
-                    try self.emitOp(.DestructureRange, region);
-                },
-                else => {
-                    try self.writePattern(rnode);
-                    try self.emitOp(.Destructure, region);
-                },
-            },
-            .ElemNode => {
-                try self.writePattern(rnode);
-                try self.emitOp(.Destructure, region);
-            },
-            .UpperBoundedRange => |high_node_id| {
-                const low_elem = self.placeholderVar();
-                const low_id = try self.makeConstant(low_elem);
-                try self.emitUnaryOp(.GetConstant, low_id, region);
-                try self.writePattern(high_node_id);
-                try self.emitOp(.DestructureRange, region);
-            },
-            .LowerBoundedRange => |low_node_id| {
-                const high_elem = self.placeholderVar();
-                try self.writePattern(low_node_id);
-                const high_id = try self.makeConstant(high_elem);
-                try self.emitUnaryOp(.GetConstant, high_id, region);
-                try self.emitOp(.DestructureRange, region);
-            },
-            .Negation => |inner| {
-                if (inner.node.asInfixOfType(.Merge)) |_| {
-                    // Negated merge pattern - no extra destructure needed
-                    try self.writePattern(rnode);
-                } else {
-                    try self.writePattern(rnode);
-                    try self.emitOp(.Destructure, region);
-                }
-            },
-            .ValueLabel => return error.InvalidAst,
-            .Array => |elements| {
-                try self.writeDestructurePatternArray(elements, region);
-            },
-            .Object => |pairs| {
-                try self.writeDestructurePatternObject(pairs, region);
-            },
-            .StringTemplate => |parts| {
-                // Currently a single part string template will always be interpolation.
-                if (parts.items.len == 1) {
-                    const part = parts.items[0];
-                    try self.writeStringTemplateMergePatternWithCasting(part);
-                } else {
-                    try self.writePattern(rnode);
-                    try self.emitOp(.Destructure, region);
-                }
-            },
-            .Conditional => return error.InvalidAst,
-        }
+    fn createPattern(self: *Compiler, rnode: *Ast.RNode) Error!u8 {
+        const patternElem = try self.astToPattern(rnode, 0);
+        return self.chunk().addPattern(patternElem);
     }
 
-    fn writePattern(self: *Compiler, rnode: *Ast.RNode) !void {
+    fn astToPattern(self: *Compiler, rnode: *Ast.RNode, negation_count: u2) Error!Pattern {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .CallOrDefineFunction => {
-                    try self.writeValueFunctionCall(infix.left, infix.right, false);
-                },
-                .Merge => {
-                    try self.writePatternMerge(rnode);
-                },
-                else => {
-                    try self.printError("Invalid infix operator in pattern", region);
-                    return Error.InvalidAst;
-                },
-            },
-            .UpperBoundedRange,
-            .LowerBoundedRange,
-            => @panic("Internal Error: handled by writeDestructurePattern"),
-            .ValueLabel => {
-                try self.printError("Value label `$` is not necessary in pattern.", region);
-                return Error.InvalidAst;
-            },
-            .Array => @panic("Internal Error"), // handled by writeDestructurePatternArray
-            .Object => @panic("Internal Error"), // handled by writeDestructurePatternObject
-            .StringTemplate => |parts| {
-                try self.writeStringTemplate(parts, region, .Value);
-            },
-            .Negation => |inner| {
-                if (simplifyNegatedNumberNode(rnode)) |elem| {
-                    const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, region);
-                } else {
-                    try self.emitOp(.NegateNumber, region);
-                    try self.writePattern(inner);
-                }
-            },
             .ElemNode => |elem| switch (elem) {
-                .ParserVar => {
-                    try self.printError("parser is not valid in pattern", region);
-                    return Error.InvalidAst;
-                },
                 .ValueVar => |name| {
-                    if (self.localSlot(name)) |slot| {
-                        try self.emitUnaryOp(.GetLocal, slot, region);
-                    } else if (self.findGlobalForCompilation(name)) |globalElem| {
+                    if (self.findGlobal(name)) |globalElem| {
                         const constId = try self.makeConstant(globalElem);
-                        try self.emitUnaryOp(.GetConstant, constId, region);
-                        if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
-                            try self.emitUnaryOp(.CallFunction, 0, region);
-                        }
+                        return Pattern{ .Constant = .{
+                            .sid = name,
+                            .idx = constId,
+                            .negation_count = negation_count,
+                        } };
+                    } else if (self.localSlot(name)) |slot| {
+                        return Pattern{ .Local = .{
+                            .sid = name,
+                            .idx = slot,
+                            .negation_count = negation_count,
+                        } };
                     } else {
-                        try self.writers.err.print("{s}\n", .{self.vm.strings.get(name)});
-                        return Error.UndefinedVariable;
+                        @panic("Internal Error");
                     }
                 },
-                .String,
-                .NumberString,
-                => {
-                    const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, region);
+                .String => |sId| {
+                    if (negation_count > 0) {
+                        try self.printError("Invalid pattern - unable to negate string", region);
+                        return Error.InvalidAst;
+                    }
+                    return Pattern{ .String = sId };
                 },
-                .Boolean => |b| try self.emitOp(if (b) .True else .False, region),
+                .NumberString => |ns| {
+                    const number = if (negation_count % 2 == 1) ns.negate() else ns;
+                    return Pattern{ .NumberString = number };
+                },
+                .Boolean => |b| {
+                    if (negation_count > 0) {
+                        try self.printError("Invalid pattern - unable to negate boolean", region);
+                        return Error.InvalidAst;
+                    }
+                    return Pattern{ .Boolean = b };
+                },
                 .Null => {
-                    try self.emitOp(.Null, region);
+                    if (negation_count > 0) {
+                        try self.printError("Invalid pattern - unable to negate null", region);
+                        return Error.InvalidAst;
+                    }
+                    return Pattern{ .Null = undefined };
                 },
-                .Failure,
-                .Float,
-                .InputSubstring,
-                .Integer,
-                => @panic("Internal Error"), // not produced by the parser
-                .Dyn => |d| switch (d.dynType) {
-                    .String,
-                    .Function,
-                    .NativeCode,
-                    .Closure,
-                    => @panic("Internal Error"), // not produced by the parser
-                    .Array,
-                    .Object,
-                    => {
-                        const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, region);
-                    },
-                },
-            },
-            .Conditional => {
-                try self.printError("Conditional expressions not valid in patterns", region);
-                return Error.InvalidAst;
-            },
-        }
-    }
-
-    const PatternPart = struct {
-        node: *Ast.RNode,
-        negated: bool,
-    };
-
-    fn writePatternMerge(self: *Compiler, rnode: *Ast.RNode) !void {
-        const region = rnode.region;
-
-        var jumpList = ArrayList(usize).init(self.vm.allocator);
-        defer jumpList.deinit();
-
-        const count = try self.writePrepareMergePattern(rnode);
-        try self.emitUnaryOp(.PrepareMergePattern, count, region);
-        const failureJumpIndex = try self.emitJump(.JumpIfFailure, region);
-
-        try self.writeMergePattern(rnode, &jumpList);
-
-        const successJumpIndex = try self.emitJump(.JumpIfSuccess, region);
-
-        for (jumpList.items) |jumpIndex| {
-            try self.patchJump(jumpIndex, region);
-        }
-
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.Pop, region);
-
-        try self.patchJump(failureJumpIndex, region);
-        try self.patchJump(successJumpIndex, region);
-    }
-
-    fn writeStringTemplateMergePatternWithCasting(self: *Compiler, rnode: *Ast.RNode) !void {
-        const region = rnode.region;
-
-        var jumpList = ArrayList(usize).init(self.vm.allocator);
-        defer jumpList.deinit();
-
-        const count = try self.writePrepareMergePattern(rnode);
-        try self.emitUnaryOp(.PrepareMergePatternWithCasting, count, region);
-        const failureJumpIndex = try self.emitJump(.JumpIfFailure, region);
-
-        try self.writeMergePattern(rnode, &jumpList);
-
-        try self.emitOp(.Pop, region);
-        const successJumpIndex = try self.emitJump(.JumpIfSuccess, region);
-
-        for (jumpList.items) |jumpIndex| {
-            try self.patchJump(jumpIndex, region);
-        }
-
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.Pop, region);
-
-        try self.patchJump(failureJumpIndex, region);
-        try self.patchJump(successJumpIndex, region);
-    }
-
-    fn writePrepareMergePattern(self: *Compiler, rnode: *Ast.RNode) !u8 {
-        // Collect all merge parts into a flat list before emitting any bytecode
-        // Track if each part has been negated. At runtime negation is applied
-        // to numbers, and throws an error for all other values.
-        var parts = ArrayList(PatternPart).init(self.vm.allocator);
-        defer parts.deinit();
-
-        try self.collectMergePatternParts(rnode, &parts, false);
-
-        for (parts.items) |part| {
-            try self.writePrepareMergePatternPart(part.node);
-            if (part.negated) {
-                try self.emitOp(.NegateNumberPattern, part.node.region);
-            }
-        }
-
-        return @intCast(parts.items.len);
-    }
-
-    fn collectMergePatternParts(self: *Compiler, rnode: *Ast.RNode, parts: *ArrayList(PatternPart), negated: bool) !void {
-        switch (rnode.node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .Merge => {
-                    try self.collectMergePatternParts(infix.left, parts, negated);
-                    try self.collectMergePatternParts(infix.right, parts, negated);
+                .ParserVar => {
+                    try self.printError("Parser variable not allowed in pattern", region);
+                    return Error.InvalidAst;
                 },
                 else => {
-                    try parts.append(.{ .node = rnode, .negated = negated });
+                    try self.printError("Invalid AST in pattern", region);
+                    return Error.InvalidAst;
                 },
             },
-            .Negation => |inner| {
-                try self.collectMergePatternParts(inner, parts, !negated);
-            },
-            else => {
-                try parts.append(.{ .node = rnode, .negated = negated });
-            },
-        }
-    }
+            .Array => |elements| {
+                if (negation_count > 0) {
+                    try self.printError("Invalid pattern - unable to negate array", region);
+                    return Error.InvalidAst;
+                }
 
-    fn writePrepareMergePatternPart(self: *Compiler, rnode: *Ast.RNode) Error!void {
-        switch (rnode.node) {
+                var patternElems = std.ArrayListUnmanaged(Pattern){};
+                try patternElems.ensureTotalCapacity(self.vm.allocator, elements.items.len);
+
+                for (elements.items) |elementNode| {
+                    const elementPattern = try self.astToPattern(elementNode, 0);
+                    try patternElems.append(self.vm.allocator, elementPattern);
+                }
+
+                return Pattern{ .Array = patternElems };
+            },
             .Object => |pairs| {
-                var object = try Elem.DynElem.Object.create(self.vm, 0);
-                const constId = try self.makeConstant(object.dyn.elem());
-                try self.emitUnaryOp(.GetConstant, constId, rnode.region);
+                if (negation_count > 0) {
+                    try self.printError("Invalid pattern - unable to negate object", region);
+                    return Error.InvalidAst;
+                }
+
+                var objectPairs = std.ArrayListUnmanaged(Pattern.ObjectPair){};
+                try objectPairs.ensureTotalCapacity(self.vm.allocator, pairs.items.len);
 
                 for (pairs.items) |pair| {
-                    if (try self.literalPatternToElem(pair.key)) |key_elem| {
-                        if (try self.literalPatternToElem(pair.value)) |value_elem| {
-                            const key_id = switch (key_elem) {
-                                .String => |s| s,
-                                else => @panic("Object key must be string"),
-                            };
-                            try object.members.put(key_id, value_elem);
-                        } else {
-                            const key_id = switch (key_elem) {
-                                .String => |s| s,
-                                else => @panic("Object key must be string"),
-                            };
-                            try object.members.put(key_id, self.placeholderVar());
-                        }
-                    } else {
-                        try self.writePattern(pair.key);
-                        try self.writePattern(pair.value);
-                        try self.emitOp(.InsertKeyVal, rnode.region);
-                    }
+                    try objectPairs.append(self.vm.allocator, .{
+                        .key = try self.astToPattern(pair.key, 0),
+                        .value = try self.astToPattern(pair.value, 0),
+                    });
                 }
+
+                return Pattern{ .Object = objectPairs };
+            },
+            .StringTemplate => |segments| {
+                if (negation_count > 0) {
+                    try self.printError("Invalid pattern - unable to negate string", region);
+                    return Error.InvalidAst;
+                }
+
+                var templateElems = std.ArrayListUnmanaged(Pattern){};
+                try templateElems.ensureTotalCapacity(self.vm.allocator, segments.items.len);
+
+                for (segments.items) |segmentNode| {
+                    const segmentPattern = try self.astToPattern(segmentNode, 0);
+                    try templateElems.append(self.vm.allocator, segmentPattern);
+                }
+
+                return Pattern{ .StringTemplate = templateElems };
+            },
+            .UpperBoundedRange => |upper| {
+                const upperPattern = try self.vm.allocator.create(Pattern);
+                upperPattern.* = try self.astToPattern(upper, negation_count);
+                return Pattern{ .Range = .{
+                    .lower = null,
+                    .upper = upperPattern,
+                } };
+            },
+            .LowerBoundedRange => |lower| {
+                const lowerPattern = try self.vm.allocator.create(Pattern);
+                lowerPattern.* = try self.astToPattern(lower, negation_count);
+                return Pattern{ .Range = .{
+                    .lower = lowerPattern,
+                    .upper = null,
+                } };
+            },
+            .Negation => |inner| {
+                const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
+                return self.astToPattern(inner, new_negation_count);
             },
             .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
-                    // Merge nodes within merge patterns should not generate separate merge bytecode
-                    // This should not happen if collectMergePatternParts is working correctly
-                    @panic("Unexpected merge node in writePrepareMergePatternPart");
+                    var mergeElems = std.ArrayListUnmanaged(Pattern){};
+                    try self.collectPatternMergeElements(rnode, &mergeElems, negation_count);
+                    return Pattern{ .Merge = mergeElems };
+                },
+                .Range => {
+                    const lowerPattern = try self.vm.allocator.create(Pattern);
+                    const upperPattern = try self.vm.allocator.create(Pattern);
+                    lowerPattern.* = try self.astToPattern(infix.left, negation_count);
+                    upperPattern.* = try self.astToPattern(infix.right, negation_count);
+                    return Pattern{ .Range = .{
+                        .lower = lowerPattern,
+                        .upper = upperPattern,
+                    } };
+                },
+                .CallOrDefineFunction => {
+                    const functionNode = infix.left.node;
+                    const argNode = infix.right;
+
+                    const functionName = switch (functionNode) {
+                        .ElemNode => |elem| switch (elem) {
+                            .ValueVar => |name| name,
+                            else => return Error.InvalidAst,
+                        },
+                        else => return Error.InvalidAst,
+                    };
+
+                    const globalFunctionElem = self.findGlobal(functionName);
+
+                    // Determine if function is local or constant
+                    const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
+                        .{
+                            .sid = functionName,
+                            .idx = try self.makeConstant(globalElem),
+                            .negation_count = negation_count,
+                        }
+                    else if (self.localSlot(functionName)) |slot|
+                        .{
+                            .sid = functionName,
+                            .idx = slot,
+                            .negation_count = negation_count,
+                        }
+                    else {
+                        try self.printError("Unknown function in pattern", infix.left.region);
+                        return Error.InvalidAst;
+                    };
+
+                    var args = std.ArrayListUnmanaged(Pattern){};
+                    try self.collectPatternFunctionArgs(argNode, &args);
+
+                    return Pattern{ .FunctionCall = .{
+                        .function = functionVar,
+                        .kind = if (globalFunctionElem != null) .Constant else .Local,
+                        .args = args,
+                    } };
+                },
+                .Destructure => {
+                    try self.printError("Invalid AST: Nested destructure not allowed in pattern", region);
+                    return Error.InvalidAst;
                 },
                 else => {
-                    try self.writePattern(rnode);
+                    try self.printError("Invalid AST in pattern", region);
+                    return Error.InvalidAst;
                 },
             },
-            .UpperBoundedRange,
-            .LowerBoundedRange,
-            => {
-                try self.printError("Range is not valid in merge pattern", rnode.region);
-                return Error.RangeNotValidInMergePattern;
-            },
-            .Negation => {
-                // Negation is handled in pre-processing of the merge parts.
-                @panic("Internal Error");
-            },
-            .ValueLabel => {
-                try self.printError("Value label `$` is not necessary in pattern.", rnode.region);
-                return Error.InvalidAst;
-            },
-            .Array => |elements| {
-                var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
-                for (elements.items) |element| {
-                    if (try self.literalPatternToElem(element)) |elem| {
-                        try array.append(elem);
-                    } else {
-                        try array.append(self.placeholderVar());
-                    }
-                }
-                const constId = try self.makeConstant(array.dyn.elem());
-                try self.emitUnaryOp(.GetConstant, constId, rnode.region);
-            },
-            .StringTemplate => {
-                try self.writePattern(rnode);
-            },
-            .ElemNode => {
-                try self.writePattern(rnode);
-            },
-            .Conditional => {
-                try self.printError("Conditional expressions not valid in patterns", rnode.region);
+            else => {
+                try self.printError("Invalid AST in pattern", region);
                 return Error.InvalidAst;
             },
         }
     }
 
-    fn writeMergePattern(self: *Compiler, rnode: *Ast.RNode, jumpList: *ArrayList(usize)) Error!void {
-        const region = rnode.region;
+    fn collectPatternMergeElements(self: *Compiler, rnode: *Ast.RNode, elements: *std.ArrayListUnmanaged(Pattern), negation_count: u2) Error!void {
+        const node = rnode.node;
 
-        var parts = ArrayList(PatternPart).init(self.vm.allocator);
-        defer parts.deinit();
-        try self.collectMergePatternParts(rnode, &parts, false);
-
-        for (parts.items) |part| {
-            if (part.negated) {
-                try self.emitOp(.NegateNumberPattern, part.node.region);
-            }
-            try self.writeDestructurePattern(part.node);
-            const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-            try self.emitOp(.Pop, region);
-            try jumpList.append(jumpIndex);
+        switch (node) {
+            .InfixNode => |infix| {
+                if (infix.infixType == .Merge) {
+                    try self.collectPatternMergeElements(infix.left, elements, negation_count);
+                    try self.collectPatternMergeElements(infix.right, elements, negation_count);
+                    return;
+                }
+            },
+            else => {},
         }
+
+        // Merge pattern part
+        const pattern = try self.astToPattern(rnode, negation_count);
+        try elements.append(self.vm.allocator, pattern);
+    }
+
+    fn collectPatternFunctionArgs(self: *Compiler, rnode: *Ast.RNode, args: *std.ArrayListUnmanaged(Pattern)) Error!void {
+        const node = rnode.node;
+
+        switch (node) {
+            .InfixNode => |infix| {
+                if (infix.infixType == .ParamsOrArgs) {
+                    // Recursively collect from left and right sides
+                    try self.collectPatternFunctionArgs(infix.left, args);
+                    try self.collectPatternFunctionArgs(infix.right, args);
+                    return;
+                }
+            },
+            else => {},
+        }
+
+        // Function arg
+        const pattern = try self.astToPattern(rnode, 0);
+        try args.append(self.vm.allocator, pattern);
     }
 
     fn addValueLocals(self: *Compiler, rnode: *Ast.RNode) !void {
@@ -1311,7 +1203,7 @@ pub const Compiler = struct {
                 try self.addValueLocals(conditional.else_branch);
             },
             .ElemNode => |elem| switch (elem) {
-                .ValueVar => |varName| if (self.findGlobalForCompilation(varName) == null) {
+                .ValueVar => |varName| if (self.findGlobal(varName) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
                     if (newLocalId) |_| {
                         const constId = try self.makeConstant(elem);
@@ -1413,7 +1305,8 @@ pub const Compiler = struct {
                 },
                 .Destructure => {
                     try self.writeValueArgument(infix.left, false);
-                    try self.writeDestructurePattern(infix.right);
+                    const patternId = try self.createPattern(infix.right);
+                    try self.emitUnaryOp(.Destructure, patternId, region);
                 },
                 .Or => {
                     try self.emitOp(.SetInputMark, region);
@@ -1500,7 +1393,8 @@ pub const Compiler = struct {
                 },
                 .Destructure => {
                     try self.writeValue(infix.left, false);
-                    try self.writeDestructurePattern(infix.right);
+                    const patternId = try self.createPattern(infix.right);
+                    try self.emitUnaryOp(.Destructure, patternId, region);
                 },
                 .Or => {
                     try self.emitOp(.SetInputMark, region);
@@ -1573,7 +1467,7 @@ pub const Compiler = struct {
                         // the outer function, and the value used when calling
                         // the outer function will be concrete.
                         try self.emitUnaryOp(.GetBoundLocal, slot, region);
-                    } else if (self.findGlobalForCompilation(name)) |globalElem| {
+                    } else if (self.findGlobal(name)) |globalElem| {
                         const constId = try self.makeConstant(globalElem);
                         try self.emitUnaryOp(.GetConstant, constId, region);
                         if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
@@ -1632,7 +1526,7 @@ pub const Compiler = struct {
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
-            if (self.findGlobalForCompilation(functionName)) |global| {
+            if (self.findGlobal(functionName)) |global| {
                 function = global.asDyn().asFunction();
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, function_region);
@@ -1688,121 +1582,6 @@ pub const Compiler = struct {
         }
 
         return argCount;
-    }
-
-    fn writeDestructurePatternArray(self: *Compiler, elements: std.ArrayListUnmanaged(*Ast.RNode), region: Region) Error!void {
-        var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
-
-        for (elements.items) |element| {
-            if (try self.literalPatternToElem(element)) |elem| {
-                try array.append(elem);
-            } else {
-                try array.append(self.placeholderVar());
-            }
-        }
-
-        const constId = try self.makeConstant(array.dyn.elem());
-        try self.emitUnaryOp(.GetConstant, constId, region);
-        try self.emitOp(.Destructure, region);
-
-        // Note: This is an optimization which is probably incorrect.
-        if (elements.items.len == 0) {
-            return;
-        }
-
-        const failureJumpIndex = try self.emitJump(.JumpIfFailure, region);
-        var jumpList = std.ArrayList(usize).init(self.vm.allocator);
-        defer jumpList.deinit();
-
-        for (elements.items, 0..) |element, index| {
-            if (!self.isLiteralPattern(element)) {
-                try self.emitUnaryOp(.GetAtIndex, @intCast(index), element.region);
-                try self.writeDestructurePattern(element);
-                const jumpIndex = try self.emitJump(.JumpIfFailure, element.region);
-                try jumpList.append(jumpIndex);
-                try self.emitOp(.Pop, element.region);
-            }
-        }
-
-        const successJumpIndex = try self.emitJump(.JumpIfSuccess, region);
-
-        for (jumpList.items) |jumpIndex| {
-            try self.patchJump(jumpIndex, region);
-        }
-
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.Pop, region);
-
-        try self.patchJump(failureJumpIndex, region);
-        try self.patchJump(successJumpIndex, region);
-    }
-
-    fn writeDestructurePatternObject(self: *Compiler, pairs: std.ArrayListUnmanaged(Ast.ObjectPair), region: Region) Error!void {
-        var object = try Elem.DynElem.Object.create(self.vm, 0);
-        const constId = try self.makeConstant(object.dyn.elem());
-        try self.emitUnaryOp(.GetConstant, constId, region);
-
-        for (pairs.items) |pair| {
-            if (try self.literalPatternToElem(pair.key)) |key_elem| {
-                if (try self.literalPatternToElem(pair.value)) |value_elem| {
-                    const key_id = switch (key_elem) {
-                        .String => |s| s,
-                        else => @panic("Object key must be string"),
-                    };
-                    try object.members.put(key_id, value_elem);
-                } else {
-                    const key_id = switch (key_elem) {
-                        .String => |s| s,
-                        else => @panic("Object key must be string"),
-                    };
-                    try object.members.put(key_id, self.placeholderVar());
-                }
-            } else {
-                try self.writePattern(pair.key);
-                try self.writePattern(pair.value);
-                try self.emitOp(.InsertKeyVal, region);
-            }
-        }
-
-        try self.emitOp(.Destructure, region);
-
-        // Note: This is an optimization which is probably incorrect.
-        if (pairs.items.len == 0) {
-            return;
-        }
-
-        const failureJumpIndex = try self.emitJump(.JumpIfFailure, region);
-        var jumpList = std.ArrayList(usize).init(self.vm.allocator);
-        defer jumpList.deinit();
-
-        for (pairs.items) |pair| {
-            if (!self.isLiteralPattern(pair.value)) {
-                if (try self.literalPatternToElem(pair.key)) |key_elem| {
-                    const constId_key = try self.makeConstant(key_elem);
-                    try self.emitUnaryOp(.GetConstant, constId_key, pair.key.region);
-                } else {
-                    // Dynamic key case
-                    try self.writePattern(pair.key);
-                }
-                try self.emitOp(.GetAtKey, pair.key.region);
-                try self.writeDestructurePattern(pair.value);
-                const jumpIndex = try self.emitJump(.JumpIfFailure, pair.value.region);
-                try jumpList.append(jumpIndex);
-                try self.emitOp(.Pop, pair.value.region);
-            }
-        }
-
-        const successJumpIndex = try self.emitJump(.JumpIfSuccess, region);
-
-        for (jumpList.items) |jumpIndex| {
-            try self.patchJump(jumpIndex, region);
-        }
-
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.Pop, region);
-
-        try self.patchJump(failureJumpIndex, region);
-        try self.patchJump(successJumpIndex, region);
     }
 
     fn writeValueArray(self: *Compiler, elements: std.ArrayListUnmanaged(*Ast.RNode), region: Region) Error!void {
@@ -1976,7 +1755,12 @@ pub const Compiler = struct {
                     return num.negateNumber() catch null;
                 }
             },
-            .ElemNode => |elem| return elem,
+            .ElemNode => |elem| {
+                switch (elem) {
+                    .NumberString, .Integer, .Float => return elem,
+                    else => return null,
+                }
+            },
             else => {},
         }
 

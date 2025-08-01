@@ -11,6 +11,7 @@ pub const Env = struct {
     printCompiledBytecode: bool,
     printExecutedBytecode: bool,
     printVM: bool,
+    printDestructure: bool,
     runVM: bool,
 
     pub fn init() Env {
@@ -21,6 +22,7 @@ pub const Env = struct {
             .printCompiledBytecode = false,
             .printExecutedBytecode = false,
             .printVM = false,
+            .printDestructure = false,
             .runVM = true,
         };
     }
@@ -33,6 +35,7 @@ pub const Env = struct {
             .printCompiledBytecode = try getFlag(allocator, "PRINT_COMPILED_BYTECODE", false),
             .printExecutedBytecode = try getFlag(allocator, "PRINT_EXECUTED_BYTECODE", false),
             .printVM = try getFlag(allocator, "PRINT_VM", false),
+            .printDestructure = try getFlag(allocator, "PRINT_DESTRUCTURE", false),
             .runVM = try getFlag(allocator, "RUN_VM", true),
         };
     }

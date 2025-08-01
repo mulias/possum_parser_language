@@ -30,11 +30,10 @@
   0000    | GetConstant 0: A
   0002    | GetConstant 1: 1
   0004    | CallFunction 0
-  0006    | GetLocal 0
-  0008    | Destructure
-  0009    | TakeRight 9 -> 14
-  0012    | GetBoundLocal 0
-  0014    | End
+  0006    | Destructure 0: A
+  0008    | TakeRight 8 -> 13
+  0011    | GetBoundLocal 0
+  0013    | End
   ========================================
 
   $ possum -p '1 -> A $ [A]' -i ''
@@ -45,13 +44,12 @@
   0000    | GetConstant 0: A
   0002    | GetConstant 1: 1
   0004    | CallFunction 0
-  0006    | GetLocal 0
-  0008    | Destructure
-  0009    | TakeRight 9 -> 18
-  0012    | GetConstant 2: [_]
-  0014    | GetBoundLocal 0
-  0016    | InsertAtIndex 0
-  0018    | End
+  0006    | Destructure 0: A
+  0008    | TakeRight 8 -> 17
+  0011    | GetConstant 2: [_]
+  0013    | GetBoundLocal 0
+  0015    | InsertAtIndex 0
+  0017    | End
   ========================================
 
   $ possum -p '2 -> A $ [1, [2]]' -i ''
@@ -62,13 +60,12 @@
   0000    | GetConstant 0: A
   0002    | GetConstant 1: 2
   0004    | CallFunction 0
-  0006    | GetLocal 0
-  0008    | Destructure
-  0009    | TakeRight 9 -> 18
-  0012    | GetConstant 2: [1, _]
-  0014    | GetConstant 3: [2]
-  0016    | InsertAtIndex 1
-  0018    | End
+  0006    | Destructure 0: A
+  0008    | TakeRight 8 -> 17
+  0011    | GetConstant 2: [1, _]
+  0013    | GetConstant 3: [2]
+  0015    | InsertAtIndex 1
+  0017    | End
   ========================================
 
   $ possum -p 'Foo = 1 + 1 ; "" $ [Foo]' -i ''
@@ -104,15 +101,14 @@
   0000    | GetConstant 0: A
   0002    | GetConstant 1: 1
   0004    | CallFunction 0
-  0006    | GetLocal 0
-  0008    | Destructure
-  0009    | TakeRight 9 -> 22
-  0012    | GetConstant 2: [_]
-  0014    | GetConstant 3: [_]
-  0016    | GetBoundLocal 0
-  0018    | InsertAtIndex 0
-  0020    | InsertAtIndex 0
-  0022    | End
+  0006    | Destructure 0: A
+  0008    | TakeRight 8 -> 21
+  0011    | GetConstant 2: [_]
+  0013    | GetConstant 3: [_]
+  0015    | GetBoundLocal 0
+  0017    | InsertAtIndex 0
+  0019    | InsertAtIndex 0
+  0021    | End
   ========================================
 
   $ possum -p 'Foo = 1 -> A & A + A ; "" $ [Foo]' -i ''
@@ -122,14 +118,13 @@
   ========================================
   0000    | GetConstant 0: A
   0002    | GetConstant 1: 1
-  0004    | GetLocal 0
-  0006    | Destructure
-  0007    | TakeRight 7 -> 18
-  0010    | GetBoundLocal 0
-  0012    | JumpIfFailure 12 -> 18
-  0015    | GetBoundLocal 0
-  0017    | Merge
-  0018    | End
+  0004    | Destructure 0: A
+  0006    | TakeRight 6 -> 17
+  0009    | GetBoundLocal 0
+  0011    | JumpIfFailure 11 -> 17
+  0014    | GetBoundLocal 0
+  0016    | Merge
+  0017    | End
   ========================================
   
   =================@main==================
@@ -180,20 +175,18 @@
   0002    | GetConstant 1: B
   0004    | GetConstant 2: 1
   0006    | CallFunction 0
-  0008    | GetLocal 0
-  0010    | Destructure
-  0011    | TakeRight 11 -> 34
-  0014    | GetConstant 3: 2
-  0016    | CallFunction 0
-  0018    | GetLocal 1
-  0020    | Destructure
-  0021    | TakeRight 21 -> 34
-  0024    | GetConstant 4: {}
-  0026    | GetBoundLocal 0
-  0028    | InsertAtKey 5: "a"
-  0030    | GetBoundLocal 1
-  0032    | InsertAtKey 6: "b"
-  0034    | End
+  0008    | Destructure 0: A
+  0010    | TakeRight 10 -> 32
+  0013    | GetConstant 3: 2
+  0015    | CallFunction 0
+  0017    | Destructure 1: B
+  0019    | TakeRight 19 -> 32
+  0022    | GetConstant 4: {}
+  0024    | GetBoundLocal 0
+  0026    | InsertAtKey 5: "a"
+  0028    | GetBoundLocal 1
+  0030    | InsertAtKey 6: "b"
+  0032    | End
   ========================================
 
   $ possum -p 'const({"a": 1 + 2 + 3})' -i '12'

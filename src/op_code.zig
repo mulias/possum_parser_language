@@ -12,7 +12,6 @@ pub const OpCode = enum(u8) {
     ConditionalThen,
     Crash,
     Destructure,
-    DestructureRange,
     End,
     Fail,
     False,
@@ -24,26 +23,19 @@ pub const OpCode = enum(u8) {
     InsertAtIndex,
     InsertAtKey,
     InsertKeyVal,
-    Jump,
     JumpIfFailure,
-    JumpIfSuccess,
     Merge,
     MergeAsString,
     NativeCode,
     NegateNumber,
-    NegateNumberPattern,
     Null,
     Or,
     ParseCharacter,
     ParseLowerBoundedRange,
     ParseRange,
     ParseUpperBoundedRange,
-    Pop,
-    PrepareMergePattern,
-    PrepareMergePatternWithCasting,
     SetClosureCaptures,
     SetInputMark,
-    Swap,
     TakeLeft,
     TakeRight,
     True,
@@ -51,8 +43,6 @@ pub const OpCode = enum(u8) {
     pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, writer: VMWriter, offset: usize) !usize {
         return switch (self) {
             .Crash,
-            .Destructure,
-            .DestructureRange,
             .End,
             .Fail,
             .False,
@@ -61,13 +51,10 @@ pub const OpCode = enum(u8) {
             .Merge,
             .MergeAsString,
             .NegateNumber,
-            .NegateNumberPattern,
             .Null,
             .ParseCharacter,
-            .Pop,
             .SetClosureCaptures,
             .SetInputMark,
-            .Swap,
             .TakeLeft,
             .True,
             => self.simpleInstruction(writer, offset),
@@ -77,6 +64,8 @@ pub const OpCode = enum(u8) {
             .ParseLowerBoundedRange,
             .ParseUpperBoundedRange,
             => self.constantInstruction(chunk, vm, writer, offset),
+            .Destructure,
+            => self.patternInstruction(chunk, vm, writer, offset),
             .ParseRange,
             => self.twoConstantsInstruction(chunk, vm, writer, offset),
             .CallFunction,
@@ -85,17 +74,13 @@ pub const OpCode = enum(u8) {
             .GetBoundLocal,
             .GetLocal,
             .InsertAtIndex,
-            .PrepareMergePattern,
-            .PrepareMergePatternWithCasting,
             => self.byteInstruciton(chunk, writer, offset),
             .CaptureLocal,
             => self.twoBytesInstruciton(chunk, writer, offset),
             .Backtrack,
             .ConditionalElse,
             .ConditionalThen,
-            .Jump,
             .JumpIfFailure,
-            .JumpIfSuccess,
             .Or,
             .TakeRight,
             => self.jumpInstruction(chunk, writer, offset),
@@ -112,6 +97,15 @@ pub const OpCode = enum(u8) {
         var constantElem = chunk.getConstant(constantIdx);
         try writer.print("{s} {}: ", .{ @tagName(self), constantIdx });
         try constantElem.print(vm, writer);
+        try writer.print("\n", .{});
+        return offset + 2;
+    }
+
+    fn patternInstruction(self: OpCode, chunk: *Chunk, vm: VM, writer: VMWriter, offset: usize) !usize {
+        const patternIdx = chunk.read(offset + 1);
+        var pattern = chunk.getPattern(patternIdx);
+        try writer.print("{s} {}: ", .{ @tagName(self), patternIdx });
+        try pattern.print(vm, writer);
         try writer.print("\n", .{});
         return offset + 2;
     }
