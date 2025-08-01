@@ -2232,7 +2232,7 @@ test "'foobar' -> ('fo' + Ob + 'ar') $ Ob" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, "foobar"),
-            (try Elem.DynElem.String.copy(&vm, "ob")).dyn.elem(),
+            Elem.inputSubstring(2, 4),
             vm,
         );
     }

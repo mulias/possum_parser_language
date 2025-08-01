@@ -2,7 +2,7 @@
 
   $ possum $TESTDIR/part_1.possum $TESTDIR/input.txt
   
-  =================@fn562=================
+  =================@fn503=================
   space | nl
   ========================================
   0000    | SetInputMark
@@ -21,7 +21,7 @@
   0002    | GetConstant 1: alphas
   0004    | GetConstant 2: ":"
   0006    | GetConstant 3: token
-  0008    | GetConstant 4: @fn562
+  0008    | GetConstant 4: @fn503
   0010    | CallTailFunction 4
   0012    | End
   ========================================
@@ -36,68 +36,8 @@
   0000    | GetConstant 0: _
   0002    | GetConstant 1: passport
   0004    | CallFunction 0
-  0006    | GetConstant 2: {"byr": _, "iyr": _, "eyr": _, "hgt": _, "hcl": _, "ecl": _, "pid": _}
-  0008    | GetLocal 0
-  0010    | PrepareMergePattern 2
-  0012    | JumpIfFailure 12 -> 112
-  0015    | GetConstant 3: {"byr": _, "iyr": _, "eyr": _, "hgt": _, "hcl": _, "ecl": _, "pid": _}
-  0017    | Destructure
-  0018    | JumpIfFailure 18 -> 96
-  0021    | GetConstant 4: "byr"
-  0023    | GetAtKey
-  0024    | GetLocal 0
-  0026    | Destructure
-  0027    | JumpIfFailure 27 -> 94
-  0030    | Pop
-  0031    | GetConstant 5: "iyr"
-  0033    | GetAtKey
-  0034    | GetLocal 0
-  0036    | Destructure
-  0037    | JumpIfFailure 37 -> 94
-  0040    | Pop
-  0041    | GetConstant 6: "eyr"
-  0043    | GetAtKey
-  0044    | GetLocal 0
-  0046    | Destructure
-  0047    | JumpIfFailure 47 -> 94
-  0050    | Pop
-  0051    | GetConstant 7: "hgt"
-  0053    | GetAtKey
-  0054    | GetLocal 0
-  0056    | Destructure
-  0057    | JumpIfFailure 57 -> 94
-  0060    | Pop
-  0061    | GetConstant 8: "hcl"
-  0063    | GetAtKey
-  0064    | GetLocal 0
-  0066    | Destructure
-  0067    | JumpIfFailure 67 -> 94
-  0070    | Pop
-  0071    | GetConstant 9: "ecl"
-  0073    | GetAtKey
-  0074    | GetLocal 0
-  0076    | Destructure
-  0077    | JumpIfFailure 77 -> 94
-  0080    | Pop
-  0081    | GetConstant 10: "pid"
-  0083    | GetAtKey
-  0084    | GetLocal 0
-  0086    | Destructure
-  0087    | JumpIfFailure 87 -> 94
-  0090    | Pop
-  0091    | JumpIfSuccess 91 -> 96
-  0094    | Swap
-  0095    | Pop
-  0096    | JumpIfFailure 96 -> 110
-  0099    | Pop
-  0100    | GetLocal 0
-  0102    | Destructure
-  0103    | JumpIfFailure 103 -> 110
-  0106    | Pop
-  0107    | JumpIfSuccess 107 -> 112
-  0110    | Swap
-  0111    | Pop
-  0112    | End
+  0006    | Destructure 0: ({"byr": _, "iyr": _, "eyr": _, "hgt": _, "hcl": _, "ecl": _, "pid": _} + _)
+  0008    | End
   ========================================
   
   ==========count_valid_passport==========
@@ -116,7 +56,7 @@
   0022    | End
   ========================================
   
-  =================@fn565=================
+  =================@fn504=================
   nl+nl
   ========================================
   0000    | GetConstant 0: newline
@@ -133,7 +73,7 @@
   ========================================
   0000    | GetConstant 0: many_sep
   0002    | GetConstant 1: count_valid_passport
-  0004    | GetConstant 2: @fn565
+  0004    | GetConstant 2: @fn504
   0006    | CallFunction 2
   0008    | End
   ========================================

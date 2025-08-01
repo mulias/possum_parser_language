@@ -436,7 +436,7 @@ pub const Parser = struct {
         }
 
         const inner = try self.parseWithPrecedence(.Prefix);
-        return self.ast.create(.{ .Negation = inner }, t.region);
+        return self.ast.create(.{ .Negation = inner }, t.region.merge(inner.region));
     }
 
     fn valueLabel(self: *Parser) !*Ast.RNode {

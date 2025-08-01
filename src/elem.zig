@@ -310,88 +310,6 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn isValueMatchingPattern(value: Elem, pattern: Elem, vm: VM) bool {
-        // If the pattern is an unbound value variable then the match is always
-        // successful. After pattern matching we'll go back and bind the var to
-        // `value`.
-        switch (pattern) {
-            .ValueVar => return true,
-            else => {},
-        }
-
-        return switch (value) {
-            .String,
-            .InputSubstring,
-            .NumberString,
-            .Integer,
-            .Float,
-            .Boolean,
-            .Null,
-            .Failure,
-            => return value.isEql(pattern, vm),
-            .ValueVar,
-            .ParserVar,
-            => @panic("Internal error"),
-            .Dyn => |dyn| switch (dyn.dynType) {
-                .String => return value.isEql(pattern, vm),
-                .Array => {
-                    if (pattern.isDynType(.Array)) {
-                        const valueArray = dyn.asArray();
-                        const patternArray = pattern.asDyn().asArray();
-
-                        if (valueArray.elems.items.len != patternArray.elems.items.len) {
-                            return false;
-                        }
-
-                        for (valueArray.elems.items, patternArray.elems.items) |ve, pe| {
-                            if (!ve.isValueMatchingPattern(pe, vm)) {
-                                return false;
-                            }
-                        }
-
-                        return true;
-                    } else {
-                        return false;
-                    }
-                },
-                .Object => {
-                    if (pattern.isDynType(.Object)) {
-                        var valueObject = dyn.asObject();
-                        var patternObject = pattern.asDyn().asObject();
-
-                        if (valueObject.members.count() != patternObject.members.count()) {
-                            return false;
-                        }
-
-                        var iterator = valueObject.members.iterator();
-                        while (iterator.next()) |valueEntry| {
-                            if (patternObject.members.get(valueEntry.key_ptr.*)) |patternMember| {
-                                if (!valueEntry.value_ptr.*.isValueMatchingPattern(patternMember, vm)) {
-                                    return false;
-                                }
-                            } else {
-                                return false;
-                            }
-                        }
-
-                        return true;
-                    } else {
-                        return false;
-                    }
-                },
-                .Function,
-                .NativeCode,
-                .Closure,
-                => @panic("internal error"),
-            },
-        };
-    }
-
-    pub fn isValueInRangePattern(value: Elem, low: Elem, high: Elem, vm: VM) !bool {
-        return try low.isLessThanOrEqualInRangePattern(value, vm) and
-            try value.isLessThanOrEqualInRangePattern(high, vm);
-    }
-
     pub fn isLessThanOrEqualInRangePattern(value: Elem, high: Elem, vm: VM) !bool {
         return switch (value) {
             .ValueVar => true,
@@ -716,6 +634,19 @@ pub const Elem = union(ElemType) {
         };
     }
 
+    pub fn getOrPutSid(elem: Elem, vm: *VM) !?StringTable.Id {
+        switch (elem) {
+            .String => |sid| return sid,
+            else => {
+                if (elem.stringBytes(vm.*)) |bytes| {
+                    return try vm.strings.insert(bytes);
+                } else {
+                    return null;
+                }
+            },
+        }
+    }
+
     pub fn toJson(self: Elem, vm: VM) !json.Value {
         return switch (self) {
             .String => |sId| {
@@ -781,6 +712,40 @@ pub const Elem = union(ElemType) {
 
         const j = try self.toJson(vm);
         try json_pretty.stringify(j, format, outstream);
+    }
+
+    pub fn fromJson(value: json.Value, vm: *VM) !Elem {
+        return switch (value) {
+            .null => Elem.nullConst,
+            .bool => |b| Elem.boolean(b),
+            .integer => |i| Elem.integer(i),
+            .float => |f| Elem.float(f),
+            .number_string => |number_bytes| {
+                if (parsing.numberStringFormat(number_bytes)) |format| {
+                    return Elem.numberString(number_bytes, format, vm);
+                } else {
+                    @panic("Internal Error");
+                }
+            },
+            .string => |s| (try Elem.DynElem.String.copy(vm, s)).dyn.elem(),
+            .array => |a| {
+                const array = try Elem.DynElem.Array.create(vm, a.items.len);
+                for (a.items) |array_value| {
+                    try array.append(try fromJson(array_value, vm));
+                }
+                return array.dyn.elem();
+            },
+            .object => |o| {
+                const obj = try Elem.DynElem.Object.create(vm, o.count());
+                var iterator = o.iterator();
+                while (iterator.next()) |entry| {
+                    const elem_key = try vm.strings.insert(entry.key_ptr.*);
+                    const elem_value = try fromJson(entry.value_ptr.*, vm);
+                    try obj.members.put(elem_key, elem_value);
+                }
+                return obj.dyn.elem();
+            },
+        };
     }
 
     pub const DynType = enum {
@@ -1332,6 +1297,6 @@ test "struct size" {
     try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(80, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(224, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(264, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(48, @sizeOf(Elem.DynElem.Closure));
 }

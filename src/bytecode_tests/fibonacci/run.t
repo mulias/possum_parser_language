@@ -13,40 +13,36 @@
   0004    | SetInputMark
   0005    | GetConstant 2: const
   0007    | GetBoundLocal 0
-  0009    | GetConstant 3: _
-  0011    | GetConstant 4: 1
-  0013    | DestructureRange
-  0014    | CallFunction 1
-  0016    | ConditionalThen 16 -> 28
-  0019    | GetConstant 5: const
-  0021    | GetBoundLocal 0
-  0023    | CallTailFunction 1
-  0025    | ConditionalElse 25 -> 74
-  0028    | GetConstant 6: fib
-  0030    | GetBoundLocal 0
-  0032    | JumpIfFailure 32 -> 39
-  0035    | GetConstant 7: 1
-  0037    | NegateNumber
-  0038    | Merge
-  0039    | CallFunction 1
-  0041    | GetLocal 1
-  0043    | Destructure
-  0044    | TakeRight 44 -> 74
-  0047    | GetConstant 8: fib
-  0049    | GetBoundLocal 0
-  0051    | JumpIfFailure 51 -> 58
-  0054    | GetConstant 9: 2
-  0056    | NegateNumber
-  0057    | Merge
-  0058    | CallFunction 1
-  0060    | GetLocal 2
-  0062    | Destructure
-  0063    | TakeRight 63 -> 74
-  0066    | GetBoundLocal 1
-  0068    | JumpIfFailure 68 -> 74
-  0071    | GetBoundLocal 2
-  0073    | Merge
-  0074    | End
+  0009    | Destructure 0: ..1
+  0011    | CallFunction 1
+  0013    | ConditionalThen 13 -> 25
+  0016    | GetConstant 3: const
+  0018    | GetBoundLocal 0
+  0020    | CallTailFunction 1
+  0022    | ConditionalElse 22 -> 69
+  0025    | GetConstant 4: fib
+  0027    | GetBoundLocal 0
+  0029    | JumpIfFailure 29 -> 36
+  0032    | GetConstant 5: 1
+  0034    | NegateNumber
+  0035    | Merge
+  0036    | CallFunction 1
+  0038    | Destructure 1: N1
+  0040    | TakeRight 40 -> 69
+  0043    | GetConstant 6: fib
+  0045    | GetBoundLocal 0
+  0047    | JumpIfFailure 47 -> 54
+  0050    | GetConstant 7: 2
+  0052    | NegateNumber
+  0053    | Merge
+  0054    | CallFunction 1
+  0056    | Destructure 2: N2
+  0058    | TakeRight 58 -> 69
+  0061    | GetBoundLocal 1
+  0063    | JumpIfFailure 63 -> 69
+  0066    | GetBoundLocal 2
+  0068    | Merge
+  0069    | End
   ========================================
   
   ==================Fib===================
@@ -54,27 +50,25 @@
   ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
-  0003    | GetConstant 0: _
-  0005    | GetConstant 1: 1
-  0007    | DestructureRange
-  0008    | Or 8 -> 41
-  0011    | GetConstant 2: Fib
-  0013    | GetBoundLocal 0
-  0015    | JumpIfFailure 15 -> 22
-  0018    | GetConstant 3: 1
-  0020    | NegateNumber
-  0021    | Merge
-  0022    | CallFunction 1
-  0024    | JumpIfFailure 24 -> 41
-  0027    | GetConstant 4: Fib
-  0029    | GetBoundLocal 0
-  0031    | JumpIfFailure 31 -> 38
-  0034    | GetConstant 5: 2
-  0036    | NegateNumber
+  0003    | Destructure 0: ..1
+  0005    | Or 5 -> 38
+  0008    | GetConstant 0: Fib
+  0010    | GetBoundLocal 0
+  0012    | JumpIfFailure 12 -> 19
+  0015    | GetConstant 1: 1
+  0017    | NegateNumber
+  0018    | Merge
+  0019    | CallFunction 1
+  0021    | JumpIfFailure 21 -> 38
+  0024    | GetConstant 2: Fib
+  0026    | GetBoundLocal 0
+  0028    | JumpIfFailure 28 -> 35
+  0031    | GetConstant 3: 2
+  0033    | NegateNumber
+  0034    | Merge
+  0035    | CallFunction 1
   0037    | Merge
-  0038    | CallFunction 1
-  0040    | Merge
-  0041    | End
+  0038    | End
   ========================================
   
   =================@main==================
@@ -82,15 +76,11 @@
   ========================================
   0000    | GetConstant 0: N
   0002    | ParseLowerBoundedRange 1: 0
-  0004    | GetLocal 0
-  0006    | Destructure
-  0007    | TakeRight 7 -> 23
-  0010    | GetConstant 2: fib
-  0012    | GetBoundLocal 0
-  0014    | CallFunction 1
-  0016    | GetConstant 3: Fib
-  0018    | GetBoundLocal 0
-  0020    | CallFunction 1
-  0022    | Destructure
-  0023    | End
+  0004    | Destructure 0: N
+  0006    | TakeRight 6 -> 17
+  0009    | GetConstant 2: fib
+  0011    | GetBoundLocal 0
+  0013    | CallFunction 1
+  0015    | Destructure 1: Fib(N)
+  0017    | End
   ========================================
