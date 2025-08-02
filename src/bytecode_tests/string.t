@@ -124,11 +124,10 @@
   0002    | CallFunction 0
   0004    | GetConstant 1: integer
   0006    | CallFunction 0
-  0008    | JumpIfFailure 8 -> 16
-  0011    | GetConstant 2: word
-  0013    | CallFunction 0
-  0015    | Merge
-  0016    | MergeAsString
-  0017    | End
+  0008    | GetConstant 2: word
+  0010    | CallFunction 0
+  0012    | Merge
+  0013    | MergeAsString
+  0014    | End
   ========================================
 

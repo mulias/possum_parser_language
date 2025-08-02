@@ -61,11 +61,10 @@
   ========================================
   0000    | GetConstant 0: newline
   0002    | CallFunction 0
-  0004    | JumpIfFailure 4 -> 12
-  0007    | GetConstant 1: newline
-  0009    | CallFunction 0
-  0011    | Merge
-  0012    | End
+  0004    | GetConstant 1: newline
+  0006    | CallFunction 0
+  0008    | Merge
+  0009    | End
   ========================================
   
   =================@main==================

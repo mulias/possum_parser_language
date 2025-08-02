@@ -341,37 +341,33 @@
   0008    | SetInputMark
   0009    | GetBoundLocal 0
   0011    | Destructure 0: ([Row] + Rest)
-  0013    | ConditionalThen 13 -> 74
+  0013    | ConditionalThen 13 -> 62
   0016    | SetInputMark
   0017    | GetBoundLocal 2
   0019    | Destructure 1: ([_] + RowRest)
-  0021    | ConditionalThen 21 -> 51
+  0021    | ConditionalThen 21 -> 45
   0024    | GetConstant 4: __Table.RestPerRow
   0026    | GetBoundLocal 3
   0028    | GetConstant 5: []
-  0030    | JumpIfFailure 30 -> 36
-  0033    | GetBoundLocal 1
-  0035    | Merge
-  0036    | JumpIfFailure 36 -> 46
-  0039    | GetConstant 6: [_]
-  0041    | GetBoundLocal 5
-  0043    | InsertAtIndex 0
-  0045    | Merge
-  0046    | CallTailFunction 2
-  0048    | ConditionalElse 48 -> 71
-  0051    | GetConstant 7: __Table.RestPerRow
-  0053    | GetBoundLocal 3
-  0055    | GetConstant 8: []
-  0057    | JumpIfFailure 57 -> 63
-  0060    | GetBoundLocal 1
-  0062    | Merge
-  0063    | JumpIfFailure 63 -> 69
-  0066    | GetConstant 9: [[]]
-  0068    | Merge
-  0069    | CallTailFunction 2
-  0071    | ConditionalElse 71 -> 76
-  0074    | GetBoundLocal 1
-  0076    | End
+  0030    | GetBoundLocal 1
+  0032    | Merge
+  0033    | GetConstant 6: [_]
+  0035    | GetBoundLocal 5
+  0037    | InsertAtIndex 0
+  0039    | Merge
+  0040    | CallTailFunction 2
+  0042    | ConditionalElse 42 -> 59
+  0045    | GetConstant 7: __Table.RestPerRow
+  0047    | GetBoundLocal 3
+  0049    | GetConstant 8: []
+  0051    | GetBoundLocal 1
+  0053    | Merge
+  0054    | GetConstant 9: [[]]
+  0056    | Merge
+  0057    | CallTailFunction 2
+  0059    | ConditionalElse 59 -> 64
+  0062    | GetBoundLocal 1
+  0064    | End
   ========================================
   
   =================@main==================

@@ -19,30 +19,27 @@
   0016    | GetConstant 3: const
   0018    | GetBoundLocal 0
   0020    | CallTailFunction 1
-  0022    | ConditionalElse 22 -> 69
+  0022    | ConditionalElse 22 -> 60
   0025    | GetConstant 4: fib
   0027    | GetBoundLocal 0
-  0029    | JumpIfFailure 29 -> 36
-  0032    | GetConstant 5: 1
-  0034    | NegateNumber
-  0035    | Merge
-  0036    | CallFunction 1
-  0038    | Destructure 1: N1
-  0040    | TakeRight 40 -> 69
-  0043    | GetConstant 6: fib
-  0045    | GetBoundLocal 0
-  0047    | JumpIfFailure 47 -> 54
-  0050    | GetConstant 7: 2
-  0052    | NegateNumber
-  0053    | Merge
-  0054    | CallFunction 1
-  0056    | Destructure 2: N2
-  0058    | TakeRight 58 -> 69
-  0061    | GetBoundLocal 1
-  0063    | JumpIfFailure 63 -> 69
-  0066    | GetBoundLocal 2
-  0068    | Merge
-  0069    | End
+  0029    | GetConstant 5: 1
+  0031    | NegateNumber
+  0032    | Merge
+  0033    | CallFunction 1
+  0035    | Destructure 1: N1
+  0037    | TakeRight 37 -> 60
+  0040    | GetConstant 6: fib
+  0042    | GetBoundLocal 0
+  0044    | GetConstant 7: 2
+  0046    | NegateNumber
+  0047    | Merge
+  0048    | CallFunction 1
+  0050    | Destructure 2: N2
+  0052    | TakeRight 52 -> 60
+  0055    | GetBoundLocal 1
+  0057    | GetBoundLocal 2
+  0059    | Merge
+  0060    | End
   ========================================
   
   ==================Fib===================
@@ -51,24 +48,21 @@
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | Destructure 0: ..1
-  0005    | Or 5 -> 38
+  0005    | Or 5 -> 29
   0008    | GetConstant 0: Fib
   0010    | GetBoundLocal 0
-  0012    | JumpIfFailure 12 -> 19
-  0015    | GetConstant 1: 1
-  0017    | NegateNumber
-  0018    | Merge
-  0019    | CallFunction 1
-  0021    | JumpIfFailure 21 -> 38
-  0024    | GetConstant 2: Fib
-  0026    | GetBoundLocal 0
-  0028    | JumpIfFailure 28 -> 35
-  0031    | GetConstant 3: 2
-  0033    | NegateNumber
-  0034    | Merge
-  0035    | CallFunction 1
-  0037    | Merge
-  0038    | End
+  0012    | GetConstant 1: 1
+  0014    | NegateNumber
+  0015    | Merge
+  0016    | CallFunction 1
+  0018    | GetConstant 2: Fib
+  0020    | GetBoundLocal 0
+  0022    | GetConstant 3: 2
+  0024    | NegateNumber
+  0025    | Merge
+  0026    | CallFunction 1
+  0028    | Merge
+  0029    | End
   ========================================
   
   =================@main==================
