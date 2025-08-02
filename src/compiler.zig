@@ -475,10 +475,8 @@ pub const Compiler = struct {
                 },
                 .Merge => {
                     try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                     try self.writeParser(infix.right, false);
                     try self.emitOp(.Merge, region);
-                    try self.patchJump(jumpIndex, region);
                 },
                 .Range => {
                     const low = infix.left;
@@ -1285,10 +1283,8 @@ pub const Compiler = struct {
                 },
                 .Merge => {
                     try self.writeValueArgument(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                     try self.writeValueArgument(infix.right, false);
                     try self.emitOp(.Merge, region);
-                    try self.patchJump(jumpIndex, region);
                 },
                 .TakeLeft => {
                     try self.writeValueArgument(infix.left, false);
@@ -1373,10 +1369,8 @@ pub const Compiler = struct {
                 },
                 .Merge => {
                     try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                     try self.writeValue(infix.right, false);
                     try self.emitOp(.Merge, region);
-                    try self.patchJump(jumpIndex, region);
                 },
                 .TakeLeft => {
                     try self.writeValue(infix.left, false);

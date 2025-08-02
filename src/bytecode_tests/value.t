@@ -7,19 +7,17 @@
   ========================================
   0000    | GetConstant 0: ""
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 29
+  0004    | TakeRight 4 -> 23
   0007    | GetConstant 1: [1, 2, _]
   0009    | GetConstant 2: [_]
   0011    | GetConstant 3: 1
-  0013    | JumpIfFailure 13 -> 19
-  0016    | GetConstant 4: 1
+  0013    | GetConstant 4: 1
+  0015    | Merge
+  0016    | GetConstant 5: 1
   0018    | Merge
-  0019    | JumpIfFailure 19 -> 25
-  0022    | GetConstant 5: 1
-  0024    | Merge
-  0025    | InsertAtIndex 0
-  0027    | InsertAtIndex 2
-  0029    | End
+  0019    | InsertAtIndex 0
+  0021    | InsertAtIndex 2
+  0023    | End
   ========================================
 
   $ possum -p '1 -> A $ A' -i ''
@@ -74,10 +72,9 @@
   Foo = 1 + 1
   ========================================
   0000    | GetConstant 0: 1
-  0002    | JumpIfFailure 2 -> 8
-  0005    | GetConstant 1: 1
-  0007    | Merge
-  0008    | End
+  0002    | GetConstant 1: 1
+  0004    | Merge
+  0005    | End
   ========================================
   
   =================@main==================
@@ -119,12 +116,11 @@
   0000    | GetConstant 0: A
   0002    | GetConstant 1: 1
   0004    | Destructure 0: A
-  0006    | TakeRight 6 -> 17
+  0006    | TakeRight 6 -> 14
   0009    | GetBoundLocal 0
-  0011    | JumpIfFailure 11 -> 17
-  0014    | GetBoundLocal 0
-  0016    | Merge
-  0017    | End
+  0011    | GetBoundLocal 0
+  0013    | Merge
+  0014    | End
   ========================================
   
   =================@main==================
@@ -154,16 +150,14 @@
   ========================================
   0000    | GetConstant 0: const
   0002    | GetConstant 1: []
-  0004    | JumpIfFailure 4 -> 12
-  0007    | GetConstant 2: A
-  0009    | CallFunction 0
-  0011    | Merge
-  0012    | JumpIfFailure 12 -> 20
-  0015    | GetConstant 3: A
-  0017    | CallFunction 0
-  0019    | Merge
-  0020    | CallFunction 1
-  0022    | End
+  0004    | GetConstant 2: A
+  0006    | CallFunction 0
+  0008    | Merge
+  0009    | GetConstant 3: A
+  0011    | CallFunction 0
+  0013    | Merge
+  0014    | CallFunction 1
+  0016    | End
   ========================================
 
   $ possum -p '1 -> A & 2 -> B $ {"a": A, "b": B}' -i '12'
@@ -197,15 +191,13 @@
   0000    | GetConstant 0: const
   0002    | GetConstant 1: {}
   0004    | GetConstant 3: 1
-  0006    | JumpIfFailure 6 -> 12
-  0009    | GetConstant 4: 2
+  0006    | GetConstant 4: 2
+  0008    | Merge
+  0009    | GetConstant 5: 3
   0011    | Merge
-  0012    | JumpIfFailure 12 -> 18
-  0015    | GetConstant 5: 3
-  0017    | Merge
-  0018    | InsertAtKey 2: "a"
-  0020    | CallFunction 1
-  0022    | End
+  0012    | InsertAtKey 2: "a"
+  0014    | CallFunction 1
+  0016    | End
   ========================================
 
   $ possum -p 'const({"a": [{"b": "foo"}]})' -i '12'
@@ -230,14 +222,13 @@
   ========================================
   0000    | GetConstant 0: ""
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 18
+  0004    | TakeRight 4 -> 15
   0007    | GetConstant 1: ""
   0009    | GetConstant 2: 1
-  0011    | JumpIfFailure 11 -> 17
-  0014    | GetConstant 3: 1
-  0016    | Merge
-  0017    | MergeAsString
-  0018    | End
+  0011    | GetConstant 3: 1
+  0013    | Merge
+  0014    | MergeAsString
+  0015    | End
   ========================================
 
   $ possum -p 'Obj.Put(O, K, V) = {...O, K: V} ; 1' -i '1'
@@ -246,16 +237,14 @@
   Obj.Put(O, K, V) = {...O, K: V}
   ========================================
   0000    | GetConstant 0: {}
-  0002    | JumpIfFailure 2 -> 8
-  0005    | GetBoundLocal 0
-  0007    | Merge
-  0008    | JumpIfFailure 8 -> 19
-  0011    | GetConstant 1: {}
-  0013    | GetBoundLocal 1
-  0015    | GetBoundLocal 2
-  0017    | InsertKeyVal
-  0018    | Merge
-  0019    | End
+  0002    | GetBoundLocal 0
+  0004    | Merge
+  0005    | GetConstant 1: {}
+  0007    | GetBoundLocal 1
+  0009    | GetBoundLocal 2
+  0011    | InsertKeyVal
+  0012    | Merge
+  0013    | End
   ========================================
   
   =================@main==================
