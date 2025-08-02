@@ -91,7 +91,7 @@
 
   $ possum -p '"" $ {"a": 1, "b": 2,,}' -i ''
   
-  Error at ',': Expected object member key
+  Error at ',': Expect expression.
   
   "" $ {"a": 1, "b": 2,,}
                        ^
