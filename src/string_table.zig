@@ -14,6 +14,7 @@ pub const StringTable = struct {
     count: u32,
 
     pub const Id = u32;
+    pub const ReservedId = u8;
 
     pub fn init(allocator: Allocator) StringTable {
         return StringTable{
@@ -29,7 +30,7 @@ pub const StringTable = struct {
         self.table.deinit(self.allocator);
     }
 
-    pub fn insert(self: *StringTable, string: []const u8) !u32 {
+    pub fn insert(self: *StringTable, string: []const u8) !Id {
         // The null byte is used as a sentinal character, so it can't appear in
         // `string`. In order to support interned null bytes we allow the
         // string "\u{000000}" and "insert" it at the very end of the table.
@@ -62,25 +63,46 @@ pub const StringTable = struct {
         return new_off;
     }
 
-    pub fn find(self: StringTable, off: u32) ?[:0]const u8 {
-        if (off == std.math.maxInt(u32)) return "\u{000000}";
-        if (off >= self.buffer.items.len) return null;
-        return mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + off)), 0);
+    pub fn find(self: StringTable, sid: Id) ?[:0]const u8 {
+        if (isNullByte(sid)) return "\u{000000}";
+        if (isReserved(sid)) return "";
+        if (sid >= self.buffer.items.len) return null;
+        return mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + sid)), 0);
     }
 
-    pub fn getId(self: *StringTable, string: []const u8) u32 {
-        if (string.len == 0 and string[0] == 0) return std.math.maxInt(u32);
+    pub fn getId(self: *StringTable, string: []const u8) Id {
+        if (string.len == 1 and string[0] == 0) return std.math.maxInt(u32);
         return self.table.getKeyAdapted(string, StringIndexAdapter{
             .bytes = &self.buffer,
         }) orelse @panic("failed to get interned string id, this should never happen");
     }
 
-    pub fn get(self: StringTable, off: u32) [:0]const u8 {
-        return self.find(off) orelse @panic("failed to get interned string by id, this should never happen");
+    pub fn get(self: StringTable, sid: Id) [:0]const u8 {
+        return self.find(sid) orelse @panic("failed to get interned string by id, this should never happen");
     }
 
-    pub fn equal(self: StringTable, sId: u32, compare: []const u8) bool {
-        return std.mem.eql(u8, self.get(sId), compare);
+    pub fn equal(self: StringTable, sid: Id, compare: []const u8) bool {
+        return std.mem.eql(u8, self.get(sid), compare);
+    }
+
+    pub fn isNullByte(sid: Id) bool {
+        return sid == std.math.maxInt(u32);
+    }
+
+    pub fn isReserved(sid: Id) bool {
+        return sid > std.math.maxInt(u32) - std.math.maxInt(u8);
+    }
+
+    pub fn reservedIndex(sid: Id) ReservedId {
+        return @as(u8, @intCast(std.math.maxInt(u32) - sid));
+    }
+
+    pub fn reservedSid(rid: ReservedId) Id {
+        return std.math.maxInt(u32) - @as(u32, @intCast(rid));
+    }
+
+    pub fn asReserved(sid: Id) ?ReservedId {
+        return if (isReserved(sid)) reservedIndex(sid) else null;
     }
 };
 
@@ -138,4 +160,18 @@ test "StringTable.insert can add multiple strings" {
     _ = try table.insert("baz!");
 
     try std.testing.expectEqual(@as(u32, 4), table.count);
+}
+
+test "StringTable contains the null byte" {
+    const allocator = std.testing.allocator;
+
+    var table = StringTable.init(allocator);
+    defer table.deinit();
+
+    _ = try table.insert("");
+    _ = try table.insert(" ");
+
+    try std.testing.expectEqual(0, table.getId(""));
+    try std.testing.expectEqual(1, table.getId(" "));
+    try std.testing.expectEqual(std.math.maxInt(u32), table.getId("\u{000000}"));
 }

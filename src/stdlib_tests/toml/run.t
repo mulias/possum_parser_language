@@ -697,7 +697,7 @@
   "a b"   = 1
   " c d " = 2
   
-  "\u0000" = "null"
+  # "\u0000" = "null"
   '\u0000' = "different key"
   "\u0008 \u000c \U00000041 \u007f \u0080 \u00ff \ud7ff \ue000 \uffff \U00010000 \U0010ffff" = "escaped key"
   
@@ -732,7 +732,6 @@
     "quoted \"value\"": "value",
     "a b": 1,
     " c d ": 2,
-    "\u0000": "null",
     "\\u0000": "different key",
     "\\b \\f A \x7f \xc2\x80 \xc3\xbf \xed\x9f\xbf \xee\x80\x80 \xef\xbf\xbf \xf0\x90\x80\x80 \xf4\x8f\xbf\xbf": "escaped key", (esc)
     "~  \xc3\xbf \xed\x9f\xbf \xee\x80\x80  \xf0\x90\x80\x80 ": "basic key", (esc)

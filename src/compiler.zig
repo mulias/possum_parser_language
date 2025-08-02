@@ -1655,7 +1655,7 @@ pub const Compiler = struct {
         const constId = try self.makeConstant(object.dyn.elem());
         try self.emitUnaryOp(.GetConstant, constId, region);
 
-        for (pairs.items) |pair| {
+        for (pairs.items, 0..) |pair, index| {
             if (try self.literalPatternToElem(pair.key)) |key_elem| {
                 if (try self.literalPatternToElem(pair.value)) |val_elem| {
                     const key_sId = key_elem.String;
@@ -1664,9 +1664,11 @@ pub const Compiler = struct {
                     try self.writeValueObjectVal(pair.value, key_elem);
                 }
             } else {
+                const pos = @as(u8, @intCast(index));
+                try object.putReservedId(self.vm.allocator, pos, self.placeholderVar());
                 try self.writeValue(pair.key, false);
                 try self.writeValue(pair.value, false);
-                try self.emitOp(.InsertKeyVal, pair.key.region);
+                try self.emitUnaryOp(.InsertKeyVal, pos, pair.key.region);
             }
         }
     }

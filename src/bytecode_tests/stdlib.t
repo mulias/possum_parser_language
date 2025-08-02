@@ -12,7 +12,7 @@
   =================ascii==================
   ascii = "\u000000".."\u00007F"
   ========================================
-  0000    | ParseRange 0 1: "\x00" "\x7f" (esc)
+  0000    | ParseRange 0 1: _0 "\x7f" (esc)
   0003    | End
   ========================================
   
@@ -1580,16 +1580,16 @@
   0013    | GetBoundLocal 1
   0015    | CallFunction 0
   0017    | Destructure 1: V
-  0019    | TakeRight 19 -> 37
+  0019    | TakeRight 19 -> 38
   0022    | GetConstant 2: _object
   0024    | GetBoundLocal 0
   0026    | GetBoundLocal 1
-  0028    | GetConstant 3: {}
+  0028    | GetConstant 3: {_0_}
   0030    | GetBoundLocal 2
   0032    | GetBoundLocal 3
-  0034    | InsertKeyVal
-  0035    | CallTailFunction 3
-  0037    | End
+  0034    | InsertKeyVal 0
+  0036    | CallTailFunction 3
+  0038    | End
   ========================================
   
   ================_object=================
@@ -1608,24 +1608,24 @@
   0014    | GetBoundLocal 1
   0016    | CallFunction 0
   0018    | Destructure 1: V
-  0020    | ConditionalThen 20 -> 47
+  0020    | ConditionalThen 20 -> 48
   0023    | GetConstant 2: _object
   0025    | GetBoundLocal 0
   0027    | GetBoundLocal 1
   0029    | GetConstant 3: {}
   0031    | GetBoundLocal 2
   0033    | Merge
-  0034    | GetConstant 4: {}
+  0034    | GetConstant 4: {_0_}
   0036    | GetBoundLocal 3
   0038    | GetBoundLocal 4
-  0040    | InsertKeyVal
-  0041    | Merge
-  0042    | CallTailFunction 3
-  0044    | ConditionalElse 44 -> 53
-  0047    | GetConstant 5: const
-  0049    | GetBoundLocal 2
-  0051    | CallTailFunction 1
-  0053    | End
+  0040    | InsertKeyVal 0
+  0042    | Merge
+  0043    | CallTailFunction 3
+  0045    | ConditionalElse 45 -> 54
+  0048    | GetConstant 5: const
+  0050    | GetBoundLocal 2
+  0052    | CallTailFunction 1
+  0054    | End
   ========================================
   
   =================@fn835=================
@@ -1673,7 +1673,7 @@
   0020    | GetBoundLocal 2
   0022    | CallFunction 0
   0024    | Destructure 1: V
-  0026    | TakeRight 26 -> 56
+  0026    | TakeRight 26 -> 57
   0029    | GetConstant 2: _object
   0031    | GetConstant 3: @fn835
   0033    | CaptureLocal 0 1
@@ -1681,12 +1681,12 @@
   0039    | GetConstant 4: @fn836
   0041    | CaptureLocal 1 0
   0044    | CaptureLocal 2 1
-  0047    | GetConstant 5: {}
+  0047    | GetConstant 5: {_0_}
   0049    | GetBoundLocal 4
   0051    | GetBoundLocal 5
-  0053    | InsertKeyVal
-  0054    | CallTailFunction 3
-  0056    | End
+  0053    | InsertKeyVal 0
+  0055    | CallTailFunction 3
+  0057    | End
   ========================================
   
   ==============object_until==============
@@ -1706,17 +1706,17 @@
   0017    | GetBoundLocal 1
   0019    | CallFunction 0
   0021    | Destructure 1: V
-  0023    | TakeRight 23 -> 43
+  0023    | TakeRight 23 -> 44
   0026    | GetConstant 3: _object_until
   0028    | GetBoundLocal 0
   0030    | GetBoundLocal 1
   0032    | GetBoundLocal 2
-  0034    | GetConstant 4: {}
+  0034    | GetConstant 4: {_0_}
   0036    | GetBoundLocal 3
   0038    | GetBoundLocal 4
-  0040    | InsertKeyVal
-  0041    | CallTailFunction 4
-  0043    | End
+  0040    | InsertKeyVal 0
+  0042    | CallTailFunction 4
+  0044    | End
   ========================================
   
   =============_object_until==============
@@ -1735,7 +1735,7 @@
   0014    | GetConstant 3: const
   0016    | GetBoundLocal 3
   0018    | CallTailFunction 1
-  0020    | ConditionalElse 20 -> 64
+  0020    | ConditionalElse 20 -> 65
   0023    | GetBoundLocal 0
   0025    | CallFunction 0
   0027    | Destructure 0: K
@@ -1743,7 +1743,7 @@
   0032    | GetBoundLocal 1
   0034    | CallFunction 0
   0036    | Destructure 1: V
-  0038    | TakeRight 38 -> 64
+  0038    | TakeRight 38 -> 65
   0041    | GetConstant 4: _object_until
   0043    | GetBoundLocal 0
   0045    | GetBoundLocal 1
@@ -1751,13 +1751,13 @@
   0049    | GetConstant 5: {}
   0051    | GetBoundLocal 3
   0053    | Merge
-  0054    | GetConstant 6: {}
+  0054    | GetConstant 6: {_0_}
   0056    | GetBoundLocal 4
   0058    | GetBoundLocal 5
-  0060    | InsertKeyVal
-  0061    | Merge
-  0062    | CallTailFunction 4
-  0064    | End
+  0060    | InsertKeyVal 0
+  0062    | Merge
+  0063    | CallTailFunction 4
+  0065    | End
   ========================================
   
   =================@fn841=================
@@ -1825,16 +1825,16 @@
   0004    | GetBoundLocal 0
   0006    | CallFunction 0
   0008    | Destructure 0: K
-  0010    | TakeRight 10 -> 29
+  0010    | TakeRight 10 -> 30
   0013    | GetBoundLocal 1
   0015    | CallFunction 0
   0017    | Destructure 1: V
-  0019    | TakeRight 19 -> 29
-  0022    | GetConstant 2: {}
+  0019    | TakeRight 19 -> 30
+  0022    | GetConstant 2: {_0_}
   0024    | GetBoundLocal 2
   0026    | GetBoundLocal 3
-  0028    | InsertKeyVal
-  0029    | End
+  0028    | InsertKeyVal 0
+  0030    | End
   ========================================
   
   ================pair_sep================
@@ -1848,16 +1848,16 @@
   0010    | TakeRight 10 -> 17
   0013    | GetBoundLocal 1
   0015    | CallFunction 0
-  0017    | TakeRight 17 -> 36
+  0017    | TakeRight 17 -> 37
   0020    | GetBoundLocal 2
   0022    | CallFunction 0
   0024    | Destructure 1: V
-  0026    | TakeRight 26 -> 36
-  0029    | GetConstant 2: {}
+  0026    | TakeRight 26 -> 37
+  0029    | GetConstant 2: {_0_}
   0031    | GetBoundLocal 3
   0033    | GetBoundLocal 4
-  0035    | InsertKeyVal
-  0036    | End
+  0035    | InsertKeyVal 0
+  0037    | End
   ========================================
   
   ================record1=================
@@ -1867,12 +1867,12 @@
   0002    | GetBoundLocal 1
   0004    | CallFunction 0
   0006    | Destructure 0: Value
-  0008    | TakeRight 8 -> 18
-  0011    | GetConstant 1: {}
+  0008    | TakeRight 8 -> 19
+  0011    | GetConstant 1: {_0_}
   0013    | GetBoundLocal 0
   0015    | GetBoundLocal 2
-  0017    | InsertKeyVal
-  0018    | End
+  0017    | InsertKeyVal 0
+  0019    | End
   ========================================
   
   ================record2=================
@@ -1886,19 +1886,19 @@
   0004    | GetBoundLocal 1
   0006    | CallFunction 0
   0008    | Destructure 0: V1
-  0010    | TakeRight 10 -> 34
+  0010    | TakeRight 10 -> 36
   0013    | GetBoundLocal 3
   0015    | CallFunction 0
   0017    | Destructure 1: V2
-  0019    | TakeRight 19 -> 34
-  0022    | GetConstant 2: {}
+  0019    | TakeRight 19 -> 36
+  0022    | GetConstant 2: {_0_, _1_}
   0024    | GetBoundLocal 0
   0026    | GetBoundLocal 4
-  0028    | InsertKeyVal
-  0029    | GetBoundLocal 2
-  0031    | GetBoundLocal 5
-  0033    | InsertKeyVal
-  0034    | End
+  0028    | InsertKeyVal 0
+  0030    | GetBoundLocal 2
+  0032    | GetBoundLocal 5
+  0034    | InsertKeyVal 1
+  0036    | End
   ========================================
   
   ==============record2_sep===============
@@ -1915,19 +1915,19 @@
   0010    | TakeRight 10 -> 17
   0013    | GetBoundLocal 2
   0015    | CallFunction 0
-  0017    | TakeRight 17 -> 41
+  0017    | TakeRight 17 -> 43
   0020    | GetBoundLocal 4
   0022    | CallFunction 0
   0024    | Destructure 1: V2
-  0026    | TakeRight 26 -> 41
-  0029    | GetConstant 2: {}
+  0026    | TakeRight 26 -> 43
+  0029    | GetConstant 2: {_0_, _1_}
   0031    | GetBoundLocal 0
   0033    | GetBoundLocal 5
-  0035    | InsertKeyVal
-  0036    | GetBoundLocal 3
-  0038    | GetBoundLocal 6
-  0040    | InsertKeyVal
-  0041    | End
+  0035    | InsertKeyVal 0
+  0037    | GetBoundLocal 3
+  0039    | GetBoundLocal 6
+  0041    | InsertKeyVal 1
+  0043    | End
   ========================================
   
   ================record3=================
@@ -1947,22 +1947,22 @@
   0015    | GetBoundLocal 3
   0017    | CallFunction 0
   0019    | Destructure 1: V2
-  0021    | TakeRight 21 -> 50
+  0021    | TakeRight 21 -> 53
   0024    | GetBoundLocal 5
   0026    | CallFunction 0
   0028    | Destructure 2: V3
-  0030    | TakeRight 30 -> 50
-  0033    | GetConstant 3: {}
+  0030    | TakeRight 30 -> 53
+  0033    | GetConstant 3: {_0_, _1_, _2_}
   0035    | GetBoundLocal 0
   0037    | GetBoundLocal 6
-  0039    | InsertKeyVal
-  0040    | GetBoundLocal 2
-  0042    | GetBoundLocal 7
-  0044    | InsertKeyVal
-  0045    | GetBoundLocal 4
-  0047    | GetBoundLocal 8
-  0049    | InsertKeyVal
-  0050    | End
+  0039    | InsertKeyVal 0
+  0041    | GetBoundLocal 2
+  0043    | GetBoundLocal 7
+  0045    | InsertKeyVal 1
+  0047    | GetBoundLocal 4
+  0049    | GetBoundLocal 8
+  0051    | InsertKeyVal 2
+  0053    | End
   ========================================
   
   ==============record3_sep===============
@@ -1988,22 +1988,22 @@
   0028    | TakeRight 28 -> 35
   0031    | GetBoundLocal 5
   0033    | CallFunction 0
-  0035    | TakeRight 35 -> 64
+  0035    | TakeRight 35 -> 67
   0038    | GetBoundLocal 7
   0040    | CallFunction 0
   0042    | Destructure 2: V3
-  0044    | TakeRight 44 -> 64
-  0047    | GetConstant 3: {}
+  0044    | TakeRight 44 -> 67
+  0047    | GetConstant 3: {_0_, _1_, _2_}
   0049    | GetBoundLocal 0
   0051    | GetBoundLocal 8
-  0053    | InsertKeyVal
-  0054    | GetBoundLocal 3
-  0056    | GetBoundLocal 9
-  0058    | InsertKeyVal
-  0059    | GetBoundLocal 6
-  0061    | GetBoundLocal 10
-  0063    | InsertKeyVal
-  0064    | End
+  0053    | InsertKeyVal 0
+  0055    | GetBoundLocal 3
+  0057    | GetBoundLocal 9
+  0059    | InsertKeyVal 1
+  0061    | GetBoundLocal 6
+  0063    | GetBoundLocal 10
+  0065    | InsertKeyVal 2
+  0067    | End
   ========================================
   
   ==================many==================
@@ -2876,7 +2876,7 @@
   ===============_ctrl_char===============
   _ctrl_char = "\u000000".."\u00001F"
   ========================================
-  0000    | ParseRange 0 1: "\x00" "\x1f" (esc)
+  0000    | ParseRange 0 1: _0 "\x1f" (esc)
   0003    | End
   ========================================
   
@@ -6251,22 +6251,22 @@
   0013    | TakeRight 13 -> 20
   0016    | GetBoundLocal 1
   0018    | Destructure 1: ([V] + VsRest)
-  0020    | ConditionalThen 20 -> 47
+  0020    | ConditionalThen 20 -> 48
   0023    | GetConstant 4: _Array.ZipObject
   0025    | GetBoundLocal 4
   0027    | GetBoundLocal 6
   0029    | GetConstant 5: {}
   0031    | GetBoundLocal 2
   0033    | Merge
-  0034    | GetConstant 6: {}
+  0034    | GetConstant 6: {_0_}
   0036    | GetBoundLocal 3
   0038    | GetBoundLocal 5
-  0040    | InsertKeyVal
-  0041    | Merge
-  0042    | CallTailFunction 3
-  0044    | ConditionalElse 44 -> 49
-  0047    | GetBoundLocal 2
-  0049    | End
+  0040    | InsertKeyVal 0
+  0042    | Merge
+  0043    | CallTailFunction 3
+  0045    | ConditionalElse 45 -> 50
+  0048    | GetBoundLocal 2
+  0050    | End
   ========================================
   
   =============Array.ZipPairs=============
@@ -6597,12 +6597,12 @@
   0000    | GetConstant 0: {}
   0002    | GetBoundLocal 0
   0004    | Merge
-  0005    | GetConstant 1: {}
+  0005    | GetConstant 1: {_0_}
   0007    | GetBoundLocal 1
   0009    | GetBoundLocal 2
-  0011    | InsertKeyVal
-  0012    | Merge
-  0013    | End
+  0011    | InsertKeyVal 0
+  0013    | Merge
+  0014    | End
   ========================================
   
   =============Ast.Precedence=============
