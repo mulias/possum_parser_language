@@ -917,17 +917,7 @@ pub const Parser = struct {
     }
 
     fn objectPair(self: *Parser) !Ast.ObjectPair {
-        var key: *Ast.RNode = undefined;
-
-        if (self.check(.UppercaseIdentifier)) {
-            key = try self.valueVar();
-        } else if (self.check(.SingleQuoteStringStart) or self.check(.DoubleQuoteStringStart)) {
-            key = try self.string();
-        } else if (self.check(.BacktickStringStart)) {
-            key = try self.backtickString();
-        } else {
-            return self.errorAtToken("Expected object member key");
-        }
+        const key = try self.expression();
 
         if (self.token.tokenType != .Colon) {
             return self.errorAtToken("Expected ':' after object member key");
