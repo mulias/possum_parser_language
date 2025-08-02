@@ -159,3 +159,14 @@
   Destructure Success: "29" -> "%(0 + N)"
   29
 
+  $ possum -p 'const({"ab": 2}) -> {"a" + B: 2} $ B' -i ''
+  
+  Destructure:
+      {"ab": 2} -> {("a" + B): 2}
+          {"ab": 2} -> {("a" + B): 2}
+              "ab" -> ("a" + B)
+                  "a" -> "a"
+                  "b" -> B
+              2 -> 2
+  Destructure Success: {"ab": 2} -> {("a" + B): 2}
+  "b"

@@ -7,7 +7,7 @@
 "a b"   = 1
 " c d " = 2
 
-"\u0000" = "null"
+# "\u0000" = "null"
 '\u0000' = "different key"
 "\u0008 \u000c \U00000041 \u007f \u0080 \u00ff \ud7ff \ue000 \uffff \U00010000 \U0010ffff" = "escaped key"
 

@@ -239,12 +239,12 @@
   0000    | GetConstant 0: {}
   0002    | GetBoundLocal 0
   0004    | Merge
-  0005    | GetConstant 1: {}
+  0005    | GetConstant 1: {_0_}
   0007    | GetBoundLocal 1
   0009    | GetBoundLocal 2
-  0011    | InsertKeyVal
-  0012    | Merge
-  0013    | End
+  0011    | InsertKeyVal 0
+  0013    | Merge
+  0014    | End
   ========================================
   
   =================@main==================

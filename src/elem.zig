@@ -146,9 +146,21 @@ pub const Elem = union(ElemType) {
     pub fn print(self: Elem, vm: VM, writer: VMWriter) !void {
         // try writer.print("{s} ", .{@tagName(self)});
         return switch (self) {
-            .ParserVar => |sId| try writer.print("{s}", .{vm.strings.get(sId)}),
-            .ValueVar => |sId| try writer.print("{s}", .{vm.strings.get(sId)}),
-            .String => |sId| try writer.print("\"{s}\"", .{vm.strings.get(sId)}),
+            .ParserVar => |sid| if (StringTable.asReserved(sid)) |rid| {
+                try writer.print("_{d}", .{rid});
+            } else {
+                try writer.print("{s}", .{vm.strings.get(sid)});
+            },
+            .ValueVar => |sid| if (StringTable.asReserved(sid)) |rid| {
+                try writer.print("_{d}", .{rid});
+            } else {
+                try writer.print("{s}", .{vm.strings.get(sid)});
+            },
+            .String => |sid| if (StringTable.asReserved(sid)) |rid| {
+                try writer.print("_{d}", .{rid});
+            } else {
+                try writer.print("\"{s}\"", .{vm.strings.get(sid)});
+            },
             .InputSubstring => |is| try writer.print("\"{s}\"", .{vm.input[is[0]..is[1]]}),
             .NumberString => |ns| try writer.print("{s}", .{ns.toString(vm.strings)}),
             .Integer => |i| try writer.print("{d}", .{i}),
@@ -1020,8 +1032,14 @@ pub const Elem = union(ElemType) {
                     try writer.print("{{", .{});
                     var iterator = self.members.iterator();
                     while (iterator.next()) |entry| {
-                        try writer.print("\"{s}\": ", .{vm.strings.get(entry.key_ptr.*)});
-                        try entry.value_ptr.*.print(vm, writer);
+                        const sid = entry.key_ptr.*;
+
+                        if (StringTable.asReserved(sid)) |rid| {
+                            try writer.print("_{d}_", .{rid});
+                        } else {
+                            try writer.print("\"{s}\": ", .{vm.strings.get(sid)});
+                            try entry.value_ptr.*.print(vm, writer);
+                        }
 
                         if (iterator.index <= lastMemberIndex) {
                             try writer.print(", ", .{});
@@ -1055,6 +1073,10 @@ pub const Elem = union(ElemType) {
                 while (iterator.next()) |entry| {
                     try self.members.put(allocator, entry.key_ptr.*, entry.value_ptr.*);
                 }
+            }
+
+            pub fn putReservedId(self: *Object, allocator: Allocator, reservedId: u8, value: Elem) !void {
+                return self.members.put(allocator, std.math.maxInt(u32) - @as(u32, @intCast(reservedId)), value);
             }
         };
 

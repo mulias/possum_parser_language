@@ -478,26 +478,49 @@ pub const VM = struct {
             },
             .InsertKeyVal => {
                 const val = self.pop();
-                const keyElem = self.pop();
+                const key_elem = self.pop();
                 const object_elem = self.pop();
+                const placeholder_key = self.readByte();
+                const placeholder_key_sid = StringTable.reservedSid(placeholder_key);
 
-                if (val.isFailure() or keyElem.isFailure() or object_elem.isFailure()) {
+                if (val.isFailure() or key_elem.isFailure() or object_elem.isFailure()) {
                     try self.pushFailure();
                 } else {
                     const object = object_elem.asDyn().asObject();
-                    var key: StringTable.Id = undefined;
+                    var key_sid: StringTable.Id = undefined;
 
-                    if (keyElem.isType(.String)) {
-                        key = keyElem.String;
-                    } else if (keyElem.stringBytes(self.*)) |bytes| {
-                        key = try self.strings.insert(bytes);
+                    if (try Elem.getOrPutSid(key_elem, self)) |sid| {
+                        key_sid = sid;
                     } else {
                         return self.runtimeError("Insert key error: Object key must be a string", .{});
                     }
 
+                    const placeholder_index = object.members.getIndex(placeholder_key_sid).?;
+                    const calculated_index = object.members.getIndex(key_sid);
+
                     var copy = try Elem.DynElem.Object.create(self, object.members.count());
                     try copy.concat(self.allocator, object);
-                    try copy.members.put(self.allocator, key, val);
+
+                    if (calculated_index) |existing_key_index| {
+                        if (existing_key_index < placeholder_index) {
+                            // Key was already inserted, but before this new
+                            // insertion. Replace both the placeholder and
+                            // existing with the new pair, leaving the new pair
+                            // in the placeholder position.
+                            _ = copy.members.orderedRemove(key_sid);
+                            try copy.members.put(self.allocator, key_sid, val);
+                            _ = copy.members.swapRemove(placeholder_key_sid);
+                        } else {
+                            // This key was inserted after the placeholder.
+                            // Delete the placeholder and keep the existing
+                            // key.
+                            _ = copy.members.orderedRemove(placeholder_key_sid);
+                        }
+                    } else {
+                        try copy.members.put(self.allocator, key_sid, val);
+                        _ = copy.members.swapRemove(placeholder_key_sid);
+                    }
+
                     try self.push(copy.dyn.elem());
                 }
             },
