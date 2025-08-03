@@ -720,57 +720,15 @@ pub const VM = struct {
                     return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
                 }
             },
-            .String => |sId| {
+            .String => |sid| {
                 assert(argCount == 0);
                 _ = self.pop();
-                const str = self.strings.get(sId);
-                const start = self.inputPos.offset;
-                const end = start + str.len;
-
-                var newlines: usize = 0;
-                var line_start = self.inputPos.line_start;
-
-                if (self.input.len >= end) {
-                    for (str, self.input[start..end], 0..) |sc, ic, idx| {
-                        if (self.isNewlineChar(start + idx, 1) or
-                            (str[idx..].len >= 2 and self.isNewlineChar(start + idx, 2)) or
-                            (str[idx..].len >= 3 and self.isNewlineChar(start + idx, 3)))
-                        {
-                            newlines += 1;
-                            line_start = start + idx;
-                        }
-
-                        if (sc != ic) {
-                            try self.pushFailure();
-                            return;
-                        }
-                    }
-
-                    self.inputPos.offset = end;
-                    self.inputPos.line += newlines;
-                    self.inputPos.line_start = line_start;
-
-                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
-                    try self.push(substring);
-
-                    return;
-                }
-
-                try self.pushFailure();
+                try self.parseString(sid);
             },
-            .NumberString => |n| {
+            .NumberString => |ns| {
                 assert(argCount == 0);
                 _ = self.pop();
-                const bytes = n.toString(self.strings);
-                const start = self.inputPos.offset;
-                const end = start + bytes.len;
-
-                if (self.input.len >= end and std.mem.eql(u8, bytes, self.input[start..end])) {
-                    self.inputPos.offset = end;
-                    try self.push(elem);
-                    return;
-                }
-                try self.pushFailure();
+                try self.parseNumberString(ns);
             },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .Function => {
@@ -805,6 +763,56 @@ pub const VM = struct {
             },
             else => @panic("Internal error"),
         }
+    }
+
+    pub fn parseString(self: *VM, sid: StringTable.Id) Error!void {
+        const str = self.strings.get(sid);
+        const start = self.inputPos.offset;
+        const end = start + str.len;
+
+        var newlines: usize = 0;
+        var line_start = self.inputPos.line_start;
+
+        if (self.input.len >= end) {
+            for (str, self.input[start..end], 0..) |sc, ic, idx| {
+                if (self.isNewlineChar(start + idx, 1) or
+                    (str[idx..].len >= 2 and self.isNewlineChar(start + idx, 2)) or
+                    (str[idx..].len >= 3 and self.isNewlineChar(start + idx, 3)))
+                {
+                    newlines += 1;
+                    line_start = start + idx;
+                }
+
+                if (sc != ic) {
+                    try self.pushFailure();
+                    return;
+                }
+            }
+
+            self.inputPos.offset = end;
+            self.inputPos.line += newlines;
+            self.inputPos.line_start = line_start;
+
+            const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
+            try self.push(substring);
+
+            return;
+        }
+
+        try self.pushFailure();
+    }
+
+    fn parseNumberString(self: *VM, number_string: Elem.NumberStringElem) Error!void {
+        const bytes = number_string.toString(self.strings);
+        const start = self.inputPos.offset;
+        const end = start + bytes.len;
+
+        if (self.input.len >= end and std.mem.eql(u8, bytes, self.input[start..end])) {
+            self.inputPos.offset = end;
+            try self.push(.{ .NumberString = number_string });
+            return;
+        }
+        try self.pushFailure();
     }
 
     fn parseCharacterRange(self: *VM, low_id: StringTable.Id, high_id: StringTable.Id) !void {
