@@ -545,7 +545,7 @@ pub const Parser = struct {
         const upper_bound_node = try self.parseWithPrecedence(operatorPrecedence(range_token.tokenType));
 
         return self.ast.create(
-            .{ .UpperBoundedRange = upper_bound_node },
+            .{ .Range = .{ .lower = null, .upper = upper_bound_node } },
             range_token.region.merge(upper_bound_node.region),
         );
     }
@@ -554,7 +554,10 @@ pub const Parser = struct {
         const range_token = self.token;
         try self.advance(); // advance past the '..' token
 
-        const lower_bounded_range_node: Ast.Node = .{ .LowerBoundedRange = lower_bound_node };
+        const lower_bounded_range_node: Ast.Node = .{ .Range = .{
+            .lower = lower_bound_node,
+            .upper = null,
+        } };
         const lower_bounded_range_region = lower_bound_node.region.merge(range_token.region);
 
         // If there's whitespace then the range is done
@@ -578,10 +581,11 @@ pub const Parser = struct {
                 const upper_bound_node = try self.parseWithPrecedence(
                     operatorPrecedence(range_token.tokenType),
                 );
-                return self.ast.createInfix(
-                    .Range,
-                    lower_bound_node,
-                    upper_bound_node,
+                return self.ast.create(
+                    .{ .Range = .{
+                        .lower = lower_bound_node,
+                        .upper = upper_bound_node,
+                    } },
                     lower_bound_node.region.merge(upper_bound_node.region),
                 );
             },
