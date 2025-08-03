@@ -20,8 +20,7 @@ pub const Ast = struct {
     pub const NodeType = enum {
         InfixNode,
         ElemNode,
-        UpperBoundedRange,
-        LowerBoundedRange,
+        Range,
         Negation,
         ValueLabel,
         Array,
@@ -41,11 +40,15 @@ pub const Ast = struct {
         else_branch: *RNode,
     };
 
+    pub const RangeNode = struct {
+        lower: ?*RNode,
+        upper: ?*RNode,
+    };
+
     pub const Node = union(NodeType) {
         InfixNode: Infix,
         ElemNode: Elem,
-        UpperBoundedRange: *RNode,
-        LowerBoundedRange: *RNode,
+        Range: RangeNode,
         Negation: *RNode,
         ValueLabel: *RNode,
         Array: ArrayList(*RNode),
@@ -71,7 +74,6 @@ pub const Ast = struct {
     pub const InfixType = enum {
         Backtrack,
         CallOrDefineFunction,
-        Range,
         DeclareGlobal,
         Destructure,
         Merge,
@@ -162,7 +164,7 @@ pub const Ast = struct {
         }
     }
 
-    fn shouldBeMultiline(self: *Ast, node: Node, vm: VM) VMWriter.Error!bool {
+    fn shouldBeMultiline(self: *Ast, node: Node, vm: VM) bool {
         return switch (node) {
             .InfixNode => true, // InfixNodes have 2 children, so always multiline
             .Array => |array| {
@@ -170,7 +172,7 @@ pub const Ast = struct {
                 if (array.items.len > 3) return true;
                 // Otherwise multiline if any child is multiline
                 for (array.items) |item| {
-                    if (try self.shouldBeMultiline(item.node, vm)) return true;
+                    if (self.shouldBeMultiline(item.node, vm)) return true;
                 }
                 return false;
             },
@@ -181,15 +183,20 @@ pub const Ast = struct {
             },
             .StringTemplate => |template| template.items.len > 1,
             .Conditional => true, // Conditionals have 3 children, so always multiline
-            .UpperBoundedRange => |child| try self.shouldBeMultiline(child.node, vm),
-            .LowerBoundedRange => |child| try self.shouldBeMultiline(child.node, vm),
-            .Negation => |child| try self.shouldBeMultiline(child.node, vm),
-            .ValueLabel => |child| try self.shouldBeMultiline(child.node, vm),
+            .Range => |range| {
+                const lower_multiline = if (range.lower) |lower| self.shouldBeMultiline(lower.node, vm) else false;
+                const upper_multiline = if (range.upper) |upper| self.shouldBeMultiline(upper.node, vm) else false;
+                return lower_multiline or upper_multiline;
+            },
+            .Negation => |child| self.shouldBeMultiline(child.node, vm),
+            .ValueLabel => |child| self.shouldBeMultiline(child.node, vm),
             .ElemNode => false,
         };
     }
 
     fn printNodeSexpr(self: *Ast, node: Node, writer: VMWriter, vm: VM, indent: u32, region: Region) VMWriter.Error!void {
+        const multiline = self.shouldBeMultiline(node, vm);
+
         switch (node) {
             .InfixNode => |infix| {
                 try writer.print("({s} {}-{}\n", .{ @tagName(infix.infixType), region.start, region.end });
@@ -205,35 +212,25 @@ pub const Ast = struct {
                 try elem.print(vm, writer);
                 try writer.print(")", .{});
             },
-            .UpperBoundedRange => |child| {
-                const child_multiline = try self.shouldBeMultiline(child.node, vm);
-                if (child_multiline) {
-                    try writer.print("(UpperBoundedRange {}-{}\n", .{ region.start, region.end });
+            .Range => |range| {
+                if (multiline) {
+                    try writer.print("(Range {}-{}\n", .{ region.start, region.end });
                     try self.printIndent(writer, indent + 1);
-                    try self.printRNodeSexpr(child, writer, vm, indent + 1);
+                    if (range.lower) |lower| try self.printRNodeSexpr(lower, writer, vm, indent + 1) else try writer.print("()", .{});
+                    try writer.print("\n", .{});
+                    try self.printIndent(writer, indent + 1);
+                    if (range.upper) |upper| try self.printRNodeSexpr(upper, writer, vm, indent + 1) else try writer.print("()", .{});
                     try writer.print(")", .{});
                 } else {
-                    try writer.print("(UpperBoundedRange {}-{} ", .{ region.start, region.end });
-                    try self.printRNodeSexpr(child, writer, vm, indent);
-                    try writer.print(")", .{});
-                }
-            },
-            .LowerBoundedRange => |child| {
-                const child_multiline = try self.shouldBeMultiline(child.node, vm);
-                if (child_multiline) {
-                    try writer.print("(LowerBoundedRange {}-{}\n", .{ region.start, region.end });
-                    try self.printIndent(writer, indent + 1);
-                    try self.printRNodeSexpr(child, writer, vm, indent + 1);
-                    try writer.print(")", .{});
-                } else {
-                    try writer.print("(LowerBoundedRange {}-{} ", .{ region.start, region.end });
-                    try self.printRNodeSexpr(child, writer, vm, indent);
+                    try writer.print("(Range {}-{} ", .{ region.start, region.end });
+                    if (range.lower) |lower| try self.printRNodeSexpr(lower, writer, vm, indent + 1) else try writer.print("()", .{});
+                    try writer.print(" ", .{});
+                    if (range.upper) |upper| try self.printRNodeSexpr(upper, writer, vm, indent + 1) else try writer.print("()", .{});
                     try writer.print(")", .{});
                 }
             },
             .Negation => |child| {
-                const child_multiline = try self.shouldBeMultiline(child.node, vm);
-                if (child_multiline) {
+                if (multiline) {
                     try writer.print("(Negation {}-{}\n", .{ region.start, region.end });
                     try self.printIndent(writer, indent + 1);
                     try self.printRNodeSexpr(child, writer, vm, indent + 1);
@@ -245,8 +242,7 @@ pub const Ast = struct {
                 }
             },
             .ValueLabel => |child| {
-                const child_multiline = try self.shouldBeMultiline(child.node, vm);
-                if (child_multiline) {
+                if (multiline) {
                     try writer.print("(ValueLabel {}-{}\n", .{ region.start, region.end });
                     try self.printIndent(writer, indent + 1);
                     try self.printRNodeSexpr(child, writer, vm, indent + 1);
@@ -258,8 +254,7 @@ pub const Ast = struct {
                 }
             },
             .Array => |array| {
-                const is_multiline = try self.shouldBeMultiline(node, vm);
-                if (is_multiline) {
+                if (multiline) {
                     try writer.print("(Array {}-{} (\n", .{ region.start, region.end });
                     for (array.items, 0..) |item, i| {
                         try self.printIndent(writer, indent + 1);
