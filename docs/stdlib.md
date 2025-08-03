@@ -12,7 +12,7 @@ These parsers and value functions are always available in Possum programs, unles
 | `ascii`            | One [ASCII] code point     | Matched string |
 | `alpha`            | One lower- or upper-case letter from the English alphabet, "a" to "z" or "A" to "Z" | Matched string |
 | `alphas`           | One or more `alpha`s       | Matched string             |
-| `lower`            | One lower-case letter from the English alphabet, "a" to "Z" | Matched string |
+| `lower`            | One lower-case letter from the English alphabet, "a" to "z" | Matched string |
 | `lowers`           | One or more `lower`s       | Matched string             |
 | `upper`            | One upper-case letter from the English alphabet, "A" to "Z" | Matched string |
 | `uppers`           | One or more `upper`s       | Matched string             |
@@ -286,3 +286,9 @@ See the `stdlib-ast` docs for more detailed documentation.
 | `Is.LessThanOrEqual(A, B)` | Return `A` if `A` is less than or equal to `B`  |
 | `Is.GreaterThan(A, B)` | Return `A` if `A` is strictly greater than `B`      |
 | `Is.GreaterThanOrEqual(A, B)` | Return `A` if `A` is greater than or equal to `B` |
+
+### Conversion
+
+| Value              | Behavior                                                |
+| ------------------ | ------------------------------------------------------- |
+| `As.Number(V)`     | Convert string encoding of number into a number         |
