@@ -110,32 +110,36 @@ pub const Compiler = struct {
 
     fn declareGlobals(self: *Compiler) !void {
         for (self.ast.roots.items) |root| {
-            if (root.node.asInfixOfType(.DeclareGlobal)) |infix| {
-                try self.declareGlobal(infix.left, infix.right, root.region);
+            if (root.node == .DeclareGlobal) {
+                const global = root.node.DeclareGlobal;
+                try self.declareGlobal(global.head, global.body, root.region);
             }
         }
     }
 
     fn validateGlobals(self: *Compiler) !void {
         for (self.ast.roots.items) |root| {
-            if (root.node.asInfixOfType(.DeclareGlobal)) |infix| {
-                try self.validateGlobal(infix.left);
+            if (root.node == .DeclareGlobal) {
+                const global = root.node.DeclareGlobal;
+                try self.validateGlobal(global.head);
             }
         }
     }
 
     fn resolveGlobalAliases(self: *Compiler) !void {
         for (self.ast.roots.items) |root| {
-            if (root.node.asInfixOfType(.DeclareGlobal)) |infix| {
-                try self.resolveGlobalAlias(infix.left);
+            if (root.node == .DeclareGlobal) {
+                const global = root.node.DeclareGlobal;
+                try self.resolveGlobalAlias(global.head);
             }
         }
     }
 
     fn compileGlobalFunctions(self: *Compiler) !void {
         for (self.ast.roots.items) |root| {
-            if (root.node.asInfixOfType(.DeclareGlobal)) |infix| {
-                try self.compileGlobalFunction(infix.left, infix.right);
+            if (root.node == .DeclareGlobal) {
+                const global = root.node.DeclareGlobal;
+                try self.compileGlobalFunction(global.head, global.body);
             }
         }
     }
@@ -144,7 +148,7 @@ pub const Compiler = struct {
         var main: ?*Ast.RNode = null;
 
         for (self.ast.roots.items) |root| {
-            if (root.node.asInfixOfType(.DeclareGlobal) == null) {
+            if (root.node != .DeclareGlobal) {
                 if (main == null) {
                     main = root;
                 } else {
@@ -175,14 +179,8 @@ pub const Compiler = struct {
 
     fn declareGlobal(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode, region: Region) !void {
         switch (head.node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .CallOrDefineFunction => {
-                    // A function with params
-                    const name = infix.left;
-                    const params = infix.right;
-                    try self.declareGlobalFunction(name, params, region);
-                },
-                else => return Error.InvalidAst,
+            .Function => |function| {
+                try self.declareGlobalFunction(function.name, function.paramsOrArgs, region);
             },
             .ElemNode => |nameElem| switch (body.node) {
                 .ElemNode => |bodyElem| {
@@ -190,9 +188,10 @@ pub const Compiler = struct {
                 },
                 else => {
                     // A function without params
-                    try self.declareGlobalFunction(head, null, region);
+                    try self.declareGlobalFunction(head, ArrayList(*Ast.RNode){}, region);
                 },
             },
+            .InfixNode,
             .Range,
             .Negation,
             .ValueLabel,
@@ -200,11 +199,12 @@ pub const Compiler = struct {
             .Object,
             .StringTemplate,
             .Conditional,
+            .DeclareGlobal,
             => return Error.InvalidAst,
         }
     }
 
-    fn declareGlobalFunction(self: *Compiler, name: *Ast.RNode, params: ?*Ast.RNode, region: Region) !void {
+    fn declareGlobalFunction(self: *Compiler, name: *Ast.RNode, params: ArrayList(*Ast.RNode), region: Region) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
@@ -233,43 +233,12 @@ pub const Compiler = struct {
 
         try self.functions.append(self.vm.allocator, function);
 
-        if (params) |first_param| {
-            var param = first_param;
-
-            while (true) {
-                switch (param.node) {
-                    .InfixNode => |infix| {
-                        if (infix.infixType == .ParamsOrArgs) {
-                            if (infix.left.node.asElem()) |leftElem| {
-                                _ = try self.addLocal(
-                                    leftElem,
-                                    infix.left.region,
-                                );
-                                function.arity += 1;
-                            } else {
-                                return Error.InvalidAst;
-                            }
-                        } else {
-                            return Error.InvalidAst;
-                        }
-
-                        param = infix.right;
-                    },
-                    .ElemNode => |elem| {
-                        // This is the last param
-                        _ = try self.addLocal(elem, param.region);
-                        function.arity += 1;
-                        break;
-                    },
-                    .Range,
-                    .Negation,
-                    .ValueLabel,
-                    .Array,
-                    .Object,
-                    .StringTemplate,
-                    .Conditional,
-                    => return Error.InvalidAst,
-                }
+        for (params.items) |param| {
+            if (param.node.asElem()) |elem| {
+                _ = try self.addLocal(elem, param.region);
+                function.arity += 1;
+            } else {
+                return Error.InvalidAst;
             }
         }
 
@@ -290,8 +259,9 @@ pub const Compiler = struct {
 
     fn validateGlobal(self: *Compiler, head: *Ast.RNode) !void {
         const nameElem = switch (head.node) {
-            .InfixNode => |infix| infix.left.node.asElem() orelse return Error.InvalidAst,
+            .Function => |function| function.name.node.asElem() orelse return Error.InvalidAst,
             .ElemNode => |elem| elem,
+            .InfixNode,
             .Range,
             .Negation,
             .ValueLabel,
@@ -299,6 +269,7 @@ pub const Compiler = struct {
             .Object,
             .StringTemplate,
             .Conditional,
+            .DeclareGlobal,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -436,8 +407,9 @@ pub const Compiler = struct {
 
     fn getGlobalName(self: *Compiler, head: *Ast.RNode) !StringTable.Id {
         const nameElem = switch (head.node) {
-            .InfixNode => |infix| infix.left.node.asElem() orelse return Error.InvalidAst,
+            .Function => |function| function.name.node.asElem() orelse return Error.InvalidAst,
             .ElemNode => |elem| elem,
+            .InfixNode,
             .Range,
             .Negation,
             .ValueLabel,
@@ -445,6 +417,7 @@ pub const Compiler = struct {
             .Object,
             .StringTemplate,
             .Conditional,
+            .DeclareGlobal,
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
@@ -505,12 +478,8 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, region);
                 },
-                .DeclareGlobal => unreachable,
-                .CallOrDefineFunction => {
-                    try self.writeParserFunctionCall(infix.left, infix.right, isTailPosition);
-                },
-                .ParamsOrArgs => @panic("internal error"), // always handled via CallOrDefineFunction
             },
+            .DeclareGlobal => unreachable, // handled by top-level compiler functions
             .Range => |bounds| {
                 if (bounds.lower != null and bounds.upper != null) {
                     const low = bounds.lower.?;
@@ -646,6 +615,9 @@ pub const Compiler = struct {
                 try self.writeParser(conditional.else_branch, isTailPosition);
                 try self.patchJump(thenElseJumpIndex, region);
             },
+            .Function => |function| {
+                try self.writeParserFunctionCall(function.name, function.paramsOrArgs, isTailPosition);
+            },
             .ValueLabel,
             .Array,
             .Object,
@@ -672,7 +644,12 @@ pub const Compiler = struct {
         };
     }
 
-    fn writeParserFunctionCall(self: *Compiler, function_rnode: *Ast.RNode, args_rnode: *Ast.RNode, isTailPosition: bool) !void {
+    fn writeParserFunctionCall(
+        self: *Compiler,
+        function_rnode: *Ast.RNode,
+        arguments: ArrayList(*Ast.RNode),
+        isTailPosition: bool,
+    ) !void {
         const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
         const function_region = function_rnode.region;
 
@@ -698,12 +675,12 @@ pub const Compiler = struct {
             }
         }
 
-        const argCount = try self.writeParserFunctionArguments(args_rnode, function);
+        const arg_count = try self.writeParserFunctionArguments(arguments, function);
 
         if (isTailPosition) {
-            try self.emitUnaryOp(.CallTailFunction, argCount, function_region);
+            try self.emitUnaryOp(.CallTailFunction, arg_count, function_region);
         } else {
-            try self.emitUnaryOp(.CallFunction, argCount, function_region);
+            try self.emitUnaryOp(.CallFunction, arg_count, function_region);
         }
     }
 
@@ -785,55 +762,48 @@ pub const Compiler = struct {
 
     const ArgType = enum { Parser, Value, Unspecified };
 
-    fn writeParserFunctionArguments(self: *Compiler, first_arg: *Ast.RNode, function: ?*Elem.DynElem.Function) Error!u8 {
-        var argCount: u8 = 0;
-        var arg = first_arg;
-        var argType: ArgType = .Unspecified;
+    fn writeParserFunctionArguments(
+        self: *Compiler,
+        arguments: ArrayList(*Ast.RNode),
+        function: ?*Elem.DynElem.Function,
+    ) Error!u8 {
+        const arg_count = arguments.items.len;
 
-        while (true) {
-            if (argCount == std.math.maxInt(u8)) {
-                try self.printError(
-                    std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
-                    arg.region,
-                );
-                return Error.MaxFunctionArgs;
-            }
+        if (arg_count > std.math.maxInt(u8)) {
+            const first_arg = arguments.items[0];
+            const last_arg = arguments.items[arg_count - 1];
+            const region = first_arg.region.merge(last_arg.region);
 
-            argCount += 1;
-
-            if (function) |f| {
-                if (f.arity < argCount) {
-                    try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
-                    return Error.FunctionCallTooManyArgs;
-                }
-
-                const argPos = argCount - 1;
-                switch (f.localVar(argPos)) {
-                    .ParserVar => argType = .Parser,
-                    .ValueVar => argType = .Value,
-                }
-            } else {
-                argType = .Unspecified;
-            }
-
-            if (arg.node.asInfixOfType(.ParamsOrArgs)) |infix| {
-                try self.writeParserFunctionArgument(infix.left, argType);
-                arg = infix.right;
-            } else {
-                // This is the last arg
-                try self.writeParserFunctionArgument(arg, argType);
-                break;
-            }
+            try self.printError(
+                std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
+                region,
+            );
+            return Error.MaxFunctionArgs;
         }
 
         if (function) |f| {
-            if (f.arity != argCount) {
+            if (f.arity != arg_count) {
                 try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
-                return Error.FunctionCallTooFewArgs;
+                if (f.arity < arg_count) {
+                    return Error.FunctionCallTooManyArgs;
+                } else {
+                    return Error.FunctionCallTooFewArgs;
+                }
             }
         }
 
-        return argCount;
+        for (arguments.items, 0..) |arg, i| {
+            const argType: ArgType = if (function) |f| blk: {
+                switch (f.localVar(@intCast(i))) {
+                    .ParserVar => break :blk .Parser,
+                    .ValueVar => break :blk .Value,
+                }
+            } else .Unspecified;
+
+            try self.writeParserFunctionArgument(arg, argType);
+        }
+
+        return @intCast(arg_count);
     }
 
     fn writeParserFunctionArgument(self: *Compiler, rnode: *Ast.RNode, argType: ArgType) !void {
@@ -845,6 +815,8 @@ pub const Compiler = struct {
                 .Range,
                 .Negation,
                 .Conditional,
+                .Function,
+                .DeclareGlobal,
                 => {
                     const function = try self.writeAnonymousFunction(rnode);
                     const constId = try self.makeConstant(function.dyn.elem());
@@ -986,7 +958,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 }
 
-                var patternElems = std.ArrayListUnmanaged(Pattern){};
+                var patternElems = ArrayList(Pattern){};
                 try patternElems.ensureTotalCapacity(self.vm.allocator, elements.items.len);
 
                 for (elements.items) |elementNode| {
@@ -1002,7 +974,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 }
 
-                var objectPairs = std.ArrayListUnmanaged(Pattern.ObjectPair){};
+                var objectPairs = ArrayList(Pattern.ObjectPair){};
                 try objectPairs.ensureTotalCapacity(self.vm.allocator, pairs.items.len);
 
                 for (pairs.items) |pair| {
@@ -1020,7 +992,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 }
 
-                var templateElems = std.ArrayListUnmanaged(Pattern){};
+                var templateElems = ArrayList(Pattern){};
                 try templateElems.ensureTotalCapacity(self.vm.allocator, segments.items.len);
 
                 for (segments.items) |segmentNode| {
@@ -1053,52 +1025,53 @@ pub const Compiler = struct {
                 const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
                 return self.astToPattern(inner, new_negation_count);
             },
+            .Function => |function| {
+                const nameNode = function.name.node;
+
+                const functionName = switch (nameNode) {
+                    .ElemNode => |elem| switch (elem) {
+                        .ValueVar => |name| name,
+                        else => return Error.InvalidAst,
+                    },
+                    else => return Error.InvalidAst,
+                };
+
+                const globalFunctionElem = self.findGlobal(functionName);
+
+                const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
+                    .{
+                        .sid = functionName,
+                        .idx = try self.makeConstant(globalElem),
+                        .negation_count = negation_count,
+                    }
+                else if (self.localSlot(functionName)) |slot|
+                    .{
+                        .sid = functionName,
+                        .idx = slot,
+                        .negation_count = negation_count,
+                    }
+                else {
+                    try self.printError("Unknown function in pattern", function.name.region);
+                    return Error.InvalidAst;
+                };
+
+                var args = ArrayList(Pattern){};
+                for (function.paramsOrArgs.items) |arg| {
+                    const argPattern = try self.astToPattern(arg, 0);
+                    try args.append(self.vm.allocator, argPattern);
+                }
+
+                return Pattern{ .FunctionCall = .{
+                    .function = functionVar,
+                    .kind = if (globalFunctionElem != null) .Constant else .Local,
+                    .args = args,
+                } };
+            },
             .InfixNode => |infix| switch (infix.infixType) {
                 .Merge => {
-                    var mergeElems = std.ArrayListUnmanaged(Pattern){};
+                    var mergeElems = ArrayList(Pattern){};
                     try self.collectPatternMergeElements(rnode, &mergeElems, negation_count);
                     return Pattern{ .Merge = mergeElems };
-                },
-                .CallOrDefineFunction => {
-                    const functionNode = infix.left.node;
-                    const argNode = infix.right;
-
-                    const functionName = switch (functionNode) {
-                        .ElemNode => |elem| switch (elem) {
-                            .ValueVar => |name| name,
-                            else => return Error.InvalidAst,
-                        },
-                        else => return Error.InvalidAst,
-                    };
-
-                    const globalFunctionElem = self.findGlobal(functionName);
-
-                    // Determine if function is local or constant
-                    const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
-                        .{
-                            .sid = functionName,
-                            .idx = try self.makeConstant(globalElem),
-                            .negation_count = negation_count,
-                        }
-                    else if (self.localSlot(functionName)) |slot|
-                        .{
-                            .sid = functionName,
-                            .idx = slot,
-                            .negation_count = negation_count,
-                        }
-                    else {
-                        try self.printError("Unknown function in pattern", infix.left.region);
-                        return Error.InvalidAst;
-                    };
-
-                    var args = std.ArrayListUnmanaged(Pattern){};
-                    try self.collectPatternFunctionArgs(argNode, &args);
-
-                    return Pattern{ .FunctionCall = .{
-                        .function = functionVar,
-                        .kind = if (globalFunctionElem != null) .Constant else .Local,
-                        .args = args,
-                    } };
                 },
                 .Destructure => {
                     try self.printError("Invalid AST: Nested destructure not allowed in pattern", region);
@@ -1116,7 +1089,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn collectPatternMergeElements(self: *Compiler, rnode: *Ast.RNode, elements: *std.ArrayListUnmanaged(Pattern), negation_count: u2) Error!void {
+    fn collectPatternMergeElements(self: *Compiler, rnode: *Ast.RNode, elements: *ArrayList(Pattern), negation_count: u2) Error!void {
         const node = rnode.node;
 
         switch (node) {
@@ -1135,26 +1108,6 @@ pub const Compiler = struct {
         try elements.append(self.vm.allocator, pattern);
     }
 
-    fn collectPatternFunctionArgs(self: *Compiler, rnode: *Ast.RNode, args: *std.ArrayListUnmanaged(Pattern)) Error!void {
-        const node = rnode.node;
-
-        switch (node) {
-            .InfixNode => |infix| {
-                if (infix.infixType == .ParamsOrArgs) {
-                    // Recursively collect from left and right sides
-                    try self.collectPatternFunctionArgs(infix.left, args);
-                    try self.collectPatternFunctionArgs(infix.right, args);
-                    return;
-                }
-            },
-            else => {},
-        }
-
-        // Function arg
-        const pattern = try self.astToPattern(rnode, 0);
-        try args.append(self.vm.allocator, pattern);
-    }
-
     fn addValueLocals(self: *Compiler, rnode: *Ast.RNode) !void {
         const node = rnode.node;
         const region = rnode.region;
@@ -1163,6 +1116,11 @@ pub const Compiler = struct {
             .InfixNode => |infix| {
                 try self.addValueLocals(infix.left);
                 try self.addValueLocals(infix.right);
+            },
+            .Function => |function| {
+                for (function.paramsOrArgs.items) |arg| {
+                    try self.addValueLocals(arg);
+                }
             },
             .Range => |bounds| {
                 if (bounds.lower) |lower| try self.addValueLocals(lower);
@@ -1192,6 +1150,10 @@ pub const Compiler = struct {
                 try self.addValueLocals(conditional.then_branch);
                 try self.addValueLocals(conditional.else_branch);
             },
+            .DeclareGlobal => |declaration| {
+                try self.addValueLocals(declaration.head);
+                try self.addValueLocals(declaration.body);
+            },
             .ElemNode => |elem| switch (elem) {
                 .ValueVar => |varName| if (self.findGlobal(varName) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
@@ -1213,6 +1175,11 @@ pub const Compiler = struct {
             .InfixNode => |infix| {
                 try self.addClosureLocals(infix.left);
                 try self.addClosureLocals(infix.right);
+            },
+            .Function => |function| {
+                for (function.paramsOrArgs.items) |arg| {
+                    try self.addClosureLocals(arg);
+                }
             },
             .Range => |bounds| {
                 if (bounds.lower) |lower| try self.addClosureLocals(lower);
@@ -1242,6 +1209,7 @@ pub const Compiler = struct {
                 try self.addClosureLocals(conditional.then_branch);
                 try self.addClosureLocals(conditional.else_branch);
             },
+            .DeclareGlobal => @panic("internal error"),
             .ElemNode => |elem| {
                 const varName = switch (elem) {
                     .ValueVar => |name| name,
@@ -1311,7 +1279,6 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, region);
                 },
-                else => try writeValue(self, rnode, isTailPosition),
             },
             .Negation => |inner| {
                 try self.writeValueArgument(inner, false);
@@ -1397,13 +1364,8 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, region);
                 },
-                .CallOrDefineFunction => {
-                    try self.writeValueFunctionCall(infix.left, infix.right, isTailPosition);
-                },
-                .DeclareGlobal, // handled by top-level compiler functions
-                .ParamsOrArgs, // handled by CallOrDefineFunction
-                => @panic("internal error"),
             },
+            .DeclareGlobal => @panic("internal error"),
             .Range => {
                 try self.printError("Range is not valid in value context", region);
                 return Error.RangeNotValidInValueContext;
@@ -1433,6 +1395,9 @@ pub const Compiler = struct {
                 try self.patchJump(ifThenJumpIndex, region);
                 try self.writeValue(conditional.else_branch, isTailPosition);
                 try self.patchJump(thenElseJumpIndex, region);
+            },
+            .Function => |function| {
+                try self.writeValueFunctionCall(function.name, function.paramsOrArgs, isTailPosition);
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
@@ -1494,7 +1459,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValueFunctionCall(self: *Compiler, function_rnode: *Ast.RNode, args_rnode: *Ast.RNode, isTailPosition: bool) !void {
+    fn writeValueFunctionCall(self: *Compiler, function_rnode: *Ast.RNode, arguments: ArrayList(*Ast.RNode), isTailPosition: bool) !void {
         const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
         const function_region = function_rnode.region;
 
@@ -1518,7 +1483,7 @@ pub const Compiler = struct {
             }
         }
 
-        const argCount = try self.writeValueFunctionArguments(args_rnode, function);
+        const argCount = try self.writeValueFunctionArguments(arguments, function);
 
         if (isTailPosition) {
             try self.emitUnaryOp(.CallTailFunction, argCount, function_region);
@@ -1527,46 +1492,44 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValueFunctionArguments(self: *Compiler, first_arg: *Ast.RNode, function: ?*Elem.DynElem.Function) Error!u8 {
-        var argCount: u8 = 0;
-        var arg = first_arg;
+    fn writeValueFunctionArguments(
+        self: *Compiler,
+        arguments: ArrayList(*Ast.RNode),
+        function: ?*Elem.DynElem.Function,
+    ) Error!u8 {
+        const arg_count = arguments.items.len;
 
-        while (true) {
-            if (argCount == std.math.maxInt(u8)) {
-                try self.printError(
-                    std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
-                    arg.region,
-                );
-                return Error.MaxFunctionArgs;
-            }
+        if (arg_count > std.math.maxInt(u8)) {
+            const first_arg = arguments.items[0];
+            const last_arg = arguments.items[arg_count - 1];
+            const region = first_arg.region.merge(last_arg.region);
 
-            argCount += 1;
-
-            if (arg.node.asInfixOfType(.ParamsOrArgs)) |infix| {
-                try self.writeValue(infix.left, false);
-                arg = infix.right;
-            } else {
-                // This is the last arg
-                try self.writeValue(arg, false);
-                break;
-            }
+            try self.printError(
+                std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
+                region,
+            );
+            return Error.MaxFunctionArgs;
         }
 
         if (function) |f| {
-            if (f.arity < argCount) {
+            if (f.arity != arg_count) {
                 try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
-                return Error.FunctionCallTooManyArgs;
-            }
-            if (f.arity > argCount) {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
-                return Error.FunctionCallTooFewArgs;
+                if (f.arity < arg_count) {
+                    return Error.FunctionCallTooManyArgs;
+                } else {
+                    return Error.FunctionCallTooFewArgs;
+                }
             }
         }
 
-        return argCount;
+        for (arguments.items) |arg| {
+            try self.writeValue(arg, false);
+        }
+
+        return @intCast(arg_count);
     }
 
-    fn writeValueArray(self: *Compiler, elements: std.ArrayListUnmanaged(*Ast.RNode), region: Region) Error!void {
+    fn writeValueArray(self: *Compiler, elements: ArrayList(*Ast.RNode), region: Region) Error!void {
         var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
         const constId = try self.makeConstant(array.dyn.elem());
         try self.emitUnaryOp(.GetConstant, constId, region);
@@ -1598,6 +1561,7 @@ pub const Compiler = struct {
                 },
             },
             .InfixNode => try self.appendDynamicValue(array, rnode, index, region),
+            .Function => try self.appendDynamicValue(array, rnode, index, region),
             .Array => |elements| {
                 // Special case: empty arrays should be treated as literals
                 if (elements.items.len == 0) {
@@ -1633,10 +1597,14 @@ pub const Compiler = struct {
                 try self.printError("Value label `$` is not necessary inside array.", region);
                 return Error.InvalidAst;
             },
+            .DeclareGlobal => {
+                try self.printError("Invlaid global assignment inside array.", region);
+                return Error.InvalidAst;
+            },
         }
     }
 
-    fn writeValueObject(self: *Compiler, pairs: std.ArrayListUnmanaged(Ast.ObjectPair), region: Region) Error!void {
+    fn writeValueObject(self: *Compiler, pairs: ArrayList(Ast.ObjectPair), region: Region) Error!void {
         var object = try Elem.DynElem.Object.create(self.vm, 0);
         const constId = try self.makeConstant(object.dyn.elem());
         try self.emitUnaryOp(.GetConstant, constId, region);
@@ -1669,7 +1637,7 @@ pub const Compiler = struct {
 
     const StringTemplateContext = enum { Parser, Value };
 
-    fn writeStringTemplate(self: *Compiler, parts: std.ArrayListUnmanaged(*Ast.RNode), region: Region, context: StringTemplateContext) Error!void {
+    fn writeStringTemplate(self: *Compiler, parts: ArrayList(*Ast.RNode), region: Region, context: StringTemplateContext) Error!void {
         // String template should not be empty
         std.debug.assert(parts.items.len > 0);
 
