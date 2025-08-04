@@ -82,7 +82,10 @@ pub const CLI = struct {
             const parsed = try vm.interpret(userModule, input);
 
             if (parsed == .Failure) {
-                try self.writers.err.print("Parser Failure\n", .{});
+                try self.writers.err.print("Parse failed - testing error reporting...\n", .{});
+                vm.reportErrors() catch |err| {
+                    try self.writers.err.print("Error in reportErrors: {}\n", .{err});
+                };
                 std.process.exit(1);
             } else {
                 try parsed.writeJson(.Pretty, vm, self.writers.out);

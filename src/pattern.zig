@@ -80,6 +80,103 @@ pub const Pattern = union(PatternType) {
         upper: ?*Pattern,
     };
 
+    /// Print pattern to a standard writer, resolving bound variables to their actual values
+    pub fn printResolved(self: Pattern, vm: *VM, writer: anytype) !void {
+        switch (self) {
+            .Local => |pvar| {
+                const local_value = vm.getLocal(pvar.idx);
+                if (local_value == .ValueVar) {
+                    // Unbound local variable - print the variable name
+                    try writer.print("{s}{s}", .{
+                        negativeSigns(pvar.negation_count),
+                        vm.strings.get(pvar.sid),
+                    });
+                } else {
+                    // Bound local variable - print the resolved value
+                    var resolved_value = local_value;
+                    if (pvar.hasBeenNegated() and resolved_value.isNumber()) {
+                        resolved_value = resolved_value.negateNumber() catch resolved_value;
+                    }
+                    try resolved_value.writeJson(.Compact, vm.*, writer);
+                }
+            },
+            .Constant => |pvar| {
+                var constant_value = vm.getConstant(pvar.idx);
+                
+                // Handle negation
+                if (pvar.hasBeenNegated() and constant_value.isNumber()) {
+                    constant_value = constant_value.negateNumber() catch constant_value;
+                }
+                
+                try constant_value.writeJson(.Compact, vm.*, writer);
+            },
+            .FunctionCall => |fc| {
+                try writer.print("{s}{s}(", .{
+                    negativeSigns(fc.function.negation_count),
+                    vm.strings.get(fc.function.sid),
+                });
+                for (fc.args.items, 0..) |arg, i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    try arg.printResolved(vm, writer);
+                }
+                try writer.print(")", .{});
+            },
+            .String => |sid| try writer.print("\"{s}\"", .{vm.strings.get(sid)}),
+            .NumberString => |ns| try writer.print("{s}", .{ns.toString(vm.strings)}),
+            .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
+            .Null => try writer.print("null", .{}),
+            .Array => |arr| {
+                try writer.print("[", .{});
+                for (arr.items, 0..) |elem, i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    try elem.printResolved(vm, writer);
+                }
+                try writer.print("]", .{});
+            },
+            .StringTemplate => |template| {
+                try writer.print("\"", .{});
+                for (template.items) |elem| {
+                    switch (elem) {
+                        .String => |sId| try writer.print("{s}", .{vm.strings.get(sId)}),
+                        .Merge => {
+                            try writer.print("%", .{});
+                            try elem.printResolved(vm, writer);
+                        },
+                        else => {
+                            try writer.print("%(", .{});
+                            try elem.printResolved(vm, writer);
+                            try writer.print(")", .{});
+                        },
+                    }
+                }
+                try writer.print("\"", .{});
+            },
+            .Object => |obj| {
+                try writer.print("{{", .{});
+                for (obj.items, 0..) |pair, i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    try pair.key.printResolved(vm, writer);
+                    try writer.print(": ", .{});
+                    try pair.value.printResolved(vm, writer);
+                }
+                try writer.print("}}", .{});
+            },
+            .Range => |range| {
+                if (range.lower) |lower| try lower.printResolved(vm, writer);
+                try writer.print("..", .{});
+                if (range.upper) |upper| try upper.printResolved(vm, writer);
+            },
+            .Merge => |merge_items| {
+                try writer.print("(", .{});
+                for (merge_items.items, 0..) |elem, i| {
+                    if (i > 0) try writer.print(" + ", .{});
+                    try elem.printResolved(vm, writer);
+                }
+                try writer.print(")", .{});
+            },
+        }
+    }
+
     pub fn print(self: Pattern, vm: VM, writer: VMWriter) !void {
         switch (self) {
             .Local => |pvar| try writer.print("{s}{s}", .{

@@ -8,6 +8,9 @@ const Chunk = @import("chunk.zig").Chunk;
 const Compiler = @import("compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 const Env = @import("env.zig").Env;
+const ErrorLog = @import("error_log.zig").ErrorLog;
+const InputPosition = @import("error_log.zig").InputPosition;
+const ParserType = @import("error_log.zig").ParserType;
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Parser = @import("parser.zig").Parser;
@@ -66,6 +69,7 @@ pub const VM = struct {
     pattern_solver: PatternSolver,
     writers: Writers,
     config: Config,
+    error_log: *ErrorLog,
 
     const CallFrame = struct {
         function: *Elem.DynElem.Function,
@@ -105,6 +109,7 @@ pub const VM = struct {
             .pattern_solver = undefined,
             .writers = undefined,
             .config = undefined,
+            .error_log = undefined,
         };
 
         return self;
@@ -125,6 +130,7 @@ pub const VM = struct {
         self.writers = writers;
         self.config = config;
         self.pattern_solver = PatternSolver.init(self);
+        self.error_log = try ErrorLog.init(allocator);
         errdefer self.deinit();
 
         try self.loadBuiltinFunctions();
@@ -145,6 +151,7 @@ pub const VM = struct {
         self.frames.deinit(self.allocator);
         self.inputMarks.deinit(self.allocator);
         self.pattern_solver.deinit();
+        self.error_log.deinit();
     }
 
     fn findGlobal(self: *VM, name: StringTable.Id) ?Elem {
@@ -386,7 +393,17 @@ pub const VM = struct {
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
                     try self.push(value);
                 } else {
-                    try self.pushFailure();
+                    // Convert pattern to string representation with resolved variables
+                    var pattern_buffer = ArrayList(u8){};
+                    defer pattern_buffer.deinit(self.allocator);
+                    
+                    const writer = pattern_buffer.writer(self.allocator);
+                    try pattern.printResolved(self, writer);
+                    
+                    const pattern_str = try pattern_buffer.toOwnedSlice(self.allocator);
+                    defer self.allocator.free(pattern_str);
+                    
+                    try self.pushDestructureFailure(value, pattern_str);
                 }
             },
             .End => {
@@ -395,12 +412,21 @@ pub const VM = struct {
                 const prevFrame = self.frames.pop() orelse @panic("VM frame underflow");
                 const result = self.pop();
 
+                // Pop from error log call stack when function ends normally (not tail call)
+                self.error_log.popFunctionCall();
+
                 try self.stack.resize(self.allocator, prevFrame.elemsOffset);
                 try self.push(result);
             },
             .Fail => {
-                // Push singleton failure value.
-                try self.pushFailure();
+                // Push singleton failure value with named parser info.
+                const current_function = self.frame().function.name;
+                if (current_function != 0) { // 0 means unnamed function
+                    const caller_name = self.strings.get(current_function);
+                    try self.pushParserFailure(caller_name, .Named);
+                } else {
+                    try self.pushFailure();
+                }
             },
             .False => {
                 // Push singleton false value.
@@ -740,6 +766,11 @@ pub const VM = struct {
                     }
 
                     if (function.arity == argCount) {
+                        // Track function calls for error reporting
+                        if (function.name != 0) { // 0 means unnamed function
+                            self.error_log.addFunctionCall(function.name, isTailPosition);
+                        }
+                        
                         if (isTailPosition) {
                             // Remove the elements belonging to the previous call
                             // frame. This includes the function itself, its
@@ -784,7 +815,7 @@ pub const VM = struct {
                 }
 
                 if (sc != ic) {
-                    try self.pushFailure();
+                    try self.pushParserFailure(str, .String);
                     return;
                 }
             }
@@ -799,7 +830,7 @@ pub const VM = struct {
             return;
         }
 
-        try self.pushFailure();
+        try self.pushParserFailure(str, .String);
     }
 
     fn parseNumberString(self: *VM, number_string: Elem.NumberStringElem) Error!void {
@@ -812,7 +843,7 @@ pub const VM = struct {
             try self.push(.{ .NumberString = number_string });
             return;
         }
-        try self.pushFailure();
+        try self.pushParserFailure(bytes, .Number);
     }
 
     fn parseCharacterRange(self: *VM, low_id: StringTable.Id, high_id: StringTable.Id) !void {
@@ -842,7 +873,9 @@ pub const VM = struct {
                 }
             }
         }
-        try self.pushFailure();
+        const expr = try std.fmt.allocPrint(self.allocator, "'{s}'..'{s}'", .{self.strings.get(low_id), self.strings.get(high_id)});
+        defer self.allocator.free(expr);
+        try self.pushParserFailure(expr, .CharacterRange);
     }
 
     fn parseCharacterLowerBounded(self: *VM, low_id: StringTable.Id) !void {
@@ -870,7 +903,9 @@ pub const VM = struct {
                 }
             }
         }
-        try self.pushFailure();
+        const expr = try std.fmt.allocPrint(self.allocator, "'{s}'..", .{self.strings.get(low_id)});
+        defer self.allocator.free(expr);
+        try self.pushParserFailure(expr, .CharacterRange);
     }
 
     fn parseCharacterUpperBounded(self: *VM, high_id: StringTable.Id) !void {
@@ -899,7 +934,9 @@ pub const VM = struct {
                 }
             }
         }
-        try self.pushFailure();
+        const expr = try std.fmt.allocPrint(self.allocator, "..'{s}'", .{self.strings.get(high_id)});
+        defer self.allocator.free(expr);
+        try self.pushParserFailure(expr, .CharacterRange);
     }
 
     fn parseIntegerRange(self: *VM, low: i64, high: i64) !void {
@@ -925,7 +962,9 @@ pub const VM = struct {
             };
             end -= 1;
         }
-        try self.pushFailure();
+        const expr = try std.fmt.allocPrint(self.allocator, "{}..{}", .{low, high});
+        defer self.allocator.free(expr);
+        try self.pushParserFailure(expr, .IntegerRange);
     }
 
     fn parseIntegerLowerBounded(self: *VM, low: i64) !void {
@@ -949,7 +988,9 @@ pub const VM = struct {
             return;
         };
 
-        try self.pushFailure();
+        const expr = try std.fmt.allocPrint(self.allocator, "{}..", .{low});
+        defer self.allocator.free(expr);
+        try self.pushParserFailure(expr, .IntegerRange);
     }
 
     fn parseIntegerUpperBounded(self: *VM, high: i64) !void {
@@ -975,7 +1016,9 @@ pub const VM = struct {
                 return;
             };
 
-            try self.pushFailure();
+            const expr = try std.fmt.allocPrint(self.allocator, "..{}", .{high});
+            defer self.allocator.free(expr);
+            try self.pushParserFailure(expr, .IntegerRange);
         } else {
             // Since the integer is not negative we can assume it's between 0 and the upper bound
             try self.parseIntegerRange(0, high);
@@ -1063,12 +1106,62 @@ pub const VM = struct {
         try self.push(Elem.failureConst);
     }
 
+    pub fn pushParserFailure(self: *VM, parser_expr: []const u8, parser_type: ParserType) !void {
+        try self.push(Elem.failureConst);
+        
+        const input_pos = InputPosition{
+            .offset = self.inputPos.offset,
+            .line = self.inputPos.line,
+            .line_start = self.inputPos.line_start,
+        };
+        
+        // Use logical call history from error log
+        const call_stack = self.error_log.getCurrentCallStack();
+        
+        self.error_log.addParserFailure(input_pos, parser_expr, parser_type, call_stack) catch |err| {
+            // Silent error collection failure to avoid spam  
+            return err;
+        };
+    }
+
+    pub fn pushDestructureFailure(self: *VM, value: Elem, pattern: []const u8) !void {
+        try self.push(Elem.failureConst);
+        
+        const input_pos = InputPosition{
+            .offset = self.inputPos.offset,
+            .line = self.inputPos.line,
+            .line_start = self.inputPos.line_start,
+        };
+        
+        // Convert value to string representation
+        const value_string = if (value.stringBytes(self.*)) |bytes|
+            try self.allocator.dupe(u8, bytes)
+        else blk: {
+            // For non-string values, convert to JSON representation
+            const value_elem = try value.toString(self);
+            const bytes = value_elem.stringBytes(self.*) orelse "<complex_value>";
+            break :blk try self.allocator.dupe(u8, bytes);
+        };
+        defer self.allocator.free(value_string);
+        
+        // Use logical call history from error log
+        const call_stack = self.error_log.getCurrentCallStack();
+        
+        self.error_log.addDestructureFailure(input_pos, value_string, pattern, call_stack) catch |err| {
+            // Silent error collection failure to avoid spam
+            return err;
+        };
+    }
+
     pub fn pop(self: *VM) Elem {
         return self.stack.pop() orelse @panic("VM stack underflow");
     }
 
     pub fn peek(self: *VM, distance: usize) Elem {
         const len = self.stack.items.len;
+        if (len == 0 or distance >= len) {
+            @panic("VM stack underflow in peek");
+        }
         return self.stack.items[(len - 1) - distance];
     }
 
@@ -1166,5 +1259,312 @@ pub const VM = struct {
         } else {
             return false;
         }
+    }
+
+    fn escapeParserExpression(self: *VM, expr: []const u8) ![]const u8 {
+        var result = std.ArrayList(u8).init(self.allocator);
+        defer result.deinit();
+        
+        var i: usize = 0;
+        while (i < expr.len) {
+            const byte = expr[i];
+            switch (byte) {
+                '\n' => {
+                    try result.appendSlice("\\n");
+                    i += 1;
+                },
+                '\t' => {
+                    try result.appendSlice("\\t");
+                    i += 1;
+                },
+                '\r' => {
+                    try result.appendSlice("\\r");
+                    i += 1;
+                },
+                ' ' => {
+                    try result.appendSlice("\\s"); // space as \s for clarity
+                    i += 1;
+                },
+                0x00...0x08, 0x0B, 0x0C, 0x0E...0x1F, 0x7F => {
+                    // Other control characters
+                    try result.writer().print("\\u{X:0>4}", .{byte});
+                    i += 1;
+                },
+                0x80...0xFF => {
+                    // Try to decode as UTF-8
+                    const len = std.unicode.utf8ByteSequenceLength(byte) catch {
+                        // Invalid UTF-8 start byte
+                        try result.writer().print("\\u{X:0>4}", .{byte});
+                        i += 1;
+                        continue;
+                    };
+                    
+                    if (i + len > expr.len) {
+                        // Incomplete UTF-8 sequence
+                        try result.writer().print("\\u{X:0>4}", .{byte});
+                        i += 1;
+                        continue;
+                    }
+                    
+                    const utf8_bytes = expr[i..i+len];
+                    const codepoint = std.unicode.utf8Decode(utf8_bytes) catch {
+                        // Invalid UTF-8 sequence
+                        try result.writer().print("\\u{X:0>4}", .{byte});
+                        i += 1;
+                        continue;
+                    };
+                    
+                    // Check if it's a printable character
+                    if (codepoint >= 32 and codepoint <= 126) {
+                        // Printable ASCII - add as-is
+                        try result.appendSlice(utf8_bytes);
+                    } else {
+                        // Non-printable Unicode - escape it
+                        try result.writer().print("\\u{X:0>4}", .{codepoint});
+                    }
+                    i += len;
+                },
+                else => {
+                    try result.append(byte);
+                    i += 1;
+                },
+            }
+        }
+        
+        return result.toOwnedSlice();
+    }
+
+    pub fn reportErrors(self: *VM) !void {
+        // Report errors if any were collected
+        if (self.error_log.errors_by_position.count() > 0 or self.error_log.errors_by_function.count() > 0) {
+            try self.writers.err.print("Parse failed:\n\n", .{});
+            
+            // First, report any high-frequency patterns from function tracking
+            var function_iterator = self.error_log.errors_by_function.iterator();
+            while (function_iterator.next()) |entry| {
+                const data = entry.value_ptr;
+                if (data.total_count > 6) {
+                    try self.formatRepetitiveError(entry.key_ptr, data);
+                }
+            }
+            
+            // Then, find position with most errors for detailed breakdown
+            var best_position: ?usize = null;
+            var most_errors: usize = 0;
+            
+            var position_iterator = self.error_log.errors_by_position.iterator();
+            while (position_iterator.next()) |entry| {
+                const total_errors = entry.value_ptr.parser_failures.items.len + 
+                                   entry.value_ptr.destructure_failures.items.len;
+                if (total_errors > most_errors) {
+                    most_errors = total_errors;
+                    best_position = entry.key_ptr.*;
+                }
+            }
+            
+            if (best_position) |pos| {
+                try self.formatErrorsAtPosition(pos);
+            }
+        }
+    }
+    
+    fn formatRepetitiveError(self: *VM, key: *const @import("error_log.zig").FunctionErrorKey, data: *const @import("error_log.zig").FunctionErrorData) !void {
+        const clean_stack = try self.cleanCallStack(data.first_call_stack);
+        defer self.allocator.free(clean_stack);
+        
+        const escaped_parser = try self.escapeParserExpression(key.parser);
+        defer self.allocator.free(escaped_parser);
+        try self.writers.err.print("Expected {s}", .{escaped_parser});
+        
+        if (data.total_count <= 6) {
+            // Show all positions
+            try self.writers.err.print(" at positions ", .{});
+            for (data.first_positions.constSlice(), 0..) |pos, i| {
+                if (i > 0) try self.writers.err.print(", ", .{});
+                try self.writers.err.print("{}", .{pos});
+            }
+        } else {
+            // Show first few, last few, and total
+            try self.writers.err.print(" at positions ", .{});
+            for (data.first_positions.constSlice(), 0..) |pos, i| {
+                if (i > 0) try self.writers.err.print(", ", .{});
+                try self.writers.err.print("{}", .{pos});
+            }
+            try self.writers.err.print("...", .{});
+            for (data.last_positions.constSlice(), 0..) |pos, i| {
+                try self.writers.err.print(" {}", .{pos});
+                if (i < data.last_positions.len - 1) try self.writers.err.print(",", .{});
+            }
+            try self.writers.err.print(" ({} total attempts)", .{data.total_count});
+        }
+        
+        if (clean_stack.len > 0) {
+            try self.writers.err.print("\n    in: ", .{});
+            for (clean_stack, 0..) |name_id, i| {
+                const name = self.strings.get(name_id);
+                if (i > 0) try self.writers.err.print(" → ", .{});
+                try self.writers.err.print("{s}", .{name});
+            }
+        }
+        try self.writers.err.print("\n\n", .{});
+    }
+    
+    fn formatErrorsAtPosition(self: *VM, position: usize) !void {
+        const pos_errors = self.error_log.errors_by_position.get(position).?;
+        
+        // Calculate line and column for display
+        const line = pos_errors.line;
+        const column = position - pos_errors.line_start + 1;
+        
+        try self.writers.err.print("Error at line {}, column {}: parsing failed\n\n", .{line, column});
+        
+        if (pos_errors.parser_failures.items.len > 0) {
+            // Group parser failures by call stack
+            var grouped = std.StringHashMap(ArrayList(@import("error_log.zig").ParserFailure)).init(self.allocator);
+            defer {
+                var iter = grouped.iterator();
+                while (iter.next()) |entry| {
+                    self.allocator.free(entry.key_ptr.*);
+                    entry.value_ptr.deinit(self.allocator);
+                }
+                grouped.deinit();
+            }
+            
+            // Group failures by their call stack
+            for (pos_errors.parser_failures.items) |failure| {
+                const key = try self.callStackToKey(failure.call_stack);
+                const result = try grouped.getOrPut(key);
+                
+                if (!result.found_existing) {
+                    result.value_ptr.* = ArrayList(@import("error_log.zig").ParserFailure){};
+                }
+                
+                try result.value_ptr.append(self.allocator, failure);
+            }
+            
+            // Display grouped failures
+            var iter = grouped.iterator();
+            while (iter.next()) |entry| {
+                const failures = entry.value_ptr.*;
+                const key = entry.key_ptr.*;
+                
+                try self.writers.err.print("• ", .{});
+                
+                if (failures.items.len == 1) {
+                    try self.writers.err.print("Expected ", .{});
+                } else {
+                    try self.writers.err.print("Expected one of ", .{});
+                }
+                
+                // Print all parser expressions for this group
+                for (failures.items, 0..) |failure, i| {
+                    const escaped_parser = try self.escapeParserExpression(failure.parser);
+                    defer self.allocator.free(escaped_parser);
+                    
+                    if (i > 0) try self.writers.err.print(", ", .{});
+                    try self.writers.err.print("{s}", .{escaped_parser});
+                }
+                
+                try self.writers.err.print("\n", .{});
+                
+                // Show call stack if not empty
+                if (key.len > 0) {
+                    try self.writers.err.print("  in: {s}\n", .{key});
+                }
+            }
+            
+            try self.writers.err.print("\n", .{});
+        }
+        
+        // Show all destructure failures at this position  
+        for (pos_errors.destructure_failures.items) |failure| {
+            const clean_stack = try self.cleanCallStack(failure.call_stack);
+            defer self.allocator.free(clean_stack);
+            
+            try self.writers.err.print("Value '{s}' did not match pattern '{s}'\n", 
+                                      .{ failure.value, failure.pattern });
+            if (clean_stack.len > 0) {
+                try self.writers.err.print("  in: ", .{});
+                for (clean_stack, 0..) |name_id, i| {
+                    const name = self.strings.get(name_id);
+                    if (i > 0) try self.writers.err.print(" → ", .{});
+                    try self.writers.err.print("{s}", .{name});
+                }
+                try self.writers.err.print("\n", .{});
+            }
+        }
+        
+        // Show input context
+        try self.showInputContext(position);
+    }
+    
+    fn callStackToKey(self: *VM, call_stack: []StringTable.Id) ![]const u8 {
+        var key_parts = ArrayList(u8){};
+        defer key_parts.deinit(self.allocator);
+        
+        const cleaned = try self.cleanCallStack(call_stack);
+        defer self.allocator.free(cleaned);
+        
+        for (cleaned, 0..) |name_id, i| {
+            if (i > 0) try key_parts.appendSlice(self.allocator, "→");
+            const name = self.strings.get(name_id);
+            try key_parts.appendSlice(self.allocator, name);
+        }
+        
+        return key_parts.toOwnedSlice(self.allocator);
+    }
+
+    fn cleanCallStack(self: *VM, call_stack: []StringTable.Id) ![]StringTable.Id {
+        var cleaned = ArrayList(StringTable.Id){};
+        
+        for (call_stack) |name_id| {
+            const name = self.strings.get(name_id);
+            // Skip @ functions, _ prefixed functions, and @main
+            if (!std.mem.startsWith(u8, name, "@") and 
+                !std.mem.startsWith(u8, name, "_") and
+                !std.mem.eql(u8, name, "@main")) {
+                try cleaned.append(self.allocator, name_id);
+            }
+        }
+        
+        return cleaned.toOwnedSlice(self.allocator);
+    }
+    
+    fn showInputContext(self: *VM, position: usize) !void {
+        // Find the line containing the error
+        var line_start: usize = 0;
+        var current_line: usize = 1;
+        var i: usize = 0;
+        
+        while (i < position and i < self.input.len) {
+            if (self.isNewlineChar(i, 1) or 
+                (i + 1 < self.input.len and self.isNewlineChar(i, 2)) or
+                (i + 2 < self.input.len and self.isNewlineChar(i, 3))) {
+                current_line += 1;
+                line_start = i + 1;
+            }
+            i += 1;
+        }
+        
+        // Find line end
+        var line_end = line_start;
+        while (line_end < self.input.len and 
+               !self.isNewlineChar(line_end, 1) and
+               !(line_end + 1 < self.input.len and self.isNewlineChar(line_end, 2)) and
+               !(line_end + 2 < self.input.len and self.isNewlineChar(line_end, 3))) {
+            line_end += 1;
+        }
+        
+        try self.writers.err.print("Input:\n", .{});
+        try self.writers.err.print("{} | {s}\n", .{current_line, self.input[line_start..line_end]});
+        
+        // Show position indicator
+        const column = position - line_start;
+        try self.writers.err.print("{}   ", .{current_line}); // Line number spaces
+        var j: usize = 0;
+        while (j < column) : (j += 1) {
+            try self.writers.err.print(" ", .{});
+        }
+        try self.writers.err.print("^\n", .{});
     }
 };
