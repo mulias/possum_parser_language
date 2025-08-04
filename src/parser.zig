@@ -460,6 +460,10 @@ pub const Parser = struct {
             return self.ast.createInfix(.Merge, left, negated_right, left.region.merge(negated_right.region));
         }
 
+        if (t.tokenType == .Equal) {
+            return self.ast.createDeclareGlobal(left, right, left.region.merge(right.region));
+        }
+
         const infixType: Ast.InfixType = switch (t.tokenType) {
             .Ampersand => .TakeRight,
             .Bang => .Backtrack,
@@ -469,7 +473,6 @@ pub const Parser = struct {
             .GreaterThan => .TakeRight,
             .LessThan => .TakeLeft,
             .Plus => .Merge,
-            .Equal => .DeclareGlobal,
             else => unreachable,
         };
 
@@ -503,40 +506,40 @@ pub const Parser = struct {
         if (self.check(.RightParen)) {
             const closing_paren_region = self.token.region;
             try self.advance(); // advance past the ')'
-            // For empty parentheses, extend the function identifier region to include both parens
-            function_ident.region = function_ident.region.merge(closing_paren_region);
-            return function_ident;
+            const empty_args = ArrayList(*Ast.RNode){};
+            return self.ast.createFunction(
+                function_ident,
+                empty_args,
+                function_ident.region.merge(closing_paren_region),
+            );
         } else {
-            const params_or_args = try self.paramsOrArgs();
+            const arguments = try self.paramsOrArgs();
             if (self.token.tokenType != .RightParen) {
                 return self.errorAtToken("Expected closing ')'");
             }
             const closing_paren_region = self.token.region;
             try self.advance(); // advance past the ')'
 
-            return self.ast.createInfix(
-                .CallOrDefineFunction,
+            return self.ast.createFunction(
                 function_ident,
-                params_or_args,
+                arguments,
                 function_ident.region.merge(closing_paren_region),
             );
         }
     }
 
-    fn paramsOrArgs(self: *Parser) !*Ast.RNode {
-        const expr = try self.expression();
+    fn paramsOrArgs(self: *Parser) !ArrayList(*Ast.RNode) {
+        var arguments = ArrayList(*Ast.RNode){};
 
-        if (try self.match(.Comma) and !self.check(.RightParen)) {
-            const remaining_params = try self.paramsOrArgs();
-            return self.ast.createInfix(
-                .ParamsOrArgs,
-                expr,
-                remaining_params,
-                expr.region.merge(remaining_params.region),
-            );
-        } else {
-            return expr;
+        const first_expr = try self.expression();
+        try arguments.append(self.ast.arena.allocator(), first_expr);
+
+        while (try self.match(.Comma) and !self.check(.RightParen)) {
+            const expr = try self.expression();
+            try arguments.append(self.ast.arena.allocator(), expr);
         }
+
+        return arguments;
     }
 
     fn upperBoundedRange(self: *Parser) !*Ast.RNode {
@@ -1017,7 +1020,7 @@ pub const Parser = struct {
 
     fn operatorPrecedence(tokenType: TokenType) Precedence {
         return switch (tokenType) {
-            .LeftParen => .CallOrDefineFunction,
+            .LeftParen => .Function,
             .DotDot => .Range,
             .Bang,
             .Plus,
@@ -1036,7 +1039,7 @@ pub const Parser = struct {
     }
 
     const Precedence = enum {
-        CallOrDefineFunction,
+        Function,
         Prefix,
         Range,
         StandardInfix,
@@ -1047,7 +1050,7 @@ pub const Parser = struct {
 
         pub fn bindingPower(precedence: Precedence) struct { left: u4, right: u4 } {
             return switch (precedence) {
-                .CallOrDefineFunction => .{ .left = 11, .right = 12 },
+                .Function => .{ .left = 11, .right = 12 },
                 .Prefix => .{ .left = 10, .right = 10 },
                 .Range => .{ .left = 9, .right = 9 },
                 .StandardInfix => .{ .left = 7, .right = 8 },

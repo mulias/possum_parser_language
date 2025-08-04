@@ -27,6 +27,8 @@ pub const Ast = struct {
         Object,
         StringTemplate,
         Conditional,
+        Function,
+        DeclareGlobal,
     };
 
     pub const ObjectPair = struct {
@@ -38,6 +40,16 @@ pub const Ast = struct {
         condition: *RNode,
         then_branch: *RNode,
         else_branch: *RNode,
+    };
+
+    pub const FunctionNode = struct {
+        name: *RNode,
+        paramsOrArgs: ArrayList(*RNode),
+    };
+
+    pub const DeclareGlobalNode = struct {
+        head: *RNode,
+        body: *RNode,
     };
 
     pub const RangeNode = struct {
@@ -55,6 +67,8 @@ pub const Ast = struct {
         Object: ArrayList(ObjectPair),
         StringTemplate: ArrayList(*RNode),
         Conditional: ConditionalNode,
+        Function: FunctionNode,
+        DeclareGlobal: DeclareGlobalNode,
 
         pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
             return switch (self) {
@@ -73,12 +87,9 @@ pub const Ast = struct {
 
     pub const InfixType = enum {
         Backtrack,
-        CallOrDefineFunction,
-        DeclareGlobal,
         Destructure,
         Merge,
         Or,
-        ParamsOrArgs,
         Return,
         TakeLeft,
         TakeRight,
@@ -145,6 +156,20 @@ pub const Ast = struct {
         } }, loc);
     }
 
+    pub fn createFunction(self: *Ast, name: *RNode, paramsOrArgs: ArrayList(*RNode), loc: Region) !*RNode {
+        return self.create(.{ .Function = .{
+            .name = name,
+            .paramsOrArgs = paramsOrArgs,
+        } }, loc);
+    }
+
+    pub fn createDeclareGlobal(self: *Ast, head: *RNode, body: *RNode, loc: Region) !*RNode {
+        return self.create(.{ .DeclareGlobal = .{
+            .head = head,
+            .body = body,
+        } }, loc);
+    }
+
     pub fn printSexpr(self: *Ast, vm: VM) VMWriter.Error!void {
         for (self.roots.items) |root| {
             try self.printRNodeSexpr(root, vm.writers.debug, vm, 0);
@@ -164,7 +189,7 @@ pub const Ast = struct {
         }
     }
 
-    fn shouldBeMultiline(self: *Ast, node: Node, vm: VM) bool {
+    fn shouldBeMultiline(self: *Ast, node: Node) bool {
         return switch (node) {
             .InfixNode => true, // InfixNodes have 2 children, so always multiline
             .Array => |array| {
@@ -172,7 +197,7 @@ pub const Ast = struct {
                 if (array.items.len > 3) return true;
                 // Otherwise multiline if any child is multiline
                 for (array.items) |item| {
-                    if (self.shouldBeMultiline(item.node, vm)) return true;
+                    if (self.shouldBeMultiline(item.node)) return true;
                 }
                 return false;
             },
@@ -182,20 +207,32 @@ pub const Ast = struct {
                 return obj.items.len > 0;
             },
             .StringTemplate => |template| template.items.len > 1,
-            .Conditional => true, // Conditionals have 3 children, so always multiline
+            .Conditional => true,
+            .Function => |function| {
+                if (function.paramsOrArgs.items.len > 2) return true;
+                if (self.shouldBeMultiline(function.name.node)) return true;
+                for (function.paramsOrArgs.items) |arg| {
+                    if (self.shouldBeMultiline(arg.node)) return true;
+                }
+                return false;
+            },
+            .DeclareGlobal => |declaration| {
+                return self.shouldBeMultiline(declaration.head.node) or
+                    self.shouldBeMultiline(declaration.body.node);
+            },
             .Range => |range| {
-                const lower_multiline = if (range.lower) |lower| self.shouldBeMultiline(lower.node, vm) else false;
-                const upper_multiline = if (range.upper) |upper| self.shouldBeMultiline(upper.node, vm) else false;
+                const lower_multiline = if (range.lower) |lower| self.shouldBeMultiline(lower.node) else false;
+                const upper_multiline = if (range.upper) |upper| self.shouldBeMultiline(upper.node) else false;
                 return lower_multiline or upper_multiline;
             },
-            .Negation => |child| self.shouldBeMultiline(child.node, vm),
-            .ValueLabel => |child| self.shouldBeMultiline(child.node, vm),
+            .Negation => |child| self.shouldBeMultiline(child.node),
+            .ValueLabel => |child| self.shouldBeMultiline(child.node),
             .ElemNode => false,
         };
     }
 
     fn printNodeSexpr(self: *Ast, node: Node, writer: VMWriter, vm: VM, indent: u32, region: Region) VMWriter.Error!void {
-        const multiline = self.shouldBeMultiline(node, vm);
+        const multiline = self.shouldBeMultiline(node);
 
         switch (node) {
             .InfixNode => |infix| {
@@ -324,6 +361,43 @@ pub const Ast = struct {
                 try self.printRNodeSexpr(cond.else_branch, writer, vm, indent + 2);
                 try writer.print("))", .{});
             },
+            .Function => |function| {
+                if (multiline) {
+                    try writer.print("(Function {}-{}\n", .{ region.start, region.end });
+                    try self.printIndent(writer, indent + 1);
+                    try self.printRNodeSexpr(function.name, writer, vm, indent + 1);
+                    try writer.print("\n", .{});
+                    try self.printIndent(writer, indent + 1);
+                    try writer.print("(", .{});
+                    for (function.paramsOrArgs.items, 0..) |arg, i| {
+                        if (i > 0) {
+                            try writer.print("\n", .{});
+                            try self.printIndent(writer, indent + 1);
+                            try writer.print(" ", .{});
+                        }
+                        try self.printRNodeSexpr(arg, writer, vm, indent + 2);
+                    }
+                    try writer.print("))", .{});
+                } else {
+                    try writer.print("(Function {}-{} ", .{ region.start, region.end });
+                    try self.printRNodeSexpr(function.name, writer, vm, indent);
+                    try writer.print(" (", .{});
+                    for (function.paramsOrArgs.items, 0..) |arg, i| {
+                        if (i > 0) try writer.print(" ", .{});
+                        try self.printRNodeSexpr(arg, writer, vm, indent);
+                    }
+                    try writer.print("))", .{});
+                }
+            },
+            .DeclareGlobal => |global| {
+                try writer.print("(DeclareGlobal {}-{}\n", .{ region.start, region.end });
+                try self.printIndent(writer, indent + 1);
+                try self.printRNodeSexpr(global.head, writer, vm, indent + 1);
+                try writer.print("\n", .{});
+                try self.printIndent(writer, indent + 1);
+                try self.printRNodeSexpr(global.body, writer, vm, indent + 1);
+                try writer.print(")", .{});
+            },
         }
     }
 
@@ -333,6 +407,6 @@ pub const Ast = struct {
 };
 
 test "struct size" {
-    try std.testing.expectEqual(32, @sizeOf(Ast.Node));
+    try std.testing.expectEqual(40, @sizeOf(Ast.Node));
     try std.testing.expectEqual(24, @sizeOf(Ast.Infix));
 }

@@ -2,13 +2,11 @@
 
   $ possum -p 'foo(a, b, c) = a + b + c' -i ''
   (DeclareGlobal 0-24
-    (CallOrDefineFunction 0-12
+    (Function 0-12
       (ParserVar 0-3 foo)
-      (ParamsOrArgs 4-11
-        (ParserVar 4-5 a)
-        (ParamsOrArgs 7-11
-          (ParserVar 7-8 b)
-          (ParserVar 10-11 c))))
+      ((ParserVar 4-5 a)
+       (ParserVar 7-8 b)
+       (ParserVar 10-11 c)))
     (Merge 15-24
       (Merge 15-20
         (ParserVar 15-16 a)
