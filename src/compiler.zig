@@ -11,8 +11,6 @@ const OpCode = @import("op_code.zig").OpCode;
 const Scanner = @import("scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
-const WriterError = @import("writer.zig").VMWriter.Error;
-const Writers = @import("writer.zig").Writers;
 const Module = @import("module.zig").Module;
 
 pub const Compiler = struct {
@@ -20,7 +18,6 @@ pub const Compiler = struct {
     targetModule: *Module,
     ast: Ast,
     functions: ArrayList(*Elem.DynElem.Function),
-    writers: Writers,
     printBytecode: bool,
 
     const Error = error{
@@ -53,7 +50,8 @@ pub const Compiler = struct {
         UnlabeledNullValue,
         RangeNotValidInMergePattern,
         RangeNotValidInValueContext,
-    } || WriterError;
+        InvalidOpCode,
+    } || VM.Error;
 
     pub fn init(vm: *VM, targetModule: *Module, ast: Ast, printBytecode: bool) !Compiler {
         const main = try Elem.DynElem.Function.create(vm, .{
@@ -75,7 +73,6 @@ pub const Compiler = struct {
             .targetModule = targetModule,
             .ast = ast,
             .functions = functions,
-            .writers = vm.writers,
             .printBytecode = printBytecode,
         };
     }
@@ -168,7 +165,7 @@ pub const Compiler = struct {
             main_fn.chunk.sourceRegion = main_rnode.region;
 
             if (self.printBytecode) {
-                try main_fn.disassemble(self.vm.*, self.writers.debug, self.targetModule);
+                try main_fn.disassemble(self.vm.*, self.vm.debug_writer, self.targetModule);
             }
 
             return main_fn;
@@ -398,7 +395,7 @@ pub const Compiler = struct {
             try self.emitEnd();
 
             if (self.printBytecode) {
-                try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
+                try function.disassemble(self.vm.*, self.vm.debug_writer, self.targetModule);
             }
 
             _ = self.functions.pop();
@@ -670,7 +667,7 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, function_region);
             } else {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(functionName)});
+                try self.vm.err_writer.print("{s}\n", .{self.vm.strings.get(functionName)});
                 return Error.UndefinedVariable;
             }
         }
@@ -743,7 +740,7 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(globalElem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
             } else {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(varName)});
+                try self.vm.err_writer.print("{s}\n", .{self.vm.strings.get(varName)});
                 return Error.UndefinedVariable;
             }
         }
@@ -783,7 +780,7 @@ pub const Compiler = struct {
 
         if (function) |f| {
             if (f.arity != arg_count) {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
+                try self.vm.err_writer.print("{s}\n", .{self.vm.strings.get(f.name)});
                 if (f.arity < arg_count) {
                     return Error.FunctionCallTooManyArgs;
                 } else {
@@ -873,7 +870,7 @@ pub const Compiler = struct {
         try self.emitEnd();
 
         if (self.printBytecode) {
-            try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
+            try function.disassemble(self.vm.*, self.vm.debug_writer, self.targetModule);
         }
 
         return self.functions.pop() orelse @panic("Internal Error");
@@ -1425,7 +1422,7 @@ pub const Compiler = struct {
                             }
                         }
                     } else {
-                        try self.writers.err.print("{s}\n", .{self.vm.strings.get(name)});
+                        try self.vm.err_writer.print("{s}\n", .{self.vm.strings.get(name)});
                         return Error.UndefinedVariable;
                     }
                 },
@@ -1478,7 +1475,7 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, function_region);
             } else {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(functionName)});
+                try self.vm.err_writer.print("{s}\n", .{self.vm.strings.get(functionName)});
                 return Error.UndefinedVariable;
             }
         }
@@ -1513,7 +1510,7 @@ pub const Compiler = struct {
 
         if (function) |f| {
             if (f.arity != arg_count) {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
+                try self.vm.err_writer.print("{s}\n", .{self.vm.strings.get(f.name)});
                 if (f.arity < arg_count) {
                     return Error.FunctionCallTooManyArgs;
                 } else {
@@ -1832,7 +1829,7 @@ pub const Compiler = struct {
     fn makeConstant(self: *Compiler, elem: Elem) !u8 {
         return self.chunk().addConstant(elem) catch |err| switch (err) {
             ChunkError.TooManyConstants => {
-                try self.writers.err.print("Too many constants in one chunk.", .{});
+                try self.vm.err_writer.print("Too many constants in one chunk.", .{});
                 return err;
             },
             else => return err,
@@ -1840,7 +1837,7 @@ pub const Compiler = struct {
     }
 
     fn printError(self: *Compiler, message: []const u8, region: Region) !void {
-        try region.printLineRelative(self.vm.source, self.writers.err);
-        try self.writers.err.print(" Error: {s}\n", .{message});
+        try region.printLineRelative(self.vm.source, self.vm.err_writer);
+        try self.vm.err_writer.print(" Error: {s}\n", .{message});
     }
 };

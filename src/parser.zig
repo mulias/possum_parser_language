@@ -12,8 +12,6 @@ const StringTable = @import("string_table.zig").StringTable;
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
 const VM = @import("vm.zig").VM;
-const WriterError = @import("writer.zig").VMWriter.Error;
-const Writers = @import("writer.zig").Writers;
 const parsing = @import("parsing.zig");
 
 pub const Parser = struct {
@@ -25,7 +23,6 @@ pub const Parser = struct {
     tokenSkippedWhitespace: bool,
     tokenSkippedNewline: bool,
     ast: Ast,
-    writers: Writers,
     printDebug: bool,
 
     const Error = error{
@@ -34,7 +31,7 @@ pub const Parser = struct {
         CodepointTooLarge,
         Utf8CannotEncodeSurrogateHalf,
         IntegerOverflow,
-    } || WriterError;
+    } || VM.Error;
 
     pub fn init(vm: *VM, module: Module) Parser {
         const ast = Ast.init(vm.allocator);
@@ -51,17 +48,16 @@ pub const Parser = struct {
             .tokenSkippedWhitespace = false,
             .tokenSkippedNewline = false,
             .ast = ast,
-            .writers = vm.writers,
             .printDebug = vm.config.printParser,
         };
     }
 
-    pub fn deinit(self: *Parser) void {
+    pub fn deinit(self: *@This()) void {
         self.ast.deinit();
     }
 
-    pub fn parse(self: *Parser) !void {
-        self.scanner = Scanner.init(self.module.source, self.writers, self.vm.config.printScanner);
+    pub fn parse(self: *@This()) !void {
+        self.scanner = Scanner.init(self.module.source, self.vm.config.printScanner);
         self.source = self.module.source;
 
         try self.advance();
@@ -73,14 +69,14 @@ pub const Parser = struct {
         try self.consume(.Eof, "Expect end of program.");
     }
 
-    fn parseExpression(self: *Parser, source: []const u8) !*Ast.RNode {
+    fn parseExpression(self: *@This(), source: []const u8) !*Ast.RNode {
         self.scanner = Scanner.init(source, self.writers, self.vm.config.printScanner);
         self.source = source;
         try self.advance();
         return self.expression();
     }
 
-    fn statement(self: *Parser) !*Ast.RNode {
+    fn statement(self: *@This()) !*Ast.RNode {
         const node = try self.parseWithPrecedence(.None);
 
         if (self.check(.Eof) or self.tokenSkippedNewline or try self.match(.Semicolon)) {
@@ -90,12 +86,12 @@ pub const Parser = struct {
         return self.errorAtToken("Expected newline or semicolon between statements");
     }
 
-    fn expression(self: *Parser) Error!*Ast.RNode {
+    fn expression(self: *@This()) Error!*Ast.RNode {
         return self.parseWithPrecedence(.None);
     }
 
-    fn parseWithPrecedence(self: *Parser, precedence: Precedence) Error!*Ast.RNode {
-        if (self.printDebug) self.writers.debugPrint("parse with precedence {}\n", .{precedence});
+    fn parseWithPrecedence(self: *@This(), precedence: Precedence) Error!*Ast.RNode {
+        // Debug printing removed
 
         // This node var is returned either as an ElemNode if there's no infix,
         // or an OpNode if updated in the while loop.
@@ -111,7 +107,7 @@ pub const Parser = struct {
         // `.Eof` which has precedence `.None` and binding power 0.
         var rightOpBindingPower = operatorPrecedence(self.token.tokenType).bindingPower().left;
 
-        if (self.printDebug) self.writers.debugPrint("Binding power {d} < {d}\n", .{ leftOpBindingPower, rightOpBindingPower });
+        // Debug printing removed
 
         // Iterate over tokens and build up a right-leaning AST, as long as the
         // right binding power is greater then the left binding power. When
@@ -135,8 +131,8 @@ pub const Parser = struct {
         return node;
     }
 
-    fn prefix(self: *Parser, tokenType: TokenType) !*Ast.RNode {
-        if (self.printDebug) self.writers.debugPrint("prefix {}\n", .{tokenType});
+    fn prefix(self: *@This(), tokenType: TokenType) !*Ast.RNode {
+        // Debug printing removed // self.writers.debugPrint("prefix {}\n", .{tokenType});
 
         return switch (tokenType) {
             .Minus => self.negate(),
@@ -161,8 +157,8 @@ pub const Parser = struct {
         };
     }
 
-    fn infix(self: *Parser, tokenType: TokenType, leftNode: *Ast.RNode) !*Ast.RNode {
-        if (self.printDebug) self.writers.debugPrint("infix {}\n", .{tokenType});
+    fn infix(self: *@This(), tokenType: TokenType, leftNode: *Ast.RNode) !*Ast.RNode {
+        // Debug printing removed // self.writers.debugPrint("infix {}\n", .{tokenType});
 
         return switch (tokenType) {
             .Ampersand,
@@ -195,21 +191,21 @@ pub const Parser = struct {
         };
     }
 
-    fn parserVar(self: *Parser) !*Ast.RNode {
+    fn parserVar(self: *@This()) !*Ast.RNode {
         const t = self.token;
         try self.advance();
         const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.createElem(Elem.parserVar(sId), t.region);
     }
 
-    fn valueVar(self: *Parser) !*Ast.RNode {
+    fn valueVar(self: *@This()) !*Ast.RNode {
         const t = self.token;
         try self.advance();
         const sId = try self.vm.strings.insert(t.lexeme);
         return self.ast.createElem(Elem.valueVar(sId), t.region);
     }
 
-    fn string(self: *Parser) Error!*Ast.RNode {
+    fn string(self: *@This()) Error!*Ast.RNode {
         const start_token = self.token;
         const quote_type = start_token.tokenType;
 
@@ -295,7 +291,7 @@ pub const Parser = struct {
         return final;
     }
 
-    fn backtickString(self: *Parser) !*Ast.RNode {
+    fn backtickString(self: *@This()) !*Ast.RNode {
         const start_token = self.token;
 
         self.scanner.setBacktickStringMode();
@@ -328,7 +324,7 @@ pub const Parser = struct {
         }
     }
 
-    fn internUnescaped(self: *Parser, str: []const u8) !StringTable.Id {
+    fn internUnescaped(self: *@This(), str: []const u8) !StringTable.Id {
         var buffer = try self.vm.allocator.alloc(u8, str.len);
         defer self.vm.allocator.free(buffer);
         var bufferLen: usize = 0;
@@ -376,7 +372,7 @@ pub const Parser = struct {
         return self.vm.strings.insert(buffer[0..bufferLen]);
     }
 
-    fn integer(self: *Parser) !*Ast.RNode {
+    fn integer(self: *@This()) !*Ast.RNode {
         const t = self.token;
         try self.advance();
 
@@ -387,19 +383,19 @@ pub const Parser = struct {
         }
     }
 
-    fn float(self: *Parser) !*Ast.RNode {
+    fn float(self: *@This()) !*Ast.RNode {
         const t = self.token;
         try self.advance();
         return self.ast.createElem(try Elem.numberString(t.lexeme, .Float, self.vm), t.region);
     }
 
-    fn scientific(self: *Parser) !*Ast.RNode {
+    fn scientific(self: *@This()) !*Ast.RNode {
         const t = self.token;
         try self.advance();
         return self.ast.createElem(try Elem.numberString(t.lexeme, .Scientific, self.vm), t.region);
     }
 
-    fn literal(self: *Parser) !*Ast.RNode {
+    fn literal(self: *@This()) !*Ast.RNode {
         const t = self.token;
         try self.advance();
         return switch (t.tokenType) {
@@ -410,7 +406,7 @@ pub const Parser = struct {
         };
     }
 
-    fn grouping(self: *Parser) !*Ast.RNode {
+    fn grouping(self: *@This()) !*Ast.RNode {
         const start_region = self.token.region;
         try self.advance(); // consume the '('
         const expr = try self.expression();
@@ -427,7 +423,7 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn negate(self: *Parser) !*Ast.RNode {
+    fn negate(self: *@This()) !*Ast.RNode {
         const t = self.token;
         try self.advance(); // consume the '-'
 
@@ -439,15 +435,15 @@ pub const Parser = struct {
         return self.ast.create(.{ .Negation = inner }, t.region.merge(inner.region));
     }
 
-    fn valueLabel(self: *Parser) !*Ast.RNode {
+    fn valueLabel(self: *@This()) !*Ast.RNode {
         const t = self.token;
         try self.advance(); // consume the '$'
         const inner = try self.parseWithPrecedence(.Prefix);
         return self.ast.create(.{ .ValueLabel = inner }, t.region);
     }
 
-    fn binaryOp(self: *Parser, left: *Ast.RNode) !*Ast.RNode {
-        if (self.printDebug) self.writers.debugPrint("binary op {}\n", .{self.token.tokenType});
+    fn binaryOp(self: *@This(), left: *Ast.RNode) !*Ast.RNode {
+        // Debug printing removed // self.writers.debugPrint("binary op {}\n", .{self.token.tokenType});
 
         const t = self.token;
         try self.advance(); // advance past the operator token
@@ -479,8 +475,8 @@ pub const Parser = struct {
         return self.ast.createInfix(infixType, left, right, left.region.merge(right.region));
     }
 
-    fn conditionalOp(self: *Parser, condition: *Ast.RNode) !*Ast.RNode {
-        if (self.printDebug) self.writers.debugPrint("conditional {}\n", .{self.token.tokenType});
+    fn conditionalOp(self: *@This(), condition: *Ast.RNode) !*Ast.RNode {
+        // Debug printing removed // self.writers.debugPrint("conditional {}\n", .{self.token.tokenType});
 
         try self.advance(); // advance past the '?' token
 
@@ -501,7 +497,7 @@ pub const Parser = struct {
         );
     }
 
-    fn callOrDefineFunction(self: *Parser, function_ident: *Ast.RNode) !*Ast.RNode {
+    fn callOrDefineFunction(self: *@This(), function_ident: *Ast.RNode) !*Ast.RNode {
         try self.advance(); // advance past the '('
         if (self.check(.RightParen)) {
             const closing_paren_region = self.token.region;
@@ -528,7 +524,7 @@ pub const Parser = struct {
         }
     }
 
-    fn paramsOrArgs(self: *Parser) !ArrayList(*Ast.RNode) {
+    fn paramsOrArgs(self: *@This()) !ArrayList(*Ast.RNode) {
         var arguments = ArrayList(*Ast.RNode){};
 
         const first_expr = try self.expression();
@@ -542,7 +538,7 @@ pub const Parser = struct {
         return arguments;
     }
 
-    fn upperBoundedRange(self: *Parser) !*Ast.RNode {
+    fn upperBoundedRange(self: *@This()) !*Ast.RNode {
         const range_token = self.token;
         try self.advance(); // consume the '..'
         const upper_bound_node = try self.parseWithPrecedence(operatorPrecedence(range_token.tokenType));
@@ -553,7 +549,7 @@ pub const Parser = struct {
         );
     }
 
-    fn fullOrLowerBoundedRange(self: *Parser, lower_bound_node: *Ast.RNode) !*Ast.RNode {
+    fn fullOrLowerBoundedRange(self: *@This(), lower_bound_node: *Ast.RNode) !*Ast.RNode {
         const range_token = self.token;
         try self.advance(); // advance past the '..' token
 
@@ -601,7 +597,7 @@ pub const Parser = struct {
         }
     }
 
-    fn array(self: *Parser) Error!*Ast.RNode {
+    fn array(self: *@This()) Error!*Ast.RNode {
         const region = self.token.region;
         try self.advance(); // consume the '['
 
@@ -641,7 +637,7 @@ pub const Parser = struct {
         return self.finishArray(elements, region);
     }
 
-    fn object(self: *Parser) Error!*Ast.RNode {
+    fn object(self: *@This()) Error!*Ast.RNode {
         const region = self.token.region;
         try self.advance(); // consume the '{'
 
@@ -691,7 +687,7 @@ pub const Parser = struct {
         return self.ast.createObject(pairs, region.merge(end_region));
     }
 
-    fn objectSpread(self: *Parser, left_object: *Ast.RNode) !*Ast.RNode {
+    fn objectSpread(self: *@This(), left_object: *Ast.RNode) !*Ast.RNode {
         const dots = self.token;
         const spread = try self.expression();
         var result = try self.ast.createInfix(.Merge, left_object, spread, dots.region.merge(spread.region));
@@ -720,7 +716,7 @@ pub const Parser = struct {
         return result;
     }
 
-    fn arraySpread(self: *Parser, left_array: *Ast.RNode) !*Ast.RNode {
+    fn arraySpread(self: *@This(), left_array: *Ast.RNode) !*Ast.RNode {
         const spread_region = self.token.region;
         const spread_expr = try self.expression();
         var result = try self.ast.createInfix(.Merge, left_array, spread_expr, spread_region);
@@ -748,7 +744,7 @@ pub const Parser = struct {
     }
 
     // Like array() but handles spreads differently - doesn't wrap them in Merge([], ...)
-    fn parseArrayContinuation(self: *Parser) !*Ast.RNode {
+    fn parseArrayContinuation(self: *@This()) !*Ast.RNode {
         const region = self.token.region;
 
         // Check for immediate spread
@@ -823,7 +819,7 @@ pub const Parser = struct {
     }
 
     // Like object() but handles spreads differently - doesn't wrap them in Merge({}, ...)
-    fn parseObjectContinuation(self: *Parser) !*Ast.RNode {
+    fn parseObjectContinuation(self: *@This()) !*Ast.RNode {
         const region = self.token.region;
 
         // Check for immediate spread
@@ -902,7 +898,7 @@ pub const Parser = struct {
         return self.ast.createObject(pairs, region.merge(closing_brace.region));
     }
 
-    fn finishArray(self: *Parser, elements: ArrayList(*Ast.RNode), start_region: Region) !*Ast.RNode {
+    fn finishArray(self: *@This(), elements: ArrayList(*Ast.RNode), start_region: Region) !*Ast.RNode {
         if (self.token.tokenType != .RightBracket) {
             return self.errorAtToken("Expected closing ']'");
         }
@@ -911,7 +907,7 @@ pub const Parser = struct {
         return self.ast.createArray(elements, start_region.merge(end_region));
     }
 
-    fn objectMembers(self: *Parser, pairs: *ArrayList(Ast.ObjectPair)) !void {
+    fn objectMembers(self: *@This(), pairs: *ArrayList(Ast.ObjectPair)) !void {
         const pair = try self.objectPair();
         try pairs.append(self.ast.arena.allocator(), pair);
 
@@ -923,7 +919,7 @@ pub const Parser = struct {
         }
     }
 
-    fn objectPair(self: *Parser) !Ast.ObjectPair {
+    fn objectPair(self: *@This()) !Ast.ObjectPair {
         const key = try self.expression();
 
         if (self.token.tokenType != .Colon) {
@@ -939,7 +935,7 @@ pub const Parser = struct {
         };
     }
 
-    pub fn advance(self: *Parser) !void {
+    pub fn advance(self: *@This()) !void {
         self.tokenSkippedWhitespace = false;
         self.tokenSkippedNewline = false;
 
@@ -958,7 +954,7 @@ pub const Parser = struct {
         }
     }
 
-    pub fn advanceKeepWhitespace(self: *Parser) !void {
+    pub fn advanceKeepWhitespace(self: *@This()) !void {
         self.token = self.token;
         if (self.scanner.next()) |token| {
             if (token.isType(.Error)) {
@@ -969,51 +965,51 @@ pub const Parser = struct {
         }
     }
 
-    fn check(self: *Parser, tokenType: TokenType) bool {
+    fn check(self: *@This(), tokenType: TokenType) bool {
         return self.token.tokenType == tokenType;
     }
 
-    fn consume(self: *Parser, tokenType: TokenType, message: []const u8) !void {
+    fn consume(self: *@This(), tokenType: TokenType, message: []const u8) !void {
         try self.advance();
         if (self.token.tokenType != tokenType) {
             return self.errorAtToken(message);
         }
     }
 
-    fn match(self: *Parser, tokenType: TokenType) !bool {
+    fn match(self: *@This(), tokenType: TokenType) !bool {
         if (!self.check(tokenType)) return false;
         try self.advance();
         return true;
     }
 
-    fn errorAtToken(self: *Parser, message: []const u8) Error {
+    fn errorAtToken(self: *@This(), message: []const u8) Error {
         return self.errorAt(self.token, message);
     }
 
-    fn errorAtPrevious(self: *Parser, message: []const u8) Error {
+    fn errorAtPrevious(self: *@This(), message: []const u8) Error {
         return self.errorAt(self.token, message);
     }
 
-    fn errorAt(self: *Parser, token: Token, message: []const u8) Error {
-        try self.writers.err.print("\nError at ", .{});
+    fn errorAt(self: *@This(), token: Token, message: []const u8) Error {
+        try self.vm.err_writer.print("\nError at ", .{});
         switch (token.tokenType) {
             .Eof => {
-                try self.writers.err.print("end", .{});
+                try self.vm.err_writer.print("end", .{});
             },
             .Error => {},
             else => {
-                try self.writers.err.print("'{s}'", .{token.lexeme});
+                try self.vm.err_writer.print("'{s}'", .{token.lexeme});
             },
         }
-        try self.writers.err.print(": {s}\n\n", .{message});
+        try self.vm.err_writer.print(": {s}\n\n", .{message});
 
         if (self.module.name) |name| {
-            try self.writers.err.print("{s}: \n", .{name});
+            try self.vm.err_writer.print("{s}: \n", .{name});
         }
 
-        try self.module.highlight(token.region, self.writers.err);
+        try self.module.highlight(token.region, self.vm.err_writer);
 
-        try self.writers.err.print("\n", .{});
+        try self.vm.err_writer.print("\n", .{});
 
         return Error.UnexpectedInput;
     }

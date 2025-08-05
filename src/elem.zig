@@ -12,7 +12,6 @@ const Region = @import("region.zig").Region;
 const StringBuffer = @import("string_buffer.zig").StringBuffer;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
-const VMWriter = @import("writer.zig").VMWriter;
 const parsing = @import("parsing.zig");
 
 pub const ElemType = enum {
@@ -53,7 +52,7 @@ pub const Elem = union(ElemType) {
             Scientific,
         };
 
-        pub fn new(bytes: []const u8, format: Format, vm: *VM) !NumberStringElem {
+        pub fn new(bytes: []const u8, format: Format, vm: anytype) !NumberStringElem {
             if (bytes[0] == '-') {
                 const sId = try vm.strings.insert(bytes);
                 return NumberStringElem{ .sId = sId, .format = format, .negated = true };
@@ -123,7 +122,7 @@ pub const Elem = union(ElemType) {
         return Elem{ .InputSubstring = .{ start, end } };
     }
 
-    pub fn numberString(bytes: []const u8, format: NumberStringElem.Format, vm: *VM) !Elem {
+    pub fn numberString(bytes: []const u8, format: NumberStringElem.Format, vm: anytype) !Elem {
         return Elem{ .NumberString = try NumberStringElem.new(bytes, format, vm) };
     }
 
@@ -143,7 +142,7 @@ pub const Elem = union(ElemType) {
 
     pub const failureConst = Elem{ .Failure = undefined };
 
-    pub fn print(self: Elem, vm: VM, writer: VMWriter) !void {
+    pub fn print(self: Elem, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
         // try writer.print("{s} ", .{@tagName(self)});
         return switch (self) {
             .ParserVar => |sid| if (StringTable.asReserved(sid)) |rid| {
@@ -378,7 +377,7 @@ pub const Elem = union(ElemType) {
         }
     }
 
-    pub fn merge(elemA: Elem, elemB: Elem, vm: *VM) !?Elem {
+    pub fn merge(elemA: Elem, elemB: Elem, vm: anytype) !?Elem {
         if (elemA == .Failure) return Elem.failureConst;
         if (elemB == .Failure) return Elem.failureConst;
         if (elemA == .Null) return elemB;
@@ -584,7 +583,7 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn toNumber(self: Elem, vm: *VM) !?Elem {
+    pub fn toNumber(self: Elem, vm: anytype) !?Elem {
         const bytes = switch (self) {
             .NumberString,
             .Integer,
@@ -609,7 +608,7 @@ pub const Elem = union(ElemType) {
         return ns;
     }
 
-    pub fn isZero(self: Elem, vm: *VM) bool {
+    pub fn isZero(self: Elem, vm: anytype) bool {
         return switch (self) {
             .NumberString => |ns| {
                 const n = ns.toNumberElem(vm.strings) catch return false;
@@ -621,7 +620,7 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn toString(self: Elem, vm: *VM) !Elem {
+    pub fn toString(self: Elem, vm: anytype) !Elem {
         if (self.isType(.String) or self.isType(.InputSubstring) or self.isDynType(.String)) {
             return self;
         } else {
@@ -646,7 +645,7 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn getOrPutSid(elem: Elem, vm: *VM) !?StringTable.Id {
+    pub fn getOrPutSid(elem: Elem, vm: anytype) !?StringTable.Id {
         switch (elem) {
             .String => |sid| return sid,
             else => {
@@ -726,7 +725,7 @@ pub const Elem = union(ElemType) {
         try json_pretty.stringify(j, format, outstream);
     }
 
-    pub fn fromJson(value: json.Value, vm: *VM) !Elem {
+    pub fn fromJson(value: json.Value, vm: anytype) !Elem {
         return switch (value) {
             .null => Elem.nullConst,
             .bool => |b| Elem.boolean(b),
@@ -774,7 +773,7 @@ pub const Elem = union(ElemType) {
         dynType: DynType,
         next: ?*DynElem,
 
-        pub fn allocate(vm: *VM, comptime T: type, dynType: DynType) !*DynElem {
+        pub fn allocate(vm: anytype, comptime T: type, dynType: DynType) !*DynElem {
             const ptr = try vm.allocator.create(T);
             const id = vm.nextUniqueId();
 
@@ -788,7 +787,7 @@ pub const Elem = union(ElemType) {
             return &ptr.dyn;
         }
 
-        pub fn destroy(self: *DynElem, vm: *VM) void {
+        pub fn destroy(self: *DynElem, vm: anytype) void {
             switch (self.dynType) {
                 .String => self.asString().destroy(vm),
                 .Array => self.asArray().destroy(vm),
@@ -803,7 +802,7 @@ pub const Elem = union(ElemType) {
             return Elem{ .Dyn = self };
         }
 
-        pub fn print(self: *DynElem, vm: VM, writer: VMWriter) !void {
+        pub fn print(self: *DynElem, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
             return switch (self.dynType) {
                 .String => self.asString().print(writer),
                 .Array => self.asArray().print(vm, writer),
@@ -857,13 +856,13 @@ pub const Elem = union(ElemType) {
             dyn: DynElem,
             buffer: StringBuffer,
 
-            pub fn copy(vm: *VM, source: []const u8) !*String {
+            pub fn copy(vm: anytype, source: []const u8) !*String {
                 const str = try create(vm, source.len);
                 try str.concatBytes(source);
                 return str;
             }
 
-            pub fn create(vm: *VM, size: usize) !*String {
+            pub fn create(vm: anytype, size: usize) !*String {
                 const dyn = try DynElem.allocate(vm, String, .String);
                 const str = dyn.asString();
                 var buffer = StringBuffer.init(vm.allocator);
@@ -877,12 +876,12 @@ pub const Elem = union(ElemType) {
                 return str;
             }
 
-            pub fn destroy(self: *String, vm: *VM) void {
+            pub fn destroy(self: *String, vm: anytype) void {
                 self.buffer.deinit();
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *String, writer: VMWriter) !void {
+            pub fn print(self: *String, writer: anytype) @TypeOf(writer).Error!void {
                 try writer.print("\"{s}\"", .{self.buffer.str()});
             }
 
@@ -919,13 +918,13 @@ pub const Elem = union(ElemType) {
             dyn: DynElem,
             elems: ArrayList(Elem),
 
-            pub fn copy(vm: *VM, elems: []const Elem) !*Array {
+            pub fn copy(vm: anytype, elems: []const Elem) !*Array {
                 const a = try create(vm, elems.len);
                 try a.elems.appendSlice(vm.allocator, elems);
                 return a;
             }
 
-            pub fn create(vm: *VM, capacity: usize) !*Array {
+            pub fn create(vm: anytype, capacity: usize) !*Array {
                 const dyn = try DynElem.allocate(vm, Array, .Array);
                 const array = dyn.asArray();
 
@@ -940,12 +939,12 @@ pub const Elem = union(ElemType) {
                 return array;
             }
 
-            pub fn destroy(self: *Array, vm: *VM) void {
+            pub fn destroy(self: *Array, vm: anytype) void {
                 self.elems.deinit(vm.allocator);
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Array, vm: VM, writer: VMWriter) VMWriter.Error!void {
+            pub fn print(self: *Array, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
                 if (self.elems.items.len == 0) {
                     try writer.print("[]", .{});
                 } else {
@@ -987,7 +986,7 @@ pub const Elem = union(ElemType) {
                 return self.elems.items.len;
             }
 
-            pub fn subarray(self: *Array, vm: *VM, startIndex: usize, length: usize) !*Array {
+            pub fn subarray(self: *Array, vm: anytype, startIndex: usize, length: usize) !*Array {
                 std.debug.assert(startIndex + length <= self.len());
                 return try copy(vm, self.elems.items[startIndex..(startIndex + length)]);
             }
@@ -997,7 +996,7 @@ pub const Elem = union(ElemType) {
             dyn: DynElem,
             members: AutoArrayHashMap(StringTable.Id, Elem),
 
-            pub fn create(vm: *VM, capacity: usize) !*Object {
+            pub fn create(vm: anytype, capacity: usize) !*Object {
                 const dyn = try DynElem.allocate(vm, Object, .Object);
                 const object = dyn.asObject();
 
@@ -1012,18 +1011,18 @@ pub const Elem = union(ElemType) {
                 return object;
             }
 
-            pub fn copy(vm: *VM, other: *Object) !*Object {
+            pub fn copy(vm: anytype, other: *Object) !*Object {
                 const obj = try create(vm, other.members.count());
                 try obj.concat(vm.allocator, other);
                 return obj;
             }
 
-            pub fn destroy(self: *Object, vm: *VM) void {
+            pub fn destroy(self: *Object, vm: anytype) void {
                 self.members.deinit(vm.allocator);
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Object, vm: VM, writer: VMWriter) VMWriter.Error!void {
+            pub fn print(self: *Object, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
                 if (self.members.count() == 0) {
                     try writer.print("{{}}", .{});
                 } else {
@@ -1114,7 +1113,7 @@ pub const Elem = union(ElemType) {
                 }
             };
 
-            pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8, region: Region }) !*Function {
+            pub fn create(vm: anytype, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8, region: Region }) !*Function {
                 const dyn = try DynElem.allocate(vm, Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1133,7 +1132,7 @@ pub const Elem = union(ElemType) {
                 return function;
             }
 
-            pub fn createAnonParser(vm: *VM, fields: struct { arity: u8, region: Region }) !*Function {
+            pub fn createAnonParser(vm: anytype, fields: struct { arity: u8, region: Region }) !*Function {
                 const dyn = try DynElem.allocate(vm, Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1156,13 +1155,13 @@ pub const Elem = union(ElemType) {
                 return function;
             }
 
-            pub fn destroy(self: *Function, vm: *VM) void {
+            pub fn destroy(self: *Function, vm: anytype) void {
                 self.chunk.deinit();
                 self.locals.deinit(vm.allocator);
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Function, vm: VM, writer: VMWriter) !void {
+            pub fn print(self: *Function, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
                 try writer.print("{s}", .{vm.strings.get(self.name)});
             }
 
@@ -1171,7 +1170,7 @@ pub const Elem = union(ElemType) {
                 return self == other.asFunction();
             }
 
-            pub fn disassemble(self: *Function, vm: VM, writer: VMWriter, module: ?*Module) !void {
+            pub fn disassemble(self: *Function, vm: VM, writer: anytype, module: ?*Module) (@TypeOf(writer).Error || error{InvalidOpCode})!void {
                 const label = vm.strings.get(self.name);
                 try self.chunk.disassemble(vm, writer, label, module);
             }
@@ -1230,11 +1229,11 @@ pub const Elem = union(ElemType) {
                 return nc;
             }
 
-            pub fn destroy(self: *NativeCode, vm: *VM) void {
+            pub fn destroy(self: *NativeCode, vm: anytype) void {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *NativeCode, writer: VMWriter) !void {
+            pub fn print(self: *NativeCode, writer: anytype) @TypeOf(writer).Error!void {
                 try writer.print("{s}", .{self.name});
             }
 
@@ -1249,7 +1248,7 @@ pub const Elem = union(ElemType) {
             function: *Function,
             captures: []?Elem,
 
-            pub fn create(vm: *VM, function: *Function) !*Closure {
+            pub fn create(vm: anytype, function: *Function) !*Closure {
                 const dyn = try DynElem.allocate(vm, Closure, .Closure);
                 const closure = dyn.asClosure();
 
@@ -1265,12 +1264,12 @@ pub const Elem = union(ElemType) {
                 return closure;
             }
 
-            pub fn destroy(self: *Closure, vm: *VM) void {
+            pub fn destroy(self: *Closure, vm: anytype) void {
                 vm.allocator.free(self.captures);
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Closure, vm: VM, writer: VMWriter) VMWriter.Error!void {
+            pub fn print(self: *Closure, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
                 try writer.print("|{s} ", .{vm.strings.get(self.function.name)});
 
                 if (self.captures.len > 0) {

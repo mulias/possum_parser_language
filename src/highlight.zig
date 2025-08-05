@@ -1,6 +1,5 @@
 const std = @import("std");
 const Region = @import("region.zig").Region;
-const VMWriter = @import("writer.zig").VMWriter;
 
 /// Information about a line in the source code
 const LineInfo = struct {

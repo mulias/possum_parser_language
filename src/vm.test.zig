@@ -2,25 +2,16 @@ const std = @import("std");
 const allocator = std.testing.allocator;
 const Elem = @import("elem.zig").Elem;
 const VM = @import("vm.zig").VM;
+const AnyWriter = @import("external_writer.zig").AnyWriter;
 const Module = @import("module.zig").Module;
 const VMConfig = @import("vm.zig").Config;
-const Writers = @import("writer.zig").Writers;
 const testing = @import("testing.zig");
 
-// Use lazy initialization to avoid comptime file operations
-var lazy_writers: ?Writers = null;
 
-fn getWriters() Writers {
-    if (lazy_writers == null) {
-        // Try to open /dev/null, fallback to stderr if it fails
-        const null_file = std.fs.openFileAbsolute("/dev/null", .{ .mode = .write_only }) catch std.io.getStdErr();
-        lazy_writers = Writers{
-            .out = null_file.writer(),
-            .err = null_file.writer(),
-            .debug = null_file.writer(),
-        };
-    }
-    return lazy_writers.?;
+fn getNullWriter() AnyWriter {
+    // Try to open /dev/null, fallback to stderr if it fails
+    const null_file = std.fs.openFileAbsolute("/dev/null", .{ .mode = .write_only }) catch std.io.getStdErr();
+    return AnyWriter{ .file = null_file.writer() };
 }
 const config = VMConfig{ .includeStdlib = false };
 
@@ -32,7 +23,7 @@ test "empty program" {
     const parser = "";
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(
@@ -46,7 +37,7 @@ test "no statement sep" {
     const parser = "123 456";
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(
@@ -62,7 +53,7 @@ test "empty input" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -79,7 +70,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -90,7 +81,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -101,7 +92,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "ababz"));
@@ -114,7 +105,7 @@ test "-37" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -131,7 +122,7 @@ test "--37" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.InvalidAst, vm.interpret(testModule, "--37"));
@@ -144,7 +135,7 @@ test "1234 | 5678 | 910" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -161,7 +152,7 @@ test "'foo' + 'bar' + 'baz'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -178,7 +169,7 @@ test "1 + 2 + 3" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -195,7 +186,7 @@ test "1.23 + 10" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -212,7 +203,7 @@ test "0.1 + 0.2" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -229,7 +220,7 @@ test "1e57 + 3e-4" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -251,7 +242,7 @@ test "bool(1,0) + bool(1,0)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -262,7 +253,7 @@ test "bool(1,0) + bool(1,0)" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -273,7 +264,7 @@ test "bool(1,0) + bool(1,0)" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -284,7 +275,7 @@ test "bool(1,0) + bool(1,0)" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -301,7 +292,7 @@ test "'foo' $ 'bar'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -312,7 +303,7 @@ test "'foo' $ 'bar'" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "f"));
@@ -325,7 +316,7 @@ test "1 ! 12 ! 123" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -342,7 +333,7 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -353,7 +344,7 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -370,7 +361,7 @@ test "1000..10000 | 100..1000" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -387,7 +378,7 @@ test "-100..-1" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -404,7 +395,7 @@ test "'a'..'z' + 'o'..'o' + 'l'..'q'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -421,7 +412,7 @@ test "'true' $ true" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -438,7 +429,7 @@ test "('' $ null) + ('' $ null)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -455,7 +446,7 @@ test "'a'..'z' -> 'f' & 0..100 -> 12" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -472,7 +463,7 @@ test "42.0 -> 42" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -489,7 +480,7 @@ test "'' $ true -> false" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "42.0"));
@@ -502,7 +493,7 @@ test "123 & 456 | 789 $ true & 'xyz'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -513,7 +504,7 @@ test "123 & 456 | 789 $ true & 'xyz'" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -528,7 +519,7 @@ test "1 ? 2 & 3 : 4" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -539,7 +530,7 @@ test "1 ? 2 & 3 : 4" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -556,14 +547,14 @@ test "1 ? 2 : 3 ? 4 : 5" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "1"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -574,63 +565,63 @@ test "1 ? 2 : 3 ? 4 : 5" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "13"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "14"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "15"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "2"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "23"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "24"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "25"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "3"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -641,28 +632,28 @@ test "1 ? 2 : 3 ? 4 : 5" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "35"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "4"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "45"));
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -679,7 +670,7 @@ test "'foo' -> 'foo' -> 'foo'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -697,7 +688,7 @@ test "a = 'a' ; a + a" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -714,7 +705,7 @@ test "Foo = true ; 123 $ Foo" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -732,7 +723,7 @@ test "double(p) = p + p ; double('a')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -750,7 +741,7 @@ test "scan(p) = p | (char > scan(p)) ; scan('end')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -768,7 +759,7 @@ test "double(p) = p + p ; double('a' + 'b')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -786,7 +777,7 @@ test "double(p) = p + p ; double('a' + 'b') + double('x' < 'y')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -804,7 +795,7 @@ test "id(A) = '' $ A ; id($true)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -828,7 +819,7 @@ test "n = '\n' ; n > n > n > 'wow!'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -849,7 +840,7 @@ test "'\\n\\'\\\\' > 0" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -867,7 +858,7 @@ test "c = '\\u000000'..'\\u10FFFF' ; c > (c + c) < c" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -885,7 +876,7 @@ test "c = '\\u000001'..'\\u10FFFE' ; c > (c + c) < c" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -909,7 +900,7 @@ test "n = '\n'..'\n' ; n > n > n > 'wow!'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -927,7 +918,7 @@ test "A = 100 ; 100 -> A" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -945,7 +936,7 @@ test "eql_to(p, V) = p -> V ; eql_to('bar' | 'foo', $'foo')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -963,7 +954,7 @@ test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -980,7 +971,7 @@ test "'foo' -> Foo $ Foo" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -998,7 +989,7 @@ test "peek(p) = p -> V ! '' $ V ; peek(1) + peek(1) + peek(1)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1015,7 +1006,7 @@ test "@fail" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -1033,7 +1024,7 @@ test "a = b ; b = c ; c = 111 ; a" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1054,7 +1045,7 @@ test "a = b ; b = c('bar') ; c(a) = d(a, 'foo') ; d(a, b) = a + b; a" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1072,7 +1063,7 @@ test "as_number('123')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1090,7 +1081,7 @@ test "as_number('123.456')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1113,7 +1104,7 @@ test "many(('🐀' $ 1) | skip('🛹'))" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1130,7 +1121,7 @@ test "123 + ((456 -> B) -> C)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1148,7 +1139,7 @@ test "foo(a) = a + a ; foo('a' + 'a')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1167,7 +1158,7 @@ test "foo(a) = a + a ; bar(p) = p ; foo(bar('a' + 'a'))" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1185,7 +1176,7 @@ test "is_twelve(N) = ('' $ N) -> 12 ; 12 -> A & is_twelve(A)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1203,7 +1194,7 @@ test "bar(12 -> N) $ N ; bar(p) = p" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.RuntimeError, vm.interpret(testModule, "12"));
@@ -1218,7 +1209,7 @@ test "foo(N) = bar(12 -> N) ; bar(p) = p ; foo($11)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "12"));
@@ -1233,7 +1224,7 @@ test "foo(N) = bar(bar(bar(12 -> N))) ; bar(p) = p ; foo($11)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "12"));
@@ -1248,7 +1239,7 @@ test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo($0)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(try vm.interpret(testModule, "33"));
@@ -1263,7 +1254,7 @@ test "foo(N) = bar(bar(3 -> N) + bar(3 -> N)) ; bar(p) = p ; foo($3)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1308,7 +1299,7 @@ test "Max function locals" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1353,7 +1344,7 @@ test "Max function locals overflow error" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.MaxFunctionLocals, vm.interpret(testModule, "0"));
@@ -1366,7 +1357,7 @@ test "'aa' $ []" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1384,7 +1375,7 @@ test "'aa' $ [1, 2, 3]" {
     {
         const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.integer(3) };
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1401,7 +1392,7 @@ test "'a' -> A $ [[A]]" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
 
         const testModule = createTestModule(parser);
@@ -1422,7 +1413,7 @@ test "('a' $ [1, 2]) + ('b' $ [true, false])" {
     {
         const array = [_]Elem{ Elem.integer(1), Elem.integer(2), Elem.boolean(true), Elem.boolean(false) };
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1439,7 +1430,7 @@ test "('a' + 'b') -> S $ (S + 'c') $ (S + 'd')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1457,7 +1448,7 @@ test "('' $ [1, 2]) -> [A, B] $ [B, A]" {
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(1) };
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1475,7 +1466,7 @@ test "('' $ [[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]" {
     {
         const array = [_]Elem{ Elem.integer(2), Elem.integer(4) };
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1492,7 +1483,7 @@ test "('' $ [[], 100]) -> [[], A] $ A" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1509,7 +1500,7 @@ test "a = b ; b = a ; a" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.AliasCycle, vm.interpret(testModule, ""));
@@ -1522,7 +1513,7 @@ test "foo = bar ; bar = baz ; baz = bar ; foo" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.AliasCycle, vm.interpret(testModule, ""));
@@ -1535,7 +1526,7 @@ test "Foo = 1 ; a = Foo ; a" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.InvalidGlobalParser, vm.interpret(testModule, ""));
@@ -1548,7 +1539,7 @@ test "true(t) = t $ true ; true('true')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1568,7 +1559,7 @@ test "camelCase = _foo ; _foo = __bar ; __bar = 123 ; camelCase" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1585,7 +1576,7 @@ test "__1adsf = 1 ; __1adsf" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.UnexpectedInput, vm.interpret(testModule, "1"));
@@ -1598,7 +1589,7 @@ test "missing_parser(1,2,3)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.UndefinedVariable, vm.interpret(testModule, "123"));
@@ -1611,7 +1602,7 @@ test "Add(A, B) = A + B ; '' $ Add(3, 12)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1628,7 +1619,7 @@ test "A = 1 + 100 ; 101 -> A" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1652,7 +1643,7 @@ test "fibonacci parser function" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1663,7 +1654,7 @@ test "fibonacci parser function" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1674,7 +1665,7 @@ test "fibonacci parser function" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1685,7 +1676,7 @@ test "fibonacci parser function" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1696,7 +1687,7 @@ test "fibonacci parser function" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1717,7 +1708,7 @@ test "fibonacci value function" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1728,7 +1719,7 @@ test "fibonacci value function" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1739,7 +1730,7 @@ test "fibonacci value function" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1750,7 +1741,7 @@ test "fibonacci value function" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1761,7 +1752,7 @@ test "fibonacci value function" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1772,7 +1763,7 @@ test "fibonacci value function" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1789,7 +1780,7 @@ test "'aa' $ {}" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -1806,7 +1797,7 @@ test "'aa' $ {'a': 1, 'b': 2, 'c': 3}" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "aa");
@@ -1827,7 +1818,7 @@ test "1 -> A & 2 -> B $ {'a': A, 'b': B}" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "12");
@@ -1847,7 +1838,7 @@ test "'Z' -> A $ {A: 1, 'A': 2}" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "Z");
@@ -1878,7 +1869,7 @@ test "object('a'..'z', 0..9)" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "a1b2c3");
@@ -1899,7 +1890,7 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "123456");
@@ -1919,7 +1910,7 @@ test "('' $ {'a': true}) -> {'a': true}" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "");
@@ -1938,7 +1929,7 @@ test "('' $ {'a': true}) -> {'a': false}" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -1953,7 +1944,7 @@ test "('' $ {'a': 123}) -> {'a': A} $ A" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "");
@@ -1978,7 +1969,7 @@ test "('' $ [1, 2, 3 + 10, 4])" {
             Elem.integer(4),
         };
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "");
@@ -2003,7 +1994,7 @@ test "('' $ [1, 2, 3 - 10, 4])" {
             Elem.integer(4),
         };
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "");
@@ -2022,7 +2013,7 @@ test "'' $ [1, 2, [1+1+1]]" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "");
@@ -2050,7 +2041,7 @@ test "Foo = (1 -> 2) + 1 ; '' $ [Foo]" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2076,7 +2067,7 @@ test "array(digit) -> [A, B]" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2085,7 +2076,7 @@ test "array(digit) -> [A, B]" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2094,7 +2085,7 @@ test "array(digit) -> [A, B]" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "12");
@@ -2112,7 +2103,7 @@ test "array(digit) -> [A, B]" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2127,7 +2118,7 @@ test "'ab' -> ('a' + 'b')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2144,7 +2135,7 @@ test "123 -> (2 + N) $ N" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2155,7 +2146,7 @@ test "123 -> (2 + N) $ N" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2175,7 +2166,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2186,7 +2177,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2197,7 +2188,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2206,7 +2197,7 @@ test "bool('t','f') -> A & bool('t','f') -> (A + B) $ B" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2223,7 +2214,7 @@ test "('' $ [1,[2],2,3]) -> ([1,A] + A + [3]) $ A" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const array = [_]Elem{Elem.integer(2)};
@@ -2241,7 +2232,7 @@ test "'foobar' -> ('fo' + Ob + 'ar') $ Ob" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2258,7 +2249,7 @@ test "('' $ [1,2,3]) -> [1, ...Rest] $ [...Rest, 100, ...Rest]" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         const array = [_]Elem{
@@ -2282,7 +2273,7 @@ test "'Hello %('a'..'z')!'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2293,7 +2284,7 @@ test "'Hello %('a'..'z')!'" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2308,7 +2299,7 @@ test "A = 1 ; B = 2 ; ('' $ '%(A) + %(A) = %(B)')" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2323,7 +2314,7 @@ test "Invalid JSON number" {
     {
         const parser = "01";
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.UnexpectedInput, vm.interpret(testModule, "01"));
@@ -2331,7 +2322,7 @@ test "Invalid JSON number" {
     {
         const parser = "-01.234";
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try std.testing.expectError(error.UnexpectedInput, vm.interpret(testModule, "-01.234"));
@@ -2343,7 +2334,7 @@ test "Large number" {
         const large_int = "9999999999999999999999999999999999999999999999999999";
         const parser = large_int;
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2360,7 +2351,7 @@ test "5.." {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2371,7 +2362,7 @@ test "5.." {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2382,7 +2373,7 @@ test "5.." {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2391,7 +2382,7 @@ test "5.." {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2406,7 +2397,7 @@ test "..30" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2417,7 +2408,7 @@ test "..30" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2428,7 +2419,7 @@ test "..30" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2439,7 +2430,7 @@ test "..30" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2456,7 +2447,7 @@ test "..-1" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2467,7 +2458,7 @@ test "..-1" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2478,7 +2469,7 @@ test "..-1" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2489,7 +2480,7 @@ test "..-1" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2504,7 +2495,7 @@ test "'a'.." {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2515,7 +2506,7 @@ test "'a'.." {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2526,7 +2517,7 @@ test "'a'.." {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2541,7 +2532,7 @@ test "..'\\u01F920'" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2552,7 +2543,7 @@ test "..'\\u01F920'" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2563,7 +2554,7 @@ test "..'\\u01F920'" {
     }
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectFailure(
@@ -2579,7 +2570,7 @@ test "int -> 0..5" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2596,7 +2587,7 @@ test "0.. -> I $ -I" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2613,7 +2604,7 @@ test "0.. -> I & ..0 -> -I" {
     ;
     {
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
@@ -2627,7 +2618,7 @@ test "0..999 -> N $ 'Your number was %(N).'" {
     {
         const parser = "0..999 -> N $ 'Your number was %(N).'";
         var vm = VM.create();
-        try vm.init(allocator, getWriters(), config);
+        try vm.init(allocator, getNullWriter(), getNullWriter(), getNullWriter(), config);
         defer vm.deinit();
         const testModule = createTestModule(parser);
         try testing.expectSuccess(

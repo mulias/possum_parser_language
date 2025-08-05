@@ -6,7 +6,6 @@ const Elem = @import("elem.zig").Elem;
 const Region = @import("region.zig").Region;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
-const VMWriter = @import("writer.zig").VMWriter;
 
 pub const Ast = struct {
     arena: ArenaAllocator,
@@ -170,18 +169,18 @@ pub const Ast = struct {
         } }, loc);
     }
 
-    pub fn printSexpr(self: *Ast, vm: VM) VMWriter.Error!void {
+    pub fn printSexpr(self: *Ast, vm: VM) @TypeOf(vm.debug_writer).Error!void {
         for (self.roots.items) |root| {
-            try self.printRNodeSexpr(root, vm.writers.debug, vm, 0);
-            try vm.writers.debug.print("\n", .{});
+            try self.printRNodeSexpr(root, vm.debug_writer, vm, 0);
+            try vm.debug_writer.print("\n", .{});
         }
     }
 
-    fn printRNodeSexpr(self: *Ast, rnode: *RNode, writer: VMWriter, vm: VM, indent: u32) VMWriter.Error!void {
+    fn printRNodeSexpr(self: *Ast, rnode: *RNode, writer: anytype, vm: VM, indent: u32) @TypeOf(writer).Error!void {
         try self.printNodeSexpr(rnode.node, writer, vm, indent, rnode.region);
     }
 
-    fn printIndent(self: *Ast, writer: VMWriter, indent: u32) VMWriter.Error!void {
+    fn printIndent(self: *Ast, writer: anytype, indent: u32) @TypeOf(writer).Error!void {
         _ = self;
         var i: u32 = 0;
         while (i < indent * 2) : (i += 1) {
@@ -231,7 +230,7 @@ pub const Ast = struct {
         };
     }
 
-    fn printNodeSexpr(self: *Ast, node: Node, writer: VMWriter, vm: VM, indent: u32, region: Region) VMWriter.Error!void {
+    fn printNodeSexpr(self: *Ast, node: Node, writer: anytype, vm: VM, indent: u32, region: Region) @TypeOf(writer).Error!void {
         const multiline = self.shouldBeMultiline(node);
 
         switch (node) {
@@ -401,7 +400,7 @@ pub const Ast = struct {
         }
     }
 
-    pub fn print(self: *Ast, vm: VM) VMWriter.Error!void {
+    pub fn print(self: *Ast, vm: VM) @TypeOf(vm.debug_writer).Error!void {
         try self.printSexpr(vm);
     }
 };

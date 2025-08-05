@@ -2,11 +2,11 @@ const std = @import("std");
 const io = std.io;
 const process = std.process;
 const Allocator = std.mem.Allocator;
-const ExternalWriter = @import("writer.zig").ExternalWriter;
+const ExternalWriter = @import("external_writer.zig").ExternalWriter;
+const AnyWriter = @import("external_writer.zig").AnyWriter;
 const VM = @import("vm.zig").VM;
 const VMConfig = @import("vm.zig").Config;
 const Module = @import("module.zig").Module;
-const Writers = @import("writer.zig").Writers;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = general_purpose_allocator.allocator();
@@ -28,18 +28,16 @@ fn writeDebugSlice(bytes: []const u8) void {
     writeDebug(@intFromPtr(bytes.ptr), bytes.len);
 }
 
-const writers = Writers{
-    .out = ExternalWriter.init(writeOutSlice).writer(),
-    .err = ExternalWriter.init(writeErrSlice).writer(),
-    .debug = ExternalWriter.init(writeDebugSlice).writer(),
-};
+const out_writer = AnyWriter{ .external = ExternalWriter.init(writeOutSlice).writer() };
+const err_writer = AnyWriter{ .external = ExternalWriter.init(writeErrSlice).writer() };
+const debug_writer = AnyWriter{ .external = ExternalWriter.init(writeDebugSlice).writer() };
 
 fn createVMPtr() !*VM {
     const config = VMConfig{};
 
     var vm = try allocator.create(VM);
     vm.* = VM.create();
-    try vm.init(allocator, writers, config);
+    try vm.init(allocator, out_writer, err_writer, debug_writer, config);
     return vm;
 }
 
@@ -60,14 +58,14 @@ export fn interpret(vm: *VM, parser_ptr: [*]const u8, parser_len: usize, input_p
     const module = Module{ .source = parser };
 
     const parsed = vm.interpret(module, input) catch |err| {
-        writers.err.print("Error: {s}", .{@errorName(err)}) catch return 1;
+        vm.err_writer.print("Error: {s}", .{@errorName(err)}) catch return 1;
         return 1;
     };
 
     if (parsed == .Failure) {
-        writers.err.print("Parser Failure", .{}) catch return 1;
+        vm.err_writer.print("Parser Failure", .{}) catch return 1;
     } else {
-        parsed.writeJson(.Pretty, vm.*, writers.out) catch return 1;
+        parsed.writeJson(.Pretty, vm.*, vm.out_writer) catch return 1;
     }
 
     return 0;

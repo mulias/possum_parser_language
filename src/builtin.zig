@@ -257,10 +257,10 @@ fn createDbgValue(vm: *VM) !*Function {
 fn dbgNative(vm: *VM) VM.Error!void {
     const value = vm.peek(0);
     const parser = vm.peek(1);
-    try parser.print(vm.*, vm.writers.debug);
-    try vm.writers.debug.print(": ", .{});
-    try value.print(vm.*, vm.writers.debug);
-    try vm.writers.debug.print("\n", .{});
+    try parser.print(vm.*, vm.debug_writer);
+    try vm.debug_writer.print(": ", .{});
+    try value.print(vm.*, vm.debug_writer);
+    try vm.debug_writer.print("\n", .{});
 }
 
 fn createAddValue(vm: *VM) !*Function {

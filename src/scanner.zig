@@ -1,7 +1,6 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
-const Writers = @import("writer.zig").Writers;
 
 pub const ScanMode = enum {
     Normal,
@@ -15,19 +14,17 @@ pub const Scanner = struct {
     line: usize,
     pos: usize,
     atEnd: bool,
-    writers: Writers,
     printDebug: bool,
     mode: ScanMode,
     stringQuote: ?u8,
 
-    pub fn init(source: []const u8, writers: Writers, printDebug: bool) Scanner {
+    pub fn init(source: []const u8, printDebug: bool) Scanner {
         return Scanner{
             .source = source,
             .offset = 0,
             .line = 1,
             .pos = 0,
             .atEnd = false,
-            .writers = writers,
             .printDebug = printDebug,
             .mode = .Normal,
             .stringQuote = null,
@@ -41,7 +38,6 @@ pub const Scanner = struct {
             .line = 1,
             .pos = 0,
             .atEnd = false,
-            .writers = undefined,
             .printDebug = false,
             .mode = .Normal,
             .stringQuote = null,
@@ -52,9 +48,7 @@ pub const Scanner = struct {
         if (self.atEnd) return null;
         const token = self.scanToken(self.mode);
         if (self.printDebug) {
-            self.writers.debugPrint("Scanned token: ", .{});
-            token.print(self.writers.debug) catch {};
-            self.writers.debugPrint("\n", .{});
+            // Debug printing removed to avoid writer dependency
         }
         if (token.tokenType == .Eof) self.atEnd = true;
         return token;
@@ -63,19 +57,19 @@ pub const Scanner = struct {
     pub fn setNormalMode(self: *Scanner) void {
         self.mode = .Normal;
         self.stringQuote = null;
-        if (self.printDebug) self.writers.debugPrint("Scanner mode: Normal\n", .{});
+        // Debug printing removed
     }
 
     pub fn setBacktickStringMode(self: *Scanner) void {
         self.mode = .BacktickString;
         self.stringQuote = '`';
-        if (self.printDebug) self.writers.debugPrint("Scanner mode: Backtick String\n", .{});
+        // Debug printing removed
     }
 
     pub fn setStringMode(self: *Scanner, startType: TokenType) void {
         self.mode = .String;
         self.stringQuote = if (startType == .SingleQuoteStringStart) '\'' else '"';
-        if (self.printDebug) self.writers.debugPrint("Scanner mode: String\n", .{});
+        // Debug printing removed
     }
 
     fn scanToken(self: *Scanner, mode: ScanMode) Token {

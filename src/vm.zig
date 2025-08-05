@@ -12,9 +12,7 @@ const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Parser = @import("parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
-const PatternSolver = @import("pattern_solver.zig");
-const WriterError = @import("writer.zig").VMWriter.Error;
-const Writers = @import("writer.zig").Writers;
+const PatternSolverImport = @import("pattern_solver.zig");
 const builtin = @import("builtin.zig");
 const parsing = @import("parsing.zig");
 
@@ -51,6 +49,8 @@ pub const Pos = struct {
     }
 };
 
+const AnyWriter = @import("external_writer.zig").AnyWriter;
+
 pub const VM = struct {
     allocator: Allocator,
     strings: StringTable,
@@ -63,8 +63,10 @@ pub const VM = struct {
     inputMarks: ArrayList(Pos),
     inputPos: Pos,
     uniqueIdCount: u64,
-    pattern_solver: PatternSolver,
-    writers: Writers,
+    pattern_solver: PatternSolverImport.PatternSolver(VM),
+    out_writer: AnyWriter,
+    err_writer: AnyWriter,
+    debug_writer: AnyWriter,
     config: Config,
 
     const CallFrame = struct {
@@ -87,7 +89,8 @@ pub const VM = struct {
         Overflow,
         ExpectedNumber,
         Utf8CodepointTooLarge,
-    } || WriterError;
+        InvalidOpCode,
+    } || AnyWriter.Error;
 
     pub fn create() VM {
         const self = VM{
@@ -103,14 +106,16 @@ pub const VM = struct {
             .inputPos = undefined,
             .uniqueIdCount = undefined,
             .pattern_solver = undefined,
-            .writers = undefined,
+            .out_writer = undefined,
+            .err_writer = undefined,
+            .debug_writer = undefined,
             .config = undefined,
         };
 
         return self;
     }
 
-    pub fn init(self: *VM, allocator: Allocator, writers: Writers, config: Config) !void {
+    pub fn init(self: *VM, allocator: Allocator, out_writer: AnyWriter, err_writer: AnyWriter, debug_writer: AnyWriter, config: Config) !void {
         self.allocator = allocator;
         self.strings = StringTable.init(allocator);
         self.modules = ArrayList(Module){};
@@ -122,9 +127,11 @@ pub const VM = struct {
         self.inputMarks = ArrayList(Pos){};
         self.inputPos = Pos{};
         self.uniqueIdCount = 0;
-        self.writers = writers;
+        self.out_writer = out_writer;
+        self.err_writer = err_writer;
+        self.debug_writer = debug_writer;
         self.config = config;
-        self.pattern_solver = PatternSolver.init(self);
+        self.pattern_solver = PatternSolverImport.PatternSolver(VM).init(self);
         errdefer self.deinit();
 
         try self.loadBuiltinFunctions();
@@ -264,7 +271,7 @@ pub const VM = struct {
 
         if (self.config.printExecutedBytecode) {
             const module = self.findModuleForFunction(self.frame().function);
-            try self.frame().function.disassemble(self.*, self.writers.debug, module);
+            try self.frame().function.disassemble(self.*, self.debug_writer, module);
         }
 
         while (true) {
@@ -697,13 +704,13 @@ pub const VM = struct {
 
     fn printDebug(self: *VM) !void {
         if (self.config.printVM) {
-            try self.writers.debug.print("\n", .{});
+            try self.debug_writer.print("\n", .{});
             try self.printInput();
             try self.printFrames();
             try self.printElems();
 
             if (self.frames.items.len > 0) {
-                _ = try self.chunk().disassembleInstruction(self.*, self.writers.debug, self.frame().ip);
+                _ = try self.chunk().disassembleInstruction(self.*, self.debug_writer, self.frame().ip);
             }
         }
     }
@@ -736,7 +743,7 @@ pub const VM = struct {
 
                     if (self.config.printExecutedBytecode) {
                         const module = self.findModuleForFunction(function);
-                        try function.disassemble(self.*, self.writers.debug, module);
+                        try function.disassemble(self.*, self.debug_writer, module);
                     }
 
                     if (function.arity == argCount) {
@@ -1089,8 +1096,8 @@ pub const VM = struct {
     }
 
     fn printInput(self: *VM) !void {
-        try self.writers.debug.print("input   | ", .{});
-        try self.writers.debug.print("{s} @ Line {d} byte {d}\n", .{
+        try self.debug_writer.print("input   | ", .{});
+        try self.debug_writer.print("{s} @ Line {d} byte {d}\n", .{
             self.inputLine(),
             self.inputPos.line,
             self.inputPos.lineOffset(),
@@ -1098,21 +1105,21 @@ pub const VM = struct {
     }
 
     fn printElems(self: *VM) !void {
-        try self.writers.debug.print("Stack   | ", .{});
+        try self.debug_writer.print("Stack   | ", .{});
         for (self.stack.items, 0..) |e, idx| {
-            e.print(self.*, self.writers.debug) catch {};
-            if (idx < self.stack.items.len - 1) try self.writers.debug.print(", ", .{});
+            e.print(self.*, self.debug_writer) catch {};
+            if (idx < self.stack.items.len - 1) try self.debug_writer.print(", ", .{});
         }
-        try self.writers.debug.print("\n", .{});
+        try self.debug_writer.print("\n", .{});
     }
 
     fn printFrames(self: VM) !void {
-        try self.writers.debug.print("Frames  | ", .{});
+        try self.debug_writer.print("Frames  | ", .{});
         for (self.frames.items, 0..) |f, idx| {
-            f.function.print(self, self.writers.debug) catch {};
-            if (idx < self.frames.items.len - 1) try self.writers.debug.print(", ", .{});
+            f.function.print(self, self.debug_writer) catch {};
+            if (idx < self.frames.items.len - 1) try self.debug_writer.print(", ", .{});
         }
-        try self.writers.debug.print("\n", .{});
+        try self.debug_writer.print("\n", .{});
     }
 
     fn inputLine(self: VM) []const u8 {
@@ -1133,10 +1140,10 @@ pub const VM = struct {
 
     pub fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
         const region = self.chunk().regions.items[self.frame().ip];
-        try region.printLineRelative(self.source, self.writers.err);
-        try self.writers.err.print("Error: ", .{});
-        try self.writers.err.print(message, args);
-        try self.writers.err.print("\n", .{});
+        try region.printLineRelative(self.source, self.err_writer);
+        try self.err_writer.print("Error: ", .{});
+        try self.err_writer.print(message, args);
+        try self.err_writer.print("\n", .{});
 
         return Error.RuntimeError;
     }

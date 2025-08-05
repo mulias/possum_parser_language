@@ -1,4 +1,3 @@
-const VMWriter = @import("writer.zig").VMWriter;
 const highlightRegion = @import("highlight.zig").highlightRegion;
 const Module = @import("module.zig").Module;
 
@@ -17,11 +16,11 @@ pub const Region = struct {
         return new(r1.start, r2.end);
     }
 
-    pub fn print(region: Region, str: []const u8, writer: VMWriter) !void {
+    pub fn print(region: Region, str: []const u8, writer: anytype) @TypeOf(writer).Error!void {
         _ = try writer.write(str[region.start..region.end]);
     }
 
-    pub fn printLineRelative(region: Region, str: []const u8, writer: VMWriter) !void {
+    pub fn printLineRelative(region: Region, str: []const u8, writer: anytype) @TypeOf(writer).Error!void {
         var pos: usize = 0;
         var line: usize = 1;
         var line_start: usize = 0;

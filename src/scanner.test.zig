@@ -1,12 +1,9 @@
 const std = @import("std");
 const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
-const Writers = @import("writer.zig").Writers;
-
-const writers = Writers.initStdIo();
 
 fn init(source: []const u8) Scanner {
-    return Scanner.init(source, writers, false);
+    return Scanner.init(source, false);
 }
 
 fn expectToken(scanner: *Scanner, expected: Token) !void {
@@ -14,16 +11,16 @@ fn expectToken(scanner: *Scanner, expected: Token) !void {
 
     if (nextToken) |actual| {
         if (!expected.isEql(actual)) {
-            writers.debugPrint("\nExpected token: ", .{});
-            try expected.print(writers.debug);
-            writers.debugPrint("\nActual token: ", .{});
-            try actual.print(writers.debug);
-            writers.debugPrint("\n", .{});
+            std.debug.print("\nExpected token: ", .{});
+            try expected.print(std.io.getStdErr().writer());
+            std.debug.print("\nActual token: ", .{});
+            try actual.print(std.io.getStdErr().writer());
+            std.debug.print("\n", .{});
 
             return error.TestExpectedNextToken;
         }
     } else {
-        writers.debugPrint("Expected an {s} token, got null", .{@tagName(expected.tokenType)});
+        std.debug.print("Expected an {s} token, got null", .{@tagName(expected.tokenType)});
         return error.TestExpectedNextToken;
     }
 }

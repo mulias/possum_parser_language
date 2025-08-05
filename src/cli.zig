@@ -5,29 +5,34 @@ const Chunk = @import("chunk.zig").Chunk;
 const Env = @import("env.zig").Env;
 const OpCode = @import("op_code.zig").OpCode;
 const VM = @import("vm.zig").VM;
+const AnyWriter = @import("external_writer.zig").AnyWriter;
 const Module = @import("module.zig").Module;
 const VMConfig = @import("vm.zig").Config;
-const Writers = @import("writer.zig").Writers;
 const build_options = @import("build_options");
 const cli_config = @import("cli_config.zig");
 const maxInt = std.math.maxInt;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const writers = Writers.initStdIo();
-    const cli = CLI.init(gpa.allocator(), writers);
+    const stdout = AnyWriter{ .file = std.io.getStdOut().writer() };
+    const stderr = AnyWriter{ .file = std.io.getStdErr().writer() };
+    const cli = CLI.init(gpa.allocator(), stdout, stderr, stderr);
 
     return cli.run();
 }
 
 pub const CLI = struct {
     allocator: Allocator,
-    writers: Writers,
+    out_writer: AnyWriter,
+    err_writer: AnyWriter,
+    debug_writer: AnyWriter,
 
-    pub fn init(allocator: Allocator, writers: Writers) CLI {
+    pub fn init(allocator: Allocator, out_writer: AnyWriter, err_writer: AnyWriter, debug_writer: AnyWriter) CLI {
         return CLI{
             .allocator = allocator,
-            .writers = writers,
+            .out_writer = out_writer,
+            .err_writer = err_writer,
+            .debug_writer = debug_writer,
         };
     }
 
@@ -43,7 +48,7 @@ pub const CLI = struct {
 
     fn parseAndHandleErrors(self: CLI, args: cli_config.ParseArgs) void {
         self.parse(args) catch |e| {
-            self.writers.err.print("[{s}]\n", .{@errorName(e)}) catch {};
+            self.err_writer.print("[{s}]\n", .{@errorName(e)}) catch {};
             std.process.exit(1);
         };
     }
@@ -75,18 +80,18 @@ pub const CLI = struct {
         };
 
         var vm = VM.create();
-        try vm.init(self.allocator, self.writers, config);
+        try vm.init(self.allocator, self.out_writer, self.err_writer, self.debug_writer, config);
         defer vm.deinit();
 
         if (config.runVM) {
             const parsed = try vm.interpret(userModule, input);
 
             if (parsed == .Failure) {
-                try self.writers.err.print("Parser Failure\n", .{});
+                try self.err_writer.print("Parser Failure\n", .{});
                 std.process.exit(1);
             } else {
-                try parsed.writeJson(.Pretty, vm, self.writers.out);
-                try self.writers.out.print("\n", .{});
+                try parsed.writeJson(.Pretty, vm, self.out_writer);
+                try self.out_writer.print("\n", .{});
             }
         } else {
             try vm.compile(userModule);
@@ -103,12 +108,12 @@ pub const CLI = struct {
 
         const isUserInput = stat.kind != std.fs.File.Kind.named_pipe;
 
-        if (isUserInput) try self.writers.out.print("Reading {s} (press ctrl-d twice to end):\n", .{argName});
+        if (isUserInput) try self.out_writer.print("Reading {s} (press ctrl-d twice to end):\n", .{argName});
 
         const reader = stdin.reader();
         const input = self.readStreamAlloc(reader);
 
-        if (isUserInput) try self.writers.out.print("\n\n", .{});
+        if (isUserInput) try self.out_writer.print("\n\n", .{});
 
         return input;
     }
@@ -132,11 +137,11 @@ pub const CLI = struct {
 
     fn printHelp(self: CLI) !void {
         const helpDocs = @embedFile("docs/cli");
-        try self.writers.out.print("{s}", .{helpDocs});
+        try self.out_writer.print("{s}", .{helpDocs});
     }
 
     fn printVersion(self: CLI) !void {
-        try self.writers.out.print("{s}\n", .{build_options.version});
+        try self.out_writer.print("{s}\n", .{build_options.version});
     }
 
     fn printUsageError(self: CLI, err: cli_config.UsageErrorType) !void {
@@ -146,7 +151,7 @@ pub const CLI = struct {
         };
         const usage = "Usage: possum [PARSER_FILE] [INPUT_FILE] [-p PARSER] [-i INPUT] [-hv]\n";
 
-        try self.writers.err.print("{s}\n{s}\n", .{ message, usage });
+        try self.err_writer.print("{s}\n{s}\n", .{ message, usage });
     }
 
     fn printDocs(self: CLI, doc: cli_config.Docs) !void {
@@ -159,7 +164,7 @@ pub const CLI = struct {
             .@"stdlib-ast" => @embedFile("docs/stdlib-ast"),
         };
 
-        printWithPager(text) catch self.writers.out.print("{s}", .{text}) catch |e| return e;
+        printWithPager(text) catch self.out_writer.print("{s}", .{text}) catch |e| return e;
     }
 
     fn printWithPager(str: []const u8) !void {

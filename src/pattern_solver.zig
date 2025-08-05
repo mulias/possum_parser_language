@@ -1,17 +1,15 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.AutoHashMapUnmanaged;
-const VM = @import("vm.zig").VM;
 const Pattern = @import("pattern.zig").Pattern;
 const Elem = @import("elem.zig").Elem;
 const StringTable = @import("string_table.zig").StringTable;
-const VMWriter = @import("writer.zig").VMWriter;
 
 const Simplified = union(enum) {
     Pattern: Pattern,
     Value: Elem,
 
-    pub fn print(self: Simplified, vm: VM, writer: VMWriter) !void {
+    pub fn print(self: Simplified, vm: anytype, writer: anytype) @TypeOf(writer).Error!void {
         switch (self) {
             .Pattern => |p| {
                 try writer.print("Patern(", .{});
@@ -27,33 +25,36 @@ const Simplified = union(enum) {
     }
 };
 
-vm: *VM,
-bound_locals: ArrayList(Pattern.PatternVar),
-depth: u8,
-printSteps: bool,
+pub fn PatternSolver(comptime VMType: type) type {
+    return struct {
+        vm: *VMType,
+        bound_locals: ArrayList(Pattern.PatternVar),
+        depth: u8,
+        printSteps: bool,
 
-const PatternSolver = @This();
+        const Self = @This();
 
-pub fn init(vm: *VM) PatternSolver {
-    return PatternSolver{
-        .vm = vm,
+        pub const Error = error{
+            RuntimeError,
+            OutOfMemory,
+            ExpectedNumber,
+        } || VMType.Error;
+
+        pub fn init(vm: *VMType) Self {
+            return Self{
+                .vm = vm,
         .bound_locals = ArrayList(Pattern.PatternVar){},
         .depth = 1,
         .printSteps = vm.config.printVM or vm.config.printDestructure,
     };
 }
 
-pub fn deinit(self: *PatternSolver) void {
+pub fn deinit(self: *Self) void {
     self.bound_locals.deinit(self.vm.allocator);
 }
 
-pub const Error = error{
-    RuntimeError,
-    OutOfMemory,
-    ExpectedNumber,
-} || VM.Error;
 
-pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool {
+pub fn match(self: *Self, value: Elem, pattern: Pattern) Error!bool {
     self.bound_locals.shrinkRetainingCapacity(0);
     defer self.bound_locals.shrinkRetainingCapacity(0);
 
@@ -61,7 +62,7 @@ pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool {
     defer self.depth = 0;
 
     if (self.printSteps) {
-        try self.vm.writers.debug.print("\nDestructure:\n", .{});
+        try self.vm.debug_writer.print("\nDestructure:\n", .{});
     }
 
     const success = try self.matchPattern(value, pattern);
@@ -71,15 +72,15 @@ pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool {
     }
 
     if (self.printSteps) {
-        if (success) try self.vm.writers.debug.print("Destructure Success: ", .{});
-        if (!success) try self.vm.writers.debug.print("Destructure Failure: ", .{});
+        if (success) try self.vm.debug_writer.print("Destructure Success: ", .{});
+        if (!success) try self.vm.debug_writer.print("Destructure Failure: ", .{});
         try self.printDestructure(value, pattern);
     }
 
     return success;
 }
 
-fn matchPattern(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool {
+fn matchPattern(self: *Self, value: Elem, pattern: Pattern) Error!bool {
     self.depth = self.depth +| 1;
     defer self.depth = self.depth -| 1;
 
@@ -103,7 +104,7 @@ fn matchPattern(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool 
     };
 }
 
-fn matchArray(self: *PatternSolver, value: Elem, pattern_array: ArrayList(Pattern)) !bool {
+fn matchArray(self: *Self, value: Elem, pattern_array: ArrayList(Pattern)) !bool {
     switch (value) {
         .Dyn => |dyn| {
             if (dyn.dynType != .Array) return false;
@@ -114,7 +115,7 @@ fn matchArray(self: *PatternSolver, value: Elem, pattern_array: ArrayList(Patter
     }
 }
 
-fn matchArrayPart(self: *PatternSolver, value_slice: []Elem, pattern_array: ArrayList(Pattern)) !bool {
+fn matchArrayPart(self: *Self, value_slice: []Elem, pattern_array: ArrayList(Pattern)) !bool {
     if (pattern_array.items.len != value_slice.len) {
         return false;
     }
@@ -125,7 +126,7 @@ fn matchArrayPart(self: *PatternSolver, value_slice: []Elem, pattern_array: Arra
     return true;
 }
 
-fn matchBoolean(_: *PatternSolver, value: Elem, pattern_boolean: bool) !bool {
+fn matchBoolean(_: *Self, value: Elem, pattern_boolean: bool) !bool {
     switch (value) {
         .Boolean => |value_boolean| {
             return value_boolean == pattern_boolean;
@@ -134,7 +135,7 @@ fn matchBoolean(_: *PatternSolver, value: Elem, pattern_boolean: bool) !bool {
     }
 }
 
-fn matchConstant(self: *PatternSolver, value: Elem, pattern_var: Pattern.PatternVar) Error!bool {
+fn matchConstant(self: *Self, value: Elem, pattern_var: Pattern.PatternVar) Error!bool {
     var pattern_value = self.vm.getConstant(pattern_var.idx);
 
     if (pattern_value.isDynType(.Function)) {
@@ -163,7 +164,7 @@ fn matchConstant(self: *PatternSolver, value: Elem, pattern_var: Pattern.Pattern
     return self.checkEquality(value, pattern_value);
 }
 
-fn matchFunctionCall(self: *PatternSolver, value: Elem, function_call: Pattern.FunctionCallVar) Error!bool {
+fn matchFunctionCall(self: *Self, value: Elem, function_call: Pattern.FunctionCallVar) Error!bool {
     var result = try self.evalFunctionCall(function_call);
 
     if (function_call.hasBeenNegated() and !result.isNumber()) {
@@ -179,7 +180,7 @@ fn matchFunctionCall(self: *PatternSolver, value: Elem, function_call: Pattern.F
     return self.checkEquality(value, result);
 }
 
-fn matchLocal(self: *PatternSolver, value: Elem, pattern_var: Pattern.PatternVar) Error!bool {
+fn matchLocal(self: *Self, value: Elem, pattern_var: Pattern.PatternVar) Error!bool {
     var pattern_value = self.vm.getLocal(pattern_var.idx);
 
     if (pattern_value.isDynType(.Function)) {
@@ -234,7 +235,7 @@ const MergeType = enum {
     Untyped,
 };
 
-fn matchMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(Pattern)) Error!bool {
+fn matchMerge(self: *Self, value: Elem, pattern_merge: ArrayList(Pattern)) Error!bool {
     std.debug.assert(pattern_merge.items.len > 0);
 
     var merge_parts = try ArrayList(Simplified).initCapacity(self.vm.allocator, pattern_merge.items.len);
@@ -254,7 +255,7 @@ fn matchMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(Patter
     };
 }
 
-fn prepareMergePattern(self: *PatternSolver, pattern_merge: ArrayList(Pattern), merge_parts: *ArrayList(Simplified)) Error!MergeType {
+fn prepareMergePattern(self: *Self, pattern_merge: ArrayList(Pattern), merge_parts: *ArrayList(Simplified)) Error!MergeType {
     var merge_type: MergeType = .Untyped;
 
     for (pattern_merge.items) |pattern| {
@@ -279,7 +280,7 @@ fn prepareMergePattern(self: *PatternSolver, pattern_merge: ArrayList(Pattern), 
     return merge_type;
 }
 
-fn prepareMergePatternPart(self: *PatternSolver, part: Simplified, merge_parts: *ArrayList(Simplified)) Error!MergeType {
+fn prepareMergePatternPart(self: *Self, part: Simplified, merge_parts: *ArrayList(Simplified)) Error!MergeType {
     return switch (part) {
         .Value => |elem| switch (elem) {
             .String, .InputSubstring => .String,
@@ -310,7 +311,7 @@ fn prepareMergePatternPart(self: *PatternSolver, part: Simplified, merge_parts: 
     };
 }
 
-fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool {
+fn matchArrayMerge(self: *Self, value: Elem, parts: []Simplified) !bool {
     var before_unbound_range: usize = 0;
     var after_unbound_range: usize = 0;
     var unbound_part: ?Pattern = null;
@@ -471,7 +472,7 @@ fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool
     return true;
 }
 
-fn matchBooleanMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool {
+fn matchBooleanMerge(self: *Self, value: Elem, parts: []Simplified) !bool {
     var bound_truth = Elem.boolean(false);
     var unbound_part: ?Pattern = null;
 
@@ -517,7 +518,7 @@ fn matchBooleanMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bo
     }
 }
 
-fn matchNumberMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool {
+fn matchNumberMerge(self: *Self, value: Elem, parts: []Simplified) !bool {
     var bound_sum = Elem.integer(0);
     var unbound_part: ?Pattern = null;
 
@@ -553,7 +554,7 @@ fn matchNumberMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
     }
 }
 
-fn matchObjectMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(Pattern)) !bool {
+fn matchObjectMerge(self: *Self, value: Elem, pattern_merge: ArrayList(Pattern)) !bool {
     if (!value.isDynType(.Object)) {
         return false;
     }
@@ -663,7 +664,7 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(
     return true;
 }
 
-fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool {
+fn matchStringMerge(self: *Self, value: Elem, parts: []Simplified) !bool {
     var before_unbound_length: usize = 0;
     var after_unbound_length: usize = 0;
     var unbound_part: ?Pattern = null;
@@ -787,7 +788,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
     return true;
 }
 
-fn matchUntypedMerge(self: *PatternSolver, value: Elem, merge_parts: []Simplified) !bool {
+fn matchUntypedMerge(self: *Self, value: Elem, merge_parts: []Simplified) !bool {
     var unbound_part: ?Pattern = null;
 
     for (merge_parts) |part| {
@@ -813,16 +814,16 @@ fn matchUntypedMerge(self: *PatternSolver, value: Elem, merge_parts: []Simplifie
     }
 }
 
-fn matchNull(self: *PatternSolver, value: Elem) bool {
+fn matchNull(self: *Self, value: Elem) bool {
     return value.isEql(Elem.nullConst, self.vm.*);
 }
 
-fn matchNumberString(self: *PatternSolver, value: Elem, pattern_number: Elem.NumberStringElem) bool {
+fn matchNumberString(self: *Self, value: Elem, pattern_number: Elem.NumberStringElem) bool {
     const pattern_elem = (Elem{ .NumberString = pattern_number });
     return value.isEql(pattern_elem, self.vm.*);
 }
 
-fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Pattern.ObjectPair)) Error!bool {
+fn matchObject(self: *Self, value: Elem, pattern_object: ArrayList(Pattern.ObjectPair)) Error!bool {
     self.depth = self.depth +| 1;
     defer self.depth = self.depth -| 1;
 
@@ -850,15 +851,15 @@ fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Patt
                     if (value_object.members.get(key_sid)) |value_object_pair_value| {
                         if (self.printSteps) {
                             try self.printIndentation();
-                            try self.vm.writers.debug.print("{{", .{});
-                            try key_value.print(self.vm.*, self.vm.writers.debug);
-                            try self.vm.writers.debug.print(": ", .{});
-                            try value_object_pair_value.print(self.vm.*, self.vm.writers.debug);
-                            try self.vm.writers.debug.print("}} -> {{", .{});
-                            try key_value.print(self.vm.*, self.vm.writers.debug);
-                            try self.vm.writers.debug.print(": ", .{});
-                            try pattern_pair.value.print(self.vm.*, self.vm.writers.debug);
-                            try self.vm.writers.debug.print("}}\n", .{});
+                            try self.vm.debug_writer.print("{{", .{});
+                            try key_value.print(self.vm.*, self.vm.debug_writer);
+                            try self.vm.debug_writer.print(": ", .{});
+                            try value_object_pair_value.print(self.vm.*, self.vm.debug_writer);
+                            try self.vm.debug_writer.print("}} -> {{", .{});
+                            try key_value.print(self.vm.*, self.vm.debug_writer);
+                            try self.vm.debug_writer.print(": ", .{});
+                            try pattern_pair.value.print(self.vm.*, self.vm.debug_writer);
+                            try self.vm.debug_writer.print("}}\n", .{});
                         }
 
                         if (!(try self.matchPattern(value_object_pair_value, pattern_pair.value))) {
@@ -892,15 +893,15 @@ fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Patt
 
                         if (self.printSteps) {
                             try self.printIndentation();
-                            try self.vm.writers.debug.print("{{", .{});
-                            try key_elem.print(self.vm.*, self.vm.writers.debug);
-                            try self.vm.writers.debug.print(": ", .{});
-                            try obj_value.print(self.vm.*, self.vm.writers.debug);
-                            try self.vm.writers.debug.print("}} -> {{", .{});
-                            try pattern_pair.key.print(self.vm.*, self.vm.writers.debug);
-                            try self.vm.writers.debug.print(": ", .{});
-                            try pattern_pair.value.print(self.vm.*, self.vm.writers.debug);
-                            try self.vm.writers.debug.print("}}\n", .{});
+                            try self.vm.debug_writer.print("{{", .{});
+                            try key_elem.print(self.vm.*, self.vm.debug_writer);
+                            try self.vm.debug_writer.print(": ", .{});
+                            try obj_value.print(self.vm.*, self.vm.debug_writer);
+                            try self.vm.debug_writer.print("}} -> {{", .{});
+                            try pattern_pair.key.print(self.vm.*, self.vm.debug_writer);
+                            try self.vm.debug_writer.print(": ", .{});
+                            try pattern_pair.value.print(self.vm.*, self.vm.debug_writer);
+                            try self.vm.debug_writer.print("}}\n", .{});
                         }
 
                         if (try self.matchPattern(key_elem, pattern_pair.key)) {
@@ -930,7 +931,7 @@ fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Patt
     }
 }
 
-fn matchRange(self: *PatternSolver, value: Elem, pattern_range: Pattern.RangePattern) Error!bool {
+fn matchRange(self: *Self, value: Elem, pattern_range: Pattern.RangePattern) Error!bool {
     std.debug.assert(pattern_range.lower != null or pattern_range.upper != null);
 
     if (pattern_range.lower) |pattern_range_lower| {
@@ -960,23 +961,23 @@ fn matchRange(self: *PatternSolver, value: Elem, pattern_range: Pattern.RangePat
     return true;
 }
 
-fn matchString(self: *PatternSolver, value: Elem, pattern_sid: StringTable.Id) !bool {
+fn matchString(self: *Self, value: Elem, pattern_sid: StringTable.Id) !bool {
     return self.checkEquality(value, .{ .String = pattern_sid });
 }
 
-fn matchStringBytes(self: *PatternSolver, value: []const u8, pattern: []const u8) !bool {
+fn matchStringBytes(self: *Self, value: []const u8, pattern: []const u8) !bool {
     // Doesn't go through matchPattern, manually update depth
     self.depth = self.depth +| 1;
     defer self.depth = self.depth -| 1;
 
     if (self.printSteps) {
         try self.printIndentation();
-        try self.vm.writers.debug.print("\"{s}\" -> \"{s}\"\n", .{ value, pattern });
+        try self.vm.debug_writer.print("\"{s}\" -> \"{s}\"\n", .{ value, pattern });
     }
     return std.mem.eql(u8, value, pattern);
 }
 
-fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: ArrayList(Pattern)) Error!bool {
+fn matchStringTemplate(self: *Self, value: Elem, template_pattern: ArrayList(Pattern)) Error!bool {
     var parts = try self.vm.allocator.alloc(Simplified, template_pattern.items.len);
     defer self.vm.allocator.free(parts);
 
@@ -1107,7 +1108,7 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
     return true;
 }
 
-fn simplify(self: *PatternSolver, pattern: Pattern) Error!Simplified {
+fn simplify(self: *Self, pattern: Pattern) Error!Simplified {
     if (try self.attemptEval(pattern)) |value| {
         return .{ .Value = value };
     } else {
@@ -1115,7 +1116,7 @@ fn simplify(self: *PatternSolver, pattern: Pattern) Error!Simplified {
     }
 }
 
-fn attemptEval(self: *PatternSolver, pattern: Pattern) Error!?Elem {
+fn attemptEval(self: *Self, pattern: Pattern) Error!?Elem {
     return switch (pattern) {
         .Array => null,
         .Boolean => |b| Elem.boolean(b),
@@ -1132,7 +1133,7 @@ fn attemptEval(self: *PatternSolver, pattern: Pattern) Error!?Elem {
     };
 }
 
-fn evalConstant(self: *PatternSolver, constant: Pattern.PatternVar) !Elem {
+fn evalConstant(self: *Self, constant: Pattern.PatternVar) !Elem {
     const value = self.vm.getConstant(constant.idx);
 
     if (value.isDynType(.Function)) {
@@ -1152,7 +1153,7 @@ fn evalConstant(self: *PatternSolver, constant: Pattern.PatternVar) !Elem {
     }
 }
 
-fn evalFunctionCall(self: *PatternSolver, function_call: Pattern.FunctionCallVar) !Elem {
+fn evalFunctionCall(self: *Self, function_call: Pattern.FunctionCallVar) !Elem {
     const function = switch (function_call.kind) {
         .Local => blk: {
             const local_value = self.vm.getLocal(function_call.function.idx);
@@ -1198,7 +1199,7 @@ fn evalFunctionCall(self: *PatternSolver, function_call: Pattern.FunctionCallVar
     );
 }
 
-fn evalLocal(self: *PatternSolver, local: Pattern.PatternVar) !?Elem {
+fn evalLocal(self: *Self, local: Pattern.PatternVar) !?Elem {
     const value = self.vm.getLocal(local.idx);
 
     if (value.isDynType(.Function)) {
@@ -1220,7 +1221,7 @@ fn evalLocal(self: *PatternSolver, local: Pattern.PatternVar) !?Elem {
     }
 }
 
-fn checkEquality(self: *PatternSolver, value: Elem, pattern: Elem) !bool {
+fn checkEquality(self: *Self, value: Elem, pattern: Elem) !bool {
     if (self.printSteps) {
         try self.printDestructureEquality(value, pattern);
     }
@@ -1228,23 +1229,23 @@ fn checkEquality(self: *PatternSolver, value: Elem, pattern: Elem) !bool {
     return value.isEql(pattern, self.vm.*);
 }
 
-fn setLocal(self: *PatternSolver, local: Pattern.PatternVar, value: Elem) !void {
+fn setLocal(self: *Self, local: Pattern.PatternVar, value: Elem) !void {
     self.vm.setLocal(local.idx, value);
     try self.bound_locals.append(self.vm.allocator, local);
 }
 
-fn resetLocals(self: *PatternSolver, index: usize) !void {
+fn resetLocals(self: *Self, index: usize) !void {
     const locals = self.bound_locals.items[index..];
 
     if (self.printSteps and locals.len > 0) {
         try self.printIndentation();
 
-        try self.vm.writers.debug.print("Reset locals: ", .{});
+        try self.vm.debug_writer.print("Reset locals: ", .{});
         for (locals) |local| {
-            try (Pattern{ .Local = local }).print(self.vm.*, self.vm.writers.debug);
-            try self.vm.writers.debug.print(" ", .{});
+            try (Pattern{ .Local = local }).print(self.vm.*, self.vm.debug_writer);
+            try self.vm.debug_writer.print(" ", .{});
         }
-        try self.vm.writers.debug.print("\n", .{});
+        try self.vm.debug_writer.print("\n", .{});
     }
 
     for (locals) |local| {
@@ -1253,11 +1254,11 @@ fn resetLocals(self: *PatternSolver, index: usize) !void {
     self.bound_locals.shrinkRetainingCapacity(index);
 }
 
-fn executeFunctionOnVM(self: *PatternSolver, pattern: Pattern, function: Elem, args: ?[]Elem) !Elem {
+fn executeFunctionOnVM(self: *Self, pattern: Pattern, function: Elem, args: ?[]Elem) !Elem {
     if (self.printSteps) {
-        try self.vm.writers.debug.print("\nEval Pattern Function: ", .{});
-        try pattern.print(self.vm.*, self.vm.writers.debug);
-        try self.vm.writers.debug.print("\n", .{});
+        try self.vm.debug_writer.print("\nEval Pattern Function: ", .{});
+        try pattern.print(self.vm.*, self.vm.debug_writer);
+        try self.vm.debug_writer.print("\n", .{});
     }
 
     const arg_count: u8 = if (args) |args_array| @as(u8, @intCast(args_array.len)) else 0;
@@ -1272,30 +1273,32 @@ fn executeFunctionOnVM(self: *PatternSolver, pattern: Pattern, function: Elem, a
     try self.vm.runFunction();
 
     if (self.printSteps) {
-        try self.vm.writers.debug.print("\n", .{});
+        try self.vm.debug_writer.print("\n", .{});
     }
 
     return self.vm.pop();
 }
 
-fn printIndentation(self: *PatternSolver) !void {
+fn printIndentation(self: *Self) !void {
     for (0..self.depth) |_| {
-        try self.vm.writers.debug.print("    ", .{});
+        try self.vm.debug_writer.print("    ", .{});
     }
 }
 
-fn printDestructure(self: *PatternSolver, value: Elem, pattern: Pattern) !void {
-    try self.printIndentation();
-    try value.print(self.vm.*, self.vm.writers.debug);
-    try self.vm.writers.debug.print(" -> ", .{});
-    try pattern.print(self.vm.*, self.vm.writers.debug);
-    try self.vm.writers.debug.print("\n", .{});
-}
+        fn printDestructure(self: *Self, value: Elem, pattern: Pattern) !void {
+            try self.printIndentation();
+            try value.print(self.vm.*, self.vm.debug_writer);
+            try self.vm.debug_writer.print(" -> ", .{});
+            try pattern.print(self.vm.*, self.vm.debug_writer);
+            try self.vm.debug_writer.print("\n", .{});
+        }
 
-fn printDestructureEquality(self: *PatternSolver, value: Elem, pattern: Elem) Error!void {
-    try self.printIndentation();
-    try value.print(self.vm.*, self.vm.writers.debug);
-    try self.vm.writers.debug.print(" -> ", .{});
-    try pattern.print(self.vm.*, self.vm.writers.debug);
-    try self.vm.writers.debug.print("\n", .{});
+        fn printDestructureEquality(self: *Self, value: Elem, pattern: Elem) Error!void {
+            try self.printIndentation();
+            try value.print(self.vm.*, self.vm.debug_writer);
+            try self.vm.debug_writer.print(" -> ", .{});
+            try pattern.print(self.vm.*, self.vm.debug_writer);
+            try self.vm.debug_writer.print("\n", .{});
+        }
+    };
 }
