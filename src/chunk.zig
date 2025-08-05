@@ -7,7 +7,6 @@ const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable;
-const VMWriter = @import("writer.zig").VMWriter;
 const VM = @import("vm.zig").VM;
 
 pub const ChunkError = error{
@@ -112,7 +111,7 @@ pub const Chunk = struct {
         return @as(u8, @intCast(idx));
     }
 
-    pub fn disassemble(self: *Chunk, vm: VM, writer: VMWriter, name: []const u8, module: ?*Module) !void {
+    pub fn disassemble(self: *Chunk, vm: VM, writer: anytype, name: []const u8, module: ?*Module) !void {
         try writer.print("\n{s:=^40}\n", .{name});
 
         if (module) |mod| {
@@ -128,7 +127,7 @@ pub const Chunk = struct {
         try writer.print("{s:=^40}\n", .{""});
     }
 
-    pub fn disassembleInstruction(self: *Chunk, vm: VM, writer: VMWriter, offset: usize) !usize {
+    pub fn disassembleInstruction(self: *Chunk, vm: VM, writer: anytype, offset: usize) !usize {
         // print address
         try writer.print("{:0>4} ", .{offset});
 

@@ -5,8 +5,6 @@ const Elem = @import("elem.zig").Elem;
 const NumberStringElem = Elem.NumberStringElem;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
-const VMWriter = @import("writer.zig").VMWriter;
-const WriterError = @import("writer.zig").VMWriter.Error;
 
 pub const PatternType = enum {
     Array,
@@ -80,7 +78,7 @@ pub const Pattern = union(PatternType) {
         upper: ?*Pattern,
     };
 
-    pub fn print(self: Pattern, vm: VM, writer: VMWriter) !void {
+    pub fn print(self: Pattern, vm: VM, writer: anytype) !void {
         switch (self) {
             .Local => |pvar| try writer.print("{s}{s}", .{
                 negativeSigns(pvar.negation_count),

@@ -4,6 +4,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const assert = std.debug.assert;
 const unicode = std.unicode;
+const AnyWriter = std.io.AnyWriter;
 const Chunk = @import("chunk.zig").Chunk;
 const Compiler = @import("compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
@@ -87,7 +88,7 @@ pub const VM = struct {
         Overflow,
         ExpectedNumber,
         Utf8CodepointTooLarge,
-    } || WriterError;
+    } || AnyWriter.Error;
 
     pub fn create() VM {
         const self = VM{
@@ -180,7 +181,7 @@ pub const VM = struct {
         try parser.parse();
 
         if (self.config.printAst) {
-            try parser.ast.print(self.*);
+            try parser.ast.print(self.writers.debug, self.*);
         }
 
         const modulePtr = &self.modules.items[self.modules.items.len - 1];

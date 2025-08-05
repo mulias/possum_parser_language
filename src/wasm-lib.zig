@@ -29,9 +29,9 @@ fn writeDebugSlice(bytes: []const u8) void {
 }
 
 const writers = Writers{
-    .out = ExternalWriter.init(writeOutSlice).writer(),
-    .err = ExternalWriter.init(writeErrSlice).writer(),
-    .debug = ExternalWriter.init(writeDebugSlice).writer(),
+    .out = ExternalWriter.init(writeOutSlice).writer().any(),
+    .err = ExternalWriter.init(writeErrSlice).writer().any(),
+    .debug = ExternalWriter.init(writeDebugSlice).writer().any(),
 };
 
 fn createVMPtr() !*VM {

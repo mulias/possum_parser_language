@@ -12,7 +12,6 @@ const Region = @import("region.zig").Region;
 const StringBuffer = @import("string_buffer.zig").StringBuffer;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
-const VMWriter = @import("writer.zig").VMWriter;
 const parsing = @import("parsing.zig");
 
 pub const ElemType = enum {
@@ -143,7 +142,7 @@ pub const Elem = union(ElemType) {
 
     pub const failureConst = Elem{ .Failure = undefined };
 
-    pub fn print(self: Elem, vm: VM, writer: VMWriter) !void {
+    pub fn print(self: Elem, vm: VM, writer: anytype) !void {
         // try writer.print("{s} ", .{@tagName(self)});
         return switch (self) {
             .ParserVar => |sid| if (StringTable.asReserved(sid)) |rid| {
@@ -803,7 +802,7 @@ pub const Elem = union(ElemType) {
             return Elem{ .Dyn = self };
         }
 
-        pub fn print(self: *DynElem, vm: VM, writer: VMWriter) !void {
+        pub fn print(self: *DynElem, vm: VM, writer: anytype) !void {
             return switch (self.dynType) {
                 .String => self.asString().print(writer),
                 .Array => self.asArray().print(vm, writer),
@@ -882,7 +881,7 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *String, writer: VMWriter) !void {
+            pub fn print(self: *String, writer: anytype) !void {
                 try writer.print("\"{s}\"", .{self.buffer.str()});
             }
 
@@ -945,7 +944,7 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Array, vm: VM, writer: VMWriter) VMWriter.Error!void {
+            pub fn print(self: *Array, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
                 if (self.elems.items.len == 0) {
                     try writer.print("[]", .{});
                 } else {
@@ -1023,7 +1022,7 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Object, vm: VM, writer: VMWriter) VMWriter.Error!void {
+            pub fn print(self: *Object, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
                 if (self.members.count() == 0) {
                     try writer.print("{{}}", .{});
                 } else {
@@ -1162,7 +1161,7 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Function, vm: VM, writer: VMWriter) !void {
+            pub fn print(self: *Function, vm: VM, writer: anytype) !void {
                 try writer.print("{s}", .{vm.strings.get(self.name)});
             }
 
@@ -1171,7 +1170,7 @@ pub const Elem = union(ElemType) {
                 return self == other.asFunction();
             }
 
-            pub fn disassemble(self: *Function, vm: VM, writer: VMWriter, module: ?*Module) !void {
+            pub fn disassemble(self: *Function, vm: VM, writer: anytype, module: ?*Module) !void {
                 const label = vm.strings.get(self.name);
                 try self.chunk.disassemble(vm, writer, label, module);
             }
@@ -1234,7 +1233,7 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *NativeCode, writer: VMWriter) !void {
+            pub fn print(self: *NativeCode, writer: anytype) !void {
                 try writer.print("{s}", .{self.name});
             }
 
@@ -1270,7 +1269,7 @@ pub const Elem = union(ElemType) {
                 vm.allocator.destroy(self);
             }
 
-            pub fn print(self: *Closure, vm: VM, writer: VMWriter) VMWriter.Error!void {
+            pub fn print(self: *Closure, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
                 try writer.print("|{s} ", .{vm.strings.get(self.function.name)});
 
                 if (self.captures.len > 0) {

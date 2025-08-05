@@ -1,6 +1,7 @@
 const std = @import("std");
 const unicode = std.unicode;
 const ArrayList = std.ArrayListUnmanaged;
+const AnyWriter = std.io.AnyWriter;
 const Ast = @import("ast.zig").Ast;
 const Elem = @import("elem.zig").Elem;
 const HighlightConfig = @import("highlight.zig").HighlightConfig;
@@ -12,7 +13,6 @@ const StringTable = @import("string_table.zig").StringTable;
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
 const VM = @import("vm.zig").VM;
-const WriterError = @import("writer.zig").VMWriter.Error;
 const Writers = @import("writer.zig").Writers;
 const parsing = @import("parsing.zig");
 
@@ -34,7 +34,7 @@ pub const Parser = struct {
         CodepointTooLarge,
         Utf8CannotEncodeSurrogateHalf,
         IntegerOverflow,
-    } || WriterError;
+    } || AnyWriter.Error;
 
     pub fn init(vm: *VM, module: Module) Parser {
         const ast = Ast.init(vm.allocator);

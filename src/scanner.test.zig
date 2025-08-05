@@ -3,7 +3,11 @@ const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
 const Writers = @import("writer.zig").Writers;
 
-const writers = Writers.initStdIo();
+const writers = Writers{
+    .out = std.io.null_writer.any(),
+    .err = std.io.null_writer.any(),
+    .debug = std.io.null_writer.any(),
+};
 
 fn init(source: []const u8) Scanner {
     return Scanner.init(source, writers, false);

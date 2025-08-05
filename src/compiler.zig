@@ -1,6 +1,7 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const unicode = std.unicode;
+const AnyWriter = std.io.AnyWriter;
 const Ast = @import("ast.zig").Ast;
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
@@ -11,7 +12,6 @@ const OpCode = @import("op_code.zig").OpCode;
 const Scanner = @import("scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
-const WriterError = @import("writer.zig").VMWriter.Error;
 const Writers = @import("writer.zig").Writers;
 const Module = @import("module.zig").Module;
 
@@ -53,7 +53,7 @@ pub const Compiler = struct {
         UnlabeledNullValue,
         RangeNotValidInMergePattern,
         RangeNotValidInValueContext,
-    } || WriterError;
+    } || AnyWriter.Error;
 
     pub fn init(vm: *VM, targetModule: *Module, ast: Ast, printBytecode: bool) !Compiler {
         const main = try Elem.DynElem.Function.create(vm, .{

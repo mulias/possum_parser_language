@@ -14,7 +14,11 @@ const maxInt = std.math.maxInt;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const writers = Writers.initStdIo();
+    const writers = Writers{
+        .out = std.io.getStdOut().writer().any(),
+        .err = std.io.getStdErr().writer().any(),
+        .debug = std.io.getStdErr().writer().any(),
+    };
     const cli = CLI.init(gpa.allocator(), writers);
 
     return cli.run();
