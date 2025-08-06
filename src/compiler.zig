@@ -66,6 +66,8 @@ pub const Compiler = struct {
         var functions = ArrayList(*Elem.DynElem.Function){};
         try functions.append(vm.allocator, main);
 
+        try targetModule.addGlobal(vm.allocator, main.name, main.dyn.elem());
+
         // Ensure that the strings table includes the placeholder var, which
         // might be used directly by the compiler.
         _ = try vm.strings.insert("_");
