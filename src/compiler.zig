@@ -618,7 +618,7 @@ pub const Compiler = struct {
                 try self.patchJump(thenElseJumpIndex, region);
             },
             .Function => |function| {
-                try self.writeParserFunctionCall(function.name, function.paramsOrArgs, isTailPosition);
+                try self.writeParserFunctionCall(function.name, function.paramsOrArgs, region, isTailPosition);
             },
             .ValueLabel,
             .Array,
@@ -650,6 +650,7 @@ pub const Compiler = struct {
         self: *Compiler,
         function_rnode: *Ast.RNode,
         arguments: ArrayList(*Ast.RNode),
+        call_region: Region,
         isTailPosition: bool,
     ) !void {
         const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
@@ -680,9 +681,9 @@ pub const Compiler = struct {
         const arg_count = try self.writeParserFunctionArguments(arguments, function);
 
         if (isTailPosition) {
-            try self.emitUnaryOp(.CallTailFunction, arg_count, function_region);
+            try self.emitUnaryOp(.CallTailFunction, arg_count, call_region);
         } else {
-            try self.emitUnaryOp(.CallFunction, arg_count, function_region);
+            try self.emitUnaryOp(.CallFunction, arg_count, call_region);
         }
     }
 
@@ -1399,7 +1400,7 @@ pub const Compiler = struct {
                 try self.patchJump(thenElseJumpIndex, region);
             },
             .Function => |function| {
-                try self.writeValueFunctionCall(function.name, function.paramsOrArgs, isTailPosition);
+                try self.writeValueFunctionCall(function.name, function.paramsOrArgs, region, isTailPosition);
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
@@ -1461,7 +1462,13 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValueFunctionCall(self: *Compiler, function_rnode: *Ast.RNode, arguments: ArrayList(*Ast.RNode), isTailPosition: bool) !void {
+    fn writeValueFunctionCall(
+        self: *Compiler,
+        function_rnode: *Ast.RNode,
+        arguments: ArrayList(*Ast.RNode),
+        call_region: Region,
+        isTailPosition: bool,
+    ) !void {
         const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
         const function_region = function_rnode.region;
 
@@ -1488,9 +1495,9 @@ pub const Compiler = struct {
         const argCount = try self.writeValueFunctionArguments(arguments, function);
 
         if (isTailPosition) {
-            try self.emitUnaryOp(.CallTailFunction, argCount, function_region);
+            try self.emitUnaryOp(.CallTailFunction, argCount, call_region);
         } else {
-            try self.emitUnaryOp(.CallFunction, argCount, function_region);
+            try self.emitUnaryOp(.CallFunction, argCount, call_region);
         }
     }
 
