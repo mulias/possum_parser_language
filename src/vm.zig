@@ -741,7 +741,7 @@ pub const VM = struct {
                     }
 
                     if (function.arity == argCount) {
-                        if (isTailPosition) {
+                        if (isTailPosition and !function.isBuiltin(self.*)) {
                             // Remove the elements belonging to the previous call
                             // frame. This includes the function itself, its
                             // arguments, and any added local variables.

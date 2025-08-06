@@ -1207,6 +1207,15 @@ pub const Elem = union(ElemType) {
             pub fn localVar(self: *Function, slot: u8) Local {
                 return self.locals.items[@as(usize, @intCast(slot))];
             }
+
+            pub fn nameBytes(self: *Function, vm: VM) []const u8 {
+                return vm.strings.get(self.name);
+            }
+
+            pub fn isBuiltin(self: *Function, vm: VM) bool {
+                const name = self.nameBytes(vm);
+                return name.len > 0 and name[0] == '@';
+            }
         };
 
         pub const NativeCode = struct {
