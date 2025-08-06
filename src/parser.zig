@@ -692,9 +692,8 @@ pub const Parser = struct {
     }
 
     fn objectSpread(self: *Parser, left_object: *Ast.RNode) !*Ast.RNode {
-        const dots = self.token;
         const spread = try self.expression();
-        var result = try self.ast.createInfix(.Merge, left_object, spread, dots.region.merge(spread.region));
+        var result = try self.ast.createInfix(.Merge, left_object, spread, left_object.region);
 
         if (try self.match(.Comma)) {
             // Check if there's actually more content after the comma
@@ -721,9 +720,8 @@ pub const Parser = struct {
     }
 
     fn arraySpread(self: *Parser, left_array: *Ast.RNode) !*Ast.RNode {
-        const spread_region = self.token.region;
         const spread_expr = try self.expression();
-        var result = try self.ast.createInfix(.Merge, left_array, spread_expr, spread_region);
+        var result = try self.ast.createInfix(.Merge, left_array, spread_expr, left_array.region);
 
         if (try self.match(.Comma)) {
             // Check if there's actually more content after the comma
