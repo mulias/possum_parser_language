@@ -1,17 +1,17 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum -p '"a" > "b" > "c" | "abz"' -i ''
-  (Or 0-23
-    (TakeRight 0-15
-      (TakeRight 0-9
-        (String 0-3 "a")
-        (String 6-9 "b"))
-      (String 12-15 "c"))
-    (String 18-23 "abz"))
+  (Or 1:0-23
+    (TakeRight 1:0-15
+      (TakeRight 1:0-9
+        (String 1:0-3 "a")
+        (String 1:6-9 "b"))
+      (String 1:12-15 "c"))
+    (String 1:18-23 "abz"))
 
   $ possum -p '"" $ (1-2)' -i ''
-  (Return 0-10
-    (String 0-2 "")
-    (Merge 5-10
-      (NumberString 6-7 1)
-      (Negation 8-9 (NumberString 8-9 2))))
+  (Return 1:0-10
+    (String 1:0-2 "")
+    (Merge 1:5-10
+      (NumberString 1:6-7 1)
+      (Negation 1:8-9 (NumberString 1:8-9 2))))

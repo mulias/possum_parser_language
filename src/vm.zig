@@ -177,7 +177,7 @@ pub const VM = struct {
         try parser.parse();
 
         if (self.config.printAst) {
-            try parser.ast.print(self.writers.debug, self.*);
+            try parser.ast.print(self.writers.debug, self.*, module.source);
         }
 
         const modulePtr = &self.modules.items[self.modules.items.len - 1];
