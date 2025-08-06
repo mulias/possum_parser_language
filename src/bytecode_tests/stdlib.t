@@ -106,10 +106,10 @@
   hex_numeral = numeral | "a".."f" | "A".."F"
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | GetConstant 0: numeral
-  0004    | CallFunction 0
-  0006    | Or 6 -> 12
+  0001    | GetConstant 0: numeral
+  0003    | CallFunction 0
+  0005    | Or 5 -> 18
+  0008    | SetInputMark
   0009    | ParseRange 1 2: "a" "f"
   0012    | Or 12 -> 18
   0015    | ParseRange 3 4: "A" "F"
@@ -160,10 +160,10 @@
   alnum | "_" | "-"
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | GetConstant 0: alnum
-  0004    | CallFunction 0
-  0006    | Or 6 -> 13
+  0001    | GetConstant 0: alnum
+  0003    | CallFunction 0
+  0005    | Or 5 -> 20
+  0008    | SetInputMark
   0009    | GetConstant 1: "_"
   0011    | CallFunction 0
   0013    | Or 13 -> 20
@@ -207,25 +207,25 @@
     " " | "\t" | "\u0000A0" | "\u002000".."\u00200A" | "\u00202F" | "\u00205F" | "\u003000"
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | SetInputMark
-  0006    | GetConstant 0: " "
-  0008    | CallFunction 0
-  0010    | Or 10 -> 17
-  0013    | GetConstant 1: "\t" (esc)
-  0015    | CallFunction 0
-  0017    | Or 17 -> 24
-  0020    | GetConstant 2: "\xc2\xa0" (esc)
-  0022    | CallFunction 0
-  0024    | Or 24 -> 30
-  0027    | ParseRange 3 4: "\xe2\x80\x80" "\xe2\x80\x8a" (esc)
-  0030    | Or 30 -> 37
-  0033    | GetConstant 5: "\xe2\x80\xaf" (esc)
-  0035    | CallFunction 0
-  0037    | Or 37 -> 44
+  0001    | GetConstant 0: " "
+  0003    | CallFunction 0
+  0005    | Or 5 -> 51
+  0008    | SetInputMark
+  0009    | GetConstant 1: "\t" (esc)
+  0011    | CallFunction 0
+  0013    | Or 13 -> 51
+  0016    | SetInputMark
+  0017    | GetConstant 2: "\xc2\xa0" (esc)
+  0019    | CallFunction 0
+  0021    | Or 21 -> 51
+  0024    | SetInputMark
+  0025    | ParseRange 3 4: "\xe2\x80\x80" "\xe2\x80\x8a" (esc)
+  0028    | Or 28 -> 51
+  0031    | SetInputMark
+  0032    | GetConstant 5: "\xe2\x80\xaf" (esc)
+  0034    | CallFunction 0
+  0036    | Or 36 -> 51
+  0039    | SetInputMark
   0040    | GetConstant 6: "\xe2\x81\x9f" (esc)
   0042    | CallFunction 0
   0044    | Or 44 -> 51
@@ -247,20 +247,20 @@
   newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | GetConstant 0: "\r (esc)
+  0001    | GetConstant 0: "\r (esc)
   "
-  0006    | CallFunction 0
-  0008    | Or 8 -> 14
-  0011    | ParseRange 1 2: "
+  0003    | CallFunction 0
+  0005    | Or 5 -> 35
+  0008    | SetInputMark
+  0009    | ParseRange 1 2: "
   " "\r (no-eol) (esc)
   "
-  0014    | Or 14 -> 21
-  0017    | GetConstant 3: "\xc2\x85" (esc)
-  0019    | CallFunction 0
-  0021    | Or 21 -> 28
+  0012    | Or 12 -> 35
+  0015    | SetInputMark
+  0016    | GetConstant 3: "\xc2\x85" (esc)
+  0018    | CallFunction 0
+  0020    | Or 20 -> 35
+  0023    | SetInputMark
   0024    | GetConstant 4: "\xe2\x80\xa8" (esc)
   0026    | CallFunction 0
   0028    | Or 28 -> 35
@@ -640,50 +640,50 @@
     ("f" | "F" $ 15)
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | SetInputMark
-  0006    | GetConstant 0: digit
-  0008    | CallFunction 0
-  0010    | Or 10 -> 30
-  0013    | SetInputMark
-  0014    | GetConstant 1: "a"
-  0016    | CallFunction 0
-  0018    | Or 18 -> 25
-  0021    | GetConstant 2: "A"
-  0023    | CallFunction 0
-  0025    | TakeRight 25 -> 30
-  0028    | GetConstant 3: 10
-  0030    | Or 30 -> 50
-  0033    | SetInputMark
-  0034    | GetConstant 4: "b"
-  0036    | CallFunction 0
-  0038    | Or 38 -> 45
-  0041    | GetConstant 5: "B"
-  0043    | CallFunction 0
-  0045    | TakeRight 45 -> 50
-  0048    | GetConstant 6: 11
-  0050    | Or 50 -> 70
-  0053    | SetInputMark
-  0054    | GetConstant 7: "c"
-  0056    | CallFunction 0
-  0058    | Or 58 -> 65
-  0061    | GetConstant 8: "C"
-  0063    | CallFunction 0
-  0065    | TakeRight 65 -> 70
-  0068    | GetConstant 9: 12
-  0070    | Or 70 -> 90
-  0073    | SetInputMark
-  0074    | GetConstant 10: "d"
-  0076    | CallFunction 0
-  0078    | Or 78 -> 85
-  0081    | GetConstant 11: "D"
-  0083    | CallFunction 0
-  0085    | TakeRight 85 -> 90
-  0088    | GetConstant 12: 13
-  0090    | Or 90 -> 110
+  0001    | GetConstant 0: digit
+  0003    | CallFunction 0
+  0005    | Or 5 -> 130
+  0008    | SetInputMark
+  0009    | SetInputMark
+  0010    | GetConstant 1: "a"
+  0012    | CallFunction 0
+  0014    | Or 14 -> 21
+  0017    | GetConstant 2: "A"
+  0019    | CallFunction 0
+  0021    | TakeRight 21 -> 26
+  0024    | GetConstant 3: 10
+  0026    | Or 26 -> 130
+  0029    | SetInputMark
+  0030    | SetInputMark
+  0031    | GetConstant 4: "b"
+  0033    | CallFunction 0
+  0035    | Or 35 -> 42
+  0038    | GetConstant 5: "B"
+  0040    | CallFunction 0
+  0042    | TakeRight 42 -> 47
+  0045    | GetConstant 6: 11
+  0047    | Or 47 -> 130
+  0050    | SetInputMark
+  0051    | SetInputMark
+  0052    | GetConstant 7: "c"
+  0054    | CallFunction 0
+  0056    | Or 56 -> 63
+  0059    | GetConstant 8: "C"
+  0061    | CallFunction 0
+  0063    | TakeRight 63 -> 68
+  0066    | GetConstant 9: 12
+  0068    | Or 68 -> 130
+  0071    | SetInputMark
+  0072    | SetInputMark
+  0073    | GetConstant 10: "d"
+  0075    | CallFunction 0
+  0077    | Or 77 -> 84
+  0080    | GetConstant 11: "D"
+  0082    | CallFunction 0
+  0084    | TakeRight 84 -> 89
+  0087    | GetConstant 12: 13
+  0089    | Or 89 -> 130
+  0092    | SetInputMark
   0093    | SetInputMark
   0094    | GetConstant 13: "e"
   0096    | CallFunction 0
@@ -2758,22 +2758,22 @@
     json.object(json)
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | GetConstant 0: json.boolean
-  0007    | CallFunction 0
-  0009    | Or 9 -> 16
-  0012    | GetConstant 1: json.null
-  0014    | CallFunction 0
-  0016    | Or 16 -> 23
-  0019    | GetConstant 2: number
-  0021    | CallFunction 0
-  0023    | Or 23 -> 30
-  0026    | GetConstant 3: json.string
-  0028    | CallFunction 0
-  0030    | Or 30 -> 39
+  0001    | GetConstant 0: json.boolean
+  0003    | CallFunction 0
+  0005    | Or 5 -> 48
+  0008    | SetInputMark
+  0009    | GetConstant 1: json.null
+  0011    | CallFunction 0
+  0013    | Or 13 -> 48
+  0016    | SetInputMark
+  0017    | GetConstant 2: number
+  0019    | CallFunction 0
+  0021    | Or 21 -> 48
+  0024    | SetInputMark
+  0025    | GetConstant 3: json.string
+  0027    | CallFunction 0
+  0029    | Or 29 -> 48
+  0032    | SetInputMark
   0033    | GetConstant 4: json.array
   0035    | GetConstant 5: json
   0037    | CallFunction 1
@@ -2822,10 +2822,10 @@
   _ctrl_char | `\` | '"'
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | GetConstant 0: _ctrl_char
-  0004    | CallFunction 0
-  0006    | Or 6 -> 13
+  0001    | GetConstant 0: _ctrl_char
+  0003    | CallFunction 0
+  0005    | Or 5 -> 20
+  0008    | SetInputMark
   0009    | GetConstant 1: "\"
   0011    | CallFunction 0
   0013    | Or 13 -> 20
@@ -2840,10 +2840,10 @@
       unless(char, _ctrl_char | `\` | '"')
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | GetConstant 0: _escaped_ctrl_char
-  0004    | CallFunction 0
-  0006    | Or 6 -> 13
+  0001    | GetConstant 0: _escaped_ctrl_char
+  0003    | CallFunction 0
+  0005    | Or 5 -> 24
+  0008    | SetInputMark
   0009    | GetConstant 1: _escaped_unicode
   0011    | CallFunction 0
   0013    | Or 13 -> 24
@@ -2892,43 +2892,43 @@
     (`\t` $ "\t")
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | SetInputMark
-  0006    | SetInputMark
-  0007    | GetConstant 0: "\""
-  0009    | CallFunction 0
-  0011    | TakeRight 11 -> 16
-  0014    | GetConstant 1: """
-  0016    | Or 16 -> 28
-  0019    | GetConstant 2: "\\"
-  0021    | CallFunction 0
-  0023    | TakeRight 23 -> 28
-  0026    | GetConstant 3: "\"
-  0028    | Or 28 -> 40
-  0031    | GetConstant 4: "\/"
-  0033    | CallFunction 0
-  0035    | TakeRight 35 -> 40
-  0038    | GetConstant 5: "/"
-  0040    | Or 40 -> 52
-  0043    | GetConstant 6: "\b"
-  0045    | CallFunction 0
-  0047    | TakeRight 47 -> 52
-  0050    | GetConstant 7: "\x08" (esc)
-  0052    | Or 52 -> 64
-  0055    | GetConstant 8: "\f"
-  0057    | CallFunction 0
-  0059    | TakeRight 59 -> 64
-  0062    | GetConstant 9: "\x0c" (esc)
-  0064    | Or 64 -> 76
-  0067    | GetConstant 10: "\n"
-  0069    | CallFunction 0
-  0071    | TakeRight 71 -> 76
-  0074    | GetConstant 11: "
+  0001    | GetConstant 0: "\""
+  0003    | CallFunction 0
+  0005    | TakeRight 5 -> 10
+  0008    | GetConstant 1: """
+  0010    | Or 10 -> 100
+  0013    | SetInputMark
+  0014    | GetConstant 2: "\\"
+  0016    | CallFunction 0
+  0018    | TakeRight 18 -> 23
+  0021    | GetConstant 3: "\"
+  0023    | Or 23 -> 100
+  0026    | SetInputMark
+  0027    | GetConstant 4: "\/"
+  0029    | CallFunction 0
+  0031    | TakeRight 31 -> 36
+  0034    | GetConstant 5: "/"
+  0036    | Or 36 -> 100
+  0039    | SetInputMark
+  0040    | GetConstant 6: "\b"
+  0042    | CallFunction 0
+  0044    | TakeRight 44 -> 49
+  0047    | GetConstant 7: "\x08" (esc)
+  0049    | Or 49 -> 100
+  0052    | SetInputMark
+  0053    | GetConstant 8: "\f"
+  0055    | CallFunction 0
+  0057    | TakeRight 57 -> 62
+  0060    | GetConstant 9: "\x0c" (esc)
+  0062    | Or 62 -> 100
+  0065    | SetInputMark
+  0066    | GetConstant 10: "\n"
+  0068    | CallFunction 0
+  0070    | TakeRight 70 -> 75
+  0073    | GetConstant 11: "
   "
-  0076    | Or 76 -> 88
+  0075    | Or 75 -> 100
+  0078    | SetInputMark
   0079    | GetConstant 12: "\r"
   0081    | CallFunction 0
   0083    | TakeRight 83 -> 88
@@ -3015,22 +3015,22 @@
   0015    | GetConstant 2: "d"
   0017    | CallFunction 0
   0019    | SetInputMark
-  0020    | SetInputMark
-  0021    | SetInputMark
-  0022    | SetInputMark
-  0023    | SetInputMark
-  0024    | GetConstant 3: "8"
-  0026    | CallFunction 0
-  0028    | Or 28 -> 35
-  0031    | GetConstant 4: "9"
-  0033    | CallFunction 0
-  0035    | Or 35 -> 42
-  0038    | GetConstant 5: "A"
-  0040    | CallFunction 0
-  0042    | Or 42 -> 49
-  0045    | GetConstant 6: "B"
-  0047    | CallFunction 0
-  0049    | Or 49 -> 56
+  0020    | GetConstant 3: "8"
+  0022    | CallFunction 0
+  0024    | Or 24 -> 63
+  0027    | SetInputMark
+  0028    | GetConstant 4: "9"
+  0030    | CallFunction 0
+  0032    | Or 32 -> 63
+  0035    | SetInputMark
+  0036    | GetConstant 5: "A"
+  0038    | CallFunction 0
+  0040    | Or 40 -> 63
+  0043    | SetInputMark
+  0044    | GetConstant 6: "B"
+  0046    | CallFunction 0
+  0048    | Or 48 -> 63
+  0051    | SetInputMark
   0052    | GetConstant 7: "a"
   0054    | CallFunction 0
   0056    | Or 56 -> 63
@@ -3678,14 +3678,14 @@
   alpha | numeral | "_" | "-"
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | GetConstant 0: alpha
-  0005    | CallFunction 0
-  0007    | Or 7 -> 14
-  0010    | GetConstant 1: numeral
-  0012    | CallFunction 0
-  0014    | Or 14 -> 21
+  0001    | GetConstant 0: alpha
+  0003    | CallFunction 0
+  0005    | Or 5 -> 28
+  0008    | SetInputMark
+  0009    | GetConstant 1: numeral
+  0011    | CallFunction 0
+  0013    | Or 13 -> 28
+  0016    | SetInputMark
   0017    | GetConstant 2: "_"
   0019    | CallFunction 0
   0021    | Or 21 -> 28
@@ -3701,11 +3701,11 @@
     toml.string.literal
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | GetConstant 0: many
-  0004    | GetConstant 1: @fn879
-  0006    | CallFunction 1
-  0008    | Or 8 -> 15
+  0001    | GetConstant 0: many
+  0003    | GetConstant 1: @fn879
+  0005    | CallFunction 1
+  0007    | Or 7 -> 22
+  0010    | SetInputMark
   0011    | GetConstant 2: toml.string.basic
   0013    | CallFunction 0
   0015    | Or 15 -> 22
@@ -3736,22 +3736,22 @@
     toml.inline_table(toml.simple_value)
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | GetConstant 0: toml.string
-  0007    | CallFunction 0
-  0009    | Or 9 -> 16
-  0012    | GetConstant 1: toml.datetime
-  0014    | CallFunction 0
-  0016    | Or 16 -> 23
-  0019    | GetConstant 2: toml.number
-  0021    | CallFunction 0
-  0023    | Or 23 -> 30
-  0026    | GetConstant 3: toml.boolean
-  0028    | CallFunction 0
-  0030    | Or 30 -> 39
+  0001    | GetConstant 0: toml.string
+  0003    | CallFunction 0
+  0005    | Or 5 -> 48
+  0008    | SetInputMark
+  0009    | GetConstant 1: toml.datetime
+  0011    | CallFunction 0
+  0013    | Or 13 -> 48
+  0016    | SetInputMark
+  0017    | GetConstant 2: toml.number
+  0019    | CallFunction 0
+  0021    | Or 21 -> 48
+  0024    | SetInputMark
+  0025    | GetConstant 3: toml.boolean
+  0027    | CallFunction 0
+  0029    | Or 29 -> 48
+  0032    | SetInputMark
   0033    | GetConstant 4: toml.array
   0035    | GetConstant 5: toml.simple_value
   0037    | CallFunction 1
@@ -3781,76 +3781,76 @@
     toml.inline_table(toml.tagged_value)
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | SetInputMark
-  0006    | SetInputMark
-  0007    | SetInputMark
+  0001    | GetConstant 0: toml.string
+  0003    | CallFunction 0
+  0005    | Or 5 -> 156
   0008    | SetInputMark
-  0009    | SetInputMark
-  0010    | SetInputMark
-  0011    | SetInputMark
-  0012    | SetInputMark
-  0013    | SetInputMark
-  0014    | GetConstant 0: toml.string
-  0016    | CallFunction 0
-  0018    | Or 18 -> 31
-  0021    | GetConstant 1: _toml.tag
-  0023    | GetConstant 2: "datetime"
-  0025    | GetConstant 3: "offset"
-  0027    | GetConstant 4: toml.datetime.offset
-  0029    | CallFunction 3
-  0031    | Or 31 -> 44
-  0034    | GetConstant 5: _toml.tag
-  0036    | GetConstant 6: "datetime"
-  0038    | GetConstant 7: "local"
-  0040    | GetConstant 8: toml.datetime.local
-  0042    | CallFunction 3
-  0044    | Or 44 -> 57
-  0047    | GetConstant 9: _toml.tag
-  0049    | GetConstant 10: "datetime"
-  0051    | GetConstant 11: "date-local"
-  0053    | GetConstant 12: toml.datetime.local_date
-  0055    | CallFunction 3
-  0057    | Or 57 -> 70
-  0060    | GetConstant 13: _toml.tag
-  0062    | GetConstant 14: "datetime"
-  0064    | GetConstant 15: "time-local"
-  0066    | GetConstant 16: toml.datetime.local_time
-  0068    | CallFunction 3
-  0070    | Or 70 -> 77
-  0073    | GetConstant 17: toml.number.binary_integer
+  0009    | GetConstant 1: _toml.tag
+  0011    | GetConstant 2: "datetime"
+  0013    | GetConstant 3: "offset"
+  0015    | GetConstant 4: toml.datetime.offset
+  0017    | CallFunction 3
+  0019    | Or 19 -> 156
+  0022    | SetInputMark
+  0023    | GetConstant 5: _toml.tag
+  0025    | GetConstant 6: "datetime"
+  0027    | GetConstant 7: "local"
+  0029    | GetConstant 8: toml.datetime.local
+  0031    | CallFunction 3
+  0033    | Or 33 -> 156
+  0036    | SetInputMark
+  0037    | GetConstant 9: _toml.tag
+  0039    | GetConstant 10: "datetime"
+  0041    | GetConstant 11: "date-local"
+  0043    | GetConstant 12: toml.datetime.local_date
+  0045    | CallFunction 3
+  0047    | Or 47 -> 156
+  0050    | SetInputMark
+  0051    | GetConstant 13: _toml.tag
+  0053    | GetConstant 14: "datetime"
+  0055    | GetConstant 15: "time-local"
+  0057    | GetConstant 16: toml.datetime.local_time
+  0059    | CallFunction 3
+  0061    | Or 61 -> 156
+  0064    | SetInputMark
+  0065    | GetConstant 17: toml.number.binary_integer
+  0067    | CallFunction 0
+  0069    | Or 69 -> 156
+  0072    | SetInputMark
+  0073    | GetConstant 18: toml.number.octal_integer
   0075    | CallFunction 0
-  0077    | Or 77 -> 84
-  0080    | GetConstant 18: toml.number.octal_integer
-  0082    | CallFunction 0
-  0084    | Or 84 -> 91
-  0087    | GetConstant 19: toml.number.hex_integer
-  0089    | CallFunction 0
-  0091    | Or 91 -> 104
-  0094    | GetConstant 20: _toml.tag
-  0096    | GetConstant 21: "float"
-  0098    | GetConstant 22: "infinity"
-  0100    | GetConstant 23: toml.number.infinity
-  0102    | CallFunction 3
-  0104    | Or 104 -> 117
-  0107    | GetConstant 24: _toml.tag
-  0109    | GetConstant 25: "float"
-  0111    | GetConstant 26: "not-a-number"
-  0113    | GetConstant 27: toml.number.not_a_number
-  0115    | CallFunction 3
-  0117    | Or 117 -> 124
-  0120    | GetConstant 28: toml.number.float
-  0122    | CallFunction 0
-  0124    | Or 124 -> 131
-  0127    | GetConstant 29: toml.number.integer
-  0129    | CallFunction 0
-  0131    | Or 131 -> 138
-  0134    | GetConstant 30: toml.boolean
-  0136    | CallFunction 0
-  0138    | Or 138 -> 147
+  0077    | Or 77 -> 156
+  0080    | SetInputMark
+  0081    | GetConstant 19: toml.number.hex_integer
+  0083    | CallFunction 0
+  0085    | Or 85 -> 156
+  0088    | SetInputMark
+  0089    | GetConstant 20: _toml.tag
+  0091    | GetConstant 21: "float"
+  0093    | GetConstant 22: "infinity"
+  0095    | GetConstant 23: toml.number.infinity
+  0097    | CallFunction 3
+  0099    | Or 99 -> 156
+  0102    | SetInputMark
+  0103    | GetConstant 24: _toml.tag
+  0105    | GetConstant 25: "float"
+  0107    | GetConstant 26: "not-a-number"
+  0109    | GetConstant 27: toml.number.not_a_number
+  0111    | CallFunction 3
+  0113    | Or 113 -> 156
+  0116    | SetInputMark
+  0117    | GetConstant 28: toml.number.float
+  0119    | CallFunction 0
+  0121    | Or 121 -> 156
+  0124    | SetInputMark
+  0125    | GetConstant 29: toml.number.integer
+  0127    | CallFunction 0
+  0129    | Or 129 -> 156
+  0132    | SetInputMark
+  0133    | GetConstant 30: toml.boolean
+  0135    | CallFunction 0
+  0137    | Or 137 -> 156
+  0140    | SetInputMark
   0141    | GetConstant 31: toml.array
   0143    | GetConstant 32: toml.tagged_value
   0145    | CallFunction 1
@@ -3888,14 +3888,14 @@
     toml.string.literal
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | GetConstant 0: toml.string.multi_line_basic
-  0005    | CallFunction 0
-  0007    | Or 7 -> 14
-  0010    | GetConstant 1: toml.string.multi_line_literal
-  0012    | CallFunction 0
-  0014    | Or 14 -> 21
+  0001    | GetConstant 0: toml.string.multi_line_basic
+  0003    | CallFunction 0
+  0005    | Or 5 -> 28
+  0008    | SetInputMark
+  0009    | GetConstant 1: toml.string.multi_line_literal
+  0011    | CallFunction 0
+  0013    | Or 13 -> 28
+  0016    | SetInputMark
   0017    | GetConstant 2: toml.string.basic
   0019    | CallFunction 0
   0021    | Or 21 -> 28
@@ -3912,14 +3912,14 @@
     toml.datetime.local_time
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | GetConstant 0: toml.datetime.offset
-  0005    | CallFunction 0
-  0007    | Or 7 -> 14
-  0010    | GetConstant 1: toml.datetime.local
-  0012    | CallFunction 0
-  0014    | Or 14 -> 21
+  0001    | GetConstant 0: toml.datetime.offset
+  0003    | CallFunction 0
+  0005    | Or 5 -> 28
+  0008    | SetInputMark
+  0009    | GetConstant 1: toml.datetime.local
+  0011    | CallFunction 0
+  0013    | Or 13 -> 28
+  0016    | SetInputMark
   0017    | GetConstant 2: toml.datetime.local_date
   0019    | CallFunction 0
   0021    | Or 21 -> 28
@@ -3939,26 +3939,26 @@
     toml.number.integer
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | SetInputMark
-  0006    | GetConstant 0: toml.number.binary_integer
-  0008    | CallFunction 0
-  0010    | Or 10 -> 17
-  0013    | GetConstant 1: toml.number.octal_integer
-  0015    | CallFunction 0
-  0017    | Or 17 -> 24
-  0020    | GetConstant 2: toml.number.hex_integer
-  0022    | CallFunction 0
-  0024    | Or 24 -> 31
-  0027    | GetConstant 3: toml.number.infinity
-  0029    | CallFunction 0
-  0031    | Or 31 -> 38
-  0034    | GetConstant 4: toml.number.not_a_number
-  0036    | CallFunction 0
-  0038    | Or 38 -> 45
+  0001    | GetConstant 0: toml.number.binary_integer
+  0003    | CallFunction 0
+  0005    | Or 5 -> 52
+  0008    | SetInputMark
+  0009    | GetConstant 1: toml.number.octal_integer
+  0011    | CallFunction 0
+  0013    | Or 13 -> 52
+  0016    | SetInputMark
+  0017    | GetConstant 2: toml.number.hex_integer
+  0019    | CallFunction 0
+  0021    | Or 21 -> 52
+  0024    | SetInputMark
+  0025    | GetConstant 3: toml.number.infinity
+  0027    | CallFunction 0
+  0029    | Or 29 -> 52
+  0032    | SetInputMark
+  0033    | GetConstant 4: toml.number.not_a_number
+  0035    | CallFunction 0
+  0037    | Or 37 -> 52
+  0040    | SetInputMark
   0041    | GetConstant 5: toml.number.float
   0043    | CallFunction 0
   0045    | Or 45 -> 52
@@ -4242,40 +4242,40 @@
   ========================================
   0000    | GetConstant 0: C
   0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | GetConstant 1: """""""
-  0007    | CallFunction 0
-  0009    | TakeRight 9 -> 17
-  0012    | GetBoundLocal 0
-  0014    | GetConstant 2: """"
-  0016    | Merge
-  0017    | Or 17 -> 32
-  0020    | GetConstant 3: """"""
-  0022    | CallFunction 0
-  0024    | TakeRight 24 -> 32
-  0027    | GetBoundLocal 0
-  0029    | GetConstant 4: """
-  0031    | Merge
-  0032    | Or 32 -> 44
+  0003    | GetConstant 1: """""""
+  0005    | CallFunction 0
+  0007    | TakeRight 7 -> 15
+  0010    | GetBoundLocal 0
+  0012    | GetConstant 2: """"
+  0014    | Merge
+  0015    | Or 15 -> 113
+  0018    | SetInputMark
+  0019    | GetConstant 3: """"""
+  0021    | CallFunction 0
+  0023    | TakeRight 23 -> 31
+  0026    | GetBoundLocal 0
+  0028    | GetConstant 4: """
+  0030    | Merge
+  0031    | Or 31 -> 113
+  0034    | SetInputMark
   0035    | GetConstant 5: """""
   0037    | CallFunction 0
   0039    | TakeRight 39 -> 44
   0042    | GetBoundLocal 0
   0044    | Or 44 -> 113
   0047    | SetInputMark
-  0048    | SetInputMark
-  0049    | SetInputMark
-  0050    | SetInputMark
-  0051    | GetConstant 6: _toml.escaped_ctrl_char
-  0053    | CallFunction 0
-  0055    | Or 55 -> 62
-  0058    | GetConstant 7: _toml.escaped_unicode
-  0060    | CallFunction 0
-  0062    | Or 62 -> 69
-  0065    | GetConstant 8: whitespace
-  0067    | CallFunction 0
-  0069    | Or 69 -> 88
+  0048    | GetConstant 6: _toml.escaped_ctrl_char
+  0050    | CallFunction 0
+  0052    | Or 52 -> 99
+  0055    | SetInputMark
+  0056    | GetConstant 7: _toml.escaped_unicode
+  0058    | CallFunction 0
+  0060    | Or 60 -> 99
+  0063    | SetInputMark
+  0064    | GetConstant 8: whitespace
+  0066    | CallFunction 0
+  0068    | Or 68 -> 99
+  0071    | SetInputMark
   0072    | GetConstant 9: "\"
   0074    | CallFunction 0
   0076    | GetConstant 10: whitespace
@@ -4324,22 +4324,22 @@
   ========================================
   0000    | GetConstant 0: C
   0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | GetConstant 1: "'''''"
-  0007    | CallFunction 0
-  0009    | TakeRight 9 -> 17
-  0012    | GetBoundLocal 0
-  0014    | GetConstant 2: "''"
-  0016    | Merge
-  0017    | Or 17 -> 32
-  0020    | GetConstant 3: "''''"
-  0022    | CallFunction 0
-  0024    | TakeRight 24 -> 32
-  0027    | GetBoundLocal 0
-  0029    | GetConstant 4: "'"
-  0031    | Merge
-  0032    | Or 32 -> 44
+  0003    | GetConstant 1: "'''''"
+  0005    | CallFunction 0
+  0007    | TakeRight 7 -> 15
+  0010    | GetBoundLocal 0
+  0012    | GetConstant 2: "''"
+  0014    | Merge
+  0015    | Or 15 -> 65
+  0018    | SetInputMark
+  0019    | GetConstant 3: "''''"
+  0021    | CallFunction 0
+  0023    | TakeRight 23 -> 31
+  0026    | GetBoundLocal 0
+  0028    | GetConstant 4: "'"
+  0030    | Merge
+  0031    | Or 31 -> 65
+  0034    | SetInputMark
   0035    | GetConstant 5: "'''"
   0037    | CallFunction 0
   0039    | TakeRight 39 -> 44
@@ -4376,10 +4376,10 @@
   _ctrl_char | `\` | '"'
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | GetConstant 0: _ctrl_char
-  0004    | CallFunction 0
-  0006    | Or 6 -> 13
+  0001    | GetConstant 0: _ctrl_char
+  0003    | CallFunction 0
+  0005    | Or 5 -> 20
+  0008    | SetInputMark
   0009    | GetConstant 1: "\"
   0011    | CallFunction 0
   0013    | Or 13 -> 20
@@ -4394,10 +4394,10 @@
       unless(char, _ctrl_char | `\` | '"')
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | GetConstant 0: _toml.escaped_ctrl_char
-  0004    | CallFunction 0
-  0006    | Or 6 -> 13
+  0001    | GetConstant 0: _toml.escaped_ctrl_char
+  0003    | CallFunction 0
+  0005    | Or 5 -> 24
+  0008    | SetInputMark
   0009    | GetConstant 1: _toml.escaped_unicode
   0011    | CallFunction 0
   0013    | Or 13 -> 24
@@ -4464,37 +4464,37 @@
     (`\t` $ "\t")
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | SetInputMark
-  0003    | SetInputMark
-  0004    | SetInputMark
-  0005    | SetInputMark
-  0006    | GetConstant 0: "\""
-  0008    | CallFunction 0
-  0010    | TakeRight 10 -> 15
-  0013    | GetConstant 1: """
-  0015    | Or 15 -> 27
-  0018    | GetConstant 2: "\\"
-  0020    | CallFunction 0
-  0022    | TakeRight 22 -> 27
-  0025    | GetConstant 3: "\"
-  0027    | Or 27 -> 39
-  0030    | GetConstant 4: "\b"
-  0032    | CallFunction 0
-  0034    | TakeRight 34 -> 39
-  0037    | GetConstant 5: "\x08" (esc)
-  0039    | Or 39 -> 51
-  0042    | GetConstant 6: "\f"
-  0044    | CallFunction 0
-  0046    | TakeRight 46 -> 51
-  0049    | GetConstant 7: "\x0c" (esc)
-  0051    | Or 51 -> 63
-  0054    | GetConstant 8: "\n"
-  0056    | CallFunction 0
-  0058    | TakeRight 58 -> 63
-  0061    | GetConstant 9: "
+  0001    | GetConstant 0: "\""
+  0003    | CallFunction 0
+  0005    | TakeRight 5 -> 10
+  0008    | GetConstant 1: """
+  0010    | Or 10 -> 87
+  0013    | SetInputMark
+  0014    | GetConstant 2: "\\"
+  0016    | CallFunction 0
+  0018    | TakeRight 18 -> 23
+  0021    | GetConstant 3: "\"
+  0023    | Or 23 -> 87
+  0026    | SetInputMark
+  0027    | GetConstant 4: "\b"
+  0029    | CallFunction 0
+  0031    | TakeRight 31 -> 36
+  0034    | GetConstant 5: "\x08" (esc)
+  0036    | Or 36 -> 87
+  0039    | SetInputMark
+  0040    | GetConstant 6: "\f"
+  0042    | CallFunction 0
+  0044    | TakeRight 44 -> 49
+  0047    | GetConstant 7: "\x0c" (esc)
+  0049    | Or 49 -> 87
+  0052    | SetInputMark
+  0053    | GetConstant 8: "\n"
+  0055    | CallFunction 0
+  0057    | TakeRight 57 -> 62
+  0060    | GetConstant 9: "
   "
-  0063    | Or 63 -> 75
+  0062    | Or 62 -> 87
+  0065    | SetInputMark
   0066    | GetConstant 10: "\r"
   0068    | CallFunction 0
   0070    | TakeRight 70 -> 75
@@ -4547,10 +4547,10 @@
   0000    | GetConstant 0: toml.datetime.local_date
   0002    | CallFunction 0
   0004    | SetInputMark
-  0005    | SetInputMark
-  0006    | GetConstant 1: "T"
-  0008    | CallFunction 0
-  0010    | Or 10 -> 17
+  0005    | GetConstant 1: "T"
+  0007    | CallFunction 0
+  0009    | Or 9 -> 24
+  0012    | SetInputMark
   0013    | GetConstant 2: "t"
   0015    | CallFunction 0
   0017    | Or 17 -> 24
@@ -4569,10 +4569,10 @@
   0000    | GetConstant 0: toml.datetime.local_date
   0002    | CallFunction 0
   0004    | SetInputMark
-  0005    | SetInputMark
-  0006    | GetConstant 1: "T"
-  0008    | CallFunction 0
-  0010    | Or 10 -> 17
+  0005    | GetConstant 1: "T"
+  0007    | CallFunction 0
+  0009    | Or 9 -> 24
+  0012    | SetInputMark
   0013    | GetConstant 2: "t"
   0015    | CallFunction 0
   0017    | Or 17 -> 24
@@ -4619,12 +4619,12 @@
   _toml.datetime.month = ("0" + "1".."9") | "11" | "12"
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | GetConstant 0: "0"
-  0004    | CallFunction 0
-  0006    | ParseRange 1 2: "1" "9"
-  0009    | Merge
-  0010    | Or 10 -> 17
+  0001    | GetConstant 0: "0"
+  0003    | CallFunction 0
+  0005    | ParseRange 1 2: "1" "9"
+  0008    | Merge
+  0009    | Or 9 -> 24
+  0012    | SetInputMark
   0013    | GetConstant 3: "11"
   0015    | CallFunction 0
   0017    | Or 17 -> 24
@@ -4637,11 +4637,11 @@
   _toml.datetime.mday = ("0".."2" + "1".."9") | "30" | "31"
   ========================================
   0000    | SetInputMark
-  0001    | SetInputMark
-  0002    | ParseRange 0 1: "0" "2"
-  0005    | ParseRange 2 3: "1" "9"
-  0008    | Merge
-  0009    | Or 9 -> 16
+  0001    | ParseRange 0 1: "0" "2"
+  0004    | ParseRange 2 3: "1" "9"
+  0007    | Merge
+  0008    | Or 8 -> 23
+  0011    | SetInputMark
   0012    | GetConstant 4: "30"
   0014    | CallFunction 0
   0016    | Or 16 -> 23
@@ -4698,10 +4698,10 @@
   0000    | GetConstant 0: toml.datetime.local_time
   0002    | CallFunction 0
   0004    | SetInputMark
-  0005    | SetInputMark
-  0006    | GetConstant 1: "Z"
-  0008    | CallFunction 0
-  0010    | Or 10 -> 17
+  0005    | GetConstant 1: "Z"
+  0007    | CallFunction 0
+  0009    | Or 9 -> 24
+  0012    | SetInputMark
   0013    | GetConstant 2: "z"
   0015    | CallFunction 0
   0017    | Or 17 -> 24

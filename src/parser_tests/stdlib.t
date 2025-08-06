@@ -44,10 +44,10 @@
   (DeclareGlobal 307-350
     (ParserVar 307-318 hex_numeral)
     (Or 321-350
-      (Or 321-339
-        (ParserVar 321-328 numeral)
-        (Range 331-339 (String 331-334 "a") (String 336-339 "f")))
-      (Range 342-350 (String 342-345 "A") (String 347-350 "F"))))
+      (ParserVar 321-328 numeral)
+      (Or 331-350
+        (Range 331-339 (String 331-334 "a") (String 336-339 "f"))
+        (Range 342-350 (String 342-345 "A") (String 347-350 "F")))))
   (DeclareGlobal 352-375
     (ParserVar 352-357 alnum)
     (Or 360-375
@@ -64,10 +64,10 @@
     (Function 446-469
       (ParserVar 446-450 many)
       ((Or 451-468
-          (Or 451-462
-            (ParserVar 451-456 alnum)
-            (String 459-462 "_"))
-          (String 465-468 "-")))))
+          (ParserVar 451-456 alnum)
+          (Or 459-468
+            (String 459-462 "_")
+            (String 465-468 "-"))))))
   (DeclareGlobal 471-513
     (ParserVar 471-475 line)
     (Function 478-513
@@ -78,35 +78,35 @@
   (DeclareGlobal 515-612
     (ParserVar 515-520 space)
     (Or 525-612
-      (Or 525-599
-        (Or 525-586
-          (Or 525-573
-            (Or 525-548
-              (Or 525-535
-                (String 525-528 " ")
-                (String 531-535 "\t")) (esc)
-              (String 538-548 "\xc2\xa0")) (esc)
-            (Range 551-573 (String 551-561 "\xe2\x80\x80") (String 563-573 "\xe2\x80\x8a"))) (esc)
-          (String 576-586 "\xe2\x80\xaf")) (esc)
-        (String 589-599 "\xe2\x81\x9f")) (esc)
-      (String 602-612 "\xe3\x80\x80"))) (esc)
+      (String 525-528 " ")
+      (Or 531-612
+        (String 531-535 "\t") (esc)
+        (Or 538-612
+          (String 538-548 "\xc2\xa0") (esc)
+          (Or 551-612
+            (Range 551-573 (String 551-561 "\xe2\x80\x80") (String 563-573 "\xe2\x80\x8a")) (esc)
+            (Or 576-612
+              (String 576-586 "\xe2\x80\xaf") (esc)
+              (Or 589-612
+                (String 589-599 "\xe2\x81\x9f") (esc)
+                (String 602-612 "\xe3\x80\x80")))))))) (esc)
   (DeclareGlobal 614-634
     (ParserVar 614-620 spaces)
     (Function 623-634 (ParserVar 623-627 many) ((ParserVar 628-633 space))))
   (DeclareGlobal 636-716
     (ParserVar 636-643 newline)
     (Or 646-716
-      (Or 646-703
-        (Or 646-690
-          (Or 646-677
-            (String 646-652 "\r (esc)
+      (String 646-652 "\r (esc)
   ")
-            (Range 655-677 (String 655-665 "
+      (Or 655-716
+        (Range 655-677 (String 655-665 "
   ") (String 667-677 "\r (no-eol) (esc)
-  ")))
-          (String 680-690 "\xc2\x85")) (esc)
-        (String 693-703 "\xe2\x80\xa8")) (esc)
-      (String 706-716 "\xe2\x80\xa9"))) (esc)
+  "))
+        (Or 680-716
+          (String 680-690 "\xc2\x85") (esc)
+          (Or 693-716
+            (String 693-703 "\xe2\x80\xa8") (esc)
+            (String 706-716 "\xe2\x80\xa9")))))) (esc)
   (DeclareGlobal 718-730
     (ParserVar 718-720 nl)
     (ParserVar 723-730 newline))
@@ -249,42 +249,42 @@
   (DeclareGlobal 1981-2126
     (ParserVar 1981-1990 hex_digit)
     (Or 1995-2126
-      (Or 1995-2105
-        (Or 1995-2084
-          (Or 1995-2063
-            (Or 1995-2042
-              (Or 1995-2021
-                (ParserVar 1995-2000 digit)
-                (Return 2005-2021
-                  (Or 2006-2015
-                    (String 2006-2009 "a")
-                    (String 2012-2015 "A"))
-                  (NumberString 2018-2020 10)))
-              (Return 2026-2042
-                (Or 2027-2036
-                  (String 2027-2030 "b")
-                  (String 2033-2036 "B"))
-                (NumberString 2039-2041 11)))
+      (ParserVar 1995-2000 digit)
+      (Or 2005-2126
+        (Return 2005-2021
+          (Or 2006-2015
+            (String 2006-2009 "a")
+            (String 2012-2015 "A"))
+          (NumberString 2018-2020 10))
+        (Or 2026-2126
+          (Return 2026-2042
+            (Or 2027-2036
+              (String 2027-2030 "b")
+              (String 2033-2036 "B"))
+            (NumberString 2039-2041 11))
+          (Or 2047-2126
             (Return 2047-2063
               (Or 2048-2057
                 (String 2048-2051 "c")
                 (String 2054-2057 "C"))
-              (NumberString 2060-2062 12)))
-          (Return 2068-2084
-            (Or 2069-2078
-              (String 2069-2072 "d")
-              (String 2075-2078 "D"))
-            (NumberString 2081-2083 13)))
-        (Return 2089-2105
-          (Or 2090-2099
-            (String 2090-2093 "e")
-            (String 2096-2099 "E"))
-          (NumberString 2102-2104 14)))
-      (Return 2110-2126
-        (Or 2111-2120
-          (String 2111-2114 "f")
-          (String 2117-2120 "F"))
-        (NumberString 2123-2125 15))))
+              (NumberString 2060-2062 12))
+            (Or 2068-2126
+              (Return 2068-2084
+                (Or 2069-2078
+                  (String 2069-2072 "d")
+                  (String 2075-2078 "D"))
+                (NumberString 2081-2083 13))
+              (Or 2089-2126
+                (Return 2089-2105
+                  (Or 2090-2099
+                    (String 2090-2093 "e")
+                    (String 2096-2099 "E"))
+                  (NumberString 2102-2104 14))
+                (Return 2110-2126
+                  (Or 2111-2120
+                    (String 2111-2114 "f")
+                    (String 2117-2120 "F"))
+                  (NumberString 2123-2125 15)))))))))
   (DeclareGlobal 2128-2205
     (ParserVar 2128-2142 binary_integer)
     (Return 2145-2205
@@ -1447,16 +1447,16 @@
   (DeclareGlobal 8904-9014
     (ParserVar 8904-8908 json)
     (Or 8913-9014
-      (Or 8913-8992
-        (Or 8913-8971
-          (Or 8913-8955
-            (Or 8913-8939
-              (ParserVar 8913-8925 json.boolean)
-              (ParserVar 8930-8939 json.null))
-            (ParserVar 8944-8955 json.number))
-          (ParserVar 8960-8971 json.string))
-        (Function 8976-8992 (ParserVar 8976-8986 json.array) ((ParserVar 8987-8991 json))))
-      (Function 8997-9014 (ParserVar 8997-9008 json.object) ((ParserVar 9009-9013 json)))))
+      (ParserVar 8913-8925 json.boolean)
+      (Or 8930-9014
+        (ParserVar 8930-8939 json.null)
+        (Or 8944-9014
+          (ParserVar 8944-8955 json.number)
+          (Or 8960-9014
+            (ParserVar 8960-8971 json.string)
+            (Or 8976-9014
+              (Function 8976-8992 (ParserVar 8976-8986 json.array) ((ParserVar 8987-8991 json)))
+              (Function 8997-9014 (ParserVar 8997-9008 json.object) ((ParserVar 9009-9013 json)))))))))
   (DeclareGlobal 9016-9055
     (ParserVar 9016-9028 json.boolean)
     (Function 9031-9055 (ParserVar 9031-9038 boolean) ((String 9039-9045 "true") (String 9047-9054 "false"))))
@@ -1479,17 +1479,17 @@
       (Function 9172-9270
         (ParserVar 9172-9176 many)
         ((Or 9182-9266
-            (Or 9182-9223
-              (ParserVar 9182-9200 _escaped_ctrl_char)
-              (ParserVar 9207-9223 _escaped_unicode))
-            (Function 9230-9266
-              (ParserVar 9230-9236 unless)
-              ((ParserVar 9237-9241 char)
-               (Or 9243-9265
-                  (Or 9243-9259
+            (ParserVar 9182-9200 _escaped_ctrl_char)
+            (Or 9207-9266
+              (ParserVar 9207-9223 _escaped_unicode)
+              (Function 9230-9266
+                (ParserVar 9230-9236 unless)
+                ((ParserVar 9237-9241 char)
+                 (Or 9243-9265
                     (ParserVar 9243-9253 _ctrl_char)
-                    (String 9256-9259 "\"))
-                  (String 9262-9265 """)))))))
+                    (Or 9256-9265
+                      (String 9256-9259 "\")
+                      (String 9262-9265 """)))))))))
       (Function 9273-9283 (ParserVar 9273-9278 const) ((ValueLabel 9279-9280 (String 9280-9282 ""))))))
   (DeclareGlobal 9285-9320
     (ParserVar 9285-9295 _ctrl_char)
@@ -1497,38 +1497,38 @@
   (DeclareGlobal 9322-9481
     (ParserVar 9322-9340 _escaped_ctrl_char)
     (Or 9345-9481
-      (Or 9345-9463
-        (Or 9345-9445
-          (Or 9345-9427
-            (Or 9345-9409
-              (Or 9345-9391
-                (Or 9345-9374
-                  (Return 9345-9357
-                    (String 9346-9350 "\"")
-                    (String 9353-9356 """))
-                  (Return 9362-9374
-                    (String 9363-9367 "\\")
-                    (String 9370-9373 "\")))
-                (Return 9379-9391
-                  (String 9380-9384 "\/")
-                  (String 9387-9390 "/")))
-              (Return 9396-9409
-                (String 9397-9401 "\b")
-                (String 9404-9408 "\x08"))) (esc)
-            (Return 9414-9427
-              (String 9415-9419 "\f")
-              (String 9422-9426 "\x0c"))) (esc)
-          (Return 9432-9445
-            (String 9433-9437 "\n")
-            (String 9440-9444 "
-  ")))
-        (Return 9450-9463
-          (String 9451-9455 "\r")
-          (String 9458-9462 "\r (no-eol) (esc)
-  ")))
-      (Return 9468-9481
-        (String 9469-9473 "\t")
-        (String 9476-9480 "\t")))) (esc)
+      (Return 9345-9357
+        (String 9346-9350 "\"")
+        (String 9353-9356 """))
+      (Or 9362-9481
+        (Return 9362-9374
+          (String 9363-9367 "\\")
+          (String 9370-9373 "\"))
+        (Or 9379-9481
+          (Return 9379-9391
+            (String 9380-9384 "\/")
+            (String 9387-9390 "/"))
+          (Or 9396-9481
+            (Return 9396-9409
+              (String 9397-9401 "\b")
+              (String 9404-9408 "\x08")) (esc)
+            (Or 9414-9481
+              (Return 9414-9427
+                (String 9415-9419 "\f")
+                (String 9422-9426 "\x0c")) (esc)
+              (Or 9432-9481
+                (Return 9432-9445
+                  (String 9433-9437 "\n")
+                  (String 9440-9444 "
+  "))
+                (Or 9450-9481
+                  (Return 9450-9463
+                    (String 9451-9455 "\r")
+                    (String 9458-9462 "\r (no-eol) (esc)
+  "))
+                  (Return 9468-9481
+                    (String 9469-9473 "\t")
+                    (String 9476-9480 "\t")))))))))) (esc)
   (DeclareGlobal 9483-9546
     (ParserVar 9483-9499 _escaped_unicode)
     (Or 9502-9546
@@ -1568,16 +1568,16 @@
               (String 9826-9829 "D")
               (String 9832-9835 "d")))
           (Or 9839-9874
-            (Or 9840-9867
-              (Or 9840-9861
-                (Or 9840-9855
-                  (Or 9840-9849
-                    (String 9840-9843 "8")
-                    (String 9846-9849 "9"))
-                  (String 9852-9855 "A"))
-                (String 9858-9861 "B"))
-              (String 9864-9867 "a"))
-            (String 9870-9873 "b")))
+            (String 9840-9843 "8")
+            (Or 9846-9873
+              (String 9846-9849 "9")
+              (Or 9852-9873
+                (String 9852-9855 "A")
+                (Or 9858-9873
+                  (String 9858-9861 "B")
+                  (Or 9864-9873
+                    (String 9864-9867 "a")
+                    (String 9870-9873 "b")))))))
         (ParserVar 9877-9888 hex_numeral))
       (ParserVar 9891-9902 hex_numeral)))
   (DeclareGlobal 9904-9993
@@ -1815,18 +1815,18 @@
   (DeclareGlobal 12325-12418
     (ParserVar 12325-12334 _toml.key)
     (Or 12339-12418
-      (Or 12339-12394
-        (Function 12339-12372
-          (ParserVar 12339-12343 many)
-          ((Or 12344-12371
-              (Or 12344-12365
-                (Or 12344-12359
-                  (ParserVar 12344-12349 alpha)
-                  (ParserVar 12352-12359 numeral))
-                (String 12362-12365 "_"))
-              (String 12368-12371 "-"))))
-        (ParserVar 12377-12394 toml.string.basic))
-      (ParserVar 12399-12418 toml.string.literal)))
+      (Function 12339-12372
+        (ParserVar 12339-12343 many)
+        ((Or 12344-12371
+            (ParserVar 12344-12349 alpha)
+            (Or 12352-12371
+              (ParserVar 12352-12359 numeral)
+              (Or 12362-12371
+                (String 12362-12365 "_")
+                (String 12368-12371 "-"))))))
+      (Or 12377-12418
+        (ParserVar 12377-12394 toml.string.basic)
+        (ParserVar 12399-12418 toml.string.literal))))
   (DeclareGlobal 12420-12453
     (ParserVar 12420-12433 _toml.comment)
     (TakeRight 12436-12453
@@ -1835,71 +1835,71 @@
   (DeclareGlobal 12455-12614
     (ParserVar 12455-12472 toml.simple_value)
     (Or 12477-12614
-      (Or 12477-12573
-        (Or 12477-12539
-          (Or 12477-12522
-            (Or 12477-12506
-              (ParserVar 12477-12488 toml.string)
-              (ParserVar 12493-12506 toml.datetime))
-            (ParserVar 12511-12522 toml.number))
-          (ParserVar 12527-12539 toml.boolean))
-        (Function 12544-12573 (ParserVar 12544-12554 toml.array) ((ParserVar 12555-12572 toml.simple_value))))
-      (Function 12578-12614 (ParserVar 12578-12595 toml.inline_table) ((ParserVar 12596-12613 toml.simple_value)))))
+      (ParserVar 12477-12488 toml.string)
+      (Or 12493-12614
+        (ParserVar 12493-12506 toml.datetime)
+        (Or 12511-12614
+          (ParserVar 12511-12522 toml.number)
+          (Or 12527-12614
+            (ParserVar 12527-12539 toml.boolean)
+            (Or 12544-12614
+              (Function 12544-12573 (ParserVar 12544-12554 toml.array) ((ParserVar 12555-12572 toml.simple_value)))
+              (Function 12578-12614 (ParserVar 12578-12595 toml.inline_table) ((ParserVar 12596-12613 toml.simple_value)))))))))
   (DeclareGlobal 12616-13256
     (ParserVar 12616-12633 toml.tagged_value)
     (Or 12638-13256
-      (Or 12638-13215
-        (Or 12638-13181
-          (Or 12638-13164
-            (Or 12638-13140
-              (Or 12638-13118
-                (Or 12638-13051
-                  (Or 12638-12992
-                    (Or 12638-12964
-                      (Or 12638-12934
-                        (Or 12638-12903
-                          (Or 12638-12835
-                            (Or 12638-12767
-                              (Or 12638-12709
-                                (ParserVar 12638-12649 toml.string)
-                                (Function 12654-12709
-                                  (ParserVar 12654-12663 _toml.tag)
-                                  ((ValueLabel 12664-12665 (String 12665-12675 "datetime"))
-                                   (ValueLabel 12677-12678 (String 12678-12686 "offset"))
-                                   (ParserVar 12688-12708 toml.datetime.offset))))
-                              (Function 12714-12767
-                                (ParserVar 12714-12723 _toml.tag)
-                                ((ValueLabel 12724-12725 (String 12725-12735 "datetime"))
-                                 (ValueLabel 12737-12738 (String 12738-12745 "local"))
-                                 (ParserVar 12747-12766 toml.datetime.local))))
-                            (Function 12772-12835
-                              (ParserVar 12772-12781 _toml.tag)
-                              ((ValueLabel 12782-12783 (String 12783-12793 "datetime"))
-                               (ValueLabel 12795-12796 (String 12796-12808 "date-local"))
-                               (ParserVar 12810-12834 toml.datetime.local_date))))
-                          (Function 12840-12903
-                            (ParserVar 12840-12849 _toml.tag)
-                            ((ValueLabel 12850-12851 (String 12851-12861 "datetime"))
-                             (ValueLabel 12863-12864 (String 12864-12876 "time-local"))
-                             (ParserVar 12878-12902 toml.datetime.local_time))))
-                        (ParserVar 12908-12934 toml.number.binary_integer))
-                      (ParserVar 12939-12964 toml.number.octal_integer))
-                    (ParserVar 12969-12992 toml.number.hex_integer))
-                  (Function 12997-13051
-                    (ParserVar 12997-13006 _toml.tag)
-                    ((ValueLabel 13007-13008 (String 13008-13015 "float"))
-                     (ValueLabel 13017-13018 (String 13018-13028 "infinity"))
-                     (ParserVar 13030-13050 toml.number.infinity))))
-                (Function 13056-13118
-                  (ParserVar 13056-13065 _toml.tag)
-                  ((ValueLabel 13066-13067 (String 13067-13074 "float"))
-                   (ValueLabel 13076-13077 (String 13077-13091 "not-a-number"))
-                   (ParserVar 13093-13117 toml.number.not_a_number))))
-              (ParserVar 13123-13140 toml.number.float))
-            (ParserVar 13145-13164 toml.number.integer))
-          (ParserVar 13169-13181 toml.boolean))
-        (Function 13186-13215 (ParserVar 13186-13196 toml.array) ((ParserVar 13197-13214 toml.tagged_value))))
-      (Function 13220-13256 (ParserVar 13220-13237 toml.inline_table) ((ParserVar 13238-13255 toml.tagged_value)))))
+      (ParserVar 12638-12649 toml.string)
+      (Or 12654-13256
+        (Function 12654-12709
+          (ParserVar 12654-12663 _toml.tag)
+          ((ValueLabel 12664-12665 (String 12665-12675 "datetime"))
+           (ValueLabel 12677-12678 (String 12678-12686 "offset"))
+           (ParserVar 12688-12708 toml.datetime.offset)))
+        (Or 12714-13256
+          (Function 12714-12767
+            (ParserVar 12714-12723 _toml.tag)
+            ((ValueLabel 12724-12725 (String 12725-12735 "datetime"))
+             (ValueLabel 12737-12738 (String 12738-12745 "local"))
+             (ParserVar 12747-12766 toml.datetime.local)))
+          (Or 12772-13256
+            (Function 12772-12835
+              (ParserVar 12772-12781 _toml.tag)
+              ((ValueLabel 12782-12783 (String 12783-12793 "datetime"))
+               (ValueLabel 12795-12796 (String 12796-12808 "date-local"))
+               (ParserVar 12810-12834 toml.datetime.local_date)))
+            (Or 12840-13256
+              (Function 12840-12903
+                (ParserVar 12840-12849 _toml.tag)
+                ((ValueLabel 12850-12851 (String 12851-12861 "datetime"))
+                 (ValueLabel 12863-12864 (String 12864-12876 "time-local"))
+                 (ParserVar 12878-12902 toml.datetime.local_time)))
+              (Or 12908-13256
+                (ParserVar 12908-12934 toml.number.binary_integer)
+                (Or 12939-13256
+                  (ParserVar 12939-12964 toml.number.octal_integer)
+                  (Or 12969-13256
+                    (ParserVar 12969-12992 toml.number.hex_integer)
+                    (Or 12997-13256
+                      (Function 12997-13051
+                        (ParserVar 12997-13006 _toml.tag)
+                        ((ValueLabel 13007-13008 (String 13008-13015 "float"))
+                         (ValueLabel 13017-13018 (String 13018-13028 "infinity"))
+                         (ParserVar 13030-13050 toml.number.infinity)))
+                      (Or 13056-13256
+                        (Function 13056-13118
+                          (ParserVar 13056-13065 _toml.tag)
+                          ((ValueLabel 13066-13067 (String 13067-13074 "float"))
+                           (ValueLabel 13076-13077 (String 13077-13091 "not-a-number"))
+                           (ParserVar 13093-13117 toml.number.not_a_number)))
+                        (Or 13123-13256
+                          (ParserVar 13123-13140 toml.number.float)
+                          (Or 13145-13256
+                            (ParserVar 13145-13164 toml.number.integer)
+                            (Or 13169-13256
+                              (ParserVar 13169-13181 toml.boolean)
+                              (Or 13186-13256
+                                (Function 13186-13215 (ParserVar 13186-13196 toml.array) ((ParserVar 13197-13214 toml.tagged_value)))
+                                (Function 13220-13256 (ParserVar 13220-13237 toml.inline_table) ((ParserVar 13238-13255 toml.tagged_value))))))))))))))))))
   (DeclareGlobal 13258-13361
     (Function 13258-13289
       (ParserVar 13258-13267 _toml.tag)
@@ -1917,36 +1917,36 @@
   (DeclareGlobal 13363-13488
     (ParserVar 13363-13374 toml.string)
     (Or 13379-13488
-      (Or 13379-13464
-        (Or 13379-13442
-          (ParserVar 13379-13407 toml.string.multi_line_basic)
-          (ParserVar 13412-13442 toml.string.multi_line_literal))
-        (ParserVar 13447-13464 toml.string.basic))
-      (ParserVar 13469-13488 toml.string.literal)))
+      (ParserVar 13379-13407 toml.string.multi_line_basic)
+      (Or 13412-13488
+        (ParserVar 13412-13442 toml.string.multi_line_literal)
+        (Or 13447-13488
+          (ParserVar 13447-13464 toml.string.basic)
+          (ParserVar 13469-13488 toml.string.literal)))))
   (DeclareGlobal 13490-13610
     (ParserVar 13490-13503 toml.datetime)
     (Or 13508-13610
-      (Or 13508-13581
-        (Or 13508-13552
-          (ParserVar 13508-13528 toml.datetime.offset)
-          (ParserVar 13533-13552 toml.datetime.local))
-        (ParserVar 13557-13581 toml.datetime.local_date))
-      (ParserVar 13586-13610 toml.datetime.local_time)))
+      (ParserVar 13508-13528 toml.datetime.offset)
+      (Or 13533-13610
+        (ParserVar 13533-13552 toml.datetime.local)
+        (Or 13557-13610
+          (ParserVar 13557-13581 toml.datetime.local_date)
+          (ParserVar 13586-13610 toml.datetime.local_time)))))
   (DeclareGlobal 13612-13812
     (ParserVar 13612-13623 toml.number)
     (Or 13628-13812
-      (Or 13628-13788
-        (Or 13628-13766
-          (Or 13628-13737
-            (Or 13628-13712
-              (Or 13628-13684
-                (ParserVar 13628-13654 toml.number.binary_integer)
-                (ParserVar 13659-13684 toml.number.octal_integer))
-              (ParserVar 13689-13712 toml.number.hex_integer))
-            (ParserVar 13717-13737 toml.number.infinity))
-          (ParserVar 13742-13766 toml.number.not_a_number))
-        (ParserVar 13771-13788 toml.number.float))
-      (ParserVar 13793-13812 toml.number.integer)))
+      (ParserVar 13628-13654 toml.number.binary_integer)
+      (Or 13659-13812
+        (ParserVar 13659-13684 toml.number.octal_integer)
+        (Or 13689-13812
+          (ParserVar 13689-13712 toml.number.hex_integer)
+          (Or 13717-13812
+            (ParserVar 13717-13737 toml.number.infinity)
+            (Or 13742-13812
+              (ParserVar 13742-13766 toml.number.not_a_number)
+              (Or 13771-13812
+                (ParserVar 13771-13788 toml.number.float)
+                (ParserVar 13793-13812 toml.number.integer))))))))
   (DeclareGlobal 13814-13853
     (ParserVar 13814-13826 toml.boolean)
     (Function 13829-13853 (ParserVar 13829-13836 boolean) ((String 13837-13843 "true") (String 13845-13852 "false"))))
@@ -2044,47 +2044,47 @@
   (DeclareGlobal 14859-15151
     (Function 14859-14893 (ParserVar 14859-14888 _toml.string.multi_line_basic) ((ValueVar 14889-14892 Acc)))
     (Or 14898-15151
-      (Or 14898-14967
-        (Or 14898-14949
-          (Return 14898-14922
-            (String 14899-14906 """"""")
-            (Merge 14909-14921
-              (ValueVar 14910-14913 Acc)
-              (String 14916-14920 """")))
-          (Return 14927-14949
-            (String 14928-14934 """""")
-            (Merge 14937-14948
-              (ValueVar 14938-14941 Acc)
-              (String 14944-14947 """))))
-        (Return 14954-14967
-          (String 14955-14960 """"")
-          (ValueVar 14963-14966 Acc)))
-      (TakeRight 14972-15151
-        (Destructure 14978-15102
-          (Or 14978-15097
-            (Or 14978-15060
-              (Or 14978-15038
-                (Or 14978-15029
-                  (ParserVar 14978-15001 _toml.escaped_ctrl_char)
-                  (ParserVar 15008-15029 _toml.escaped_unicode))
-                (ParserVar 15036-15038 ws))
-              (TakeRight 15045-15060
-                (Merge 15046-15054
-                  (String 15046-15049 "\")
-                  (ParserVar 15052-15054 ws))
-                (String 15057-15059 "")))
-            (Function 15067-15097
-              (ParserVar 15067-15073 unless)
-              ((ParserVar 15074-15078 char)
-               (Or 15080-15096
-                  (ParserVar 15080-15090 _ctrl_char)
-                  (String 15093-15096 "\")))))
-          (ValueVar 15101-15102 C))
-        (Function 15109-15147
-          (ParserVar 15109-15138 _toml.string.multi_line_basic)
-          ((Merge 15139-15146
-              (ValueVar 15139-15142 Acc)
-              (ValueVar 15145-15146 C)))))))
+      (Return 14898-14922
+        (String 14899-14906 """"""")
+        (Merge 14909-14921
+          (ValueVar 14910-14913 Acc)
+          (String 14916-14920 """")))
+      (Or 14927-15151
+        (Return 14927-14949
+          (String 14928-14934 """""")
+          (Merge 14937-14948
+            (ValueVar 14938-14941 Acc)
+            (String 14944-14947 """)))
+        (Or 14954-15151
+          (Return 14954-14967
+            (String 14955-14960 """"")
+            (ValueVar 14963-14966 Acc))
+          (TakeRight 14972-15151
+            (Destructure 14978-15102
+              (Or 14978-15097
+                (ParserVar 14978-15001 _toml.escaped_ctrl_char)
+                (Or 15008-15097
+                  (ParserVar 15008-15029 _toml.escaped_unicode)
+                  (Or 15036-15097
+                    (ParserVar 15036-15038 ws)
+                    (Or 15045-15097
+                      (TakeRight 15045-15060
+                        (Merge 15046-15054
+                          (String 15046-15049 "\")
+                          (ParserVar 15052-15054 ws))
+                        (String 15057-15059 ""))
+                      (Function 15067-15097
+                        (ParserVar 15067-15073 unless)
+                        ((ParserVar 15074-15078 char)
+                         (Or 15080-15096
+                            (ParserVar 15080-15090 _ctrl_char)
+                            (String 15093-15096 "\"))))))))
+              (ValueVar 15101-15102 C))
+            (Function 15109-15147
+              (ParserVar 15109-15138 _toml.string.multi_line_basic)
+              ((Merge 15139-15146
+                  (ValueVar 15139-15142 Acc)
+                  (ValueVar 15145-15146 C)))))))))
   (DeclareGlobal 15153-15242
     (ParserVar 15153-15183 toml.string.multi_line_literal)
     (TakeRight 15186-15242
@@ -2095,30 +2095,30 @@
   (DeclareGlobal 15244-15413
     (Function 15244-15280 (ParserVar 15244-15275 _toml.string.multi_line_literal) ((ValueVar 15276-15279 Acc)))
     (Or 15285-15413
-      (Or 15285-15354
-        (Or 15285-15336
-          (Return 15285-15309
-            (String 15286-15293 "'''''")
-            (Merge 15296-15308
-              (ValueVar 15297-15300 Acc)
-              (String 15303-15307 "''")))
-          (Return 15314-15336
-            (String 15315-15321 "''''")
-            (Merge 15324-15335
-              (ValueVar 15325-15328 Acc)
-              (String 15331-15334 "'"))))
-        (Return 15341-15354
-          (String 15342-15347 "'''")
-          (ValueVar 15350-15353 Acc)))
-      (TakeRight 15359-15413
-        (Destructure 15360-15369
-          (ParserVar 15360-15364 char)
-          (ValueVar 15368-15369 C))
-        (Function 15372-15412
-          (ParserVar 15372-15403 _toml.string.multi_line_literal)
-          ((Merge 15404-15411
-              (ValueVar 15404-15407 Acc)
-              (ValueVar 15410-15411 C)))))))
+      (Return 15285-15309
+        (String 15286-15293 "'''''")
+        (Merge 15296-15308
+          (ValueVar 15297-15300 Acc)
+          (String 15303-15307 "''")))
+      (Or 15314-15413
+        (Return 15314-15336
+          (String 15315-15321 "''''")
+          (Merge 15324-15335
+            (ValueVar 15325-15328 Acc)
+            (String 15331-15334 "'")))
+        (Or 15341-15413
+          (Return 15341-15354
+            (String 15342-15347 "'''")
+            (ValueVar 15350-15353 Acc))
+          (TakeRight 15359-15413
+            (Destructure 15360-15369
+              (ParserVar 15360-15364 char)
+              (ValueVar 15368-15369 C))
+            (Function 15372-15412
+              (ParserVar 15372-15403 _toml.string.multi_line_literal)
+              ((Merge 15404-15411
+                  (ValueVar 15404-15407 Acc)
+                  (ValueVar 15410-15411 C)))))))))
   (DeclareGlobal 15415-15470
     (ParserVar 15415-15432 toml.string.basic)
     (TakeLeft 15435-15470
@@ -2132,17 +2132,17 @@
       (Function 15500-15608
         (ParserVar 15500-15504 many)
         ((Or 15510-15604
-            (Or 15510-15561
-              (ParserVar 15510-15533 _toml.escaped_ctrl_char)
-              (ParserVar 15540-15561 _toml.escaped_unicode))
-            (Function 15568-15604
-              (ParserVar 15568-15574 unless)
-              ((ParserVar 15575-15579 char)
-               (Or 15581-15603
-                  (Or 15581-15597
+            (ParserVar 15510-15533 _toml.escaped_ctrl_char)
+            (Or 15540-15604
+              (ParserVar 15540-15561 _toml.escaped_unicode)
+              (Function 15568-15604
+                (ParserVar 15568-15574 unless)
+                ((ParserVar 15575-15579 char)
+                 (Or 15581-15603
                     (ParserVar 15581-15591 _ctrl_char)
-                    (String 15594-15597 "\"))
-                  (String 15600-15603 """)))))))
+                    (Or 15594-15603
+                      (String 15594-15597 "\")
+                      (String 15600-15603 """)))))))))
       (Function 15611-15621 (ParserVar 15611-15616 const) ((ValueLabel 15617-15618 (String 15618-15620 ""))))))
   (DeclareGlobal 15623-15687
     (ParserVar 15623-15642 toml.string.literal)
@@ -2154,34 +2154,34 @@
   (DeclareGlobal 15689-15836
     (ParserVar 15689-15712 _toml.escaped_ctrl_char)
     (Or 15717-15836
-      (Or 15717-15818
-        (Or 15717-15800
-          (Or 15717-15782
-            (Or 15717-15764
-              (Or 15717-15746
-                (Return 15717-15729
-                  (String 15718-15722 "\"")
-                  (String 15725-15728 """))
-                (Return 15734-15746
-                  (String 15735-15739 "\\")
-                  (String 15742-15745 "\")))
-              (Return 15751-15764
-                (String 15752-15756 "\b")
-                (String 15759-15763 "\x08"))) (esc)
+      (Return 15717-15729
+        (String 15718-15722 "\"")
+        (String 15725-15728 """))
+      (Or 15734-15836
+        (Return 15734-15746
+          (String 15735-15739 "\\")
+          (String 15742-15745 "\"))
+        (Or 15751-15836
+          (Return 15751-15764
+            (String 15752-15756 "\b")
+            (String 15759-15763 "\x08")) (esc)
+          (Or 15769-15836
             (Return 15769-15782
               (String 15770-15774 "\f")
-              (String 15777-15781 "\x0c"))) (esc)
-          (Return 15787-15800
-            (String 15788-15792 "\n")
-            (String 15795-15799 "
-  ")))
-        (Return 15805-15818
-          (String 15806-15810 "\r")
-          (String 15813-15817 "\r (no-eol) (esc)
-  ")))
-      (Return 15823-15836
-        (String 15824-15828 "\t")
-        (String 15831-15835 "\t")))) (esc)
+              (String 15777-15781 "\x0c")) (esc)
+            (Or 15787-15836
+              (Return 15787-15800
+                (String 15788-15792 "\n")
+                (String 15795-15799 "
+  "))
+              (Or 15805-15836
+                (Return 15805-15818
+                  (String 15806-15810 "\r")
+                  (String 15813-15817 "\r (no-eol) (esc)
+  "))
+                (Return 15823-15836
+                  (String 15824-15828 "\t")
+                  (String 15831-15835 "\t"))))))))) (esc)
   (DeclareGlobal 15838-15969
     (ParserVar 15838-15859 _toml.escaped_unicode)
     (Or 15864-15969
@@ -2205,10 +2205,10 @@
       (Merge 15994-16038
         (ParserVar 15994-16018 toml.datetime.local_date)
         (Or 16021-16038
-          (Or 16022-16031
-            (String 16022-16025 "T")
-            (String 16028-16031 "t"))
-          (String 16034-16037 " ")))
+          (String 16022-16025 "T")
+          (Or 16028-16037
+            (String 16028-16031 "t")
+            (String 16034-16037 " "))))
       (ParserVar 16041-16067 _toml.datetime.time_offset)))
   (DeclareGlobal 16069-16162
     (ParserVar 16069-16088 toml.datetime.local)
@@ -2216,10 +2216,10 @@
       (Merge 16091-16135
         (ParserVar 16091-16115 toml.datetime.local_date)
         (Or 16118-16135
-          (Or 16119-16128
-            (String 16119-16122 "T")
-            (String 16125-16128 "t"))
-          (String 16131-16134 " ")))
+          (String 16119-16122 "T")
+          (Or 16125-16134
+            (String 16125-16128 "t")
+            (String 16131-16134 " "))))
       (ParserVar 16138-16162 toml.datetime.local_time)))
   (DeclareGlobal 16164-16269
     (ParserVar 16164-16188 toml.datetime.local_date)
@@ -2238,21 +2238,21 @@
   (DeclareGlobal 16311-16364
     (ParserVar 16311-16331 _toml.datetime.month)
     (Or 16334-16364
-      (Or 16334-16357
-        (Merge 16334-16350
-          (String 16335-16338 "0")
-          (Range 16341-16349 (String 16341-16344 "1") (String 16346-16349 "9")))
-        (String 16353-16357 "11"))
-      (String 16360-16364 "12")))
+      (Merge 16334-16350
+        (String 16335-16338 "0")
+        (Range 16341-16349 (String 16341-16344 "1") (String 16346-16349 "9")))
+      (Or 16353-16364
+        (String 16353-16357 "11")
+        (String 16360-16364 "12"))))
   (DeclareGlobal 16366-16423
     (ParserVar 16366-16385 _toml.datetime.mday)
     (Or 16388-16423
-      (Or 16388-16416
-        (Merge 16388-16409
-          (Range 16389-16397 (String 16389-16392 "0") (String 16394-16397 "2"))
-          (Range 16400-16408 (String 16400-16403 "1") (String 16405-16408 "9")))
-        (String 16412-16416 "30"))
-      (String 16419-16423 "31")))
+      (Merge 16388-16409
+        (Range 16389-16397 (String 16389-16392 "0") (String 16394-16397 "2"))
+        (Range 16400-16408 (String 16400-16403 "1") (String 16405-16408 "9")))
+      (Or 16412-16423
+        (String 16412-16416 "30")
+        (String 16419-16423 "31"))))
   (DeclareGlobal 16425-16589
     (ParserVar 16425-16449 toml.datetime.local_time)
     (Merge 16454-16589
@@ -2279,10 +2279,10 @@
     (Merge 16620-16690
       (ParserVar 16620-16644 toml.datetime.local_time)
       (Or 16647-16690
-        (Or 16648-16657
-          (String 16648-16651 "Z")
-          (String 16654-16657 "z"))
-        (ParserVar 16660-16689 _toml.datetime.time_numoffset))))
+        (String 16648-16651 "Z")
+        (Or 16654-16689
+          (String 16654-16657 "z")
+          (ParserVar 16660-16689 _toml.datetime.time_numoffset)))))
   (DeclareGlobal 16692-16789
     (ParserVar 16692-16721 _toml.datetime.time_numoffset)
     (Merge 16724-16789

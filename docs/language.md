@@ -40,11 +40,11 @@ Infix operators compose parsers in order to create more complex parsers.
 
 | Operator       | Name        | Precedence | Associativity | Description      |
 | -------------- | ----------- | ---------- | ------------- | -----------------|
-| `p1 \| p2`     | Or          | 3          | Left          | Match `p1`, if no match is found try `p2` instead |
+| `p1 \| p2`     | Or          | 3          | Right         | Match `p1`, if no match is found try `p2` instead |
 | `p1 > p2`      | Take Right  | 3          | Left          | Match `p1` and then `p2`, return the result of `p2` |
 | `p1 < p2`      | Take Left   | 3          | Left          | Match `p1` and then `p2`, return the result of `p1` |
 | `p1 + p2`      | Merge       | 3          | Left          | Match `p1` and then `p2`, return a merged result |
-| `p1 ! p2`      | Backtrack   | 3          | Left          | Match `p1` and then go back in the input and match `p2` instead, return the result of `p2` |
+| `p1 ! p2`      | Backtrack   | 3          | Right         | Match `p1` and then go back in the input and match `p2` instead, return the result of `p2` |
 | `p -> P`       | Destructure | 3          | Left          | Match `p`, destructure the resulting value against the pattern `P` |
 | `p $ V`        | Return      | 3          | Left          | Match `p` and then return the value `V` |
 | `p1 & p2`      | Sequence    | 2          | Left          | Match `p1` and then `p2`, returning the result of `p2` |
