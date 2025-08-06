@@ -197,35 +197,13 @@ pub const Ast = struct {
 
     fn shouldBeMultiline(self: *Ast, node: Node) bool {
         return switch (node) {
-            .InfixNode => true, // InfixNodes have 2 children, so always multiline
-            .Array => |array| {
-                // Always multiline if more than 3 members
-                if (array.items.len > 3) return true;
-                // Otherwise multiline if any child is multiline
-                for (array.items) |item| {
-                    if (self.shouldBeMultiline(item.node)) return true;
-                }
-                return false;
-            },
-            .Object => |obj| {
-                // Always multiline if more than 3 members or if non-empty
-                if (obj.items.len > 3) return true;
-                return obj.items.len > 0;
-            },
-            .StringTemplate => |template| template.items.len > 1,
+            .InfixNode => true,
+            .Array => |array| array.items.len > 0,
+            .Object => |obj| obj.items.len > 0,
+            .StringTemplate => true,
             .Conditional => true,
-            .Function => |function| {
-                if (function.paramsOrArgs.items.len > 2) return true;
-                if (self.shouldBeMultiline(function.name.node)) return true;
-                for (function.paramsOrArgs.items) |arg| {
-                    if (self.shouldBeMultiline(arg.node)) return true;
-                }
-                return false;
-            },
-            .DeclareGlobal => |declaration| {
-                return self.shouldBeMultiline(declaration.head.node) or
-                    self.shouldBeMultiline(declaration.body.node);
-            },
+            .Function => true,
+            .DeclareGlobal => true,
             .Range => |range| {
                 const lower_multiline = if (range.lower) |lower| self.shouldBeMultiline(lower.node) else false;
                 const upper_multiline = if (range.upper) |upper| self.shouldBeMultiline(upper.node) else false;
@@ -327,7 +305,7 @@ pub const Ast = struct {
             },
             .Array => |array| {
                 if (multiline) {
-                    try writer.print("(Array {}:{}-{} (\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
+                    try writer.print("(Array {}:{}-{} [\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                     for (array.items, 0..) |item, i| {
                         try self.printIndent(writer, indent + 1);
                         try self.printSexpr(item, writer, vm, source, indent + 1, last_region, last_relative);
@@ -337,92 +315,79 @@ pub const Ast = struct {
                         try writer.print("\n", .{});
                         try self.printIndent(writer, indent);
                     }
-                    try writer.print("))", .{});
+                    try writer.print("])", .{});
                 } else {
-                    try writer.print("(Array {}:{}-{} (", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
+                    try writer.print("(Array {}:{}-{} [", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                     for (array.items, 0..) |item, i| {
                         if (i > 0) try writer.print(" ", .{});
                         try self.printSexpr(item, writer, vm, source, indent, last_region, last_relative);
                     }
-                    try writer.print("))", .{});
+                    try writer.print("])", .{});
                 }
             },
             .Object => |obj| {
-                if (obj.items.len == 0) {
-                    try writer.print("(Object {}:{}-{})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                } else {
-                    try writer.print("(Object {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                    for (obj.items, 0..) |pair, i| {
-                        try self.printIndent(writer, indent + 1);
-                        try writer.print("(", .{});
-                        try self.printSexpr(pair.key, writer, vm, source, indent + 2, last_region, last_relative);
-                        try writer.print(" ", .{});
-                        try self.printSexpr(pair.value, writer, vm, source, indent + 2, last_region, last_relative);
-                        try writer.print(")", .{});
-                        if (i < obj.items.len - 1) try writer.print("\n", .{});
+                if (multiline) {
+                    try writer.print("(Object {}:{}-{} [\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
+                    for (obj.items) |pair| {
+                        if (self.shouldBeMultiline(pair.key.node) or self.shouldBeMultiline(pair.value.node)) {
+                            try self.printIndent(writer, indent + 1);
+                            try writer.print("(ObjectPair\n", .{});
+                            try self.printIndent(writer, indent + 2);
+                            try self.printSexpr(pair.key, writer, vm, source, indent + 2, last_region, last_relative);
+                            try writer.print("\n", .{});
+                            try self.printIndent(writer, indent + 2);
+                            try self.printSexpr(pair.value, writer, vm, source, indent + 2, last_region, last_relative);
+                            try writer.print(")", .{});
+                        } else {
+                            try self.printIndent(writer, indent + 1);
+                            try writer.print("(ObjectPair ", .{});
+                            try self.printSexpr(pair.key, writer, vm, source, indent + 2, last_region, last_relative);
+                            try writer.print(" ", .{});
+                            try self.printSexpr(pair.value, writer, vm, source, indent + 2, last_region, last_relative);
+                            try writer.print(")", .{});
+                        }
+                        try writer.print("\n", .{});
                     }
-                    try writer.print(")", .{});
+                    try self.printIndent(writer, indent);
+                    try writer.print("])", .{});
+                } else {
+                    try writer.print("(Object {}:{}-{} [])", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                 }
             },
             .StringTemplate => |template| {
-                if (template.items.len <= 1) {
-                    try writer.print("(StringTemplate {}:{}-{} ", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                    if (template.items.len == 1) {
-                        try self.printSexpr(template.items[0], writer, vm, source, indent, last_region, last_relative);
-                    }
-                    try writer.print(")", .{});
-                } else {
-                    try writer.print("(StringTemplate {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                    for (template.items, 0..) |part, i| {
-                        try self.printIndent(writer, indent + 1);
-                        try self.printSexpr(part, writer, vm, source, indent + 1, last_region, last_relative);
-                        if (i < template.items.len - 1) try writer.print("\n", .{});
-                    }
-                    try writer.print(")", .{});
+                try writer.print("(StringTemplate {}:{}-{} [\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
+                for (template.items) |part| {
+                    try self.printIndent(writer, indent + 1);
+                    try self.printSexpr(part, writer, vm, source, indent + 1, last_region, last_relative);
+                    try writer.print("\n", .{});
                 }
+                try self.printIndent(writer, indent);
+                try writer.print("])", .{});
             },
             .Conditional => |cond| {
                 try writer.print("(Conditional {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                 try self.printIndent(writer, indent + 1);
-                try writer.print("(condition ", .{});
-                try self.printSexpr(cond.condition, writer, vm, source, indent + 2, last_region, last_relative);
-                try writer.print(")\n", .{});
+                try self.printSexpr(cond.condition, writer, vm, source, indent + 1, last_region, last_relative);
+                try writer.print("\n", .{});
                 try self.printIndent(writer, indent + 1);
-                try writer.print("(then ", .{});
-                try self.printSexpr(cond.then_branch, writer, vm, source, indent + 2, last_region, last_relative);
-                try writer.print(")\n", .{});
+                try self.printSexpr(cond.then_branch, writer, vm, source, indent + 1, last_region, last_relative);
+                try writer.print("\n", .{});
                 try self.printIndent(writer, indent + 1);
-                try writer.print("(else ", .{});
-                try self.printSexpr(cond.else_branch, writer, vm, source, indent + 2, last_region, last_relative);
-                try writer.print("))", .{});
+                try self.printSexpr(cond.else_branch, writer, vm, source, indent + 1, last_region, last_relative);
+                try writer.print(")", .{});
             },
             .Function => |function| {
-                if (multiline) {
-                    try writer.print("(Function {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                    try self.printIndent(writer, indent + 1);
-                    try self.printSexpr(function.name, writer, vm, source, indent + 1, last_region, last_relative);
+                try writer.print("(Function {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
+                try self.printIndent(writer, indent + 1);
+                try self.printSexpr(function.name, writer, vm, source, indent + 1, last_region, last_relative);
+                try writer.print(" [\n", .{});
+                for (function.paramsOrArgs.items) |arg| {
+                    try self.printIndent(writer, indent + 2);
+                    try self.printSexpr(arg, writer, vm, source, indent + 2, last_region, last_relative);
                     try writer.print("\n", .{});
-                    try self.printIndent(writer, indent + 1);
-                    try writer.print("(", .{});
-                    for (function.paramsOrArgs.items, 0..) |arg, i| {
-                        if (i > 0) {
-                            try writer.print("\n", .{});
-                            try self.printIndent(writer, indent + 1);
-                            try writer.print(" ", .{});
-                        }
-                        try self.printSexpr(arg, writer, vm, source, indent + 2, last_region, last_relative);
-                    }
-                    try writer.print("))", .{});
-                } else {
-                    try writer.print("(Function {}:{}-{} ", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                    try self.printSexpr(function.name, writer, vm, source, indent, last_region, last_relative);
-                    try writer.print(" (", .{});
-                    for (function.paramsOrArgs.items, 0..) |arg, i| {
-                        if (i > 0) try writer.print(" ", .{});
-                        try self.printSexpr(arg, writer, vm, source, indent, last_region, last_relative);
-                    }
-                    try writer.print("))", .{});
                 }
+                try self.printIndent(writer, indent + 1);
+                try writer.print("])", .{});
             },
             .DeclareGlobal => |global| {
                 try writer.print("(DeclareGlobal {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
