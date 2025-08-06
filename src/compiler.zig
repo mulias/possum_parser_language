@@ -1849,7 +1849,7 @@ pub const Compiler = struct {
     }
 
     fn printError(self: *Compiler, message: []const u8, region: Region) !void {
-        try region.printLineRelative(self.vm.source, self.writers.err);
+        try region.printLineRelative(self.targetModule.source, self.writers.err);
         try self.writers.err.print(" Error: {s}\n", .{message});
     }
 };
