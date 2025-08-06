@@ -59,7 +59,6 @@ pub const VM = struct {
     dynList: ?*Elem.DynElem,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
-    source: []const u8,
     input: []const u8,
     inputMarks: ArrayList(Pos),
     inputPos: Pos,
@@ -98,7 +97,6 @@ pub const VM = struct {
             .dynList = undefined,
             .stack = undefined,
             .frames = undefined,
-            .source = undefined,
             .input = undefined,
             .inputMarks = undefined,
             .inputPos = undefined,
@@ -118,7 +116,6 @@ pub const VM = struct {
         self.dynList = null;
         self.stack = ArrayList(Elem){};
         self.frames = ArrayList(CallFrame){};
-        self.source = undefined;
         self.input = undefined;
         self.inputMarks = ArrayList(Pos){};
         self.inputPos = Pos{};
@@ -163,7 +160,6 @@ pub const VM = struct {
     pub fn interpret(self: *VM, module: Module, input: []const u8) !Elem {
         if (input.len > std.math.maxInt(u32)) return error.InputTooLong;
 
-        self.source = module.source;
         self.input = input;
         try self.compile(module);
         try self.run();
@@ -991,6 +987,14 @@ pub const VM = struct {
         return &self.frames.items[self.frames.items.len - 1];
     }
 
+    fn parentFrame(self: *VM) ?*CallFrame {
+        if (self.frames.items.len > 1) {
+            return &self.frames.items[self.frames.items.len - 2];
+        } else {
+            return null;
+        }
+    }
+
     fn chunk(self: *VM) *Chunk {
         return &self.frame().function.chunk;
     }
@@ -1132,12 +1136,53 @@ pub const VM = struct {
         return self.input[line_start..line_end];
     }
 
+    // Linear scan of module globals to find the module that contains the
+    // target chunk. Intended for error reporting.
+    fn findModuleForChunk(self: *VM, target_chunk: *Chunk) ?*Module {
+        for (self.modules.items) |*module| {
+            var iterator = module.globals.iterator();
+            while (iterator.next()) |entry| {
+                const elem = entry.value_ptr.*;
+                if (elem.isType(.Dyn)) {
+                    const dyn_elem = elem.asDyn();
+                    if (dyn_elem.isType(.Function)) {
+                        const function = dyn_elem.asFunction();
+                        if (&function.chunk == target_chunk) {
+                            return module;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     pub fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
-        const region = self.chunk().regions.items[self.frame().ip];
-        try region.printLineRelative(self.source, self.writers.err);
-        try self.writers.err.print("Error: ", .{});
+        const target_frame = if (self.frame().function.isBuiltin(self.*))
+            self.parentFrame() orelse self.frame()
+        else
+            self.frame();
+
+        const target_chunk = &target_frame.function.chunk;
+        const target_region = target_chunk.regions.items[target_frame.ip - 1];
+
+        try self.writers.err.print("\nRuntime Error: ", .{});
         try self.writers.err.print(message, args);
         try self.writers.err.print("\n", .{});
+
+        if (self.findModuleForChunk(target_chunk)) |module| {
+            try self.writers.err.print("\n", .{});
+
+            if (module.name) |name| {
+                try self.writers.err.print("{s}:", .{name});
+            }
+
+            try target_region.printLineRelative(module.source, self.writers.err);
+            try self.writers.err.print(":\n\n", .{});
+
+            try module.highlight(target_region, self.writers.err);
+            try self.writers.err.print("\n", .{});
+        }
 
         return Error.RuntimeError;
     }
