@@ -412,25 +412,6 @@ pub const VM = struct {
                     try self.push(array.elems.items[index]);
                 }
             },
-            .GetAtKey => {
-                const key_elem = self.pop();
-                const object_elem = self.peek(0);
-
-                var key: StringTable.Id = undefined;
-
-                if (key_elem.isType(.String)) {
-                    key = key_elem.String;
-                } else if (key_elem.stringBytes(self.*)) |bytes| {
-                    key = try self.strings.insert(bytes);
-                } else {
-                    return self.runtimeError("Get key error: Object key must be a string", .{});
-                }
-
-                if (object_elem.isSuccess()) {
-                    const object = object_elem.asDyn().asObject();
-                    try self.push(object.members.get(key).?);
-                }
-            },
             .GetLocal => {
                 const slot = self.readByte();
                 try self.push(self.getLocal(slot));
