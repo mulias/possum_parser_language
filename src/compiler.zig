@@ -154,6 +154,7 @@ pub const Compiler = struct {
                 if (main == null) {
                     main = root;
                 } else {
+                    try self.printError(root.region, "Only one main parser expression is allowed per module", .{});
                     return Error.MultipleMainParsers;
                 }
             }
@@ -364,12 +365,16 @@ pub const Compiler = struct {
 
                 for (path.items) |aliasVisited| {
                     if (aliasName == aliasVisited) {
+                        const aliasNameStr = self.vm.strings.get(aliasName);
+                        try self.printError(head.region, "Circular alias dependency detected for '{s}'", .{aliasNameStr});
                         return Error.AliasCycle;
                     }
                 }
 
                 value = self.findGlobal(aliasName);
             } else {
+                const aliasNameStr = self.vm.strings.get(aliasName);
+                try self.printError(head.region, "Unknown variable '{s}' in alias chain", .{aliasNameStr});
                 return Error.UnknownVariable;
             }
         }
@@ -673,7 +678,8 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, function_region);
             } else {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(functionName)});
+                const functionNameStr = self.vm.strings.get(functionName);
+                try self.printError(function_region, "Undefined function '{s}'", .{functionNameStr});
                 return Error.UndefinedVariable;
             }
         }
@@ -698,7 +704,7 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.CallFunction, 0, region);
                     },
                     .ValueVar => {
-                        try self.printError("Variable is only valid as a pattern or value", region);
+                        try self.printError(region, "Variable is only valid as a pattern or value", .{});
                         return Error.InvalidAst;
                     },
                     .String,
@@ -746,7 +752,8 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(globalElem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
             } else {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(varName)});
+                const varNameStr = self.vm.strings.get(varName);
+                try self.printError(region, "Undefined variable '{s}'", .{varNameStr});
                 return Error.UndefinedVariable;
             }
         }
@@ -778,18 +785,31 @@ pub const Compiler = struct {
             const region = first_arg.region.merge(last_arg.region);
 
             try self.printError(
-                std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
                 region,
+                "Can't have more than {} parameters.",
+                .{std.math.maxInt(u8)},
             );
             return Error.MaxFunctionArgs;
         }
 
         if (function) |f| {
             if (f.arity != arg_count) {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
+                const functionNameStr = self.vm.strings.get(f.name);
+                const region = if (arguments.items.len > 0) blk: {
+                    const first_arg = arguments.items[0];
+                    const last_arg = arguments.items[arg_count - 1];
+                    break :blk first_arg.region.merge(last_arg.region);
+                } else blk: {
+                    // For zero-argument functions, we don't have argument regions,
+                    // so we'll need to handle this case differently
+                    break :blk Region.new(0, 0);
+                };
+
                 if (f.arity < arg_count) {
+                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
                     return Error.FunctionCallTooManyArgs;
                 } else {
+                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
                     return Error.FunctionCallTooFewArgs;
                 }
             }
@@ -834,7 +854,7 @@ pub const Compiler = struct {
                     },
                 },
                 .ValueLabel => {
-                    try self.printError("Labeled value is not valid as parser function argument.", region);
+                    try self.printError(region, "Labeled value is not valid as parser function argument.", .{});
                     return Error.InvalidAst;
                 },
                 .Array => @panic("Internal Error: Array should never be a parser"),
@@ -923,7 +943,7 @@ pub const Compiler = struct {
                 },
                 .String => |sId| {
                     if (negation_count > 0) {
-                        try self.printError("Invalid pattern - unable to negate string", region);
+                        try self.printError(region, "Invalid pattern - unable to negate string", .{});
                         return Error.InvalidAst;
                     }
                     return Pattern{ .String = sId };
@@ -934,30 +954,30 @@ pub const Compiler = struct {
                 },
                 .Boolean => |b| {
                     if (negation_count > 0) {
-                        try self.printError("Invalid pattern - unable to negate boolean", region);
+                        try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
                         return Error.InvalidAst;
                     }
                     return Pattern{ .Boolean = b };
                 },
                 .Null => {
                     if (negation_count > 0) {
-                        try self.printError("Invalid pattern - unable to negate null", region);
+                        try self.printError(region, "Invalid pattern - unable to negate null", .{});
                         return Error.InvalidAst;
                     }
                     return Pattern{ .Null = undefined };
                 },
                 .ParserVar => {
-                    try self.printError("Parser variable not allowed in pattern", region);
+                    try self.printError(region, "Parser variable not allowed in pattern", .{});
                     return Error.InvalidAst;
                 },
                 else => {
-                    try self.printError("Invalid AST in pattern", region);
+                    try self.printError(region, "Invalid AST in pattern", .{});
                     return Error.InvalidAst;
                 },
             },
             .Array => |elements| {
                 if (negation_count > 0) {
-                    try self.printError("Invalid pattern - unable to negate array", region);
+                    try self.printError(region, "Invalid pattern - unable to negate array", .{});
                     return Error.InvalidAst;
                 }
 
@@ -973,7 +993,7 @@ pub const Compiler = struct {
             },
             .Object => |pairs| {
                 if (negation_count > 0) {
-                    try self.printError("Invalid pattern - unable to negate object", region);
+                    try self.printError(region, "Invalid pattern - unable to negate object", .{});
                     return Error.InvalidAst;
                 }
 
@@ -991,7 +1011,7 @@ pub const Compiler = struct {
             },
             .StringTemplate => |segments| {
                 if (negation_count > 0) {
-                    try self.printError("Invalid pattern - unable to negate string", region);
+                    try self.printError(region, "Invalid pattern - unable to negate string", .{});
                     return Error.InvalidAst;
                 }
 
@@ -1054,7 +1074,7 @@ pub const Compiler = struct {
                         .negation_count = negation_count,
                     }
                 else {
-                    try self.printError("Unknown function in pattern", function.name.region);
+                    try self.printError(function.name.region, "Unknown function in pattern", .{});
                     return Error.InvalidAst;
                 };
 
@@ -1077,16 +1097,16 @@ pub const Compiler = struct {
                     return Pattern{ .Merge = mergeElems };
                 },
                 .Destructure => {
-                    try self.printError("Invalid AST: Nested destructure not allowed in pattern", region);
+                    try self.printError(region, "Invalid AST: Nested destructure not allowed in pattern", .{});
                     return Error.InvalidAst;
                 },
                 else => {
-                    try self.printError("Invalid AST in pattern", region);
+                    try self.printError(region, "Invalid AST in pattern", .{});
                     return Error.InvalidAst;
                 },
             },
             else => {
-                try self.printError("Invalid AST in pattern", region);
+                try self.printError(region, "Invalid AST in pattern", .{});
                 return Error.InvalidAst;
             },
         }
@@ -1370,7 +1390,7 @@ pub const Compiler = struct {
             },
             .DeclareGlobal => @panic("internal error"),
             .Range => {
-                try self.printError("Range is not valid in value context", region);
+                try self.printError(region, "Range is not valid in value context", .{});
                 return Error.RangeNotValidInValueContext;
             },
             .Negation => |inner| {
@@ -1404,7 +1424,7 @@ pub const Compiler = struct {
             },
             .ElemNode => |elem| switch (elem) {
                 .ParserVar => {
-                    try self.printError("Parser is not valid in value", region);
+                    try self.printError(region, "Parser is not valid in value", .{});
                     return Error.InvalidAst;
                 },
                 .ValueVar => |name| {
@@ -1487,7 +1507,8 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(global);
                 try self.emitUnaryOp(.GetConstant, constId, function_region);
             } else {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(functionName)});
+                const functionNameStr = self.vm.strings.get(functionName);
+                try self.printError(function_region, "Undefined function '{s}'", .{functionNameStr});
                 return Error.UndefinedVariable;
             }
         }
@@ -1514,18 +1535,31 @@ pub const Compiler = struct {
             const region = first_arg.region.merge(last_arg.region);
 
             try self.printError(
-                std.fmt.comptimePrint("Can't have more than {} parameters.", .{std.math.maxInt(u8)}),
                 region,
+                "Can't have more than {} parameters.",
+                .{std.math.maxInt(u8)},
             );
             return Error.MaxFunctionArgs;
         }
 
         if (function) |f| {
             if (f.arity != arg_count) {
-                try self.writers.err.print("{s}\n", .{self.vm.strings.get(f.name)});
+                const functionNameStr = self.vm.strings.get(f.name);
+                const region = if (arguments.items.len > 0) blk: {
+                    const first_arg = arguments.items[0];
+                    const last_arg = arguments.items[arg_count - 1];
+                    break :blk first_arg.region.merge(last_arg.region);
+                } else blk: {
+                    // For zero-argument functions, we don't have argument regions,
+                    // so we'll need to handle this case differently
+                    break :blk Region.new(0, 0);
+                };
+
                 if (f.arity < arg_count) {
+                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
                     return Error.FunctionCallTooManyArgs;
                 } else {
+                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
                     return Error.FunctionCallTooFewArgs;
                 }
             }
@@ -1591,7 +1625,7 @@ pub const Compiler = struct {
             },
             .StringTemplate => try self.appendDynamicValue(array, rnode, index, region),
             .Range => {
-                try self.printError("Range is not valid in value context", region);
+                try self.printError(region, "Range is not valid in value context", .{});
                 return Error.RangeNotValidInValueContext;
             },
             .Conditional => try self.appendDynamicValue(array, rnode, index, region),
@@ -1603,11 +1637,11 @@ pub const Compiler = struct {
                 }
             },
             .ValueLabel => {
-                try self.printError("Value label `$` is not necessary inside array.", region);
+                try self.printError(region, "Value label `$` is not necessary inside array.", .{});
                 return Error.InvalidAst;
             },
             .DeclareGlobal => {
-                try self.printError("Invlaid global assignment inside array.", region);
+                try self.printError(region, "Invlaid global assignment inside array.", .{});
                 return Error.InvalidAst;
             },
         }
@@ -1771,11 +1805,9 @@ pub const Compiler = struct {
         ) catch |err| switch (err) {
             error.MaxFunctionLocals => {
                 try self.printError(
-                    std.fmt.comptimePrint(
-                        "Can't have more than {} parameters and local variables.",
-                        .{std.math.maxInt(u8)},
-                    ),
                     region,
+                    "Can't have more than {} parameters and local variables.",
+                    .{std.math.maxInt(u8)},
                 );
                 return err;
             },
@@ -1813,7 +1845,7 @@ pub const Compiler = struct {
 
         self.chunk().updateShortAt(offset, @as(u16, @intCast(jump))) catch |err| switch (err) {
             ChunkError.ShortOverflow => {
-                try self.printError("Too much code to jump over.", region);
+                try self.printError(region, "Too much code to jump over.", .{});
                 return err;
             },
             else => return err,
@@ -1848,8 +1880,19 @@ pub const Compiler = struct {
         };
     }
 
-    fn printError(self: *Compiler, message: []const u8, region: Region) !void {
+    fn printError(self: *Compiler, region: Region, comptime message: []const u8, args: anytype) !void {
+        try self.writers.err.print("\nProgram Error: ", .{});
+        try self.writers.err.print(message, args);
+        try self.writers.err.print("\n", .{});
+
+        if (self.targetModule.name) |name| {
+            try self.writers.err.print("{s}:", .{name});
+        }
+
         try region.printLineRelative(self.targetModule.source, self.writers.err);
-        try self.writers.err.print(" Error: {s}\n", .{message});
+        try self.writers.err.print(":\n\n", .{});
+
+        try self.targetModule.highlight(region, self.writers.err);
+        try self.writers.err.print("\n", .{});
     }
 };
