@@ -297,8 +297,8 @@ fn addNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.number(0) else a;
-    b = if (b == .Null) Elem.number(0) else b;
+    a = if (a.isConst(.Null)) Elem.number(0) else a;
+    b = if (b.isConst(.Null)) Elem.number(0) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
@@ -313,7 +313,7 @@ fn addNative(vm: *VM) VM.Error!void {
         };
 
         return vm.push(res);
-    } else if (a == .Failure or b == .Failure) {
+    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
     } else {
         return vm.runtimeError("@Add expected number or null arguments", .{});
@@ -354,8 +354,8 @@ fn subtractNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.number(0) else a;
-    b = if (b == .Null) Elem.number(0) else b;
+    a = if (a.isConst(.Null)) Elem.number(0) else a;
+    b = if (b.isConst(.Null)) Elem.number(0) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
@@ -370,7 +370,7 @@ fn subtractNative(vm: *VM) VM.Error!void {
         };
 
         return vm.push(res);
-    } else if (a == .Failure or b == .Failure) {
+    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
     } else {
         return vm.runtimeError("@Subtract expected number or null arguments", .{});
@@ -411,8 +411,8 @@ fn multiplyNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.number(1) else a;
-    b = if (b == .Null) Elem.number(1) else b;
+    a = if (a.isConst(.Null)) Elem.number(1) else a;
+    b = if (b.isConst(.Null)) Elem.number(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
@@ -427,7 +427,7 @@ fn multiplyNative(vm: *VM) VM.Error!void {
         };
 
         return vm.push(res);
-    } else if (a == .Failure or b == .Failure) {
+    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
     } else {
         return vm.runtimeError("@Multiply expected number or null arguments", .{});
@@ -468,8 +468,8 @@ fn divideNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.number(1) else a;
-    b = if (b == .Null) Elem.number(1) else b;
+    a = if (a.isConst(.Null)) Elem.number(1) else a;
+    b = if (b.isConst(.Null)) Elem.number(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
@@ -488,7 +488,7 @@ fn divideNative(vm: *VM) VM.Error!void {
         };
 
         return vm.push(res);
-    } else if (a == .Failure or b == .Failure) {
+    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
     } else {
         return vm.runtimeError("@Divide expected number or null arguments", .{});
@@ -529,8 +529,8 @@ fn powerNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.number(1) else a;
-    b = if (b == .Null) Elem.number(1) else b;
+    a = if (a.isConst(.Null)) Elem.number(1) else a;
+    b = if (b.isConst(.Null)) Elem.number(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
@@ -545,7 +545,7 @@ fn powerNative(vm: *VM) VM.Error!void {
         };
 
         return vm.push(res);
-    } else if (a == .Failure or b == .Failure) {
+    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
     } else {
         return vm.runtimeError("@Power expected number or null arguments", .{});

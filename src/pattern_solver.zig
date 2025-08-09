@@ -126,8 +126,10 @@ fn matchArrayPart(self: *PatternSolver, value_slice: []Elem, pattern_array: Arra
 
 fn matchBoolean(_: *PatternSolver, value: Elem, pattern_boolean: bool) !bool {
     switch (value) {
-        .Boolean => |value_boolean| {
-            return value_boolean == pattern_boolean;
+        .Const => |c| switch (c) {
+            .True => return pattern_boolean == true,
+            .False => return pattern_boolean == false,
+            else => return false,
         },
         else => return false,
     }
@@ -283,8 +285,11 @@ fn prepareMergePatternPart(self: *PatternSolver, part: Simplified, merge_parts: 
         .Value => |elem| switch (elem) {
             .String, .InputSubstring => .String,
             .NumberString, .Number => .Number,
-            .Boolean => .Boolean,
-            .ParserVar, .ValueVar, .Null, .Failure => .Untyped,
+            .Const => |c| switch (c) {
+                .True, .False => .Boolean,
+                .Null, .Failure => .Untyped,
+            },
+            .ParserVar, .ValueVar => .Untyped,
             .Dyn => |dyn| switch (dyn.dynType) {
                 .String => .String,
                 .Array => .Array,
@@ -326,7 +331,7 @@ fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool
                     } else {
                         after_unbound_range += array.len();
                     }
-                } else if (elem == .Null) {
+                } else if (elem.isConst(.Null)) {
                     // Skip null
                 } else {
                     @panic("Internal Error");
@@ -381,7 +386,7 @@ fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool
                         }
                     }
                     value_index = end_index;
-                } else if (elem == .Null) {
+                } else if (elem.isConst(.Null)) {
                     // Skip null
                 } else {
                     @panic("Internal Error");
@@ -442,7 +447,7 @@ fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool
                             }
                         }
                         value_index = end_index;
-                    } else if (elem == .Null) {
+                    } else if (elem.isConst(.Null)) {
                         // Skip null
                     } else {
                         @panic("Internal Error");
@@ -497,7 +502,7 @@ fn matchBooleanMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bo
     }
 
     if (unbound_part) |pattern| {
-        if (bound_truth.Boolean == true) {
+        if (bound_truth.isConst(.True)) {
             if (value.isEql(bound_truth, self.vm.*)) {
                 // `true -> (true + X)
                 return (try self.matchPattern(Elem.boolean(false), pattern)) or
@@ -678,7 +683,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
                     } else {
                         after_unbound_length += part_str.len;
                     }
-                } else if (elem == .Null) {
+                } else if (elem.isConst(.Null)) {
                     // Skip null
                 } else {
                     @panic("Internal Error");
@@ -716,7 +721,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
                         return false;
                     }
                     value_index = end_index;
-                } else if (elem == .Null) {
+                } else if (elem.isConst(.Null)) {
                     // Skip null
                 } else {
                     return false;
@@ -764,7 +769,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
                             return false;
                         }
                         value_index = end_index;
-                    } else if (elem == .Null) {
+                    } else if (elem.isConst(.Null)) {
                         // Skip null
                     } else {
                         return false;
@@ -787,7 +792,7 @@ fn matchUntypedMerge(self: *PatternSolver, value: Elem, merge_parts: []Simplifie
     for (merge_parts) |part| {
         switch (part) {
             .Value => |elem| {
-                std.debug.assert(elem == .Null);
+                std.debug.assert(elem.isConst(.Null));
             },
             .Pattern => |pattern| {
                 if (unbound_part == null) {
@@ -1084,7 +1089,7 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
                             return false;
                         }
                         value_index = end_index;
-                    } else if (elem == .Null) {
+                    } else if (elem.isConst(.Null)) {
                         // Skip null
                     } else {
                         return false;

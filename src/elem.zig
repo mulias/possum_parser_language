@@ -14,16 +14,14 @@ const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
 
-pub const ElemType = enum {
+pub const ElemType = enum(u3) {
     ParserVar,
     ValueVar,
     String,
     InputSubstring,
     NumberString,
     Number,
-    Boolean,
-    Null,
-    Failure,
+    Const,
     Dyn,
 };
 
@@ -34,9 +32,7 @@ pub const Elem = union(ElemType) {
     InputSubstring: InputSubstringElem,
     NumberString: NumberStringElem,
     Number: f64,
-    Boolean: bool,
-    Null: void,
-    Failure: void,
+    Const: ConstElem,
     Dyn: *DynElem,
 
     pub const InputSubstringElem = struct {
@@ -129,6 +125,8 @@ pub const Elem = union(ElemType) {
         }
     };
 
+    pub const ConstElem = enum { True, False, Null, Failure };
+
     pub fn parserVar(sId: StringTable.Id) Elem {
         return Elem{ .ParserVar = sId };
     }
@@ -163,12 +161,12 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn boolean(b: bool) Elem {
-        return Elem{ .Boolean = b };
+        return Elem{ .Const = if (b) .True else .False };
     }
 
-    pub const nullConst = Elem{ .Null = undefined };
+    pub const nullConst = Elem{ .Const = .Null };
 
-    pub const failureConst = Elem{ .Failure = undefined };
+    pub const failureConst = Elem{ .Const = .Failure };
 
     pub fn print(self: Elem, vm: VM, writer: anytype) !void {
         // try writer.print("{s} ", .{@tagName(self)});
@@ -197,23 +195,30 @@ pub const Elem = union(ElemType) {
                     try writer.print("{d}", .{f});
                 }
             },
-            .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
-            .Null => try writer.print("null", .{}),
-            .Failure => try writer.print("@Failure", .{}),
+            .Const => |c| switch (c) {
+                .True => try writer.print("true", .{}),
+                .False => try writer.print("false", .{}),
+                .Null => try writer.print("null", .{}),
+                .Failure => try writer.print("@Failure", .{}),
+            },
             .Dyn => |d| d.print(vm, writer),
         };
     }
 
     pub fn isSuccess(self: Elem) bool {
-        return self != .Failure;
+        return self != .Const or self.Const != .Failure;
     }
 
     pub fn isFailure(self: Elem) bool {
-        return self == .Failure;
+        return self == .Const and self.Const == .Failure;
     }
 
     pub fn isType(self: Elem, elemType: ElemType) bool {
         return self == elemType;
+    }
+
+    pub fn isConst(self: Elem, constType: ConstElem) bool {
+        return self == .Const and self.Const == constType;
     }
 
     pub fn isDynType(self: Elem, dynType: DynType) bool {
@@ -299,16 +304,8 @@ pub const Elem = union(ElemType) {
                 .Number => |num2| num1 == num2,
                 else => false,
             },
-            .Boolean => |b1| switch (other) {
-                .Boolean => |b2| b1 == b2,
-                else => false,
-            },
-            .Null => switch (other) {
-                .Null => true,
-                else => false,
-            },
-            .Failure => switch (other) {
-                .Failure => true,
+            .Const => |c1| switch (other) {
+                .Const => |c2| c1 == c2,
                 else => false,
             },
             .Dyn => |d1| switch (other) {
@@ -363,9 +360,7 @@ pub const Elem = union(ElemType) {
                 .Number => |num_high| num_value <= num_high,
                 else => false,
             },
-            .Boolean,
-            .Null,
-            .Failure,
+            .Const,
             .ParserVar,
             => false,
         };
@@ -380,10 +375,10 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn merge(elemA: Elem, elemB: Elem, vm: *VM) !?Elem {
-        if (elemA == .Failure) return Elem.failureConst;
-        if (elemB == .Failure) return Elem.failureConst;
-        if (elemA == .Null) return elemB;
-        if (elemB == .Null) return elemA;
+        if (elemA.isConst(.Failure)) return Elem.failureConst;
+        if (elemB.isConst(.Failure)) return Elem.failureConst;
+        if (elemA.isConst(.Null)) return elemB;
+        if (elemB.isConst(.Null)) return elemA;
 
         return switch (elemA) {
             .String => |sId1| switch (elemB) {
@@ -470,14 +465,18 @@ pub const Elem = union(ElemType) {
                 .Number => |num2| number(num1 + num2),
                 else => null,
             },
-            .Boolean => |b1| switch (elemB) {
-                .Boolean => |b2| boolean(b1 or b2),
+            .Const => |c1| switch (c1) {
+                .True, .False => switch (elemB) {
+                    .Const => |c2| switch (c2) {
+                        .True, .False => boolean((c1 == .True) or (c2 == .True)),
+                        else => null,
+                    },
+                    else => null,
+                },
                 else => null,
             },
             .ParserVar,
             .ValueVar,
-            .Failure,
-            .Null,
             => @panic("Internal error"),
             .Dyn => |d1| switch (d1.dynType) {
                 .String => {
@@ -555,15 +554,16 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn negateNumber(elem: Elem) !Elem {
-        if (elem == .Failure) return Elem.failureConst;
-
         return switch (elem) {
             .ParserVar,
-            .Failure,
             => @panic("Internal error"),
+            .Const => |c| switch (c) {
+                .Failure => elem,
+                .Null => number(0),
+                .True, .False => error.ExpectedNumber,
+            },
             .NumberString => |n| Elem{ .NumberString = n.negate() },
             .Number => |f| number(f * -1),
-            .Null => number(0),
             else => error.ExpectedNumber,
         };
     }
@@ -658,8 +658,12 @@ pub const Elem = union(ElemType) {
                     return .{ .float = f };
                 }
             },
-            .Boolean => |b| .{ .bool = b },
-            .Null => .{ .null = undefined },
+            .Const => |c| switch (c) {
+                .True => .{ .bool = true },
+                .False => .{ .bool = false },
+                .Null => .{ .null = undefined },
+                .Failure => @panic("Internal Error"),
+            },
             .Dyn => |dyn| switch (dyn.dynType) {
                 .String => {
                     const s = dyn.asString().buffer.str();
@@ -697,7 +701,6 @@ pub const Elem = union(ElemType) {
             },
             .ParserVar,
             .ValueVar,
-            .Failure,
             => @panic("Internal Error"),
         };
     }

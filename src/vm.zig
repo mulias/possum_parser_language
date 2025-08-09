@@ -1070,7 +1070,8 @@ pub const VM = struct {
     }
 
     fn peekIsFailure(self: *VM) bool {
-        return self.peek(0) == .Failure;
+        const elem = self.peek(0);
+        return elem.isConst(.Failure);
     }
 
     fn peekIsSuccess(self: *VM) bool {

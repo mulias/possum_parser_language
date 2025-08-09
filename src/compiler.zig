@@ -282,8 +282,7 @@ pub const Compiler = struct {
                 .ValueVar,
                 .String,
                 .NumberString,
-                .Boolean,
-                .Null,
+                .Const,
                 => {},
                 .ParserVar,
                 => return Error.InvalidGlobalValue,
@@ -302,7 +301,6 @@ pub const Compiler = struct {
                 },
                 .InputSubstring,
                 .Number,
-                .Failure,
                 => @panic("Internal Error"),
             },
             .ParserVar => |name| switch (self.findGlobal(name).?) {
@@ -325,11 +323,9 @@ pub const Compiler = struct {
                     },
                     .Closure => @panic("Internal Error"),
                 },
-                .Failure,
                 .InputSubstring,
-                .Boolean,
                 .Number,
-                .Null,
+                .Const,
                 => @panic("Internal Error"),
             },
             else => @panic("Internal Error"),
@@ -656,8 +652,12 @@ pub const Compiler = struct {
 
         const functionName = switch (function_elem) {
             .ParserVar => |sId| sId,
-            .Boolean => |b| try self.vm.strings.insert(if (b) "true" else "false"),
-            .Null => try self.vm.strings.insert("null"),
+            .Const => |c| switch (c) {
+                .True => try self.vm.strings.insert("true"),
+                .False => try self.vm.strings.insert("false"),
+                .Null => try self.vm.strings.insert("null"),
+                .Failure => return Error.InvalidAst,
+            },
             else => return Error.InvalidAst,
         };
 
@@ -707,17 +707,14 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.GetConstant, constId, region);
                         try self.emitUnaryOp(.CallFunction, 0, region);
                     },
-                    .Boolean => {
-                        // In this context `true`/`false` could be a zero-arg function call
-                        try self.writeGetVar(elem, region);
-                        try self.emitUnaryOp(.CallFunction, 0, region);
+                    .Const => |c| switch (c) {
+                        .True, .False, .Null => {
+                            // In this context `true`/`false`/`null` could be a zero-arg function call
+                            try self.writeGetVar(elem, region);
+                            try self.emitUnaryOp(.CallFunction, 0, region);
+                        },
+                        .Failure => return Error.InvalidAst,
                     },
-                    .Null => {
-                        // In this context `null` could be a zero-arg function call
-                        try self.writeGetVar(elem, region);
-                        try self.emitUnaryOp(.CallFunction, 0, region);
-                    },
-                    .Failure,
                     .Number,
                     .InputSubstring,
                     .Dyn,
@@ -732,8 +729,12 @@ pub const Compiler = struct {
         const varName = switch (elem) {
             .ParserVar => |sId| sId,
             .ValueVar => |sId| sId,
-            .Boolean => |b| try self.vm.strings.insert(if (b) "true" else "false"),
-            .Null => try self.vm.strings.insert("null"),
+            .Const => |c| switch (c) {
+                .True => try self.vm.strings.insert("true"),
+                .False => try self.vm.strings.insert("false"),
+                .Null => try self.vm.strings.insert("null"),
+                .Failure => return Error.InvalidAst,
+            },
             else => return Error.InvalidAst,
         };
 
@@ -756,8 +757,12 @@ pub const Compiler = struct {
             .ParserVar,
             .ValueVar,
             => elem,
-            .Boolean => |b| Elem.parserVar(try self.vm.strings.insert(if (b) "true" else "false")),
-            .Null => Elem.parserVar(try self.vm.strings.insert("null")),
+            .Const => |c| switch (c) {
+                .True => Elem.parserVar(try self.vm.strings.insert("true")),
+                .False => Elem.parserVar(try self.vm.strings.insert("false")),
+                .Null => Elem.parserVar(try self.vm.strings.insert("null")),
+                .Failure => null,
+            },
             else => null,
         };
     }
@@ -944,19 +949,22 @@ pub const Compiler = struct {
                     const number = if (negation_count % 2 == 1) ns.negate() else ns;
                     return Pattern{ .NumberString = number };
                 },
-                .Boolean => |b| {
-                    if (negation_count > 0) {
-                        try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
-                        return Error.InvalidAst;
-                    }
-                    return Pattern{ .Boolean = b };
-                },
-                .Null => {
-                    if (negation_count > 0) {
-                        try self.printError(region, "Invalid pattern - unable to negate null", .{});
-                        return Error.InvalidAst;
-                    }
-                    return Pattern{ .Null = undefined };
+                .Const => |c| switch (c) {
+                    .True, .False => {
+                        if (negation_count > 0) {
+                            try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
+                            return Error.InvalidAst;
+                        }
+                        return Pattern{ .Boolean = c == .True };
+                    },
+                    .Null => {
+                        if (negation_count > 0) {
+                            try self.printError(region, "Invalid pattern - unable to negate null", .{});
+                            return Error.InvalidAst;
+                        }
+                        return Pattern{ .Null = undefined };
+                    },
+                    .Failure => return Error.InvalidAst,
                 },
                 .ParserVar => {
                     try self.printError(region, "Parser variable not allowed in pattern", .{});
@@ -1322,8 +1330,11 @@ pub const Compiler = struct {
                 .NumberString => {
                     return error.UnlabeledNumberValue;
                 },
-                .Boolean => return error.UnlabeledBooleanValue,
-                .Null => return error.UnlabeledNullValue,
+                .Const => |c| switch (c) {
+                    .True, .False => return error.UnlabeledBooleanValue,
+                    .Null => return error.UnlabeledNullValue,
+                    .Failure => return Error.InvalidAst,
+                },
                 else => try writeValue(self, rnode, isTailPosition),
             },
             else => try writeValue(self, rnode, isTailPosition),
@@ -1450,9 +1461,12 @@ pub const Compiler = struct {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, region);
                 },
-                .Boolean => |b| try self.emitOp(if (b) .True else .False, region),
-                .Null => try self.emitOp(.Null, region),
-                .Failure,
+                .Const => |c| switch (c) {
+                    .True => try self.emitOp(.True, region),
+                    .False => try self.emitOp(.False, region),
+                    .Null => try self.emitOp(.Null, region),
+                    .Failure => return Error.InvalidAst,
+                },
                 .InputSubstring,
                 .Number,
                 => @panic("Internal Error"), // not produced by the parser
@@ -1704,7 +1718,7 @@ pub const Compiler = struct {
     fn literalPatternToElem(self: *Compiler, rnode: *Ast.RNode) !?Elem {
         return switch (rnode.node) {
             .ElemNode => |elem| switch (elem) {
-                .String, .InputSubstring, .NumberString, .Number, .Boolean, .Null => elem,
+                .String, .InputSubstring, .NumberString, .Number, .Const => elem,
                 else => null,
             },
             .Array => |elements| if (elements.items.len == 0) blk: {
