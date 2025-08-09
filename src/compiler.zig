@@ -301,8 +301,7 @@ pub const Compiler = struct {
                     .Closure => @panic("Internal Error"),
                 },
                 .InputSubstring,
-                .Integer,
-                .Float,
+                .Number,
                 .Failure,
                 => @panic("Internal Error"),
             },
@@ -329,8 +328,7 @@ pub const Compiler = struct {
                 .Failure,
                 .InputSubstring,
                 .Boolean,
-                .Integer,
-                .Float,
+                .Number,
                 .Null,
                 => @panic("Internal Error"),
             },
@@ -517,21 +515,20 @@ pub const Compiler = struct {
                         const low_ns = low_elem.NumberString;
                         const high_ns = high_elem.NumberString;
 
-                        if (low_ns.format == .Integer and high_ns.format == .Integer) {
-                            const low_int = low_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
-                            const high_int = high_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                        const low_num = low_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                        const high_num = high_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
 
-                            if (low_int.Integer > high_int.Integer) {
-                                return Error.RangeIntegersUnordered;
-                            } else {
-                                const low_id = try self.makeConstant(low_int);
-                                const high_id = try self.makeConstant(high_int);
-                                try self.emitOp(.ParseRange, region);
-                                try self.emitByte(low_id, low.region);
-                                try self.emitByte(high_id, high.region);
-                            }
+                        if (@trunc(low_num.Number) != low_num.Number) return Error.RangeInvalidNumberFormat;
+                        if (@trunc(high_num.Number) != high_num.Number) return Error.RangeInvalidNumberFormat;
+
+                        if (low_num.Number > high_num.Number) {
+                            return Error.RangeIntegersUnordered;
                         } else {
-                            return Error.RangeInvalidNumberFormat;
+                            const low_id = try self.makeConstant(low_num);
+                            const high_id = try self.makeConstant(high_num);
+                            try self.emitOp(.ParseRange, region);
+                            try self.emitByte(low_id, low.region);
+                            try self.emitByte(high_id, high.region);
                         }
                     } else {
                         return Error.InvalidAst;
@@ -556,15 +553,13 @@ pub const Compiler = struct {
                     } else if (low_elem == .NumberString) {
                         const low_ns = low_elem.NumberString;
 
-                        if (low_ns.format == .Integer) {
-                            const low_int = low_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                        const low_num = low_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
 
-                            const low_id = try self.makeConstant(low_int);
-                            try self.emitOp(.ParseLowerBoundedRange, region);
-                            try self.emitByte(low_id, low_region);
-                        } else {
-                            return Error.RangeInvalidNumberFormat;
-                        }
+                        if (@trunc(low_num.Number) != low_num.Number) return Error.RangeInvalidNumberFormat;
+
+                        const low_id = try self.makeConstant(low_num);
+                        try self.emitOp(.ParseLowerBoundedRange, region);
+                        try self.emitByte(low_id, low_region);
                     } else {
                         return Error.InvalidAst;
                     }
@@ -588,15 +583,13 @@ pub const Compiler = struct {
                     } else if (high_elem == .NumberString) {
                         const high_ns = high_elem.NumberString;
 
-                        if (high_ns.format == .Integer) {
-                            const high_int = high_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                        const high_num = high_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
 
-                            const high_id = try self.makeConstant(high_int);
-                            try self.emitOp(.ParseUpperBoundedRange, region);
-                            try self.emitByte(high_id, high_region);
-                        } else {
-                            return Error.RangeInvalidNumberFormat;
-                        }
+                        if (@trunc(high_num.Number) != high_num.Number) return Error.RangeInvalidNumberFormat;
+
+                        const high_id = try self.makeConstant(high_num);
+                        try self.emitOp(.ParseUpperBoundedRange, region);
+                        try self.emitByte(high_id, high_region);
                     } else {
                         return Error.InvalidAst;
                     }
@@ -725,8 +718,7 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.CallFunction, 0, region);
                     },
                     .Failure,
-                    .Integer,
-                    .Float,
+                    .Number,
                     .InputSubstring,
                     .Dyn,
                     => @panic("Internal Error"),
@@ -1462,8 +1454,7 @@ pub const Compiler = struct {
                 .Null => try self.emitOp(.Null, region),
                 .Failure,
                 .InputSubstring,
-                .Integer,
-                .Float,
+                .Number,
                 => @panic("Internal Error"), // not produced by the parser
                 .Dyn => |d| switch (d.dynType) {
                     .String,
@@ -1710,23 +1701,10 @@ pub const Compiler = struct {
         }
     }
 
-    fn isLiteralPattern(self: *Compiler, rnode: *Ast.RNode) bool {
-        _ = self;
-        return switch (rnode.node) {
-            .ElemNode => |elem| switch (elem) {
-                .String, .InputSubstring, .NumberString, .Integer, .Float, .Boolean, .Null => true,
-                else => false,
-            },
-            .Array => |elements| elements.items.len == 0,
-            .Object => |pairs| pairs.items.len == 0,
-            else => false,
-        };
-    }
-
     fn literalPatternToElem(self: *Compiler, rnode: *Ast.RNode) !?Elem {
         return switch (rnode.node) {
             .ElemNode => |elem| switch (elem) {
-                .String, .InputSubstring, .NumberString, .Integer, .Float, .Boolean, .Null => elem,
+                .String, .InputSubstring, .NumberString, .Number, .Boolean, .Null => elem,
                 else => null,
             },
             .Array => |elements| if (elements.items.len == 0) blk: {
@@ -1750,7 +1728,7 @@ pub const Compiler = struct {
             },
             .ElemNode => |elem| {
                 switch (elem) {
-                    .NumberString, .Integer, .Float => return elem,
+                    .NumberString, .Number => return elem,
                     else => return null,
                 }
             },

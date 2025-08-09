@@ -31,18 +31,13 @@ pub fn parseSurrogatePair(highSurrogate: []const u8, lowSurrogate: []const u8) ?
     }
 }
 
-pub fn numberStringFormat(bytes: []const u8) ?NumberStringElem.Format {
+pub fn isValidNumberString(bytes: []const u8) bool {
     var scanner = Scanner.initInternal(bytes);
     const token = scanner.scanNumber();
 
-    if (!scanner.isAtEnd()) return null;
+    if (!scanner.isAtEnd()) return false;
 
-    return switch (token.tokenType) {
-        .Integer => .Integer,
-        .Float => .Float,
-        .Scientific => .Scientific,
-        else => null,
-    };
+    return token.tokenType == .Number;
 }
 
 pub fn parseInteger(bytes: []const u8) ?i64 {

@@ -617,7 +617,12 @@ pub const VM = struct {
 
                 switch (low_elem) {
                     .String => try self.parseCharacterRange(low_elem.String, high_elem.String),
-                    .Integer => try self.parseIntegerRange(low_elem.Integer, high_elem.Integer),
+                    .Number => |low_f| {
+                        const high_f = high_elem.Number;
+                        const low_int = @as(i64, @intFromFloat(low_f));
+                        const high_int = @as(i64, @intFromFloat(high_f));
+                        try self.parseIntegerRange(low_int, high_int);
+                    },
                     else => @panic("Internal Error"),
                 }
             },
@@ -626,7 +631,10 @@ pub const VM = struct {
                 const low_elem = self.chunk().getConstant(lowIdx);
                 switch (low_elem) {
                     .String => |sId| try self.parseCharacterLowerBounded(sId),
-                    .Integer => |i| try self.parseIntegerLowerBounded(i),
+                    .Number => |f| {
+                        const low_int = @as(i64, @intFromFloat(f));
+                        try self.parseIntegerLowerBounded(low_int);
+                    },
                     else => @panic("Internal Error"),
                 }
             },
@@ -635,7 +643,10 @@ pub const VM = struct {
                 const high_elem = self.chunk().getConstant(highIdx);
                 switch (high_elem) {
                     .String => |sId| try self.parseCharacterUpperBounded(sId),
-                    .Integer => |i| try self.parseIntegerUpperBounded(i),
+                    .Number => |f| {
+                        const high_int = @as(i64, @intFromFloat(f));
+                        try self.parseIntegerUpperBounded(high_int);
+                    },
                     else => @panic("Internal Error"),
                 }
             },
@@ -897,7 +908,7 @@ pub const VM = struct {
 
             if (inputInt) |i| if (low <= i and i <= high) {
                 self.inputPos.offset = end;
-                const int = Elem.integer(i);
+                const int = Elem.number(@as(f64, @floatFromInt(i)));
                 try self.push(int);
                 return;
             };
@@ -922,7 +933,7 @@ pub const VM = struct {
 
         if (inputInt) |i| if (low <= i) {
             self.inputPos.offset = end;
-            const int = Elem.integer(i);
+            const int = Elem.number(@as(f64, @floatFromInt(i)));
             try self.push(int);
             return;
         };
@@ -948,7 +959,7 @@ pub const VM = struct {
 
             if (inputInt) |i| if (i <= high) {
                 self.inputPos.offset = end;
-                const int = Elem.integer(i);
+                const int = Elem.number(@as(f64, @floatFromInt(i)));
                 try self.push(int);
                 return;
             };

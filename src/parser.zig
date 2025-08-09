@@ -151,9 +151,7 @@ pub const Parser = struct {
             .DoubleQuoteStringStart,
             => self.string(),
             .BacktickStringStart => self.backtickString(),
-            .Integer => self.integer(),
-            .Float => self.float(),
-            .Scientific => self.scientific(),
+            .Number => self.number(),
             .True, .False, .Null => self.literal(),
             .DotDot => self.upperBoundedRange(),
             .DollarSign => self.valueLabel(),
@@ -376,27 +374,10 @@ pub const Parser = struct {
         return self.vm.strings.insert(buffer[0..bufferLen]);
     }
 
-    fn integer(self: *Parser) !*Ast.RNode {
+    fn number(self: *Parser) !*Ast.RNode {
         const t = self.token;
         try self.advance();
-
-        if (t.tokenType == .Integer) {
-            return self.ast.createElem(try Elem.numberString(t.lexeme, .Integer, self.vm), t.region);
-        } else {
-            return self.errorAtPrevious("Expected integer");
-        }
-    }
-
-    fn float(self: *Parser) !*Ast.RNode {
-        const t = self.token;
-        try self.advance();
-        return self.ast.createElem(try Elem.numberString(t.lexeme, .Float, self.vm), t.region);
-    }
-
-    fn scientific(self: *Parser) !*Ast.RNode {
-        const t = self.token;
-        try self.advance();
-        return self.ast.createElem(try Elem.numberString(t.lexeme, .Scientific, self.vm), t.region);
+        return self.ast.createElem(try Elem.numberString(t.lexeme, self.vm), t.region);
     }
 
     fn literal(self: *Parser) !*Ast.RNode {
@@ -572,7 +553,7 @@ pub const Parser = struct {
         }
 
         switch (self.token.tokenType) {
-            .Integer,
+            .Number,
             .SingleQuoteStringStart,
             .DoubleQuoteStringStart,
             .BacktickStringStart,

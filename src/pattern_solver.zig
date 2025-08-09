@@ -282,7 +282,7 @@ fn prepareMergePatternPart(self: *PatternSolver, part: Simplified, merge_parts: 
     return switch (part) {
         .Value => |elem| switch (elem) {
             .String, .InputSubstring => .String,
-            .NumberString, .Integer, .Float => .Number,
+            .NumberString, .Number => .Number,
             .Boolean => .Boolean,
             .ParserVar, .ValueVar, .Null, .Failure => .Untyped,
             .Dyn => |dyn| switch (dyn.dynType) {
@@ -517,7 +517,7 @@ fn matchBooleanMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bo
 }
 
 fn matchNumberMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool {
-    var bound_sum = Elem.integer(0);
+    var bound_sum = Elem.number(0);
     var unbound_part: ?Pattern = null;
 
     for (parts) |part| {

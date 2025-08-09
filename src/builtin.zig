@@ -297,22 +297,16 @@ fn addNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.integer(0) else a;
-    b = if (b == .Null) Elem.integer(0) else b;
+    a = if (a == .Null) Elem.number(0) else a;
+    b = if (b == .Null) Elem.number(0) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
         b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
         const res = switch (a) {
-            .Integer => |int1| switch (b) {
-                .Integer => |int2| Elem.integer(int1 + int2),
-                .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) + float2),
-                else => @panic("Internal Error"),
-            },
-            .Float => |float1| switch (b) {
-                .Integer => |int2| Elem.float(float1 + @as(f64, @floatFromInt(int2))),
-                .Float => |float2| Elem.float(float1 + float2),
+            .Number => |num1| switch (b) {
+                .Number => |num2| Elem.number(num1 + num2),
                 else => @panic("Internal Error"),
             },
             else => @panic("Internal Error"),
@@ -360,22 +354,16 @@ fn subtractNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.integer(0) else a;
-    b = if (b == .Null) Elem.integer(0) else b;
+    a = if (a == .Null) Elem.number(0) else a;
+    b = if (b == .Null) Elem.number(0) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
         b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
         const res = switch (a) {
-            .Integer => |int1| switch (b) {
-                .Integer => |int2| Elem.integer(int1 - int2),
-                .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) - float2),
-                else => @panic("Internal Error"),
-            },
-            .Float => |float1| switch (b) {
-                .Integer => |int2| Elem.float(float1 - @as(f64, @floatFromInt(int2))),
-                .Float => |float2| Elem.float(float1 - float2),
+            .Number => |num1| switch (b) {
+                .Number => |num2| Elem.number(num1 - num2),
                 else => @panic("Internal Error"),
             },
             else => @panic("Internal Error"),
@@ -423,22 +411,16 @@ fn multiplyNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.integer(1) else a;
-    b = if (b == .Null) Elem.integer(1) else b;
+    a = if (a == .Null) Elem.number(1) else a;
+    b = if (b == .Null) Elem.number(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
         b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
         const res = switch (a) {
-            .Integer => |int1| switch (b) {
-                .Integer => |int2| Elem.integer(int1 * int2),
-                .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) * float2),
-                else => @panic("Internal Error"),
-            },
-            .Float => |float1| switch (b) {
-                .Integer => |int2| Elem.float(float1 * @as(f64, @floatFromInt(int2))),
-                .Float => |float2| Elem.float(float1 * float2),
+            .Number => |num1| switch (b) {
+                .Number => |num2| Elem.number(num1 * num2),
                 else => @panic("Internal Error"),
             },
             else => @panic("Internal Error"),
@@ -486,26 +468,20 @@ fn divideNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.integer(1) else a;
-    b = if (b == .Null) Elem.integer(1) else b;
+    a = if (a == .Null) Elem.number(1) else a;
+    b = if (b == .Null) Elem.number(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
         b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
-        if (b.isEql(Elem.integer(0), vm.*)) {
+        if (b.isEql(Elem.number(0), vm.*)) {
             return vm.runtimeError("@Divide denominator is 0", .{});
         }
 
         const res = switch (a) {
-            .Integer => |int1| switch (b) {
-                .Integer => |int2| Elem.float(@as(f64, @floatFromInt(int1)) / @as(f64, @floatFromInt(int2))),
-                .Float => |float2| Elem.float(@as(f64, @floatFromInt(int1)) / float2),
-                else => @panic("Internal Error"),
-            },
-            .Float => |float1| switch (b) {
-                .Integer => |int2| Elem.float(float1 / @as(f64, @floatFromInt(int2))),
-                .Float => |float2| Elem.float(float1 / float2),
+            .Number => |num1| switch (b) {
+                .Number => |num2| Elem.number(num1 / num2),
                 else => @panic("Internal Error"),
             },
             else => @panic("Internal Error"),
@@ -553,41 +529,16 @@ fn powerNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a == .Null) Elem.integer(1) else a;
-    b = if (b == .Null) Elem.integer(1) else b;
+    a = if (a == .Null) Elem.number(1) else a;
+    b = if (b == .Null) Elem.number(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
         b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
 
         const res = switch (a) {
-            .Integer => |int1| switch (b) {
-                .Integer => |int2| blk: {
-                    const int_res = std.math.powi(i64, int1, int2) catch null;
-                    if (int_res) |res| {
-                        break :blk Elem.integer(res);
-                    } else {
-                        break :blk Elem.float(
-                            std.math.pow(
-                                f64,
-                                @as(f64, @floatFromInt(int1)),
-                                @as(f64, @floatFromInt(int2)),
-                            ),
-                        );
-                    }
-                },
-                .Float => |float2| Elem.float(
-                    std.math.pow(f64, @as(f64, @floatFromInt(int1)), float2),
-                ),
-                else => @panic("Internal Error"),
-            },
-            .Float => |float1| switch (b) {
-                .Integer => |int2| Elem.float(
-                    std.math.pow(f64, float1, @as(f64, @floatFromInt(int2))),
-                ),
-                .Float => |float2| Elem.float(
-                    std.math.pow(f64, float1, float2),
-                ),
+            .Number => |num1| switch (b) {
+                .Number => |num2| Elem.number(std.math.pow(f64, num1, num2)),
                 else => @panic("Internal Error"),
             },
             else => @panic("Internal Error"),
@@ -623,7 +574,9 @@ fn createInputOffset(vm: *VM) !*Function {
 }
 
 fn inputOffsetNative(vm: *VM) VM.Error!void {
-    return vm.push(Elem.integer(@as(i64, @intCast(vm.inputPos.offset))));
+    return vm.push(Elem.number(@as(f64, @floatFromInt(
+        @as(i64, @intCast(vm.inputPos.offset)),
+    ))));
 }
 
 fn createInputLine(vm: *VM) !*Function {
@@ -648,7 +601,9 @@ fn createInputLine(vm: *VM) !*Function {
 }
 
 fn inputLineNative(vm: *VM) VM.Error!void {
-    return vm.push(Elem.integer(@as(i64, @intCast(vm.inputPos.line))));
+    return vm.push(Elem.number(@as(f64, @floatFromInt(
+        @as(i64, @intCast(vm.inputPos.line)),
+    ))));
 }
 
 fn createInputLineOffset(vm: *VM) !*Function {
@@ -673,7 +628,9 @@ fn createInputLineOffset(vm: *VM) !*Function {
 }
 
 fn inputLineOffsetNative(vm: *VM) VM.Error!void {
-    return vm.push(Elem.integer(
-        @as(i64, @intCast(vm.inputPos.offset - vm.inputPos.line_start)),
+    return vm.push(Elem.number(
+        @as(f64, @floatFromInt(
+            @as(i64, @intCast(vm.inputPos.offset - vm.inputPos.line_start)),
+        )),
     ));
 }

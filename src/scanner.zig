@@ -281,17 +281,13 @@ pub const Scanner = struct {
         while (isDigit(self.peek())) self.advance();
 
         // Look for a fractional/scientific part
-        const hasDecimalPart = self.scanDecimalPart();
-        const hasScientificPart = self.scanScientificPart();
+        _ = self.scanDecimalPart();
+        _ = self.scanScientificPart();
 
         if (self.tokenHasExtraLeadingZero()) {
             return self.makeError("Invalid number.");
-        } else if (hasScientificPart) {
-            return self.makeToken(.Scientific);
-        } else if (hasDecimalPart) {
-            return self.makeToken(.Float);
         } else {
-            return self.makeToken(.Integer);
+            return self.makeToken(.Number);
         }
     }
 

@@ -36,11 +36,11 @@ test "123 | 456.10" {
     var scanner = init(" 123  |\n  456.10 ");
 
     try expectToken(&scanner, Token.new(.Whitespace, " ", .{ .start = 0, .end = 1 }));
-    try expectToken(&scanner, Token.new(.Integer, "123", .{ .start = 1, .end = 4 }));
+    try expectToken(&scanner, Token.new(.Number, "123", .{ .start = 1, .end = 4 }));
     try expectToken(&scanner, Token.new(.Whitespace, "  ", .{ .start = 4, .end = 6 }));
     try expectToken(&scanner, Token.new(.Bar, "|", .{ .start = 6, .end = 7 }));
     try expectToken(&scanner, Token.new(.WhitespaceWithNewline, "\n  ", .{ .start = 7, .end = 10 }));
-    try expectToken(&scanner, Token.new(.Float, "456.10", .{ .start = 10, .end = 16 }));
+    try expectToken(&scanner, Token.new(.Number, "456.10", .{ .start = 10, .end = 16 }));
     try expectToken(&scanner, Token.new(.Whitespace, " ", .{ .start = 16, .end = 17 }));
     try expectToken(&scanner, Token.new(.Eof, "", .{ .start = 17, .end = 17 }));
 }
@@ -52,11 +52,11 @@ test "1 + 2" {
     ;
     var scanner = init(source);
 
-    try expectToken(&scanner, Token.new(.Integer, "1", .{ .start = 0, .end = 1 }));
+    try expectToken(&scanner, Token.new(.Number, "1", .{ .start = 0, .end = 1 }));
     try expectToken(&scanner, Token.new(.Whitespace, " ", .{ .start = 1, .end = 2 }));
     try expectToken(&scanner, Token.new(.Plus, "+", .{ .start = 2, .end = 3 }));
     try expectToken(&scanner, Token.new(.WhitespaceWithNewline, "\n", .{ .start = 3, .end = 4 }));
-    try expectToken(&scanner, Token.new(.Integer, "2", .{ .start = 4, .end = 5 }));
+    try expectToken(&scanner, Token.new(.Number, "2", .{ .start = 4, .end = 5 }));
     try expectToken(&scanner, Token.new(.Eof, "", .{ .start = 5, .end = 5 }));
 }
 
@@ -81,7 +81,7 @@ test "Foo = 'a' ; bar = 100" {
     try expectToken(&scanner, Token.new(.Whitespace, " ", .{ .start = 13, .end = 14 }));
     try expectToken(&scanner, Token.new(.Equal, "=", .{ .start = 14, .end = 15 }));
     try expectToken(&scanner, Token.new(.Whitespace, " ", .{ .start = 15, .end = 16 }));
-    try expectToken(&scanner, Token.new(.Integer, "100", .{ .start = 16, .end = 19 }));
+    try expectToken(&scanner, Token.new(.Number, "100", .{ .start = 16, .end = 19 }));
     try expectToken(&scanner, Token.new(.Eof, "", .{ .start = 19, .end = 19 }));
 }
 
