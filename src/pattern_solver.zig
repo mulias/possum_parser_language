@@ -734,19 +734,14 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
         std.debug.assert(unbound_start <= unbound_end);
 
         const unbound_value = value_str[unbound_start..unbound_end];
-        const unbound_elem = switch (value) {
-            .InputSubstring => |is| blk: {
-                // Create a substring of the input substring
-                const start_offset = is[0] + @as(u32, @intCast(unbound_start));
-                const end_offset = start_offset + @as(u32, @intCast(unbound_value.len));
-                break :blk Elem{ .InputSubstring = .{ start_offset, end_offset } };
-            },
-            else => blk: {
-                // Allocate a dynamic string
-                const dyn_str = try Elem.DynElem.String.create(self.vm, unbound_value.len);
-                try dyn_str.concatBytes(unbound_value);
-                break :blk dyn_str.dyn.elem();
-            },
+        const unbound_elem = if (value == .InputSubstring) blk: {
+            const elem = try Elem.inputSubstringFromRange(unbound_start, unbound_end, self.vm);
+            break :blk elem;
+        } else blk: {
+            // Allocate a dynamic string
+            const dyn_str = try Elem.DynElem.String.create(self.vm, unbound_value.len);
+            try dyn_str.concatBytes(unbound_value);
+            break :blk dyn_str.dyn.elem();
         };
 
         if (!(try self.matchPattern(unbound_elem, pattern))) {

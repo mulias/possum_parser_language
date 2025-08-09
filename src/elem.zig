@@ -31,13 +31,60 @@ pub const Elem = union(ElemType) {
     ParserVar: StringTable.Id,
     ValueVar: StringTable.Id,
     String: StringTable.Id,
-    InputSubstring: Tuple(&.{ u32, u32 }),
+    InputSubstring: InputSubstringElem,
     NumberString: NumberStringElem,
     Number: f64,
     Boolean: bool,
     Null: void,
     Failure: void,
     Dyn: *DynElem,
+
+    pub const InputSubstringElem = struct {
+        start: u16,
+        offset: u32,
+
+        pub fn new(start: u16, offset: u32) InputSubstringElem {
+            return InputSubstringElem{ .start = start, .offset = offset };
+        }
+
+        pub fn fromRange(start_pos: usize, end_pos: usize) ?InputSubstringElem {
+            const offset = end_pos - start_pos;
+            if (start_pos <= std.math.maxInt(u16) and offset <= std.math.maxInt(u32)) {
+                return InputSubstringElem.new(@as(u16, @intCast(start_pos)), @as(u32, @intCast(offset)));
+            }
+            return null;
+        }
+
+        pub fn end(self: InputSubstringElem) usize {
+            return self.start + self.offset;
+        }
+
+        pub fn isContiguous(is1: InputSubstringElem, is2: InputSubstringElem) bool {
+            const contiguous12 = is1.start <= is2.end() and is1.end() >= is2.start;
+            const contiguous21 = is2.start <= is1.end() and is2.end() >= is1.start;
+            return contiguous12 or contiguous21;
+        }
+
+        pub fn bytes(self: InputSubstringElem, vm: VM) []const u8 {
+            return vm.input[self.start..self.end()];
+        }
+
+        pub fn eql(self: InputSubstringElem, other: InputSubstringElem) bool {
+            return self.start == other.start and self.offset == other.offset;
+        }
+
+        pub fn mergeUnion(is1: InputSubstringElem, is2: InputSubstringElem) ?InputSubstringElem {
+            if (is1.isContiguous(is2)) {
+                const new_start = @min(is1.start, is2.start);
+                const new_end = @max(is1.end(), is2.end());
+                const new_offset = @as(usize, @intCast(new_end)) - @as(usize, @intCast(new_start));
+                if (new_offset <= std.math.maxInt(u32)) {
+                    return InputSubstringElem.new(new_start, @as(u32, @intCast(new_offset)));
+                }
+            }
+            return null;
+        }
+    };
 
     pub const NumberStringElem = struct {
         sId: StringTable.Id,
@@ -94,8 +141,17 @@ pub const Elem = union(ElemType) {
         return Elem{ .String = sId };
     }
 
-    pub fn inputSubstring(start: u32, end: u32) Elem {
-        return Elem{ .InputSubstring = .{ start, end } };
+    pub fn inputSubstring(start: u16, offset: u32) Elem {
+        return Elem{ .InputSubstring = InputSubstringElem.new(start, offset) };
+    }
+
+    pub fn inputSubstringFromRange(start: usize, end: usize, vm: *VM) !Elem {
+        if (InputSubstringElem.fromRange(start, end)) |substring| {
+            return Elem{ .InputSubstring = substring };
+        } else {
+            const str = try Elem.DynElem.String.copy(vm, vm.input[start..end]);
+            return str.dyn.elem();
+        }
     }
 
     pub fn numberString(bytes: []const u8, vm: *VM) !Elem {
@@ -132,7 +188,7 @@ pub const Elem = union(ElemType) {
             } else {
                 try writer.print("\"{s}\"", .{vm.strings.get(sid)});
             },
-            .InputSubstring => |is| try writer.print("\"{s}\"", .{vm.input[is[0]..is[1]]}),
+            .InputSubstring => |is| try writer.print("\"{s}\"", .{is.bytes(vm)}),
             .NumberString => |ns| try writer.print("{s}", .{ns.toString(vm.strings)}),
             .Number => |f| {
                 if (@trunc(f) == f and f >= @as(f64, @floatFromInt(std.math.minInt(i64))) and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)))) {
@@ -188,7 +244,7 @@ pub const Elem = union(ElemType) {
                 .String => |sId2| sId1 == sId2,
                 .InputSubstring => |is2| {
                     const s1 = vm.strings.get(sId1);
-                    const s2 = vm.input[is2[0]..is2[1]];
+                    const s2 = is2.bytes(vm);
                     return std.mem.eql(u8, s1, s2);
                 },
                 .Dyn => |d2| {
@@ -203,19 +259,19 @@ pub const Elem = union(ElemType) {
             },
             .InputSubstring => |is1| switch (other) {
                 .String => |sId2| {
-                    const s1 = vm.input[is1[0]..is1[1]];
+                    const s1 = is1.bytes(vm);
                     const s2 = vm.strings.get(sId2);
                     return std.mem.eql(u8, s1, s2);
                 },
                 .InputSubstring => |is2| {
-                    if (is1[0] == is2[0] and is1[1] == is2[1]) return true;
-                    const s1 = vm.input[is1[0]..is1[1]];
-                    const s2 = vm.input[is2[0]..is2[1]];
+                    if (is1.eql(is2)) return true;
+                    const s1 = is1.bytes(vm);
+                    const s2 = is2.bytes(vm);
                     return std.mem.eql(u8, s1, s2);
                 },
                 .Dyn => |d2| {
                     if (d2.isType(.String)) {
-                        const s1 = vm.input[is1[0]..is1[1]];
+                        const s1 = is1.bytes(vm);
                         const s2 = d2.asString().bytes();
                         return std.mem.eql(u8, s1, s2);
                     }
@@ -267,7 +323,7 @@ pub const Elem = union(ElemType) {
                 .InputSubstring => |is2| {
                     if (d1.isType(.String)) {
                         const s1 = d1.asString().bytes();
-                        const s2 = vm.input[is2[0]..is2[1]];
+                        const s2 = is2.bytes(vm);
                         return std.mem.eql(u8, s1, s2);
                     }
                     return false;
@@ -341,7 +397,7 @@ pub const Elem = union(ElemType) {
                 },
                 .InputSubstring => |is2| {
                     const s1 = vm.strings.get(sId1);
-                    const s2 = vm.input[is2[0]..is2[1]];
+                    const s2 = is2.bytes(vm.*);
                     const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                     try s.concatBytes(s1);
                     try s.concatBytes(s2);
@@ -362,7 +418,7 @@ pub const Elem = union(ElemType) {
             },
             .InputSubstring => |is1| switch (elemB) {
                 .String => |sId2| {
-                    const s1 = vm.input[is1[0]..is1[1]];
+                    const s1 = is1.bytes(vm.*);
                     const s2 = vm.strings.get(sId2);
                     const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                     try s.concatBytes(s1);
@@ -370,11 +426,11 @@ pub const Elem = union(ElemType) {
                     return s.dyn.elem();
                 },
                 .InputSubstring => |is2| {
-                    if (is1[1] == is2[0]) {
-                        return Elem.inputSubstring(is1[0], is2[1]);
+                    if (is1.mergeUnion(is2)) |merged| {
+                        return Elem{ .InputSubstring = merged };
                     } else {
-                        const s1 = vm.input[is1[0]..is1[1]];
-                        const s2 = vm.input[is2[0]..is2[1]];
+                        const s1 = is1.bytes(vm.*);
+                        const s2 = is2.bytes(vm.*);
                         const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                         try s.concatBytes(s1);
                         try s.concatBytes(s2);
@@ -383,7 +439,7 @@ pub const Elem = union(ElemType) {
                 },
                 .Dyn => |d| switch (d.dynType) {
                     .String => {
-                        const s1 = vm.input[is1[0]..is1[1]];
+                        const s1 = is1.bytes(vm.*);
                         const ds2 = d.asString();
                         const s = try Elem.DynElem.String.create(vm, s1.len + ds2.buffer.size);
                         try s.concatBytes(s1);
@@ -435,7 +491,7 @@ pub const Elem = union(ElemType) {
                             return s.dyn.elem();
                         },
                         .InputSubstring => |is2| {
-                            const s2 = vm.input[is2[0]..is2[1]];
+                            const s2 = is2.bytes(vm.*);
                             const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + s2.len);
                             try s.concat(ds1);
                             try s.concatBytes(s2);
@@ -560,7 +616,7 @@ pub const Elem = union(ElemType) {
     pub fn stringBytes(elem: Elem, vm: VM) ?[]const u8 {
         return switch (elem) {
             .String => |sId| vm.strings.get(sId),
-            .InputSubstring => |is| vm.input[is[0]..is[1]],
+            .InputSubstring => |is| is.bytes(vm),
             .Dyn => |d| switch (d.dynType) {
                 .String => d.asString().buffer.str(),
                 else => null,
@@ -589,7 +645,7 @@ pub const Elem = union(ElemType) {
                 return .{ .string = s };
             },
             .InputSubstring => |is| {
-                const s = vm.input[is[0]..is[1]];
+                const s = is.bytes(vm);
                 return .{ .string = s };
             },
             .NumberString => |n| {

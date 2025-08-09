@@ -601,8 +601,8 @@ pub const VM = struct {
                         self.inputPos.line_start = end;
                     }
 
-                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
-                    try self.push(substring);
+                    const elem = try Elem.inputSubstringFromRange(start, end, self);
+                    try self.push(elem);
                 } else {
                     try self.pushFailure();
                 }
@@ -782,8 +782,8 @@ pub const VM = struct {
             self.inputPos.line += newlines;
             self.inputPos.line_start = line_start;
 
-            const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
-            try self.push(substring);
+            const elem = try Elem.inputSubstringFromRange(start, end, self);
+            try self.push(elem);
 
             return;
         }
@@ -824,8 +824,8 @@ pub const VM = struct {
                     }
                     self.inputPos.offset = end;
 
-                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
-                    try self.push(substring);
+                    const elem = try Elem.inputSubstringFromRange(start, end, self);
+                    try self.push(elem);
 
                     return;
                 }
@@ -852,8 +852,8 @@ pub const VM = struct {
                         self.inputPos.line_start = end;
                     }
 
-                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
-                    try self.push(substring);
+                    const elem = try Elem.inputSubstringFromRange(start, end, self);
+                    try self.push(elem);
 
                     return;
                 }
@@ -881,8 +881,8 @@ pub const VM = struct {
                         self.inputPos.line_start = end;
                     }
 
-                    const substring = Elem.inputSubstring(@as(u32, @intCast(start)), @as(u32, @intCast(end)));
-                    try self.push(substring);
+                    const elem = try Elem.inputSubstringFromRange(start, end, self);
+                    try self.push(elem);
 
                     return;
                 }

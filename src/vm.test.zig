@@ -75,7 +75,7 @@ test "'a' > 'b' > 'c' | 'abz'" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, "abc"),
-            Elem.inputSubstring(2, 3),
+            Elem.inputSubstring(2, 1),
             vm,
         );
     }
@@ -338,7 +338,7 @@ test "'true' ? 'foo' + 'bar' : 'baz'" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, "truefoobar"),
-            Elem.inputSubstring(4, 10),
+            Elem.inputSubstring(4, 6),
             vm,
         );
     }
@@ -498,7 +498,7 @@ test "123 & 456 | 789 $ true & 'xyz'" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, "123789xyz"),
-            Elem.inputSubstring(6, 9),
+            Elem.inputSubstring(6, 3),
             vm,
         );
     }
@@ -746,7 +746,7 @@ test "scan(p) = p | (char > scan(p)) ; scan('end')" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, "aaaaaaaend"),
-            Elem.inputSubstring(7, 10),
+            Elem.inputSubstring(7, 3),
             vm,
         );
     }
@@ -824,7 +824,7 @@ test "n = '\n' ; n > n > n > 'wow!'" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, input),
-            Elem.inputSubstring(3, 7),
+            Elem.inputSubstring(3, 4),
             vm,
         );
     }
@@ -863,7 +863,7 @@ test "c = '\\u000000'..'\\u10FFFF' ; c > (c + c) < c" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, "abcd"),
-            Elem.inputSubstring(1, 3),
+            Elem.inputSubstring(1, 2),
             vm,
         );
     }
@@ -881,7 +881,7 @@ test "c = '\\u000001'..'\\u10FFFE' ; c > (c + c) < c" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, "abcd"),
-            Elem.inputSubstring(1, 3),
+            Elem.inputSubstring(1, 2),
             vm,
         );
     }
@@ -905,7 +905,7 @@ test "n = '\n'..'\n' ; n > n > n > 'wow!'" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, input),
-            Elem.inputSubstring(3, 7),
+            Elem.inputSubstring(3, 4),
             vm,
         );
     }
@@ -2237,7 +2237,7 @@ test "'foobar' -> ('fo' + Ob + 'ar') $ Ob" {
         const testModule = createTestModule(parser);
         try testing.expectSuccess(
             try vm.interpret(testModule, "foobar"),
-            Elem.inputSubstring(2, 4),
+            Elem.inputSubstring(2, 2),
             vm,
         );
     }
