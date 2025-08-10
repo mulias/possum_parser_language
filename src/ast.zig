@@ -258,7 +258,7 @@ pub const Ast = struct {
                 try writer.print(")", .{});
             },
             .ElemNode => |elem| {
-                try writer.print("({s} {}:{}-{} ", .{ @tagName(elem), line_relative.line, line_relative.relative_start, line_relative.relative_end });
+                try writer.print("({s} {}:{}-{} ", .{ elem.tagName(), line_relative.line, line_relative.relative_start, line_relative.relative_end });
                 try elem.print(vm, writer);
                 try writer.print(")", .{});
             },

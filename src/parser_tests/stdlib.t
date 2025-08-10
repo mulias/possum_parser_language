@@ -457,21 +457,21 @@
   
   (DeclareGlobal 136:0-18
     (Function 136:0-7
-      (Boolean 136:0-4 true) [
+      (Const 136:0-4 true) [
         (ParserVar 136:5-6 t)
       ])
     (Return 136:10-18
       (ParserVar 136:10-11 t)
-      (Boolean 136:14-18 true)))
+      (Const 136:14-18 true)))
   
   (DeclareGlobal 138:0-20
     (Function 138:0-8
-      (Boolean 138:0-5 false) [
+      (Const 138:0-5 false) [
         (ParserVar 138:6-7 f)
       ])
     (Return 138:11-20
       (ParserVar 138:11-12 f)
-      (Boolean 138:15-20 false)))
+      (Const 138:15-20 false)))
   
   (DeclareGlobal 140:0-34
     (Function 140:0-13
@@ -481,11 +481,11 @@
       ])
     (Or 140:16-34
       (Function 140:16-23
-        (Boolean 140:16-20 true) [
+        (Const 140:16-20 true) [
           (ParserVar 140:21-22 t)
         ])
       (Function 140:26-34
-        (Boolean 140:26-31 false) [
+        (Const 140:26-31 false) [
           (ParserVar 140:32-33 f)
         ])))
   
@@ -495,12 +495,12 @@
   
   (DeclareGlobal 144:0-18
     (Function 144:0-7
-      (Null 144:0-4 null) [
+      (Const 144:0-4 null) [
         (ParserVar 144:5-6 n)
       ])
     (Return 144:10-18
       (ParserVar 144:10-11 n)
-      (Null 144:14-18 null)))
+      (Const 144:14-18 null)))
   
   (DeclareGlobal 148:0-51
     (Function 148:0-11
@@ -1854,7 +1854,7 @@
         (ParserVar 343:2-9 _repeat) [
           (ParserVar 343:10-11 p)
           (ValueVar 343:13-14 N)
-          (ValueLabel 343:16-17 (Null 343:17-21 null))
+          (ValueLabel 343:16-17 (Const 343:17-21 null))
         ])))
   
   (DeclareGlobal 345:0-104
@@ -1919,7 +1919,7 @@
           (ParserVar 353:18-19 p)
           (ValueVar 353:21-22 N)
           (ValueVar 353:24-25 M)
-          (ValueLabel 353:27-28 (Null 353:28-32 null))
+          (ValueLabel 353:27-28 (Const 353:28-32 null))
         ])))
   
   (DeclareGlobal 355:0-182
@@ -2033,7 +2033,7 @@
         (ParserVar 374:5-6 p)
       ])
     (Function 374:10-17
-      (Null 374:10-14 null) [
+      (Const 374:10-14 null) [
         (ParserVar 374:15-16 p)
       ]))
   
@@ -2118,7 +2118,7 @@
     (ParserVar 384:0-7 succeed)
     (Function 384:10-22
       (ParserVar 384:10-15 const) [
-        (ValueLabel 384:16-17 (Null 384:17-21 null))
+        (ValueLabel 384:16-17 (Const 384:17-21 null))
       ]))
   
   (DeclareGlobal 386:0-28
@@ -2237,7 +2237,7 @@
   (DeclareGlobal 414:0-24
     (ParserVar 414:0-9 json.null)
     (Function 414:12-24
-      (Null 414:12-16 null) [
+      (Const 414:12-16 null) [
         (String 414:17-23 "null")
       ]))
   
@@ -5261,7 +5261,7 @@
     (Destructure 1040:13-29
       (ValueVar 1040:13-14 V)
       (Merge 1040:18-29
-        (Boolean 1040:19-24 false)
+        (Const 1040:19-24 false)
         (ValueVar 1040:27-28 _))))
   
   (DeclareGlobal 1042:0-22
@@ -5271,7 +5271,7 @@
       ])
     (Destructure 1042:13-22
       (ValueVar 1042:13-14 V)
-      (Null 1042:18-22 null)))
+      (Const 1042:18-22 null)))
   
   (DeclareGlobal 1044:0-25
     (Function 1044:0-11

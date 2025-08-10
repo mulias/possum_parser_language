@@ -14,28 +14,54 @@ const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
 
+const mask_sign: u64 = 0x8000000000000000;
+const mask_exponent: u64 = 0x7FF0000000000000;
+const mask_quiet: u64 = 0x0008000000000000;
+const mask_type: u64 = 0x0007000000000000;
+const mask_nan: u64 = mask_exponent | mask_quiet;
+const mask_signature: u64 = mask_sign | mask_exponent | mask_quiet | mask_type;
+const mask_payload: u64 = ~mask_signature;
+const signature_nan: u13 = 0x1FF8;
+
 pub const ElemType = enum(u3) {
-    ParserVar,
-    ValueVar,
-    String,
-    InputSubstring,
-    NumberString,
-    Number,
-    Const,
-    Dyn,
+    Const = 0,
+    Dyn = 1,
+    InputSubstring = 2,
+    NumberString = 3,
+    ParserVar = 4,
+    String = 5,
+    ValueVar = 6,
+    NumberFloat = 7,
 };
 
-pub const Elem = union(ElemType) {
-    ParserVar: StringTable.Id,
-    ValueVar: StringTable.Id,
-    String: StringTable.Id,
-    InputSubstring: InputSubstringElem,
-    NumberString: NumberStringElem,
-    Number: f64,
-    Const: ConstElem,
-    Dyn: *DynElem,
+pub const TaggedType = enum(u3) {
+    Const = 0,
+    Dyn = 1,
+    InputSubstring = 2,
+    NumberString = 3,
+    ParserVar = 4,
+    String = 5,
+    ValueVar = 6,
+};
 
-    pub const InputSubstringElem = struct {
+pub const Elem = packed union {
+    bits: u64,
+    float: f64,
+    tagged: packed struct {
+        payload: packed union {
+            bits: u48,
+            interned_string: packed struct { sid: u32, _unused: u16 = 0 },
+            input_substring: InputSubstringElem,
+            number_string: NumberStringElem,
+            constant: packed struct { value: ConstElem, _unused: u46 = 0 },
+        },
+        type: TaggedType,
+        signature: u13 = signature_nan,
+    },
+
+    pub const Payload = packed union {};
+
+    pub const InputSubstringElem = packed struct {
         start: u16,
         offset: u32,
 
@@ -80,28 +106,36 @@ pub const Elem = union(ElemType) {
             }
             return null;
         }
+
+        pub fn elem(self: InputSubstringElem) Elem {
+            return Elem{ .tagged = .{
+                .payload = .{ .input_substring = self },
+                .type = .InputSubstring,
+            } };
+        }
     };
 
-    pub const NumberStringElem = struct {
-        sId: StringTable.Id,
+    pub const NumberStringElem = packed struct {
+        sid: StringTable.Id,
         negated: bool,
+        _unused: u15 = 0,
 
         pub fn new(bytes: []const u8, vm: *VM) !NumberStringElem {
             if (bytes[0] == '-') {
                 const sId = try vm.strings.insert(bytes);
-                return NumberStringElem{ .sId = sId, .negated = true };
+                return NumberStringElem{ .sid = sId, .negated = true };
             } else {
                 var buffer = try vm.allocator.alloc(u8, bytes.len + 1);
                 defer vm.allocator.free(buffer);
                 buffer[0] = '-';
                 @memcpy(buffer[1..], bytes);
                 const sId = try vm.strings.insert(buffer);
-                return NumberStringElem{ .sId = sId, .negated = false };
+                return NumberStringElem{ .sid = sId, .negated = false };
             }
         }
 
-        pub fn toString(self: NumberStringElem, strings: StringTable) []const u8 {
-            const bs = strings.get(self.sId);
+        pub fn toBytes(self: NumberStringElem, strings: StringTable) []const u8 {
+            const bs = strings.get(self.sid);
             if (self.negated) {
                 return bs;
             } else {
@@ -111,259 +145,405 @@ pub const Elem = union(ElemType) {
 
         pub fn negate(self: NumberStringElem) NumberStringElem {
             return NumberStringElem{
-                .sId = self.sId,
+                .sid = self.sid,
                 .negated = !self.negated,
             };
         }
 
-        pub fn toNumberElem(self: NumberStringElem, strings: StringTable) !Elem {
-            const bytes = self.toString(strings);
+        pub fn toNumberFloat(self: NumberStringElem, strings: StringTable) !Elem {
+            const bytes = self.toBytes(strings);
             const f = std.fmt.parseFloat(f64, bytes) catch |err| switch (err) {
                 std.fmt.ParseFloatError.InvalidCharacter => @panic("Internal Error"),
             };
-            return Elem.number(f);
+            return Elem.numberFloat(f);
+        }
+
+        pub fn elem(self: NumberStringElem) Elem {
+            return Elem{ .tagged = .{
+                .payload = .{ .number_string = self },
+                .type = .NumberString,
+            } };
         }
     };
 
-    pub const ConstElem = enum { True, False, Null, Failure };
+    pub const ConstElem = enum(u2) {
+        False = 0,
+        True = 1,
+        Null = 2,
+        Failure = 3,
 
-    pub fn parserVar(sId: StringTable.Id) Elem {
-        return Elem{ .ParserVar = sId };
+        pub fn bytes(c: ConstElem) []const u8 {
+            return switch (c) {
+                .False => "false",
+                .True => "true",
+                .Null => "null",
+                .Failure => "@Failure",
+            };
+        }
+    };
+
+    pub fn parserVar(sid: StringTable.Id) Elem {
+        return Elem{ .tagged = .{
+            .payload = .{ .interned_string = .{ .sid = sid } },
+            .type = .ParserVar,
+        } };
     }
 
-    pub fn valueVar(sId: StringTable.Id) Elem {
-        return Elem{ .ValueVar = sId };
+    pub fn valueVar(sid: StringTable.Id) Elem {
+        return Elem{ .tagged = .{
+            .payload = .{ .interned_string = .{ .sid = sid } },
+            .type = .ValueVar,
+        } };
     }
 
-    pub fn string(sId: StringTable.Id) Elem {
-        return Elem{ .String = sId };
+    pub fn string(sid: StringTable.Id) Elem {
+        return Elem{ .tagged = .{
+            .payload = .{ .interned_string = .{ .sid = sid } },
+            .type = .String,
+        } };
     }
 
     pub fn inputSubstring(start: u16, offset: u32) Elem {
-        return Elem{ .InputSubstring = InputSubstringElem.new(start, offset) };
+        return Elem{ .tagged = .{
+            .payload = .{ .input_substring = .{ .start = start, .offset = offset } },
+            .type = .InputSubstring,
+        } };
     }
 
     pub fn inputSubstringFromRange(start: usize, end: usize, vm: *VM) !Elem {
         if (InputSubstringElem.fromRange(start, end)) |substring| {
-            return Elem{ .InputSubstring = substring };
+            return Elem{ .tagged = .{
+                .payload = .{ .input_substring = substring },
+                .type = .InputSubstring,
+            } };
         } else {
             const str = try Elem.DynElem.String.copy(vm, vm.input[start..end]);
             return str.dyn.elem();
         }
     }
 
-    pub fn numberString(bytes: []const u8, vm: *VM) !Elem {
-        return Elem{ .NumberString = try NumberStringElem.new(bytes, vm) };
+    pub fn numberString(sid: StringTable.Id, negated: bool) Elem {
+        return Elem{ .tagged = .{
+            .payload = .{ .numberString = .{ .sid = sid, .negated = negated } },
+            .type = .NumberString,
+        } };
     }
 
-    pub fn number(f: f64) Elem {
-        return Elem{ .Number = f };
+    pub fn numberStringFromBytes(bytes: []const u8, vm: *VM) !Elem {
+        const number_string = try NumberStringElem.new(bytes, vm);
+        return Elem{ .tagged = .{
+            .payload = .{ .number_string = number_string },
+            .type = .NumberString,
+        } };
+    }
+
+    pub fn numberFloat(f: f64) Elem {
+        return Elem{ .float = f };
     }
 
     pub fn boolean(b: bool) Elem {
-        return Elem{ .Const = if (b) .True else .False };
+        return Elem{ .tagged = .{
+            .payload = .{ .constant = .{ .value = if (b) ConstElem.True else ConstElem.False } },
+            .type = .Const,
+        } };
     }
 
-    pub const nullConst = Elem{ .Const = .Null };
+    pub const nullConst = Elem{ .tagged = .{
+        .payload = .{ .constant = .{ .value = ConstElem.Null } },
+        .type = .Const,
+    } };
 
-    pub const failureConst = Elem{ .Const = .Failure };
+    pub const failureConst = Elem{ .tagged = .{
+        .payload = .{ .constant = .{ .value = ConstElem.Failure } },
+        .type = .Const,
+    } };
+
+    pub fn isNaN(self: Elem) bool {
+        return self.bits & ~mask_sign == (@as(u64, 0) << 48) | mask_nan;
+    }
+
+    pub fn isFloat(self: Elem) bool {
+        return self.tagged.signature != signature_nan or self.isNaN();
+    }
+
+    pub fn isTagged(self: Elem) bool {
+        return !self.isFloat();
+    }
+
+    pub fn isNumber(self: Elem) bool {
+        return self.isFloat() or self.isType(.NumberString);
+    }
+
+    pub fn isType(self: Elem, elemType: ElemType) bool {
+        if (elemType == .NumberFloat) {
+            return self.isFloat();
+        } else {
+            return self.isTagged() and @intFromEnum(self.tagged.type) == @intFromEnum(elemType);
+        }
+    }
+
+    pub fn getType(self: Elem) ElemType {
+        if (self.isFloat()) {
+            return .NumberFloat;
+        } else {
+            return @enumFromInt(@intFromEnum(self.tagged.type));
+        }
+    }
+
+    pub fn isConst(self: Elem, constType: ConstElem) bool {
+        return self.isType(.Const) and self.tagged.payload.constant.value == constType;
+    }
+
+    pub fn isDynType(self: Elem, dynType: DynType) bool {
+        if (!self.isType(.Dyn)) return false;
+        const d = self.asDyn();
+        return d.isType(dynType);
+    }
+
+    pub fn isSuccess(self: Elem) bool {
+        return !self.isConst(.Failure);
+    }
+
+    pub fn isFailure(self: Elem) bool {
+        return self.isConst(.Failure);
+    }
+
+    pub fn asParserVar(self: Elem) StringTable.Id {
+        std.debug.assert(self.isType(.ParserVar));
+        return self.tagged.payload.interned_string.sid;
+    }
+
+    pub fn asValueVar(self: Elem) StringTable.Id {
+        std.debug.assert(self.isType(.ValueVar));
+        return self.tagged.payload.interned_string.sid;
+    }
+
+    pub fn asString(self: Elem) StringTable.Id {
+        std.debug.assert(self.isType(.String));
+        return self.tagged.payload.interned_string.sid;
+    }
+
+    pub fn asInputSubstring(self: Elem) InputSubstringElem {
+        std.debug.assert(self.isType(.InputSubstring));
+        return self.tagged.payload.input_substring;
+    }
+
+    pub fn asNumberString(self: Elem) NumberStringElem {
+        std.debug.assert(self.isType(.NumberString));
+        return self.tagged.payload.number_string;
+    }
+
+    pub fn asFloat(self: Elem) f64 {
+        std.debug.assert(self.isFloat());
+        return self.float;
+    }
+
+    pub fn asConst(self: Elem) ConstElem {
+        std.debug.assert(self.isType(.Const));
+        return self.tagged.payload.constant.value;
+    }
+
+    pub fn asDyn(self: Elem) *DynElem {
+        std.debug.assert(self.isType(.Dyn));
+        return @ptrFromInt(@as(usize, @intCast(self.bits & mask_payload)));
+    }
 
     pub fn print(self: Elem, vm: VM, writer: anytype) !void {
-        // try writer.print("{s} ", .{@tagName(self)});
-        return switch (self) {
-            .ParserVar => |sid| if (StringTable.asReserved(sid)) |rid| {
-                try writer.print("_{d}", .{rid});
-            } else {
-                try writer.print("{s}", .{vm.strings.get(sid)});
+        switch (self.getType()) {
+            .ParserVar => {
+                const sid = self.asParserVar();
+                if (StringTable.asReserved(sid)) |rid| {
+                    try writer.print("_{d}", .{rid});
+                } else {
+                    try writer.print("{s}", .{vm.strings.get(sid)});
+                }
             },
-            .ValueVar => |sid| if (StringTable.asReserved(sid)) |rid| {
-                try writer.print("_{d}", .{rid});
-            } else {
-                try writer.print("{s}", .{vm.strings.get(sid)});
+            .ValueVar => {
+                const sid = self.asValueVar();
+                if (StringTable.asReserved(sid)) |rid| {
+                    try writer.print("_{d}", .{rid});
+                } else {
+                    try writer.print("{s}", .{vm.strings.get(sid)});
+                }
             },
-            .String => |sid| if (StringTable.asReserved(sid)) |rid| {
-                try writer.print("_{d}", .{rid});
-            } else {
-                try writer.print("\"{s}\"", .{vm.strings.get(sid)});
+            .String => {
+                const sid = self.asString();
+                if (StringTable.asReserved(sid)) |rid| {
+                    try writer.print("_{d}", .{rid});
+                } else {
+                    try writer.print("\"{s}\"", .{vm.strings.get(sid)});
+                }
             },
-            .InputSubstring => |is| try writer.print("\"{s}\"", .{is.bytes(vm)}),
-            .NumberString => |ns| try writer.print("{s}", .{ns.toString(vm.strings)}),
-            .Number => |f| {
+            .InputSubstring => {
+                const is = self.asInputSubstring();
+                try writer.print("\"{s}\"", .{is.bytes(vm)});
+            },
+            .NumberString => {
+                const ns = self.asNumberString();
+                try writer.print("{s}", .{ns.toBytes(vm.strings)});
+            },
+            .Const => {
+                const c = self.asConst();
+                try writer.print("{s}", .{c.bytes()});
+            },
+            .Dyn => {
+                const d = self.asDyn();
+                try d.print(vm, writer);
+            },
+            .NumberFloat => {
+                const f = self.asFloat();
                 if (@trunc(f) == f and f >= @as(f64, @floatFromInt(std.math.minInt(i64))) and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)))) {
                     try writer.print("{d}", .{@as(i64, @intFromFloat(f))});
                 } else {
                     try writer.print("{d}", .{f});
                 }
             },
-            .Const => |c| switch (c) {
-                .True => try writer.print("true", .{}),
-                .False => try writer.print("false", .{}),
-                .Null => try writer.print("null", .{}),
-                .Failure => try writer.print("@Failure", .{}),
-            },
-            .Dyn => |d| d.print(vm, writer),
-        };
+        }
     }
 
-    pub fn isSuccess(self: Elem) bool {
-        return self != .Const or self.Const != .Failure;
-    }
-
-    pub fn isFailure(self: Elem) bool {
-        return self == .Const and self.Const == .Failure;
-    }
-
-    pub fn isType(self: Elem, elemType: ElemType) bool {
-        return self == elemType;
-    }
-
-    pub fn isConst(self: Elem, constType: ConstElem) bool {
-        return self == .Const and self.Const == constType;
-    }
-
-    pub fn isDynType(self: Elem, dynType: DynType) bool {
-        return switch (self) {
-            .Dyn => |d| d.isType(dynType),
-            else => false,
-        };
-    }
-
-    pub fn asDyn(self: Elem) *DynElem {
-        return switch (self) {
-            .Dyn => |d| return d,
-            else => @panic("internal error"),
-        };
+    pub fn tagName(self: Elem) []const u8 {
+        return if (self.isFloat()) "Float" else @tagName(self.tagged.type);
     }
 
     pub fn isEql(self: Elem, other: Elem, vm: VM) bool {
-        return switch (self) {
-            .ParserVar => |sId1| switch (other) {
-                .ParserVar => |sId2| sId1 == sId2,
-                else => false,
-            },
-            .ValueVar => |sId1| switch (other) {
-                .ValueVar => |sId2| sId1 == sId2,
-                else => false,
-            },
-            .String => |sId1| switch (other) {
-                .String => |sId2| sId1 == sId2,
-                .InputSubstring => |is2| {
+        // Handle numbers first
+        if (self.isFloat()) {
+            if (other.isFloat()) {
+                return self.asFloat() == other.asFloat();
+            } else if (other.isType(.NumberString)) {
+                const f2 = try other.asNumberString().toNumberFloat(vm.strings);
+                return self.isEql(f2, vm);
+            }
+        } else if (self.isType(.NumberString)) {
+            const f1 = try self.asNumberString().toNumberFloat(vm.strings);
+            return f1.isEql(other, vm);
+        }
+
+        // Handle non-numbers
+        if (self.isType(.ParserVar)) {
+            return other.isType(.ParserVar) and self.asParserVar() == other.asParserVar();
+        } else if (self.isType(.ValueVar)) {
+            return other.isType(.ValueVar) and self.asValueVar() == other.asValueVar();
+        } else if (self.isType(.String)) {
+            const sId1 = self.asString();
+            if (other.isType(.String)) {
+                return sId1 == other.asString();
+            } else if (other.isType(.InputSubstring)) {
+                const s1 = vm.strings.get(sId1);
+                const is2 = other.asInputSubstring();
+                const s2 = is2.bytes(vm);
+                return std.mem.eql(u8, s1, s2);
+            } else if (other.isType(.Dyn)) {
+                const d2 = other.asDyn();
+                if (d2.isType(.String)) {
                     const s1 = vm.strings.get(sId1);
+                    const s2 = d2.asString().bytes();
+                    return std.mem.eql(u8, s1, s2);
+                }
+            }
+            return false;
+        } else if (self.isType(.InputSubstring)) {
+            const is1 = self.asInputSubstring();
+            if (other.isType(.String)) {
+                const s1 = is1.bytes(vm);
+                const s2 = vm.strings.get(other.asString());
+                return std.mem.eql(u8, s1, s2);
+            } else if (other.isType(.InputSubstring)) {
+                const is2 = other.asInputSubstring();
+                if (is1.eql(is2)) return true;
+                const s1 = is1.bytes(vm);
+                const s2 = is2.bytes(vm);
+                return std.mem.eql(u8, s1, s2);
+            } else if (other.isType(.Dyn)) {
+                const d2 = other.asDyn();
+                if (d2.isType(.String)) {
+                    const s1 = is1.bytes(vm);
+                    const s2 = d2.asString().bytes();
+                    return std.mem.eql(u8, s1, s2);
+                }
+            }
+            return false;
+        } else if (self.isType(.NumberString)) {
+            const n1 = self.asNumberString();
+            if (other.isType(.NumberString)) {
+                const n2 = other.asNumberString();
+                const elem1 = n1.toNumberFloat(vm.strings) catch return false;
+                const elem2 = n2.toNumberFloat(vm.strings) catch return false;
+                return elem1.isEql(elem2, vm);
+            } else if (other.isFloat()) {
+                const elem1 = n1.toNumberFloat(vm.strings) catch return false;
+                return elem1.isEql(other, vm);
+            }
+            return false;
+        } else if (self.isType(.Const)) {
+            if (!other.isType(.Const)) return false;
+            return self.tagged.payload.constant.value == other.tagged.payload.constant.value;
+        } else if (self.isType(.Dyn)) {
+            const d1 = self.asDyn();
+            if (other.isType(.String)) {
+                if (d1.isType(.String)) {
+                    const s1 = d1.asString().bytes();
+                    const s2 = vm.strings.get(other.asString());
+                    return std.mem.eql(u8, s1, s2);
+                }
+                return false;
+            } else if (other.isType(.InputSubstring)) {
+                if (d1.isType(.String)) {
+                    const s1 = d1.asString().bytes();
+                    const is2 = other.asInputSubstring();
                     const s2 = is2.bytes(vm);
                     return std.mem.eql(u8, s1, s2);
-                },
-                .Dyn => |d2| {
-                    if (d2.isType(.String)) {
-                        const s1 = vm.strings.get(sId1);
-                        const s2 = d2.asString().bytes();
-                        return std.mem.eql(u8, s1, s2);
-                    }
-                    return false;
-                },
-                else => false,
-            },
-            .InputSubstring => |is1| switch (other) {
-                .String => |sId2| {
-                    const s1 = is1.bytes(vm);
-                    const s2 = vm.strings.get(sId2);
-                    return std.mem.eql(u8, s1, s2);
-                },
-                .InputSubstring => |is2| {
-                    if (is1.eql(is2)) return true;
-                    const s1 = is1.bytes(vm);
-                    const s2 = is2.bytes(vm);
-                    return std.mem.eql(u8, s1, s2);
-                },
-                .Dyn => |d2| {
-                    if (d2.isType(.String)) {
-                        const s1 = is1.bytes(vm);
-                        const s2 = d2.asString().bytes();
-                        return std.mem.eql(u8, s1, s2);
-                    }
-                    return false;
-                },
-                else => false,
-            },
-            .NumberString => |n1| switch (other) {
-                .NumberString => |n2| {
-                    const elem1 = n1.toNumberElem(vm.strings) catch return false;
-                    const elem2 = n2.toNumberElem(vm.strings) catch return false;
-                    return isEql(elem1, elem2, vm);
-                },
-                .Number => {
-                    const elem1 = n1.toNumberElem(vm.strings) catch return false;
-                    return isEql(elem1, other, vm);
-                },
-                else => false,
-            },
-            .Number => |num1| switch (other) {
-                .NumberString => |n2| {
-                    const elem2 = n2.toNumberElem(vm.strings) catch return false;
-                    return isEql(self, elem2, vm);
-                },
-                .Number => |num2| num1 == num2,
-                else => false,
-            },
-            .Const => |c1| switch (other) {
-                .Const => |c2| c1 == c2,
-                else => false,
-            },
-            .Dyn => |d1| switch (other) {
-                .String => |sId2| {
-                    if (d1.isType(.String)) {
-                        const s1 = d1.asString().bytes();
-                        const s2 = vm.strings.get(sId2);
-                        return std.mem.eql(u8, s1, s2);
-                    }
-                    return false;
-                },
-                .InputSubstring => |is2| {
-                    if (d1.isType(.String)) {
-                        const s1 = d1.asString().bytes();
-                        const s2 = is2.bytes(vm);
-                        return std.mem.eql(u8, s1, s2);
-                    }
-                    return false;
-                },
-                .Dyn => |d2| d1.isEql(d2, vm),
-                else => false,
-            },
-        };
+                }
+                return false;
+            } else if (other.isType(.Dyn)) {
+                return d1.isEql(other.asDyn(), vm);
+            }
+            return false;
+        }
+        return false;
     }
 
     pub fn isLessThanOrEqualInRangePattern(value: Elem, high: Elem, vm: VM) !bool {
-        return switch (value) {
-            .ValueVar => true,
-            .String,
-            .InputSubstring,
-            .Dyn,
-            => {
-                const value_codepoint = value.toCodepoint(vm) orelse return false;
+        if (value.isType(.ValueVar)) {
+            return true;
+        }
 
-                if (high == .ValueVar) {
-                    return true;
-                } else {
-                    const high_codepoint = high.toCodepoint(vm) orelse return false;
-                    return value_codepoint <= high_codepoint;
-                }
-            },
-            .NumberString => |ns| {
-                const num = try ns.toNumberElem(vm.strings);
-                return num.isLessThanOrEqualInRangePattern(high, vm);
-            },
-            .Number => |num_value| switch (high) {
-                .ValueVar => true,
-                .NumberString => |ns| {
-                    const highNum = try ns.toNumberElem(vm.strings);
-                    return value.isLessThanOrEqualInRangePattern(highNum, vm);
-                },
-                .Number => |num_high| num_value <= num_high,
-                else => false,
-            },
-            .Const,
-            .ParserVar,
-            => false,
-        };
+        if (value.isType(.String) or value.isType(.InputSubstring) or value.isType(.Dyn)) {
+            const value_codepoint = value.toCodepoint(vm) orelse return false;
+
+            if (high.isType(.ValueVar)) {
+                return true;
+            } else {
+                const high_codepoint = high.toCodepoint(vm) orelse return false;
+                return value_codepoint <= high_codepoint;
+            }
+        }
+
+        if (value.isType(.NumberString)) {
+            const ns = value.asNumberString();
+            const num = try ns.toNumberFloat(vm.strings);
+            return num.isLessThanOrEqualInRangePattern(high, vm);
+        }
+
+        if (value.isFloat()) {
+            const num_value = value.asFloat();
+            if (high.isType(.ValueVar)) {
+                return true;
+            } else if (high.isType(.NumberString)) {
+                const ns = high.asNumberString();
+                const highNum = try ns.toNumberFloat(vm.strings);
+                return value.isLessThanOrEqualInRangePattern(highNum, vm);
+            } else if (high.isFloat()) {
+                return num_value <= high.asFloat();
+            }
+            return false;
+        }
+
+        if (value.isType(.Const) or value.isType(.ParserVar)) {
+            return false;
+        }
+
+        return false;
     }
 
     fn toCodepoint(elem: Elem, vm: VM) ?u21 {
@@ -380,28 +560,28 @@ pub const Elem = union(ElemType) {
         if (elemA.isConst(.Null)) return elemB;
         if (elemB.isConst(.Null)) return elemA;
 
-        return switch (elemA) {
-            .String => |sId1| switch (elemB) {
-                .String => |sId2| {
-                    const s1 = vm.strings.get(sId1);
-                    const s2 = vm.strings.get(sId2);
+        return switch (elemA.getType()) {
+            .String => switch (elemB.getType()) {
+                .String => {
+                    const s1 = vm.strings.get(elemA.asString());
+                    const s2 = vm.strings.get(elemB.asString());
                     const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                     try s.concatBytes(s1);
                     try s.concatBytes(s2);
                     return s.dyn.elem();
                 },
-                .InputSubstring => |is2| {
-                    const s1 = vm.strings.get(sId1);
-                    const s2 = is2.bytes(vm.*);
+                .InputSubstring => {
+                    const s1 = vm.strings.get(elemA.asString());
+                    const s2 = elemB.asInputSubstring().bytes(vm.*);
                     const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                     try s.concatBytes(s1);
                     try s.concatBytes(s2);
                     return s.dyn.elem();
                 },
-                .Dyn => |d| switch (d.dynType) {
+                .Dyn => switch (elemB.asDyn().dynType) {
                     .String => {
-                        const s1 = vm.strings.get(sId1);
-                        const ds2 = d.asString();
+                        const s1 = vm.strings.get(elemA.asString());
+                        const ds2 = elemB.asDyn().asString();
                         const s = try Elem.DynElem.String.create(vm, s1.len + ds2.buffer.size);
                         try s.concatBytes(s1);
                         try s.concat(ds2);
@@ -411,18 +591,20 @@ pub const Elem = union(ElemType) {
                 },
                 else => null,
             },
-            .InputSubstring => |is1| switch (elemB) {
-                .String => |sId2| {
-                    const s1 = is1.bytes(vm.*);
-                    const s2 = vm.strings.get(sId2);
+            .InputSubstring => switch (elemB.getType()) {
+                .String => {
+                    const s1 = elemA.asInputSubstring().bytes(vm.*);
+                    const s2 = vm.strings.get(elemB.asString());
                     const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
                     try s.concatBytes(s1);
                     try s.concatBytes(s2);
                     return s.dyn.elem();
                 },
-                .InputSubstring => |is2| {
+                .InputSubstring => {
+                    const is1 = elemA.asInputSubstring();
+                    const is2 = elemB.asInputSubstring();
                     if (is1.mergeUnion(is2)) |merged| {
-                        return Elem{ .InputSubstring = merged };
+                        return merged.elem();
                     } else {
                         const s1 = is1.bytes(vm.*);
                         const s2 = is2.bytes(vm.*);
@@ -432,10 +614,10 @@ pub const Elem = union(ElemType) {
                         return s.dyn.elem();
                     }
                 },
-                .Dyn => |d| switch (d.dynType) {
+                .Dyn => switch (elemB.asDyn().dynType) {
                     .String => {
-                        const s1 = is1.bytes(vm.*);
-                        const ds2 = d.asString();
+                        const s1 = elemA.asInputSubstring().bytes(vm.*);
+                        const ds2 = elemB.asDyn().asString();
                         const s = try Elem.DynElem.String.create(vm, s1.len + ds2.buffer.size);
                         try s.concatBytes(s1);
                         try s.concat(ds2);
@@ -445,60 +627,55 @@ pub const Elem = union(ElemType) {
                 },
                 else => null,
             },
-            .NumberString => |n1| {
-                if (elemB.isZero(vm)) {
+            .NumberString => {
+                if (elemB.isZero(vm.strings)) {
                     return elemA;
                 } else {
-                    const elem1 = try n1.toNumberElem(vm.strings);
+                    const elem1 = try elemA.asNumberString().toNumberFloat(vm.strings);
                     return merge(elem1, elemB, vm);
                 }
             },
-            .Number => |num1| switch (elemB) {
-                .NumberString => |n2| {
-                    if (elemA.isZero(vm)) {
+            .NumberFloat => switch (elemB.getType()) {
+                .NumberString => {
+                    if (elemA.isZero(vm.strings)) {
                         return elemB;
                     } else {
-                        const elem2 = try n2.toNumberElem(vm.strings);
+                        const elem2 = try elemB.asNumberString().toNumberFloat(vm.strings);
                         return merge(elemA, elem2, vm);
                     }
                 },
-                .Number => |num2| number(num1 + num2),
+                .NumberFloat => numberFloat(elemA.asFloat() + elemB.asFloat()),
                 else => null,
             },
-            .Const => |c1| switch (c1) {
-                .True, .False => switch (elemB) {
-                    .Const => |c2| switch (c2) {
-                        .True, .False => boolean((c1 == .True) or (c2 == .True)),
-                        else => null,
-                    },
-                    else => null,
-                },
-                else => null,
+            .Const => if (elemB.isType(.Const)) {
+                return boolean((elemA.asConst() == .True) or (elemB.asConst() == .True));
+            } else {
+                return null;
             },
             .ParserVar,
             .ValueVar,
             => @panic("Internal error"),
-            .Dyn => |d1| switch (d1.dynType) {
+            .Dyn => switch (elemA.asDyn().dynType) {
                 .String => {
-                    const ds1 = d1.asString();
-                    return switch (elemB) {
-                        .String => |sId2| {
-                            const s2 = vm.strings.get(sId2);
+                    const ds1 = elemA.asDyn().asString();
+                    return switch (elemB.getType()) {
+                        .String => {
+                            const s2 = vm.strings.get(elemB.asString());
                             const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + s2.len);
                             try s.concat(ds1);
                             try s.concatBytes(s2);
                             return s.dyn.elem();
                         },
-                        .InputSubstring => |is2| {
-                            const s2 = is2.bytes(vm.*);
+                        .InputSubstring => {
+                            const s2 = elemB.asInputSubstring().bytes(vm.*);
                             const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + s2.len);
                             try s.concat(ds1);
                             try s.concatBytes(s2);
                             return s.dyn.elem();
                         },
-                        .Dyn => |d2| switch (d2.dynType) {
+                        .Dyn => switch (elemB.asDyn().dynType) {
                             .String => {
-                                const ds2 = d2.asString();
+                                const ds2 = elemB.asDyn().asString();
                                 const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + ds2.buffer.size);
                                 try s.concat(ds1);
                                 try s.concat(ds2);
@@ -510,11 +687,11 @@ pub const Elem = union(ElemType) {
                     };
                 },
                 .Array => {
-                    const a1 = d1.asArray();
-                    return switch (elemB) {
-                        .Dyn => |d2| switch (d2.dynType) {
+                    const a1 = elemA.asDyn().asArray();
+                    return switch (elemB.getType()) {
+                        .Dyn => switch (elemB.asDyn().dynType) {
                             .Array => {
-                                const a2 = d2.asArray();
+                                const a2 = elemB.asDyn().asArray();
                                 const a = try Elem.DynElem.Array.create(vm, a1.elems.items.len + a2.elems.items.len);
                                 try a.concat(vm.allocator, a1);
                                 try a.concat(vm.allocator, a2);
@@ -526,11 +703,11 @@ pub const Elem = union(ElemType) {
                     };
                 },
                 .Object => {
-                    const o1 = d1.asObject();
-                    return switch (elemB) {
-                        .Dyn => |d2| switch (d2.dynType) {
+                    const o1 = elemA.asDyn().asObject();
+                    return switch (elemB.getType()) {
+                        .Dyn => switch (elemB.asDyn().dynType) {
                             .Object => {
-                                const o2 = d2.asObject();
+                                const o2 = elemB.asDyn().asObject();
                                 const o = try Elem.DynElem.Object.create(vm, o1.members.count() + o2.members.count());
                                 try o.concat(vm.allocator, o1);
                                 try o.concat(vm.allocator, o2);
@@ -549,21 +726,17 @@ pub const Elem = union(ElemType) {
         };
     }
 
-    pub fn isNumber(elem: Elem) bool {
-        return elem == .Number or elem == .NumberString;
-    }
-
     pub fn negateNumber(elem: Elem) !Elem {
-        return switch (elem) {
+        return switch (elem.getType()) {
             .ParserVar,
             => @panic("Internal error"),
-            .Const => |c| switch (c) {
+            .Const => switch (elem.asConst()) {
                 .Failure => elem,
-                .Null => number(0),
+                .Null => numberFloat(0),
                 .True, .False => error.ExpectedNumber,
             },
-            .NumberString => |n| Elem{ .NumberString = n.negate() },
-            .Number => |f| number(f * -1),
+            .NumberString => elem.asNumberString().negate().elem(),
+            .NumberFloat => numberFloat(elem.asFloat() * -1),
             else => error.ExpectedNumber,
         };
     }
@@ -589,13 +762,14 @@ pub const Elem = union(ElemType) {
         }
     }
 
-    pub fn isZero(self: Elem, vm: *VM) bool {
-        return switch (self) {
-            .NumberString => |ns| {
-                const n = ns.toNumberElem(vm.strings) catch return false;
-                return n.isZero(vm);
+    pub fn isZero(self: Elem, strings: StringTable) bool {
+        return switch (self.getType()) {
+            .NumberString => {
+                const ns = self.asNumberString();
+                const n = ns.toNumberFloat(strings) catch return false;
+                return n.isZero(strings);
             },
-            .Number => |f| f == 0,
+            .NumberFloat => self.asFloat() == 0,
             else => false,
         };
     }
@@ -614,11 +788,11 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn stringBytes(elem: Elem, vm: VM) ?[]const u8 {
-        return switch (elem) {
-            .String => |sId| vm.strings.get(sId),
-            .InputSubstring => |is| is.bytes(vm),
-            .Dyn => |d| switch (d.dynType) {
-                .String => d.asString().buffer.str(),
+        return switch (elem.getType()) {
+            .String => vm.strings.get(elem.asString()),
+            .InputSubstring => elem.asInputSubstring().bytes(vm),
+            .Dyn => switch (elem.asDyn().dynType) {
+                .String => elem.asDyn().asString().buffer.str(),
                 else => null,
             },
             else => null,
@@ -626,8 +800,8 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn getOrPutSid(elem: Elem, vm: *VM) !?StringTable.Id {
-        switch (elem) {
-            .String => |sid| return sid,
+        switch (elem.getType()) {
+            .String => return elem.asString(),
             else => {
                 if (elem.stringBytes(vm.*)) |bytes| {
                     return try vm.strings.insert(bytes);
@@ -639,38 +813,39 @@ pub const Elem = union(ElemType) {
     }
 
     pub fn toJson(self: Elem, vm: VM) !json.Value {
-        return switch (self) {
-            .String => |sId| {
-                const s = vm.strings.get(sId);
+        return switch (self.getType()) {
+            .String => {
+                const s = vm.strings.get(self.asString());
                 return .{ .string = s };
             },
-            .InputSubstring => |is| {
-                const s = is.bytes(vm);
+            .InputSubstring => {
+                const s = self.asInputSubstring().bytes(vm);
                 return .{ .string = s };
             },
-            .NumberString => |n| {
-                return .{ .number_string = n.toString(vm.strings) };
+            .NumberString => {
+                return .{ .number_string = self.asNumberString().toBytes(vm.strings) };
             },
-            .Number => |f| {
+            .NumberFloat => {
+                const f = self.asFloat();
                 if (@trunc(f) == f and f >= @as(f64, @floatFromInt(std.math.minInt(i64))) and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)))) {
                     return .{ .integer = @as(i64, @intFromFloat(f)) };
                 } else {
                     return .{ .float = f };
                 }
             },
-            .Const => |c| switch (c) {
+            .Const => switch (self.asConst()) {
                 .True => .{ .bool = true },
                 .False => .{ .bool = false },
                 .Null => .{ .null = undefined },
                 .Failure => @panic("Internal Error"),
             },
-            .Dyn => |dyn| switch (dyn.dynType) {
+            .Dyn => switch (self.asDyn().dynType) {
                 .String => {
-                    const s = dyn.asString().buffer.str();
+                    const s = self.asDyn().asString().buffer.str();
                     return .{ .string = s };
                 },
                 .Array => {
-                    const array = dyn.asArray();
+                    const array = self.asDyn().asArray();
                     var jsonArray = json.Array.init(vm.allocator);
                     try jsonArray.ensureTotalCapacity(array.elems.items.len);
 
@@ -681,7 +856,7 @@ pub const Elem = union(ElemType) {
                     return .{ .array = jsonArray };
                 },
                 .Object => {
-                    var object = dyn.asObject();
+                    var object = self.asDyn().asObject();
                     var jsonObject = json.ObjectMap.init(vm.allocator);
                     try jsonObject.ensureTotalCapacity(object.members.count());
 
@@ -717,11 +892,11 @@ pub const Elem = union(ElemType) {
         return switch (value) {
             .null => Elem.nullConst,
             .bool => |b| Elem.boolean(b),
-            .integer => |i| Elem.number(@as(f64, @floatFromInt(i))),
-            .float => |f| Elem.number(f),
+            .integer => |i| Elem.numberFloat(@as(f64, @floatFromInt(i))),
+            .float => |f| Elem.numberFloat(f),
             .number_string => |number_bytes| {
                 if (parsing.isValidNumberString(number_bytes)) {
-                    return Elem.numberString(number_bytes, vm);
+                    return Elem.numberStringFromBytes(number_bytes, vm);
                 } else {
                     @panic("Internal Error");
                 }
@@ -787,7 +962,12 @@ pub const Elem = union(ElemType) {
         }
 
         pub fn elem(self: *DynElem) Elem {
-            return Elem{ .Dyn = self };
+            const addr = @intFromPtr(self);
+            std.debug.assert(addr & mask_signature == 0);
+            return Elem{ .tagged = .{
+                .payload = .{ .bits = @as(u48, @intCast(addr & mask_payload)) },
+                .type = .Dyn,
+            } };
         }
 
         pub fn print(self: *DynElem, vm: VM, writer: anytype) !void {
@@ -1310,7 +1490,7 @@ pub const Elem = union(ElemType) {
 };
 
 test "struct size" {
-    try std.testing.expectEqual(16, @sizeOf(Elem));
+    try std.testing.expectEqual(8, @sizeOf(Elem));
     try std.testing.expectEqual(24, @sizeOf(Elem.DynElem));
     try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(48, @sizeOf(Elem.DynElem.Array));

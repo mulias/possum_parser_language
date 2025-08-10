@@ -243,10 +243,13 @@ pub const VM = struct {
 
             if (module.getGlobal(function_name)) |stored_elem| {
                 // Compare function pointers directly since they should be the same instance
-                if (stored_elem == .Dyn and stored_elem.Dyn.isType(.Function)) {
-                    const stored_function = stored_elem.Dyn.asFunction();
-                    if (stored_function == function) {
-                        return module;
+                if (stored_elem.isType(.Dyn)) {
+                    const dyn = stored_elem.asDyn();
+                    if (dyn.isType(.Function)) {
+                        const stored_function = dyn.asFunction();
+                        if (stored_function == function) {
+                            return module;
+                        }
                     }
                 }
             }
@@ -324,16 +327,17 @@ pub const VM = struct {
                 // Create or extend a closure around a function.
                 const fromSlot = self.readByte();
                 const toSlot = self.readByte();
-                switch (self.pop()) {
-                    .Dyn => |dyn| switch (dyn.dynType) {
+                const elem = self.pop();
+                switch (elem.getType()) {
+                    .Dyn => switch (elem.asDyn().dynType) {
                         .Function => {
-                            const function = dyn.asFunction();
+                            const function = elem.asDyn().asFunction();
                             var closure = try Elem.DynElem.Closure.create(self, function);
                             closure.capture(toSlot, self.getLocal(fromSlot));
                             try self.push(closure.dyn.elem());
                         },
                         .Closure => {
-                            var closure = dyn.asClosure();
+                            var closure = elem.asDyn().asClosure();
                             closure.capture(toSlot, self.getLocal(fromSlot));
                             try self.push(closure.dyn.elem());
                         },
@@ -444,10 +448,7 @@ pub const VM = struct {
                     try self.pushFailure();
                 } else {
                     const object = object_elem.asDyn().asObject();
-                    const key = switch (keyElem) {
-                        .String => |sId| sId,
-                        else => @panic("Internal Error"),
-                    };
+                    const key = if (keyElem.isType(.String)) keyElem.asString() else @panic("Internal Error");
                     var copy = try Elem.DynElem.Object.create(self, object.members.count());
                     try copy.concat(self.allocator, object);
                     try copy.members.put(self.allocator, key, val);
@@ -613,41 +614,42 @@ pub const VM = struct {
                 const low_elem = self.chunk().getConstant(low_idx);
                 const high_elem = self.chunk().getConstant(high_idx);
 
-                assert(@intFromEnum(low_elem) == @intFromEnum(high_elem));
-
-                switch (low_elem) {
-                    .String => try self.parseCharacterRange(low_elem.String, high_elem.String),
-                    .Number => |low_f| {
-                        const high_f = high_elem.Number;
-                        const low_int = @as(i64, @intFromFloat(low_f));
-                        const high_int = @as(i64, @intFromFloat(high_f));
-                        try self.parseIntegerRange(low_int, high_int);
-                    },
-                    else => @panic("Internal Error"),
+                if (low_elem.isType(.String) and high_elem.isType(.String)) {
+                    try self.parseCharacterRange(low_elem.asString(), high_elem.asString());
+                } else if (low_elem.isFloat() and high_elem.isFloat()) {
+                    const low_f = low_elem.asFloat();
+                    const high_f = high_elem.asFloat();
+                    const low_int = @as(i64, @intFromFloat(low_f));
+                    const high_int = @as(i64, @intFromFloat(high_f));
+                    try self.parseIntegerRange(low_int, high_int);
+                } else {
+                    @panic("Internal Error");
                 }
             },
             .ParseLowerBoundedRange => {
                 const lowIdx = self.readByte();
                 const low_elem = self.chunk().getConstant(lowIdx);
-                switch (low_elem) {
-                    .String => |sId| try self.parseCharacterLowerBounded(sId),
-                    .Number => |f| {
-                        const low_int = @as(i64, @intFromFloat(f));
-                        try self.parseIntegerLowerBounded(low_int);
-                    },
-                    else => @panic("Internal Error"),
+                if (low_elem.isType(.String)) {
+                    try self.parseCharacterLowerBounded(low_elem.asString());
+                } else if (low_elem.isFloat()) {
+                    const f = low_elem.asFloat();
+                    const low_int = @as(i64, @intFromFloat(f));
+                    try self.parseIntegerLowerBounded(low_int);
+                } else {
+                    @panic("Internal Error");
                 }
             },
             .ParseUpperBoundedRange => {
                 const highIdx = self.readByte();
                 const high_elem = self.chunk().getConstant(highIdx);
-                switch (high_elem) {
-                    .String => |sId| try self.parseCharacterUpperBounded(sId),
-                    .Number => |f| {
-                        const high_int = @as(i64, @intFromFloat(f));
-                        try self.parseIntegerUpperBounded(high_int);
-                    },
-                    else => @panic("Internal Error"),
+                if (high_elem.isType(.String)) {
+                    try self.parseCharacterUpperBounded(high_elem.asString());
+                } else if (high_elem.isFloat()) {
+                    const f = high_elem.asFloat();
+                    const high_int = @as(i64, @intFromFloat(f));
+                    try self.parseIntegerUpperBounded(high_int);
+                } else {
+                    @panic("Internal Error");
                 }
             },
             .TakeLeft => {
@@ -698,8 +700,9 @@ pub const VM = struct {
     }
 
     pub fn callFunction(self: *VM, elem: Elem, argCount: u8, isTailPosition: bool) Error!void {
-        switch (elem) {
-            .ParserVar => |varName| {
+        switch (elem.getType()) {
+            .ParserVar => {
+                const varName = elem.asParserVar();
                 if (self.findGlobal(varName)) |varElem| {
                     // Swap the var with the thing it's aliasing on the stack
                     self.stack.items[self.frame().elemsOffset] = varElem;
@@ -709,46 +712,51 @@ pub const VM = struct {
                     return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
                 }
             },
-            .String => |sid| {
+            .String => {
+                const sid = elem.asString();
                 assert(argCount == 0);
                 _ = self.pop();
                 try self.parseString(sid);
             },
-            .NumberString => |ns| {
+            .NumberString => {
+                const ns = elem.asNumberString();
                 assert(argCount == 0);
                 _ = self.pop();
                 try self.parseNumberString(ns);
             },
-            .Dyn => |dyn| switch (dyn.dynType) {
-                .Function => {
-                    var function = dyn.asFunction();
+            .Dyn => {
+                const dyn = elem.asDyn();
+                switch (dyn.dynType) {
+                    .Function => {
+                        var function = dyn.asFunction();
 
-                    if (self.config.printExecutedBytecode) {
-                        const module = self.findModuleForFunction(function);
-                        try function.disassemble(self.*, self.writers.debug, module);
-                    }
-
-                    if (function.arity == argCount) {
-                        if (isTailPosition and !function.isBuiltin(self.*)) {
-                            // Remove the elements belonging to the previous call
-                            // frame. This includes the function itself, its
-                            // arguments, and any added local variables.
-                            const frameStart = self.frame().elemsOffset;
-                            const frameEnd = self.stack.items.len - function.arity - 1;
-                            const length = frameEnd - frameStart;
-                            try self.stack.replaceRange(self.allocator, frameStart, length, &[0]Elem{});
-                            _ = self.frames.pop();
+                        if (self.config.printExecutedBytecode) {
+                            const module = self.findModuleForFunction(function);
+                            try function.disassemble(self.*, self.writers.debug, module);
                         }
-                        try self.addFrame(function);
-                    } else {
-                        return self.runtimeError("Expected {} arguments but got {}.", .{ function.arity, argCount });
-                    }
-                },
-                .Closure => {
-                    const functionElem = dyn.asClosure().function.dyn.elem();
-                    try self.callFunction(functionElem, argCount, isTailPosition);
-                },
-                else => @panic("Internal error"),
+
+                        if (function.arity == argCount) {
+                            if (isTailPosition and !function.isBuiltin(self.*)) {
+                                // Remove the elements belonging to the previous call
+                                // frame. This includes the function itself, its
+                                // arguments, and any added local variables.
+                                const frameStart = self.frame().elemsOffset;
+                                const frameEnd = self.stack.items.len - function.arity - 1;
+                                const length = frameEnd - frameStart;
+                                try self.stack.replaceRange(self.allocator, frameStart, length, &[0]Elem{});
+                                _ = self.frames.pop();
+                            }
+                            try self.addFrame(function);
+                        } else {
+                            return self.runtimeError("Expected {} arguments but got {}.", .{ function.arity, argCount });
+                        }
+                    },
+                    .Closure => {
+                        const functionElem = dyn.asClosure().function.dyn.elem();
+                        try self.callFunction(functionElem, argCount, isTailPosition);
+                    },
+                    else => @panic("Internal error"),
+                }
             },
             else => @panic("Internal error"),
         }
@@ -792,13 +800,13 @@ pub const VM = struct {
     }
 
     fn parseNumberString(self: *VM, number_string: Elem.NumberStringElem) Error!void {
-        const bytes = number_string.toString(self.strings);
+        const bytes = number_string.toBytes(self.strings);
         const start = self.inputPos.offset;
         const end = start + bytes.len;
 
         if (self.input.len >= end and std.mem.eql(u8, bytes, self.input[start..end])) {
             self.inputPos.offset = end;
-            try self.push(.{ .NumberString = number_string });
+            try self.push(number_string.elem());
             return;
         }
         try self.pushFailure();
@@ -908,7 +916,7 @@ pub const VM = struct {
 
             if (inputInt) |i| if (low <= i and i <= high) {
                 self.inputPos.offset = end;
-                const int = Elem.number(@as(f64, @floatFromInt(i)));
+                const int = Elem.numberFloat(@as(f64, @floatFromInt(i)));
                 try self.push(int);
                 return;
             };
@@ -933,7 +941,7 @@ pub const VM = struct {
 
         if (inputInt) |i| if (low <= i) {
             self.inputPos.offset = end;
-            const int = Elem.number(@as(f64, @floatFromInt(i)));
+            const int = Elem.numberFloat(@as(f64, @floatFromInt(i)));
             try self.push(int);
             return;
         };
@@ -959,7 +967,7 @@ pub const VM = struct {
 
             if (inputInt) |i| if (i <= high) {
                 self.inputPos.offset = end;
-                const int = Elem.number(@as(f64, @floatFromInt(i)));
+                const int = Elem.numberFloat(@as(f64, @floatFromInt(i)));
                 try self.push(int);
                 return;
             };
@@ -1015,12 +1023,14 @@ pub const VM = struct {
 
     pub fn getBoundLocal(self: *VM, slot: usize) !Elem {
         const local = self.getLocal(slot);
-        switch (local) {
-            .ValueVar => |varName| {
+        switch (local.getType()) {
+            .ValueVar => {
+                const varName = local.asValueVar();
                 const nameStr = self.strings.get(varName);
                 return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
             },
-            .ParserVar => |varName| {
+            .ParserVar => {
+                const varName = local.asParserVar();
                 const nameStr = self.strings.get(varName);
                 return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
             },

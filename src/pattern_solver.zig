@@ -103,13 +103,13 @@ fn matchPattern(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool 
 }
 
 fn matchArray(self: *PatternSolver, value: Elem, pattern_array: ArrayList(Pattern)) !bool {
-    switch (value) {
-        .Dyn => |dyn| {
-            if (dyn.dynType != .Array) return false;
-            const value_array = dyn.asArray();
-            return self.matchArrayPart(value_array.elems.items, pattern_array);
-        },
-        else => return false,
+    if (value.isType(.Dyn)) {
+        const dyn = value.asDyn();
+        if (!dyn.isType(.Array)) return false;
+        const value_array = dyn.asArray();
+        return self.matchArrayPart(value_array.elems.items, pattern_array);
+    } else {
+        return false;
     }
 }
 
@@ -125,8 +125,8 @@ fn matchArrayPart(self: *PatternSolver, value_slice: []Elem, pattern_array: Arra
 }
 
 fn matchBoolean(_: *PatternSolver, value: Elem, pattern_boolean: bool) !bool {
-    switch (value) {
-        .Const => |c| switch (c) {
+    switch (value.getType()) {
+        .Const => switch (value.asConst()) {
             .True => return pattern_boolean == true,
             .False => return pattern_boolean == false,
             else => return false,
@@ -139,7 +139,7 @@ fn matchConstant(self: *PatternSolver, value: Elem, pattern_var: Pattern.Pattern
     var pattern_value = self.vm.getConstant(pattern_var.idx);
 
     if (pattern_value.isDynType(.Function)) {
-        const function = pattern_value.Dyn.asFunction();
+        const function = pattern_value.asDyn().asFunction();
 
         // Constant function must be zero-arity, since it was not called with args
         if (function.arity != 0) return Error.RuntimeError;
@@ -184,7 +184,7 @@ fn matchLocal(self: *PatternSolver, value: Elem, pattern_var: Pattern.PatternVar
     var pattern_value = self.vm.getLocal(pattern_var.idx);
 
     if (pattern_value.isDynType(.Function)) {
-        const function = pattern_value.Dyn.asFunction();
+        const function = pattern_value.asDyn().asFunction();
 
         // Constant function must be zero-arity, since it was not called with args
         if (function.arity != 0) return Error.RuntimeError;
@@ -196,9 +196,9 @@ fn matchLocal(self: *PatternSolver, value: Elem, pattern_var: Pattern.PatternVar
         );
     }
 
-    if (pattern_value == .ValueVar) {
+    if (pattern_value.isType(.ValueVar)) {
         // Unbound local variable
-        const var_id = pattern_value.ValueVar;
+        const var_id = pattern_value.asValueVar();
 
         if (pattern_var.hasBeenNegated() and !value.isNumber()) {
             // Negating an unbound pattern variable is valid, but if the value is
@@ -282,15 +282,15 @@ fn prepareMergePattern(self: *PatternSolver, pattern_merge: ArrayList(Pattern), 
 
 fn prepareMergePatternPart(self: *PatternSolver, part: Simplified, merge_parts: *ArrayList(Simplified)) Error!MergeType {
     return switch (part) {
-        .Value => |elem| switch (elem) {
+        .Value => |elem| switch (elem.getType()) {
             .String, .InputSubstring => .String,
-            .NumberString, .Number => .Number,
-            .Const => |c| switch (c) {
+            .NumberString, .NumberFloat => .Number,
+            .Const => switch (elem.asConst()) {
                 .True, .False => .Boolean,
                 .Null, .Failure => .Untyped,
             },
             .ParserVar, .ValueVar => .Untyped,
-            .Dyn => |dyn| switch (dyn.dynType) {
+            .Dyn => switch (elem.asDyn().dynType) {
                 .String => .String,
                 .Array => .Array,
                 .Object => .Object,
@@ -522,7 +522,7 @@ fn matchBooleanMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bo
 }
 
 fn matchNumberMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool {
-    var bound_sum = Elem.number(0);
+    var bound_sum = Elem.numberFloat(0);
     var unbound_part: ?Pattern = null;
 
     for (parts) |part| {
@@ -739,7 +739,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
         std.debug.assert(unbound_start <= unbound_end);
 
         const unbound_value = value_str[unbound_start..unbound_end];
-        const unbound_elem = if (value == .InputSubstring) blk: {
+        const unbound_elem = if (value.isType(.InputSubstring)) blk: {
             const elem = try Elem.inputSubstringFromRange(unbound_start, unbound_end, self.vm);
             break :blk elem;
         } else blk: {
@@ -817,18 +817,17 @@ fn matchNull(self: *PatternSolver, value: Elem) bool {
 }
 
 fn matchNumberString(self: *PatternSolver, value: Elem, pattern_number: Elem.NumberStringElem) bool {
-    const pattern_elem = (Elem{ .NumberString = pattern_number });
-    return value.isEql(pattern_elem, self.vm.*);
+    return value.isEql(pattern_number.elem(), self.vm.*);
 }
 
 fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Pattern.ObjectPair)) Error!bool {
     self.depth = self.depth +| 1;
     defer self.depth = self.depth -| 1;
 
-    switch (value) {
-        .Dyn => |dyn| {
-            if (dyn.dynType != .Object) return false;
-            var value_object = dyn.asObject();
+    switch (value.getType()) {
+        .Dyn => {
+            if (!value.asDyn().isType(.Object)) return false;
+            var value_object = value.asDyn().asObject();
 
             if (pattern_object.items.len != value_object.members.count()) {
                 return false;
@@ -841,8 +840,8 @@ fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Patt
             for (pattern_object.items) |pattern_pair| {
                 if (try self.attemptEval(pattern_pair.key)) |key_value| {
                     // Bound key case
-                    const key_sid = switch (key_value) {
-                        .String => |sid| sid,
+                    const key_sid = switch (key_value.getType()) {
+                        .String => key_value.asString(),
                         else => return Error.RuntimeError,
                     };
 
@@ -960,7 +959,7 @@ fn matchRange(self: *PatternSolver, value: Elem, pattern_range: Pattern.RangePat
 }
 
 fn matchString(self: *PatternSolver, value: Elem, pattern_sid: StringTable.Id) !bool {
-    return self.checkEquality(value, .{ .String = pattern_sid });
+    return self.checkEquality(value, Elem.string(pattern_sid));
 }
 
 fn matchStringBytes(self: *PatternSolver, value: []const u8, pattern: []const u8) !bool {
@@ -1123,7 +1122,7 @@ fn attemptEval(self: *PatternSolver, pattern: Pattern) Error!?Elem {
         .Local => |l| try self.evalLocal(l),
         .Merge => null,
         .Null => Elem.nullConst,
-        .NumberString => |ns| Elem{ .NumberString = ns },
+        .NumberString => |ns| ns.elem(),
         .Object => null,
         .Range => null,
         .String => |sid| Elem.string(sid),
@@ -1136,7 +1135,7 @@ fn evalConstant(self: *PatternSolver, constant: Pattern.PatternVar) !Elem {
 
     if (value.isDynType(.Function)) {
         // Value is a function which needs to be evaled
-        const function = value.Dyn.asFunction();
+        const function = value.asDyn().asFunction();
 
         // Must be zero-arity, since it was called without args
         if (function.arity != 0) return Error.RuntimeError;
@@ -1202,7 +1201,7 @@ fn evalLocal(self: *PatternSolver, local: Pattern.PatternVar) !?Elem {
 
     if (value.isDynType(.Function)) {
         // Value is a function which needs to be evaled
-        const function = value.Dyn.asFunction();
+        const function = value.asDyn().asFunction();
 
         // Must be zero-arity, since it was called without args
         if (function.arity != 0) return Error.RuntimeError;
@@ -1212,7 +1211,7 @@ fn evalLocal(self: *PatternSolver, local: Pattern.PatternVar) !?Elem {
             value,
             null,
         );
-    } else if (value != .ValueVar) {
+    } else if (!value.isType(.ValueVar)) {
         return value;
     } else {
         return null;

@@ -85,7 +85,7 @@ pub const CLI = struct {
         if (config.runVM) {
             const parsed = try vm.interpret(userModule, input);
 
-            if (parsed == .Failure) {
+            if (parsed.isFailure()) {
                 try self.writers.err.print("Parser Failure\n", .{});
                 std.process.exit(1);
             } else {

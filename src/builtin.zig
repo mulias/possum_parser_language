@@ -297,21 +297,20 @@ fn addNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a.isConst(.Null)) Elem.number(0) else a;
-    b = if (b.isConst(.Null)) Elem.number(0) else b;
+    a = if (a.isConst(.Null)) Elem.numberFloat(0) else a;
+    b = if (b.isConst(.Null)) Elem.numberFloat(0) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        if (a.isZero(vm.strings)) {
+            return vm.push(b);
+        } else if (b.isZero(vm.strings)) {
+            return vm.push(a);
+        }
 
-        const res = switch (a) {
-            .Number => |num1| switch (b) {
-                .Number => |num2| Elem.number(num1 + num2),
-                else => @panic("Internal Error"),
-            },
-            else => @panic("Internal Error"),
-        };
+        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
 
+        const res = Elem.numberFloat(a.asFloat() + b.asFloat());
         return vm.push(res);
     } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
@@ -354,21 +353,14 @@ fn subtractNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a.isConst(.Null)) Elem.number(0) else a;
-    b = if (b.isConst(.Null)) Elem.number(0) else b;
+    a = if (a.isConst(.Null)) Elem.numberFloat(0) else a;
+    b = if (b.isConst(.Null)) Elem.numberFloat(0) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
 
-        const res = switch (a) {
-            .Number => |num1| switch (b) {
-                .Number => |num2| Elem.number(num1 - num2),
-                else => @panic("Internal Error"),
-            },
-            else => @panic("Internal Error"),
-        };
-
+        const res = Elem.numberFloat(a.asFloat() - b.asFloat());
         return vm.push(res);
     } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
@@ -411,21 +403,14 @@ fn multiplyNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a.isConst(.Null)) Elem.number(1) else a;
-    b = if (b.isConst(.Null)) Elem.number(1) else b;
+    a = if (a.isConst(.Null)) Elem.numberFloat(1) else a;
+    b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
 
-        const res = switch (a) {
-            .Number => |num1| switch (b) {
-                .Number => |num2| Elem.number(num1 * num2),
-                else => @panic("Internal Error"),
-            },
-            else => @panic("Internal Error"),
-        };
-
+        const res = Elem.numberFloat(a.asFloat() * b.asFloat());
         return vm.push(res);
     } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
@@ -468,25 +453,18 @@ fn divideNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a.isConst(.Null)) Elem.number(1) else a;
-    b = if (b.isConst(.Null)) Elem.number(1) else b;
+    a = if (a.isConst(.Null)) Elem.numberFloat(1) else a;
+    b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
 
-        if (b.isEql(Elem.number(0), vm.*)) {
+        if (b.isEql(Elem.numberFloat(0), vm.*)) {
             return vm.runtimeError("@Divide denominator is 0", .{});
         }
 
-        const res = switch (a) {
-            .Number => |num1| switch (b) {
-                .Number => |num2| Elem.number(num1 / num2),
-                else => @panic("Internal Error"),
-            },
-            else => @panic("Internal Error"),
-        };
-
+        const res = Elem.numberFloat(a.asFloat() / b.asFloat());
         return vm.push(res);
     } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
@@ -529,21 +507,14 @@ fn powerNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
 
-    a = if (a.isConst(.Null)) Elem.number(1) else a;
-    b = if (b.isConst(.Null)) Elem.number(1) else b;
+    a = if (a.isConst(.Null)) Elem.numberFloat(1) else a;
+    b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        a = if (a == .NumberString) try a.NumberString.toNumberElem(vm.strings) else a;
-        b = if (b == .NumberString) try b.NumberString.toNumberElem(vm.strings) else b;
+        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
 
-        const res = switch (a) {
-            .Number => |num1| switch (b) {
-                .Number => |num2| Elem.number(std.math.pow(f64, num1, num2)),
-                else => @panic("Internal Error"),
-            },
-            else => @panic("Internal Error"),
-        };
-
+        const res = Elem.numberFloat(std.math.pow(f64, a.asFloat(), b.asFloat()));
         return vm.push(res);
     } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
         return vm.pushFailure();
@@ -574,7 +545,7 @@ fn createInputOffset(vm: *VM) !*Function {
 }
 
 fn inputOffsetNative(vm: *VM) VM.Error!void {
-    return vm.push(Elem.number(@as(f64, @floatFromInt(
+    return vm.push(Elem.numberFloat(@as(f64, @floatFromInt(
         @as(i64, @intCast(vm.inputPos.offset)),
     ))));
 }
@@ -601,7 +572,7 @@ fn createInputLine(vm: *VM) !*Function {
 }
 
 fn inputLineNative(vm: *VM) VM.Error!void {
-    return vm.push(Elem.number(@as(f64, @floatFromInt(
+    return vm.push(Elem.numberFloat(@as(f64, @floatFromInt(
         @as(i64, @intCast(vm.inputPos.line)),
     ))));
 }
@@ -628,7 +599,7 @@ fn createInputLineOffset(vm: *VM) !*Function {
 }
 
 fn inputLineOffsetNative(vm: *VM) VM.Error!void {
-    return vm.push(Elem.number(
+    return vm.push(Elem.numberFloat(
         @as(f64, @floatFromInt(
             @as(i64, @intCast(vm.inputPos.offset - vm.inputPos.line_start)),
         )),

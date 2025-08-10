@@ -15,12 +15,16 @@ pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {
 }
 
 pub fn expectSuccess(actual: Elem, expected: Elem, vm: VM) !void {
-    if (!actual.isEql(expected, vm) or @intFromEnum(actual) != @intFromEnum(expected)) {
-        std.debug.print("expectSuccess: returned elems were not equal.\n  expected elem: {s} ", .{@tagName(expected)});
-        expected.print(vm, vm.writers.debug) catch {};
-        std.debug.print("\n  actual elem: {s} ", .{@tagName(actual)});
-        actual.print(vm, vm.writers.debug) catch {};
-        std.debug.print("\n", .{});
+    const writer = std.io.getStdErr().writer().any();
+
+    if (!actual.isEql(expected, vm)) {
+        std.debug.print("expectSuccess: returned elems were not equal.\n", .{});
+        std.debug.print("  expected: {s}(", .{expected.tagName()});
+        expected.print(vm, writer) catch {};
+        std.debug.print(")\n", .{});
+        std.debug.print("  actual: {s}(", .{actual.tagName()});
+        actual.print(vm, writer) catch {};
+        std.debug.print(")\n", .{});
 
         return error.TestExpectedEqual;
     }

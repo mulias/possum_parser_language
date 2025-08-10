@@ -214,12 +214,12 @@ pub const Compiler = struct {
 
         const nameElem = name.node.asElem() orelse return Error.InvalidAst;
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
-        const name_sid = switch (nameVar) {
-            .ValueVar => |sId| sId,
-            .ParserVar => |sId| sId,
+        const name_sid = switch (nameVar.getType()) {
+            .ValueVar => nameVar.asValueVar(),
+            .ParserVar => nameVar.asParserVar(),
             else => return Error.InvalidAst,
         };
-        const functionType: Elem.DynElem.FunctionType = switch (nameVar) {
+        const functionType: Elem.DynElem.FunctionType = switch (nameVar.getType()) {
             .ValueVar => .NamedValue,
             .ParserVar => .NamedParser,
             else => return Error.InvalidAst,
@@ -251,9 +251,9 @@ pub const Compiler = struct {
     fn declareGlobalAlias(self: *Compiler, nameElem: Elem, bodyElem: Elem) !void {
         // Add an alias to the global namespace. Set the given body element as the alias's value.
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
-        const name = switch (nameVar) {
-            .ValueVar => |sId| sId,
-            .ParserVar => |sId| sId,
+        const name = switch (nameVar.getType()) {
+            .ValueVar => nameVar.asValueVar(),
+            .ParserVar => nameVar.asParserVar(),
             else => return Error.InvalidAst,
         };
 
@@ -277,56 +277,64 @@ pub const Compiler = struct {
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
 
-        switch (nameVar) {
-            .ValueVar => |name| switch (self.findGlobal(name).?) {
-                .ValueVar,
-                .String,
-                .NumberString,
-                .Const,
-                => {},
-                .ParserVar,
-                => return Error.InvalidGlobalValue,
-                .Dyn => |dyn| switch (dyn.dynType) {
+        switch (nameVar.getType()) {
+            .ValueVar => {
+                const name = nameVar.asValueVar();
+                const global = self.findGlobal(name).?;
+                switch (global.getType()) {
+                    .ValueVar,
                     .String,
-                    .Array,
-                    .Object,
-                    .NativeCode,
+                    .NumberString,
+                    .Const,
                     => {},
-                    .Function => {
-                        if (dyn.asFunction().functionType != .NamedValue) {
-                            return Error.InvalidGlobalValue;
-                        }
+                    .ParserVar,
+                    => return Error.InvalidGlobalValue,
+                    .Dyn => switch (global.asDyn().dynType) {
+                        .String,
+                        .Array,
+                        .Object,
+                        .NativeCode,
+                        => {},
+                        .Function => {
+                            if (global.asDyn().asFunction().functionType != .NamedValue) {
+                                return Error.InvalidGlobalValue;
+                            }
+                        },
+                        .Closure => @panic("Internal Error"),
                     },
-                    .Closure => @panic("Internal Error"),
-                },
-                .InputSubstring,
-                .Number,
-                => @panic("Internal Error"),
+                    .InputSubstring,
+                    .NumberFloat,
+                    => @panic("Internal Error"),
+                }
             },
-            .ParserVar => |name| switch (self.findGlobal(name).?) {
-                .ParserVar,
-                .String,
-                .NumberString,
-                => {},
-                .ValueVar => return Error.InvalidGlobalParser,
-                .Dyn => |dyn| switch (dyn.dynType) {
+            .ParserVar => {
+                const name = nameVar.asParserVar();
+                const global = self.findGlobal(name).?;
+                switch (global.getType()) {
+                    .ParserVar,
                     .String,
-                    .NativeCode,
+                    .NumberString,
                     => {},
-                    .Array,
-                    .Object,
-                    => return Error.InvalidGlobalParser,
-                    .Function => {
-                        if (dyn.asFunction().functionType != .NamedParser) {
-                            return Error.InvalidGlobalParser;
-                        }
+                    .ValueVar => return Error.InvalidGlobalParser,
+                    .Dyn => switch (global.asDyn().dynType) {
+                        .String,
+                        .NativeCode,
+                        => {},
+                        .Array,
+                        .Object,
+                        => return Error.InvalidGlobalParser,
+                        .Function => {
+                            if (global.asDyn().asFunction().functionType != .NamedParser) {
+                                return Error.InvalidGlobalParser;
+                            }
+                        },
+                        .Closure => @panic("Internal Error"),
                     },
-                    .Closure => @panic("Internal Error"),
-                },
-                .InputSubstring,
-                .Number,
-                .Const,
-                => @panic("Internal Error"),
+                    .InputSubstring,
+                    .Const,
+                    .NumberFloat,
+                    => @panic("Internal Error"),
+                }
             },
             else => @panic("Internal Error"),
         }
@@ -348,9 +356,9 @@ pub const Compiler = struct {
             if (value) |foundValue| {
                 try path.append(self.vm.allocator, aliasName);
 
-                aliasName = switch (foundValue) {
-                    .ValueVar => |name| name,
-                    .ParserVar => |name| name,
+                aliasName = switch (foundValue.getType()) {
+                    .ValueVar => foundValue.asValueVar(),
+                    .ParserVar => foundValue.asParserVar(),
                     else => {
                         try self.targetModule.addGlobal(self.vm.allocator, globalName, foundValue);
                         break;
@@ -422,9 +430,9 @@ pub const Compiler = struct {
             => return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
-        const name = switch (nameVar) {
-            .ValueVar => |sId| sId,
-            .ParserVar => |sId| sId,
+        const name = switch (nameVar.getType()) {
+            .ValueVar => nameVar.asValueVar(),
+            .ParserVar => nameVar.asParserVar(),
             else => return Error.InvalidAst,
         };
         return name;
@@ -488,9 +496,9 @@ pub const Compiler = struct {
                     const low_elem = try getParserRangeElemNode(low);
                     const high_elem = try getParserRangeElemNode(high);
 
-                    if (low_elem == .String and high_elem == .String) {
-                        const low_str = low_elem.String;
-                        const high_str = high_elem.String;
+                    if (low_elem.isType(.String) and high_elem.isType(.String)) {
+                        const low_str = low_elem.asString();
+                        const high_str = high_elem.asString();
                         const low_bytes = self.vm.strings.get(low_str);
                         const high_bytes = self.vm.strings.get(high_str);
                         const low_codepoint = unicode.utf8Decode(low_bytes) catch return Error.RangeNotSingleCodepoint;
@@ -507,17 +515,20 @@ pub const Compiler = struct {
                             try self.emitByte(low_id, low.region);
                             try self.emitByte(high_id, high.region);
                         }
-                    } else if (low_elem == .NumberString and high_elem == .NumberString) {
-                        const low_ns = low_elem.NumberString;
-                        const high_ns = high_elem.NumberString;
+                    } else if (low_elem.isType(.NumberString) and high_elem.isType(.NumberString)) {
+                        const low_ns = low_elem.asNumberString();
+                        const high_ns = high_elem.asNumberString();
 
-                        const low_num = low_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
-                        const high_num = high_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                        const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                        const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
 
-                        if (@trunc(low_num.Number) != low_num.Number) return Error.RangeInvalidNumberFormat;
-                        if (@trunc(high_num.Number) != high_num.Number) return Error.RangeInvalidNumberFormat;
+                        const low_f = low_num.asFloat();
+                        const high_f = high_num.asFloat();
 
-                        if (low_num.Number > high_num.Number) {
+                        if (@trunc(low_f) != low_f) return Error.RangeInvalidNumberFormat;
+                        if (@trunc(high_f) != high_f) return Error.RangeInvalidNumberFormat;
+
+                        if (low_f > high_f) {
                             return Error.RangeIntegersUnordered;
                         } else {
                             const low_id = try self.makeConstant(low_num);
@@ -534,8 +545,8 @@ pub const Compiler = struct {
                     const low_elem = try getParserRangeElemNode(low);
                     const low_region = low.region;
 
-                    if (low_elem == .String) {
-                        const low_str = low_elem.String;
+                    if (low_elem.isType(.String)) {
+                        const low_str = low_elem.asString();
                         const low_bytes = self.vm.strings.get(low_str);
                         const low_codepoint = unicode.utf8Decode(low_bytes) catch return Error.RangeNotSingleCodepoint;
 
@@ -546,12 +557,12 @@ pub const Compiler = struct {
                             try self.emitOp(.ParseLowerBoundedRange, region);
                             try self.emitByte(low_id, low_region);
                         }
-                    } else if (low_elem == .NumberString) {
-                        const low_ns = low_elem.NumberString;
+                    } else if (low_elem.isType(.NumberString)) {
+                        const low_ns = low_elem.asNumberString();
+                        const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                        const low_f = low_num.asFloat();
 
-                        const low_num = low_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
-
-                        if (@trunc(low_num.Number) != low_num.Number) return Error.RangeInvalidNumberFormat;
+                        if (@trunc(low_f) != low_f) return Error.RangeInvalidNumberFormat;
 
                         const low_id = try self.makeConstant(low_num);
                         try self.emitOp(.ParseLowerBoundedRange, region);
@@ -564,8 +575,8 @@ pub const Compiler = struct {
                     const high_elem = try getParserRangeElemNode(high);
                     const high_region = high.region;
 
-                    if (high_elem == .String) {
-                        const high_str = high_elem.String;
+                    if (high_elem.isType(.String)) {
+                        const high_str = high_elem.asString();
                         const high_bytes = self.vm.strings.get(high_str);
                         const high_codepoint = unicode.utf8Decode(high_bytes) catch return Error.RangeNotSingleCodepoint;
 
@@ -576,12 +587,12 @@ pub const Compiler = struct {
                             try self.emitOp(.ParseUpperBoundedRange, region);
                             try self.emitByte(high_id, high_region);
                         }
-                    } else if (high_elem == .NumberString) {
-                        const high_ns = high_elem.NumberString;
+                    } else if (high_elem.isType(.NumberString)) {
+                        const high_ns = high_elem.asNumberString();
+                        const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                        const high_f = high_num.asFloat();
 
-                        const high_num = high_ns.toNumberElem(self.vm.strings) catch return Error.RangeIntegerTooLarge;
-
-                        if (@trunc(high_num.Number) != high_num.Number) return Error.RangeInvalidNumberFormat;
+                        if (@trunc(high_f) != high_f) return Error.RangeInvalidNumberFormat;
 
                         const high_id = try self.makeConstant(high_num);
                         try self.emitOp(.ParseUpperBoundedRange, region);
@@ -650,14 +661,9 @@ pub const Compiler = struct {
         const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
         const function_region = function_rnode.region;
 
-        const functionName = switch (function_elem) {
-            .ParserVar => |sId| sId,
-            .Const => |c| switch (c) {
-                .True => try self.vm.strings.insert("true"),
-                .False => try self.vm.strings.insert("false"),
-                .Null => try self.vm.strings.insert("null"),
-                .Failure => return Error.InvalidAst,
-            },
+        const functionName = switch (function_elem.getType()) {
+            .ParserVar => function_elem.asParserVar(),
+            .Const => try self.vm.strings.insert(function_elem.asConst().bytes()),
             else => return Error.InvalidAst,
         };
 
@@ -691,7 +697,7 @@ pub const Compiler = struct {
 
         switch (rnode.node) {
             .ElemNode => |elem| {
-                switch (elem) {
+                switch (elem.getType()) {
                     .ParserVar => {
                         try self.writeGetVar(elem, region);
                         try self.emitUnaryOp(.CallFunction, 0, region);
@@ -707,7 +713,7 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.GetConstant, constId, region);
                         try self.emitUnaryOp(.CallFunction, 0, region);
                     },
-                    .Const => |c| switch (c) {
+                    .Const => switch (elem.asConst()) {
                         .True, .False, .Null => {
                             // In this context `true`/`false`/`null` could be a zero-arg function call
                             try self.writeGetVar(elem, region);
@@ -715,7 +721,7 @@ pub const Compiler = struct {
                         },
                         .Failure => return Error.InvalidAst,
                     },
-                    .Number,
+                    .NumberFloat,
                     .InputSubstring,
                     .Dyn,
                     => @panic("Internal Error"),
@@ -726,10 +732,10 @@ pub const Compiler = struct {
     }
 
     fn writeGetVar(self: *Compiler, elem: Elem, region: Region) !void {
-        const varName = switch (elem) {
-            .ParserVar => |sId| sId,
-            .ValueVar => |sId| sId,
-            .Const => |c| switch (c) {
+        const varName = switch (elem.getType()) {
+            .ParserVar => elem.asParserVar(),
+            .ValueVar => elem.asValueVar(),
+            .Const => switch (elem.asConst()) {
                 .True => try self.vm.strings.insert("true"),
                 .False => try self.vm.strings.insert("false"),
                 .Null => try self.vm.strings.insert("null"),
@@ -753,11 +759,11 @@ pub const Compiler = struct {
     }
 
     fn elemToVar(self: *Compiler, elem: Elem) !?Elem {
-        return switch (elem) {
+        return switch (elem.getType()) {
             .ParserVar,
             .ValueVar,
             => elem,
-            .Const => |c| switch (c) {
+            .Const => switch (elem.asConst()) {
                 .True => Elem.parserVar(try self.vm.strings.insert("true")),
                 .False => Elem.parserVar(try self.vm.strings.insert("false")),
                 .Null => Elem.parserVar(try self.vm.strings.insert("null")),
@@ -843,12 +849,13 @@ pub const Compiler = struct {
                     try self.emitUnaryOp(.GetConstant, constId, region);
                     try self.writeCaptureLocals(function, region);
                 },
-                .ElemNode => |elem| switch (elem) {
-                    .ParserVar => try self.writeGetVar(elem, region),
-                    else => {
+                .ElemNode => |elem| {
+                    if (elem.isType(.ParserVar)) {
+                        try self.writeGetVar(elem, region);
+                    } else {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, region);
-                    },
+                    }
                 },
                 .ValueLabel => {
                     try self.printError(region, "Labeled value is not valid as parser function argument.", .{});
@@ -919,8 +926,9 @@ pub const Compiler = struct {
         const region = rnode.region;
 
         switch (node) {
-            .ElemNode => |elem| switch (elem) {
-                .ValueVar => |name| {
+            .ElemNode => |elem| switch (elem.getType()) {
+                .ValueVar => {
+                    const name = elem.asValueVar();
                     if (self.findGlobal(name)) |globalElem| {
                         const constId = try self.makeConstant(globalElem);
                         return Pattern{ .Constant = .{
@@ -938,24 +946,32 @@ pub const Compiler = struct {
                         @panic("Internal Error");
                     }
                 },
-                .String => |sId| {
+                .String => {
                     if (negation_count > 0) {
                         try self.printError(region, "Invalid pattern - unable to negate string", .{});
                         return Error.InvalidAst;
                     }
-                    return Pattern{ .String = sId };
+                    return Pattern{ .String = elem.asString() };
                 },
-                .NumberString => |ns| {
+                .NumberString => {
+                    const ns = elem.asNumberString();
                     const number = if (negation_count % 2 == 1) ns.negate() else ns;
                     return Pattern{ .NumberString = number };
                 },
-                .Const => |c| switch (c) {
-                    .True, .False => {
+                .Const => switch (elem.asConst()) {
+                    .True => {
                         if (negation_count > 0) {
                             try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
                             return Error.InvalidAst;
                         }
-                        return Pattern{ .Boolean = c == .True };
+                        return Pattern{ .Boolean = true };
+                    },
+                    .False => {
+                        if (negation_count > 0) {
+                            try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
+                            return Error.InvalidAst;
+                        }
+                        return Pattern{ .Boolean = false };
                     },
                     .Null => {
                         if (negation_count > 0) {
@@ -1052,8 +1068,8 @@ pub const Compiler = struct {
                 const nameNode = function.name.node;
 
                 const functionName = switch (nameNode) {
-                    .ElemNode => |elem| switch (elem) {
-                        .ValueVar => |name| name,
+                    .ElemNode => |elem| switch (elem.getType()) {
+                        .ValueVar => elem.asValueVar(),
                         else => return Error.InvalidAst,
                     },
                     else => return Error.InvalidAst,
@@ -1177,8 +1193,8 @@ pub const Compiler = struct {
                 try self.addValueLocals(declaration.head);
                 try self.addValueLocals(declaration.body);
             },
-            .ElemNode => |elem| switch (elem) {
-                .ValueVar => |varName| if (self.findGlobal(varName) == null) {
+            .ElemNode => |elem| switch (elem.getType()) {
+                .ValueVar => if (self.findGlobal(elem.asValueVar()) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
                     if (newLocalId) |_| {
                         const constId = try self.makeConstant(elem);
@@ -1234,9 +1250,9 @@ pub const Compiler = struct {
             },
             .DeclareGlobal => @panic("internal error"),
             .ElemNode => |elem| {
-                const varName = switch (elem) {
-                    .ValueVar => |name| name,
-                    .ParserVar => |name| name,
+                const varName = switch (elem.getType()) {
+                    .ValueVar => elem.asValueVar(),
+                    .ParserVar => elem.asParserVar(),
                     else => null,
                 };
 
@@ -1323,14 +1339,14 @@ pub const Compiler = struct {
                 try self.writeValueArgument(conditional.else_branch, isTailPosition);
                 try self.patchJump(thenElseJumpIndex, region);
             },
-            .ElemNode => |elem| switch (elem) {
+            .ElemNode => |elem| switch (elem.getType()) {
                 .String => {
                     return error.UnlabeledStringValue;
                 },
                 .NumberString => {
                     return error.UnlabeledNumberValue;
                 },
-                .Const => |c| switch (c) {
+                .Const => switch (elem.asConst()) {
                     .True, .False => return error.UnlabeledBooleanValue,
                     .Null => return error.UnlabeledNullValue,
                     .Failure => return Error.InvalidAst,
@@ -1425,12 +1441,13 @@ pub const Compiler = struct {
             .Function => |function| {
                 try self.writeValueFunctionCall(function.name, function.paramsOrArgs, region, isTailPosition);
             },
-            .ElemNode => |elem| switch (elem) {
+            .ElemNode => |elem| switch (elem.getType()) {
                 .ParserVar => {
                     try self.printError(region, "Parser is not valid in value", .{});
                     return Error.InvalidAst;
                 },
-                .ValueVar => |name| {
+                .ValueVar => {
+                    const name = elem.asValueVar();
                     if (self.localSlot(name)) |slot| {
                         // This local will either be a concrete value or
                         // unbound, it won't be a function. Value functions are
@@ -1461,16 +1478,16 @@ pub const Compiler = struct {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, region);
                 },
-                .Const => |c| switch (c) {
+                .Const => switch (elem.asConst()) {
                     .True => try self.emitOp(.True, region),
                     .False => try self.emitOp(.False, region),
                     .Null => try self.emitOp(.Null, region),
                     .Failure => return Error.InvalidAst,
                 },
                 .InputSubstring,
-                .Number,
+                .NumberFloat,
                 => @panic("Internal Error"), // not produced by the parser
-                .Dyn => |d| switch (d.dynType) {
+                .Dyn => switch (elem.asDyn().dynType) {
                     .String,
                     .Function,
                     .NativeCode,
@@ -1497,8 +1514,8 @@ pub const Compiler = struct {
         const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
         const function_region = function_rnode.region;
 
-        const functionName = switch (function_elem) {
-            .ValueVar => |sId| sId,
+        const functionName = switch (function_elem.getType()) {
+            .ValueVar => function_elem.asValueVar(),
             else => return Error.InvalidAst,
         };
 
@@ -1602,7 +1619,7 @@ pub const Compiler = struct {
 
     fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) Error!void {
         switch (rnode.node) {
-            .ElemNode => |elem| switch (elem) {
+            .ElemNode => |elem| switch (elem.getType()) {
                 .ValueVar => try self.appendDynamicValue(array, rnode, index, region),
                 else => {
                     try array.append(self.vm.allocator, elem);
@@ -1660,8 +1677,8 @@ pub const Compiler = struct {
         for (pairs.items, 0..) |pair, index| {
             if (try self.literalPatternToElem(pair.key)) |key_elem| {
                 if (try self.literalPatternToElem(pair.value)) |val_elem| {
-                    const key_sId = key_elem.String;
-                    try object.members.put(self.vm.allocator, key_sId, val_elem);
+                    const key_sid = key_elem.asString();
+                    try object.members.put(self.vm.allocator, key_sid, val_elem);
                 } else {
                     try self.writeValueObjectVal(pair.value, key_elem);
                 }
@@ -1692,7 +1709,7 @@ pub const Compiler = struct {
         // Check if the first part is a string - if not, we need an empty
         // string on the stack for `MergeAsString`
         const firstPart = parts.items[0];
-        const firstPartIsString = firstPart.node.asElem() != null and firstPart.node.asElem().? == .String;
+        const firstPartIsString = if (firstPart.node.asElem()) |elem| elem.isType(.String) else false;
 
         if (!firstPartIsString) {
             const empty_string = try self.makeConstant(Elem.string(try self.vm.strings.insert("")));
@@ -1717,8 +1734,8 @@ pub const Compiler = struct {
 
     fn literalPatternToElem(self: *Compiler, rnode: *Ast.RNode) !?Elem {
         return switch (rnode.node) {
-            .ElemNode => |elem| switch (elem) {
-                .String, .InputSubstring, .NumberString, .Number, .Const => elem,
+            .ElemNode => |elem| switch (elem.getType()) {
+                .String, .InputSubstring, .NumberString, .NumberFloat, .Const => elem,
                 else => null,
             },
             .Array => |elements| if (elements.items.len == 0) blk: {
@@ -1741,8 +1758,8 @@ pub const Compiler = struct {
                 }
             },
             .ElemNode => |elem| {
-                switch (elem) {
-                    .NumberString, .Number => return elem,
+                switch (elem.getType()) {
+                    .NumberString, .NumberFloat => return elem,
                     else => return null,
                 }
             },
@@ -1777,9 +1794,9 @@ pub const Compiler = struct {
     }
 
     fn addLocal(self: *Compiler, elem: Elem, region: Region) !?u8 {
-        const local: Elem.DynElem.Function.Local = switch (elem) {
-            .ParserVar => |sId| .{ .ParserVar = sId },
-            .ValueVar => |sId| .{ .ValueVar = sId },
+        const local: Elem.DynElem.Function.Local = switch (elem.getType()) {
+            .ParserVar => .{ .ParserVar = elem.asParserVar() },
+            .ValueVar => .{ .ValueVar = elem.asValueVar() },
             else => return Error.InvalidAst,
         };
 

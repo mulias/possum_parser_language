@@ -100,7 +100,7 @@ pub const Pattern = union(PatternType) {
                 try writer.print(")", .{});
             },
             .String => |sid| try writer.print("\"{s}\"", .{vm.strings.get(sid)}),
-            .NumberString => |ns| try writer.print("{s}", .{ns.toString(vm.strings)}),
+            .NumberString => |ns| try writer.print("{s}", .{ns.toBytes(vm.strings)}),
             .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
             .Null => try writer.print("null", .{}),
             .Array => |arr| {

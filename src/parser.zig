@@ -377,7 +377,7 @@ pub const Parser = struct {
     fn number(self: *Parser) !*Ast.RNode {
         const t = self.token;
         try self.advance();
-        return self.ast.createElem(try Elem.numberString(t.lexeme, self.vm), t.region);
+        return self.ast.createElem(try Elem.numberStringFromBytes(t.lexeme, self.vm), t.region);
     }
 
     fn literal(self: *Parser) !*Ast.RNode {

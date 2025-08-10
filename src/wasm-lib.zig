@@ -64,7 +64,7 @@ export fn interpret(vm: *VM, parser_ptr: [*]const u8, parser_len: usize, input_p
         return 1;
     };
 
-    if (parsed == .Failure) {
+    if (parsed.isConst(.Failure)) {
         writers.err.print("Parser Failure", .{}) catch return 1;
     } else {
         parsed.writeJson(.Pretty, vm.*, writers.out) catch return 1;
