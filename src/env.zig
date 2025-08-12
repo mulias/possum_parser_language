@@ -13,6 +13,8 @@ pub const Env = struct {
     printVM: bool,
     printDestructure: bool,
     runVM: bool,
+    printGC: bool,
+    stressTestGC: bool,
 
     pub fn init() Env {
         return Env{
@@ -23,6 +25,8 @@ pub const Env = struct {
             .printExecutedBytecode = false,
             .printVM = false,
             .printDestructure = false,
+            .printGC = false,
+            .stressTestGC = false,
             .runVM = true,
         };
     }
@@ -36,6 +40,8 @@ pub const Env = struct {
             .printExecutedBytecode = try getFlag(allocator, "PRINT_EXECUTED_BYTECODE", false),
             .printVM = try getFlag(allocator, "PRINT_VM", false),
             .printDestructure = try getFlag(allocator, "PRINT_DESTRUCTURE", false),
+            .printGC = try getFlag(allocator, "PRINT_GC", false),
+            .stressTestGC = try getFlag(allocator, "STRESS_TEST_GC", false),
             .runVM = try getFlag(allocator, "RUN_VM", true),
         };
     }

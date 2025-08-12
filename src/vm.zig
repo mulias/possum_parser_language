@@ -29,6 +29,7 @@ pub const Config = struct {
     printExecutedBytecode: bool = false,
     printVM: bool = false,
     printDestructure: bool = false,
+    print_gc: bool = false,
     runVM: bool = true,
     includeStdlib: bool = true,
     gc_mode: GCMode = .GC,
@@ -41,7 +42,9 @@ pub const Config = struct {
         self.printExecutedBytecode = env.printExecutedBytecode;
         self.printVM = env.printVM;
         self.printDestructure = env.printDestructure;
+        self.print_gc = env.printGC;
         self.runVM = env.runVM;
+        self.gc_mode = if (env.stressTestGC) .StressTest else .GC;
     }
 };
 
@@ -117,8 +120,10 @@ pub const VM = struct {
     }
 
     pub fn init(self: *VM, allocator: Allocator, writers: Writers, config: Config) !void {
+        self.config = config;
+        self.writers = writers;
         self.allocator = allocator;
-        self.dyn_allocator = GCAllocator.init(self, allocator, self.config.gc_mode);
+        self.dyn_allocator = GCAllocator.init(self, allocator);
         self.strings = StringTable.init(allocator);
         self.modules = ArrayList(Module){};
         self.active_compiler = null;
@@ -129,8 +134,6 @@ pub const VM = struct {
         self.inputMarks = ArrayList(Pos){};
         self.inputPos = Pos{};
         self.uniqueIdCount = 0;
-        self.writers = writers;
-        self.config = config;
         self.pattern_solver = PatternSolver.init(self);
         errdefer self.deinit();
 

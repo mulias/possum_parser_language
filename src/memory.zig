@@ -19,7 +19,7 @@ pub const GCAllocator = struct {
 
     const HEAP_GROW_FACTOR = 2;
 
-    pub fn init(vm: *VM, parent_allocator: Allocator, mode: GCMode) GCAllocator {
+    pub fn init(vm: *VM, parent_allocator: Allocator) GCAllocator {
         return .{
             .vm = vm,
             .parent_allocator = parent_allocator,
@@ -27,8 +27,8 @@ pub const GCAllocator = struct {
             .nextGC = 1024 * 1024,
             .nextDyn = null,
             .nextGray = null,
-            .mode = mode,
-            .print_gc = false,
+            .mode = vm.config.gc_mode,
+            .print_gc = vm.config.print_gc,
             .print_trace = false,
         };
     }
