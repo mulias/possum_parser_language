@@ -170,3 +170,54 @@
               2 -> 2
   Destructure Success: {"ab": 2} -> {("a" + B): 2}
   "b"
+
+  $ possum -p '"" -> "%(A)"' -i ''
+  
+  Destructure:
+      "" -> "%(A)"
+          "" -> A
+  Destructure Success: "" -> "%(A)"
+  ""
+
+  $ possum -p '"ab" > "cdef" -> ("c" + X)' -i 'abcdef'
+  
+  Destructure:
+      "cdef" -> ("c" + X)
+          "c" -> "c"
+          "def" -> X
+  Destructure Success: "cdef" -> ("c" + X)
+  "cdef"
+
+  $ possum -p '"ab" > "cdef" -> "c%(X)"' -i 'abcdef'
+  
+  Destructure:
+      "cdef" -> "c%(X)"
+          "c" -> "c"
+          "def" -> X
+  Destructure Success: "cdef" -> "c%(X)"
+  "cdef"
+
+  $ possum -p 'A = {"x": 1} ; const({"z": true, "x": 1}) -> (B + A) $ B' -i ''
+  
+  Destructure:
+      {"z": true, "x": 1} -> (B + A)
+  
+  Eval Pattern Function: A
+  
+      1 -> 1
+          {"z": true} -> B
+  Destructure Success: {"z": true, "x": 1} -> (B + A)
+  {"z": true}
+
+  $ possum -p 'A = {"x": 1} ; const($`{"z": true, "x": 1}`) -> "%(B + A)" $ B' -i ''
+  
+  Destructure:
+      "{"z": true, "x": 1}" -> "%(B + A)"
+  
+  Eval Pattern Function: A
+  
+          {"z": true, "x": 1} -> (B + A)
+          1 -> 1
+              {"z": true} -> B
+  Destructure Success: "{"z": true, "x": 1}" -> "%(B + A)"
+  {"z": true}

@@ -5,6 +5,7 @@ const VM = @import("vm.zig").VM;
 const Pattern = @import("pattern.zig").Pattern;
 const Elem = @import("elem.zig").Elem;
 const StringTable = @import("string_table.zig").StringTable;
+const isValidNumberString = @import("parsing.zig").isValidNumberString;
 
 const Simplified = union(enum) {
     Pattern: Pattern,
@@ -245,36 +246,36 @@ fn matchMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(Patter
     var merge_parts = try ArrayList(Simplified).initCapacity(self.vm.allocator, pattern_merge.items.len);
     defer merge_parts.deinit(self.vm.allocator);
 
-    const merge_type = try self.prepareMergePattern(pattern_merge, &merge_parts);
+    try self.collectMergeParts(pattern_merge, &merge_parts);
 
     const parts = merge_parts.items[0..];
 
-    return switch (merge_type) {
-        .Array => self.matchArrayMerge(value, parts),
-        .Boolean => self.matchBooleanMerge(value, parts),
-        .Number => self.matchNumberMerge(value, parts),
-        .Object => self.matchObjectMerge(value, pattern_merge),
-        .String => self.matchStringMerge(value, parts),
-        .Untyped => self.matchUntypedMerge(value, parts),
-    };
+    const merge_type = try self.getMergeType(parts);
+
+    return self.matchMergeOfType(value, parts, merge_type);
 }
 
-fn prepareMergePattern(self: *PatternSolver, pattern_merge: ArrayList(Pattern), merge_parts: *ArrayList(Simplified)) Error!MergeType {
-    var merge_type: MergeType = .Untyped;
-
+fn collectMergeParts(self: *PatternSolver, pattern_merge: ArrayList(Pattern), merge_parts: *ArrayList(Simplified)) !void {
     for (pattern_merge.items) |pattern| {
-        const part = try self.simplify(pattern);
-
-        if (pattern != .Merge) {
+        if (pattern == .Merge) {
+            try self.collectMergeParts(pattern.Merge, merge_parts);
+        } else {
+            const part = try self.simplify(pattern);
             try merge_parts.append(self.vm.allocator, part);
         }
+    }
+}
 
+fn getMergeType(self: *PatternSolver, merge_parts: []Simplified) !MergeType {
+    var merge_type: MergeType = .Untyped;
+
+    for (merge_parts) |part| {
         if (merge_type == .Untyped) {
             // Merge type of pattern is set by first part that is not untyped
-            merge_type = try self.prepareMergePatternPart(part, merge_parts);
+            merge_type = try self.mergePatternType(part);
         } else {
             // After determining the merge type all remaining parts must be the same type or untyped
-            const part_type = try self.prepareMergePatternPart(part, merge_parts);
+            const part_type = try self.mergePatternType(part);
             if (part_type != merge_type and part_type != .Untyped) {
                 return Error.RuntimeError;
             }
@@ -284,7 +285,19 @@ fn prepareMergePattern(self: *PatternSolver, pattern_merge: ArrayList(Pattern), 
     return merge_type;
 }
 
-fn prepareMergePatternPart(self: *PatternSolver, part: Simplified, merge_parts: *ArrayList(Simplified)) Error!MergeType {
+fn matchMergeOfType(self: *PatternSolver, value: Elem, parts: []Simplified, merge_type: MergeType) !bool {
+    return switch (merge_type) {
+        .Array => self.matchArrayMerge(value, parts),
+        .Boolean => self.matchBooleanMerge(value, parts),
+        .Number => self.matchNumberMerge(value, parts),
+        .Object => self.matchObjectMerge(value, parts),
+        .String => self.matchStringMerge(value, parts),
+        .Untyped => self.matchUntypedMerge(value, parts),
+    };
+}
+
+fn mergePatternType(self: *PatternSolver, part: Simplified) !MergeType {
+    _ = self;
     return switch (part) {
         .Value => |elem| switch (elem.getType()) {
             .String, .InputSubstring => .String,
@@ -307,7 +320,7 @@ fn prepareMergePatternPart(self: *PatternSolver, part: Simplified, merge_parts: 
             .Constant => .Untyped,
             .FunctionCall => .Untyped,
             .Local => .Untyped,
-            .Merge => |merge| self.prepareMergePattern(merge, merge_parts),
+            .Merge => @panic("Internal Error"),
             .Null => .Untyped,
             .NumberString => .Number,
             .Object => .Object,
@@ -563,7 +576,7 @@ fn matchNumberMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
     }
 }
 
-fn matchObjectMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(Pattern)) !bool {
+fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool {
     if (!value.isDynType(.Object)) {
         return false;
     }
@@ -582,16 +595,17 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(
     var unbound_part: ?Pattern = null;
 
     // Process each pattern in the merge
-    for (pattern_merge.items) |pattern| {
-        switch (pattern) {
-            .Object => |pattern_object| {
-                // Process bound object patterns
-                for (pattern_object.items) |pattern_pair| {
-                    if (try self.attemptEval(pattern_pair.key)) |key_value| {
-                        const key_sid = try key_value.getOrPutSid(self.vm) orelse return Error.RuntimeError;
+    for (parts) |part| {
+        switch (part) {
+            .Value => |elem| {
+                if (elem.isDynType(.Object)) {
+                    const object = elem.asDyn().asObject();
+                    var iter = object.members.iterator();
+                    while (iter.next()) |pair| {
+                        const key_sid = pair.key_ptr.*;
 
                         if (value_object.members.get(key_sid)) |value_object_pair_value| {
-                            if (!(try self.matchPattern(value_object_pair_value, pattern_pair.value))) {
+                            if (!(try self.checkEquality(value_object_pair_value, pair.value_ptr.*))) {
                                 return false;
                             }
                             // Remove this key from unmatched set
@@ -600,53 +614,77 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(
                             // Value object doesn't have this key
                             return false;
                         }
-                    } else {
-                        // Unbound key case - search linearly through remaining unmatched keys
-                        var found_match = false;
-                        var key_iterator = unmatched_keys.iterator();
-                        var matched_key: ?StringTable.Id = null;
-
-                        const bound_locals_reset_point = self.bound_locals.items.len;
-
-                        while (key_iterator.next()) |entry| {
-                            const obj_key_sid = entry.key_ptr.*;
-                            const obj_value = value_object.members.get(obj_key_sid).?;
-
-                            // Try to match the key pattern
-                            const key_elem = Elem.string(obj_key_sid);
-
-                            if (try self.matchPattern(key_elem, pattern_pair.key)) {
-                                // Key matches, now try to match the value
-                                if (try self.matchPattern(obj_value, pattern_pair.value)) {
-                                    matched_key = obj_key_sid;
-                                    found_match = true;
-                                    break;
-                                }
-                            }
-
-                            // If K/V parts were partially bound we need to reset before trying the next key
-                            try self.resetLocals(bound_locals_reset_point);
-                        }
-
-                        if (!found_match) {
-                            return false;
-                        }
-
-                        // Remove the matched key from unmatched set
-                        if (matched_key) |key| {
-                            _ = unmatched_keys.remove(key);
-                        }
                     }
+                } else if (elem.isConst(.Null)) {
+                    // Skip null
+                } else {
+                    @panic("Internal Error");
                 }
             },
-            else => {
-                // This should be the unbound part
-                if (unbound_part == null) {
-                    unbound_part = pattern;
-                } else {
-                    // Object merge can only have one unbound part
-                    return Error.RuntimeError;
-                }
+            .Pattern => |pattern| switch (pattern) {
+                .Object => |pattern_object| {
+                    // Process bound object patterns
+                    for (pattern_object.items) |pattern_pair| {
+                        if (try self.attemptEval(pattern_pair.key)) |key_value| {
+                            const key_sid = try key_value.getOrPutSid(self.vm) orelse return Error.RuntimeError;
+
+                            if (value_object.members.get(key_sid)) |value_object_pair_value| {
+                                if (!(try self.matchPattern(value_object_pair_value, pattern_pair.value))) {
+                                    return false;
+                                }
+                                // Remove this key from unmatched set
+                                _ = unmatched_keys.remove(key_sid);
+                            } else {
+                                // Value object doesn't have this key
+                                return false;
+                            }
+                        } else {
+                            // Unbound key case - search linearly through remaining unmatched keys
+                            var found_match = false;
+                            var key_iterator = unmatched_keys.iterator();
+                            var matched_key: ?StringTable.Id = null;
+
+                            const bound_locals_reset_point = self.bound_locals.items.len;
+
+                            while (key_iterator.next()) |entry| {
+                                const obj_key_sid = entry.key_ptr.*;
+                                const obj_value = value_object.members.get(obj_key_sid).?;
+
+                                // Try to match the key pattern
+                                const key_elem = Elem.string(obj_key_sid);
+
+                                if (try self.matchPattern(key_elem, pattern_pair.key)) {
+                                    // Key matches, now try to match the value
+                                    if (try self.matchPattern(obj_value, pattern_pair.value)) {
+                                        matched_key = obj_key_sid;
+                                        found_match = true;
+                                        break;
+                                    }
+                                }
+
+                                // If K/V parts were partially bound we need to reset before trying the next key
+                                try self.resetLocals(bound_locals_reset_point);
+                            }
+
+                            if (!found_match) {
+                                return false;
+                            }
+
+                            // Remove the matched key from unmatched set
+                            if (matched_key) |key| {
+                                _ = unmatched_keys.remove(key);
+                            }
+                        }
+                    }
+                },
+                else => {
+                    if (unbound_part == null) {
+                        unbound_part = pattern;
+                    } else {
+                        // Object merge can only have one unbound part
+                        return Error.RuntimeError;
+                    }
+                },
             },
         }
     }
@@ -1068,24 +1106,138 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
 
         std.debug.assert(unbound_start <= unbound_end);
 
-        const unbound_value = value_str[unbound_start..unbound_end];
-        const json_parsed = std.json.parseFromSlice(
-            std.json.Value,
-            self.vm.allocator,
-            unbound_value,
-            .{ .parse_numbers = false },
-        ) catch |e| switch (e) {
-            error.OutOfMemory => |oom| return oom,
-            else => return false,
-        };
-        defer json_parsed.deinit();
+        const unbound_bytes = value_str[unbound_start..unbound_end];
 
-        const unbound_elem = try Elem.fromJson(json_parsed.value, self.vm);
+        var unbound_elem: ?Elem = null;
 
-        // Prevent GC
-        if (unbound_elem.isType(.Dyn)) try self.vm.pushTempDyn(unbound_elem.asDyn());
+        var merge_pattern_type: ?MergeType = null;
+        var merge_pattern_parts = ArrayList(Simplified){};
+        defer merge_pattern_parts.deinit(self.vm.allocator);
 
-        if (!(try self.matchPattern(unbound_elem, pattern))) {
+        if (unbound_bytes.len == 0) {
+            // If the unbound part is empty then the pattern must match an
+            // empty string.
+            unbound_elem = Elem.string(try self.vm.strings.insert(""));
+        } else switch (pattern) {
+            .Array => if (unbound_bytes[0] == '[') {
+                unbound_elem = try self.parseStringAsJsonElem(unbound_bytes);
+            },
+            .Object => if (unbound_bytes[0] == '{') {
+                unbound_elem = try self.parseStringAsJsonElem(unbound_bytes);
+            },
+            .Boolean => if (std.mem.eql(u8, unbound_bytes, "true")) {
+                unbound_elem = Elem.boolean(true);
+            } else if (std.mem.eql(u8, unbound_bytes, "false")) {
+                unbound_elem = Elem.boolean(false);
+            },
+            .Merge => |pattern_merge| {
+                try merge_pattern_parts.ensureTotalCapacity(self.vm.allocator, pattern_merge.items.len);
+                try self.collectMergeParts(pattern_merge, &merge_pattern_parts);
+
+                merge_pattern_type = try self.getMergeType(merge_pattern_parts.items);
+
+                switch (merge_pattern_type.?) {
+                    .Array => if (unbound_bytes[0] == '[') {
+                        unbound_elem = try self.parseStringAsJsonElem(unbound_bytes);
+                    },
+                    .Object => if (unbound_bytes[0] == '{') {
+                        unbound_elem = try self.parseStringAsJsonElem(unbound_bytes);
+                    },
+                    .Boolean => if (std.mem.eql(u8, unbound_bytes, "true")) {
+                        unbound_elem = Elem.boolean(true);
+                    } else if (std.mem.eql(u8, unbound_bytes, "false")) {
+                        unbound_elem = Elem.boolean(false);
+                    },
+                    .Number,
+                    => if (isValidNumberString(unbound_bytes)) {
+                        unbound_elem = try Elem.numberStringFromBytes(unbound_bytes, self.vm);
+                    },
+                    .String,
+                    .Untyped,
+                    => {
+                        var all_null = true;
+                        for (merge_pattern_parts.items) |part| {
+                            if (part != .Pattern or !part.Value.isConst(.Null)) {
+                                all_null = false;
+                            }
+                        }
+
+                        if (all_null and std.mem.eql(u8, unbound_bytes, "null")) {
+                            unbound_elem = Elem.nullConst;
+                        } else {
+                            if (value.isType(.InputSubstring)) {
+                                const start = value.asInputSubstring().start;
+                                if (try Elem.inputSubstringFromRange(start + unbound_start, start + unbound_end)) |elem| {
+                                    unbound_elem = elem;
+                                } else {
+                                    const str = try Elem.DynElem.String.copy(self.vm, value_str[unbound_start..unbound_end]);
+                                    try self.vm.pushTempDyn(&str.dyn);
+                                    unbound_elem = str.dyn.elem();
+                                }
+                            } else {
+                                const dyn_str = try Elem.DynElem.String.copy(self.vm, unbound_bytes);
+                                try self.vm.pushTempDyn(&dyn_str.dyn);
+                                unbound_elem = dyn_str.dyn.elem();
+                            }
+                        }
+                    },
+                }
+            },
+            .Null => if (std.mem.eql(u8, unbound_bytes, "null")) {
+                unbound_elem = Elem.nullConst;
+            },
+            .NumberString,
+            .Range,
+            => if (isValidNumberString(unbound_bytes)) {
+                unbound_elem = try Elem.numberStringFromBytes(unbound_bytes, self.vm);
+            },
+            .String,
+            .StringTemplate,
+            .Local,
+            => {
+                // When the pattern is an unbound local default to string. Try
+                // to use a subset of an existing substring if possible.
+                if (value.isType(.InputSubstring)) {
+                    const start = value.asInputSubstring().start;
+                    if (try Elem.inputSubstringFromRange(start + unbound_start, start + unbound_end)) |elem| {
+                        unbound_elem = elem;
+                    } else {
+                        const str = try Elem.DynElem.String.copy(self.vm, value_str[unbound_start..unbound_end]);
+                        try self.vm.pushTempDyn(&str.dyn);
+                        unbound_elem = str.dyn.elem();
+                    }
+                } else {
+                    const dyn_str = try Elem.DynElem.String.copy(self.vm, unbound_bytes);
+                    try self.vm.pushTempDyn(&dyn_str.dyn);
+                    unbound_elem = dyn_str.dyn.elem();
+                }
+            },
+            .Constant,
+            .FunctionCall,
+            => @panic("Internal Error"),
+        }
+
+        if (unbound_elem) |cast_elem| {
+            if (merge_pattern_type) |merge_type| {
+                self.depth = self.depth +| 1;
+                defer self.depth = self.depth -| 1;
+
+                if (self.printSteps) {
+                    try self.printDestructure(cast_elem, pattern);
+                }
+
+                const matched = try self.matchMergeOfType(cast_elem, merge_pattern_parts.items, merge_type);
+                if (!matched) {
+                    return false;
+                }
+            } else {
+                const matched = try self.matchPattern(cast_elem, pattern);
+
+                if (!matched) {
+                    return false;
+                }
+            }
+        } else {
             return false;
         }
 
@@ -1120,6 +1272,24 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
     }
 
     return true;
+}
+
+fn parseStringAsJsonElem(self: *PatternSolver, bytes: []const u8) !?Elem {
+    const json_parsed = std.json.parseFromSlice(
+        std.json.Value,
+        self.vm.allocator,
+        bytes,
+        .{ .parse_numbers = false },
+    ) catch |e| switch (e) {
+        error.OutOfMemory => |oom| return oom,
+        else => return null,
+    };
+    defer json_parsed.deinit();
+
+    const elem = try Elem.fromJson(json_parsed.value, self.vm);
+    if (elem.isType(.Dyn)) try self.vm.pushTempDyn(elem.asDyn());
+
+    return elem;
 }
 
 fn simplify(self: *PatternSolver, pattern: Pattern) Error!Simplified {
