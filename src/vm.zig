@@ -585,15 +585,12 @@ pub const VM = struct {
                     // Prevent GC if rhs/lhs is a non-string type that gets
                     // converted to a `DynElem.String` representation.
                     const lstr = try lhs.toString(self);
-                    if (lstr.isType(.Dyn)) {
-                        try self.pushTempDyn(lstr.asDyn());
-                        defer self.dropTempDyn();
-                    }
+                    if (lstr.isType(.Dyn)) try self.pushTempDyn(lstr.asDyn());
+                    defer if (lstr.isType(.Dyn)) self.dropTempDyn();
+
                     const rstr = try rhs.toString(self);
-                    if (rstr.isType(.Dyn)) {
-                        try self.pushTempDyn(rstr.asDyn());
-                        defer self.dropTempDyn();
-                    }
+                    if (rstr.isType(.Dyn)) try self.pushTempDyn(rstr.asDyn());
+                    defer if (rstr.isType(.Dyn)) self.dropTempDyn();
 
                     const merged = (try lstr.merge(rstr, self)).?;
 
