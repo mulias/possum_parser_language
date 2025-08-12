@@ -62,17 +62,17 @@ pub const Elem = packed union {
     pub const Payload = packed union {};
 
     pub const InputSubstringElem = packed struct {
-        start: u16,
-        offset: u32,
+        start: u24,
+        offset: u24,
 
-        pub fn new(start: u16, offset: u32) InputSubstringElem {
+        pub fn new(start: u24, offset: u24) InputSubstringElem {
             return InputSubstringElem{ .start = start, .offset = offset };
         }
 
         pub fn fromRange(start_pos: usize, end_pos: usize) ?InputSubstringElem {
             const offset = end_pos - start_pos;
-            if (start_pos <= std.math.maxInt(u16) and offset <= std.math.maxInt(u32)) {
-                return InputSubstringElem.new(@as(u16, @intCast(start_pos)), @as(u32, @intCast(offset)));
+            if (start_pos <= std.math.maxInt(u24) and offset <= std.math.maxInt(u24)) {
+                return InputSubstringElem.new(@as(u24, @intCast(start_pos)), @as(u24, @intCast(offset)));
             }
             return null;
         }
@@ -100,8 +100,8 @@ pub const Elem = packed union {
                 const new_start = @min(is1.start, is2.start);
                 const new_end = @max(is1.end(), is2.end());
                 const new_offset = @as(usize, @intCast(new_end)) - @as(usize, @intCast(new_start));
-                if (new_offset <= std.math.maxInt(u32)) {
-                    return InputSubstringElem.new(new_start, @as(u32, @intCast(new_offset)));
+                if (new_offset <= std.math.maxInt(u24)) {
+                    return InputSubstringElem.new(new_start, @as(u24, @intCast(new_offset)));
                 }
             }
             return null;
@@ -203,7 +203,7 @@ pub const Elem = packed union {
         } };
     }
 
-    pub fn inputSubstring(start: u16, offset: u32) Elem {
+    pub fn inputSubstring(start: u24, offset: u24) Elem {
         return Elem{ .tagged = .{
             .payload = .{ .input_substring = .{ .start = start, .offset = offset } },
             .type = .InputSubstring,
