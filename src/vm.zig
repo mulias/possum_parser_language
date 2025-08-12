@@ -652,8 +652,12 @@ pub const VM = struct {
                         self.inputPos.line_start = end;
                     }
 
-                    const elem = try Elem.inputSubstringFromRange(start, end, self);
-                    try self.push(elem);
+                    if (try Elem.inputSubstringFromRange(start, end)) |elem| {
+                        try self.push(elem);
+                    } else {
+                        const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
+                        try self.push(str.dyn.elem());
+                    }
                 } else {
                     try self.pushFailure();
                 }
@@ -841,8 +845,11 @@ pub const VM = struct {
             self.inputPos.line += newlines;
             self.inputPos.line_start = line_start;
 
-            const elem = try Elem.inputSubstringFromRange(start, end, self);
-            try self.push(elem);
+            if (try Elem.inputSubstringFromRange(start, end)) |elem| {
+                try self.push(elem);
+            } else {
+                try self.push(Elem.string(sid));
+            }
 
             return;
         }
@@ -883,8 +890,12 @@ pub const VM = struct {
                     }
                     self.inputPos.offset = end;
 
-                    const elem = try Elem.inputSubstringFromRange(start, end, self);
-                    try self.push(elem);
+                    if (try Elem.inputSubstringFromRange(start, end)) |elem| {
+                        try self.push(elem);
+                    } else {
+                        const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
+                        try self.push(str.dyn.elem());
+                    }
 
                     return;
                 }
@@ -911,8 +922,12 @@ pub const VM = struct {
                         self.inputPos.line_start = end;
                     }
 
-                    const elem = try Elem.inputSubstringFromRange(start, end, self);
-                    try self.push(elem);
+                    if (try Elem.inputSubstringFromRange(start, end)) |elem| {
+                        try self.push(elem);
+                    } else {
+                        const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
+                        try self.push(str.dyn.elem());
+                    }
 
                     return;
                 }
@@ -940,8 +955,12 @@ pub const VM = struct {
                         self.inputPos.line_start = end;
                     }
 
-                    const elem = try Elem.inputSubstringFromRange(start, end, self);
-                    try self.push(elem);
+                    if (try Elem.inputSubstringFromRange(start, end)) |elem| {
+                        try self.push(elem);
+                    } else {
+                        const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
+                        try self.push(str.dyn.elem());
+                    }
 
                     return;
                 }

@@ -747,8 +747,14 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
 
         const unbound_value = value_str[unbound_start..unbound_end];
         const unbound_elem = if (value.isType(.InputSubstring)) blk: {
-            const elem = try Elem.inputSubstringFromRange(unbound_start, unbound_end, self.vm);
-            break :blk elem;
+            const start = value.asInputSubstring().start;
+            if (try Elem.inputSubstringFromRange(start + unbound_start, start + unbound_end)) |elem| {
+                break :blk elem;
+            } else {
+                const str = try Elem.DynElem.String.copy(self.vm, value_str[unbound_start..unbound_end]);
+                try self.vm.pushTempDyn(&str.dyn);
+                break :blk str.dyn.elem();
+            }
         } else blk: {
             // Allocate a dynamic string
             const dyn_str = try Elem.DynElem.String.create(self.vm, unbound_value.len);

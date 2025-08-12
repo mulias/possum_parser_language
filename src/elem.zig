@@ -210,15 +210,14 @@ pub const Elem = packed union {
         } };
     }
 
-    pub fn inputSubstringFromRange(start: usize, end: usize, vm: *VM) !Elem {
+    pub fn inputSubstringFromRange(start: usize, end: usize) !?Elem {
         if (InputSubstringElem.fromRange(start, end)) |substring| {
             return Elem{ .tagged = .{
                 .payload = .{ .input_substring = substring },
                 .type = .InputSubstring,
             } };
         } else {
-            const str = try Elem.DynElem.String.copy(vm, vm.input[start..end]);
-            return str.dyn.elem();
+            return null;
         }
     }
 
