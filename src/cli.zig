@@ -87,7 +87,6 @@ pub const CLI = struct {
 
         var vm = VM.create();
         try vm.init(self.allocator, self.writers, config);
-        defer vm.deinit();
 
         if (config.runVM) {
             const parsed = try vm.interpret(userModule, input);
