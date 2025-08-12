@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Chunk = @import("chunk.zig").Chunk;
@@ -13,13 +14,19 @@ const cli_config = @import("cli_config.zig");
 const maxInt = std.math.maxInt;
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = switch (builtin.mode) {
+        .Debug => blk: {
+            var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+            break :blk gpa.allocator();
+        },
+        else => std.heap.smp_allocator,
+    };
     const writers = Writers{
         .out = std.io.getStdOut().writer().any(),
         .err = std.io.getStdErr().writer().any(),
         .debug = std.io.getStdErr().writer().any(),
     };
-    const cli = CLI.init(gpa.allocator(), writers);
+    const cli = CLI.init(allocator, writers);
 
     return cli.run();
 }

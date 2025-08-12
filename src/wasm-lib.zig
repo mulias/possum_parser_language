@@ -1,6 +1,7 @@
 const std = @import("std");
 const io = std.io;
 const process = std.process;
+const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const ExternalWriter = @import("writer.zig").ExternalWriter;
 const VM = @import("vm.zig").VM;
@@ -8,8 +9,13 @@ const VMConfig = @import("vm.zig").Config;
 const Module = @import("module.zig").Module;
 const Writers = @import("writer.zig").Writers;
 
-var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = general_purpose_allocator.allocator();
+const allocator = switch (builtin.mode) {
+    .Debug => blk: {
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        break :blk gpa.allocator();
+    },
+    else => std.heap.wasm_allocator,
+};
 
 // These functions are expected to be passed in as part of the WASM environment
 extern fn writeOut(ptr: usize, len: usize) void;
