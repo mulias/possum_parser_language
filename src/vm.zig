@@ -9,6 +9,8 @@ const Chunk = @import("chunk.zig").Chunk;
 const Compiler = @import("compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 const Env = @import("env.zig").Env;
+const GCAllocator = @import("memory.zig").GCAllocator;
+const GCMode = @import("memory.zig").GCMode;
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Parser = @import("parser.zig").Parser;
@@ -29,6 +31,7 @@ pub const Config = struct {
     printDestructure: bool = false,
     runVM: bool = true,
     includeStdlib: bool = true,
+    gc_mode: GCMode = .GC,
 
     pub fn setEnv(self: *Config, env: Env) void {
         self.printScanner = env.printScanner;
@@ -54,11 +57,13 @@ pub const Pos = struct {
 
 pub const VM = struct {
     allocator: Allocator,
+    dyn_allocator: GCAllocator,
     strings: StringTable,
     modules: ArrayList(Module),
-    dynList: ?*Elem.DynElem,
+    active_compiler: ?*Compiler,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
+    temp_dyns: ArrayList(*Elem.DynElem),
     input: []const u8,
     inputMarks: ArrayList(Pos),
     inputPos: Pos,
@@ -92,11 +97,13 @@ pub const VM = struct {
     pub fn create() VM {
         const self = VM{
             .allocator = undefined,
+            .dyn_allocator = undefined,
             .strings = undefined,
             .modules = undefined,
-            .dynList = undefined,
+            .active_compiler = undefined,
             .stack = undefined,
             .frames = undefined,
+            .temp_dyns = undefined,
             .input = undefined,
             .inputMarks = undefined,
             .inputPos = undefined,
@@ -111,11 +118,13 @@ pub const VM = struct {
 
     pub fn init(self: *VM, allocator: Allocator, writers: Writers, config: Config) !void {
         self.allocator = allocator;
+        self.dyn_allocator = GCAllocator.init(self, allocator, self.config.gc_mode);
         self.strings = StringTable.init(allocator);
         self.modules = ArrayList(Module){};
-        self.dynList = null;
+        self.active_compiler = null;
         self.stack = ArrayList(Elem){};
         self.frames = ArrayList(CallFrame){};
+        self.temp_dyns = ArrayList(*Elem.DynElem){};
         self.input = undefined;
         self.inputMarks = ArrayList(Pos){};
         self.inputPos = Pos{};
@@ -133,14 +142,15 @@ pub const VM = struct {
     }
 
     pub fn deinit(self: *VM) void {
+        self.dyn_allocator.deinit();
         self.strings.deinit();
         for (self.modules.items) |*module| {
             module.deinit(self.allocator);
         }
         self.modules.deinit(self.allocator);
-        self.freeDynList();
         self.stack.deinit(self.allocator);
         self.frames.deinit(self.allocator);
+        self.temp_dyns.deinit(self.allocator);
         self.inputMarks.deinit(self.allocator);
         self.pattern_solver.deinit();
     }
@@ -165,7 +175,8 @@ pub const VM = struct {
         try self.run();
         assert(self.stack.items.len == 1);
 
-        return self.pop();
+        // Prevent GC
+        return self.peek(0);
     }
 
     pub fn compile(self: *VM, module: Module) !void {
@@ -189,6 +200,9 @@ pub const VM = struct {
         );
         defer compiler.deinit();
 
+        self.active_compiler = &compiler;
+        defer self.active_compiler = null;
+
         const function = try compiler.compile();
 
         if (function) |main| {
@@ -199,15 +213,12 @@ pub const VM = struct {
 
     fn loadBuiltinFunctions(self: *VM) !void {
         const builtinModule = Module{ .source = "" };
-
         try self.modules.append(self.allocator, builtinModule);
+
+        // Get a pointer to the Module in the modules list, not a local copy,
+        // so modifications affect the VM-owned instance
         const modulePtr = &self.modules.items[self.modules.items.len - 1];
-
-        const functions = try builtin.functions(self);
-
-        for (functions) |function| {
-            try modulePtr.addGlobal(self.allocator, function.name, function.dyn.elem());
-        }
+        try builtin.loadFunctions(self, modulePtr);
     }
 
     fn loadStdlib(self: *VM) !void {
@@ -305,7 +316,7 @@ pub const VM = struct {
                 const offset = self.readShort();
                 const resetPos = self.popInputMark();
                 if (self.peekIsSuccess()) {
-                    _ = self.pop();
+                    self.drop(1);
                     self.inputPos = resetPos;
                 } else {
                     self.frame().ip += offset;
@@ -327,18 +338,23 @@ pub const VM = struct {
                 // Create or extend a closure around a function.
                 const fromSlot = self.readByte();
                 const toSlot = self.readByte();
-                const elem = self.pop();
+                const elem = self.peek(0);
+
                 switch (elem.getType()) {
                     .Dyn => switch (elem.asDyn().dynType) {
                         .Function => {
                             const function = elem.asDyn().asFunction();
                             var closure = try Elem.DynElem.Closure.create(self, function);
                             closure.capture(toSlot, self.getLocal(fromSlot));
+
+                            self.drop(1);
                             try self.push(closure.dyn.elem());
                         },
                         .Closure => {
                             var closure = elem.asDyn().asClosure();
                             closure.capture(toSlot, self.getLocal(fromSlot));
+
+                            self.drop(1);
                             try self.push(closure.dyn.elem());
                         },
                         else => @panic("Internal error"),
@@ -352,9 +368,11 @@ pub const VM = struct {
                 // If `condition` succeeded then continue to `then` branch.
                 // If `condition` failed then jump to the start of `else` branch.
                 const offset = self.readShort();
-                const condition = self.pop();
                 const resetPos = self.popInputMark();
-                if (condition.isFailure()) {
+                if (self.peekIsSuccess()) {
+                    self.drop(1);
+                } else {
+                    self.drop(1);
                     self.inputPos = resetPos;
                     self.frame().ip += offset;
                 }
@@ -371,7 +389,8 @@ pub const VM = struct {
             },
             .Crash => {
                 if (self.peekIsSuccess()) {
-                    const value = self.pop();
+                    const value = self.peek(0);
+
                     const str = try value.toString(self);
                     const message = str.stringBytes(self.*).?;
                     return self.runtimeError("{s}", .{message});
@@ -382,11 +401,13 @@ pub const VM = struct {
             .Destructure => {
                 const patternIdx = self.readByte();
                 const pattern = self.chunk().getPattern(patternIdx);
-                const value = self.pop();
+                const value = self.peek(0);
 
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
+                    self.drop(1);
                     try self.push(value);
                 } else {
+                    self.drop(1);
                     try self.pushFailure();
                 }
             },
@@ -426,43 +447,55 @@ pub const VM = struct {
             },
             .InsertAtIndex => {
                 const index = self.readByte();
-                const elem = self.pop();
-                const array_elem = self.pop();
+                const elem = self.peek(0);
+                const array_elem = self.peek(1);
 
                 if (elem.isFailure() or array_elem.isFailure()) {
+                    self.drop(2);
                     try self.pushFailure();
                 } else {
                     const array = array_elem.asDyn().asArray();
                     var copy = try Elem.DynElem.Array.copy(self, array.elems.items);
                     copy.elems.items[index] = elem;
+
+                    self.drop(2);
                     try self.push(copy.dyn.elem());
                 }
             },
             .InsertAtKey => {
                 const idx = self.readByte();
                 const keyElem = self.chunk().getConstant(idx);
-                const val = self.pop();
-                const object_elem = self.pop();
+                const val = self.peek(0);
+                const object_elem = self.peek(1);
 
                 if (val.isFailure() or object_elem.isFailure()) {
+                    self.drop(2);
                     try self.pushFailure();
                 } else {
                     const object = object_elem.asDyn().asObject();
                     const key = if (keyElem.isType(.String)) keyElem.asString() else @panic("Internal Error");
+
                     var copy = try Elem.DynElem.Object.create(self, object.members.count());
+                    try self.pushTempDyn(&copy.dyn);
+                    defer self.dropTempDyn();
+
                     try copy.concat(self.allocator, object);
                     try copy.members.put(self.allocator, key, val);
+
+                    self.drop(2);
                     try self.push(copy.dyn.elem());
                 }
             },
             .InsertKeyVal => {
-                const val = self.pop();
-                const key_elem = self.pop();
-                const object_elem = self.pop();
                 const placeholder_key = self.readByte();
+                const val = self.peek(0);
+                const key_elem = self.peek(1);
+                const object_elem = self.peek(2);
+
                 const placeholder_key_sid = StringTable.reservedSid(placeholder_key);
 
                 if (val.isFailure() or key_elem.isFailure() or object_elem.isFailure()) {
+                    self.drop(3);
                     try self.pushFailure();
                 } else {
                     const object = object_elem.asDyn().asObject();
@@ -478,6 +511,9 @@ pub const VM = struct {
                     const calculated_index = object.members.getIndex(key_sid);
 
                     var copy = try Elem.DynElem.Object.create(self, object.members.count());
+                    try self.pushTempDyn(&copy.dyn);
+                    defer self.dropTempDyn();
+
                     try copy.concat(self.allocator, object);
 
                     if (calculated_index) |existing_key_index| {
@@ -500,6 +536,7 @@ pub const VM = struct {
                         _ = copy.members.swapRemove(placeholder_key_sid);
                     }
 
+                    self.drop(3);
                     try self.push(copy.dyn.elem());
                 }
             },
@@ -527,29 +564,40 @@ pub const VM = struct {
                 try self.pushInputMark();
             },
             .Merge => {
-                // Postfix, lhs and rhs on stack.
-                // Pop both and merge, push result. If the elems can't be
-                // merged then halt with a runtime error.
-                const rhs = self.pop();
-                const lhs = self.pop();
+                const rhs = self.peek(0);
+                const lhs = self.peek(1);
 
                 if (try Elem.merge(lhs, rhs, self)) |value| {
+                    self.drop(2);
                     try self.push(value);
                 } else {
                     return self.runtimeError("Merge type mismatch", .{});
                 }
             },
             .MergeAsString => {
-                const rhs = self.pop();
-                const lhs = self.pop();
+                const rhs = self.peek(0);
+                const lhs = self.peek(1);
 
                 if (lhs.isSuccess() and rhs.isSuccess()) {
-                    const lStr = try lhs.toString(self);
-                    const rStr = try rhs.toString(self);
-                    const merged = (try lStr.merge(rStr, self)).?;
+                    // Prevent GC if rhs/lhs is a non-string type that gets
+                    // converted to a `DynElem.String` representation.
+                    const lstr = try lhs.toString(self);
+                    if (lstr.isType(.Dyn)) {
+                        try self.pushTempDyn(lstr.asDyn());
+                        defer self.dropTempDyn();
+                    }
+                    const rstr = try rhs.toString(self);
+                    if (rstr.isType(.Dyn)) {
+                        try self.pushTempDyn(rstr.asDyn());
+                        defer self.dropTempDyn();
+                    }
 
+                    const merged = (try lstr.merge(rstr, self)).?;
+
+                    self.drop(2);
                     try self.push(merged);
                 } else {
+                    self.drop(2);
                     try self.push(Elem.failureConst);
                 }
             },
@@ -565,11 +613,13 @@ pub const VM = struct {
                 }
             },
             .NegateNumber => {
-                const num = self.pop();
+                const num = self.peek(0);
 
                 const value = Elem.negateNumber(num) catch |err| switch (err) {
                     error.ExpectedNumber => return self.runtimeError("Negation and subtraction is only supported for numbers.", .{}),
                 };
+
+                self.drop(1);
                 try self.push(value);
             },
             .Null => {
@@ -585,7 +635,7 @@ pub const VM = struct {
                 if (self.peekIsSuccess()) {
                     self.frame().ip += offset;
                 } else {
-                    _ = self.pop();
+                    self.drop(1);
                     self.inputPos = resetPos;
                 }
             },
@@ -655,10 +705,11 @@ pub const VM = struct {
             .TakeLeft => {
                 // Postfix, lhs and rhs on stack.
                 // If rhs succeeded then discard rhs, keep lhs.
-                // If rhs failed then pop lhs and push failure.
-                const rhs = self.pop();
-                if (rhs.isFailure()) {
-                    _ = self.pop();
+                // If rhs failed then drop both and push failure.
+                if (self.peekIsSuccess()) {
+                    self.drop(1);
+                } else {
+                    self.drop(2);
                     try self.pushFailure();
                 }
             },
@@ -668,7 +719,7 @@ pub const VM = struct {
                 // If lhs failed then keep it and jump to skip rhs ops.
                 const offset = self.readShort();
                 if (self.peekIsSuccess()) {
-                    _ = self.pop();
+                    self.drop(1);
                 } else {
                     self.frame().ip += offset;
                 }
@@ -715,13 +766,13 @@ pub const VM = struct {
             .String => {
                 const sid = elem.asString();
                 assert(argCount == 0);
-                _ = self.pop();
+                self.drop(1);
                 try self.parseString(sid);
             },
             .NumberString => {
                 const ns = elem.asNumberString();
                 assert(argCount == 0);
-                _ = self.pop();
+                self.drop(1);
                 try self.parseNumberString(ns);
             },
             .Dyn => {
@@ -1074,6 +1125,10 @@ pub const VM = struct {
         return self.stack.pop() orelse @panic("VM stack underflow");
     }
 
+    pub fn drop(self: *VM, n: usize) void {
+        for (0..n) |_| _ = self.pop();
+    }
+
     pub fn peek(self: *VM, distance: usize) Elem {
         const len = self.stack.items.len;
         return self.stack.items[(len - 1) - distance];
@@ -1190,15 +1245,6 @@ pub const VM = struct {
         return Error.RuntimeError;
     }
 
-    fn freeDynList(self: *VM) void {
-        var dyn = self.dynList;
-        while (dyn) |d| {
-            const next = d.next;
-            d.destroy(self);
-            dyn = next;
-        }
-    }
-
     fn isNewlineChar(self: VM, offset: usize, bytes_length: u3) bool {
         if (bytes_length == 1) {
             const b1 = self.input[offset];
@@ -1215,5 +1261,17 @@ pub const VM = struct {
         } else {
             return false;
         }
+    }
+
+    pub fn pushTempDyn(self: *VM, dyn: *Elem.DynElem) !void {
+        try self.temp_dyns.append(self.allocator, dyn);
+    }
+
+    pub fn dropTempDyn(self: *VM) void {
+        _ = self.temp_dyns.pop();
+    }
+
+    pub fn clearTempDyns(self: *VM, len: usize) void {
+        self.temp_dyns.shrinkRetainingCapacity(len);
     }
 };

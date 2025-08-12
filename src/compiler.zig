@@ -844,10 +844,7 @@ pub const Compiler = struct {
                 .Function,
                 .DeclareGlobal,
                 => {
-                    const function = try self.writeAnonymousFunction(rnode);
-                    const constId = try self.makeConstant(function.dyn.elem());
-                    try self.emitUnaryOp(.GetConstant, constId, region);
-                    try self.writeCaptureLocals(function, region);
+                    try self.writeAnonymousFunction(rnode);
                 },
                 .ElemNode => |elem| {
                     if (elem.isType(.ParserVar)) {
@@ -880,13 +877,16 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeAnonymousFunction(self: *Compiler, rnode: *Ast.RNode) !*Elem.DynElem.Function {
+    fn writeAnonymousFunction(self: *Compiler, rnode: *Ast.RNode) !void {
         const region = rnode.region;
 
         const function = try Elem.DynElem.Function.createAnonParser(
             self.vm,
             .{ .arity = 0, .region = region },
         );
+
+        // Prevent GC
+        const constId = try self.makeConstant(function.dyn.elem());
 
         try self.functions.append(self.vm.allocator, function);
 
@@ -903,7 +903,10 @@ pub const Compiler = struct {
             try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
         }
 
-        return self.functions.pop() orelse @panic("Internal Error");
+        _ = self.functions.pop() orelse @panic("Internal Error");
+
+        try self.emitUnaryOp(.GetConstant, constId, region);
+        try self.writeCaptureLocals(function, region);
     }
 
     fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.DynElem.Function, region: Region) !void {

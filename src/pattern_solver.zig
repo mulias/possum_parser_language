@@ -56,6 +56,10 @@ pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool {
     self.bound_locals.shrinkRetainingCapacity(0);
     defer self.bound_locals.shrinkRetainingCapacity(0);
 
+    // Prevent GC for all dyns created in pattern solver, until match is complete
+    const temp_dyns_start = self.vm.temp_dyns.items.len;
+    defer self.vm.clearTempDyns(temp_dyns_start);
+
     self.depth = 0;
     defer self.depth = 0;
 
@@ -420,6 +424,8 @@ fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool
         // Create an array element containing the unbound range
         const unbound_elems = value_array.elems.items[unbound_start..unbound_end];
         const unbound_array = try Elem.DynElem.Array.create(self.vm, unbound_elems.len);
+        try self.vm.pushTempDyn(&unbound_array.dyn);
+
         try unbound_array.elems.appendSlice(self.vm.allocator, unbound_elems);
         const unbound_elem = unbound_array.dyn.elem();
 
@@ -649,6 +655,7 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, pattern_merge: ArrayList(
     if (unbound_part) |pattern| {
         // Create an object with only the unmatched keys
         const unbound_object = try Elem.DynElem.Object.create(self.vm, unmatched_keys.count());
+        try self.vm.pushTempDyn(&unbound_object.dyn);
 
         var key_iterator = unmatched_keys.iterator();
         while (key_iterator.next()) |entry| {
@@ -745,6 +752,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
         } else blk: {
             // Allocate a dynamic string
             const dyn_str = try Elem.DynElem.String.create(self.vm, unbound_value.len);
+            try self.vm.pushTempDyn(&dyn_str.dyn);
             try dyn_str.concatBytes(unbound_value);
             break :blk dyn_str.dyn.elem();
         };
@@ -1067,6 +1075,9 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
         defer json_parsed.deinit();
 
         const unbound_elem = try Elem.fromJson(json_parsed.value, self.vm);
+
+        // Prevent GC
+        if (unbound_elem.isType(.Dyn)) try self.vm.pushTempDyn(unbound_elem.asDyn());
 
         if (!(try self.matchPattern(unbound_elem, pattern))) {
             return false;

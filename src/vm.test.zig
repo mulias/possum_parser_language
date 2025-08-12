@@ -13,7 +13,10 @@ const writers = Writers{
     .debug = std.io.null_writer.any(),
 };
 
-const config = VMConfig{ .includeStdlib = false };
+const config = VMConfig{
+    .includeStdlib = false,
+    .gc_mode = .StressTest,
+};
 
 fn createTestModule(source: []const u8) Module {
     return Module{ .source = source };
@@ -1398,6 +1401,7 @@ test "'a' -> A $ [[A]]" {
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "a");
 
+        vm.dyn_allocator.mode = .NoGC;
         const innerArray = [_]Elem{Elem.string(vm.strings.getId("a"))};
         const outerArray = [_]Elem{(try Elem.DynElem.Array.copy(&vm, &innerArray)).dyn.elem()};
         const array = (try Elem.DynElem.Array.copy(&vm, &outerArray)).dyn.elem();
@@ -1803,6 +1807,7 @@ test "'aa' $ {'a': 1, 'b': 2, 'c': 3}" {
         const result = try vm.interpret(testModule, "aa");
 
         // Do this after running the VM to make sure strings are interned
+        vm.dyn_allocator.mode = .NoGC;
         var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.numberFloat(1));
         try object.members.put(vm.allocator, vm.strings.getId("b"), Elem.numberFloat(2));
@@ -1824,6 +1829,7 @@ test "1 -> A & 2 -> B $ {'a': A, 'b': B}" {
         const result = try vm.interpret(testModule, "12");
 
         // Do this after running the VM to make sure strings are interned
+        vm.dyn_allocator.mode = .NoGC;
         var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.numberFloat(1));
         try object.members.put(vm.allocator, vm.strings.getId("b"), Elem.numberFloat(2));
@@ -1844,6 +1850,7 @@ test "'Z' -> A $ {A: 1, 'A': 2}" {
         const result = try vm.interpret(testModule, "Z");
 
         // Do this after running the VM to make sure strings are interned
+        vm.dyn_allocator.mode = .NoGC;
         var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.allocator, vm.strings.getId("Z"), Elem.numberFloat(1));
         try object.members.put(vm.allocator, vm.strings.getId("A"), Elem.numberFloat(2));
@@ -1875,6 +1882,7 @@ test "object('a'..'z', 0..9)" {
         const result = try vm.interpret(testModule, "a1b2c3");
 
         // Do this after running the VM to make sure strings are interned
+        vm.dyn_allocator.mode = .NoGC;
         var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.numberFloat(1));
         try object.members.put(vm.allocator, vm.strings.getId("b"), Elem.numberFloat(2));
@@ -1896,6 +1904,7 @@ test "('123' $ {'a': true}) + ('456' $ {'a': false, 'b': null})" {
         const result = try vm.interpret(testModule, "123456");
 
         // Do this after running the VM to make sure strings are interned
+        vm.dyn_allocator.mode = .NoGC;
         var object = try Elem.DynElem.Object.create(&vm, 3);
         try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.boolean(false));
         try object.members.put(vm.allocator, vm.strings.getId("b"), Elem.nullConst);
@@ -1916,6 +1925,7 @@ test "('' $ {'a': true}) -> {'a': true}" {
         const result = try vm.interpret(testModule, "");
 
         // Do this after running the VM to make sure strings are interned
+        vm.dyn_allocator.mode = .NoGC;
         var object = try Elem.DynElem.Object.create(&vm, 1);
         try object.members.put(vm.allocator, vm.strings.getId("a"), Elem.boolean(true));
 
@@ -2018,6 +2028,7 @@ test "'' $ [1, 2, [1+1+1]]" {
         const testModule = createTestModule(parser);
         const result = try vm.interpret(testModule, "");
 
+        vm.dyn_allocator.mode = .NoGC;
         const innerArray = [_]Elem{
             Elem.numberFloat(3),
         };

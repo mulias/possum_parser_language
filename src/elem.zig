@@ -904,6 +904,11 @@ pub const Elem = packed union {
             .string => |s| (try Elem.DynElem.String.copy(vm, s)).dyn.elem(),
             .array => |a| {
                 const array = try Elem.DynElem.Array.create(vm, a.items.len);
+
+                // Prevent GC
+                try vm.pushTempDyn(&array.dyn);
+                defer vm.dropTempDyn();
+
                 for (a.items) |array_value| {
                     try array.append(vm.allocator, try fromJson(array_value, vm));
                 }
@@ -911,6 +916,11 @@ pub const Elem = packed union {
             },
             .object => |o| {
                 const obj = try Elem.DynElem.Object.create(vm, o.count());
+
+                // Prevent GC
+                try vm.pushTempDyn(&obj.dyn);
+                defer vm.dropTempDyn();
+
                 var iterator = o.iterator();
                 while (iterator.next()) |entry| {
                     const elem_key = try vm.strings.insert(entry.key_ptr.*);
@@ -935,20 +945,8 @@ pub const Elem = packed union {
         id: u64,
         dynType: DynType,
         next: ?*DynElem,
-
-        pub fn allocate(vm: *VM, comptime T: type, dynType: DynType) !*DynElem {
-            const ptr = try vm.allocator.create(T);
-            const id = vm.nextUniqueId();
-
-            ptr.dyn = DynElem{
-                .id = id,
-                .dynType = dynType,
-                .next = vm.dynList,
-            };
-
-            vm.dynList = &ptr.dyn;
-            return &ptr.dyn;
-        }
+        isMarked: bool = false,
+        nextGray: ?*DynElem = null,
 
         pub fn destroy(self: *DynElem, vm: *VM) void {
             switch (self.dynType) {
@@ -1031,7 +1029,7 @@ pub const Elem = packed union {
             }
 
             pub fn create(vm: *VM, size: usize) !*String {
-                const dyn = try DynElem.allocate(vm, String, .String);
+                const dyn = try vm.dyn_allocator.allocate(String, .String);
                 const str = dyn.asString();
                 var buffer = StringBuffer.init(vm.allocator);
                 try buffer.allocate(size);
@@ -1093,7 +1091,7 @@ pub const Elem = packed union {
             }
 
             pub fn create(vm: *VM, capacity: usize) !*Array {
-                const dyn = try DynElem.allocate(vm, Array, .Array);
+                const dyn = try vm.dyn_allocator.allocate(Array, .Array);
                 const array = dyn.asArray();
 
                 var elems = ArrayList(Elem){};
@@ -1165,7 +1163,7 @@ pub const Elem = packed union {
             members: AutoArrayHashMap(StringTable.Id, Elem),
 
             pub fn create(vm: *VM, capacity: usize) !*Object {
-                const dyn = try DynElem.allocate(vm, Object, .Object);
+                const dyn = try vm.dyn_allocator.allocate(Object, .Object);
                 const object = dyn.asObject();
 
                 var members = AutoArrayHashMap(StringTable.Id, Elem){};
@@ -1282,7 +1280,7 @@ pub const Elem = packed union {
             };
 
             pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8, region: Region }) !*Function {
-                const dyn = try DynElem.allocate(vm, Function, .Function);
+                const dyn = try vm.dyn_allocator.allocate(Function, .Function);
                 const function = dyn.asFunction();
 
                 var chunk = Chunk.init(vm.allocator);
@@ -1301,7 +1299,7 @@ pub const Elem = packed union {
             }
 
             pub fn createAnonParser(vm: *VM, fields: struct { arity: u8, region: Region }) !*Function {
-                const dyn = try DynElem.allocate(vm, Function, .Function);
+                const dyn = try vm.dyn_allocator.allocate(Function, .Function);
                 const function = dyn.asFunction();
 
                 const name_str = try std.fmt.allocPrint(vm.allocator, "@fn{d}", .{dyn.id});
@@ -1394,7 +1392,7 @@ pub const Elem = packed union {
             pub const NativeCodeHandle = *const fn (vm: *VM) VM.Error!void;
 
             pub fn create(vm: *VM, name: []const u8, handle: NativeCodeHandle) !*NativeCode {
-                const dyn = try DynElem.allocate(vm, NativeCode, .NativeCode);
+                const dyn = try vm.dyn_allocator.allocate(NativeCode, .NativeCode);
                 const nc = dyn.asNativeCode();
 
                 nc.* = NativeCode{
@@ -1426,7 +1424,7 @@ pub const Elem = packed union {
             captures: []?Elem,
 
             pub fn create(vm: *VM, function: *Function) !*Closure {
-                const dyn = try DynElem.allocate(vm, Closure, .Closure);
+                const dyn = try vm.dyn_allocator.allocate(Closure, .Closure);
                 const closure = dyn.asClosure();
 
                 const captures = try vm.allocator.alloc(?Elem, function.locals.items.len);
@@ -1491,10 +1489,10 @@ pub const Elem = packed union {
 
 test "struct size" {
     try std.testing.expectEqual(8, @sizeOf(Elem));
-    try std.testing.expectEqual(24, @sizeOf(Elem.DynElem));
-    try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.String));
-    try std.testing.expectEqual(48, @sizeOf(Elem.DynElem.Array));
-    try std.testing.expectEqual(64, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(184, @sizeOf(Elem.DynElem.Function));
-    try std.testing.expectEqual(48, @sizeOf(Elem.DynElem.Closure));
+    try std.testing.expectEqual(32, @sizeOf(Elem.DynElem));
+    try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
+    try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
+    try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
+    try std.testing.expectEqual(192, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Closure));
 }
