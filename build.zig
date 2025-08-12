@@ -11,6 +11,7 @@ pub fn build(b: *Build) void {
     checkStep(b, t, o);
     testStep(b, t, o);
     releaseStep(b);
+    debugStep(b);
 }
 
 const version: SemanticVersion = .{ .major = 0, .minor = 13, .patch = 0 };
@@ -150,9 +151,31 @@ fn releaseStep(b: *Build) void {
         const target_string = query.zigTriple(b.allocator) catch @panic("OOM");
         const name = b.fmt("possum_{s}", .{target_string});
 
-        const cli = addCliExecutable(b, name, target, .ReleaseSafe);
+        const cli = addCliExecutable(b, name, target, .ReleaseFast);
         cli.root_module.strip = false;
         const target_output = b.addInstallArtifact(cli, .{});
         release_step.dependOn(&target_output.step);
+    }
+}
+
+fn debugStep(b: *Build) void {
+    const debug_step = b.step("debug", "Build debug binaries");
+
+    const targets: []const Target.Query = &.{
+        .{ .cpu_arch = .aarch64, .os_tag = .macos },
+        .{ .cpu_arch = .x86_64, .os_tag = .macos },
+        .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .gnu },
+        .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .musl },
+    };
+
+    for (targets) |query| {
+        const target = b.resolveTargetQuery(query);
+        const target_string = query.zigTriple(b.allocator) catch @panic("OOM");
+        const name = b.fmt("possum_debug_{s}", .{target_string});
+
+        const cli = addCliExecutable(b, name, target, .Debug);
+        cli.root_module.strip = false;
+        const target_output = b.addInstallArtifact(cli, .{});
+        debug_step.dependOn(&target_output.step);
     }
 }
