@@ -59,8 +59,6 @@ pub const Elem = packed union {
         signature: u13 = signature_nan,
     },
 
-    pub const Payload = packed union {};
-
     pub const InputSubstringElem = packed struct {
         start: u24,
         offset: u24,
@@ -692,8 +690,8 @@ pub const Elem = packed union {
                             .Array => {
                                 const a2 = elemB.asDyn().asArray();
                                 const a = try Elem.DynElem.Array.create(vm, a1.elems.items.len + a2.elems.items.len);
-                                try a.concat(vm.allocator, a1);
-                                try a.concat(vm.allocator, a2);
+                                try a.concat(vm, a1);
+                                try a.concat(vm, a2);
                                 return a.dyn.elem();
                             },
                             else => null,
@@ -708,8 +706,8 @@ pub const Elem = packed union {
                             .Object => {
                                 const o2 = elemB.asDyn().asObject();
                                 const o = try Elem.DynElem.Object.create(vm, o1.members.count() + o2.members.count());
-                                try o.concat(vm.allocator, o1);
-                                try o.concat(vm.allocator, o2);
+                                try o.concat(vm, o1);
+                                try o.concat(vm, o2);
                                 return o.dyn.elem();
                             },
                             else => null,
@@ -909,7 +907,7 @@ pub const Elem = packed union {
                 defer vm.dropTempDyn();
 
                 for (a.items) |array_value| {
-                    try array.append(vm.allocator, try fromJson(array_value, vm));
+                    try array.append(vm, try fromJson(array_value, vm));
                 }
                 return array.dyn.elem();
             },
@@ -924,7 +922,7 @@ pub const Elem = packed union {
                 while (iterator.next()) |entry| {
                     const elem_key = try vm.strings.insert(entry.key_ptr.*);
                     const elem_value = try fromJson(entry.value_ptr.*, vm);
-                    try obj.members.put(vm.allocator, elem_key, elem_value);
+                    try obj.put(vm, elem_key, elem_value);
                 }
                 return obj.dyn.elem();
             },
@@ -1028,10 +1026,12 @@ pub const Elem = packed union {
             }
 
             pub fn create(vm: *VM, size: usize) !*String {
-                const dyn = try vm.dyn_allocator.allocate(String, .String);
-                const str = dyn.asString();
-                var buffer = StringBuffer.init(vm.allocator);
+                // Allocate buffer before string is added to GC
+                var buffer = StringBuffer.init(vm.gc.allocator());
                 try buffer.allocate(size);
+
+                const dyn = try vm.gc.createDynElem(String, .String);
+                const str = dyn.asString();
 
                 str.* = String{
                     .dyn = dyn.*,
@@ -1043,7 +1043,7 @@ pub const Elem = packed union {
 
             pub fn destroy(self: *String, vm: *VM) void {
                 self.buffer.deinit();
-                vm.allocator.destroy(self);
+                vm.gc.allocator().destroy(self);
             }
 
             pub fn print(self: *String, writer: anytype) !void {
@@ -1085,16 +1085,17 @@ pub const Elem = packed union {
 
             pub fn copy(vm: *VM, elems: []const Elem) !*Array {
                 const a = try create(vm, elems.len);
-                try a.elems.appendSlice(vm.allocator, elems);
+                try a.elems.appendSlice(vm.gc.allocator(), elems);
                 return a;
             }
 
             pub fn create(vm: *VM, capacity: usize) !*Array {
-                const dyn = try vm.dyn_allocator.allocate(Array, .Array);
-                const array = dyn.asArray();
-
+                // Allocate elems before array is added to GC
                 var elems = ArrayList(Elem){};
-                try elems.ensureTotalCapacity(vm.allocator, capacity);
+                try elems.ensureTotalCapacity(vm.gc.allocator(), capacity);
+
+                const dyn = try vm.gc.createDynElem(Array, .Array);
+                const array = dyn.asArray();
 
                 array.* = Array{
                     .dyn = dyn.*,
@@ -1105,8 +1106,8 @@ pub const Elem = packed union {
             }
 
             pub fn destroy(self: *Array, vm: *VM) void {
-                self.elems.deinit(vm.allocator);
-                vm.allocator.destroy(self);
+                self.elems.deinit(vm.gc.allocator());
+                vm.gc.allocator().destroy(self);
             }
 
             pub fn print(self: *Array, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
@@ -1139,12 +1140,12 @@ pub const Elem = packed union {
                 return true;
             }
 
-            pub fn append(self: *Array, allocator: Allocator, item: Elem) !void {
-                try self.elems.append(allocator, item);
+            pub fn append(self: *Array, vm: *VM, item: Elem) !void {
+                try self.elems.append(vm.gc.allocator(), item);
             }
 
-            pub fn concat(self: *Array, allocator: Allocator, other: *Array) !void {
-                try self.elems.appendSlice(allocator, other.elems.items);
+            pub fn concat(self: *Array, vm: *VM, other: *Array) !void {
+                try self.elems.appendSlice(vm.gc.allocator(), other.elems.items);
             }
 
             pub fn len(self: *Array) usize {
@@ -1162,29 +1163,30 @@ pub const Elem = packed union {
             members: AutoArrayHashMap(StringTable.Id, Elem),
 
             pub fn create(vm: *VM, capacity: usize) !*Object {
-                const dyn = try vm.dyn_allocator.allocate(Object, .Object);
-                const object = dyn.asObject();
+                // Allocate members before object is added to GC
+                var members: AutoArrayHashMap(StringTable.Id, Elem) = .{};
+                try members.ensureTotalCapacity(vm.gc.allocator(), capacity);
 
-                var members = AutoArrayHashMap(StringTable.Id, Elem){};
-                try members.ensureTotalCapacity(vm.allocator, capacity);
+                const dyn = try vm.gc.createDynElem(Object, .Object);
+                const obj = dyn.asObject();
 
-                object.* = Object{
+                obj.* = Object{
                     .dyn = dyn.*,
                     .members = members,
                 };
 
-                return object;
+                return obj;
             }
 
             pub fn copy(vm: *VM, other: *Object) !*Object {
                 const obj = try create(vm, other.members.count());
-                try obj.concat(vm.allocator, other);
+                try obj.concat(vm.gc.allocator(), other);
                 return obj;
             }
 
             pub fn destroy(self: *Object, vm: *VM) void {
-                self.members.deinit(vm.allocator);
-                vm.allocator.destroy(self);
+                self.members.deinit(vm.gc.allocator());
+                vm.gc.allocator().destroy(self);
             }
 
             pub fn print(self: *Object, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
@@ -1232,15 +1234,19 @@ pub const Elem = packed union {
                 return true;
             }
 
-            pub fn concat(self: *Object, allocator: Allocator, other: *Object) !void {
+            pub fn concat(self: *Object, vm: *VM, other: *Object) !void {
                 var iterator = other.members.iterator();
                 while (iterator.next()) |entry| {
-                    try self.members.put(allocator, entry.key_ptr.*, entry.value_ptr.*);
+                    try self.members.put(vm.gc.allocator(), entry.key_ptr.*, entry.value_ptr.*);
                 }
             }
 
-            pub fn putReservedId(self: *Object, allocator: Allocator, reservedId: u8, value: Elem) !void {
-                return self.members.put(allocator, std.math.maxInt(u32) - @as(u32, @intCast(reservedId)), value);
+            pub fn put(self: *Object, vm: *VM, sid: StringTable.Id, value: Elem) !void {
+                try self.members.put(vm.gc.allocator(), sid, value);
+            }
+
+            pub fn putReservedId(self: *Object, vm: *VM, reservedId: u8, value: Elem) !void {
+                return self.members.put(vm.gc.allocator(), std.math.maxInt(u32) - @as(u32, @intCast(reservedId)), value);
             }
         };
 
@@ -1279,7 +1285,7 @@ pub const Elem = packed union {
             };
 
             pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8, region: Region }) !*Function {
-                const dyn = try vm.dyn_allocator.allocate(Function, .Function);
+                const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
                 var chunk = Chunk.init(vm.allocator);
@@ -1298,7 +1304,7 @@ pub const Elem = packed union {
             }
 
             pub fn createAnonParser(vm: *VM, fields: struct { arity: u8, region: Region }) !*Function {
-                const dyn = try vm.dyn_allocator.allocate(Function, .Function);
+                const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
                 const name_str = try std.fmt.allocPrint(vm.allocator, "@fn{d}", .{dyn.id});
@@ -1322,8 +1328,8 @@ pub const Elem = packed union {
 
             pub fn destroy(self: *Function, vm: *VM) void {
                 self.chunk.deinit();
-                self.locals.deinit(vm.allocator);
-                vm.allocator.destroy(self);
+                self.locals.deinit(vm.gc.allocator());
+                vm.gc.allocator().destroy(self);
             }
 
             pub fn print(self: *Function, vm: VM, writer: anytype) !void {
@@ -1340,7 +1346,7 @@ pub const Elem = packed union {
                 try self.chunk.disassemble(vm, writer, label, module);
             }
 
-            pub fn addLocal(self: *Function, allocator: Allocator, local: Local) !?u8 {
+            pub fn addLocal(self: *Function, vm: *VM, local: Local) !?u8 {
                 if (self.locals.items.len >= std.math.maxInt(u8)) {
                     return error.MaxFunctionLocals;
                 }
@@ -1351,7 +1357,7 @@ pub const Elem = packed union {
                     }
                 }
 
-                try self.locals.append(allocator, local);
+                try self.locals.append(vm.gc.allocator(), local);
 
                 return @as(u8, @intCast(self.locals.items.len - 1));
             }
@@ -1391,7 +1397,7 @@ pub const Elem = packed union {
             pub const NativeCodeHandle = *const fn (vm: *VM) VM.Error!void;
 
             pub fn create(vm: *VM, name: []const u8, handle: NativeCodeHandle) !*NativeCode {
-                const dyn = try vm.dyn_allocator.allocate(NativeCode, .NativeCode);
+                const dyn = try vm.gc.createDynElem(NativeCode, .NativeCode);
                 const nc = dyn.asNativeCode();
 
                 nc.* = NativeCode{
@@ -1404,7 +1410,7 @@ pub const Elem = packed union {
             }
 
             pub fn destroy(self: *NativeCode, vm: *VM) void {
-                vm.allocator.destroy(self);
+                vm.gc.allocator().destroy(self);
             }
 
             pub fn print(self: *NativeCode, writer: anytype) !void {
@@ -1423,11 +1429,11 @@ pub const Elem = packed union {
             captures: []?Elem,
 
             pub fn create(vm: *VM, function: *Function) !*Closure {
-                const dyn = try vm.dyn_allocator.allocate(Closure, .Closure);
-                const closure = dyn.asClosure();
-
-                const captures = try vm.allocator.alloc(?Elem, function.locals.items.len);
+                const captures = try vm.gc.allocator().alloc(?Elem, function.locals.items.len);
                 @memset(captures, null);
+
+                const dyn = try vm.gc.createDynElem(Closure, .Closure);
+                const closure = dyn.asClosure();
 
                 closure.* = Closure{
                     .dyn = dyn.*,
@@ -1439,8 +1445,8 @@ pub const Elem = packed union {
             }
 
             pub fn destroy(self: *Closure, vm: *VM) void {
-                vm.allocator.free(self.captures);
-                vm.allocator.destroy(self);
+                vm.gc.allocator().free(self.captures);
+                vm.gc.allocator().destroy(self);
             }
 
             pub fn print(self: *Closure, vm: VM, writer: anytype) @TypeOf(writer).Error!void {

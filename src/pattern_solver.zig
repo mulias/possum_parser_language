@@ -699,7 +699,7 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
         while (key_iterator.next()) |entry| {
             const key_sid = entry.key_ptr.*;
             const value_elem = value_object.members.get(key_sid).?;
-            try unbound_object.members.put(self.vm.allocator, key_sid, value_elem);
+            try unbound_object.put(self.vm, key_sid, value_elem);
         }
 
         const unbound_elem = unbound_object.dyn.elem();

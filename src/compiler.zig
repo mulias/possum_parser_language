@@ -1610,14 +1610,14 @@ pub const Compiler = struct {
     fn appendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) !void {
         try self.writeValue(rnode, false);
         try self.emitUnaryOp(.InsertAtIndex, index, region);
-        try array.append(self.vm.allocator, self.placeholderVar());
+        try array.append(self.vm, self.placeholderVar());
     }
 
     fn negateAndAppendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) !void {
         try self.writeValue(rnode, false);
         try self.emitOp(.NegateNumber, region);
         try self.emitUnaryOp(.InsertAtIndex, index, region);
-        try array.append(self.vm.allocator, self.placeholderVar());
+        try array.append(self.vm, self.placeholderVar());
     }
 
     fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) Error!void {
@@ -1625,7 +1625,7 @@ pub const Compiler = struct {
             .ElemNode => |elem| switch (elem.getType()) {
                 .ValueVar => try self.appendDynamicValue(array, rnode, index, region),
                 else => {
-                    try array.append(self.vm.allocator, elem);
+                    try array.append(self.vm, elem);
                 },
             },
             .InfixNode => try self.appendDynamicValue(array, rnode, index, region),
@@ -1634,7 +1634,7 @@ pub const Compiler = struct {
                 // Special case: empty arrays should be treated as literals
                 if (elements.items.len == 0) {
                     var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
-                    try array.append(self.vm.allocator, emptyArray.dyn.elem());
+                    try array.append(self.vm, emptyArray.dyn.elem());
                 } else {
                     try self.appendDynamicValue(array, rnode, index, region);
                 }
@@ -1643,7 +1643,7 @@ pub const Compiler = struct {
                 // Special case: empty objects should be treated as literals
                 if (pairs.items.len == 0) {
                     var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
-                    try array.append(self.vm.allocator, emptyObject.dyn.elem());
+                    try array.append(self.vm, emptyObject.dyn.elem());
                 } else {
                     try self.appendDynamicValue(array, rnode, index, region);
                 }
@@ -1656,7 +1656,7 @@ pub const Compiler = struct {
             .Conditional => try self.appendDynamicValue(array, rnode, index, region),
             .Negation => |inner| {
                 if (simplifyNegatedNumberNode(rnode)) |elem| {
-                    try array.append(self.vm.allocator, elem);
+                    try array.append(self.vm, elem);
                 } else {
                     try self.negateAndAppendDynamicValue(array, inner, index, region);
                 }
@@ -1679,15 +1679,25 @@ pub const Compiler = struct {
 
         for (pairs.items, 0..) |pair, index| {
             if (try self.literalPatternToElem(pair.key)) |key_elem| {
+                // Prevent GC before pair is inserted into object. The key
+                // shouldn't be dynamically allocated, but just in case.
+                if (key_elem.isType(.Dyn)) try self.vm.pushTempDyn(key_elem.asDyn());
+                defer if (key_elem.isType(.Dyn)) self.vm.dropTempDyn();
+
                 if (try self.literalPatternToElem(pair.value)) |val_elem| {
+                    // Prevent GC before pair is inserted into object. The vale
+                    // can be dynamically allocated.
+                    if (val_elem.isType(.Dyn)) try self.vm.pushTempDyn(val_elem.asDyn());
+                    defer if (val_elem.isType(.Dyn)) self.vm.dropTempDyn();
+
                     const key_sid = key_elem.asString();
-                    try object.members.put(self.vm.allocator, key_sid, val_elem);
+                    try object.put(self.vm, key_sid, val_elem);
                 } else {
                     try self.writeValueObjectVal(pair.value, key_elem);
                 }
             } else {
                 const pos = @as(u8, @intCast(index));
-                try object.putReservedId(self.vm.allocator, pos, self.placeholderVar());
+                try object.putReservedId(self.vm, pos, self.placeholderVar());
                 try self.writeValue(pair.key, false);
                 try self.writeValue(pair.value, false);
                 try self.emitUnaryOp(.InsertKeyVal, pos, pair.key.region);
@@ -1811,10 +1821,7 @@ pub const Compiler = struct {
             return Error.InvalidAst;
         }
 
-        return self.currentFunction().addLocal(
-            self.vm.allocator,
-            local,
-        ) catch |err| switch (err) {
+        return self.currentFunction().addLocal(self.vm, local) catch |err| switch (err) {
             error.MaxFunctionLocals => {
                 try self.printError(
                     region,

@@ -4,22 +4,23 @@ const VM = @import("vm.zig").VM;
 const Compiler = @import("./compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 
-pub const GCMode = enum { GC, NoGC, StressTest };
-
-pub const GCAllocator = struct {
+pub const GC = struct {
     vm: *VM,
     parent_allocator: Allocator,
     bytesAllocated: usize,
     nextGC: usize,
     nextDyn: ?*Elem.DynElem,
     nextGray: ?*Elem.DynElem,
-    mode: GCMode,
+    mode: Mode,
     print_gc: bool,
     print_trace: bool,
+    running_gc: bool,
+
+    pub const Mode = enum { GC, NoGC, StressTest };
 
     const HEAP_GROW_FACTOR = 2;
 
-    pub fn init(vm: *VM, parent_allocator: Allocator) GCAllocator {
+    pub fn init(vm: *VM, parent_allocator: Allocator) GC {
         return .{
             .vm = vm,
             .parent_allocator = parent_allocator,
@@ -30,19 +31,34 @@ pub const GCAllocator = struct {
             .mode = vm.config.gc_mode,
             .print_gc = vm.config.print_gc,
             .print_trace = false,
+            .running_gc = false,
         };
     }
 
-    pub fn deinit(self: *GCAllocator) void {
+    pub fn deinit(self: *GC) void {
+        self.running_gc = true;
         var dyn = self.nextDyn;
         while (dyn) |d| {
             const next = d.next;
             d.destroy(self.vm);
             dyn = next;
         }
+        self.running_gc = false;
     }
 
-    pub fn allocate(self: *GCAllocator, comptime T: type, dynType: Elem.DynType) !*Elem.DynElem {
+    pub fn allocator(self: *GC) Allocator {
+        return .{
+            .ptr = self,
+            .vtable = &.{
+                .alloc = alloc,
+                .resize = resize,
+                .remap = remap,
+                .free = free,
+            },
+        };
+    }
+
+    pub fn createDynElem(self: *GC, comptime T: type, dynType: Elem.DynType) !*Elem.DynElem {
         const ptr = try self.allocator().create(T);
         const id = self.vm.nextUniqueId();
 
@@ -59,24 +75,13 @@ pub const GCAllocator = struct {
         return &ptr.dyn;
     }
 
-    fn allocator(self: *GCAllocator) Allocator {
-        return .{
-            .ptr = self,
-            .vtable = &.{
-                .alloc = alloc,
-                .resize = resize,
-                .remap = remap,
-                .free = free,
-            },
-        };
-    }
-
-    fn shouldRunGc(self: GCAllocator, n: usize) bool {
+    fn shouldRunGc(self: GC, n: usize) bool {
+        if (self.running_gc) return false;
         return (self.mode == .GC and self.bytesAllocated + n > self.nextGC) or self.mode == .StressTest;
     }
 
     fn alloc(ctx: *anyopaque, n: usize, alignment: std.mem.Alignment, ret_addr: usize) ?[*]u8 {
-        const self: *GCAllocator = @ptrCast(@alignCast(ctx));
+        const self: *GC = @ptrCast(@alignCast(ctx));
         if (self.shouldRunGc(n)) {
             self.collectGarbage();
         }
@@ -86,7 +91,7 @@ pub const GCAllocator = struct {
     }
 
     pub fn resize(ctx: *anyopaque, buf: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) bool {
-        const self: *GCAllocator = @ptrCast(@alignCast(ctx));
+        const self: *GC = @ptrCast(@alignCast(ctx));
         if (new_len > buf.len) {
             if (self.shouldRunGc(new_len - buf.len)) {
                 self.collectGarbage();
@@ -106,7 +111,7 @@ pub const GCAllocator = struct {
     }
 
     pub fn remap(ctx: *anyopaque, buf: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
-        const self: *GCAllocator = @ptrCast(@alignCast(ctx));
+        const self: *GC = @ptrCast(@alignCast(ctx));
         if (new_len > buf.len) {
             if (self.shouldRunGc(new_len - buf.len)) {
                 self.collectGarbage();
@@ -127,21 +132,27 @@ pub const GCAllocator = struct {
     }
 
     pub fn free(ctx: *anyopaque, buf: []u8, alignment: std.mem.Alignment, ret_addr: usize) void {
-        const self: *GCAllocator = @ptrCast(@alignCast(ctx));
+        const self: *GC = @ptrCast(@alignCast(ctx));
         self.parent_allocator.rawFree(buf, alignment, ret_addr);
         self.bytesAllocated -= buf.len;
+        if (self.bytesAllocated < 0) {
+            self.vm.writers.debug.print("allocated: {} bytes\n", .{self.bytesAllocated}) catch {};
+            // @panic("baz");
+        }
     }
 
-    fn collectGarbage(self: *GCAllocator) void {
+    fn collectGarbage(self: *GC) void {
         if (self.print_gc) {
             self.vm.writers.debug.print("-- gc begin (allocated: {} bytes, threshold: {} bytes)\n", .{ self.bytesAllocated, self.nextGC }) catch {};
         }
 
         const before_count = self.countDynElems();
 
+        self.running_gc = true;
         self.markRoots();
         self.traceReferences();
         self.sweep();
+        self.running_gc = false;
 
         const after_count = self.countDynElems();
         self.nextGC = self.bytesAllocated * HEAP_GROW_FACTOR;
@@ -151,7 +162,7 @@ pub const GCAllocator = struct {
         }
     }
 
-    fn countDynElems(self: *GCAllocator) usize {
+    fn countDynElems(self: *GC) usize {
         var count: usize = 0;
         var dyn = self.nextDyn;
         while (dyn) |d| {
@@ -161,7 +172,7 @@ pub const GCAllocator = struct {
         return count;
     }
 
-    fn markRoots(self: *GCAllocator) void {
+    fn markRoots(self: *GC) void {
         if (self.print_trace) {
             self.vm.writers.debug.print("  marking roots:\n", .{}) catch {};
             self.vm.writers.debug.print("    stack items: {}\n", .{self.vm.stack.items.len}) catch {};
@@ -208,7 +219,7 @@ pub const GCAllocator = struct {
         }
     }
 
-    fn traceReferences(self: *GCAllocator) void {
+    fn traceReferences(self: *GC) void {
         while (self.nextGray) |dyn| {
             self.nextGray = dyn.nextGray;
             dyn.nextGray = null;
@@ -216,7 +227,7 @@ pub const GCAllocator = struct {
         }
     }
 
-    fn sweep(self: *GCAllocator) void {
+    fn sweep(self: *GC) void {
         var previous: ?*Elem.DynElem = null;
         var maybeObject = self.nextDyn;
         while (maybeObject) |object| {
@@ -247,7 +258,7 @@ pub const GCAllocator = struct {
         }
     }
 
-    fn blackenDyn(self: *GCAllocator, dyn: *Elem.DynElem) void {
+    fn blackenDyn(self: *GC, dyn: *Elem.DynElem) void {
         if (self.print_trace) {
             self.vm.writers.debug.print("  blacken {} (type: {s}, id: {})\n", .{ @intFromPtr(dyn), @tagName(dyn.dynType), dyn.id }) catch {};
         }
@@ -282,11 +293,11 @@ pub const GCAllocator = struct {
         }
     }
 
-    fn markElem(self: *GCAllocator, elem: Elem) void {
+    fn markElem(self: *GC, elem: Elem) void {
         if (elem.isType(.Dyn)) self.markDyn(elem.asDyn());
     }
 
-    fn markDyn(self: *GCAllocator, dyn: *Elem.DynElem) void {
+    fn markDyn(self: *GC, dyn: *Elem.DynElem) void {
         if (dyn.isMarked) return;
 
         if (self.print_trace) {
@@ -299,11 +310,11 @@ pub const GCAllocator = struct {
         self.nextGray = dyn;
     }
 
-    fn printAllocate(self: *GCAllocator, dyn: *Elem.DynElem) void {
+    pub fn printAllocate(self: *GC, dyn: *Elem.DynElem) void {
         self.vm.writers.debug.print("GC: allocate {s}(id={})\n", .{ @tagName(dyn.dynType), dyn.id }) catch {};
     }
 
-    fn printDeallocate(self: *GCAllocator, dyn: *Elem.DynElem) void {
+    fn printDeallocate(self: *GC, dyn: *Elem.DynElem) void {
         self.vm.writers.debug.print("GC: deallocate {s}(id={}) ", .{ @tagName(dyn.dynType), dyn.id }) catch {};
         dyn.print(self.vm.*, self.vm.writers.debug) catch {};
         self.vm.writers.debug.print("\n", .{}) catch {};

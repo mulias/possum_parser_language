@@ -9,8 +9,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const Compiler = @import("compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 const Env = @import("env.zig").Env;
-const GCAllocator = @import("memory.zig").GCAllocator;
-const GCMode = @import("memory.zig").GCMode;
+const GC = @import("gc.zig").GC;
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Parser = @import("parser.zig").Parser;
@@ -32,7 +31,7 @@ pub const Config = struct {
     print_gc: bool = false,
     runVM: bool = true,
     includeStdlib: bool = true,
-    gc_mode: GCMode = .GC,
+    gc_mode: GC.Mode = .GC,
 
     pub fn setEnv(self: *Config, env: Env) void {
         self.printScanner = env.printScanner;
@@ -60,7 +59,7 @@ pub const Pos = struct {
 
 pub const VM = struct {
     allocator: Allocator,
-    dyn_allocator: GCAllocator,
+    gc: GC,
     strings: StringTable,
     modules: ArrayList(Module),
     active_compiler: ?*Compiler,
@@ -100,7 +99,7 @@ pub const VM = struct {
     pub fn create() VM {
         const self = VM{
             .allocator = undefined,
-            .dyn_allocator = undefined,
+            .gc = undefined,
             .strings = undefined,
             .modules = undefined,
             .active_compiler = undefined,
@@ -123,7 +122,7 @@ pub const VM = struct {
         self.config = config;
         self.writers = writers;
         self.allocator = allocator;
-        self.dyn_allocator = GCAllocator.init(self, allocator);
+        self.gc = GC.init(self, allocator);
         self.strings = StringTable.init(allocator);
         self.modules = ArrayList(Module){};
         self.active_compiler = null;
@@ -145,7 +144,7 @@ pub const VM = struct {
     }
 
     pub fn deinit(self: *VM) void {
-        self.dyn_allocator.deinit();
+        self.gc.deinit();
         self.strings.deinit();
         for (self.modules.items) |*module| {
             module.deinit(self.allocator);
@@ -482,8 +481,8 @@ pub const VM = struct {
                     try self.pushTempDyn(&copy.dyn);
                     defer self.dropTempDyn();
 
-                    try copy.concat(self.allocator, object);
-                    try copy.members.put(self.allocator, key, val);
+                    try copy.concat(self, object);
+                    try copy.put(self, key, val);
 
                     self.drop(2);
                     try self.push(copy.dyn.elem());
@@ -517,7 +516,7 @@ pub const VM = struct {
                     try self.pushTempDyn(&copy.dyn);
                     defer self.dropTempDyn();
 
-                    try copy.concat(self.allocator, object);
+                    try copy.concat(self, object);
 
                     if (calculated_index) |existing_key_index| {
                         if (existing_key_index < placeholder_index) {
@@ -526,7 +525,7 @@ pub const VM = struct {
                             // existing with the new pair, leaving the new pair
                             // in the placeholder position.
                             _ = copy.members.orderedRemove(key_sid);
-                            try copy.members.put(self.allocator, key_sid, val);
+                            try copy.put(self, key_sid, val);
                             _ = copy.members.swapRemove(placeholder_key_sid);
                         } else {
                             // This key was inserted after the placeholder.
@@ -535,7 +534,7 @@ pub const VM = struct {
                             _ = copy.members.orderedRemove(placeholder_key_sid);
                         }
                     } else {
-                        try copy.members.put(self.allocator, key_sid, val);
+                        try copy.put(self, key_sid, val);
                         _ = copy.members.swapRemove(placeholder_key_sid);
                     }
 
