@@ -13,7 +13,7 @@ const build_options = @import("build_options");
 const cli_config = @import("cli_config.zig");
 const maxInt = std.math.maxInt;
 
-pub fn main() !void {
+pub fn main() void {
     const allocator = switch (builtin.mode) {
         .Debug => blk: {
             var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -21,14 +21,29 @@ pub fn main() !void {
         },
         else => std.heap.smp_allocator,
     };
+
+    const stdout = std.io.getStdOut();
+    const stderr = std.io.getStdErr();
+
+    var buffered_out = std.io.bufferedWriter(stdout.writer());
+    var buffered_err = std.io.bufferedWriter(stderr.writer());
+
+    defer buffered_out.flush() catch {};
+    defer buffered_err.flush() catch {};
+
     const writers = Writers{
-        .out = std.io.getStdOut().writer().any(),
-        .err = std.io.getStdErr().writer().any(),
-        .debug = std.io.getStdErr().writer().any(),
+        .out = buffered_out.writer().any(),
+        .err = buffered_err.writer().any(),
+        .debug = buffered_err.writer().any(),
     };
     const cli = CLI.init(allocator, writers);
 
-    return cli.run();
+    cli.run() catch |e| {
+        cli.writers.err.print("[{s}]\n", .{@errorName(e)}) catch {};
+        buffered_out.flush() catch {};
+        buffered_err.flush() catch {};
+        std.process.exit(1);
+    };
 }
 
 pub const CLI = struct {
@@ -44,19 +59,12 @@ pub const CLI = struct {
 
     pub fn run(self: CLI) !void {
         switch (try cli_config.run(self.allocator)) {
-            .Parse => |args| self.parseAndHandleErrors(args),
+            .Parse => |args| try self.parse(args),
             .Docs => |doc| try self.printDocs(doc),
             .Help => try self.printHelp(),
             .Version => try self.printVersion(),
             .UsageError => |err| try self.printUsageError(err),
         }
-    }
-
-    fn parseAndHandleErrors(self: CLI, args: cli_config.ParseArgs) void {
-        self.parse(args) catch |e| {
-            self.writers.err.print("[{s}]\n", .{@errorName(e)}) catch {};
-            std.process.exit(1);
-        };
     }
 
     fn parse(self: CLI, args: cli_config.ParseArgs) !void {
@@ -92,8 +100,7 @@ pub const CLI = struct {
             const parsed = try vm.interpret(userModule, input);
 
             if (parsed.isFailure()) {
-                try self.writers.err.print("Parser Failure\n", .{});
-                std.process.exit(1);
+                return error.ParserFailure;
             } else {
                 try parsed.writeJson(.Pretty, vm, self.writers.out);
                 try self.writers.out.print("\n", .{});

@@ -397,745 +397,745 @@
   $ for f in $TESTDIR/n_*.json; do echo "$(basename $f)"; cat $f; echo ""; possum -p 'input(json)' $f; echo ""; done
   n_array_1_true_without_comma.json
   [1 true]
-  Parser Failure
+  [ParserFailure]
   
   n_array_a_invalid_utf8.json
   [a\xe5] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_array_colon_instead_of_comma.json
   ["": 1]
-  Parser Failure
+  [ParserFailure]
   
   n_array_comma_after_close.json
   [""],
-  Parser Failure
+  [ParserFailure]
   
   n_array_comma_and_number.json
   [,1]
-  Parser Failure
+  [ParserFailure]
   
   n_array_double_comma.json
   [1,,2]
-  Parser Failure
+  [ParserFailure]
   
   n_array_double_extra_comma.json
   ["x",,]
-  Parser Failure
+  [ParserFailure]
   
   n_array_extra_close.json
   ["x"]]
-  Parser Failure
+  [ParserFailure]
   
   n_array_extra_comma.json
   ["",]
-  Parser Failure
+  [ParserFailure]
   
   n_array_incomplete.json
   ["x"
-  Parser Failure
+  [ParserFailure]
   
   n_array_incomplete_invalid_value.json
   [x
-  Parser Failure
+  [ParserFailure]
   
   n_array_inner_array_no_comma.json
   [3[4]]
-  Parser Failure
+  [ParserFailure]
   
   n_array_invalid_utf8.json
   [\xff] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_array_items_separated_by_semicolon.json
   [1:2]
-  Parser Failure
+  [ParserFailure]
   
   n_array_just_comma.json
   [,]
-  Parser Failure
+  [ParserFailure]
   
   n_array_just_minus.json
   [-]
-  Parser Failure
+  [ParserFailure]
   
   n_array_missing_value.json
   [   , ""]
-  Parser Failure
+  [ParserFailure]
   
   n_array_newlines_unclosed.json
   ["a",
   4
   ,1,
-  Parser Failure
+  [ParserFailure]
   
   n_array_number_and_comma.json
   [1,]
-  Parser Failure
+  [ParserFailure]
   
   n_array_number_and_several_commas.json
   [1,,]
-  Parser Failure
+  [ParserFailure]
   
   n_array_spaces_vertical_tab_formfeed.json
   ["\x0ba"\\f] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_array_star_inside.json
   [*]
-  Parser Failure
+  [ParserFailure]
   
   n_array_unclosed.json
   [""
-  Parser Failure
+  [ParserFailure]
   
   n_array_unclosed_trailing_comma.json
   [1,
-  Parser Failure
+  [ParserFailure]
   
   n_array_unclosed_with_new_lines.json
   [1,
   1
   ,1
-  Parser Failure
+  [ParserFailure]
   
   n_array_unclosed_with_object_inside.json
   [{}
-  Parser Failure
+  [ParserFailure]
   
   n_incomplete_false.json
   [fals]
-  Parser Failure
+  [ParserFailure]
   
   n_incomplete_null.json
   [nul]
-  Parser Failure
+  [ParserFailure]
   
   n_incomplete_true.json
   [tru]
-  Parser Failure
+  [ParserFailure]
   
   n_multidigit_number_then_00.json
   123\x00 (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_number_++.json
   [++1234]
-  Parser Failure
+  [ParserFailure]
   
   n_number_+1.json
   [+1]
-  Parser Failure
+  [ParserFailure]
   
   n_number_+Inf.json
   [+Inf]
-  Parser Failure
+  [ParserFailure]
   
   n_number_-01.json
   [-01]
-  Parser Failure
+  [ParserFailure]
   
   n_number_-1.0..json
   [-1.0.]
-  Parser Failure
+  [ParserFailure]
   
   n_number_-2..json
   [-2.]
-  Parser Failure
+  [ParserFailure]
   
   n_number_-NaN.json
   [-NaN]
-  Parser Failure
+  [ParserFailure]
   
   n_number_.-1.json
   [.-1]
-  Parser Failure
+  [ParserFailure]
   
   n_number_.2e-3.json
   [.2e-3]
-  Parser Failure
+  [ParserFailure]
   
   n_number_0.1.2.json
   [0.1.2]
-  Parser Failure
+  [ParserFailure]
   
   n_number_0.3e+.json
   [0.3e+]
-  Parser Failure
+  [ParserFailure]
   
   n_number_0.3e.json
   [0.3e]
-  Parser Failure
+  [ParserFailure]
   
   n_number_0.e1.json
   [0.e1]
-  Parser Failure
+  [ParserFailure]
   
   n_number_0_capital_E+.json
   [0E+]
-  Parser Failure
+  [ParserFailure]
   
   n_number_0_capital_E.json
   [0E]
-  Parser Failure
+  [ParserFailure]
   
   n_number_0e+.json
   [0e+]
-  Parser Failure
+  [ParserFailure]
   
   n_number_0e.json
   [0e]
-  Parser Failure
+  [ParserFailure]
   
   n_number_1.0e+.json
   [1.0e+]
-  Parser Failure
+  [ParserFailure]
   
   n_number_1.0e-.json
   [1.0e-]
-  Parser Failure
+  [ParserFailure]
   
   n_number_1.0e.json
   [1.0e]
-  Parser Failure
+  [ParserFailure]
   
   n_number_1_000.json
   [1 000.0]
-  Parser Failure
+  [ParserFailure]
   
   n_number_1eE2.json
   [1eE2]
-  Parser Failure
+  [ParserFailure]
   
   n_number_2.e+3.json
   [2.e+3]
-  Parser Failure
+  [ParserFailure]
   
   n_number_2.e-3.json
   [2.e-3]
-  Parser Failure
+  [ParserFailure]
   
   n_number_2.e3.json
   [2.e3]
-  Parser Failure
+  [ParserFailure]
   
   n_number_9.e+.json
   [9.e+]
-  Parser Failure
+  [ParserFailure]
   
   n_number_Inf.json
   [Inf]
-  Parser Failure
+  [ParserFailure]
   
   n_number_NaN.json
   [NaN]
-  Parser Failure
+  [ParserFailure]
   
   n_number_U+FF11_fullwidth_digit_one.json
   [\xef\xbc\x91] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_number_expression.json
   [1+2]
-  Parser Failure
+  [ParserFailure]
   
   n_number_hex_1_digit.json
   [0x1]
-  Parser Failure
+  [ParserFailure]
   
   n_number_hex_2_digits.json
   [0x42]
-  Parser Failure
+  [ParserFailure]
   
   n_number_infinity.json
   [Infinity]
-  Parser Failure
+  [ParserFailure]
   
   n_number_invalid+-.json
   [0e+-1]
-  Parser Failure
+  [ParserFailure]
   
   n_number_invalid-negative-real.json
   [-123.123foo]
-  Parser Failure
+  [ParserFailure]
   
   n_number_invalid-utf-8-in-bigger-int.json
   [123\xe5] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_number_invalid-utf-8-in-exponent.json
   [1e1\xe5] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_number_minus_infinity.json
   [-Infinity]
-  Parser Failure
+  [ParserFailure]
   
   n_number_minus_sign_with_trailing_garbage.json
   [-foo]
-  Parser Failure
+  [ParserFailure]
   
   n_number_minus_space_1.json
   [- 1]
-  Parser Failure
+  [ParserFailure]
   
   n_number_neg_int_starting_with_zero.json
   [-012]
-  Parser Failure
+  [ParserFailure]
   
   n_number_neg_real_without_int_part.json
   [-.123]
-  Parser Failure
+  [ParserFailure]
   
   n_number_neg_with_garbage_at_end.json
   [-1x]
-  Parser Failure
+  [ParserFailure]
   
   n_number_real_garbage_after_e.json
   [1ea]
-  Parser Failure
+  [ParserFailure]
   
   n_number_real_with_invalid_utf8_after_e.json
   [1e\xe5] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_number_real_without_fractional_part.json
   [1.]
-  Parser Failure
+  [ParserFailure]
   
   n_number_starting_with_dot.json
   [.123]
-  Parser Failure
+  [ParserFailure]
   
   n_number_with_alpha.json
   [1.2a-3]
-  Parser Failure
+  [ParserFailure]
   
   n_number_with_alpha_char.json
   [1.8011670033376514H-308]
-  Parser Failure
+  [ParserFailure]
   
   n_number_with_leading_zero.json
   [012]
-  Parser Failure
+  [ParserFailure]
   
   n_object_bad_value.json
   ["x", truth]
-  Parser Failure
+  [ParserFailure]
   
   n_object_bracket_key.json
   {[: "x"}
   
-  Parser Failure
+  [ParserFailure]
   
   n_object_comma_instead_of_colon.json
   {"x", null}
-  Parser Failure
+  [ParserFailure]
   
   n_object_double_colon.json
   {"x"::"b"}
-  Parser Failure
+  [ParserFailure]
   
   n_object_emoji.json
   {\xf0\x9f\x87\xa8\xf0\x9f\x87\xad} (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_object_garbage_at_end.json
   {"a":"a" 123}
-  Parser Failure
+  [ParserFailure]
   
   n_object_key_with_single_quotes.json
   {key: 'value'}
-  Parser Failure
+  [ParserFailure]
   
   n_object_lone_continuation_byte_in_key_and_trailing_comma.json
   {"\xb9":"0",} (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_object_missing_colon.json
   {"a" b}
-  Parser Failure
+  [ParserFailure]
   
   n_object_missing_key.json
   {:"b"}
-  Parser Failure
+  [ParserFailure]
   
   n_object_missing_semicolon.json
   {"a" "b"}
-  Parser Failure
+  [ParserFailure]
   
   n_object_missing_value.json
   {"a":
-  Parser Failure
+  [ParserFailure]
   
   n_object_no-colon.json
   {"a"
-  Parser Failure
+  [ParserFailure]
   
   n_object_non_string_key.json
   {1:1}
-  Parser Failure
+  [ParserFailure]
   
   n_object_non_string_key_but_huge_number_instead.json
   {9999E9999:1}
-  Parser Failure
+  [ParserFailure]
   
   n_object_repeated_null_null.json
   {null:null,null:null}
-  Parser Failure
+  [ParserFailure]
   
   n_object_several_trailing_commas.json
   {"id":0,,,,,}
-  Parser Failure
+  [ParserFailure]
   
   n_object_single_quote.json
   {'a':0}
-  Parser Failure
+  [ParserFailure]
   
   n_object_trailing_comma.json
   {"id":0,}
-  Parser Failure
+  [ParserFailure]
   
   n_object_trailing_comment.json
   {"a":"b"}/**/
-  Parser Failure
+  [ParserFailure]
   
   n_object_trailing_comment_open.json
   {"a":"b"}/**//
-  Parser Failure
+  [ParserFailure]
   
   n_object_trailing_comment_slash_open.json
   {"a":"b"}//
-  Parser Failure
+  [ParserFailure]
   
   n_object_trailing_comment_slash_open_incomplete.json
   {"a":"b"}/
-  Parser Failure
+  [ParserFailure]
   
   n_object_two_commas_in_a_row.json
   {"a":"b",,"c":"d"}
-  Parser Failure
+  [ParserFailure]
   
   n_object_unquoted_key.json
   {a: "b"}
-  Parser Failure
+  [ParserFailure]
   
   n_object_unterminated-value.json
   {"a":"a
-  Parser Failure
+  [ParserFailure]
   
   n_object_with_single_string.json
   { "foo" : "bar", "a" }
-  Parser Failure
+  [ParserFailure]
   
   n_object_with_trailing_garbage.json
   {"a":"b"}#
-  Parser Failure
+  [ParserFailure]
   
   n_single_space.json
    
-  Parser Failure
+  [ParserFailure]
   
   n_string_1_surrogate_then_escape.json
   ["\uD800\"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_1_surrogate_then_escape_u.json
   ["\uD800\u"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_1_surrogate_then_escape_u1.json
   ["\uD800\u1"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_1_surrogate_then_escape_u1x.json
   ["\uD800\u1x"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_accentuated_char_no_quotes.json
   [\xc3\xa9] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_string_backslash_00.json
   ["\\\x00"] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_string_escape_x.json
   ["\x00"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_escaped_backslash_bad.json
   ["\\\"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_escaped_ctrl_char_tab.json
   ["\\\t"] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_string_escaped_emoji.json
   ["\\\xf0\x9f\x8c\x80"] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_string_incomplete_escape.json
   ["\"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_incomplete_escaped_character.json
   ["\u00A"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_incomplete_surrogate.json
   ["\uD834\uDd"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_incomplete_surrogate_escape_invalid.json
   ["\uD800\uD800\x"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_invalid-utf-8-in-escape.json
   ["\\u\xe5"] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_string_invalid_backslash_esc.json
   ["\a"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_invalid_unicode_escape.json
   ["\uqqqq"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_invalid_utf8_after_escape.json
   ["\\\xe5"] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_string_leading_uescaped_thinspace.json
   [\u0020"asd"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_no_quotes_with_bad_escape.json
   [\n]
-  Parser Failure
+  [ParserFailure]
   
   n_string_single_doublequote.json
   "
-  Parser Failure
+  [ParserFailure]
   
   n_string_single_quote.json
   ['single quote']
-  Parser Failure
+  [ParserFailure]
   
   n_string_single_string_no_double_quotes.json
   abc
-  Parser Failure
+  [ParserFailure]
   
   n_string_start_escape_unclosed.json
   ["\
-  Parser Failure
+  [ParserFailure]
   
   n_string_unescaped_ctrl_char.json
   ["a\x00a"] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_string_unescaped_newline.json
   ["new
   line"]
-  Parser Failure
+  [ParserFailure]
   
   n_string_unescaped_tab.json
   ["\t"] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_string_unicode_CapitalU.json
   "\UA66D"
-  Parser Failure
+  [ParserFailure]
   
   n_string_with_trailing_garbage.json
   ""x
-  Parser Failure
+  [ParserFailure]
   
   n_structure_U+2060_word_joined.json
   [\xe2\x81\xa0] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_structure_UTF8_BOM_no_data.json
   \xef\xbb\xbf (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_structure_angle_bracket_..json
   <.>
-  Parser Failure
+  [ParserFailure]
   
   n_structure_angle_bracket_null.json
   [<null>]
-  Parser Failure
+  [ParserFailure]
   
   n_structure_array_trailing_garbage.json
   [1]x
-  Parser Failure
+  [ParserFailure]
   
   n_structure_array_with_extra_array_close.json
   [1]]
-  Parser Failure
+  [ParserFailure]
   
   n_structure_array_with_unclosed_string.json
   ["asd]
-  Parser Failure
+  [ParserFailure]
   
   n_structure_ascii-unicode-identifier.json
   a\xc3\xa5 (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_structure_capitalized_True.json
   [True]
-  Parser Failure
+  [ParserFailure]
   
   n_structure_close_unopened_array.json
   1]
-  Parser Failure
+  [ParserFailure]
   
   n_structure_comma_instead_of_closing_brace.json
   {"x": true,
-  Parser Failure
+  [ParserFailure]
   
   n_structure_double_array.json
   [][]
-  Parser Failure
+  [ParserFailure]
   
   n_structure_end_array.json
   ]
-  Parser Failure
+  [ParserFailure]
   
   n_structure_lone-invalid-utf-8.json
   \xe5 (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_structure_lone-open-bracket.json
   [
-  Parser Failure
+  [ParserFailure]
   
   n_structure_no_data.json
   
-  Parser Failure
+  [ParserFailure]
   
   n_structure_null-byte-outside-string.json
   [\x00] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_structure_number_with_trailing_garbage.json
   2@
-  Parser Failure
+  [ParserFailure]
   
   n_structure_object_followed_by_closing_object.json
   {}}
-  Parser Failure
+  [ParserFailure]
   
   n_structure_object_unclosed_no_value.json
   {"":
-  Parser Failure
+  [ParserFailure]
   
   n_structure_object_with_comment.json
   {"a":/*comment*/"b"}
-  Parser Failure
+  [ParserFailure]
   
   n_structure_object_with_trailing_garbage.json
   {"a": true} "x"
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_array_apostrophe.json
   ['
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_array_comma.json
   [,
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_array_open_object.json
   [{
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_array_open_string.json
   ["a
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_array_string.json
   ["a"
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_object.json
   {
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_object_close_array.json
   {]
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_object_comma.json
   {,
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_object_open_array.json
   {[
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_object_open_string.json
   {"a
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_object_string_with_apostrophes.json
   {'a'
-  Parser Failure
+  [ParserFailure]
   
   n_structure_open_open.json
   ["\{["\{["\{["\{
-  Parser Failure
+  [ParserFailure]
   
   n_structure_single_eacute.json
   \xe9 (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_structure_single_star.json
   *
-  Parser Failure
+  [ParserFailure]
   
   n_structure_trailing_#.json
   {"a":"b"}#{}
-  Parser Failure
+  [ParserFailure]
   
   n_structure_uescaped_LF_before_string.json
   [\u000A""]
-  Parser Failure
+  [ParserFailure]
   
   n_structure_unclosed_array.json
   [1
-  Parser Failure
+  [ParserFailure]
   
   n_structure_unclosed_array_partial_null.json
   [ false, nul
-  Parser Failure
+  [ParserFailure]
   
   n_structure_unclosed_array_unfinished_false.json
   [ true, fals
-  Parser Failure
+  [ParserFailure]
   
   n_structure_unclosed_array_unfinished_true.json
   [ false, tru
-  Parser Failure
+  [ParserFailure]
   
   n_structure_unclosed_object.json
   {"asd":"asd"
-  Parser Failure
+  [ParserFailure]
   
   n_structure_unicode-identifier.json
   \xc3\xa5 (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_structure_whitespace_U+2060_word_joiner.json
   [\xe2\x81\xa0] (esc)
-  Parser Failure
+  [ParserFailure]
   
   n_structure_whitespace_formfeed.json
   [\x0c] (esc)
-  Parser Failure
+  [ParserFailure]
   
   $ for f in $TESTDIR/i_*.json; do echo "$(basename $f)"; cat $f; echo ""; possum -p 'input(json)' $f; echo ""; done
   i_number_double_huge_neg_exp.json
@@ -1192,7 +1192,7 @@
   
   i_string_UTF-16LE_with_BOM.json
   \xff\xfe[\x00"\x00\xe9\x00"\x00]\x00 (esc)
-  Parser Failure
+  [ParserFailure]
   
   i_string_UTF-8_invalid_sequence.json
   ["\xe6\x97\xa5\xd1\x88\xfa"] (esc)
@@ -1232,7 +1232,7 @@
   
   i_string_iso_latin_1.json
   ["\xe9"] (esc)
-  Parser Failure
+  [ParserFailure]
   
   i_string_lone_second_surrogate.json
   ["\uDFAA"]
@@ -1260,19 +1260,19 @@
   
   i_string_truncated-utf-8.json
   ["\xe0\xff"] (esc)
-  Parser Failure
+  [ParserFailure]
   
   i_string_utf16BE_no_BOM.json
   \x00[\x00"\x00\xe9\x00"\x00] (esc)
-  Parser Failure
+  [ParserFailure]
   
   i_string_utf16LE_no_BOM.json
   [\x00"\x00\xe9\x00"\x00]\x00 (esc)
-  Parser Failure
+  [ParserFailure]
   
   i_structure_UTF-8_BOM_empty_object.json
   \xef\xbb\xbf{} (esc)
-  Parser Failure
+  [ParserFailure]
   
 
   $ for f in $TESTDIR/t_*.json; do echo "$(basename $f)"; cat $f; echo ""; possum -p 'input(json)' $f; echo ""; done

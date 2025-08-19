@@ -74,7 +74,7 @@
   [[fruits.varieties]]
   name = "plantain"
   --------
-  Parser Failure
+  [ParserFailure]
   
   y_array_trailing_comma.toml
   integers1 = [1, 2, 3,  ]
@@ -831,7 +831,7 @@
   
   [[fruits]]
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_append_array_of_tables_element_to_table.toml
   [fruit.physical]
@@ -841,7 +841,7 @@
   [[fruit]]
   name = "apple"
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_append_with_dotted_keys.toml
   # First a.b.c defines a table: a.b.c = {z=9}
@@ -873,63 +873,63 @@
   n_array_of_tables_header.toml
   [[table] ]
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_empty_bare_key.toml
   = "no key name"
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_empty_doc.toml
   # this file contains a comment and newline but no key/value pairs
   
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_extend_defined_array_of_tables.toml
   [[tab.arr]]
   [tab]
   arr.val1=1
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_extend_inline_table_with_table.toml
   [product]
   type = { name = "Nail" }
   type.edible = false
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_extend_table_with_inline_table.toml
   [product]
   type.name = "Nail"
   type = { edible = false }
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_floats.toml
   invalid_float_1 = .7
   invalid_float_2 = 7.
   invalid_float_3 = 3.e+20
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_inline_table_trailing_comma.toml
   # A terminating comma (also called trailing comma) is not permitted after the
   # last key/value pair in an inline table
   abc = { abc = 123, }
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_pair_no_newline.toml
   first = "Tom" last = "Preston-Werner"
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_pair_unspecified_value.toml
   key =
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_redefine_2.toml
   [t1]
@@ -961,13 +961,13 @@
   name = "Tom"
   name = "Pradyun"
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_repeated_quoted_key.toml
   spelling = "favorite"
   "spelling" = "favourite"
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_super_twice.toml
   [a.b]
@@ -998,17 +998,17 @@
   [fruit.apple]
   texture = "smooth"
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_three_quotes_inside_multi_line_basic_string.toml
   str5 = """Here are three quotation marks: """"""
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_three_quotes_inside_multi_line_literal_string.toml
   apos15 = '''Here are fifteen apostrophes: ''''''''''''''''''
   --------
-  Parser Failure
+  [ParserFailure]
   
   n_treat_non_table_value_as_table.toml
   # This defines the value of fruit.apple to be an integer.
@@ -1018,5 +1018,5 @@
   # You can't turn an integer into a table.
   fruit.apple.smooth = true
   --------
-  Parser Failure
+  [ParserFailure]
   

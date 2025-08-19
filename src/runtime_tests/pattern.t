@@ -14,7 +14,7 @@
       0 -> (1 + 1 + 2)
       0 -> 4
   Destructure Failure: 0 -> (1 + 1 + 2)
-  Parser Failure
+  [ParserFailure]
   [1]
 
   $ possum -p '5 -> (2 + 3)' -i '5'
@@ -31,7 +31,7 @@
       7 -> (2 + 3)
       7 -> 5
   Destructure Failure: 7 -> (2 + 3)
-  Parser Failure
+  [ParserFailure]
   [1]
 
   $ possum -p '10 -> (3 + 2 + 5)' -i '10'
@@ -56,7 +56,7 @@
       8 -> (X + 4)
       8 -> 7
   Destructure Failure: 8 -> (X + 4)
-  Parser Failure
+  [ParserFailure]
   [1]
 
   $ possum -p 'X = 2; Y = 3; 5 -> (X + Y)' -i '5'
