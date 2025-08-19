@@ -1288,8 +1288,7 @@ pub const Elem = packed union {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
-                var chunk = Chunk.init(vm.allocator);
-                chunk.sourceRegion = fields.region;
+                const chunk = Chunk{ .source_region = fields.region };
 
                 function.* = Function{
                     .dyn = dyn.*,
@@ -1311,8 +1310,9 @@ pub const Elem = packed union {
                 defer vm.allocator.free(name_str);
                 const name = try vm.strings.insert(name_str);
 
-                var chunk = Chunk.init(vm.allocator);
-                chunk.sourceRegion = fields.region;
+                const chunk = Chunk{
+                    .source_region = fields.region,
+                };
 
                 function.* = Function{
                     .dyn = dyn.*,
@@ -1327,7 +1327,7 @@ pub const Elem = packed union {
             }
 
             pub fn destroy(self: *Function, vm: *VM) void {
-                self.chunk.deinit();
+                self.chunk.deinit(vm.allocator);
                 self.locals.deinit(vm.gc.allocator());
                 vm.gc.allocator().destroy(self);
             }
@@ -1498,6 +1498,6 @@ test "struct size" {
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(192, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(176, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Closure));
 }

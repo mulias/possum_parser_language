@@ -16,32 +16,20 @@ pub const ChunkError = error{
 };
 
 pub const Chunk = struct {
-    allocator: Allocator,
-    code: ArrayList(u8),
-    constants: ArrayList(Elem),
-    patterns: ArrayList(Pattern),
-    regions: ArrayList(Region),
-    sourceRegion: Region,
+    code: ArrayList(u8) = ArrayList(u8){},
+    constants: ArrayList(Elem) = ArrayList(Elem){},
+    patterns: ArrayList(Pattern) = ArrayList(Pattern){},
+    regions: ArrayList(Region) = ArrayList(Region){},
+    source_region: Region,
 
-    pub fn init(allocator: Allocator) Chunk {
-        return Chunk{
-            .allocator = allocator,
-            .code = ArrayList(u8){},
-            .constants = ArrayList(Elem){},
-            .patterns = ArrayList(Pattern){},
-            .regions = ArrayList(Region){},
-            .sourceRegion = undefined,
-        };
-    }
-
-    pub fn deinit(self: *Chunk) void {
-        self.code.deinit(self.allocator);
-        self.constants.deinit(self.allocator);
+    pub fn deinit(self: *Chunk, allocator: Allocator) void {
+        self.code.deinit(allocator);
+        self.constants.deinit(allocator);
         for (self.patterns.items) |*pattern| {
-            pattern.deinit(self.allocator);
+            pattern.deinit(allocator);
         }
-        self.patterns.deinit(self.allocator);
-        self.regions.deinit(self.allocator);
+        self.patterns.deinit(allocator);
+        self.regions.deinit(allocator);
     }
 
     pub fn read(self: *Chunk, pos: usize) u8 {
@@ -64,18 +52,18 @@ pub const Chunk = struct {
         return self.patterns.items[idx];
     }
 
-    pub fn write(self: *Chunk, byte: u8, loc: Region) !void {
-        try self.code.append(self.allocator, byte);
-        try self.regions.append(self.allocator, loc);
+    pub fn write(self: *Chunk, allocator: Allocator, byte: u8, loc: Region) !void {
+        try self.code.append(allocator, byte);
+        try self.regions.append(allocator, loc);
     }
 
-    pub fn writeOp(self: *Chunk, op: OpCode, loc: Region) !void {
-        try self.write(@intFromEnum(op), loc);
+    pub fn writeOp(self: *Chunk, allocator: Allocator, op: OpCode, loc: Region) !void {
+        try self.write(allocator, @intFromEnum(op), loc);
     }
 
-    pub fn writeShort(self: *Chunk, short: u16, loc: Region) !void {
-        try self.write(shortUpperBytes(short), loc);
-        try self.write(shortLowerBytes(short), loc);
+    pub fn writeShort(self: *Chunk, allocator: Allocator, short: u16, loc: Region) !void {
+        try self.write(allocator, shortUpperBytes(short), loc);
+        try self.write(allocator, shortLowerBytes(short), loc);
     }
 
     pub fn updateAt(self: *Chunk, index: usize, value: u8) void {
@@ -97,17 +85,17 @@ pub const Chunk = struct {
         self.updateAt(opIndex, @intFromEnum(op));
     }
 
-    pub fn addConstant(self: *Chunk, e: Elem) !u8 {
+    pub fn addConstant(self: *Chunk, allocator: Allocator, e: Elem) !u8 {
         const idx = self.constants.items.len;
         if (idx > std.math.maxInt(u8)) return ChunkError.TooManyConstants;
-        try self.constants.append(self.allocator, e);
+        try self.constants.append(allocator, e);
         return @as(u8, @intCast(idx));
     }
 
-    pub fn addPattern(self: *Chunk, pattern: Pattern) !u8 {
+    pub fn addPattern(self: *Chunk, allocator: Allocator, pattern: Pattern) !u8 {
         const idx = self.patterns.items.len;
         if (idx > std.math.maxInt(u8)) return ChunkError.TooManyPatterns;
-        try self.patterns.append(self.allocator, pattern);
+        try self.patterns.append(allocator, pattern);
         return @as(u8, @intCast(idx));
     }
 
@@ -115,7 +103,7 @@ pub const Chunk = struct {
         try writer.print("\n{s:=^40}\n", .{name});
 
         if (module) |mod| {
-            try mod.printSourceRange(self.sourceRegion, writer);
+            try mod.printSourceRange(self.source_region, writer);
             try writer.print("\n{s:=^40}\n", .{""});
         }
 

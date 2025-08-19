@@ -168,7 +168,7 @@ pub const Compiler = struct {
             const main_fn = self.functions.pop() orelse @panic("Internal Error: No Main Function");
 
             // Update the main function's source region with the actual main parser region
-            main_fn.chunk.sourceRegion = main_rnode.region;
+            main_fn.chunk.source_region = main_rnode.region;
 
             if (self.printBytecode) {
                 try main_fn.disassemble(self.vm.*, self.writers.debug, self.targetModule);
@@ -921,7 +921,7 @@ pub const Compiler = struct {
 
     fn createPattern(self: *Compiler, rnode: *Ast.RNode) Error!u8 {
         const patternElem = try self.astToPattern(rnode, 0);
-        return self.chunk().addPattern(patternElem);
+        return self.chunk().addPattern(self.vm.allocator, patternElem);
     }
 
     fn astToPattern(self: *Compiler, rnode: *Ast.RNode, negation_count: u2) Error!Pattern {
@@ -1852,7 +1852,7 @@ pub const Compiler = struct {
     fn emitJump(self: *Compiler, op: OpCode, region: Region) !usize {
         try self.emitOp(op, region);
         // Dummy operands that will be patched later
-        try self.chunk().writeShort(0xffff, region);
+        try self.chunk().writeShort(self.vm.allocator, 0xffff, region);
         return self.chunk().nextByteIndex() - 2;
     }
 
@@ -1872,16 +1872,16 @@ pub const Compiler = struct {
     }
 
     fn emitByte(self: *Compiler, byte: u8, region: Region) !void {
-        try self.chunk().write(byte, region);
+        try self.chunk().write(self.vm.allocator, byte, region);
     }
 
     fn emitOp(self: *Compiler, op: OpCode, region: Region) !void {
-        try self.chunk().writeOp(op, region);
+        try self.chunk().writeOp(self.vm.allocator, op, region);
     }
 
     fn emitEnd(self: *Compiler) !void {
         const r = self.chunk().regions.getLast();
-        try self.chunk().writeOp(.End, Region.new(r.end, r.end));
+        try self.chunk().writeOp(self.vm.allocator, .End, Region.new(r.end, r.end));
     }
 
     fn emitUnaryOp(self: *Compiler, op: OpCode, byte: u8, region: Region) !void {
@@ -1890,7 +1890,7 @@ pub const Compiler = struct {
     }
 
     fn makeConstant(self: *Compiler, elem: Elem) !u8 {
-        return self.chunk().addConstant(elem) catch |err| switch (err) {
+        return self.chunk().addConstant(self.vm.allocator, elem) catch |err| switch (err) {
             ChunkError.TooManyConstants => {
                 try self.writers.err.print("Too many constants in one chunk.", .{});
                 return err;
