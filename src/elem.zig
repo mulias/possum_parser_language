@@ -80,9 +80,7 @@ pub const Elem = packed union {
         }
 
         pub fn isContiguous(is1: InputSubstringElem, is2: InputSubstringElem) bool {
-            const contiguous12 = is1.start <= is2.end() and is1.end() >= is2.start;
-            const contiguous21 = is2.start <= is1.end() and is2.end() >= is1.start;
-            return contiguous12 or contiguous21;
+            return is1.end() == is2.start;
         }
 
         pub fn bytes(self: InputSubstringElem, vm: VM) []const u8 {
@@ -93,10 +91,10 @@ pub const Elem = packed union {
             return self.start == other.start and self.offset == other.offset;
         }
 
-        pub fn mergeUnion(is1: InputSubstringElem, is2: InputSubstringElem) ?InputSubstringElem {
+        pub fn mergeContiguous(is1: InputSubstringElem, is2: InputSubstringElem) ?InputSubstringElem {
             if (is1.isContiguous(is2)) {
-                const new_start = @min(is1.start, is2.start);
-                const new_end = @max(is1.end(), is2.end());
+                const new_start = is1.start;
+                const new_end = is2.end();
                 const new_offset = @as(usize, @intCast(new_end)) - @as(usize, @intCast(new_start));
                 if (new_offset <= std.math.maxInt(u24)) {
                     return InputSubstringElem.new(new_start, @as(u24, @intCast(new_offset)));
@@ -600,7 +598,7 @@ pub const Elem = packed union {
                 .InputSubstring => {
                     const is1 = elemA.asInputSubstring();
                     const is2 = elemB.asInputSubstring();
-                    if (is1.mergeUnion(is2)) |merged| {
+                    if (is1.mergeContiguous(is2)) |merged| {
                         return merged.elem();
                     } else {
                         const s1 = is1.bytes(vm.*);
