@@ -487,6 +487,45 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, region);
                 },
+                .Repeat => {
+                    // Value accumulator
+                    const nullId = try self.makeConstant(Elem.nullConst);
+                    try self.emitUnaryOp(.GetConstant, nullId, region);
+
+                    // Create the counter, validate it, if it starts at zero
+                    // then skip to the end, returning null
+                    try self.writeValue(infix.right, false);
+                    try self.emitOp(.ValidateRepeatPattern, infix.right.region);
+                    const nullJump = try self.emitJump(.JumpIfZero, region);
+
+                    // At the start of each loop swap the accumulator back to
+                    // the top of the stack
+                    const loopStart = self.chunk().code.items.len;
+                    try self.emitOp(.Swap, region);
+
+                    // Run parser, accumulate, end loop if failure
+                    try self.writeParser(infix.left, false);
+                    try self.emitOp(.Merge, region);
+                    const failureJump = try self.emitJump(.JumpIfFailure, region);
+
+                    // If count is zero end loop
+                    try self.emitOp(.Swap, region);
+                    try self.emitOp(.Decrement, region);
+                    const doneJump = try self.emitJump(.JumpIfZero, region);
+
+                    // Otherwise return to loop start
+                    try self.emitJumpBack(.JumpBack, loopStart, region);
+
+                    // For the failure case swap up the counter. The
+                    // non-failure case already has the counter on top.
+                    try self.patchJump(failureJump, region);
+                    try self.emitOp(.Swap, region);
+
+                    // Cleanup: drop the counter
+                    try self.patchJump(nullJump, region);
+                    try self.patchJump(doneJump, region);
+                    try self.emitOp(.Drop, region);
+                },
             },
             .DeclareGlobal => unreachable, // handled by top-level compiler functions
             .Range => |bounds| {
@@ -1321,6 +1360,11 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, region);
                 },
+                .Repeat => {
+                    try self.writeValueArgument(infix.left, false);
+                    try self.writeValue(infix.right, false);
+                    try self.emitOp(.RepeatValue, region);
+                },
             },
             .Negation => |inner| {
                 try self.writeValueArgument(inner, false);
@@ -1408,6 +1452,11 @@ pub const Compiler = struct {
                     const jumpIndex = try self.emitJump(.TakeRight, region);
                     try self.writeValue(infix.right, true);
                     try self.patchJump(jumpIndex, region);
+                },
+                .Repeat => {
+                    try self.writeValue(infix.left, false);
+                    try self.writeValue(infix.right, false);
+                    try self.emitOp(.RepeatValue, region);
                 },
             },
             .DeclareGlobal => @panic("internal error"),
@@ -1869,6 +1918,13 @@ pub const Compiler = struct {
             },
             else => return err,
         };
+    }
+
+    fn emitJumpBack(self: *Compiler, op: OpCode, targetOffset: usize, region: Region) !void {
+        try self.emitOp(op, region);
+        const currentOffset = self.chunk().nextByteIndex();
+        const jump = (currentOffset + 2) - targetOffset;
+        try self.chunk().writeShort(self.vm.allocator, @as(u16, @intCast(jump)), region);
     }
 
     fn emitByte(self: *Compiler, byte: u8, region: Region) !void {

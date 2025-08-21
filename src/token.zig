@@ -30,6 +30,7 @@ pub const TokenType = enum {
     RightBracket,
     RightParen,
     Semicolon,
+    Star,
     StringContent,
     SingleQuoteStringStart,
     DoubleQuoteStringStart,

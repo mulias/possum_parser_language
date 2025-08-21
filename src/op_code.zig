@@ -10,7 +10,9 @@ pub const OpCode = enum(u8) {
     ConditionalElse,
     ConditionalThen,
     Crash,
+    Decrement,
     Destructure,
+    Drop,
     End,
     Fail,
     False,
@@ -21,7 +23,9 @@ pub const OpCode = enum(u8) {
     InsertAtIndex,
     InsertAtKey,
     InsertKeyVal,
+    JumpBack,
     JumpIfFailure,
+    JumpIfZero,
     Merge,
     MergeAsString,
     NativeCode,
@@ -32,8 +36,11 @@ pub const OpCode = enum(u8) {
     ParseLowerBoundedRange,
     ParseRange,
     ParseUpperBoundedRange,
+    RepeatValue,
     SetClosureCaptures,
     SetInputMark,
+    Swap,
+    ValidateRepeatPattern,
     TakeLeft,
     TakeRight,
     True,
@@ -41,6 +48,8 @@ pub const OpCode = enum(u8) {
     pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, writer: anytype, offset: usize) !usize {
         return switch (self) {
             .Crash,
+            .Decrement,
+            .Drop,
             .End,
             .Fail,
             .False,
@@ -49,8 +58,11 @@ pub const OpCode = enum(u8) {
             .NegateNumber,
             .Null,
             .ParseCharacter,
+            .RepeatValue,
             .SetClosureCaptures,
             .SetInputMark,
+            .Swap,
+            .ValidateRepeatPattern,
             .TakeLeft,
             .True,
             => self.simpleInstruction(writer, offset),
@@ -78,9 +90,12 @@ pub const OpCode = enum(u8) {
             .ConditionalElse,
             .ConditionalThen,
             .JumpIfFailure,
+            .JumpIfZero,
             .Or,
             .TakeRight,
             => self.jumpInstruction(chunk, writer, offset),
+            .JumpBack,
+            => self.jumpBackInstruction(chunk, writer, offset),
         };
     }
 
@@ -137,6 +152,14 @@ pub const OpCode = enum(u8) {
         var jump = @as(u16, @intCast(chunk.read(offset + 1))) << 8;
         jump |= chunk.read(offset + 2);
         const target = @as(isize, @intCast(offset)) + 3 + jump;
+        try writer.print("{s} {} -> {}\n", .{ @tagName(self), offset, target });
+        return offset + 3;
+    }
+
+    fn jumpBackInstruction(self: OpCode, chunk: *Chunk, writer: anytype, offset: usize) !usize {
+        var jump = @as(u16, @intCast(chunk.read(offset + 1))) << 8;
+        jump |= chunk.read(offset + 2);
+        const target = @as(isize, @intCast(offset)) + 3 - jump;
         try writer.print("{s} {} -> {}\n", .{ @tagName(self), offset, target });
         return offset + 3;
     }

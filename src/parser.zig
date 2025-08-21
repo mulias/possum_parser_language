@@ -172,6 +172,7 @@ pub const Parser = struct {
             .LessThan,
             .Plus,
             .Minus,
+            .Star,
             .Equal,
             => self.binaryOp(leftNode),
             .QuestionMark => self.conditionalOp(leftNode),
@@ -454,6 +455,7 @@ pub const Parser = struct {
             .GreaterThan => .TakeRight,
             .LessThan => .TakeLeft,
             .Plus => .Merge,
+            .Star => .Repeat,
             else => unreachable,
         };
 
@@ -1003,6 +1005,7 @@ pub const Parser = struct {
             .DotDot => .Range,
             .Plus,
             .Minus,
+            .Star,
             .GreaterThan,
             .LessThan,
             .DashGreaterThan,

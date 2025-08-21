@@ -400,6 +400,15 @@ pub const VM = struct {
                     return self.runtimeError("Crashed with no error message", .{});
                 }
             },
+            .Decrement => {
+                const elem = self.peek(0);
+                if (try elem.merge(Elem.numberFloat(-1), self)) |decremented| {
+                    self.drop(1);
+                    try self.push(decremented);
+                } else {
+                    @panic("Internal Error");
+                }
+            },
             .Destructure => {
                 const patternIdx = self.readByte();
                 const pattern = self.chunk().getPattern(patternIdx);
@@ -412,6 +421,9 @@ pub const VM = struct {
                     self.drop(1);
                     try self.pushFailure();
                 }
+            },
+            .Drop => {
+                self.drop(1);
             },
             .End => {
                 // End of function cleanup. Remove everything from the stack
@@ -542,9 +554,20 @@ pub const VM = struct {
                     try self.push(copy.dyn.elem());
                 }
             },
+            .JumpBack => {
+                const offset = self.readShort();
+                self.frame().ip -= offset;
+            },
             .JumpIfFailure => {
                 const offset = self.readShort();
                 if (self.peekIsFailure()) self.frame().ip += offset;
+            },
+            .JumpIfZero => {
+                const offset = self.readShort();
+                const elem = self.peek(0);
+                if (elem.isEql(Elem.numberFloat(0), self.*)) {
+                    self.frame().ip += offset;
+                }
             },
             .GetConstant => {
                 const idx = self.readByte();
@@ -564,6 +587,33 @@ pub const VM = struct {
             },
             .SetInputMark => {
                 try self.pushInputMark();
+            },
+            .Swap => {
+                const a = self.pop();
+                const b = self.pop();
+                try self.push(a);
+                try self.push(b);
+            },
+            .ValidateRepeatPattern => {
+                // Validate that top of stack is a valid repeat count (non-negative integer)
+                const elem = self.peek(0);
+
+                var valid = false;
+                if (elem.isFloat()) {
+                    const f = elem.asFloat();
+                    valid = @trunc(f) == f and f >= 0 and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)));
+                } else if (elem.isType(.NumberString)) {
+                    const floatVal = elem.asNumberString().toNumberFloat(self.strings) catch {
+                        try self.push(Elem.failureConst);
+                        return;
+                    };
+                    const f = floatVal.asFloat();
+                    valid = @trunc(f) == f and f >= 0 and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)));
+                }
+
+                if (!valid) {
+                    return self.runtimeError("Invalid repeat pattern", .{});
+                }
             },
             .Merge => {
                 const rhs = self.peek(0);
@@ -703,6 +753,19 @@ pub const VM = struct {
                     try self.parseIntegerUpperBounded(high_int);
                 } else {
                     @panic("Internal Error");
+                }
+            },
+            .RepeatValue => {
+                // Postfix, lhs and rhs on stack.
+                // Perform repeat operation (multiplication for numbers, or repeated merge for non-numbers)
+                const lhs = self.peek(1);
+                const rhs = self.peek(0);
+
+                if (try Elem.repeat(lhs, rhs, self)) |result| {
+                    self.drop(2);
+                    try self.push(result);
+                } else {
+                    return self.runtimeError("Merge type mismatch", .{});
                 }
             },
             .TakeLeft => {

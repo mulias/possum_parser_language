@@ -111,6 +111,7 @@ pub const Scanner = struct {
             else
                 return self.makeError("Unexpected character."),
             '+' => self.makeToken(.Plus),
+            '*' => self.makeToken(.Star),
             ';' => self.makeToken(.Semicolon),
             '!' => self.makeToken(.Bang),
             '$' => self.makeToken(.DollarSign),

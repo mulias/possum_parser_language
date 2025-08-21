@@ -721,6 +721,65 @@ pub const Elem = packed union {
         };
     }
 
+    pub fn repeat(elem: Elem, count: Elem, vm: *VM) !?Elem {
+        if (elem.isConst(.Failure)) return Elem.failureConst;
+        if (count.isConst(.Failure)) return Elem.failureConst;
+
+        // Multiply numbers
+        if (elem.isNumber() and count.isNumber()) {
+            // Preserve number strings if multiplying by identity
+            if (count.isEql(numberFloat(1), vm.*)) return elem;
+
+            // Convert to floats if needed
+            const floatElem = if (elem.isFloat())
+                elem
+            else
+                try elem.asNumberString().toNumberFloat(vm.strings);
+
+            const floatCount = if (count.isFloat())
+                count
+            else
+                try count.asNumberString().toNumberFloat(vm.strings);
+
+            return numberFloat(floatElem.asFloat() * floatCount.asFloat());
+        }
+
+        // For non-numbers the rhs must be a non-negative integer
+        var repeat_count: i64 = 0;
+        if (count.isFloat()) {
+            const f = count.asFloat();
+            if (@trunc(f) == f and f >= 0 and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)))) {
+                repeat_count = @as(i64, @intFromFloat(f));
+            } else {
+                return null;
+            }
+        } else if (count.isType(.NumberString)) {
+            const floatCount = try count.asNumberString().toNumberFloat(vm.strings);
+            const f = floatCount.asFloat();
+            if (@trunc(f) == f and f >= 0 and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)))) {
+                repeat_count = @as(i64, @intFromFloat(f));
+            } else {
+                return null;
+            }
+        } else {
+            return null;
+        }
+
+        // Repeatedly merge the element with itself. When the count is 0 the
+        // result is Null.
+        var result = Elem.nullConst;
+        var i: i64 = 0;
+        while (i < repeat_count) : (i += 1) {
+            if (try merge(result, elem, vm)) |merged| {
+                result = merged;
+            } else {
+                return null;
+            }
+        }
+
+        return result;
+    }
+
     pub fn negateNumber(elem: Elem) !Elem {
         return switch (elem.getType()) {
             .ParserVar,

@@ -90,6 +90,7 @@ pub const Ast = struct {
         Destructure,
         Merge,
         Or,
+        Repeat,
         Return,
         TakeLeft,
         TakeRight,
