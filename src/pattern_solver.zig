@@ -99,11 +99,12 @@ fn matchPattern(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool 
         .Local => |p| self.matchLocal(value, p),
         .Merge => |p| self.matchMerge(value, p),
         .Null => self.matchNull(value),
-        .NumberString => |p| self.matchNumberString(value, p),
+        .Number => |p| self.matchNumber(value, p),
         .Object => |p| self.matchObject(value, p),
         .Range => |p| self.matchRange(value, p),
         .String => |p| self.matchString(value, p),
         .StringTemplate => |p| self.matchStringTemplate(value, p),
+        .Repeat => @panic("TODO"),
     };
 }
 
@@ -321,8 +322,9 @@ fn mergePatternType(self: *PatternSolver, part: Simplified) !MergeType {
             .FunctionCall => .Untyped,
             .Local => .Untyped,
             .Merge => @panic("Internal Error"),
+            .Repeat => @panic("TODO"),
             .Null => .Untyped,
-            .NumberString => .Number,
+            .Number => .Number,
             .Object => .Object,
             .Range => return Error.RuntimeError,
             .String => .String,
@@ -868,8 +870,8 @@ fn matchNull(self: *PatternSolver, value: Elem) bool {
     return value.isEql(Elem.nullConst, self.vm.*);
 }
 
-fn matchNumberString(self: *PatternSolver, value: Elem, pattern_number: Elem.NumberStringElem) bool {
-    return value.isEql(pattern_number.elem(), self.vm.*);
+fn matchNumber(self: *PatternSolver, value: Elem, pattern_number: f64) bool {
+    return value.isEql(Elem.numberFloat(pattern_number), self.vm.*);
 }
 
 fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Pattern.ObjectPair)) Error!bool {
@@ -1186,7 +1188,7 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
             .Null => if (std.mem.eql(u8, unbound_bytes, "null")) {
                 unbound_elem = Elem.nullConst;
             },
-            .NumberString,
+            .Number,
             .Range,
             => if (isValidNumberString(unbound_bytes)) {
                 unbound_elem = try Elem.numberStringFromBytes(unbound_bytes, self.vm);
@@ -1212,6 +1214,7 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
                     unbound_elem = dyn_str.dyn.elem();
                 }
             },
+            .Repeat => @panic("TODO"),
             .Constant,
             .FunctionCall,
             => @panic("Internal Error"),
@@ -1309,11 +1312,12 @@ fn attemptEval(self: *PatternSolver, pattern: Pattern) Error!?Elem {
         .Local => |l| try self.evalLocal(l),
         .Merge => null,
         .Null => Elem.nullConst,
-        .NumberString => |ns| ns.elem(),
+        .Number => |f| Elem.numberFloat(f),
         .Object => null,
         .Range => null,
         .String => |sid| Elem.string(sid),
         .StringTemplate => null,
+        .Repeat => @panic("TODO"),
     };
 }
 

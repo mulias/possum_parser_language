@@ -488,43 +488,7 @@ pub const Compiler = struct {
                     try self.patchJump(jumpIndex, region);
                 },
                 .Repeat => {
-                    // Value accumulator
-                    const nullId = try self.makeConstant(Elem.nullConst);
-                    try self.emitUnaryOp(.GetConstant, nullId, region);
-
-                    // Create the counter, validate it, if it starts at zero
-                    // then skip to the end, returning null
-                    try self.writeValue(infix.right, false);
-                    try self.emitOp(.ValidateRepeatPattern, infix.right.region);
-                    const nullJump = try self.emitJump(.JumpIfZero, region);
-
-                    // At the start of each loop swap the accumulator back to
-                    // the top of the stack
-                    const loopStart = self.chunk().code.items.len;
-                    try self.emitOp(.Swap, region);
-
-                    // Run parser, accumulate, end loop if failure
-                    try self.writeParser(infix.left, false);
-                    try self.emitOp(.Merge, region);
-                    const failureJump = try self.emitJump(.JumpIfFailure, region);
-
-                    // If count is zero end loop
-                    try self.emitOp(.Swap, region);
-                    try self.emitOp(.Decrement, region);
-                    const doneJump = try self.emitJump(.JumpIfZero, region);
-
-                    // Otherwise return to loop start
-                    try self.emitJumpBack(.JumpBack, loopStart, region);
-
-                    // For the failure case swap up the counter. The
-                    // non-failure case already has the counter on top.
-                    try self.patchJump(failureJump, region);
-                    try self.emitOp(.Swap, region);
-
-                    // Cleanup: drop the counter
-                    try self.patchJump(nullJump, region);
-                    try self.patchJump(doneJump, region);
-                    try self.emitOp(.Drop, region);
+                    try self.writeParserRepeat(infix.left, infix.right, region);
                 },
             },
             .DeclareGlobal => unreachable, // handled by top-level compiler functions
@@ -770,6 +734,65 @@ pub const Compiler = struct {
         }
     }
 
+    fn writeParserRepeat(self: *Compiler, parser: *Ast.RNode, repeat: *Ast.RNode, region: Region) !void {
+        try self.simplifyValueOrPattern(repeat);
+        var pattern = try self.astToPattern(repeat, 0);
+
+        switch (pattern) {
+            .Merge => @panic("TODO"),
+            .Repeat => @panic("TODO"),
+            .Number => |count| {
+                const count_node = try self.ast.createElem(Elem.numberFloat(count), repeat.region);
+                pattern.deinit(self.vm.allocator);
+                return self.writeParserRepeatCount(parser, count_node, region);
+            },
+            .Range => @panic("TODO"),
+            .Constant => @panic("TODO"),
+            .Local => @panic("TODO"),
+            else => return error.InvalidAst,
+        }
+    }
+
+    fn writeParserRepeatCount(self: *Compiler, parser: *Ast.RNode, count: *Ast.RNode, repeat_region: Region) !void {
+        // Value accumulator
+        const nullId = try self.makeConstant(Elem.nullConst);
+        try self.emitUnaryOp(.GetConstant, nullId, parser.region);
+
+        // Create the counter, validate it, if it starts at zero
+        // then skip to the end, returning null
+        try self.writeValue(count, false);
+        try self.emitOp(.ValidateRepeatPattern, count.region);
+        const nullJump = try self.emitJump(.JumpIfZero, repeat_region);
+
+        // At the start of each loop swap the accumulator back to
+        // the top of the stack
+        const loopStart = self.chunk().code.items.len;
+        try self.emitOp(.Swap, repeat_region);
+
+        // Run parser, accumulate, end loop if failure
+        try self.writeParser(parser, false);
+        try self.emitOp(.Merge, parser.region);
+        const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
+
+        // If count is zero end loop
+        try self.emitOp(.Swap, repeat_region);
+        try self.emitOp(.Decrement, count.region);
+        const doneJump = try self.emitJump(.JumpIfZero, repeat_region);
+
+        // Otherwise return to loop start
+        try self.emitJumpBack(.JumpBack, loopStart, repeat_region);
+
+        // For the failure case swap up the counter. The
+        // non-failure case already has the counter on top.
+        try self.patchJump(failureJump, parser.region);
+        try self.emitOp(.Swap, repeat_region);
+
+        // Cleanup: drop the counter
+        try self.patchJump(nullJump, count.region);
+        try self.patchJump(doneJump, repeat_region);
+        try self.emitOp(.Drop, count.region);
+    }
+
     fn writeGetVar(self: *Compiler, elem: Elem, region: Region) !void {
         const varName = switch (elem.getType()) {
             .ParserVar => elem.asParserVar(),
@@ -997,8 +1020,12 @@ pub const Compiler = struct {
                 },
                 .NumberString => {
                     const ns = elem.asNumberString();
-                    const number = if (negation_count % 2 == 1) ns.negate() else ns;
-                    return Pattern{ .NumberString = number };
+                    const maybe_negated = if (negation_count % 2 == 1) ns.negate() else ns;
+                    const number = try maybe_negated.toNumberFloat(self.vm.strings);
+                    return Pattern{ .Number = number.asFloat() };
+                },
+                .NumberFloat => {
+                    return Pattern{ .Number = elem.asFloat() };
                 },
                 .Const => switch (elem.asConst()) {
                     .True => {
@@ -1153,6 +1180,14 @@ pub const Compiler = struct {
                     var mergeElems = ArrayList(Pattern){};
                     try self.collectPatternMergeElements(rnode, &mergeElems, negation_count);
                     return Pattern{ .Merge = mergeElems };
+                },
+                .Repeat => {
+                    const pattern = try self.vm.allocator.create(Pattern);
+                    pattern.* = try self.astToPattern(infix.left, negation_count);
+
+                    const count = try self.vm.allocator.create(Pattern);
+                    count.* = try self.astToPattern(infix.right, 0);
+                    return Pattern{ .Repeat = .{ .pattern = pattern, .count = count } };
                 },
                 .Destructure => {
                     try self.printError(region, "Invalid AST: Nested destructure not allowed in pattern", .{});
@@ -1526,6 +1561,7 @@ pub const Compiler = struct {
                 },
                 .String,
                 .NumberString,
+                .NumberFloat,
                 => {
                     const constId = try self.makeConstant(elem);
                     try self.emitUnaryOp(.GetConstant, constId, region);
@@ -1537,7 +1573,6 @@ pub const Compiler = struct {
                     .Failure => return Error.InvalidAst,
                 },
                 .InputSubstring,
-                .NumberFloat,
                 => @panic("Internal Error"), // not produced by the parser
                 .Dyn => switch (elem.asDyn().dynType) {
                     .String,
@@ -1810,6 +1845,75 @@ pub const Compiler = struct {
             } else null,
             else => null,
         };
+    }
+
+    fn simplifyValueOrPattern(self: *Compiler, rnode: *Ast.RNode) !void {
+        switch (rnode.node) {
+            .InfixNode => |infix| {
+                try self.simplifyValueOrPattern(infix.left);
+                try self.simplifyValueOrPattern(infix.right);
+
+                switch (infix.infixType) {
+                    .Merge => {
+                        if (infix.left.node.asElem()) |left| {
+                            if (infix.right.node.asElem()) |right| {
+                                if (try left.merge(right, self.vm)) |merged| {
+                                    rnode.node = .{ .ElemNode = merged };
+                                }
+                            }
+                        }
+                    },
+                    .TakeLeft => {
+                        if (infix.left.node == .ElemNode and infix.right.node == .ElemNode) {
+                            rnode.node = infix.left.node;
+                        }
+                    },
+                    .TakeRight => {
+                        if (infix.left.node == .ElemNode and infix.right.node == .ElemNode) {
+                            rnode.node = infix.right.node;
+                        }
+                    },
+                    .Or => {
+                        if (infix.left.node == .ElemNode) {
+                            rnode.node = infix.left.node;
+                        }
+                    },
+                    .Return => {
+                        if (infix.left.node == .ElemNode and infix.right.node == .ElemNode) {
+                            rnode.node = infix.right.node;
+                        }
+                    },
+                    .Repeat => {
+                        if (infix.left.node.asElem()) |left| {
+                            if (infix.right.node.asElem()) |right| {
+                                if (try left.repeat(right, self.vm)) |repeated| {
+                                    rnode.node = .{ .ElemNode = repeated };
+                                }
+                            }
+                        }
+                    },
+                    .Backtrack,
+                    .Destructure,
+                    => {},
+                }
+            },
+            .Range => {},
+            .Negation => |inner| {
+                try self.simplifyValueOrPattern(inner);
+                if (inner.node.asElem()) |num| {
+                    const negated = num.negateNumber() catch return;
+                    rnode.node = .{ .ElemNode = negated };
+                }
+            },
+            .ValueLabel => {},
+            .Array => {},
+            .Object => {},
+            .StringTemplate => {},
+            .Conditional => {},
+            .Function => {},
+            .ElemNode => {},
+            .DeclareGlobal => {},
+        }
     }
 
     fn simplifyNegatedNumberNode(rnode: *Ast.RNode) ?Elem {

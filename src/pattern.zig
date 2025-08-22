@@ -14,11 +14,12 @@ pub const PatternType = enum {
     Local,
     Merge,
     Null,
-    NumberString,
+    Number,
     Object,
     Range,
     String,
     StringTemplate,
+    Repeat,
 };
 
 pub const Pattern = union(PatternType) {
@@ -29,11 +30,12 @@ pub const Pattern = union(PatternType) {
     Local: PatternVar,
     Merge: ArrayListUnmanaged(Pattern),
     Null: void,
-    NumberString: NumberStringElem,
+    Number: f64,
     Object: ArrayListUnmanaged(ObjectPair),
     Range: RangePattern,
     String: StringTable.Id,
     StringTemplate: ArrayListUnmanaged(Pattern),
+    Repeat: RepeatPattern,
 
     pub const PatternVar = struct {
         sid: StringTable.Id,
@@ -78,6 +80,11 @@ pub const Pattern = union(PatternType) {
         upper: ?*Pattern,
     };
 
+    pub const RepeatPattern = struct {
+        pattern: *Pattern,
+        count: *Pattern,
+    };
+
     pub fn print(self: Pattern, vm: VM, writer: anytype) !void {
         switch (self) {
             .Local => |pvar| try writer.print("{s}{s}", .{
@@ -100,7 +107,7 @@ pub const Pattern = union(PatternType) {
                 try writer.print(")", .{});
             },
             .String => |sid| try writer.print("\"{s}\"", .{vm.strings.get(sid)}),
-            .NumberString => |ns| try writer.print("{s}", .{ns.toBytes(vm.strings)}),
+            .Number => |n| try writer.print("{d}", .{n}),
             .Boolean => |b| try writer.print("{s}", .{if (b) "true" else "false"}),
             .Null => try writer.print("null", .{}),
             .Array => |arr| {
@@ -152,6 +159,13 @@ pub const Pattern = union(PatternType) {
                 }
                 try writer.print(")", .{});
             },
+            .Repeat => |repeat| {
+                try writer.print("(", .{});
+                try repeat.pattern.print(vm, writer);
+                try writer.print(" * ", .{});
+                try repeat.count.print(vm, writer);
+                try writer.print(")", .{});
+            },
         }
     }
 
@@ -198,10 +212,16 @@ pub const Pattern = union(PatternType) {
                 }
                 funcCall.args.deinit(allocator);
             },
+            .Repeat => |*repeat| {
+                repeat.pattern.deinit(allocator);
+                allocator.destroy(repeat.pattern);
+                repeat.count.deinit(allocator);
+                allocator.destroy(repeat.count);
+            },
             .Local,
             .Constant,
             .String,
-            .NumberString,
+            .Number,
             .Boolean,
             .Null,
             => {

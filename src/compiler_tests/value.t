@@ -352,21 +352,19 @@
   2 * (2 * 2)
   ========================================
   0000    | GetConstant 0: null
-  0002    | GetConstant 1: 2
-  0004    | GetConstant 2: 2
-  0006    | RepeatValue
-  0007    | ValidateRepeatPattern
-  0008    | JumpIfZero 8 -> 29
-  0011    | Swap
-  0012    | GetConstant 3: 2
-  0014    | CallFunction 0
-  0016    | Merge
-  0017    | JumpIfFailure 17 -> 28
-  0020    | Swap
-  0021    | Decrement
-  0022    | JumpIfZero 22 -> 29
-  0025    | JumpBack 25 -> 11
-  0028    | Swap
-  0029    | Drop
-  0030    | End
+  0002    | GetConstant 1: 4
+  0004    | ValidateRepeatPattern
+  0005    | JumpIfZero 5 -> 26
+  0008    | Swap
+  0009    | GetConstant 2: 2
+  0011    | CallFunction 0
+  0013    | Merge
+  0014    | JumpIfFailure 14 -> 25
+  0017    | Swap
+  0018    | Decrement
+  0019    | JumpIfZero 19 -> 26
+  0022    | JumpBack 22 -> 8
+  0025    | Swap
+  0026    | Drop
+  0027    | End
   ========================================
