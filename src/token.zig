@@ -1,5 +1,6 @@
 const std = @import("std");
 const Region = @import("region.zig").Region;
+const Writer = std.Io.Writer;
 
 pub const TokenType = enum {
     Ampersand,
@@ -69,7 +70,7 @@ pub const Token = struct {
         return self.isType(.String) and self.lexeme.len > 0 and self.lexeme[0] == '`';
     }
 
-    pub fn print(self: Token, writer: anytype) !void {
+    pub fn print(self: Token, writer: *Writer) !void {
         try writer.print("{s} '{s}' {d}-{d}", .{
             @tagName(self.tokenType),
             self.lexeme,

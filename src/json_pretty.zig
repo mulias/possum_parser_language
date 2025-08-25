@@ -13,8 +13,7 @@ pub fn WriteStream(comptime OutStream: type) type {
     return struct {
         const Self = @This();
 
-        pub const Stream = OutStream;
-        pub const Error = Stream.Error || error{OutOfMemory};
+        pub const Error = std.Io.Writer.Error || error{OutOfMemory};
 
         format: Format,
         stream: OutStream,
@@ -93,7 +92,9 @@ pub fn WriteStream(comptime OutStream: type) type {
         fn writeIndentation(self: *Self) Error!void {
             const n_chars = 2 * self.indent_level;
             try self.stream.writeByte('\n');
-            try self.stream.writeByteNTimes(' ', n_chars);
+            for (0..n_chars) |_| {
+                try self.stream.writeByte(' ');
+            }
         }
 
         fn useIndentation(self: *Self, value: json.Value) bool {
@@ -127,18 +128,14 @@ fn outputUnicodeEscape(codepoint: u21, out_stream: anytype) !void {
         // If the character is in the Basic Multilingual Plane (U+0000 through U+FFFF),
         // then it may be represented as a six-character sequence: a reverse solidus, followed
         // by the lowercase letter u, followed by four hexadecimal digits that encode the character's code point.
-        try out_stream.writeAll("\\u");
-        try std.fmt.formatIntValue(codepoint, "x", std.fmt.FormatOptions{ .width = 4, .fill = '0' }, out_stream);
+        try out_stream.print("\\u{x:0>4}", .{codepoint});
     } else {
         assert(codepoint <= 0x10FFFF);
         // To escape an extended character that is not in the Basic Multilingual Plane,
         // the character is represented as a 12-character sequence, encoding the UTF-16 surrogate pair.
         const high = @as(u16, @intCast((codepoint - 0x10000) >> 10)) + 0xD800;
         const low = @as(u16, @intCast(codepoint & 0x3FF)) + 0xDC00;
-        try out_stream.writeAll("\\u");
-        try std.fmt.formatIntValue(high, "x", std.fmt.FormatOptions{ .width = 4, .fill = '0' }, out_stream);
-        try out_stream.writeAll("\\u");
-        try std.fmt.formatIntValue(low, "x", std.fmt.FormatOptions{ .width = 4, .fill = '0' }, out_stream);
+        try out_stream.print("\\u{x:0>4}\\u{x:0>4}", .{ high, low });
     }
 }
 

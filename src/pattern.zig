@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
@@ -85,7 +86,7 @@ pub const Pattern = union(PatternType) {
         count: *Pattern,
     };
 
-    pub fn print(self: Pattern, vm: VM, writer: anytype) !void {
+    pub fn print(self: Pattern, vm: VM, writer: *Writer) Writer.Error!void {
         switch (self) {
             .Local => |pvar| try writer.print("{s}{s}", .{
                 negativeSigns(pvar.negation_count),

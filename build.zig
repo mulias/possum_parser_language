@@ -28,9 +28,11 @@ fn addCliExecutable(b: *Build, name: []const u8, target: anytype, optimize: anyt
 
     const cli = b.addExecutable(.{
         .name = name,
-        .root_source_file = b.path("src/cli.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/cli.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     cli.root_module.addImport("clap", clap_module);
 
@@ -44,12 +46,14 @@ fn addCliExecutable(b: *Build, name: []const u8, target: anytype, optimize: anyt
 fn addWasmExecutable(b: *Build, name: []const u8) *Build.Step.Compile {
     const wasm = b.addExecutable(.{
         .name = name,
-        .root_source_file = b.path("src/wasm-lib.zig"),
-        .target = b.resolveTargetQuery(.{
-            .cpu_arch = .wasm32,
-            .os_tag = .freestanding,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/wasm-lib.zig"),
+            .target = b.resolveTargetQuery(.{
+                .cpu_arch = .wasm32,
+                .os_tag = .freestanding,
+            }),
+            .optimize = .ReleaseSmall,
         }),
-        .optimize = .ReleaseSmall,
     });
     wasm.entry = .disabled;
     wasm.rdynamic = true;
@@ -120,9 +124,11 @@ fn testStep(b: *Build, target: anytype, optimize: anytype) void {
     const test_step = b.step("test", "Run unit tests");
 
     const unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/tests.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tests.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     addStdlibImports(b, unit_tests);

@@ -422,44 +422,40 @@ pub const StringBuffer = struct {
     }
 
     // Writer functionality for the StringBuffer.
-    pub usingnamespace struct {
-        pub const Writer = std.io.Writer(*StringBuffer, Error, appendWrite);
+    pub const Writer = std.Io.GenericWriter(*StringBuffer, Error, appendWrite);
 
-        pub fn writer(self: *StringBuffer) Writer {
-            return .{ .context = self };
-        }
+    pub fn writer(self: *StringBuffer) Writer {
+        return .{ .context = self };
+    }
 
-        fn appendWrite(self: *StringBuffer, m: []const u8) !usize {
-            try self.concat(m);
-            return m.len;
-        }
-    };
+    fn appendWrite(self: *StringBuffer, m: []const u8) !usize {
+        try self.concat(m);
+        return m.len;
+    }
 
     // Iterator support
-    pub usingnamespace struct {
-        pub const StringBufferIterator = struct {
-            string: *const StringBuffer,
-            index: usize,
+    pub const StringBufferIterator = struct {
+        string: *const StringBuffer,
+        index: usize,
 
-            pub fn next(it: *StringBufferIterator) ?[]const u8 {
-                if (it.string.buffer) |buffer| {
-                    if (it.index == it.string.size) return null;
-                    const i = it.index;
-                    it.index += StringBuffer.getUTF8Size(buffer[i]);
-                    return buffer[i..it.index];
-                } else {
-                    return null;
-                }
+        pub fn next(it: *StringBufferIterator) ?[]const u8 {
+            if (it.string.buffer) |buffer| {
+                if (it.index == it.string.size) return null;
+                const i = it.index;
+                it.index += StringBuffer.getUTF8Size(buffer[i]);
+                return buffer[i..it.index];
+            } else {
+                return null;
             }
-        };
-
-        pub fn iterator(self: *const StringBuffer) StringBufferIterator {
-            return StringBufferIterator{
-                .string = self,
-                .index = 0,
-            };
         }
     };
+
+    pub fn iterator(self: *const StringBuffer) StringBufferIterator {
+        return StringBufferIterator{
+            .string = self,
+            .index = 0,
+        };
+    }
 
     /// Returns whether or not a character is whitelisted
     fn inWhitelist(char: u8, whitelist: []const u8) bool {

@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const Elem = @import("elem.zig").Elem;
@@ -25,12 +26,12 @@ pub const Module = struct {
     }
 
     /// Highlight this region in the module source code with context lines and underlines
-    pub fn highlight(module: Module, region: Region, writer: anytype) !void {
+    pub fn highlight(module: Module, region: Region, writer: *Writer) !void {
         return highlightRegion(module.source, region, writer, .{ .show_line_numbers = module.showLineNumbers });
     }
 
     /// Print raw source code for the given region
-    pub fn printSourceRange(module: Module, region: Region, writer: anytype) !void {
+    pub fn printSourceRange(module: Module, region: Region, writer: *Writer) Writer.Error!void {
         const start = @min(region.start, module.source.len);
         const end = @min(region.end, module.source.len);
         if (start < end) {

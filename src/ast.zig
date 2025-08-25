@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
@@ -310,7 +311,7 @@ pub const Ast = struct {
         };
     }
 
-    pub fn print(self: *Ast, writer: anytype, vm: VM, source: []const u8) !void {
+    pub fn print(self: *Ast, writer: *Writer, vm: VM, source: []const u8) Writer.Error!void {
         var last_region: ?Region = null;
         var last_relative: ?LineRelativeRegion = null;
 
@@ -391,7 +392,7 @@ pub const Ast = struct {
         indent: u32,
         last_region: *?Region,
         last_relative: *?LineRelativeRegion,
-    ) @TypeOf(writer).Error!void {
+    ) !void {
         const multiline = self.shouldBeMultiline(rnode.node);
         const line_relative = self.nextLineRelativeRegion(rnode.region, source, last_region, last_relative);
 

@@ -24,7 +24,7 @@ const TestWriter = struct {
     }
 };
 
-const TestWriterType = std.io.Writer(TestWriter, TestWriter.Error, TestWriter.write);
+const TestWriterType = std.Io.GenericWriter(TestWriter, TestWriter.Error, TestWriter.write);
 
 fn getTestWriter() TestWriterType {
     return TestWriterType{ .context = TestWriter{} };

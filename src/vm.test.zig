@@ -7,10 +7,13 @@ const VMConfig = @import("vm.zig").Config;
 const Writers = @import("writer.zig").Writers;
 const testing = @import("testing.zig");
 
+var null_buffer: [256]u8 = undefined;
+var null_discarding = std.Io.Writer.Discarding.init(&null_buffer);
+
 const writers = Writers{
-    .out = std.io.null_writer.any(),
-    .err = std.io.null_writer.any(),
-    .debug = std.io.null_writer.any(),
+    .out = &null_discarding.writer,
+    .err = &null_discarding.writer,
+    .debug = &null_discarding.writer,
 };
 
 const config = VMConfig{

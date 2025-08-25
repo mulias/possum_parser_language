@@ -341,11 +341,3 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, conf
         }
     }
 }
-
-/// Add method to Region struct for convenience
-pub fn addHighlightMethod() void {
-    // This would be added to the Region struct:
-    // pub fn highlight(self: Region, source: []const u8, writer: VMWriter) !void {
-    //     return highlightRegion(source, self, writer);
-    // }
-}

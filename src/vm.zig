@@ -4,7 +4,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const assert = std.debug.assert;
 const unicode = std.unicode;
-const AnyWriter = std.io.AnyWriter;
+const Writer = std.Io.Writer;
 const Chunk = @import("chunk.zig").Chunk;
 const Compiler = @import("compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
@@ -15,7 +15,6 @@ const OpCode = @import("op_code.zig").OpCode;
 const Parser = @import("parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
 const PatternSolver = @import("pattern_solver.zig");
-const WriterError = @import("writer.zig").VMWriter.Error;
 const Writers = @import("writer.zig").Writers;
 const builtin = @import("builtin.zig");
 const parsing = @import("parsing.zig");
@@ -94,7 +93,7 @@ pub const VM = struct {
         Overflow,
         ExpectedNumber,
         Utf8CodepointTooLarge,
-    } || AnyWriter.Error;
+    } || Writer.Error;
 
     pub fn create() VM {
         const self = VM{

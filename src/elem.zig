@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const AutoArrayHashMap = std.AutoArrayHashMapUnmanaged;
@@ -343,7 +344,7 @@ pub const Elem = packed union {
         return @ptrFromInt(@as(usize, @intCast(self.bits & mask_payload)));
     }
 
-    pub fn print(self: Elem, vm: VM, writer: anytype) !void {
+    pub fn print(self: Elem, vm: VM, writer: *Writer) Writer.Error!void {
         switch (self.getType()) {
             .ParserVar => {
                 const sid = self.asParserVar();
@@ -1022,7 +1023,7 @@ pub const Elem = packed union {
             } };
         }
 
-        pub fn print(self: *DynElem, vm: VM, writer: anytype) !void {
+        pub fn print(self: *DynElem, vm: VM, writer: *Writer) Writer.Error!void {
             return switch (self.dynType) {
                 .String => self.asString().print(writer),
                 .Array => self.asArray().print(vm, writer),
@@ -1103,7 +1104,7 @@ pub const Elem = packed union {
                 vm.gc.allocator().destroy(self);
             }
 
-            pub fn print(self: *String, writer: anytype) !void {
+            pub fn print(self: *String, writer: *Writer) Writer.Error!void {
                 try writer.print("\"{s}\"", .{self.buffer.str()});
             }
 
@@ -1167,7 +1168,7 @@ pub const Elem = packed union {
                 vm.gc.allocator().destroy(self);
             }
 
-            pub fn print(self: *Array, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
+            pub fn print(self: *Array, vm: VM, writer: *Writer) Writer.Error!void {
                 if (self.elems.items.len == 0) {
                     try writer.print("[]", .{});
                 } else {
@@ -1246,7 +1247,7 @@ pub const Elem = packed union {
                 vm.gc.allocator().destroy(self);
             }
 
-            pub fn print(self: *Object, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
+            pub fn print(self: *Object, vm: VM, writer: *Writer) Writer.Error!void {
                 if (self.members.count() == 0) {
                     try writer.print("{{}}", .{});
                 } else {
@@ -1389,7 +1390,7 @@ pub const Elem = packed union {
                 vm.gc.allocator().destroy(self);
             }
 
-            pub fn print(self: *Function, vm: VM, writer: anytype) !void {
+            pub fn print(self: *Function, vm: VM, writer: *Writer) Writer.Error!void {
                 try writer.print("{s}", .{vm.strings.get(self.name)});
             }
 
@@ -1398,7 +1399,7 @@ pub const Elem = packed union {
                 return self == other.asFunction();
             }
 
-            pub fn disassemble(self: *Function, vm: VM, writer: anytype, module: ?*Module) !void {
+            pub fn disassemble(self: *Function, vm: VM, writer: *Writer, module: ?*Module) Writer.Error!void {
                 const label = vm.strings.get(self.name);
                 try self.chunk.disassemble(vm, writer, label, module);
             }
@@ -1470,7 +1471,7 @@ pub const Elem = packed union {
                 vm.gc.allocator().destroy(self);
             }
 
-            pub fn print(self: *NativeCode, writer: anytype) !void {
+            pub fn print(self: *NativeCode, writer: *Writer) Writer.Error!void {
                 try writer.print("{s}", .{self.name});
             }
 
@@ -1506,7 +1507,7 @@ pub const Elem = packed union {
                 vm.gc.allocator().destroy(self);
             }
 
-            pub fn print(self: *Closure, vm: VM, writer: anytype) @TypeOf(writer).Error!void {
+            pub fn print(self: *Closure, vm: VM, writer: *Writer) Writer.Error!void {
                 try writer.print("|{s} ", .{vm.strings.get(self.function.name)});
 
                 if (self.captures.len > 0) {

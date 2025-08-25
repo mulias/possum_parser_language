@@ -1,5 +1,4 @@
 const std = @import("std");
-const io = std.io;
 const process = std.process;
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
@@ -34,10 +33,14 @@ fn writeDebugSlice(bytes: []const u8) void {
     writeDebug(@intFromPtr(bytes.ptr), bytes.len);
 }
 
+var out_adapter = ExternalWriter.init(writeOutSlice).deprecatedWriter().adaptToNewApi(&.{});
+var err_adapter = ExternalWriter.init(writeErrSlice).deprecatedWriter().adaptToNewApi(&.{});
+var debug_adapter = ExternalWriter.init(writeDebugSlice).deprecatedWriter().adaptToNewApi(&.{});
+
 const writers = Writers{
-    .out = ExternalWriter.init(writeOutSlice).writer().any(),
-    .err = ExternalWriter.init(writeErrSlice).writer().any(),
-    .debug = ExternalWriter.init(writeDebugSlice).writer().any(),
+    .out = &out_adapter.new_interface,
+    .err = &err_adapter.new_interface,
+    .debug = &debug_adapter.new_interface,
 };
 
 fn createVMPtr() !*VM {

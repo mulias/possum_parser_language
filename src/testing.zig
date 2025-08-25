@@ -15,15 +15,18 @@ pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {
 }
 
 pub fn expectSuccess(actual: Elem, expected: Elem, vm: VM) !void {
-    const writer = std.io.getStdErr().writer().any();
+    const stderr = std.fs.File.stderr();
+    var buffer: [4096]u8 = undefined;
+    const file_writer = stderr.writer(&buffer);
+    var writer = file_writer.interface;
 
     if (!actual.isEql(expected, vm)) {
         std.debug.print("expectSuccess: returned elems were not equal.\n", .{});
         std.debug.print("  expected: {s}(", .{expected.tagName()});
-        expected.print(vm, writer) catch {};
+        expected.print(vm, &writer) catch {};
         std.debug.print(")\n", .{});
         std.debug.print("  actual: {s}(", .{actual.tagName()});
-        actual.print(vm, writer) catch {};
+        actual.print(vm, &writer) catch {};
         std.debug.print(")\n", .{});
 
         return error.TestExpectedEqual;

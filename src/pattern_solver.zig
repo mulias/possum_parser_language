@@ -1,6 +1,7 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.AutoHashMapUnmanaged;
+const Writer = std.Io.Writer;
 const VM = @import("vm.zig").VM;
 const Pattern = @import("pattern.zig").Pattern;
 const Elem = @import("elem.zig").Elem;
@@ -11,7 +12,7 @@ const Simplified = union(enum) {
     Pattern: Pattern,
     Value: Elem,
 
-    pub fn print(self: Simplified, vm: VM, writer: anytype) !void {
+    pub fn print(self: Simplified, vm: VM, writer: *Writer) Writer.Error!void {
         switch (self) {
             .Pattern => |p| {
                 try writer.print("Patern(", .{});

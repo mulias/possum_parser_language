@@ -22,26 +22,28 @@ pub fn main() void {
         else => std.heap.smp_allocator,
     };
 
-    const stdout = std.io.getStdOut();
-    const stderr = std.io.getStdErr();
+    const stdout = std.fs.File.stdout();
+    var out_buffer: [4096]u8 = undefined;
+    var stdout_writer = stdout.writer(&out_buffer);
 
-    var buffered_out = std.io.bufferedWriter(stdout.writer());
-    var buffered_err = std.io.bufferedWriter(stderr.writer());
+    const stderr = std.fs.File.stderr();
+    var err_buffer: [4096]u8 = undefined;
+    var stderr_writer = stderr.writer(&err_buffer);
 
-    defer buffered_out.flush() catch {};
-    defer buffered_err.flush() catch {};
+    defer stdout_writer.interface.flush() catch {};
+    defer stderr_writer.interface.flush() catch {};
 
     const writers = Writers{
-        .out = buffered_out.writer().any(),
-        .err = buffered_err.writer().any(),
-        .debug = buffered_err.writer().any(),
+        .out = &stdout_writer.interface,
+        .err = &stderr_writer.interface,
+        .debug = &stderr_writer.interface,
     };
     const cli = CLI.init(allocator, writers);
 
     cli.run() catch |e| {
         cli.writers.err.print("[{s}]\n", .{@errorName(e)}) catch {};
-        buffered_out.flush() catch {};
-        buffered_err.flush() catch {};
+        stdout_writer.interface.flush() catch {};
+        stderr_writer.interface.flush() catch {};
         std.process.exit(1);
     };
 }
@@ -115,36 +117,20 @@ pub const CLI = struct {
     }
 
     fn readStdin(self: CLI, argName: []const u8) ![]const u8 {
-        const stdin = std.io.getStdIn();
+        const stdin = std.fs.File.stdin();
         const stat = try stdin.stat();
 
         const isUserInput = stat.kind != std.fs.File.Kind.named_pipe;
 
         if (isUserInput) try self.writers.out.print("Reading {s} (press ctrl-d twice to end):\n", .{argName});
 
-        const reader = stdin.reader();
-        const input = self.readStreamAlloc(reader);
+        // TODO: Update Io
+        const old_reader = stdin.deprecatedReader();
+        const input = try old_reader.readAllAlloc(self.allocator, std.math.maxInt(usize));
 
         if (isUserInput) try self.writers.out.print("\n\n", .{});
 
         return input;
-    }
-
-    pub fn readStreamAlloc(self: CLI, streamReader: anytype) anyerror![]u8 {
-        var input = ArrayList(u8){};
-
-        streamReader.streamUntilDelimiter(
-            input.writer(self.allocator),
-            0,
-            null,
-        ) catch |err| switch (err) {
-            error.EndOfStream => {
-                // This is expected
-            },
-            else => |e| return e,
-        };
-
-        return input.items;
     }
 
     fn printHelp(self: CLI) !void {
@@ -191,7 +177,10 @@ pub const CLI = struct {
                 inputPipe.close();
                 pager.stdin = null;
             }
-            try inputPipe.writer().writeAll(str);
+            var pipe_buffer: [4096]u8 = undefined;
+            var pipe_writer = inputPipe.writer(&pipe_buffer);
+            try pipe_writer.interface.writeAll(str);
+            try pipe_writer.interface.flush();
         }
 
         _ = try pager.wait();

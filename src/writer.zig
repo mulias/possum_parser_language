@@ -1,12 +1,12 @@
 const std = @import("std");
 const File = std.fs.File;
-const AnyWriter = std.io.AnyWriter;
+const Writer = std.Io.Writer;
 const env = @import("env.zig");
 
 pub const Writers = struct {
-    out: AnyWriter,
-    err: AnyWriter,
-    debug: AnyWriter,
+    out: *Writer,
+    err: *Writer,
+    debug: *Writer,
 
     pub fn debugPrint(self: Writers, comptime format: []const u8, args: anytype) void {
         self.debug.print(format, args) catch {};
@@ -29,8 +29,7 @@ pub const ExternalWriter = struct {
         return bytes.len;
     }
 
-    pub const Writer = std.io.Writer(ExternalWriter, WriteError, write);
-    pub fn writer(self: ExternalWriter) Writer {
+    pub fn deprecatedWriter(self: ExternalWriter) std.io.GenericWriter(ExternalWriter, WriteError, write) {
         return .{ .context = self };
     }
 };

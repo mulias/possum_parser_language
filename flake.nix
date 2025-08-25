@@ -27,8 +27,8 @@
       devShells = forEachSupportedSystem ({ pkgs, unstable }: {
         default = pkgs.mkShell {
           packages = [
-            pkgs.zig
-            pkgs.zls
+            zig.packages.${pkgs.system}."0.15.1"
+            unstable.zls
             pkgs.python311Packages.cram
             pkgs.pandoc
           ];

@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const Tuple = std.meta.Tuple;
 
 const highlightRegion = @import("highlight.zig").highlightRegion;
@@ -19,7 +20,7 @@ pub const Region = struct {
         return new(r1.start, r2.end);
     }
 
-    pub fn printLineRelative(region: Region, str: []const u8, writer: anytype) !void {
+    pub fn printLineRelative(region: Region, str: []const u8, writer: *Writer) Writer.Error!void {
         return LineRelativeRegion.fromRegion(region, str, null).print(writer);
     }
 };
@@ -56,7 +57,7 @@ pub const LineRelativeRegion = struct {
         };
     }
 
-    pub fn print(self: LineRelativeRegion, writer: anytype) !void {
+    pub fn print(self: LineRelativeRegion, writer: *Writer) Writer.Error!void {
         if (self.relative_start == self.relative_end) {
             try writer.print("{d}:{d}", .{ self.line, self.relative_start });
         } else {

@@ -1,7 +1,7 @@
 const std = @import("std");
 const unicode = std.unicode;
 const ArrayList = std.ArrayListUnmanaged;
-const AnyWriter = std.io.AnyWriter;
+const Writer = std.Io.Writer;
 const Ast = @import("ast.zig").Ast;
 const Elem = @import("elem.zig").Elem;
 const HighlightConfig = @import("highlight.zig").HighlightConfig;
@@ -34,7 +34,8 @@ pub const Parser = struct {
         CodepointTooLarge,
         Utf8CannotEncodeSurrogateHalf,
         IntegerOverflow,
-    } || AnyWriter.Error;
+        InvalidEscapeSequence,
+    } || Writer.Error;
 
     pub fn init(vm: *VM, module: Module) Parser {
         const ast = Ast.init(vm.allocator);

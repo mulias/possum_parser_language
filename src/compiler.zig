@@ -1,7 +1,7 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const unicode = std.unicode;
-const AnyWriter = std.io.AnyWriter;
+const Writer = std.Io.Writer;
 const Ast = @import("ast.zig").Ast;
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
@@ -37,6 +37,7 @@ pub const Compiler = struct {
         VariableNameUsedInScope,
         InvalidGlobalValue,
         InvalidGlobalParser,
+        InvalidCharacter,
         AliasCycle,
         UnknownVariable,
         UndefinedVariable,
@@ -53,7 +54,7 @@ pub const Compiler = struct {
         UnlabeledNullValue,
         RangeNotValidInMergePattern,
         RangeNotValidInValueContext,
-    } || AnyWriter.Error;
+    } || Writer.Error;
 
     pub fn init(vm: *VM, targetModule: *Module, ast: Ast, printBytecode: bool) !Compiler {
         const main = try Elem.DynElem.Function.create(vm, .{
