@@ -19,7 +19,7 @@
   0016    | GetConstant 3: const
   0018    | GetBoundLocal 0
   0020    | CallTailFunction 1
-  0022    | ConditionalElse 22 -> 60
+  0022    | Jump 22 -> 60
   0025    | GetConstant 4: fib
   0027    | GetBoundLocal 0
   0029    | GetConstant 5: 1

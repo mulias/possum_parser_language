@@ -219,7 +219,7 @@ pub const Elem = packed union {
 
     pub fn numberString(sid: StringTable.Id, negated: bool) Elem {
         return Elem{ .tagged = .{
-            .payload = .{ .numberString = .{ .sid = sid, .negated = negated } },
+            .payload = .{ .number_string = .{ .sid = sid, .negated = negated } },
             .type = .NumberString,
         } };
     }
@@ -649,7 +649,7 @@ pub const Elem = packed union {
             },
             .ParserVar,
             .ValueVar,
-            => @panic("Internal error"),
+            => return null,
             .Dyn => switch (elemA.asDyn().dynType) {
                 .String => {
                     const ds1 = elemA.asDyn().asString();

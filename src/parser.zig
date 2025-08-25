@@ -197,15 +197,13 @@ pub const Parser = struct {
     fn parserVar(self: *Parser) !*Ast.RNode {
         const t = self.token;
         try self.advance();
-        const sId = try self.vm.strings.insert(t.lexeme);
-        return self.ast.createElem(Elem.parserVar(sId), t.region);
+        return self.ast.create(.{ .ParserVar = t.lexeme }, t.region);
     }
 
     fn valueVar(self: *Parser) !*Ast.RNode {
         const t = self.token;
         try self.advance();
-        const sId = try self.vm.strings.insert(t.lexeme);
-        return self.ast.createElem(Elem.valueVar(sId), t.region);
+        return self.ast.create(.{ .ValueVar = t.lexeme }, t.region);
     }
 
     fn string(self: *Parser) Error!*Ast.RNode {
@@ -226,11 +224,8 @@ pub const Parser = struct {
                     const token = self.token;
 
                     if (template_parts.items.len > 0) {
-                        const sid = self.internUnescaped(token.lexeme) catch |e| switch (e) {
-                            error.InvalidEscapeSequence => return self.errorAt(token, "Invalid escape sequence in string."),
-                            else => |unhandled| return unhandled,
-                        };
-                        const part = try self.ast.createElem(Elem.string(sid), token.region);
+                        const unescaped_content = try self.unescapeString(token.lexeme);
+                        const part = try self.ast.create(.{ .String = unescaped_content }, token.region);
 
                         try template_parts.append(self.ast.arena.allocator(), part);
                     } else {
@@ -240,11 +235,7 @@ pub const Parser = struct {
                 .TemplateStart => {
                     if (template_parts.items.len == 0) {
                         if (first_part_token) |leading_string_part| {
-                            const sid = self.internUnescaped(leading_string_part.lexeme) catch |e| switch (e) {
-                                error.InvalidEscapeSequence => return self.errorAt(leading_string_part, "Invalid escape sequence in string."),
-                                else => |unhandled| return unhandled,
-                            };
-                            const part = try self.ast.createElem(Elem.string(sid), leading_string_part.region);
+                            const part = try self.ast.create(.{ .String = leading_string_part.lexeme }, leading_string_part.region);
                             try template_parts.append(self.ast.arena.allocator(), part);
                         }
                     }
@@ -269,18 +260,10 @@ pub const Parser = struct {
                     if (template_parts.items.len > 0) {
                         final = try self.ast.createStringTemplate(template_parts, string_region);
                     } else if (first_part_token) |body_token| {
-                        const sid = self.internUnescaped(body_token.lexeme) catch |e| switch (e) {
-                            error.InvalidEscapeSequence => return self.errorAt(body_token, "Invalid escape sequence in string."),
-                            else => |unhandled| return unhandled,
-                        };
-                        final = try self.ast.createElem(Elem.string(sid), string_region);
+                        const unescaped_content = try self.unescapeString(body_token.lexeme);
+                        final = try self.ast.create(.{ .String = unescaped_content }, string_region);
                     } else {
-                        const sid = self.internUnescaped("") catch |e| switch (e) {
-                            error.InvalidEscapeSequence => return self.errorAt(start_token, "Invalid escape sequence in string."),
-                            else => |unhandled| return unhandled,
-                        };
-
-                        final = try self.ast.createElem(Elem.string(sid), string_region);
+                        final = try self.ast.create(.{ .String = "" }, string_region);
                     }
 
                     break;
@@ -311,31 +294,29 @@ pub const Parser = struct {
                 self.scanner.setNormalMode();
                 try self.advance(); // advance past the StringEnd
 
-                const sid = try self.vm.strings.insert(body_token.lexeme);
-                return self.ast.createElem(Elem.string(sid), start_token.region.merge(end_token.region));
+                // Backtick strings are raw strings - no unescaping needed
+                return self.ast.create(.{ .String = body_token.lexeme }, start_token.region.merge(end_token.region));
             },
             .StringEnd => {
                 const end_token = self.token;
                 self.scanner.setNormalMode();
                 try self.advance(); // advance past the StringEnd
 
-                const sid = try self.vm.strings.insert("");
-                return self.ast.createElem(Elem.string(sid), start_token.region.merge(end_token.region));
+                return self.ast.create(.{ .String = "" }, start_token.region.merge(end_token.region));
             },
             .Eof => return self.errorAtToken("Unterminated backtick string"),
             else => return self.errorAtToken("Unexpected token in backtick string"),
         }
     }
 
-    fn internUnescaped(self: *Parser, str: []const u8) !StringTable.Id {
-        var buffer = try self.vm.allocator.alloc(u8, str.len);
-        defer self.vm.allocator.free(buffer);
+    fn unescapeString(self: *Parser, str: []const u8) ![]const u8 {
+        var buffer = try self.ast.arena.allocator().alloc(u8, str.len);
         var bufferLen: usize = 0;
         var s = str[0..];
 
         while (s.len > 0) {
             if (s[0] == '\\') {
-                if (s[1] == 'u' and s.len >= 8) {
+                if (s.len >= 8 and s[1] == 'u') {
                     // unicode codepoint escape
                     if (parsing.parseCodepoint(s[2..8])) |c| {
                         const bytesWritten = try unicode.utf8Encode(c, buffer[bufferLen..]);
@@ -344,7 +325,7 @@ pub const Parser = struct {
                     } else {
                         return error.InvalidEscapeSequence;
                     }
-                } else {
+                } else if (s.len >= 2) {
                     // ascii escape
                     const byte: u8 = switch (s[1]) {
                         '0' => 0,
@@ -363,6 +344,9 @@ pub const Parser = struct {
                     buffer[bufferLen] = byte;
                     bufferLen += 1;
                     s = s[2..];
+                } else {
+                    // Invalid escape sequence (backslash at end of string or unrecognized sequence)
+                    return error.InvalidEscapeSequence;
                 }
             } else {
                 // Otherwise copy the current byte and iterate.
@@ -372,22 +356,24 @@ pub const Parser = struct {
             }
         }
 
-        return self.vm.strings.insert(buffer[0..bufferLen]);
+        return buffer[0..bufferLen];
     }
 
     fn number(self: *Parser) !*Ast.RNode {
         const t = self.token;
         try self.advance();
-        return self.ast.createElem(try Elem.numberStringFromBytes(t.lexeme, self.vm), t.region);
+        return self.ast.create(.{
+            .NumberString = .{ .number = t.lexeme, .negated = false },
+        }, t.region);
     }
 
     fn literal(self: *Parser) !*Ast.RNode {
         const t = self.token;
         try self.advance();
         return switch (t.tokenType) {
-            .True => try self.ast.createElem(Elem.boolean(true), t.region),
-            .False => try self.ast.createElem(Elem.boolean(false), t.region),
-            .Null => try self.ast.createElem(Elem.nullConst, t.region),
+            .True => try self.ast.create(.True, t.region),
+            .False => try self.ast.create(.False, t.region),
+            .Null => try self.ast.create(.Null, t.region),
             else => unreachable,
         };
     }
@@ -1003,13 +989,13 @@ pub const Parser = struct {
         return switch (tokenType) {
             .LeftParen => .Function,
             .DotDot => .Range,
-            .Plus,
-            .Minus,
-            .Star,
-            .GreaterThan,
-            .LessThan,
             .DashGreaterThan,
             .DollarSign,
+            .GreaterThan,
+            .LessThan,
+            .Minus,
+            .Plus,
+            .Star,
             => .StandardInfix,
             .Bang,
             .Bar,

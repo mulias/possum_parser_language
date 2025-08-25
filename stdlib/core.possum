@@ -145,22 +145,11 @@ null(n) = n $ null
 
 ## Array
 
-array(elem) = elem -> First & _array(elem, [First])
+array(elem) = tuple1(elem) * 1..
 
-_array(elem, Acc) =
-  elem -> Elem ?
-  _array(elem, [...Acc, Elem]) :
-  const(Acc)
+array_sep(elem, sep) = tuple1(elem) + (tuple1(sep > elem) * 0..)
 
-array_sep(elem, sep) = elem -> First & _array(sep > elem, [First])
-
-array_until(elem, stop) =
-  unless(elem, stop) -> First & _array_until(elem, stop, [First])
-
-_array_until(elem, stop, Acc) =
-  peek(stop) ?
-  const(Acc) :
-  elem -> Elem & _array_until(elem, stop, [...Acc, Elem])
+array_until(elem, stop) = unless(tuple1(elem), stop) * 1.. < peek(stop)
 
 maybe_array(elem) = default(array(elem), [])
 
@@ -184,33 +173,13 @@ tuple3_sep(elem1, sep1, elem2, sep2, elem3) =
   elem3 -> E3 $
   [E1, E2, E3]
 
-tuple(elem, N) =
-  const(_Assert.NonNegativeInteger(N)) &
-  _tuple(elem, N, [])
+tuple(elem, N) = tuple1(elem) * N
 
-_tuple(elem, N, Acc) =
-  const(N -> ..0) ?
-  const(Acc) :
-  elem -> Elem & _tuple(elem, Num.Dec(N), [...Acc, Elem])
-
-tuple_sep(elem, sep, N) =
-  const(_Assert.NonNegativeInteger(N)) &
-  _tuple_sep(elem, sep, N, [])
-
-_tuple_sep(elem, sep, N, Acc) =
-  const(N -> ..0) ?
-  const(Acc) :
-  sep > elem -> Elem & _tuple_sep(elem, sep, Num.Dec(N), [...Acc, Elem])
+tuple_sep(elem, sep, N) = tuple1(elem) + (tuple1(sep > elem) * (N - 1))
 
 rows(elem, col_sep, row_sep) =
-  elem -> First & _rows(elem, col_sep, row_sep, [First], [])
-
-_rows(elem, col_sep, row_sep, AccRow, AccRows) =
-  col_sep > elem -> Elem ?
-  _rows(elem, col_sep, row_sep, [...AccRow, Elem], AccRows) :
-  row_sep > elem -> NextRow ?
-  _rows(elem, col_sep, row_sep, [NextRow], [...AccRows, AccRow]) :
-  const([...AccRows, AccRow])
+  tuple1(array_sep(elem, col_sep)) +
+  (tuple1(row_sep > array_sep(elem, col_sep)) * 0..)
 
 rows_padded(elem, col_sep, row_sep, Pad) =
   peek(_dimensions(elem, col_sep, row_sep)) -> [MaxRowLen, _] &
@@ -247,28 +216,14 @@ cols_padded = columns_padded
 
 ## Objects
 
-object(key, value) =
-  key -> K & value -> V &
-  _object(key, value, {K: V})
+object(key, value) = pair(key, value) * 1..
 
-_object(key, value, Acc) =
-  key -> K & value -> V ?
-  _object(key, value, {...Acc, K: V}) :
-  const(Acc)
-
-object_sep(key, pair_sep, value, sep) =
-  key -> K & pair_sep & value -> V &
-  _object(sep > key, pair_sep > value, {K: V})
+object_sep(key, kv_sep, value, sep) =
+  pair_sep(key, kv_sep, value) +
+  ((sep > pair_sep(key, kv_sep, value)) * 0..)
 
 object_until(key, value, stop) =
-  unless(key, stop) -> K &
-  value -> V &
-  _object_until(key, value, stop, {K: V})
-
-_object_until(key, value, stop, Acc) =
-  peek(stop) ?
-  const(Acc) :
-  key -> K & value -> V & _object_until(key, value, stop, {...Acc, K: V})
+  unless(pair(key, value), stop) * 1.. < peek(stop)
 
 maybe_object(key, value) = default(object(key, value), {})
 
@@ -305,63 +260,15 @@ record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3) =
 
 ## Repeated
 
-many(p) = p -> First & _many(p, First)
+many(p) = p * 1..
 
-_many(p, Acc) = p -> Next ? _many(p, Acc + Next) : const(Acc)
+many_sep(p, sep) = p + ((sep > p) * 0..)
 
-many_sep(p, sep) = p -> First & _many(sep > p, First)
+many_until(p, stop) = unless(p, stop) * 1.. < peek(stop)
 
-many_until(p, stop) = unless(p, stop) -> First & _many_until(p, stop, First)
-
-_many_until(p, stop, Acc) =
-  peek(stop) ?
-  const(Acc) :
-  p -> Next & _many_until(p, stop, Acc + Next)
-
-maybe_many(p) = many(p) | succeed
+maybe_many(p) = p * 0..
 
 maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
-
-repeat2(p) = p + p
-
-repeat3(p) = p + p + p
-
-repeat4(p) = p + p + p + p
-
-repeat5(p) = p + p + p + p + p
-
-repeat6(p) = p + p + p + p + p + p
-
-repeat7(p) = p + p + p + p + p + p + p
-
-repeat8(p) = p + p + p + p + p + p + p + p
-
-repeat9(p) = p + p + p + p + p + p + p + p + p
-
-repeat(p, N) =
-  const(_Assert.NonNegativeInteger(N)) &
-  _repeat(p, N, $null)
-
-_repeat(p, N, Acc) =
-  const(N -> ..0) ?
-  const(Acc) :
-  p -> Next & _repeat(p, Num.Dec(N), Acc + Next)
-
-repeat_between(p, N, M) =
-  const(_Assert.NonNegativeInteger(N)) &
-  const(_Assert.NonNegativeInteger(M)) &
-  _repeat_between(p, N, M, $null)
-
-_repeat_between(p, N, M, Acc) =
-  const(M -> ..0) ?
-  const(Acc) :
-  p -> Next ?
-  _repeat_between(p, Num.Dec(N), Num.Dec(M), Acc + Next) :
-  const(N -> ..0) ?
-  const(Acc) :
-  @fail
-
-one_or_both(a, b) = (a + maybe(b)) | (maybe(a) + b)
 
 ## Utility
 
@@ -377,7 +284,7 @@ find(p) = p | (char > find(p))
 
 find_all(p) = array(find(p)) < maybe(many(char))
 
-find_before(p, stop) = stop ? @fail :  p | (char > find_before(p, stop))
+find_before(p, stop) = stop ? @fail : p | (char > find_before(p, stop))
 
 find_all_before(p, stop) = array(find_before(p, stop)) < maybe(chars_until(stop))
 
@@ -389,7 +296,7 @@ const(C) = "" $ C
 
 as_number(p) = p -> "%(0 + N)" $ N
 
-string_of(p) = "%(p)"
+as_string(p) = "%(p)"
 
 surround(p, fill) = fill > p < fill
 
@@ -398,6 +305,8 @@ end_of_input = char ? @fail : succeed
 end = end_of_input
 
 input(p) = surround(p, maybe(whitespace)) < end_of_input
+
+one_or_both(a, b) = (a + maybe(b)) | (maybe(a) + b)
 
 ## JSON
 
@@ -451,7 +360,7 @@ _high_surrogate =
 _low_surrogate =
   `\u` > ("D" | "d") + ("C".."F" | "c".."f") + hex_numeral + hex_numeral
 
-_escaped_codepoint = `\u` > repeat4(hex_numeral) -> U $ @Codepoint(U)
+_escaped_codepoint = `\u` > (hex_numeral * 4) -> U $ @Codepoint(U)
 
 json.array(elem) = "[" > maybe_array_sep(surround(elem, maybe(ws)), ",") < "]"
 
@@ -661,8 +570,8 @@ _toml.escaped_ctrl_char =
   (`\t` $ "\t")
 
 _toml.escaped_unicode =
-  (`\u` > repeat4(hex_numeral) -> U $ @Codepoint(U)) |
-  (`\U` > repeat8(hex_numeral) -> U $ @Codepoint(U))
+  (`\u` > (hex_numeral * 4) -> U $ @Codepoint(U)) |
+  (`\U` > (hex_numeral * 8) -> U $ @Codepoint(U))
 
 toml.datetime.offset = toml.datetime.local_date + ("T" | "t" | " ") + _toml.datetime.time_offset
 
@@ -671,7 +580,7 @@ toml.datetime.local = toml.datetime.local_date + ("T" | "t" | " ") + toml.dateti
 toml.datetime.local_date =
   _toml.datetime.year + "-" + _toml.datetime.month + "-" + _toml.datetime.mday
 
-_toml.datetime.year = repeat4(numeral)
+_toml.datetime.year = numeral * 4
 
 _toml.datetime.month = ("0" + "1".."9") | "11" | "12"
 
@@ -681,7 +590,7 @@ toml.datetime.local_time =
   _toml.datetime.hours + ":" +
   _toml.datetime.minutes + ":" +
   _toml.datetime.seconds +
-  maybe("." + repeat_between(numeral, $1, $9))
+  maybe("." + (numeral * 1..9))
 
 _toml.datetime.time_offset = toml.datetime.local_time + ("Z" | "z" | _toml.datetime.time_numoffset)
 
@@ -974,9 +883,7 @@ _Array.ZipPairs(A1, A2, Acc) =
   _Array.ZipPairs(Rest1, Rest2, [...Acc, [First1, First2]]) :
   Acc
 
-Array.AppendN(A, Val, N) =
-  _Assert.NonNegativeInteger(N) &
-  N -> 0 ? A : Array.AppendN([...A, Val], Val, N - 1)
+Array.AppendN(A, Val, N) = A + ([Val] * N)
 
 Table.Transpose(T) = _Table.Transpose(T, [])
 
@@ -1059,7 +966,4 @@ Is.GreaterThanOrEqual(A, B) = A -> B..
 
 As.Number(V) = Is.Number(V) | (V -> "%(0 + N)" $ N)
 
-## Utility
-
-_Assert.NonNegativeInteger(V) =
-  V -> 0.. | @Crash("Expected a non-negative integer, got %(V)")
+As.String(V) = "%(V)"

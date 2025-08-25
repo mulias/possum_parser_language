@@ -57,6 +57,7 @@ infix =
   ("->" $ [{"type": "destructure"},   4, 4.5]) |
   ("$"  $ [{"type": "return"},        4, 4.5]) |
   ("-"  $ [{"type": "subtract"},      4, 4.5]) |
+  ("*"  $ [{"type": "repeat"},        4, 4.5]) |
   ("&"  $ [{"type": "and"},           3, 3.5]) |
   (conditional_infix -> Node $ [Node, 2.5, 2]) |
   ("="  $ [{"type": "assign"},        1.5, 1])
@@ -92,7 +93,7 @@ quoted_string_body(end_quote) =
 string_escape_char =
   `\0` | `\b` | `\t` | `\n` | `\v` | `\f` | `\r` | `\'` | `\"` | `\\`
 
-string_escape_unicode = `\u` + repeat(hex_numeral, $6)
+string_escape_unicode = `\u` + (hex_numeral * 6)
 
 backtick_string_body = chars_until("`") | const($"")
 

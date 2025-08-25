@@ -356,7 +356,7 @@
   0037    | InsertAtIndex 0
   0039    | Merge
   0040    | CallTailFunction 2
-  0042    | ConditionalElse 42 -> 59
+  0042    | Jump 42 -> 59
   0045    | GetConstant 7: __Table.RestPerRow
   0047    | GetBoundLocal 3
   0049    | GetConstant 8: []
@@ -365,7 +365,7 @@
   0054    | GetConstant 9: [[]]
   0056    | Merge
   0057    | CallTailFunction 2
-  0059    | ConditionalElse 59 -> 64
+  0059    | Jump 59 -> 64
   0062    | GetBoundLocal 1
   0064    | End
   ========================================

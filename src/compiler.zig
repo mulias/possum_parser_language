@@ -185,25 +185,14 @@ pub const Compiler = struct {
             .Function => |function| {
                 try self.declareGlobalFunction(function.name, function.paramsOrArgs, region);
             },
-            .ElemNode => |nameElem| switch (body.node) {
-                .ElemNode => |bodyElem| {
-                    try self.declareGlobalAlias(nameElem, bodyElem);
-                },
-                else => {
+            else => {
+                if (try self.nodeToElem(body.node)) |bodyElem| {
+                    try self.declareGlobalAlias(head, bodyElem);
+                } else {
                     // A function without params
                     try self.declareGlobalFunction(head, ArrayList(*Ast.RNode){}, region);
-                },
+                }
             },
-            .InfixNode,
-            .Range,
-            .Negation,
-            .ValueLabel,
-            .Array,
-            .Object,
-            .StringTemplate,
-            .Conditional,
-            .DeclareGlobal,
-            => return Error.InvalidAst,
         }
     }
 
@@ -212,7 +201,7 @@ pub const Compiler = struct {
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
 
-        const nameElem = name.node.asElem() orelse return Error.InvalidAst;
+        const nameElem = try self.nodeToElem(name.node) orelse return Error.InvalidAst;
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
         const name_sid = switch (nameVar.getType()) {
             .ValueVar => nameVar.asValueVar(),
@@ -237,7 +226,7 @@ pub const Compiler = struct {
         try self.functions.append(self.vm.allocator, function);
 
         for (params.items) |param| {
-            if (param.node.asElem()) |elem| {
+            if (try self.nodeToElem(param.node)) |elem| {
                 _ = try self.addLocal(elem, param.region);
                 function.arity += 1;
             } else {
@@ -248,9 +237,10 @@ pub const Compiler = struct {
         _ = self.functions.pop();
     }
 
-    fn declareGlobalAlias(self: *Compiler, nameElem: Elem, bodyElem: Elem) !void {
+    fn declareGlobalAlias(self: *Compiler, head: *Ast.RNode, bodyElem: Elem) !void {
         // Add an alias to the global namespace. Set the given body element as the alias's value.
-        const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
+        const headElem = try self.nodeToElem(head.node) orelse return Error.InvalidAst;
+        const nameVar = try self.elemToVar(headElem) orelse return Error.InvalidAst;
         const name = switch (nameVar.getType()) {
             .ValueVar => nameVar.asValueVar(),
             .ParserVar => nameVar.asParserVar(),
@@ -262,18 +252,8 @@ pub const Compiler = struct {
 
     fn validateGlobal(self: *Compiler, head: *Ast.RNode) !void {
         const nameElem = switch (head.node) {
-            .Function => |function| function.name.node.asElem() orelse return Error.InvalidAst,
-            .ElemNode => |elem| elem,
-            .InfixNode,
-            .Range,
-            .Negation,
-            .ValueLabel,
-            .Array,
-            .Object,
-            .StringTemplate,
-            .Conditional,
-            .DeclareGlobal,
-            => return Error.InvalidAst,
+            .Function => |function| try self.nodeToElem(function.name.node) orelse return Error.InvalidAst,
+            else => try self.nodeToElem(head.node) orelse return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
 
@@ -387,7 +367,9 @@ pub const Compiler = struct {
         const globalVal = self.findGlobal(globalName).?;
 
         // Exit early if the node is an alias, not a function def
-        if (head.node.asElem() != null and body.node.asElem() != null) {
+        const headElem = try self.nodeToElem(head.node);
+        const bodyElem = try self.nodeToElem(body.node);
+        if (headElem != null and bodyElem != null) {
             return;
         }
 
@@ -416,18 +398,8 @@ pub const Compiler = struct {
 
     fn getGlobalName(self: *Compiler, head: *Ast.RNode) !StringTable.Id {
         const nameElem = switch (head.node) {
-            .Function => |function| function.name.node.asElem() orelse return Error.InvalidAst,
-            .ElemNode => |elem| elem,
-            .InfixNode,
-            .Range,
-            .Negation,
-            .ValueLabel,
-            .Array,
-            .Object,
-            .StringTemplate,
-            .Conditional,
-            .DeclareGlobal,
-            => return Error.InvalidAst,
+            .Function => |function| try self.nodeToElem(function.name.node) orelse return Error.InvalidAst,
+            else => try self.nodeToElem(head.node) orelse return Error.InvalidAst,
         };
         const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
         const name = switch (nameVar.getType()) {
@@ -496,8 +468,8 @@ pub const Compiler = struct {
                 if (bounds.lower != null and bounds.upper != null) {
                     const low = bounds.lower.?;
                     const high = bounds.upper.?;
-                    const low_elem = try getParserRangeElemNode(low);
-                    const high_elem = try getParserRangeElemNode(high);
+                    const low_elem = try self.getParserRangeElemNode(low);
+                    const high_elem = try self.getParserRangeElemNode(high);
 
                     if (low_elem.isType(.String) and high_elem.isType(.String)) {
                         const low_str = low_elem.asString();
@@ -545,7 +517,7 @@ pub const Compiler = struct {
                     }
                 } else if (bounds.lower != null) {
                     const low = bounds.lower.?;
-                    const low_elem = try getParserRangeElemNode(low);
+                    const low_elem = try self.getParserRangeElemNode(low);
                     const low_region = low.region;
 
                     if (low_elem.isType(.String)) {
@@ -575,7 +547,7 @@ pub const Compiler = struct {
                     }
                 } else {
                     const high = bounds.upper.?;
-                    const high_elem = try getParserRangeElemNode(high);
+                    const high_elem = try self.getParserRangeElemNode(high);
                     const high_region = high.region;
 
                     if (high_elem.isType(.String)) {
@@ -606,12 +578,34 @@ pub const Compiler = struct {
                 }
             },
             .Negation => |inner| {
-                const negated = try negateParserNumber(inner);
+                const negated = try self.negateParserNumber(inner);
                 const constId = try self.makeConstant(negated);
                 try self.emitUnaryOp(.GetConstant, constId, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
-            .ElemNode => try self.writeParserElem(rnode),
+            .ParserVar,
+            .False,
+            .True,
+            .Null,
+            => {
+                // In this context `true`/`false`/`null` could be a zero-arg function call
+                const elem = try self.nodeToElem(rnode.node) orelse return Error.InvalidAst;
+                try self.writeGetVar(elem, region);
+                try self.emitUnaryOp(.CallFunction, 0, region);
+            },
+            .NumberFloat,
+            .NumberString,
+            .String,
+            => {
+                const elem = try self.nodeToElem(rnode.node) orelse return Error.InvalidAst;
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.GetConstant, constId, region);
+                try self.emitUnaryOp(.CallFunction, 0, region);
+            },
+            .ValueVar => {
+                try self.printError(region, "Variable is only valid as a pattern or value", .{});
+                return Error.InvalidAst;
+            },
             .StringTemplate => |parts| {
                 try self.writeStringTemplate(parts, region, .Parser);
             },
@@ -620,7 +614,7 @@ pub const Compiler = struct {
                 try self.writeParser(conditional.condition, false);
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
                 try self.writeParser(conditional.then_branch, isTailPosition);
-                const thenElseJumpIndex = try self.emitJump(.ConditionalElse, region);
+                const thenElseJumpIndex = try self.emitJump(.Jump, region);
                 try self.patchJump(ifThenJumpIndex, region);
                 try self.writeParser(conditional.else_branch, isTailPosition);
                 try self.patchJump(thenElseJumpIndex, region);
@@ -635,8 +629,8 @@ pub const Compiler = struct {
         }
     }
 
-    fn negateParserNumber(rnode: *Ast.RNode) !Elem {
-        if (rnode.node.asElem()) |elem| {
+    fn negateParserNumber(self: *Compiler, rnode: *Ast.RNode) !Elem {
+        if (try self.nodeToElem(rnode.node)) |elem| {
             const negated = Elem.negateNumber(elem) catch |err| switch (err) {
                 error.ExpectedNumber => return Error.InvalidAst,
             };
@@ -646,11 +640,10 @@ pub const Compiler = struct {
         }
     }
 
-    fn getParserRangeElemNode(rnode: *Ast.RNode) !Elem {
+    fn getParserRangeElemNode(self: *Compiler, rnode: *Ast.RNode) !Elem {
         return switch (rnode.node) {
-            .ElemNode => |elem| elem,
-            .Negation => |inner| negateParserNumber(inner),
-            else => Error.InvalidAst,
+            .Negation => |inner| try self.negateParserNumber(inner),
+            else => try self.nodeToElem(rnode.node) orelse return Error.InvalidAst,
         };
     }
 
@@ -661,7 +654,7 @@ pub const Compiler = struct {
         call_region: Region,
         isTailPosition: bool,
     ) !void {
-        const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
+        const function_elem = try self.nodeToElem(function_rnode.node) orelse @panic("Internal Error");
         const function_region = function_rnode.region;
 
         const functionName = switch (function_elem.getType()) {
@@ -695,71 +688,89 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeParserElem(self: *Compiler, rnode: *Ast.RNode) !void {
-        const region = rnode.region;
+    fn writeParserRepeat(self: *Compiler, parser: *Ast.RNode, repeat: *Ast.RNode, region: Region) !void {
+        try self.simplifyPatternAst(repeat);
 
-        switch (rnode.node) {
-            .ElemNode => |elem| {
-                switch (elem.getType()) {
-                    .ParserVar => {
-                        try self.writeGetVar(elem, region);
-                        try self.emitUnaryOp(.CallFunction, 0, region);
-                    },
-                    .ValueVar => {
-                        try self.printError(region, "Variable is only valid as a pattern or value", .{});
-                        return Error.InvalidAst;
-                    },
-                    .String,
-                    .NumberString,
-                    => {
-                        const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, region);
-                        try self.emitUnaryOp(.CallFunction, 0, region);
-                    },
-                    .Const => switch (elem.asConst()) {
-                        .True, .False, .Null => {
-                            // In this context `true`/`false`/`null` could be a zero-arg function call
-                            try self.writeGetVar(elem, region);
-                            try self.emitUnaryOp(.CallFunction, 0, region);
-                        },
-                        .Failure => return Error.InvalidAst,
-                    },
-                    .NumberFloat,
-                    .InputSubstring,
-                    .Dyn,
-                    => @panic("Internal Error"),
+        switch (repeat.node) {
+            .NumberFloat,
+            .NumberString,
+            => {
+                return self.writeParserRepeatCount(parser, repeat, region);
+            },
+            .Range => |bounds| {
+                if (bounds.lower != null and bounds.upper != null) {
+                    const lower = bounds.lower.?;
+                    const upper = bounds.upper.?;
+
+                    if (self.isBoundedRepeatCount(lower) and self.isBoundedRepeatCount(upper)) {
+                        // Both bounds: repeat between min and max times
+                        try self.writeParserRepeatRangeBounded(parser, lower, upper, region);
+                    } else if (self.isBoundedRepeatCount(lower)) {
+                        // Lower bound number, upper bound pattern
+                        try self.writeParserRepeatRangeLowerBounded(parser, lower, upper, region);
+                    } else if (self.isBoundedRepeatCount(upper)) {
+                        // Upper bound number, lower bound pattern
+                        try self.writeParserRepeatRangeUpperBounded(parser, lower, upper, region);
+                    } else {
+                        // Pattern matching fallback
+                        try self.writeParserRepeatUnknownCount(parser, repeat, region);
+                    }
+                } else if (bounds.lower != null and self.isBoundedRepeatCount(bounds.lower.?)) {
+                    // Lower bound only: repeat at least n times
+                    try self.writeParserRepeatRangeLowerBounded(parser, bounds.lower.?, null, region);
+                } else if (bounds.upper != null and self.isBoundedRepeatCount(bounds.upper.?)) {
+                    // Upper bound only: repeat at most n times
+                    try self.writeParserRepeatRangeUpperBounded(parser, null, bounds.upper.?, region);
+                } else {
+                    // Pattern matching fallback
+                    try self.writeParserRepeatUnknownCount(parser, repeat, region);
                 }
             },
-            else => @panic("Internal Error"),
-        }
-    }
-
-    fn writeParserRepeat(self: *Compiler, parser: *Ast.RNode, repeat: *Ast.RNode, region: Region) !void {
-        try self.simplifyValueOrPattern(repeat);
-        var pattern = try self.astToPattern(repeat, 0);
-
-        switch (pattern) {
-            .Merge => @panic("TODO"),
-            .Repeat => @panic("TODO"),
-            .Number => |count| {
-                const count_node = try self.ast.createElem(Elem.numberFloat(count), repeat.region);
-                pattern.deinit(self.vm.allocator);
-                return self.writeParserRepeatCount(parser, count_node, region);
+            .ValueVar => {
+                const elem = try self.nodeToElem(repeat.node) orelse return Error.InvalidAst;
+                const name = elem.asValueVar();
+                if (self.findGlobal(name)) |globalElem| {
+                    if (globalElem.isNumber()) {
+                        try self.writeParserRepeatCount(parser, repeat, region);
+                    } else {
+                        return Error.InvalidAst;
+                    }
+                } else if (self.localSlot(name)) |slot| {
+                    // The local var is a function arg, so we know it's bound
+                    if (self.currentFunction().arity > slot) {
+                        try self.writeParserRepeatCount(parser, repeat, region);
+                    } else {
+                        try self.emitUnaryOp(.GetLocal, slot, repeat.region);
+                        const knownCountJump = try self.emitJump(.JumpIfBound, repeat.region);
+                        try self.writeParserRepeatUnknownCount(parser, repeat, region);
+                        const endJump = try self.emitJump(.Jump, repeat.region);
+                        try self.patchJump(knownCountJump, region);
+                        try self.writeParserRepeatCount(parser, repeat, region);
+                        try self.patchJump(endJump, region);
+                        try self.emitOp(.Swap, region);
+                        try self.emitOp(.Drop, region);
+                    }
+                } else {
+                    @panic("Internal Error");
+                }
             },
-            .Range => @panic("TODO"),
-            .Constant => @panic("TODO"),
-            .Local => @panic("TODO"),
-            else => return error.InvalidAst,
+            else => {
+                if (self.isBoundedRepeatCount(repeat)) {
+                    try self.writeParserRepeatCount(parser, repeat, region);
+                } else {
+                    try self.writeParserRepeatUnknownCount(parser, repeat, region);
+                }
+            },
         }
     }
 
-    fn writeParserRepeatCount(self: *Compiler, parser: *Ast.RNode, count: *Ast.RNode, repeat_region: Region) !void {
+    fn writeParserRepeatCount(self: *Compiler, parser: *Ast.RNode, count: *Ast.RNode, repeat_region: Region) Error!void {
         // Value accumulator
         const nullId = try self.makeConstant(Elem.nullConst);
         try self.emitUnaryOp(.GetConstant, nullId, parser.region);
 
         // Create the counter, validate it, if it starts at zero
-        // then skip to the end, returning null
+        // then skip to the end and return null
         try self.writeValue(count, false);
         try self.emitOp(.ValidateRepeatPattern, count.region);
         const nullJump = try self.emitJump(.JumpIfZero, repeat_region);
@@ -793,6 +804,292 @@ pub const Compiler = struct {
         try self.emitOp(.Drop, count.region);
     }
 
+    fn writeParserRepeatUnknownCount(self: *Compiler, parser: *Ast.RNode, count: *Ast.RNode, repeat_region: Region) Error!void {
+        // Count accumulator
+        const zero_id = try self.makeConstant(Elem.numberFloat(0));
+        try self.emitUnaryOp(.GetConstant, zero_id, count.region);
+
+        // Value accumulator
+        const null_id = try self.makeConstant(Elem.nullConst);
+        try self.emitUnaryOp(.GetConstant, null_id, parser.region);
+
+        // Start of the parse loop
+        const loopStart = self.chunk().code.items.len;
+
+        // Run parser, end loop if failure, otherwise accumulate
+        try self.emitOp(.SetInputMark, parser.region);
+        try self.writeParser(parser, false);
+        const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
+        try self.emitOp(.PopInputMark, parser.region);
+        try self.emitOp(.Merge, parser.region);
+
+        // Increment count
+        try self.emitOp(.Swap, repeat_region);
+        try self.emitOp(.Increment, count.region);
+        try self.emitOp(.Swap, repeat_region);
+
+        // Parse again
+        try self.emitJumpBack(.JumpBack, loopStart, repeat_region);
+
+        // When we fail the stack has [..., count, acc, failure]
+        // Drop the failure, destructure the count, return acc
+        try self.patchJump(failureJump, parser.region);
+        try self.emitOp(.ResetInput, parser.region);
+        try self.emitOp(.Drop, parser.region);
+        try self.emitOp(.Swap, count.region);
+        const patternId = try self.createPattern(count);
+        try self.emitUnaryOp(.Destructure, patternId, repeat_region);
+
+        // Cleanup: drop the counter
+        try self.emitOp(.Drop, parser.region);
+    }
+
+    fn writeParserRepeatRangeBounded(self: *Compiler, parser: *Ast.RNode, lower: *Ast.RNode, upper: *Ast.RNode, region: Region) Error!void {
+        // Value accumulator
+        const nullId = try self.makeConstant(Elem.nullConst);
+        try self.emitUnaryOp(.GetConstant, nullId, region);
+
+        // Create the counter, validate it, if it starts at zero
+        // then skip the lower bound loop
+        try self.writeValue(lower, false);
+        try self.emitOp(.ValidateRepeatPattern, lower.region);
+        const skipLowerBoundJump = try self.emitJump(.JumpIfZero, region);
+
+        // At the start of each loop swap the accumulator back to
+        // the top of the stack
+        const loopStartRequired = self.chunk().code.items.len;
+        try self.emitOp(.Swap, region);
+
+        // Run parser, accumulate, end loop if failure
+        try self.writeParser(parser, false);
+        try self.emitOp(.Merge, parser.region);
+        const failureLowerBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
+
+        // If count is zero end loop
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Decrement, lower.region);
+        const doneLowerBoundJump = try self.emitJump(.JumpIfZero, region);
+
+        // Otherwise return to loop start
+        try self.emitJumpBack(.JumpBack, loopStartRequired, region);
+
+        try self.patchJump(skipLowerBoundJump, region);
+        try self.patchJump(doneLowerBoundJump, region);
+
+        // Drop the old counter (it's 0), create a new counter to parse up to
+        // to `upper - lower` more times (optional)
+        try self.emitOp(.Drop, region);
+        try self.writeValue(upper, false);
+        try self.writeValue(lower, false);
+        try self.emitOp(.NegateNumber, region);
+        try self.emitOp(.Merge, region);
+        try self.emitOp(.ValidateRepeatPattern, upper.region);
+        const skipUpperBoundJump = try self.emitJump(.JumpIfZero, region);
+
+        // Optional iterations
+        const loopStart = self.chunk().code.items.len;
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.SetInputMark, parser.region);
+        try self.writeParser(parser, false);
+        const failureUpperBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
+        try self.emitOp(.PopInputMark, parser.region);
+        try self.emitOp(.Merge, parser.region);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Decrement, upper.region);
+        const doneJump = try self.emitJump(.JumpIfZero, region);
+        try self.emitJumpBack(.JumpBack, loopStart, region);
+
+        // Parser failed, stack is [..., count, acc, failure]
+        try self.patchJump(failureUpperBoundJump, parser.region);
+        try self.emitOp(.ResetInput, parser.region);
+        try self.emitOp(.Drop, parser.region);
+
+        // Got here by failing before reaching the minimum number of iters. The
+        // stack is [..., count, failure] and we want to return failure
+        try self.patchJump(failureLowerBoundJump, region);
+
+        // Swap up the count
+        try self.emitOp(.Swap, region);
+
+        // Got here by matching against a zero count, stack is [..., acc, count]
+        try self.patchJump(skipUpperBoundJump, region);
+        try self.patchJump(doneJump, region);
+
+        try self.emitOp(.Drop, region);
+    }
+
+    fn writeParserRepeatRangeLowerBounded(self: *Compiler, parser: *Ast.RNode, lower: *Ast.RNode, upper_pattern: ?*Ast.RNode, region: Region) Error!void {
+        // Value accumulator
+        const nullId = try self.makeConstant(Elem.nullConst);
+        try self.emitUnaryOp(.GetConstant, nullId, region);
+
+        // Create the counter, validate it, if it starts at zero
+        // then skip the lower bound loop
+        try self.writeValue(lower, false);
+        try self.emitOp(.ValidateRepeatPattern, lower.region);
+        const skipLowerBoundJump = try self.emitJump(.JumpIfZero, region);
+
+        // At the start of each loop swap the accumulator back to
+        // the top of the stack
+        const loopStartRequired = self.chunk().code.items.len;
+        try self.emitOp(.Swap, region);
+
+        // Run parser, accumulate, end loop if failure
+        try self.writeParser(parser, false);
+        try self.emitOp(.Merge, parser.region);
+        const failureLowerBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
+
+        // If count is zero end loop
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Decrement, lower.region);
+        const doneLowerBoundJump = try self.emitJump(.JumpIfZero, region);
+
+        // Otherwise return to loop start
+        try self.emitJumpBack(.JumpBack, loopStartRequired, region);
+
+        // Now continue parsing indefinitely (optional iterations)
+        try self.patchJump(skipLowerBoundJump, region);
+        try self.patchJump(doneLowerBoundJump, region);
+
+        // Count under acc
+        try self.emitOp(.Swap, region);
+
+        // Unbounded loop
+        const loopStartOptional = self.chunk().code.items.len;
+
+        // Run parser, end loop if failure, otherwise accumulate
+        try self.emitOp(.SetInputMark, parser.region);
+        try self.writeParser(parser, false);
+        const failureJumpOptional = try self.emitJump(.JumpIfFailure, parser.region);
+        try self.emitOp(.PopInputMark, parser.region);
+        try self.emitOp(.Merge, parser.region);
+
+        // If there's an upper bound to pattern match against then count iterations
+        if (upper_pattern) |upper| {
+            try self.emitOp(.Swap, region);
+            try self.emitOp(.Increment, upper.region);
+            try self.emitOp(.Swap, upper.region);
+        }
+
+        // Parse again
+        try self.emitJumpBack(.JumpBack, loopStartOptional, region);
+
+        // When we fail the stack has [..., count, acc, failure]
+        // Drop the failure, maybe destructure the count, return acc
+        try self.patchJump(failureJumpOptional, parser.region);
+        try self.emitOp(.ResetInput, parser.region);
+        try self.emitOp(.Drop, parser.region);
+
+        // Swap up the count, add the lower to get the total number of iters, destructure
+        if (upper_pattern) |upper| {
+            try self.emitOp(.Swap, upper.region);
+            try self.writeValue(lower, false);
+            try self.emitOp(.Merge, parser.region);
+            const patternId = try self.createPattern(upper);
+            try self.emitUnaryOp(.Destructure, patternId, upper.region);
+            try self.emitOp(.Swap, region);
+        }
+
+        try self.patchJump(failureLowerBoundJump, region);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Drop, region);
+    }
+
+    fn writeParserRepeatRangeUpperBounded(self: *Compiler, parser: *Ast.RNode, lower_pattern: ?*Ast.RNode, upper: *Ast.RNode, region: Region) Error!void {
+        // Value accumulator
+        const nullId = try self.makeConstant(Elem.nullConst);
+        try self.emitUnaryOp(.GetConstant, nullId, region);
+
+        // Create the counter, validate it, if it starts at zero
+        // then skip to end and return null
+        try self.writeValue(upper, false);
+        try self.emitOp(.ValidateRepeatPattern, upper.region);
+        const nullJump = try self.emitJump(.JumpIfZero, region);
+
+        // Loop for up to `upper` iterations (all optional)
+        const loopStart = self.chunk().code.items.len;
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.SetInputMark, parser.region);
+        try self.writeParser(parser, false);
+        const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
+        try self.emitOp(.PopInputMark, parser.region);
+        try self.emitOp(.Merge, parser.region);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Decrement, upper.region);
+        const doneJump = try self.emitJump(.JumpIfZero, region);
+        try self.emitJumpBack(.JumpBack, loopStart, region);
+
+        // Parser failed, stack is [..., count, acc, failure]
+        // Drop the failure and swap up the count so we can pattern match/cleanup
+        try self.patchJump(failureJump, parser.region);
+        try self.emitOp(.ResetInput, parser.region);
+        try self.emitOp(.Drop, parser.region);
+        try self.emitOp(.Swap, region);
+
+        try self.patchJump(nullJump, region);
+        try self.patchJump(doneJump, region);
+
+        if (lower_pattern) |lower| {
+            // Use the remaining count to figure out the number of successful iters
+            //   upper - count = completed
+            // But since the count is on the stack we do
+            //   -count + upper = completed
+            try self.emitOp(.NegateNumber, region);
+            try self.writeValue(upper, false);
+            try self.emitOp(.Merge, region);
+            const patternId = try self.createPattern(lower);
+            try self.emitUnaryOp(.Destructure, patternId, lower.region);
+        }
+
+        try self.emitOp(.Drop, region);
+    }
+
+    fn isBoundedRepeatCount(self: *Compiler, rnode: *Ast.RNode) bool {
+        return switch (rnode.node) {
+            .Function => true,
+            .False,
+            .Null,
+            .NumberFloat,
+            .NumberString,
+            .ParserVar,
+            .String,
+            .True,
+            => true,
+            .ValueVar => {
+                const elem = self.nodeToElem(rnode.node) catch return false;
+                const name = elem.?.asValueVar();
+
+                if (self.findGlobal(name) != null) return true;
+
+                if (self.localSlot(name)) |slot| {
+                    return self.currentFunction().arity > slot;
+                } else {
+                    return false;
+                }
+            },
+            .InfixNode => |infix| self.isBoundedRepeatCount(infix.left) and self.isBoundedRepeatCount(infix.left),
+            .Range => |range| {
+                if (range.lower) |lower| {
+                    const lower_good = self.isBoundedRepeatCount(lower);
+                    if (!lower_good) return false;
+                }
+                if (range.upper) |upper| {
+                    const upper_good = self.isBoundedRepeatCount(upper);
+                    if (!upper_good) return false;
+                }
+                return true;
+            },
+            .Negation => |inner| self.isBoundedRepeatCount(inner),
+            .ValueLabel => |inner| self.isBoundedRepeatCount(inner),
+            .Array,
+            .Object,
+            .StringTemplate,
+            .Conditional,
+            .DeclareGlobal,
+            => false,
+        };
+    }
+
     fn writeGetVar(self: *Compiler, elem: Elem, region: Region) !void {
         const varName = switch (elem.getType()) {
             .ParserVar => elem.asParserVar(),
@@ -818,6 +1115,26 @@ pub const Compiler = struct {
                 return Error.UndefinedVariable;
             }
         }
+    }
+
+    fn nodeToElem(self: *Compiler, node: Ast.Node) !?Elem {
+        const result = switch (node) {
+            .False => Elem.boolean(false),
+            .Null => Elem.nullConst,
+            .NumberFloat => |f| Elem.numberFloat(f),
+            .NumberString => |s| {
+                var number_string_elem = try Elem.NumberStringElem.new(s.number, self.vm);
+                number_string_elem.negated = s.negated;
+                return number_string_elem.elem();
+            },
+            .ParserVar => |s| Elem.parserVar(try self.vm.strings.insert(s)),
+            .String => |s| Elem.string(try self.vm.strings.insert(s)),
+            .True => Elem.boolean(true),
+            .ValueVar => |s| Elem.valueVar(try self.vm.strings.insert(s)),
+            else => null,
+        };
+
+        return result;
     }
 
     fn elemToVar(self: *Compiler, elem: Elem) !?Elem {
@@ -908,7 +1225,16 @@ pub const Compiler = struct {
                 => {
                     try self.writeAnonymousFunction(rnode);
                 },
-                .ElemNode => |elem| {
+                .False,
+                .Null,
+                .NumberFloat,
+                .NumberString,
+                .ParserVar,
+                .String,
+                .True,
+                .ValueVar,
+                => {
+                    const elem = try self.nodeToElem(rnode.node) orelse return Error.InvalidAst;
                     if (elem.isType(.ParserVar)) {
                         try self.writeGetVar(elem, region);
                     } else {
@@ -991,74 +1317,85 @@ pub const Compiler = struct {
         const region = rnode.region;
 
         switch (node) {
-            .ElemNode => |elem| switch (elem.getType()) {
-                .ValueVar => {
-                    const name = elem.asValueVar();
-                    if (self.findGlobal(name)) |globalElem| {
-                        const constId = try self.makeConstant(globalElem);
-                        return Pattern{ .Constant = .{
-                            .sid = name,
-                            .idx = constId,
-                            .negation_count = negation_count,
-                        } };
-                    } else if (self.localSlot(name)) |slot| {
-                        return Pattern{ .Local = .{
-                            .sid = name,
-                            .idx = slot,
-                            .negation_count = negation_count,
-                        } };
-                    } else {
-                        @panic("Internal Error");
-                    }
-                },
-                .String => {
-                    if (negation_count > 0) {
-                        try self.printError(region, "Invalid pattern - unable to negate string", .{});
+            .False,
+            .Null,
+            .NumberFloat,
+            .NumberString,
+            .ParserVar,
+            .String,
+            .True,
+            .ValueVar,
+            => {
+                const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
+                switch (elem.getType()) {
+                    .ValueVar => {
+                        const name = elem.asValueVar();
+                        if (self.findGlobal(name)) |globalElem| {
+                            const constId = try self.makeConstant(globalElem);
+                            return Pattern{ .Constant = .{
+                                .sid = name,
+                                .idx = constId,
+                                .negation_count = negation_count,
+                            } };
+                        } else if (self.localSlot(name)) |slot| {
+                            return Pattern{ .Local = .{
+                                .sid = name,
+                                .idx = slot,
+                                .negation_count = negation_count,
+                            } };
+                        } else {
+                            @panic("Internal Error");
+                        }
+                    },
+                    .String => {
+                        if (negation_count > 0) {
+                            try self.printError(region, "Invalid pattern - unable to negate string", .{});
+                            return Error.InvalidAst;
+                        }
+                        return Pattern{ .String = elem.asString() };
+                    },
+                    .NumberString => {
+                        const ns = elem.asNumberString();
+                        const maybe_negated = if (negation_count % 2 == 1) ns.negate() else ns;
+                        const number = try maybe_negated.toNumberFloat(self.vm.strings);
+                        return Pattern{ .Number = number.asFloat() };
+                    },
+                    .NumberFloat => {
+                        return Pattern{ .Number = elem.asFloat() };
+                    },
+                    .Const => switch (elem.asConst()) {
+                        .True => {
+                            if (negation_count > 0) {
+                                try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
+                                return Error.InvalidAst;
+                            }
+                            return Pattern{ .Boolean = true };
+                        },
+                        .False => {
+                            if (negation_count > 0) {
+                                try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
+                                return Error.InvalidAst;
+                            }
+                            return Pattern{ .Boolean = false };
+                        },
+                        .Null => {
+                            if (negation_count > 0) {
+                                try self.printError(region, "Invalid pattern - unable to negate null", .{});
+                                return Error.InvalidAst;
+                            }
+                            return Pattern{ .Null = undefined };
+                        },
+                        .Failure => return Error.InvalidAst,
+                    },
+                    .ParserVar => {
+                        try self.printError(region, "Parser variable not allowed in pattern", .{});
                         return Error.InvalidAst;
-                    }
-                    return Pattern{ .String = elem.asString() };
-                },
-                .NumberString => {
-                    const ns = elem.asNumberString();
-                    const maybe_negated = if (negation_count % 2 == 1) ns.negate() else ns;
-                    const number = try maybe_negated.toNumberFloat(self.vm.strings);
-                    return Pattern{ .Number = number.asFloat() };
-                },
-                .NumberFloat => {
-                    return Pattern{ .Number = elem.asFloat() };
-                },
-                .Const => switch (elem.asConst()) {
-                    .True => {
-                        if (negation_count > 0) {
-                            try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
-                            return Error.InvalidAst;
-                        }
-                        return Pattern{ .Boolean = true };
                     },
-                    .False => {
-                        if (negation_count > 0) {
-                            try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
-                            return Error.InvalidAst;
-                        }
-                        return Pattern{ .Boolean = false };
+                    else => {
+                        try self.printError(region, "Invalid AST in pattern", .{});
+                        return Error.InvalidAst;
                     },
-                    .Null => {
-                        if (negation_count > 0) {
-                            try self.printError(region, "Invalid pattern - unable to negate null", .{});
-                            return Error.InvalidAst;
-                        }
-                        return Pattern{ .Null = undefined };
-                    },
-                    .Failure => return Error.InvalidAst,
-                },
-                .ParserVar => {
-                    try self.printError(region, "Parser variable not allowed in pattern", .{});
-                    return Error.InvalidAst;
-                },
-                else => {
-                    try self.printError(region, "Invalid AST in pattern", .{});
-                    return Error.InvalidAst;
-                },
+                }
             },
             .Array => |elements| {
                 if (negation_count > 0) {
@@ -1137,10 +1474,7 @@ pub const Compiler = struct {
                 const nameNode = function.name.node;
 
                 const functionName = switch (nameNode) {
-                    .ElemNode => |elem| switch (elem.getType()) {
-                        .ValueVar => elem.asValueVar(),
-                        else => return Error.InvalidAst,
-                    },
+                    .ValueVar => |s| try self.vm.strings.insert(s),
                     else => return Error.InvalidAst,
                 };
 
@@ -1270,16 +1604,24 @@ pub const Compiler = struct {
                 try self.addValueLocals(declaration.head);
                 try self.addValueLocals(declaration.body);
             },
-            .ElemNode => |elem| switch (elem.getType()) {
-                .ValueVar => if (self.findGlobal(elem.asValueVar()) == null) {
+            .ValueVar => {
+                const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
+                if (self.findGlobal(elem.asValueVar()) == null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
                     if (newLocalId) |_| {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, region);
                     }
-                },
-                else => {},
+                }
             },
+            .False,
+            .Null,
+            .NumberFloat,
+            .NumberString,
+            .ParserVar,
+            .String,
+            .True,
+            => {},
         }
     }
 
@@ -1326,23 +1668,31 @@ pub const Compiler = struct {
                 try self.addClosureLocals(conditional.else_branch);
             },
             .DeclareGlobal => @panic("internal error"),
-            .ElemNode => |elem| {
+            .ValueVar,
+            .ParserVar,
+            => {
+                const elem = try self.nodeToElem(node) orelse unreachable;
                 const varName = switch (elem.getType()) {
                     .ValueVar => elem.asValueVar(),
                     .ParserVar => elem.asParserVar(),
-                    else => null,
+                    else => @panic("Internal Error"),
                 };
 
-                if (varName) |name| {
-                    if (self.parentFunction().localSlot(name) != null) {
-                        const newLocalId = try self.addLocalIfUndefined(elem, region);
-                        if (newLocalId) |_| {
-                            const constId = try self.makeConstant(elem);
-                            try self.emitUnaryOp(.GetConstant, constId, region);
-                        }
+                if (self.parentFunction().localSlot(varName) != null) {
+                    const newLocalId = try self.addLocalIfUndefined(elem, region);
+                    if (newLocalId) |_| {
+                        const constId = try self.makeConstant(elem);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
                     }
                 }
             },
+            .False,
+            .Null,
+            .NumberFloat,
+            .NumberString,
+            .String,
+            .True,
+            => {},
         }
     }
 
@@ -1416,25 +1766,21 @@ pub const Compiler = struct {
                 try self.writeValueArgument(conditional.condition, false);
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
                 try self.writeValueArgument(conditional.then_branch, isTailPosition);
-                const thenElseJumpIndex = try self.emitJump(.ConditionalElse, region);
+                const thenElseJumpIndex = try self.emitJump(.Jump, region);
                 try self.patchJump(ifThenJumpIndex, region);
                 try self.writeValueArgument(conditional.else_branch, isTailPosition);
                 try self.patchJump(thenElseJumpIndex, region);
             },
-            .ElemNode => |elem| switch (elem.getType()) {
-                .String => {
-                    return error.UnlabeledStringValue;
-                },
-                .NumberString => {
-                    return error.UnlabeledNumberValue;
-                },
-                .Const => switch (elem.asConst()) {
-                    .True, .False => return error.UnlabeledBooleanValue,
-                    .Null => return error.UnlabeledNullValue,
-                    .Failure => return Error.InvalidAst,
-                },
-                else => try writeValue(self, rnode, isTailPosition),
+            .String => {
+                return error.UnlabeledStringValue;
             },
+            .NumberString,
+            .NumberFloat,
+            => {
+                return error.UnlabeledNumberValue;
+            },
+            .True, .False => return error.UnlabeledBooleanValue,
+            .Null => return error.UnlabeledNullValue,
             else => try writeValue(self, rnode, isTailPosition),
         }
     }
@@ -1520,7 +1866,7 @@ pub const Compiler = struct {
                 try self.writeValue(conditional.condition, false);
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
                 try self.writeValue(conditional.then_branch, isTailPosition);
-                const thenElseJumpIndex = try self.emitJump(.ConditionalElse, region);
+                const thenElseJumpIndex = try self.emitJump(.Jump, region);
                 try self.patchJump(ifThenJumpIndex, region);
                 try self.writeValue(conditional.else_branch, isTailPosition);
                 try self.patchJump(thenElseJumpIndex, region);
@@ -1528,66 +1874,48 @@ pub const Compiler = struct {
             .Function => |function| {
                 try self.writeValueFunctionCall(function.name, function.paramsOrArgs, region, isTailPosition);
             },
-            .ElemNode => |elem| switch (elem.getType()) {
-                .ParserVar => {
-                    try self.printError(region, "Parser is not valid in value", .{});
-                    return Error.InvalidAst;
-                },
-                .ValueVar => {
-                    const name = elem.asValueVar();
-                    if (self.localSlot(name)) |slot| {
-                        // This local will either be a concrete value or
-                        // unbound, it won't be a function. Value functions are
-                        // all defined globally and called immediately. This
-                        // means that if a function takes a value function as
-                        // an arg then the value function will be called before
-                        // the outer function, and the value used when calling
-                        // the outer function will be concrete.
-                        try self.emitUnaryOp(.GetBoundLocal, slot, region);
-                    } else if (self.findGlobal(name)) |globalElem| {
-                        const constId = try self.makeConstant(globalElem);
-                        try self.emitUnaryOp(.GetConstant, constId, region);
-                        if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
-                            if (isTailPosition) {
-                                try self.emitUnaryOp(.CallTailFunction, 0, region);
-                            } else {
-                                try self.emitUnaryOp(.CallFunction, 0, region);
-                            }
-                        }
-                    } else {
-                        try self.writers.err.print("{s}\n", .{self.vm.strings.get(name)});
-                        return Error.UndefinedVariable;
-                    }
-                },
-                .String,
-                .NumberString,
-                .NumberFloat,
-                => {
-                    const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, region);
-                },
-                .Const => switch (elem.asConst()) {
-                    .True => try self.emitOp(.True, region),
-                    .False => try self.emitOp(.False, region),
-                    .Null => try self.emitOp(.Null, region),
-                    .Failure => return Error.InvalidAst,
-                },
-                .InputSubstring,
-                => @panic("Internal Error"), // not produced by the parser
-                .Dyn => switch (elem.asDyn().dynType) {
-                    .String,
-                    .Function,
-                    .NativeCode,
-                    .Closure,
-                    => @panic("Internal Error"), // not produced by the parser
-                    .Array,
-                    .Object,
-                    => {
-                        const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, region);
-                    },
-                },
+            .ParserVar => {
+                try self.printError(region, "Parser is not valid in value", .{});
+                return Error.InvalidAst;
             },
+            .ValueVar => {
+                const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
+                const name = elem.asValueVar();
+                if (self.localSlot(name)) |slot| {
+                    // This local will either be a concrete value or
+                    // unbound, it won't be a function. Value functions are
+                    // all defined globally and called immediately. This
+                    // means that if a function takes a value function as
+                    // an arg then the value function will be called before
+                    // the outer function, and the value used when calling
+                    // the outer function will be concrete.
+                    try self.emitUnaryOp(.GetBoundLocal, slot, region);
+                } else if (self.findGlobal(name)) |globalElem| {
+                    const constId = try self.makeConstant(globalElem);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
+                    if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
+                        if (isTailPosition) {
+                            try self.emitUnaryOp(.CallTailFunction, 0, region);
+                        } else {
+                            try self.emitUnaryOp(.CallFunction, 0, region);
+                        }
+                    }
+                } else {
+                    try self.writers.err.print("{s}\n", .{self.vm.strings.get(name)});
+                    return Error.UndefinedVariable;
+                }
+            },
+            .String,
+            .NumberString,
+            .NumberFloat,
+            => {
+                const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.GetConstant, constId, region);
+            },
+            .True => try self.emitOp(.True, region),
+            .False => try self.emitOp(.False, region),
+            .Null => try self.emitOp(.Null, region),
         }
     }
 
@@ -1598,7 +1926,7 @@ pub const Compiler = struct {
         call_region: Region,
         isTailPosition: bool,
     ) !void {
-        const function_elem = function_rnode.node.asElem() orelse @panic("internal error");
+        const function_elem = try self.nodeToElem(function_rnode.node) orelse @panic("internal error");
         const function_region = function_rnode.region;
 
         const functionName = switch (function_elem.getType()) {
@@ -1706,11 +2034,19 @@ pub const Compiler = struct {
 
     fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) Error!void {
         switch (rnode.node) {
-            .ElemNode => |elem| switch (elem.getType()) {
-                .ValueVar => try self.appendDynamicValue(array, rnode, index, region),
-                else => {
-                    try array.append(self.vm, elem);
-                },
+            .ValueVar => {
+                try self.appendDynamicValue(array, rnode, index, region);
+            },
+            .False,
+            .Null,
+            .NumberFloat,
+            .NumberString,
+            .ParserVar,
+            .String,
+            .True,
+            => {
+                const elem = try self.nodeToElem(rnode.node) orelse return Error.InvalidAst;
+                try array.append(self.vm, elem);
             },
             .InfixNode => try self.appendDynamicValue(array, rnode, index, region),
             .Function => try self.appendDynamicValue(array, rnode, index, region),
@@ -1739,7 +2075,7 @@ pub const Compiler = struct {
             },
             .Conditional => try self.appendDynamicValue(array, rnode, index, region),
             .Negation => |inner| {
-                if (simplifyNegatedNumberNode(rnode)) |elem| {
+                if (self.simplifyNegatedNumberNode(rnode)) |elem| {
                     try array.append(self.vm, elem);
                 } else {
                     try self.negateAndAppendDynamicValue(array, inner, index, region);
@@ -1806,9 +2142,8 @@ pub const Compiler = struct {
         // Check if the first part is a string - if not, we need an empty
         // string on the stack for `MergeAsString`
         const firstPart = parts.items[0];
-        const firstPartIsString = if (firstPart.node.asElem()) |elem| elem.isType(.String) else false;
 
-        if (!firstPartIsString) {
+        if (firstPart.node != .String) {
             const empty_string = try self.makeConstant(Elem.string(try self.vm.strings.insert("")));
             try self.emitUnaryOp(.GetConstant, empty_string, region);
         }
@@ -1816,7 +2151,7 @@ pub const Compiler = struct {
         // Write all parts with MergeAsString between each part after the first two
         for (parts.items, 0..) |part, i| {
             try self.writeStringTemplatePart(part, context);
-            if (i > 0 or !firstPartIsString) {
+            if (i > 0 or firstPart.node != .String) {
                 try self.emitOp(.MergeAsString, region);
             }
         }
@@ -1831,10 +2166,13 @@ pub const Compiler = struct {
 
     fn literalPatternToElem(self: *Compiler, rnode: *Ast.RNode) !?Elem {
         return switch (rnode.node) {
-            .ElemNode => |elem| switch (elem.getType()) {
-                .String, .InputSubstring, .NumberString, .NumberFloat, .Const => elem,
-                else => null,
-            },
+            .String,
+            .NumberString,
+            .NumberFloat,
+            .False,
+            .True,
+            .Null,
+            => self.nodeToElem(rnode.node),
             .Array => |elements| if (elements.items.len == 0) blk: {
                 var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
                 break :blk emptyArray.dyn.elem();
@@ -1847,49 +2185,41 @@ pub const Compiler = struct {
         };
     }
 
-    fn simplifyValueOrPattern(self: *Compiler, rnode: *Ast.RNode) !void {
+    fn simplifyPatternAst(self: *Compiler, rnode: *Ast.RNode) !void {
         switch (rnode.node) {
             .InfixNode => |infix| {
-                try self.simplifyValueOrPattern(infix.left);
-                try self.simplifyValueOrPattern(infix.right);
+                try self.simplifyPatternAst(infix.left);
+                try self.simplifyPatternAst(infix.right);
 
                 switch (infix.infixType) {
                     .Merge => {
-                        if (infix.left.node.asElem()) |left| {
-                            if (infix.right.node.asElem()) |right| {
-                                if (try left.merge(right, self.vm)) |merged| {
-                                    rnode.node = .{ .ElemNode = merged };
-                                }
-                            }
+                        if (try self.ast.merge(infix.left.node, infix.right.node)) |merged| {
+                            rnode.node = merged;
                         }
                     },
                     .TakeLeft => {
-                        if (infix.left.node == .ElemNode and infix.right.node == .ElemNode) {
+                        if (infix.left.node.isElem() and infix.right.node.isElem()) {
                             rnode.node = infix.left.node;
                         }
                     },
                     .TakeRight => {
-                        if (infix.left.node == .ElemNode and infix.right.node == .ElemNode) {
+                        if (infix.left.node.isElem() and infix.right.node.isElem()) {
                             rnode.node = infix.right.node;
                         }
                     },
                     .Or => {
-                        if (infix.left.node == .ElemNode) {
+                        if (infix.left.node.isElem()) {
                             rnode.node = infix.left.node;
                         }
                     },
                     .Return => {
-                        if (infix.left.node == .ElemNode and infix.right.node == .ElemNode) {
+                        if (infix.left.node.isElem() and infix.right.node.isElem()) {
                             rnode.node = infix.right.node;
                         }
                     },
                     .Repeat => {
-                        if (infix.left.node.asElem()) |left| {
-                            if (infix.right.node.asElem()) |right| {
-                                if (try left.repeat(right, self.vm)) |repeated| {
-                                    rnode.node = .{ .ElemNode = repeated };
-                                }
-                            }
+                        if (try self.ast.repeat(infix.left.node, infix.right.node)) |repeated| {
+                            rnode.node = repeated;
                         }
                     },
                     .Backtrack,
@@ -1897,37 +2227,64 @@ pub const Compiler = struct {
                     => {},
                 }
             },
-            .Range => {},
+            .Range => |range| {
+                if (range.lower) |lower| try self.simplifyPatternAst(lower);
+                if (range.upper) |upper| try self.simplifyPatternAst(upper);
+            },
             .Negation => |inner| {
-                try self.simplifyValueOrPattern(inner);
-                if (inner.node.asElem()) |num| {
-                    const negated = num.negateNumber() catch return;
-                    rnode.node = .{ .ElemNode = negated };
+                try self.simplifyPatternAst(inner);
+
+                switch (inner.node) {
+                    .NumberString => |ns| {
+                        rnode.node = Ast.Node{ .NumberString = .{ .number = ns.number, .negated = !ns.negated } };
+                    },
+                    .NumberFloat => |f| {
+                        rnode.node = Ast.Node{ .NumberFloat = -f };
+                    },
+                    else => {},
                 }
             },
-            .ValueLabel => {},
+            .ValueLabel => |inner| {
+                try self.simplifyPatternAst(inner);
+            },
             .Array => {},
             .Object => {},
             .StringTemplate => {},
             .Conditional => {},
-            .Function => {},
-            .ElemNode => {},
-            .DeclareGlobal => {},
+            .Function,
+            .DeclareGlobal,
+            .False,
+            .Null,
+            .NumberFloat,
+            .NumberString,
+            .ParserVar,
+            .String,
+            .True,
+            .ValueVar,
+            => {},
         }
     }
 
-    fn simplifyNegatedNumberNode(rnode: *Ast.RNode) ?Elem {
+    fn simplifyNegatedNumberNode(self: *Compiler, rnode: *Ast.RNode) ?Elem {
         switch (rnode.node) {
             .Negation => |inner| {
-                if (simplifyNegatedNumberNode(inner)) |num| {
+                if (self.simplifyNegatedNumberNode(inner)) |num| {
                     return num.negateNumber() catch null;
                 }
             },
-            .ElemNode => |elem| {
-                switch (elem.getType()) {
-                    .NumberString, .NumberFloat => return elem,
-                    else => return null,
+            .NumberFloat => |f| return Elem.numberFloat(f),
+            .NumberString => |s| {
+                return Elem.numberStringFromBytes(s.number, self.vm) catch null;
+            },
+            .False, .Null, .ParserVar, .String, .True, .ValueVar => {
+                const elem = self.nodeToElem(rnode.node) catch return null;
+                if (elem) |e| {
+                    switch (e.getType()) {
+                        .NumberString, .NumberFloat => return e,
+                        else => return null,
+                    }
                 }
+                return null;
             },
             else => {},
         }

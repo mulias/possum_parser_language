@@ -4,10 +4,10 @@ exp_year = 2020..2030
 
 height = tuple2(150..193, "cm") | tuple2(59..76, "in")
 
-hair_color = "#" > repeat(hex_numeral, $6)
+hair_color = "#" > (hex_numeral * 6)
 eye_color = "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth"
 
-passport_id = repeat(numeral, $9)
+passport_id = numeral * 9
 
 field(key, val) = pair_sep(key, ":", val) < peek(ws | end)
 

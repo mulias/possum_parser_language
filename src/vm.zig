@@ -379,16 +379,6 @@ pub const VM = struct {
                     self.frame().ip += offset;
                 }
             },
-            .ConditionalElse => {
-                // The `:` part of `condition ? then : else`
-                // Infix, `then` on stack.
-                // Skip over the `else` branch. This opcode is placed at the
-                // end of the `then` branch, so if the `then` branch was
-                // skipped over to get to the `else` branch it will never be
-                // encountered.
-                const offset = self.readShort();
-                self.frame().ip += offset;
-            },
             .Crash => {
                 if (self.peekIsSuccess()) {
                     const value = self.peek(0);
@@ -415,8 +405,7 @@ pub const VM = struct {
                 const value = self.peek(0);
 
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
-                    self.drop(1);
-                    try self.push(value);
+                    // value is already on the stack
                 } else {
                     self.drop(1);
                     try self.pushFailure();
@@ -458,6 +447,15 @@ pub const VM = struct {
             .GetBoundLocal => {
                 const slot = self.readByte();
                 try self.push(try self.getBoundLocal(slot));
+            },
+            .Increment => {
+                const elem = self.peek(0);
+                if (try elem.merge(Elem.numberFloat(1), self)) |decremented| {
+                    self.drop(1);
+                    try self.push(decremented);
+                } else {
+                    @panic("Internal Error");
+                }
             },
             .InsertAtIndex => {
                 const index = self.readByte();
@@ -554,6 +552,10 @@ pub const VM = struct {
                     try self.push(copy.dyn.elem());
                 }
             },
+            .Jump => {
+                const offset = self.readShort();
+                self.frame().ip += offset;
+            },
             .JumpBack => {
                 const offset = self.readShort();
                 self.frame().ip -= offset;
@@ -566,6 +568,13 @@ pub const VM = struct {
                 const offset = self.readShort();
                 const elem = self.peek(0);
                 if (elem.isEql(Elem.numberFloat(0), self.*)) {
+                    self.frame().ip += offset;
+                }
+            },
+            .JumpIfBound => {
+                const offset = self.readShort();
+                const elem = self.peek(0);
+                if (!elem.isType(.ValueVar)) {
                     self.frame().ip += offset;
                 }
             },
@@ -755,6 +764,9 @@ pub const VM = struct {
                     @panic("Internal Error");
                 }
             },
+            .PopInputMark => {
+                _ = self.popInputMark();
+            },
             .RepeatValue => {
                 // Postfix, lhs and rhs on stack.
                 // Perform repeat operation (multiplication for numbers, or repeated merge for non-numbers)
@@ -767,6 +779,10 @@ pub const VM = struct {
                 } else {
                     return self.runtimeError("Merge type mismatch", .{});
                 }
+            },
+            .ResetInput => {
+                const resetPos = self.popInputMark();
+                self.inputPos = resetPos;
             },
             .TakeLeft => {
                 // Postfix, lhs and rhs on stack.

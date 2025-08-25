@@ -121,16 +121,6 @@ These parsers and value functions are always available in Possum programs, unles
 | `many_until(p, stop)` | One or more `p`, must be followed by `stop` which is not consumed | Merged values parsed by `p` |
 | `maybe_many(p)`    | Zero or more `p`           | Merged values parsed by `p`, or `null` if `p` fails |
 | `maybe_many_sep(p, sep)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
-| `repeat2(p)`       | `p` two times              | Merged values parsed by `p` |
-| `repeat3(p)`       | `p` three times            | Merged values parsed by `p` |
-| `repeat4(p)`       | `p` four times             | Merged values parsed by `p` |
-| `repeat5(p)`       | `p` five times             | Merged values parsed by `p` |
-| `repeat6(p)`       | `p` six times              | Merged values parsed by `p` |
-| `repeat7(p)`       | `p` seven times            | Merged values parsed by `p` |
-| `repeat8(p)`       | `p` eight times            | Merged values parsed by `p` |
-| `repeat9(p)`       | `p` nine times             | Merged values parsed by `p` |
-| `repeat(p, N)`     | `p` exactly `N` times, where `N` is a non-negative integer | Merged values parsed by `p`, or `null` if `N` is 0 |
-| `repeat_between(p, N, M)` | `p` at least `N` times and up to `M` times, where `N` and `M` are non-negative integers | Merged values parsed by `p`, or `null` if `N` is 0 and no matches found |
 
 ### Utility
 
@@ -147,12 +137,13 @@ These parsers and value functions are always available in Possum programs, unles
 | `succeed`          | Succeeds, consumes no input | `null` |
 | `default(p, D)`    | `p` or succeeds with no match | Result of `p`, or `D` if `p` fails |
 | `const(C)`         | Succeeds with no match     | Value `C` |
-| `number_of(p)`     | `p`, succeeds if the value is a valid JSON number or string encoding of a number | Number |
-| `string_of(p)`     | `p`                        | Compact encoding of the parsed value as a JSON string |
+| `as_number(p)`     | `p`, succeeds if the value is a valid JSON number or string encoding of a number | Number |
+| `as_string(p)`     | `p`                        | Compact encoding of the parsed value as a JSON string |
 | `surround(p, fill)` | `fill`, then `p`, then `fill` again | Result of `p` |
 | `end_of_input`     | End of string or file input | `null` |
 | `end`              | Alias for `end_of_input`   | As above |
 | `input(p)`         | Strips leading and trailing whitespace, succeeds if `p` parses to end of input | Result of `p` |
+| `one_or_both(a, b)` | `a`, `b`, or `a + b`      | Result of the successful parser, or two results merged |
 
 ### JSON
 
@@ -292,3 +283,4 @@ See the `stdlib-ast` docs for more detailed documentation.
 | Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
 | `As.Number(V)`     | Convert string encoding of number into a number         |
+| `As.String(V)`     | Convert any value into a string containing a compact JSON encoding of the value|

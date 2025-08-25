@@ -284,7 +284,7 @@
   0008    | GetConstant 1: 1
   0010    | ConditionalThen 10 -> 18
   0013    | GetConstant 2: 2
-  0015    | ConditionalElse 15 -> 20
+  0015    | Jump 15 -> 20
   0018    | GetConstant 3: 3
   0020    | End
   ========================================
@@ -302,7 +302,7 @@
   0010    | GetConstant 2: 1
   0012    | ConditionalThen 12 -> 20
   0015    | GetConstant 3: 2
-  0017    | ConditionalElse 17 -> 22
+  0017    | Jump 17 -> 22
   0020    | GetConstant 4: 3
   0022    | InsertAtIndex 0
   0024    | End

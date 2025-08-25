@@ -546,28 +546,51 @@
                             "left": {
                               "type": "or",
                               "left": {
-                                "type": "return",
-                                "left": {"type": "string", "value": ".."},
-                                "right": {
-                                  "type": "array",
-                                  "value": [
-                                    {
-                                      "type": "object",
-                                      "value": [
-                                        [
-                                          {"type": "string", "value": "type"},
-                                          {"type": "string", "value": "range"}
+                                "type": "or",
+                                "left": {
+                                  "type": "return",
+                                  "left": {"type": "string", "value": ".."},
+                                  "right": {
+                                    "type": "array",
+                                    "value": [
+                                      {
+                                        "type": "object",
+                                        "value": [
+                                          [
+                                            {"type": "string", "value": "type"},
+                                            {"type": "string", "value": "range"}
+                                          ]
                                         ]
-                                      ]
-                                    },
-                                    {"type": "number", "value": 5},
-                                    {"type": "number", "value": 5.5}
-                                  ]
+                                      },
+                                      {"type": "number", "value": 5},
+                                      {"type": "number", "value": 5.5}
+                                    ]
+                                  }
+                                },
+                                "right": {
+                                  "type": "return",
+                                  "left": {"type": "string", "value": "|"},
+                                  "right": {
+                                    "type": "array",
+                                    "value": [
+                                      {
+                                        "type": "object",
+                                        "value": [
+                                          [
+                                            {"type": "string", "value": "type"},
+                                            {"type": "string", "value": "or"}
+                                          ]
+                                        ]
+                                      },
+                                      {"type": "number", "value": 4},
+                                      {"type": "number", "value": 4.5}
+                                    ]
+                                  }
                                 }
                               },
                               "right": {
                                 "type": "return",
-                                "left": {"type": "string", "value": "|"},
+                                "left": {"type": "string", "value": ">"},
                                 "right": {
                                   "type": "array",
                                   "value": [
@@ -576,7 +599,7 @@
                                       "value": [
                                         [
                                           {"type": "string", "value": "type"},
-                                          {"type": "string", "value": "or"}
+                                          {"type": "string", "value": "take_right"}
                                         ]
                                       ]
                                     },
@@ -588,7 +611,7 @@
                             },
                             "right": {
                               "type": "return",
-                              "left": {"type": "string", "value": ">"},
+                              "left": {"type": "string", "value": "<"},
                               "right": {
                                 "type": "array",
                                 "value": [
@@ -597,7 +620,7 @@
                                     "value": [
                                       [
                                         {"type": "string", "value": "type"},
-                                        {"type": "string", "value": "take_right"}
+                                        {"type": "string", "value": "take_left"}
                                       ]
                                     ]
                                   },
@@ -609,7 +632,7 @@
                           },
                           "right": {
                             "type": "return",
-                            "left": {"type": "string", "value": "<"},
+                            "left": {"type": "string", "value": "+"},
                             "right": {
                               "type": "array",
                               "value": [
@@ -618,7 +641,7 @@
                                   "value": [
                                     [
                                       {"type": "string", "value": "type"},
-                                      {"type": "string", "value": "take_left"}
+                                      {"type": "string", "value": "merge"}
                                     ]
                                   ]
                                 },
@@ -630,7 +653,7 @@
                         },
                         "right": {
                           "type": "return",
-                          "left": {"type": "string", "value": "+"},
+                          "left": {"type": "string", "value": "!"},
                           "right": {
                             "type": "array",
                             "value": [
@@ -639,7 +662,7 @@
                                 "value": [
                                   [
                                     {"type": "string", "value": "type"},
-                                    {"type": "string", "value": "merge"}
+                                    {"type": "string", "value": "backtrack"}
                                   ]
                                 ]
                               },
@@ -651,7 +674,7 @@
                       },
                       "right": {
                         "type": "return",
-                        "left": {"type": "string", "value": "!"},
+                        "left": {"type": "string", "value": "->"},
                         "right": {
                           "type": "array",
                           "value": [
@@ -660,7 +683,7 @@
                               "value": [
                                 [
                                   {"type": "string", "value": "type"},
-                                  {"type": "string", "value": "backtrack"}
+                                  {"type": "string", "value": "destructure"}
                                 ]
                               ]
                             },
@@ -672,7 +695,7 @@
                     },
                     "right": {
                       "type": "return",
-                      "left": {"type": "string", "value": "->"},
+                      "left": {"type": "string", "value": "$"},
                       "right": {
                         "type": "array",
                         "value": [
@@ -681,7 +704,7 @@
                             "value": [
                               [
                                 {"type": "string", "value": "type"},
-                                {"type": "string", "value": "destructure"}
+                                {"type": "string", "value": "return"}
                               ]
                             ]
                           },
@@ -693,7 +716,7 @@
                   },
                   "right": {
                     "type": "return",
-                    "left": {"type": "string", "value": "$"},
+                    "left": {"type": "string", "value": "-"},
                     "right": {
                       "type": "array",
                       "value": [
@@ -702,7 +725,7 @@
                           "value": [
                             [
                               {"type": "string", "value": "type"},
-                              {"type": "string", "value": "return"}
+                              {"type": "string", "value": "subtract"}
                             ]
                           ]
                         },
@@ -714,7 +737,7 @@
                 },
                 "right": {
                   "type": "return",
-                  "left": {"type": "string", "value": "-"},
+                  "left": {"type": "string", "value": "*"},
                   "right": {
                     "type": "array",
                     "value": [
@@ -723,7 +746,7 @@
                         "value": [
                           [
                             {"type": "string", "value": "type"},
-                            {"type": "string", "value": "subtract"}
+                            {"type": "string", "value": "repeat"}
                           ]
                         ]
                       },
@@ -1075,15 +1098,9 @@
           "type": "merge",
           "left": {"type": "string", "value": "\\u"},
           "right": {
-            "type": "call_function",
-            "value": [
-              {"type": "parser_variable", "name": "hex_numeral", "is_meta": false, "is_underscored": false},
-              {
-                "type": "value_label",
-                "prefixed": {"type": "number", "value": 6}
-              }
-            ],
-            "postfixed": {"type": "parser_variable", "name": "repeat", "is_meta": false, "is_underscored": false}
+            "type": "repeat",
+            "left": {"type": "parser_variable", "name": "hex_numeral", "is_meta": false, "is_underscored": false},
+            "right": {"type": "number", "value": 6}
           }
         }
       },

@@ -19,7 +19,6 @@ pub const Ast = struct {
 
     pub const NodeType = enum {
         InfixNode,
-        ElemNode,
         Range,
         Negation,
         ValueLabel,
@@ -29,6 +28,14 @@ pub const Ast = struct {
         Conditional,
         Function,
         DeclareGlobal,
+        False,
+        Null,
+        NumberFloat,
+        NumberString,
+        ParserVar,
+        String,
+        True,
+        ValueVar,
     };
 
     pub const ObjectPair = struct {
@@ -57,9 +64,18 @@ pub const Ast = struct {
         upper: ?*RNode,
     };
 
+    pub const NumberStringNode = struct {
+        number: []const u8,
+        negated: bool,
+
+        pub fn toFloat(self: NumberStringNode) !f64 {
+            const f = try std.fmt.parseFloat(f64, self.number);
+            return if (self.negated) -f else f;
+        }
+    };
+
     pub const Node = union(NodeType) {
         InfixNode: Infix,
-        ElemNode: Elem,
         Range: RangeNode,
         Negation: *RNode,
         ValueLabel: *RNode,
@@ -69,6 +85,14 @@ pub const Ast = struct {
         Conditional: ConditionalNode,
         Function: FunctionNode,
         DeclareGlobal: DeclareGlobalNode,
+        False,
+        Null,
+        NumberFloat: f64,
+        NumberString: NumberStringNode,
+        ParserVar: []const u8,
+        String: []const u8,
+        True,
+        ValueVar: []const u8,
 
         pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
             return switch (self) {
@@ -77,11 +101,23 @@ pub const Ast = struct {
             };
         }
 
-        pub fn asElem(self: Node) ?Elem {
+        pub fn isElem(self: Node) bool {
             return switch (self) {
-                .ElemNode => |elem| elem,
-                else => null,
+                .False,
+                .Null,
+                .NumberFloat,
+                .NumberString,
+                .ParserVar,
+                .String,
+                .True,
+                .ValueVar,
+                => true,
+                else => false,
             };
+        }
+
+        pub fn isNumberElem(self: Node) bool {
+            return self == .NumberFloat or self == .NumberString;
         }
     };
 
@@ -123,10 +159,6 @@ pub const Ast = struct {
         ptr.* = RNode{ .region = region, .node = node };
 
         return ptr;
-    }
-
-    pub fn createElem(self: *Ast, elem: Elem, loc: Region) !*RNode {
-        return self.create(.{ .ElemNode = elem }, loc);
     }
 
     pub fn createInfix(self: *Ast, infixType: InfixType, left: *RNode, right: *RNode, loc: Region) !*RNode {
@@ -171,6 +203,113 @@ pub const Ast = struct {
         } }, loc);
     }
 
+    pub fn merge(self: *Ast, nodeA: Node, nodeB: Node) !?Node {
+        if (nodeA == .Null) return nodeB;
+        if (nodeB == .Null) return nodeA;
+
+        return switch (nodeA) {
+            .False => switch (nodeB) {
+                .False => Node.False,
+                .True => Node.True,
+                else => null,
+            },
+            .True => switch (nodeB) {
+                .False, .True => Node.True,
+                else => null,
+            },
+            .NumberFloat => |a| switch (nodeB) {
+                .NumberFloat => |b| Node{ .NumberFloat = a + b },
+                .NumberString => |ns| {
+                    const b_float = try ns.toFloat();
+                    return Node{ .NumberFloat = a + b_float };
+                },
+                else => null,
+            },
+            .NumberString => |nsa| switch (nodeB) {
+                .NumberFloat => |b| {
+                    const a_float = try nsa.toFloat();
+                    return Node{ .NumberFloat = a_float + b };
+                },
+                .NumberString => |nsb| {
+                    const a_float = try nsa.toFloat();
+                    const b_float = try nsb.toFloat();
+                    return Node{ .NumberFloat = a_float + b_float };
+                },
+                else => null,
+            },
+            .String => |a| switch (nodeB) {
+                .String => |b| {
+                    const total_len = a.len + b.len;
+                    const buffer = try self.arena.allocator().alloc(u8, total_len);
+                    @memcpy(buffer[0..a.len], a);
+                    @memcpy(buffer[a.len..], b);
+                    return Node{ .String = buffer };
+                },
+                else => null,
+            },
+            else => null,
+        };
+    }
+
+    pub fn repeat(self: *Ast, nodeA: Node, nodeB: Node) !?Node {
+        return switch (nodeA) {
+            .NumberFloat => |a| switch (nodeB) {
+                .NumberFloat => |b| Node{ .NumberFloat = a * b },
+                .NumberString => |ns| {
+                    const b_float = try ns.toFloat();
+                    return Node{ .NumberFloat = a * b_float };
+                },
+                else => null,
+            },
+            .NumberString => |nsa| switch (nodeB) {
+                .NumberFloat => |b| {
+                    const a_float = try nsa.toFloat();
+                    return Node{ .NumberFloat = a_float * b };
+                },
+                .NumberString => |nsb| blk: {
+                    const a_float = try nsa.toFloat();
+                    const b_float = try nsb.toFloat();
+                    break :blk Node{ .NumberFloat = a_float * b_float };
+                },
+                else => null,
+            },
+            // For non-numbers, nodeB must be a non-negative integer
+            .Null, .True, .False => switch (nodeB) {
+                .NumberFloat => |b| if (b >= 0 and b == @floor(b)) nodeA else null,
+                .NumberString => |ns| {
+                    const count = try ns.toFloat();
+                    if (count < 0 or count != @floor(count)) return null;
+                    return nodeA;
+                },
+                else => null,
+            },
+            .String => |str| if (nodeB == .NumberFloat or nodeB == .NumberString) {
+                const count_float = if (nodeB == .NumberFloat)
+                    nodeB.NumberFloat
+                else
+                    try nodeB.NumberString.toFloat();
+
+                if (count_float < 0 or count_float != @floor(count_float)) return null;
+                const count = @as(usize, @intFromFloat(count_float));
+                if (count == 0) return null;
+                if (count == 1) return nodeA;
+
+                // Allocate buffer for repeated string
+                const total_len = str.len * count;
+                const buffer = try self.arena.allocator().alloc(u8, total_len);
+                for (0..count) |i| {
+                    const start = i * str.len;
+                    @memcpy(buffer[start .. start + str.len], str);
+                }
+                return Node{ .String = buffer };
+            } else {
+                return null;
+            },
+            .ValueVar, .ParserVar => null, // Variables can't be repeated at compile time
+            else => null, // Other types not supported
+        };
+    }
+
     pub fn print(self: *Ast, writer: anytype, vm: VM, source: []const u8) !void {
         var last_region: ?Region = null;
         var last_relative: ?LineRelativeRegion = null;
@@ -212,7 +351,15 @@ pub const Ast = struct {
             },
             .Negation => |child| self.shouldBeMultiline(child.node),
             .ValueLabel => |child| self.shouldBeMultiline(child.node),
-            .ElemNode => false,
+            .False,
+            .Null,
+            .NumberFloat,
+            .NumberString,
+            .ParserVar,
+            .String,
+            .True,
+            .ValueVar,
+            => false,
         };
     }
 
@@ -256,11 +403,6 @@ pub const Ast = struct {
                 try writer.print("\n", .{});
                 try self.printIndent(writer, indent + 1);
                 try self.printSexpr(infix.right, writer, vm, source, indent + 1, last_region, last_relative);
-                try writer.print(")", .{});
-            },
-            .ElemNode => |elem| {
-                try writer.print("({s} {}:{}-{} ", .{ elem.tagName(), line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                try elem.print(vm, writer);
                 try writer.print(")", .{});
             },
             .Range => |range| {
@@ -398,6 +540,34 @@ pub const Ast = struct {
                 try self.printIndent(writer, indent + 1);
                 try self.printSexpr(global.body, writer, vm, source, indent + 1, last_region, last_relative);
                 try writer.print(")", .{});
+            },
+            .False => {
+                try writer.print("(False {}:{}-{})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
+            },
+            .Null => {
+                try writer.print("(Null {}:{}-{})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
+            },
+            .NumberFloat => |f| {
+                try writer.print("(NumberFloat {}:{}-{} {d})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, f });
+            },
+            .NumberString => |ns| {
+                if (ns.negated) {
+                    try writer.print("(NumberString {}:{}-{} -{s})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, ns.number });
+                } else {
+                    try writer.print("(NumberString {}:{}-{} {s})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, ns.number });
+                }
+            },
+            .ParserVar => |s| {
+                try writer.print("(ParserVar {}:{}-{} {s})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, s });
+            },
+            .String => |s| {
+                try writer.print("(String {}:{}-{} \"{s}\")", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, s });
+            },
+            .True => {
+                try writer.print("(True {}:{}-{})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
+            },
+            .ValueVar => |s| {
+                try writer.print("(ValueVar {}:{}-{} {s})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, s });
             },
         }
     }
