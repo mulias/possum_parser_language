@@ -487,7 +487,7 @@ pub const Compiler = struct {
                         } else {
                             const low_id = try self.makeConstant(low_elem);
                             const high_id = try self.makeConstant(high_elem);
-                            try self.emitOp(.ParseRange, region);
+                            try self.emitOp(.ParseFixedRange, region);
                             try self.emitByte(low_id, low.region);
                             try self.emitByte(high_id, high.region);
                         }
@@ -509,7 +509,7 @@ pub const Compiler = struct {
                         } else {
                             const low_id = try self.makeConstant(low_num);
                             const high_id = try self.makeConstant(high_num);
-                            try self.emitOp(.ParseRange, region);
+                            try self.emitOp(.ParseFixedRange, region);
                             try self.emitByte(low_id, low.region);
                             try self.emitByte(high_id, high.region);
                         }

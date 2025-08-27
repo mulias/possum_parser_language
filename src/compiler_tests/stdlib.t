@@ -12,7 +12,7 @@
   =================ascii==================
   ascii = "\u000000".."\u00007F"
   ========================================
-  0000    | ParseRange 0 1: _0 "\x7f" (esc)
+  0000    | ParseFixedRange 0 1: _0 "\x7f" (esc)
   0003    | End
   ========================================
   
@@ -20,9 +20,9 @@
   alpha = "a".."z" | "A".."Z"
   ========================================
   0000    | SetInputMark
-  0001    | ParseRange 0 1: "a" "z"
+  0001    | ParseFixedRange 0 1: "a" "z"
   0004    | Or 4 -> 10
-  0007    | ParseRange 2 3: "A" "Z"
+  0007    | ParseFixedRange 2 3: "A" "Z"
   0010    | End
   ========================================
   
@@ -38,7 +38,7 @@
   =================lower==================
   lower = "a".."z"
   ========================================
-  0000    | ParseRange 0 1: "a" "z"
+  0000    | ParseFixedRange 0 1: "a" "z"
   0003    | End
   ========================================
   
@@ -54,7 +54,7 @@
   =================upper==================
   upper = "A".."Z"
   ========================================
-  0000    | ParseRange 0 1: "A" "Z"
+  0000    | ParseFixedRange 0 1: "A" "Z"
   0003    | End
   ========================================
   
@@ -70,7 +70,7 @@
   ================numeral=================
   numeral = "0".."9"
   ========================================
-  0000    | ParseRange 0 1: "0" "9"
+  0000    | ParseFixedRange 0 1: "0" "9"
   0003    | End
   ========================================
   
@@ -98,7 +98,7 @@
   =============octal_numeral==============
   octal_numeral = "0".."7"
   ========================================
-  0000    | ParseRange 0 1: "0" "7"
+  0000    | ParseFixedRange 0 1: "0" "7"
   0003    | End
   ========================================
   
@@ -110,9 +110,9 @@
   0003    | CallFunction 0
   0005    | Or 5 -> 18
   0008    | SetInputMark
-  0009    | ParseRange 1 2: "a" "f"
+  0009    | ParseFixedRange 1 2: "a" "f"
   0012    | Or 12 -> 18
-  0015    | ParseRange 3 4: "A" "F"
+  0015    | ParseFixedRange 3 4: "A" "F"
   0018    | End
   ========================================
   
@@ -219,7 +219,7 @@
   0019    | CallFunction 0
   0021    | Or 21 -> 51
   0024    | SetInputMark
-  0025    | ParseRange 3 4: "\xe2\x80\x80" "\xe2\x80\x8a" (esc)
+  0025    | ParseFixedRange 3 4: "\xe2\x80\x80" "\xe2\x80\x8a" (esc)
   0028    | Or 28 -> 51
   0031    | SetInputMark
   0032    | GetConstant 5: "\xe2\x80\xaf" (esc)
@@ -252,7 +252,7 @@
   0003    | CallFunction 0
   0005    | Or 5 -> 35
   0008    | SetInputMark
-  0009    | ParseRange 1 2: "
+  0009    | ParseFixedRange 1 2: "
   " "\r (no-eol) (esc)
   "
   0012    | Or 12 -> 35
@@ -312,7 +312,7 @@
   =================digit==================
   digit = 0..9
   ========================================
-  0000    | ParseRange 0 1: 0 9
+  0000    | ParseFixedRange 0 1: 0 9
   0003    | End
   ========================================
   
@@ -563,7 +563,7 @@
   _number_integer_part = ("1".."9" + numerals) | numeral
   ========================================
   0000    | SetInputMark
-  0001    | ParseRange 0 1: "1" "9"
+  0001    | ParseFixedRange 0 1: "1" "9"
   0004    | GetConstant 2: numerals
   0006    | CallFunction 0
   0008    | Merge
@@ -618,14 +618,14 @@
   ==============binary_digit==============
   binary_digit = 0..1
   ========================================
-  0000    | ParseRange 0 1: 0 1
+  0000    | ParseFixedRange 0 1: 0 1
   0003    | End
   ========================================
   
   ==============octal_digit===============
   octal_digit = 0..7
   ========================================
-  0000    | ParseRange 0 1: 0 7
+  0000    | ParseFixedRange 0 1: 0 7
   0003    | End
   ========================================
   
@@ -2533,7 +2533,7 @@
   ===============_ctrl_char===============
   _ctrl_char = "\u000000".."\u00001F"
   ========================================
-  0000    | ParseRange 0 1: _0 "\x1f" (esc)
+  0000    | ParseFixedRange 0 1: _0 "\x1f" (esc)
   0003    | End
   ========================================
   
@@ -2717,9 +2717,9 @@
   0015    | GetConstant 2: "d"
   0017    | CallFunction 0
   0019    | SetInputMark
-  0020    | ParseRange 3 4: "C" "F"
+  0020    | ParseFixedRange 3 4: "C" "F"
   0023    | Or 23 -> 29
-  0026    | ParseRange 5 6: "c" "f"
+  0026    | ParseFixedRange 5 6: "c" "f"
   0029    | Merge
   0030    | GetConstant 7: hex_numeral
   0032    | CallFunction 0
@@ -4326,7 +4326,7 @@
   0000    | SetInputMark
   0001    | GetConstant 0: "0"
   0003    | CallFunction 0
-  0005    | ParseRange 1 2: "1" "9"
+  0005    | ParseFixedRange 1 2: "1" "9"
   0008    | Merge
   0009    | Or 9 -> 24
   0012    | SetInputMark
@@ -4342,8 +4342,8 @@
   _toml.datetime.mday = ("0".."2" + "1".."9") | "30" | "31"
   ========================================
   0000    | SetInputMark
-  0001    | ParseRange 0 1: "0" "2"
-  0004    | ParseRange 2 3: "1" "9"
+  0001    | ParseFixedRange 0 1: "0" "2"
+  0004    | ParseFixedRange 2 3: "1" "9"
   0007    | Merge
   0008    | Or 8 -> 23
   0011    | SetInputMark
@@ -4471,13 +4471,13 @@
   _toml.datetime.hours = ("0".."1" + "0".."9") | ("2" + "0".."3")
   ========================================
   0000    | SetInputMark
-  0001    | ParseRange 0 1: "0" "1"
-  0004    | ParseRange 2 3: "0" "9"
+  0001    | ParseFixedRange 0 1: "0" "1"
+  0004    | ParseFixedRange 2 3: "0" "9"
   0007    | Merge
   0008    | Or 8 -> 19
   0011    | GetConstant 4: "2"
   0013    | CallFunction 0
-  0015    | ParseRange 5 6: "0" "3"
+  0015    | ParseFixedRange 5 6: "0" "3"
   0018    | Merge
   0019    | End
   ========================================
@@ -4485,8 +4485,8 @@
   =========_toml.datetime.minutes=========
   _toml.datetime.minutes = "0".."5" + "0".."9"
   ========================================
-  0000    | ParseRange 0 1: "0" "5"
-  0003    | ParseRange 2 3: "0" "9"
+  0000    | ParseFixedRange 0 1: "0" "5"
+  0003    | ParseFixedRange 2 3: "0" "9"
   0006    | Merge
   0007    | End
   ========================================
@@ -4495,8 +4495,8 @@
   _toml.datetime.seconds = ("0".."5" + "0".."9") | "60"
   ========================================
   0000    | SetInputMark
-  0001    | ParseRange 0 1: "0" "5"
-  0004    | ParseRange 2 3: "0" "9"
+  0001    | ParseFixedRange 0 1: "0" "5"
+  0004    | ParseFixedRange 2 3: "0" "9"
   0007    | Merge
   0008    | Or 8 -> 15
   0011    | GetConstant 4: "60"
@@ -4567,7 +4567,7 @@
     ("1".."9" + many(maybe("_") > numeral)) | numeral
   ========================================
   0000    | SetInputMark
-  0001    | ParseRange 0 1: "1" "9"
+  0001    | ParseFixedRange 0 1: "1" "9"
   0004    | GetConstant 2: many
   0006    | GetConstant 3: @fn803
   0008    | CallFunction 1

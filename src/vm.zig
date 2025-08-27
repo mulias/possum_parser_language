@@ -719,7 +719,7 @@ pub const VM = struct {
                     try self.pushFailure();
                 }
             },
-            .ParseRange => {
+            .ParseFixedRange => {
                 const low_idx = self.readByte();
                 const high_idx = self.readByte();
                 const low_elem = self.chunk().getConstant(low_idx);
