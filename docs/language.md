@@ -1,8 +1,8 @@
 # Possum Language Documentation
 
-Possum is a text parsing language with some very minimal utilities for general purpose computation. A Possum program is made up of parsers, functions that define both what text inputs are valid and how to transform valid inputs into structured data. The Possum runtime takes a program and an input string and either successfully parses the input into a JSON encoded value, or fails if the input does not meet the parser requirements.
+Possum is a text parsing language with some support for general purpose computation. A Possum program is made up of parsers, functions that define both what text inputs are valid and how to transform valid inputs into structured data. The Possum runtime takes a program and an input string and either successfully parses the input into a JSON encoded value, or fails if the input does not meet the parser requirements.
 
-## Value Literal Parsers
+## Literal Parsers
 
 The simplest parsers are for strings, numbers, and contiguous ranges of codepoints or integers.
 
@@ -36,118 +36,145 @@ String literals using single and double quotes support the following escape char
 
 ## Infix Operators
 
-Infix operators compose parsers in order to create more complex parsers.
+Infix operators compose parsers to create more complex parsers.
 
 | Operator       | Name        | Precedence | Associativity | Description      |
 | -------------- | ----------- | ---------- | ------------- | -----------------|
-| `p1 \| p2`     | Or          | 3          | Right         | Match `p1`, if no match is found try `p2` instead |
 | `p1 > p2`      | Take Right  | 3          | Left          | Match `p1` and then `p2`, return the result of `p2` |
 | `p1 < p2`      | Take Left   | 3          | Left          | Match `p1` and then `p2`, return the result of `p1` |
-| `p1 + p2`      | Merge       | 3          | Left          | Match `p1` and then `p2`, return a merged result |
+| `p1 \| p2`     | Or          | 3          | Right         | Match `p1`, if no match is found try `p2` instead |
 | `p1 ! p2`      | Backtrack   | 3          | Right         | Match `p1` and then go back in the input and match `p2` instead, return the result of `p2` |
-| `p -> P`       | Destructure | 3          | Left          | Match `p`, destructure the resulting value against the pattern `P` |
+| `p1 + p2`      | Merge       | 3          | Left          | Match `p1` and then `p2`, return a merged result |
 | `p $ V`        | Return      | 3          | Left          | Match `p` and then return the value `V` |
+| `p -> P`       | Destructure | 3          | Left          | Match `p`, compare the resulting value against the pattern `P` |
+| `p * P`        | Repeat      | 3          | Left          | Match `p` a number of times determined by the pattern `P`, merge all results |
 | `p1 & p2`      | Sequence    | 2          | Left          | Match `p1` and then `p2`, returning the result of `p2` |
-| `p1 ? p2 : p3` | Conditional | 1          | Right         | Match `p1`, if successful then match `p2` next. If `p1` fails then try `p2` instead. |
+| `p1 ? p2 : p3` | Conditional | 1          | Right         | Match `p1`, if successful then match `p2` next. If `p1` fails then try `p3` instead |
 
-Operators with a higher precedence are evaluated first, and parsers with the same precedence are generally evaluated left to right. Conditionals are right associative so that multiple conditions can be chained in a row.
+Operators with a higher precedence are evaluated first, and parsers with the same precedence are generally evaluated left to right.
 
-## Parser Interpolation for Strings
+### Merge
 
-TODO
+The merge operator `p1 + p2` combines parsed values of the same type. If the two values have different types then the operation will throw a runtime error. The one exception is `null`, which can merge with any other type and acts as the identity of that type.
 
-## Constructing Values
+| `p1` and `p2` both return | `p1 + p2` Behavior  |
+| ------------------------- | ------------------- |
+| Strings                   | Concatenate strings |
+| Arrays                    | Concatenate arrays  |
+| Objects                   | Combine objects, overwriting existing `V1` values with `V2` values |
+| Numbers                   | Sum numbers         |
+| Booleans                  | Logical or          |
+| null                      | null                |
 
-Values are produced by successfully matching parsers against an input. In many cases the value is implicit, for example we know that the parser `123 | 456` will either return the value `123`, `456`, or fail. In a few cases values can be used explicit:
+### Return
 
-* A returned value, which appears on the right side of a `$`
-```
-my_parser $ [1, 2, 3]
-```
+When a parser successfully matches against the input it returns a JSON value. In many cases the return value is implicit, for example we know that the parser `123 | 456` will either return the value `123`, `456`, or fail. In contrast, the return operator `p $ V` first matches `p`, and then on success returns an explicitly constructed value `V`.
 
-* Parser arguments
-```
-bar(B) = "bar" $ B ;
-bar({"bar": true})
-```
-
-* A pattern to destructure on, which appears on the right side of a `->`
-```
-array(int) -> [1, 2, ...Rest]
-```
-
-In the first two cases we construct a value which is then returned by a parser. In the third case we pattern match the result of the right-side parser against the left-side value, which is explored in more detail in the section "Destructuring Values".
-
-Constructed values can be any valid JSON data, including arrays, objects, `true`, `false`, and `null`. Additionally values can be interpolated into strings, numbers can be added and subtracted, and values of the same type can be merged (see "Merging Values"). Finally, values can reference local variables (from destructuring), and call value functions.
+Constructed values can be any valid JSON data, including arrays, objects, `true`, `false`, and `null`. Values can also reference variables, call value functions, be interpolated into strings, numbers can be modified with arithmetic, and arrays and objects can be combined with `...` spread syntax. Finally, in a value context all of the infix operators have similar behaviors, but do not match against the input.
 
 | Constructed Value          | Description                            |
 | -------------------------- | -------------------------------------- |
 | `Var`                      | Variable for a value                   |
 | `"string"`                 | String literal                         |
-| `"My name is %(MyName)"`   | String interpolation                   |
+| `"Hello %(Name)"`          | String interpolation                   |
 | `123`                      | Integer literal                        |
 | `-1.334e23`                | Number literal                         |
 | `1 + 2e-4`                 | Number arithmetic                      |
 | `2.1 - 12`                 | Number arithmetic                      |
+| `2.1 * 12`                 | Number arithmetic                      |
+| `2.1 / 12`                 | Number arithmetic                      |
+| `2 ^ 5`                    | Number arithmetic                      |
 | `true`                     | Constant value `true`                  |
 | `false`                    | Constant value `false`                 |
 | `null`                     | Constant value `null`                  |
 | `["a", 0, true, Var]`      | Array of values                        |
+| `[1, 2, ...Nums]`          | Array including all elements from `Nums` array |
 | `{"foo": 0, "bar": Var}`   | Object of key/value pairs              |
-| `{"foo": 0, Var: null}`    | Object with the string `Var` as a key  |
-| `Value1 + Value2`          | Merge two values                       |
+| `{"foo": 0, Var: null}`    | Object with the string value of variable `Var` as a key  |
+| `{...Stuff, "things": true }` | Object including all entries from `Stuff` object |
 | `Reverse([1, 2, 3])`       | Value function                         |
+| `Is.Number(N) ? N + 1 : 0` | Control flow                           |
+| `MyArray -> [A, B, C]`     | Destructure                            |
 
-## Merging Values
+| Operator       | Description                             |
+| -------------- | --------------------------------------- |
+| `V1 > V2`      | Compute `V1` and `V2`, return `V2`      |
+| `V1 < V2`      | Compute `V1` and `V2`, return `V1`      |
+| `V1 \| V2`     | Compute `V1`, on failure try `V2` instead |
+| `V1 ! V2`      | Same as `>`                             |
+| `V1 + V2`      | Compute `V1` and `V2`, return a merged result |
+| `V1 $ V2`      | Same as `>`                             |
+| `V -> P`       | Compute `V`, destructure against the pattern `P` |
+| `V * P`        | Compute `V`, merge with self a number of times determined by the pattern `P` |
+| `V1 & V2`      | Compute `V1` and `V2`, return `V2`
+| `V1 ? V2 : V3` | Compute `V1`, if successful then compute `V2`. If `V1` fails then try `V3` instead |
 
-Both parsers and constructed values can use an infix `+` to merge their result. If both parsers return values of the same type, or if both values are of the same type, then the merged value will be a combination of the two values. If the two values have different types then the operation will throw a runtime error. The one exception is `null`, which can merge with any other type and acts as the identity of that type.
+Despite not interacting with the parsing state, values still have a concept of failure which is used in control flow. Values can fail by either calling the `@Fail` builtin function, or by failing to destructure against a pattern.
 
-| `V1` and `V2` Are Both | `V1 + V2` Behavior  |
-| ---------------------- | ------------------- |
-| Strings                | Concatenate strings |
-| Arrays                 | Concatenate arrays  |
-| Objects                | Combine objects, overwriting existing `V1` values with `V2` values |
-| Numbers                | Sum numbers         |
-| Booleans               | Logical or          |
+### Destructure
 
-## Destructuring Values
+The `p -> P` destructure operator asserts that a parsed value matches the structure of a pattern and optionally binds the value or a substructure of the value to local variables. After `p` successfully parses part of the input the resulting value is destructured against the pattern. If the value and pattern match structurally then parsing succeeds. If the value and pattern do not match structurally then the destructure fails.
 
-The `->` pattern matching operator is used to assert the structure of a parsed value and optionally bind the value or a substructure of the value to local variables.
-
-Bound variables must be `UpperCamelCase`. Values cannot be re-bound within a parser, so once the variable is set any subsequent uses will reference the initial value instead of re-binding.
+Patterns can contain variables that are both bound and unbound. Variables must be `UpperCamelCase`. Variables cannot be re-bound within a parser, so once the variable is set any subsequent references will use the bound value instead of re-binding.
 
 | Destructured Value      | Description                                               |
 | ----------------------- | --------------------------------------------------------- |
-| `p -> V`                | Bind a parsed value to `V`                                |
-| `p -> (0 + N)`          | Match a number using arithmetic, bind the value to `N`    |
-| `p -> [...A]`           | Match an array using a spread, bind the value to `A`      |
-| `p -> {...O}`           | Match an object using a spread, bind the value to `O`     |
-| `p -> "%(S)"`           | Match a string using interpolation, bind the value to `S` |
-| `` p -> `%(S)` ``       | Match the exact string, no interpolation                  |
+| `p -> V`                | Match a value `V`, or if unbound set `V` to the parsed value |
+| `p -> "abc"`            | Match a string exactly                                    |
+| `` p -> `\nfoo` ``       | Match the exact string `"\nfoo"`, no escapes             |
+| `p -> "%('a'..'z')%(_)"` | Match a string that starts with a character between "a" and "z", inclusive |
+| `p -> (\u000000.. * 10)` | Match any string of length 10                            |
 | `p -> true`             | Match a constant exactly                                  |
 | `p -> 5`                | Match a number exactly                                    |
-| `p -> N + 100`          | Match a number, bind `N` such that `N + 100` is equal to the matched number |
+| `p -> 2..7`             | Match a number between 2 and 7, inclusive                 |
+| `p -> (0 + N)`          | Match the exact number `N`, or if unbound match any number and bind the value to `N` |
+| `p -> (N + 100)`        | Match the exact number, or if `N` is unbound match any number and bind such that `N + 100` is equal to the parsed value |
 | `p -> [1, 2, 3]`        | Match an array exactly                                    |
-| `p -> [A, ..._]`        | Match an array with at least one element, bind the first element to `A` |
-| `p -> [A, ..._, Z]`     | Match an array with at least two elements, bind the first element to `A` and last to `Z` |
-| `p -> [1, B, _]`        | Match an array of length 3 starting with `1`, bind the second element to `B` |
+| `p -> [A, ..._]`        | Match an array with at least one element, match or bind the first element to `A` |
+| `p -> ([A] * 5`)        | Match an array of 5 identical elements, match or bind the repeated element to `A` |
+| `p -> [A, ..._, Z]`     | Match an array with at least two elements, match or bind the first element to `A` and last to `Z` |
+| `p -> [1, B, _]`        | Match an array of length 3 starting with `1`, match or bind the second element to `B` |
 | `p -> {"a": 1, "b": 2}` | Match an object exactly                                   |
 | `p -> {"a": 1, ..._}`   | Match an object where the key `"a"` has the value `1`     |
 | `p -> {_: 1, ..._}`     | Match an object where one of the keys has the value `1`   |
-| `p -> {"a": A, ..._}`   | Match an object with the key `"a"`, bind the value to `A` |
+| `p -> {"a": A, ..._}`   | Match an object with the key `"a"`, match or bind the value to `A` |
 | `p -> {..._, "a": A}`   | As above, object patterns are not position dependant      |
-| `p -> {"a": _, "b": B}` | Match an object with exactly the keys `"a"` and `"b"`, bind the value of `"b"` to `B` |
-| `p -> "abc"`            | Match a string exactly                                    |
-| `p -> "%3(S)"`          | Bind a string of length 3 to `S`                          |
-| `p -> "abc%(Rest)"`     | Match `"abc"` and bind any remaining string to `Rest`     |
-| `p -> "%(Front)d"`      | Match a string ending in `d`, bind all but the last character to `Front` |
-| `p -> "%1(A)%(_)"`      | Match a string of length at least one, bind the first character to `A` |
+| `p -> {"a": _, "b": B}` | Match an object with exactly the keys `"a"` and `"b"`, match or bind the value of `"b"` to `B` |
+| `p -> [...A]`           | Match the array `A`, or if unbound bind the value to `A`  |
+| `p -> {...O}`           | Match the object `O`, or if unbound bind the value to `O` |
+| `p -> "%(S)"`           | Match the string `S`, or if unbound bind the value to `S` |
 | `p -> "%(null)"`        | Match a string encoding a constant                        |
-| `p -> "%(0 + N)"`       | Match a string encoding a number, bind the number to `N`  |
-| `p -> "%2(0 + _)"`      | Match a string of length 2 encoding a number              |
-| `p -> "%(N + 1)"`       | Match a string encoding a number, calculate and bind `N`  |
-| `p -> "%([...A])"`      | Match a string encoding an array, bind the array to `A`   |
-| `p -> "%({..._})"`      | Match a string encoding an object                         |
+| `p -> "%(0 + N)"`       | Match a string encoding a number, match or bind the number to `N` |
+| `p -> "%(N + 1)"`       | Match a string encoding a number, match or bind the calculated value of `N`  |
+| `p -> "%([...A])"`      | Match a string encoding an array, match or bind the array to `A` |
+| `p -> "%({..._})"`      | Match a string encoding any object                        |
+
+This list is not exhaustive. Pattern matching in Possum is intended to be maximally flexible, but with some notable limitations:
+  - No control flow operators (`>`, `<`, `|`, `!`, `&`, `?:`)
+  - No nested destructuring
+  - Only one value may be an unknown subset of a larger structure, guaranteeing that there is only one way to interpret the pattern
+    - `foo -> [[A, B], C, ...D, {...E}, F]` is fine, since despite having many potentially unbound variables only `D` is a subset of the outer array pattern with unknown length, and only `E` is a subset of the second to last array pattern element, which must be an object.
+    - `foo -> [1, ...A, 5, ...B, 10]` will not compile, since both `A` and `B` are subsets of the array. In this case there are some values that have a single solution, such as `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`, while other values could bind `A` and `B` in multiple ways, such as `[1, 5, 5, 5, 5, 5, 10]`.
+
+### Repeat
+
+The repeat operator `p * P` runs the parser `p` multiple times in a row, merging the results together into one value. The right-side pattern determines the number of repeats, and must be an integer, integer range, or contain unbound variables witch will be bound to concrete integer values.
+
+| Destructured Value      | Description                                               |
+| ----------------------- | --------------------------------------------------------- |
+| `p * 5`                 | `p` exactly 5 times                                       |
+| `p * (9 + 2)`           | `p` exactly 11 times                                      |
+| `p * (3 - 3)`           | `p` zero times, always succeeds with `null`               |
+| `p * (2 * 3)`           | `p` exactly 6 times                                       |
+| `p * 0..`               | `p` zero or more times                                    |
+| `p * ..3`               | `p` zero to 3 times                                       |
+| `p * 1..100`            | `p` one to 100 times                                      |
+| `p * N`                 | `p` exactly `N` times, or if `N` is unbound parse `p` zero or more times and bind the number of repeats to `N` |
+| `p * (N + 2)`           | `p` exactly `N + 2` times, or zero or more times and bind the calculated value of `N` |
+
+The pattern may not contain more than one unbound variable.
+
+If the repeated parser succeeds after zero matches the resulting value is `null`. The repeated merging behavior depends on the type of the parsed value, as defined by the `+` merge operator. For example `1..9 * 5` parses the input `12345` as `1 + 2 + 3 + 4 + 5 = 15`, while `1..9 -> D $ [D] * 5` parses the same input as `[1, 2, 3, 4, 5]`.
 
 ## Parser Programs
 
@@ -162,11 +189,9 @@ Value2(Param1) = ValueBody2
 _private_parser = proviate_parser_body
 ```
 
-Running a parser program without a main parser produces a runtime error.
-
 ## Named Parsers
 
-A named parser can be an alias for an existing parser, or a new parser that may be parametrized by other parsers and values. All parser names must be `snake_case`.
+A named parser can be an alias for an existing parser, or a new parser function that may be parametrized by other parsers and values. All parser names must be `snake_case`.
 
 ```
 # Alias for an existing parser
@@ -195,7 +220,7 @@ _many(p, Acc) = p -> Next ? _many(p, Acc + Next) : const(Acc)
 
 A value function can be an alias for an existing value function, or a new function that may be parametrized by other values. All value function names must be `UpperCamelCase`.
 
-Unlike parsers, value functions don't consume input and can only manipulate and return concrete values. Value functions may use the same infix operators as parsers, but in this context the operators only act as control flow. All value functions must be invoked with parentheses, even when the function takes no arguments. An `UpperCamelCase` value without `()` is assumed to be a local variable.
+Unlike parsers, value functions don't consume input and can only manipulate and return concrete values. Value functions may use the same infix operators as parsers, but in this context the operators only act as control flow.
 
 ```
 # Alias for an existing value function
@@ -222,7 +247,7 @@ _ReverseArray(A, Acc) =
   Acc
 ```
 
-This syntax may seem surprising, since up until now the infix operators have only been used to compose parsers. Value functions are, in practice, syntactic sugar for parsers that never consume input and always return a desired value. We can de-sugar the previous example by replacing every instance of a value `V` in a parser-only position with a constant parser `"" $ V`.
+Value functions are, in practice, syntactic sugar for parsers that never consume input and always return a desired value. We can de-sugar the previous example by replacing every instance of a value `V` in a parser-only position with a constant parser `"" $ V`.
 ```
 my_reverse = my_reverse
 
@@ -230,7 +255,7 @@ my_array = "" $ [1, 2, 3]
 
 my_array_reversed_and_doubled = reverse(my_array) -> RA & "" $ RA + RA
 
-is_array(A) = "" $ A -> [..._]
+is_array(A) = "" $ (A -> [..._])
 
 reverse(V) =
   is_array(V) > _reverese_array(V, []) |
@@ -242,21 +267,19 @@ _reverse_array(A, Acc) =
   "" $ Acc
 ```
 
-## Meta Functions
+## Builtins
 
-The `@` symbol is reserved as a prefix for parsers and value functions that perform meta-level introspection and control flow. These functions are built-in and can't be defined at the program level.
+The `@` symbol is reserved as a prefix for builtin parsers and value functions. These functions can't be defined at the program level.
 
 | Function          | Behavior                                              | Returns               |
 | ----------------- | ----------------------------------------------------- | --------------------- |
-| `@offset`         | Succeeds with no match                                | Parsing position as a character offset |
-| `@line`           | Succeeds with no match                                | Parsing line position |
-| `@col`            | Succeeds with no match                                | Parsing col position  |
+| `@fail`           | Fail, attribute the failure to parent parser          | N/A                   |
+| `@Fail`           | Fail, attribute the failure to parent parser or value | N/A                   |
+| `@Crash(Message)` | Halt the program and report the error with `Message`  | N/A                   |
 | `@dbg(p)`         | Parses `p`, prints program state to stderr            | Result of `p`         |
 | `@Dbg(V)`         | Prints program state to stderr                        | Value `V`             |
 | `@dbg_break(p)`   | Parses `p`, pauses execution and prints program state to stderr | Result of `p` |
 | `@DbgBreak(V)`    | Pauses execution and prints program state to stderr   | Value `V`             |
-| `@run(p, Str)`    | Parse the string `Str` with `p`, consumes no input    | Result of `p` ran on `Str` |
-| `@fail`           | Fail, attribute the failure to parent parser          | N/A                   |
-| `@Fail`           | Fail, attribute the failure to parent parser or value | N/A                   |
-| `@error(Message)` | Halt the program and report the error with `Message`  | N/A                   |
-| `@Error(Message)` | Halt the program and report the error with `Message`  | N/A                   |
+| `@input.offset`   | Succeeds with no match                                | Parsing position as a character offset |
+| `@input.line`     | Succeeds with no match                                | Parsing line position |
+| `@input.line_offset` | Succeeds with no match                             | Parsing col position  |
