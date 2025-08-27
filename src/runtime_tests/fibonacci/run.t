@@ -10,12 +10,17 @@
   input   | 4 @ Line 1 byte 0
   Frames  | @main
   Stack   | @main, N
-  0002    | ParseLowerBoundedRange 1: 0
+  0002    | GetConstant 1: 0
+  
+  input   | 4 @ Line 1 byte 0
+  Frames  | @main
+  Stack   | @main, N, 0
+  0004    | ParseLowerBoundedRange
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, N, 4
-  0004    | Destructure 0: N
+  0005    | Destructure 0: N
   
   Destructure:
       4 -> N
@@ -24,22 +29,22 @@
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4, 4
-  0006    | TakeRight 6 -> 15
+  0007    | TakeRight 7 -> 16
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4
-  0009    | GetConstant 2: Fib
+  0010    | GetConstant 2: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4, Fib
-  0011    | GetBoundLocal 0
+  0012    | GetBoundLocal 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4, Fib, 4
-  0013    | CallTailFunction 1
+  0014    | CallTailFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib

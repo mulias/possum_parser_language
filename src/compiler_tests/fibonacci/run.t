@@ -69,12 +69,13 @@
   0.. -> N & fib(N) -> Fib(N)
   ========================================
   0000    | GetConstant 0: N
-  0002    | ParseLowerBoundedRange 1: 0
-  0004    | Destructure 0: N
-  0006    | TakeRight 6 -> 17
-  0009    | GetConstant 2: fib
-  0011    | GetBoundLocal 0
-  0013    | CallFunction 1
-  0015    | Destructure 1: Fib(N)
-  0017    | End
+  0002    | GetConstant 1: 0
+  0004    | ParseLowerBoundedRange
+  0005    | Destructure 0: N
+  0007    | TakeRight 7 -> 18
+  0010    | GetConstant 2: fib
+  0012    | GetBoundLocal 0
+  0014    | CallFunction 1
+  0016    | Destructure 1: Fib(N)
+  0018    | End
   ========================================

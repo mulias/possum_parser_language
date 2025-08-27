@@ -530,8 +530,8 @@ pub const Compiler = struct {
                             try self.emitOp(.ParseCharacter, region);
                         } else {
                             const low_id = try self.makeConstant(low_elem);
+                            try self.emitUnaryOp(.GetConstant, low_id, low_region);
                             try self.emitOp(.ParseLowerBoundedRange, region);
-                            try self.emitByte(low_id, low_region);
                         }
                     } else if (low_elem.isType(.NumberString)) {
                         const low_ns = low_elem.asNumberString();
@@ -541,8 +541,8 @@ pub const Compiler = struct {
                         if (@trunc(low_f) != low_f) return Error.RangeInvalidNumberFormat;
 
                         const low_id = try self.makeConstant(low_num);
+                        try self.emitUnaryOp(.GetConstant, low_id, low_region);
                         try self.emitOp(.ParseLowerBoundedRange, region);
-                        try self.emitByte(low_id, low_region);
                     } else {
                         return Error.InvalidAst;
                     }
@@ -560,8 +560,8 @@ pub const Compiler = struct {
                             try self.emitOp(.ParseCharacter, region);
                         } else {
                             const high_id = try self.makeConstant(high_elem);
+                            try self.emitUnaryOp(.GetConstant, high_id, high_region);
                             try self.emitOp(.ParseUpperBoundedRange, region);
-                            try self.emitByte(high_id, high_region);
                         }
                     } else if (high_elem.isType(.NumberString)) {
                         const high_ns = high_elem.asNumberString();
@@ -571,8 +571,8 @@ pub const Compiler = struct {
                         if (@trunc(high_f) != high_f) return Error.RangeInvalidNumberFormat;
 
                         const high_id = try self.makeConstant(high_num);
+                        try self.emitUnaryOp(.GetConstant, high_id, high_region);
                         try self.emitOp(.ParseUpperBoundedRange, region);
-                        try self.emitByte(high_id, high_region);
                     } else {
                         return Error.InvalidAst;
                     }

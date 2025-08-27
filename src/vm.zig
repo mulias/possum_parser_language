@@ -738,11 +738,12 @@ pub const VM = struct {
                 }
             },
             .ParseLowerBoundedRange => {
-                const lowIdx = self.readByte();
-                const low_elem = self.chunk().getConstant(lowIdx);
+                const low_elem = self.peek(0);
                 if (low_elem.isType(.String)) {
+                    self.drop(1);
                     try self.parseCharacterLowerBounded(low_elem.asString());
                 } else if (low_elem.isFloat()) {
+                    self.drop(1);
                     const f = low_elem.asFloat();
                     const low_int = @as(i64, @intFromFloat(f));
                     try self.parseIntegerLowerBounded(low_int);
@@ -751,11 +752,12 @@ pub const VM = struct {
                 }
             },
             .ParseUpperBoundedRange => {
-                const highIdx = self.readByte();
-                const high_elem = self.chunk().getConstant(highIdx);
+                const high_elem = self.peek(0);
                 if (high_elem.isType(.String)) {
+                    self.drop(1);
                     try self.parseCharacterUpperBounded(high_elem.asString());
                 } else if (high_elem.isFloat()) {
+                    self.drop(1);
                     const f = high_elem.asFloat();
                     const high_int = @as(i64, @intFromFloat(f));
                     try self.parseIntegerUpperBounded(high_int);
