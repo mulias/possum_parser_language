@@ -80,9 +80,9 @@ Constructed values can be any valid JSON data, including arrays, objects, `true`
 | `123`                      | Integer literal                        |
 | `-1.334e23`                | Number literal                         |
 | `1 + 2e-4`                 | Number arithmetic                      |
-| `2.1 - 12`                 | Number arithmetic                      |
-| `2.1 * 12`                 | Number arithmetic                      |
-| `2.1 / 12`                 | Number arithmetic                      |
+| `999 - 12`                 | Number arithmetic                      |
+| `3 * 2`                    | Number arithmetic                      |
+| `23 / 11`                  | Number arithmetic                      |
 | `2 ^ 5`                    | Number arithmetic                      |
 | `true`                     | Constant value `true`                  |
 | `false`                    | Constant value `false`                 |
@@ -91,8 +91,8 @@ Constructed values can be any valid JSON data, including arrays, objects, `true`
 | `[1, 2, ...Nums]`          | Array including all elements from `Nums` array |
 | `{"foo": 0, "bar": Var}`   | Object of key/value pairs              |
 | `{"foo": 0, Var: null}`    | Object with the string value of variable `Var` as a key  |
-| `{...Stuff, "things": true }` | Object including all entries from `Stuff` object |
-| `Reverse([1, 2, 3])`       | Value function                         |
+| `{...Stuff, "things": 1 }` | Object including all entries from `Stuff` object |
+| `Array.Reverse([1, 2, 3])` | Value function                         |
 | `Is.Number(N) ? N + 1 : 0` | Control flow                           |
 | `MyArray -> [A, B, C]`     | Destructure                            |
 
@@ -150,11 +150,12 @@ Patterns can contain variables that are both bound and unbound. Variables must b
 | `p -> "%({..._})"`      | Match a string encoding any object                        |
 
 This list is not exhaustive. Pattern matching in Possum is intended to be maximally flexible, but with some notable limitations:
-  - No control flow operators (`>`, `<`, `|`, `!`, `&`, `?:`)
+  - No control flow operators except for `|` (no `>`, `<`, `!`, `&`, `?:`)
+     - `p -> (1 | 2 | 3)` desugars to `p -> 1 | p -> 2 | p -> 3`
   - No nested destructuring
   - Only one value may be an unknown subset of a larger structure, guaranteeing that there is only one way to interpret the pattern
     - `foo -> [[A, B], C, ...D, {...E}, F]` is fine, since despite having many potentially unbound variables only `D` is a subset of the outer array pattern with unknown length, and only `E` is a subset of the second to last array pattern element, which must be an object.
-    - `foo -> [1, ...A, 5, ...B, 10]` will not compile, since both `A` and `B` are subsets of the array. In this case there are some values that have a single solution, such as `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`, while other values could bind `A` and `B` in multiple ways, such as `[1, 5, 5, 5, 5, 5, 10]`.
+    - `foo -> [1, ...A, 5, ...B, 10]` is not valid, since both `A` and `B` are subsets of the array. In this case there are some values that have a single solution, such as `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`, while other values could bind `A` and `B` in multiple ways, such as `[1, 5, 5, 5, 5, 5, 10]`.
 
 ### Repeat
 
