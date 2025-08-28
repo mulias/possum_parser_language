@@ -5552,16 +5552,15 @@
   0004    | GetBoundLocal 0
   0006    | CallFunction 1
   0008    | Destructure 0: Len
-  0010    | TakeRight 10 -> 27
+  0010    | TakeRight 10 -> 26
   0013    | GetConstant 2: _Num.FromBinaryDigits
   0015    | GetBoundLocal 0
   0017    | GetBoundLocal 1
-  0019    | GetConstant 3: 1
-  0021    | NegateNumber
-  0022    | Merge
-  0023    | GetConstant 4: 0
-  0025    | CallTailFunction 3
-  0027    | End
+  0019    | GetConstant 3: -1
+  0021    | Merge
+  0022    | GetConstant 4: 0
+  0024    | CallTailFunction 3
+  0026    | End
   ========================================
   
   =========_Num.FromBinaryDigits==========
@@ -5581,29 +5580,28 @@
   0004    | SetInputMark
   0005    | GetBoundLocal 0
   0007    | Destructure 0: ([B] + Rest)
-  0009    | ConditionalThen 9 -> 51
+  0009    | ConditionalThen 9 -> 50
   0012    | GetBoundLocal 3
   0014    | Destructure 1: 0..1
-  0016    | TakeRight 16 -> 48
+  0016    | TakeRight 16 -> 47
   0019    | GetConstant 2: _Num.FromBinaryDigits
   0021    | GetBoundLocal 4
   0023    | GetBoundLocal 1
-  0025    | GetConstant 3: 1
-  0027    | NegateNumber
-  0028    | Merge
-  0029    | GetBoundLocal 2
-  0031    | GetConstant 4: @Multiply
-  0033    | GetBoundLocal 3
-  0035    | GetConstant 5: @Power
-  0037    | GetConstant 6: 2
-  0039    | GetBoundLocal 1
-  0041    | CallFunction 2
-  0043    | CallFunction 2
-  0045    | Merge
-  0046    | CallTailFunction 3
-  0048    | Jump 48 -> 53
-  0051    | GetBoundLocal 2
-  0053    | End
+  0025    | GetConstant 3: -1
+  0027    | Merge
+  0028    | GetBoundLocal 2
+  0030    | GetConstant 4: @Multiply
+  0032    | GetBoundLocal 3
+  0034    | GetConstant 5: @Power
+  0036    | GetConstant 6: 2
+  0038    | GetBoundLocal 1
+  0040    | CallFunction 2
+  0042    | CallFunction 2
+  0044    | Merge
+  0045    | CallTailFunction 3
+  0047    | Jump 47 -> 52
+  0050    | GetBoundLocal 2
+  0052    | End
   ========================================
   
   ==========Num.FromOctalDigits===========
@@ -5616,16 +5614,15 @@
   0004    | GetBoundLocal 0
   0006    | CallFunction 1
   0008    | Destructure 0: Len
-  0010    | TakeRight 10 -> 27
+  0010    | TakeRight 10 -> 26
   0013    | GetConstant 2: _Num.FromOctalDigits
   0015    | GetBoundLocal 0
   0017    | GetBoundLocal 1
-  0019    | GetConstant 3: 1
-  0021    | NegateNumber
-  0022    | Merge
-  0023    | GetConstant 4: 0
-  0025    | CallTailFunction 3
-  0027    | End
+  0019    | GetConstant 3: -1
+  0021    | Merge
+  0022    | GetConstant 4: 0
+  0024    | CallTailFunction 3
+  0026    | End
   ========================================
   
   ==========_Num.FromOctalDigits==========
@@ -5645,29 +5642,28 @@
   0004    | SetInputMark
   0005    | GetBoundLocal 0
   0007    | Destructure 0: ([O] + Rest)
-  0009    | ConditionalThen 9 -> 51
+  0009    | ConditionalThen 9 -> 50
   0012    | GetBoundLocal 3
   0014    | Destructure 1: 0..7
-  0016    | TakeRight 16 -> 48
+  0016    | TakeRight 16 -> 47
   0019    | GetConstant 2: _Num.FromOctalDigits
   0021    | GetBoundLocal 4
   0023    | GetBoundLocal 1
-  0025    | GetConstant 3: 1
-  0027    | NegateNumber
-  0028    | Merge
-  0029    | GetBoundLocal 2
-  0031    | GetConstant 4: @Multiply
-  0033    | GetBoundLocal 3
-  0035    | GetConstant 5: @Power
-  0037    | GetConstant 6: 8
-  0039    | GetBoundLocal 1
-  0041    | CallFunction 2
-  0043    | CallFunction 2
-  0045    | Merge
-  0046    | CallTailFunction 3
-  0048    | Jump 48 -> 53
-  0051    | GetBoundLocal 2
-  0053    | End
+  0025    | GetConstant 3: -1
+  0027    | Merge
+  0028    | GetBoundLocal 2
+  0030    | GetConstant 4: @Multiply
+  0032    | GetBoundLocal 3
+  0034    | GetConstant 5: @Power
+  0036    | GetConstant 6: 8
+  0038    | GetBoundLocal 1
+  0040    | CallFunction 2
+  0042    | CallFunction 2
+  0044    | Merge
+  0045    | CallTailFunction 3
+  0047    | Jump 47 -> 52
+  0050    | GetBoundLocal 2
+  0052    | End
   ========================================
   
   ===========Num.FromHexDigits============
@@ -5680,16 +5676,15 @@
   0004    | GetBoundLocal 0
   0006    | CallFunction 1
   0008    | Destructure 0: Len
-  0010    | TakeRight 10 -> 27
+  0010    | TakeRight 10 -> 26
   0013    | GetConstant 2: _Num.FromHexDigits
   0015    | GetBoundLocal 0
   0017    | GetBoundLocal 1
-  0019    | GetConstant 3: 1
-  0021    | NegateNumber
-  0022    | Merge
-  0023    | GetConstant 4: 0
-  0025    | CallTailFunction 3
-  0027    | End
+  0019    | GetConstant 3: -1
+  0021    | Merge
+  0022    | GetConstant 4: 0
+  0024    | CallTailFunction 3
+  0026    | End
   ========================================
   
   ===========_Num.FromHexDigits===========
@@ -5709,29 +5704,28 @@
   0004    | SetInputMark
   0005    | GetBoundLocal 0
   0007    | Destructure 0: ([H] + Rest)
-  0009    | ConditionalThen 9 -> 51
+  0009    | ConditionalThen 9 -> 50
   0012    | GetBoundLocal 3
   0014    | Destructure 1: 0..15
-  0016    | TakeRight 16 -> 48
+  0016    | TakeRight 16 -> 47
   0019    | GetConstant 2: _Num.FromHexDigits
   0021    | GetBoundLocal 4
   0023    | GetBoundLocal 1
-  0025    | GetConstant 3: 1
-  0027    | NegateNumber
-  0028    | Merge
-  0029    | GetBoundLocal 2
-  0031    | GetConstant 4: @Multiply
-  0033    | GetBoundLocal 3
-  0035    | GetConstant 5: @Power
-  0037    | GetConstant 6: 16
-  0039    | GetBoundLocal 1
-  0041    | CallFunction 2
-  0043    | CallFunction 2
-  0045    | Merge
-  0046    | CallTailFunction 3
-  0048    | Jump 48 -> 53
-  0051    | GetBoundLocal 2
-  0053    | End
+  0025    | GetConstant 3: -1
+  0027    | Merge
+  0028    | GetBoundLocal 2
+  0030    | GetConstant 4: @Multiply
+  0032    | GetBoundLocal 3
+  0034    | GetConstant 5: @Power
+  0036    | GetConstant 6: 16
+  0038    | GetBoundLocal 1
+  0040    | CallFunction 2
+  0042    | CallFunction 2
+  0044    | Merge
+  0045    | CallTailFunction 3
+  0047    | Jump 47 -> 52
+  0050    | GetBoundLocal 2
+  0052    | End
   ========================================
   
   ==============Array.First===============

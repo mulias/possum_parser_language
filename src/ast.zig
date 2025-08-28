@@ -131,6 +131,7 @@ pub const Ast = struct {
         Return,
         TakeLeft,
         TakeRight,
+        NumberSubtract,
     };
 
     pub const Infix = struct {

@@ -86,25 +86,25 @@
   $ possum -p '5 -> (1 + 6 + 3 - (2 + 3))' -i '5'
   
   Destructure:
-      5 -> (1 + 6 + 3 + (-2 + -3))
+      5 -> (1 + 6 + 3 + -2 + -3)
       5 -> 5
-  Destructure Success: 5 -> (1 + 6 + 3 + (-2 + -3))
+  Destructure Success: 5 -> (1 + 6 + 3 + -2 + -3)
   5
 
   $ possum -p '5 -> (X + 6 + 3 - (2 + 3)) $ X' -i '5'
   
   Destructure:
-      5 -> (X + 6 + 3 + (-2 + -3))
+      5 -> (X + 6 + 3 + -2 + -3)
           1 -> X
-  Destructure Success: 5 -> (X + 6 + 3 + (-2 + -3))
+  Destructure Success: 5 -> (X + 6 + 3 + -2 + -3)
   1
 
   $ possum -p '5 -> (1 + 6 + 3 - (X + 3)) $ X' -i '5'
   
   Destructure:
-      5 -> (1 + 6 + 3 + (-X + -3))
+      5 -> (1 + 6 + 3 + -X + -3)
           -2 -> -X
-  Destructure Success: 5 -> (1 + 6 + 3 + (-X + -3))
+  Destructure Success: 5 -> (1 + 6 + 3 + -X + -3)
   2
 
   $ possum -p 'const([1,2,3]) -> [1, -X, 3] $ X' -i ''

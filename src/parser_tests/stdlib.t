@@ -728,9 +728,9 @@
               (ParserVar 178:49-52 sep)
               (ParserVar 178:55-59 elem))
           ])
-        (Merge 178:63-70
+        (NumberSubtract 178:63-70
           (ValueVar 178:64-65 N)
-          (Negation 178:68-69 (NumberString 178:68-69 1))))))
+          (NumberString 178:68-69 1)))))
   
   (DeclareGlobal 180:0-120
     (Function 180:0-28
@@ -866,9 +866,9 @@
                   (ValueVar 192:83-96 Array.AppendN) [
                     (ValueVar 192:97-103 AccRow)
                     (ValueVar 192:105-108 Pad)
-                    (Merge 192:110-128
+                    (NumberSubtract 192:110-128
                       (ValueVar 192:110-119 MaxRowLen)
-                      (Negation 192:122-128 (ValueVar 192:122-128 RowLen)))
+                      (ValueVar 192:122-128 RowLen))
                   ])
               ]))
           ])
@@ -883,9 +883,9 @@
                   (ValueVar 193:21-34 Array.AppendN) [
                     (ValueVar 193:35-41 AccRow)
                     (ValueVar 193:43-46 Pad)
-                    (Merge 193:48-66
+                    (NumberSubtract 193:48-66
                       (ValueVar 193:48-57 MaxRowLen)
-                      (Negation 193:60-66 (ValueVar 193:60-66 RowLen)))
+                      (ValueVar 193:60-66 RowLen))
                   ])
               ]))
           ]))))
@@ -3747,9 +3747,9 @@
       (Function 788:2-39
         (ValueVar 788:2-23 _Num.FromBinaryDigits) [
           (ValueVar 788:24-26 Bs)
-          (Merge 788:28-35
+          (NumberSubtract 788:28-35
             (ValueVar 788:28-31 Len)
-            (Negation 788:34-35 (NumberString 788:34-35 1)))
+            (NumberString 788:34-35 1))
           (NumberString 788:37-38 0)
         ])))
   
@@ -3775,9 +3775,9 @@
         (Function 793:4-100
           (ValueVar 793:4-25 _Num.FromBinaryDigits) [
             (ValueVar 794:6-10 Rest)
-            (Merge 795:6-13
+            (NumberSubtract 795:6-13
               (ValueVar 795:6-9 Pos)
-              (Negation 795:12-13 (NumberString 795:12-13 1)))
+              (NumberString 795:12-13 1))
             (Merge 796:6-39
               (ValueVar 796:6-9 Acc)
               (Function 796:12-39
@@ -3807,9 +3807,9 @@
       (Function 803:2-38
         (ValueVar 803:2-22 _Num.FromOctalDigits) [
           (ValueVar 803:23-25 Os)
-          (Merge 803:27-34
+          (NumberSubtract 803:27-34
             (ValueVar 803:27-30 Len)
-            (Negation 803:33-34 (NumberString 803:33-34 1)))
+            (NumberString 803:33-34 1))
           (NumberString 803:36-37 0)
         ])))
   
@@ -3835,9 +3835,9 @@
         (Function 808:4-99
           (ValueVar 808:4-24 _Num.FromOctalDigits) [
             (ValueVar 809:6-10 Rest)
-            (Merge 810:6-13
+            (NumberSubtract 810:6-13
               (ValueVar 810:6-9 Pos)
-              (Negation 810:12-13 (NumberString 810:12-13 1)))
+              (NumberString 810:12-13 1))
             (Merge 811:6-39
               (ValueVar 811:6-9 Acc)
               (Function 811:12-39
@@ -3867,9 +3867,9 @@
       (Function 818:2-36
         (ValueVar 818:2-20 _Num.FromHexDigits) [
           (ValueVar 818:21-23 Hs)
-          (Merge 818:25-32
+          (NumberSubtract 818:25-32
             (ValueVar 818:25-28 Len)
-            (Negation 818:31-32 (NumberString 818:31-32 1)))
+            (NumberString 818:31-32 1))
           (NumberString 818:34-35 0)
         ])))
   
@@ -3895,9 +3895,9 @@
         (Function 823:4-98
           (ValueVar 823:4-22 _Num.FromHexDigits) [
             (ValueVar 824:6-10 Rest)
-            (Merge 825:6-13
+            (NumberSubtract 825:6-13
               (ValueVar 825:6-9 Pos)
-              (Negation 825:12-13 (NumberString 825:12-13 1)))
+              (NumberString 825:12-13 1))
             (Merge 826:6-40
               (ValueVar 826:6-9 Acc)
               (Function 826:12-40

@@ -48,21 +48,19 @@
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | Destructure 0: ..1
-  0005    | Or 5 -> 29
+  0005    | Or 5 -> 27
   0008    | GetConstant 0: Fib
   0010    | GetBoundLocal 0
-  0012    | GetConstant 1: 1
-  0014    | NegateNumber
-  0015    | Merge
-  0016    | CallFunction 1
-  0018    | GetConstant 2: Fib
-  0020    | GetBoundLocal 0
-  0022    | GetConstant 3: 2
-  0024    | NegateNumber
-  0025    | Merge
-  0026    | CallFunction 1
-  0028    | Merge
-  0029    | End
+  0012    | GetConstant 1: -1
+  0014    | Merge
+  0015    | CallFunction 1
+  0017    | GetConstant 2: Fib
+  0019    | GetBoundLocal 0
+  0021    | GetConstant 3: -2
+  0023    | Merge
+  0024    | CallFunction 1
+  0026    | Merge
+  0027    | End
   ========================================
   
   =================@main==================

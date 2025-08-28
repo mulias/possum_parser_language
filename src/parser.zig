@@ -5,7 +5,6 @@ const Writer = std.Io.Writer;
 const Ast = @import("ast.zig").Ast;
 const Elem = @import("elem.zig").Elem;
 const HighlightConfig = @import("highlight.zig").HighlightConfig;
-const highlightRegion = @import("highlight.zig").highlightRegion;
 const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
 const Scanner = @import("scanner.zig").Scanner;
@@ -423,12 +422,6 @@ pub const Parser = struct {
 
         const right = try self.parseWithPrecedence(operatorPrecedence(t.tokenType));
 
-        // Trasnform subtraction into Merge with negated right operand
-        if (t.tokenType == .Minus) {
-            const negated_right = try self.ast.create(.{ .Negation = right }, right.region);
-            return self.ast.createInfix(.Merge, left, negated_right, left.region.merge(negated_right.region));
-        }
-
         if (t.tokenType == .Equal) {
             return self.ast.createDeclareGlobal(left, right, left.region.merge(right.region));
         }
@@ -443,6 +436,7 @@ pub const Parser = struct {
             .LessThan => .TakeLeft,
             .Plus => .Merge,
             .Star => .Repeat,
+            .Minus => .NumberSubtract,
             else => unreachable,
         };
 

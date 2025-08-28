@@ -12,6 +12,6 @@
   $ possum -p '"" $ (1-2)' -i ''
   (Return 1:0-10
     (String 1:0-2 "")
-    (Merge 1:5-10
+    (NumberSubtract 1:5-10
       (NumberString 1:6-7 1)
-      (Negation 1:8-9 (NumberString 1:8-9 2))))
+      (NumberString 1:8-9 2)))

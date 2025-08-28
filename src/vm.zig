@@ -679,6 +679,29 @@ pub const VM = struct {
                 self.drop(1);
                 try self.push(value);
             },
+            .NegateParser => {
+                const num = self.peek(0);
+
+                switch (num.getType()) {
+                    .NumberString => {
+                        const ns = num.asNumberString();
+                        if (ns.negated) {
+                            return self.runtimeError("Number parser can't be negated twice.", .{});
+                        }
+                    },
+                    .NumberFloat => {
+                        const f = num.asFloat();
+                        if (f < 0) {
+                            return self.runtimeError("Number parser can't be negated twice.", .{});
+                        }
+                    },
+                    else => return self.runtimeError("Negation is only supported for numbers.", .{}),
+                }
+
+                const negated = num.negateNumber() catch @panic("Internal Error");
+                self.drop(1);
+                try self.push(negated);
+            },
             .Null => {
                 // Push singleton null value.
                 try self.push(Elem.nullConst);

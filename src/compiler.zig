@@ -463,6 +463,9 @@ pub const Compiler = struct {
                 .Repeat => {
                     try self.writeParserRepeat(infix.left, infix.right, region);
                 },
+                .NumberSubtract => {
+                    return Error.InvalidAst;
+                },
             },
             .DeclareGlobal => unreachable, // handled by top-level compiler functions
             .Range => |bounds| {
@@ -1165,33 +1168,24 @@ pub const Compiler = struct {
     }
 
     fn writeNegatedParserElem(self: *Compiler, negated: *Ast.RNode, region: Region) !void {
-        var neg_count: u32 = 1;
-        var inner_rnode = negated;
-        while (negated.node == .Negation) {
-            neg_count += 1;
-            inner_rnode = negated.node.Negation;
-        }
+        switch (negated.node) {
+            .Negation => return Error.InvalidAst,
+            .NumberString => |ns| {
+                if (ns.negated) {
+                    return Error.InvalidAst;
+                }
+                const elem = try self.nodeToElem(negated.node) orelse return Error.InvalidAst;
+                const negated_elem = elem.negateNumber() catch return Error.InvalidAst;
+                const constId = try self.makeConstant(negated_elem);
+                try self.emitUnaryOp(.GetConstant, constId, negated.region);
+            },
+            .ParserVar => {
+                const elem = try self.nodeToElem(negated.node) orelse return Error.InvalidAst;
 
-        if (inner_rnode.node.isNumberElem()) {
-            var elem = try self.nodeToElem(inner_rnode.node) orelse return Error.InvalidAst;
-
-            if (neg_count % 2 == 1) {
-                elem = elem.negateNumber() catch @panic("Internal Error");
-            }
-
-            const constId = try self.makeConstant(elem);
-            try self.emitUnaryOp(.GetConstant, constId, inner_rnode.region);
-        } else if (inner_rnode.node == .ParserVar) {
-            const elem = try self.nodeToElem(inner_rnode.node) orelse return Error.InvalidAst;
-
-            try self.writeGetVar(elem, region);
-
-            if (neg_count % 2 == 1) {
-                try self.emitOp(.NegateNumber, region);
-            } else {
-                try self.emitOp(.NegateNumber, region);
-                try self.emitOp(.NegateNumber, region);
-            }
+                try self.writeGetVar(elem, region);
+                try self.emitOp(.NegateParser, region);
+            },
+            else => return Error.InvalidAst,
         }
     }
 
@@ -1640,6 +1634,11 @@ pub const Compiler = struct {
                     try self.printError(region, "Invalid AST: Nested destructure not allowed in pattern", .{});
                     return Error.InvalidAst;
                 },
+                .NumberSubtract => {
+                    var mergeElems = ArrayList(Pattern){};
+                    try self.collectPatternMergeElements(rnode, &mergeElems, negation_count);
+                    return Pattern{ .Merge = mergeElems };
+                },
                 else => {
                     try self.printError(region, "Invalid AST in pattern", .{});
                     return Error.InvalidAst;
@@ -1660,6 +1659,10 @@ pub const Compiler = struct {
                 if (infix.infixType == .Merge) {
                     try self.collectPatternMergeElements(infix.left, elements, negation_count);
                     try self.collectPatternMergeElements(infix.right, elements, negation_count);
+                    return;
+                } else if (infix.infixType == .NumberSubtract) {
+                    try self.collectPatternMergeElements(infix.left, elements, negation_count);
+                    try self.collectPatternMergeElements(infix.right, elements, negation_count + 1);
                     return;
                 }
             },
@@ -1863,6 +1866,12 @@ pub const Compiler = struct {
                     try self.writeValue(infix.right, false);
                     try self.emitOp(.RepeatValue, region);
                 },
+                .NumberSubtract => {
+                    try self.writeValueArgument(infix.left, false);
+                    try self.writeValueArgument(infix.right, false);
+                    try self.emitOp(.NegateNumber, region);
+                    try self.emitOp(.Merge, region);
+                },
             },
             .Negation => |inner| {
                 try self.writeValueArgument(inner, false);
@@ -1951,6 +1960,19 @@ pub const Compiler = struct {
                     try self.writeValue(infix.left, false);
                     try self.writeValue(infix.right, false);
                     try self.emitOp(.RepeatValue, region);
+                },
+                .NumberSubtract => {
+                    if (infix.right.node == .NumberString) {
+                        infix.right.node.NumberString.negated = !infix.right.node.NumberString.negated;
+                        try self.writeValue(infix.left, false);
+                        try self.writeValue(infix.right, false);
+                        try self.emitOp(.Merge, region);
+                    } else {
+                        try self.writeValue(infix.left, false);
+                        try self.writeValue(infix.right, false);
+                        try self.emitOp(.NegateNumber, region);
+                        try self.emitOp(.Merge, region);
+                    }
                 },
             },
             .DeclareGlobal => @panic("internal error"),
@@ -2337,6 +2359,7 @@ pub const Compiler = struct {
                     },
                     .Backtrack,
                     .Destructure,
+                    .NumberSubtract,
                     => {},
                 }
             },
