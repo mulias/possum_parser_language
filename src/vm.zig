@@ -725,44 +725,91 @@ pub const VM = struct {
                 const low_elem = self.chunk().getConstant(low_idx);
                 const high_elem = self.chunk().getConstant(high_idx);
 
-                if (low_elem.isType(.String) and high_elem.isType(.String)) {
-                    try self.parseCharacterRange(low_elem.asString(), high_elem.asString());
-                } else if (low_elem.isFloat() and high_elem.isFloat()) {
-                    const low_f = low_elem.asFloat();
-                    const high_f = high_elem.asFloat();
-                    const low_int = @as(i64, @intFromFloat(low_f));
-                    const high_int = @as(i64, @intFromFloat(high_f));
-                    try self.parseIntegerRange(low_int, high_int);
+                if (low_elem.isType(.String)) {
+                    const low = self.strings.get(low_elem.asString());
+                    const high = self.strings.get(high_elem.asString());
+                    const low_codepoint = parsing.utf8Decode(low) orelse @panic("Internal Error");
+                    const high_codepoint = parsing.utf8Decode(high) orelse @panic("Internal Error");
+                    try self.parseCharacterRange(low_codepoint, high_codepoint);
                 } else {
-                    @panic("Internal Error");
+                    const low = try low_elem.asInteger(self.strings);
+                    const high = try high_elem.asInteger(self.strings);
+                    try self.parseIntegerRange(low, high);
                 }
             },
             .ParseLowerBoundedRange => {
                 const low_elem = self.peek(0);
+
                 if (low_elem.isType(.String)) {
+                    const bytes = self.strings.get(low_elem.asString());
+
+                    if (parsing.utf8Decode(bytes)) |codepoint| {
+                        self.drop(1);
+                        try self.parseCharacterLowerBounded(codepoint);
+                    } else {
+                        return self.runtimeError("Range parser lower bound string must be a single valid codepoint", .{});
+                    }
+                } else if (low_elem.isInteger(self.strings)) {
                     self.drop(1);
-                    try self.parseCharacterLowerBounded(low_elem.asString());
-                } else if (low_elem.isFloat()) {
-                    self.drop(1);
-                    const f = low_elem.asFloat();
-                    const low_int = @as(i64, @intFromFloat(f));
-                    try self.parseIntegerLowerBounded(low_int);
+                    const low = try low_elem.asInteger(self.strings);
+                    try self.parseIntegerLowerBounded(low);
                 } else {
-                    @panic("Internal Error");
+                    return self.runtimeError("Range parser lower bound must be a codepoint or integer", .{});
+                }
+            },
+            .ParseRange => {
+                const low_elem = self.peek(1);
+                const high_elem = self.peek(0);
+
+                if (low_elem.isType(.String) and high_elem.isType(.String)) {
+                    const low_bytes = self.strings.get(low_elem.asString());
+                    const high_bytes = self.strings.get(high_elem.asString());
+
+                    if (parsing.utf8Decode(low_bytes)) |low_codepoint| {
+                        if (parsing.utf8Decode(high_bytes)) |high_codepoint| {
+                            if (low_codepoint <= high_codepoint) {
+                                self.drop(2);
+                                try self.parseCharacterRange(low_codepoint, high_codepoint);
+                            } else {
+                                return self.runtimeError("Range parser lower bound can't be larger than upper bound", .{});
+                            }
+                        } else {
+                            return self.runtimeError("Range parser upper bound string must be a single valid codepoint", .{});
+                        }
+                    } else {
+                        return self.runtimeError("Range parser lower bound string must be a single valid codepoint", .{});
+                    }
+                } else if (low_elem.isInteger(self.strings) and high_elem.isInteger(self.strings)) {
+                    const low = try low_elem.asInteger(self.strings);
+                    const high = try high_elem.asInteger(self.strings);
+                    if (low <= high) {
+                        self.drop(2);
+                        try self.parseIntegerRange(low, high);
+                    } else {
+                        return self.runtimeError("Range parser lower bound can't be larger than upper bound", .{});
+                    }
+                } else {
+                    return self.runtimeError("Range must parse codepoints or integers", .{});
                 }
             },
             .ParseUpperBoundedRange => {
                 const high_elem = self.peek(0);
+
                 if (high_elem.isType(.String)) {
+                    const bytes = self.strings.get(high_elem.asString());
+
+                    if (parsing.utf8Decode(bytes)) |codepoint| {
+                        self.drop(1);
+                        try self.parseCharacterUpperBounded(codepoint);
+                    } else {
+                        return self.runtimeError("Range parser upper bound string must be a single valid codepoint", .{});
+                    }
+                } else if (high_elem.isInteger(self.strings)) {
                     self.drop(1);
-                    try self.parseCharacterUpperBounded(high_elem.asString());
-                } else if (high_elem.isFloat()) {
-                    self.drop(1);
-                    const f = high_elem.asFloat();
-                    const high_int = @as(i64, @intFromFloat(f));
-                    try self.parseIntegerUpperBounded(high_int);
+                    const high = try high_elem.asInteger(self.strings);
+                    try self.parseIntegerUpperBounded(high);
                 } else {
-                    @panic("Internal Error");
+                    return self.runtimeError("Range parser upper bound must be a codepoint or integer", .{});
                 }
             },
             .PopInputMark => {
@@ -949,9 +996,7 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
-    fn parseCharacterRange(self: *VM, low_id: StringTable.Id, high_id: StringTable.Id) !void {
-        const low = unicode.utf8Decode(self.strings.get(low_id)) catch @panic("Internal Error");
-        const high = unicode.utf8Decode(self.strings.get(high_id)) catch @panic("Internal Error");
+    fn parseCharacterRange(self: *VM, low: u21, high: u21) !void {
         const low_length = unicode.utf8CodepointSequenceLength(low) catch 1;
         const high_length = unicode.utf8CodepointSequenceLength(high) catch 1;
         const start = self.inputPos.offset;
@@ -983,8 +1028,7 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
-    fn parseCharacterLowerBounded(self: *VM, low_id: StringTable.Id) !void {
-        const low = unicode.utf8Decode(self.strings.get(low_id)) catch @panic("Internal Error");
+    fn parseCharacterLowerBounded(self: *VM, low: u21) !void {
         const low_length = unicode.utf8CodepointSequenceLength(low) catch @panic("Internal Error");
         const start = self.inputPos.offset;
 
@@ -1015,8 +1059,7 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
-    fn parseCharacterUpperBounded(self: *VM, high_id: StringTable.Id) !void {
-        const high = unicode.utf8Decode(self.strings.get(high_id)) catch @panic("Internal Error");
+    fn parseCharacterUpperBounded(self: *VM, high: u21) !void {
         const high_length = unicode.utf8CodepointSequenceLength(high) catch @panic("Internal Error");
         const start = self.inputPos.offset;
 

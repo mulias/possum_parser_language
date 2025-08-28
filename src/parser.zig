@@ -550,6 +550,7 @@ pub const Parser = struct {
             .LeftParen,
             .UnderscoreIdentifier,
             .UppercaseIdentifier,
+            .LowercaseIdentifier,
             => {
                 const upper_bound_node = try self.parseWithPrecedence(
                     operatorPrecedence(range_token.tokenType),

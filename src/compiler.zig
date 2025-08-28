@@ -1,6 +1,5 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
-const unicode = std.unicode;
 const Writer = std.Io.Writer;
 const Ast = @import("ast.zig").Ast;
 const Chunk = @import("chunk.zig").Chunk;
@@ -14,6 +13,7 @@ const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 const Writers = @import("writer.zig").Writers;
 const Module = @import("module.zig").Module;
+const parsing = @import("parsing.zig");
 
 pub const Compiler = struct {
     vm: *VM,
@@ -467,121 +467,15 @@ pub const Compiler = struct {
             .DeclareGlobal => unreachable, // handled by top-level compiler functions
             .Range => |bounds| {
                 if (bounds.lower != null and bounds.upper != null) {
-                    const low = bounds.lower.?;
-                    const high = bounds.upper.?;
-                    const low_elem = try self.getParserRangeElemNode(low);
-                    const high_elem = try self.getParserRangeElemNode(high);
-
-                    if (low_elem.isType(.String) and high_elem.isType(.String)) {
-                        const low_str = low_elem.asString();
-                        const high_str = high_elem.asString();
-                        const low_bytes = self.vm.strings.get(low_str);
-                        const high_bytes = self.vm.strings.get(high_str);
-                        const low_codepoint = unicode.utf8Decode(low_bytes) catch return Error.RangeNotSingleCodepoint;
-                        const high_codepoint = unicode.utf8Decode(high_bytes) catch return Error.RangeNotSingleCodepoint;
-
-                        if (low_codepoint > high_codepoint) {
-                            return Error.RangeCodepointsUnordered;
-                        } else if (low_codepoint == 0 and high_codepoint == 0x10ffff) {
-                            try self.emitOp(.ParseCharacter, region);
-                        } else {
-                            const low_id = try self.makeConstant(low_elem);
-                            const high_id = try self.makeConstant(high_elem);
-                            try self.emitOp(.ParseFixedRange, region);
-                            try self.emitByte(low_id, low.region);
-                            try self.emitByte(high_id, high.region);
-                        }
-                    } else if (low_elem.isType(.NumberString) and high_elem.isType(.NumberString)) {
-                        const low_ns = low_elem.asNumberString();
-                        const high_ns = high_elem.asNumberString();
-
-                        const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
-                        const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
-
-                        const low_f = low_num.asFloat();
-                        const high_f = high_num.asFloat();
-
-                        if (@trunc(low_f) != low_f) return Error.RangeInvalidNumberFormat;
-                        if (@trunc(high_f) != high_f) return Error.RangeInvalidNumberFormat;
-
-                        if (low_f > high_f) {
-                            return Error.RangeIntegersUnordered;
-                        } else {
-                            const low_id = try self.makeConstant(low_num);
-                            const high_id = try self.makeConstant(high_num);
-                            try self.emitOp(.ParseFixedRange, region);
-                            try self.emitByte(low_id, low.region);
-                            try self.emitByte(high_id, high.region);
-                        }
-                    } else {
-                        return Error.InvalidAst;
-                    }
+                    try self.writeRangeParser(bounds.lower.?, bounds.upper.?, region);
                 } else if (bounds.lower != null) {
-                    const low = bounds.lower.?;
-                    const low_elem = try self.getParserRangeElemNode(low);
-                    const low_region = low.region;
-
-                    if (low_elem.isType(.String)) {
-                        const low_str = low_elem.asString();
-                        const low_bytes = self.vm.strings.get(low_str);
-                        const low_codepoint = unicode.utf8Decode(low_bytes) catch return Error.RangeNotSingleCodepoint;
-
-                        if (low_codepoint == 0) {
-                            try self.emitOp(.ParseCharacter, region);
-                        } else {
-                            const low_id = try self.makeConstant(low_elem);
-                            try self.emitUnaryOp(.GetConstant, low_id, low_region);
-                            try self.emitOp(.ParseLowerBoundedRange, region);
-                        }
-                    } else if (low_elem.isType(.NumberString)) {
-                        const low_ns = low_elem.asNumberString();
-                        const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
-                        const low_f = low_num.asFloat();
-
-                        if (@trunc(low_f) != low_f) return Error.RangeInvalidNumberFormat;
-
-                        const low_id = try self.makeConstant(low_num);
-                        try self.emitUnaryOp(.GetConstant, low_id, low_region);
-                        try self.emitOp(.ParseLowerBoundedRange, region);
-                    } else {
-                        return Error.InvalidAst;
-                    }
+                    try self.writeLowerBoundedRangeParser(bounds.lower.?, region);
                 } else {
-                    const high = bounds.upper.?;
-                    const high_elem = try self.getParserRangeElemNode(high);
-                    const high_region = high.region;
-
-                    if (high_elem.isType(.String)) {
-                        const high_str = high_elem.asString();
-                        const high_bytes = self.vm.strings.get(high_str);
-                        const high_codepoint = unicode.utf8Decode(high_bytes) catch return Error.RangeNotSingleCodepoint;
-
-                        if (high_codepoint == 0x10ffff) {
-                            try self.emitOp(.ParseCharacter, region);
-                        } else {
-                            const high_id = try self.makeConstant(high_elem);
-                            try self.emitUnaryOp(.GetConstant, high_id, high_region);
-                            try self.emitOp(.ParseUpperBoundedRange, region);
-                        }
-                    } else if (high_elem.isType(.NumberString)) {
-                        const high_ns = high_elem.asNumberString();
-                        const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
-                        const high_f = high_num.asFloat();
-
-                        if (@trunc(high_f) != high_f) return Error.RangeInvalidNumberFormat;
-
-                        const high_id = try self.makeConstant(high_num);
-                        try self.emitUnaryOp(.GetConstant, high_id, high_region);
-                        try self.emitOp(.ParseUpperBoundedRange, region);
-                    } else {
-                        return Error.InvalidAst;
-                    }
+                    try self.writeUpperBoundedRangeParser(bounds.upper.?, region);
                 }
             },
             .Negation => |inner| {
-                const negated = try self.negateParserNumber(inner);
-                const constId = try self.makeConstant(negated);
-                try self.emitUnaryOp(.GetConstant, constId, region);
+                try self.writeNegatedParserElem(inner, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
             .ParserVar,
@@ -641,13 +535,6 @@ pub const Compiler = struct {
         }
     }
 
-    fn getParserRangeElemNode(self: *Compiler, rnode: *Ast.RNode) !Elem {
-        return switch (rnode.node) {
-            .Negation => |inner| try self.negateParserNumber(inner),
-            else => try self.nodeToElem(rnode.node) orelse return Error.InvalidAst,
-        };
-    }
-
     fn writeParserFunctionCall(
         self: *Compiler,
         function_rnode: *Ast.RNode,
@@ -686,6 +573,192 @@ pub const Compiler = struct {
             try self.emitUnaryOp(.CallTailFunction, arg_count, call_region);
         } else {
             try self.emitUnaryOp(.CallFunction, arg_count, call_region);
+        }
+    }
+
+    fn writeRangeParser(self: *Compiler, low: *Ast.RNode, high: *Ast.RNode, region: Region) !void {
+        const low_elem = try self.nodeToElem(low.node);
+        const high_elem = try self.nodeToElem(high.node);
+
+        if (low.node == .String and high.node == .String) {
+            const low_str = low_elem.?.asString();
+            const high_str = high_elem.?.asString();
+            const low_bytes = self.vm.strings.get(low_str);
+            const high_bytes = self.vm.strings.get(high_str);
+            const low_codepoint = parsing.utf8Decode(low_bytes) orelse return Error.RangeNotSingleCodepoint;
+            const high_codepoint = parsing.utf8Decode(high_bytes) orelse return Error.RangeNotSingleCodepoint;
+
+            if (low_codepoint > high_codepoint) {
+                return Error.RangeCodepointsUnordered;
+            } else if (low_codepoint == 0 and high_codepoint == 0x10ffff) {
+                try self.emitOp(.ParseCharacter, region);
+            } else {
+                const low_id = try self.makeConstant(low_elem.?);
+                const high_id = try self.makeConstant(high_elem.?);
+                try self.emitOp(.ParseFixedRange, region);
+                try self.emitByte(low_id, low.region);
+                try self.emitByte(high_id, high.region);
+            }
+        } else if (low.node == .NumberString and high.node == .NumberString) {
+            const low_ns = low_elem.?.asNumberString();
+            const high_ns = high_elem.?.asNumberString();
+
+            const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+            const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+
+            if (!low_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
+            if (!high_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
+
+            const low_int = try low_num.asInteger(self.vm.strings);
+            const high_int = try high_num.asInteger(self.vm.strings);
+
+            if (low_int > high_int) {
+                return Error.RangeIntegersUnordered;
+            } else {
+                const low_id = try self.makeConstant(low_num);
+                const high_id = try self.makeConstant(high_num);
+                try self.emitOp(.ParseFixedRange, region);
+                try self.emitByte(low_id, low.region);
+                try self.emitByte(high_id, high.region);
+            }
+        } else {
+            switch (low.node) {
+                .String => {
+                    const low_str = low_elem.?.asString();
+                    const low_bytes = self.vm.strings.get(low_str);
+                    _ = parsing.utf8Decode(low_bytes) orelse return Error.RangeNotSingleCodepoint;
+
+                    const low_id = try self.makeConstant(low_elem.?);
+                    try self.emitUnaryOp(.GetConstant, low_id, low.region);
+                },
+                .NumberString => {
+                    const low_ns = low_elem.?.asNumberString();
+                    const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+
+                    if (!low_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
+
+                    const low_id = try self.makeConstant(low_num);
+                    try self.emitUnaryOp(.GetConstant, low_id, low.region);
+                },
+                .ParserVar => {
+                    try self.writeGetVar(low_elem.?, region);
+                },
+                .Negation => |inner| {
+                    try self.writeNegatedParserElem(inner, region);
+                },
+                else => return Error.InvalidAst,
+            }
+
+            switch (high.node) {
+                .String => {
+                    const high_str = high_elem.?.asString();
+                    const high_bytes = self.vm.strings.get(high_str);
+                    _ = parsing.utf8Decode(high_bytes) orelse return Error.RangeNotSingleCodepoint;
+
+                    const high_id = try self.makeConstant(high_elem.?);
+                    try self.emitUnaryOp(.GetConstant, high_id, high.region);
+                },
+                .NumberString => {
+                    const high_ns = high_elem.?.asNumberString();
+                    const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+
+                    if (!high_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
+
+                    const high_id = try self.makeConstant(high_num);
+                    try self.emitUnaryOp(.GetConstant, high_id, high.region);
+                },
+                .ParserVar => {
+                    try self.writeGetVar(high_elem.?, region);
+                },
+                .Negation => |inner| {
+                    try self.writeNegatedParserElem(inner, region);
+                },
+                else => return Error.InvalidAst,
+            }
+
+            try self.emitOp(.ParseRange, region);
+        }
+    }
+
+    fn writeLowerBoundedRangeParser(self: *Compiler, low: *Ast.RNode, region: Region) !void {
+        const low_elem = try self.nodeToElem(low.node);
+        const low_region = low.region;
+
+        switch (low.node) {
+            .String => {
+                const low_str = low_elem.?.asString();
+                const low_bytes = self.vm.strings.get(low_str);
+                const low_codepoint = parsing.utf8Decode(low_bytes) orelse return Error.RangeNotSingleCodepoint;
+
+                if (low_codepoint == 0) {
+                    try self.emitOp(.ParseCharacter, region);
+                } else {
+                    const low_id = try self.makeConstant(low_elem.?);
+                    try self.emitUnaryOp(.GetConstant, low_id, low_region);
+                    try self.emitOp(.ParseLowerBoundedRange, region);
+                }
+            },
+            .NumberString => {
+                const low_ns = low_elem.?.asNumberString();
+                const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                const low_f = low_num.asFloat();
+
+                if (@trunc(low_f) != low_f) return Error.RangeInvalidNumberFormat;
+
+                const low_id = try self.makeConstant(low_num);
+                try self.emitUnaryOp(.GetConstant, low_id, low_region);
+                try self.emitOp(.ParseLowerBoundedRange, region);
+            },
+            .ParserVar => {
+                try self.writeGetVar(low_elem.?, region);
+                try self.emitOp(.ParseLowerBoundedRange, region);
+            },
+            .Negation => |inner| {
+                try self.writeNegatedParserElem(inner, region);
+                try self.emitOp(.ParseLowerBoundedRange, region);
+            },
+            else => return Error.InvalidAst,
+        }
+    }
+
+    fn writeUpperBoundedRangeParser(self: *Compiler, high: *Ast.RNode, region: Region) !void {
+        const high_elem = try self.nodeToElem(high.node);
+        const high_region = high.region;
+
+        switch (high.node) {
+            .String => {
+                const high_str = high_elem.?.asString();
+                const high_bytes = self.vm.strings.get(high_str);
+                const high_codepoint = parsing.utf8Decode(high_bytes) orelse return Error.RangeNotSingleCodepoint;
+
+                if (high_codepoint == 0x10ffff) {
+                    try self.emitOp(.ParseCharacter, region);
+                } else {
+                    const high_id = try self.makeConstant(high_elem.?);
+                    try self.emitUnaryOp(.GetConstant, high_id, high_region);
+                    try self.emitOp(.ParseUpperBoundedRange, region);
+                }
+            },
+            .NumberString => {
+                const high_ns = high_elem.?.asNumberString();
+                const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                const high_f = high_num.asFloat();
+
+                if (@trunc(high_f) != high_f) return Error.RangeInvalidNumberFormat;
+
+                const high_id = try self.makeConstant(high_num);
+                try self.emitUnaryOp(.GetConstant, high_id, high_region);
+                try self.emitOp(.ParseUpperBoundedRange, region);
+            },
+            .ParserVar => {
+                try self.writeGetVar(high_elem.?, region);
+                try self.emitOp(.ParseUpperBoundedRange, region);
+            },
+            .Negation => |inner| {
+                try self.writeNegatedParserElem(inner, region);
+                try self.emitOp(.ParseUpperBoundedRange, region);
+            },
+            else => return Error.InvalidAst,
         }
     }
 
@@ -1091,6 +1164,37 @@ pub const Compiler = struct {
         };
     }
 
+    fn writeNegatedParserElem(self: *Compiler, negated: *Ast.RNode, region: Region) !void {
+        var neg_count: u32 = 1;
+        var inner_rnode = negated;
+        while (negated.node == .Negation) {
+            neg_count += 1;
+            inner_rnode = negated.node.Negation;
+        }
+
+        if (inner_rnode.node.isNumberElem()) {
+            var elem = try self.nodeToElem(inner_rnode.node) orelse return Error.InvalidAst;
+
+            if (neg_count % 2 == 1) {
+                elem = elem.negateNumber() catch @panic("Internal Error");
+            }
+
+            const constId = try self.makeConstant(elem);
+            try self.emitUnaryOp(.GetConstant, constId, inner_rnode.region);
+        } else if (inner_rnode.node == .ParserVar) {
+            const elem = try self.nodeToElem(inner_rnode.node) orelse return Error.InvalidAst;
+
+            try self.writeGetVar(elem, region);
+
+            if (neg_count % 2 == 1) {
+                try self.emitOp(.NegateNumber, region);
+            } else {
+                try self.emitOp(.NegateNumber, region);
+                try self.emitOp(.NegateNumber, region);
+            }
+        }
+    }
+
     fn writeGetVar(self: *Compiler, elem: Elem, region: Region) !void {
         const varName = switch (elem.getType()) {
             .ParserVar => elem.asParserVar(),
@@ -1132,6 +1236,14 @@ pub const Compiler = struct {
             .String => |s| Elem.string(try self.vm.strings.insert(s)),
             .True => Elem.boolean(true),
             .ValueVar => |s| Elem.valueVar(try self.vm.strings.insert(s)),
+            .Negation => |inner| {
+                const inner_elem = try self.nodeToElem(inner.node);
+                if (inner_elem) |elem| {
+                    return elem.negateNumber() catch null;
+                } else {
+                    return null;
+                }
+            },
             else => null,
         };
 

@@ -262,6 +262,23 @@ pub const Elem = packed union {
         return self.tagged.signature != signature_nan or self.isNaN();
     }
 
+    pub fn isInteger(self: Elem, strings: StringTable) bool {
+        if (self.isFloat()) {
+            const f = self.asFloat();
+            return @trunc(f) == f;
+        } else if (self.isType(.NumberString)) {
+            const ns = self.asNumberString();
+            for (ns.toBytes(strings)) |byte| {
+                if (byte == '.' or byte == 'e' or byte == 'E') {
+                    return false;
+                }
+            }
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     pub fn isTagged(self: Elem) bool {
         return !self.isFloat();
     }
@@ -334,6 +351,15 @@ pub const Elem = packed union {
         return self.float;
     }
 
+    pub fn asInteger(self: Elem, strings: StringTable) !i64 {
+        const f = if (self.isType(.NumberString))
+            (try self.asNumberString().toNumberFloat(strings)).asFloat()
+        else
+            self.asFloat();
+
+        return @as(i64, @intFromFloat(f));
+    }
+
     pub fn asConst(self: Elem) ConstElem {
         std.debug.assert(self.isType(.Const));
         return self.tagged.payload.constant.value;
@@ -387,11 +413,10 @@ pub const Elem = packed union {
                 try d.print(vm, writer);
             },
             .NumberFloat => {
-                const f = self.asFloat();
-                if (@trunc(f) == f and f >= @as(f64, @floatFromInt(std.math.minInt(i64))) and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)))) {
-                    try writer.print("{d}", .{@as(i64, @intFromFloat(f))});
+                if (self.isInteger(vm.strings)) {
+                    try writer.print("{d}", .{@as(i64, @intFromFloat(self.asFloat()))});
                 } else {
-                    try writer.print("{d}", .{f});
+                    try writer.print("{d}", .{self.asFloat()});
                 }
             },
         }
@@ -783,8 +808,6 @@ pub const Elem = packed union {
 
     pub fn negateNumber(elem: Elem) !Elem {
         return switch (elem.getType()) {
-            .ParserVar,
-            => @panic("Internal error"),
             .Const => switch (elem.asConst()) {
                 .Failure => elem,
                 .Null => numberFloat(0),

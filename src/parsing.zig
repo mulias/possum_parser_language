@@ -56,6 +56,16 @@ pub fn parseFloat(bytes: []const u8) ?f64 {
     }
 }
 
+pub fn utf8Decode(bytes: []const u8) ?u21 {
+    return switch (bytes.len) {
+        1 => bytes[0],
+        2 => unicode.utf8Decode2(bytes[0..2].*) catch null,
+        3 => unicode.utf8Decode3(bytes[0..3].*) catch null,
+        4 => unicode.utf8Decode4(bytes[0..4].*) catch null,
+        else => null,
+    };
+}
+
 pub fn intAsStringLen(int: i64) usize {
     const digits = intAsStringLenLoop(int);
     if (int < 0) {
