@@ -21,6 +21,7 @@
   
   program:1:7:
   1 \xe2\x96\x8f 1 -> .. (esc)
+    \xe2\x96\x8f        ^ (esc)
   
   [UnexpectedInput]
   [1]

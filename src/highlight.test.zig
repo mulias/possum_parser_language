@@ -554,3 +554,37 @@ test "highlight very long region - truncates to first and last line" {
     ;
     try testing.expectEqualStrings(expected, getTestOutput());
 }
+
+test "highlight end of single line - no line numbers" {
+    initTestBuffer();
+    defer deinitTestBuffer();
+
+    const source = "hello world";
+
+    try highlight.highlightEndPosition(source, getTestWriter(), HighlightConfig{ .show_line_numbers = false });
+
+    const expected =
+        \\hello world
+        \\           ^
+        \\
+    ;
+    try testing.expectEqualStrings(expected, getTestOutput());
+}
+
+test "highlight end of multiline - with line numbers" {
+    initTestBuffer();
+    defer deinitTestBuffer();
+
+    const source = "line 1\nline 2\nline 3";
+
+    try highlight.highlightEndPosition(source, getTestWriter(), HighlightConfig{});
+
+    const expected =
+        \\1 ▏ line 1
+        \\2 ▏ line 2
+        \\3 ▏ line 3
+        \\  ▏       ^
+        \\
+    ;
+    try testing.expectEqualStrings(expected, getTestOutput());
+}

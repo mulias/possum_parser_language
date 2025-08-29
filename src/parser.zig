@@ -972,7 +972,11 @@ pub const Parser = struct {
         try token.region.printLineRelative(self.module.source, self.writers.err);
         try self.writers.err.print(":\n", .{});
 
-        try self.module.highlight(token.region, self.writers.err);
+        if (token.tokenType == .Eof) {
+            try self.module.highlightEnd(self.writers.err);
+        } else {
+            try self.module.highlight(token.region, self.writers.err);
+        }
         try self.writers.err.print("\n", .{});
 
         return Error.UnexpectedInput;

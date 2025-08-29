@@ -199,6 +199,102 @@ fn isSingleLine(source: []const u8) bool {
     return true;
 }
 
+/// Highlight the EOF position (one character after the end of source)
+pub fn highlightEndPosition(source: []const u8, writer: anytype, config: HighlightConfig) !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // Parse lines
+    var lines = try parseLines(source, allocator);
+    defer lines.deinit(allocator);
+
+    if (lines.items.len == 0 and config.show_line_numbers) {
+        // Empty source - just show position indicator
+        try writer.print("1 ▏\n  ▏{c}", .{config.underline_char});
+        return;
+    } else if (lines.items.len == 0) {
+        try writer.print("\n{c}", .{config.underline_char});
+        return;
+    }
+
+    // Calculate display range with context lines
+    const last_line_index = lines.items.len - 1;
+    const display_range = calculateDisplayRange(
+        last_line_index,
+        last_line_index,
+        lines.items.len,
+        config.context_lines,
+    );
+
+    // Calculate line number width for formatting
+    const line_number_width = if (config.show_line_numbers)
+        calculateLineNumberWidth(lines.items[display_range.end - 1].line_number)
+    else
+        0;
+
+    // Display lines with context
+    for (lines.items[display_range.start..display_range.end], display_range.start..) |line, line_index| {
+        // Write line number if needed
+        if (config.show_line_numbers) {
+            // Format line number with right alignment and proper width
+            var line_num_buf: [16]u8 = undefined;
+            const line_num_str = std.fmt.bufPrint(&line_num_buf, "{d}", .{line.line_number}) catch "?";
+
+            // Pad with spaces on the left to achieve right alignment
+            const padding = if (line_number_width > line_num_str.len)
+                line_number_width - line_num_str.len
+            else
+                0;
+
+            var i: usize = 0;
+            while (i < padding) {
+                try writer.print(" ", .{});
+                i += 1;
+            }
+
+            try writer.print("{s} ▏", .{line_num_str});
+        }
+
+        // Write line content
+        const line_content = source[line.start..line.end];
+        if (config.show_line_numbers) {
+            // Multi-line format: add space before content if content exists
+            if (line_content.len > 0) {
+                try writer.print(" {s}\n", .{line_content});
+            } else {
+                try writer.print("\n", .{});
+            }
+        } else {
+            // Single-line format: no prefix
+            try writer.print("{s}\n", .{line_content});
+        }
+
+        // Write underline for EOF position only on the last line
+        if (line_index == last_line_index) {
+            // Write underline line with proper padding
+            if (config.show_line_numbers) {
+                var i: usize = 0;
+                while (i < line_number_width) {
+                    try writer.print(" ", .{});
+                    i += 1;
+                }
+                try writer.print(" ▏ ", .{});
+            }
+
+            // Write spaces for the length of the line content, then the caret at EOF position
+            for (line_content) |char| {
+                if (char == '\t') {
+                    try writer.print("\t", .{});
+                } else {
+                    try writer.print(" ", .{});
+                }
+            }
+            try writer.print("{c}\n", .{config.underline_char});
+        }
+    }
+}
+
 pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, config: HighlightConfig) !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();

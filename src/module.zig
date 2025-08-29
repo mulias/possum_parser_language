@@ -4,7 +4,7 @@ const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const StringTable = @import("string_table.zig").StringTable;
-const highlightRegion = @import("highlight.zig").highlightRegion;
+const hl = @import("highlight.zig");
 const Region = @import("region.zig").Region;
 
 pub const Module = struct {
@@ -26,7 +26,12 @@ pub const Module = struct {
 
     /// Highlight this region in the module source code with context lines and underlines
     pub fn highlight(module: Module, region: Region, writer: *Writer) !void {
-        return highlightRegion(module.source, region, writer, .{ .show_line_numbers = true });
+        return hl.highlightRegion(module.source, region, writer, .{ .show_line_numbers = true });
+    }
+
+    /// Highlight the EOF position (one character after the end of source)
+    pub fn highlightEnd(module: Module, writer: *Writer) !void {
+        return hl.highlightEndPosition(module.source, writer, .{ .show_line_numbers = true });
     }
 
     /// Print raw source code for the given region
