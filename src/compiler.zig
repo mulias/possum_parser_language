@@ -124,7 +124,7 @@ pub const Compiler = struct {
         for (self.ast.roots.items) |root| {
             if (root.node == .DeclareGlobal) {
                 const global = root.node.DeclareGlobal;
-                try self.validateGlobal(global.head);
+                try self.validateGlobal(global.head, root.region);
             }
         }
     }
@@ -251,7 +251,7 @@ pub const Compiler = struct {
         try self.targetModule.addGlobal(self.vm.allocator, name, bodyElem);
     }
 
-    fn validateGlobal(self: *Compiler, head: *Ast.RNode) !void {
+    fn validateGlobal(self: *Compiler, head: *Ast.RNode, region: Region) !void {
         const nameElem = switch (head.node) {
             .Function => |function| try self.nodeToElem(function.name.node) orelse return Error.InvalidAst,
             else => try self.nodeToElem(head.node) orelse return Error.InvalidAst,
@@ -269,7 +269,10 @@ pub const Compiler = struct {
                     .Const,
                     => {},
                     .ParserVar,
-                    => return Error.InvalidGlobalValue,
+                    => {
+                        try self.printError(region, "parser cannot be assigned to a value alias", .{});
+                        return Error.InvalidGlobalValue;
+                    },
                     .Dyn => switch (global.asDyn().dynType) {
                         .String,
                         .Array,
@@ -278,6 +281,7 @@ pub const Compiler = struct {
                         => {},
                         .Function => {
                             if (global.asDyn().asFunction().functionType != .NamedValue) {
+                                try self.printError(region, "parser cannot be assigned to a value alias", .{});
                                 return Error.InvalidGlobalValue;
                             }
                         },
@@ -296,7 +300,10 @@ pub const Compiler = struct {
                     .String,
                     .NumberString,
                     => {},
-                    .ValueVar => return Error.InvalidGlobalParser,
+                    .ValueVar => {
+                        try self.printError(region, "value cannot be assigned to a parser alias", .{});
+                        return Error.InvalidGlobalParser;
+                    },
                     .Dyn => switch (global.asDyn().dynType) {
                         .String,
                         .NativeCode,
@@ -306,6 +313,7 @@ pub const Compiler = struct {
                         => return Error.InvalidGlobalParser,
                         .Function => {
                             if (global.asDyn().asFunction().functionType != .NamedParser) {
+                                try self.printError(region, "value cannot be assigned to a parser alias", .{});
                                 return Error.InvalidGlobalParser;
                             }
                         },
@@ -464,6 +472,7 @@ pub const Compiler = struct {
                     try self.writeParserRepeat(infix.left, infix.right, region);
                 },
                 .NumberSubtract => {
+                    try self.printError(region, "Subtraction is only valid in patterns or values", .{});
                     return Error.InvalidAst;
                 },
             },
@@ -487,7 +496,7 @@ pub const Compiler = struct {
             .Null,
             => {
                 // In this context `true`/`false`/`null` could be a zero-arg function call
-                const elem = try self.nodeToElem(rnode.node) orelse return Error.InvalidAst;
+                const elem = try self.nodeToElem(rnode.node) orelse @panic("Internal Error");
                 try self.writeGetVar(elem, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
@@ -495,7 +504,7 @@ pub const Compiler = struct {
             .NumberString,
             .String,
             => {
-                const elem = try self.nodeToElem(rnode.node) orelse return Error.InvalidAst;
+                const elem = try self.nodeToElem(rnode.node) orelse @panic("Internal Error");
                 const constId = try self.makeConstant(elem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
@@ -523,7 +532,10 @@ pub const Compiler = struct {
             .ValueLabel,
             .Array,
             .Object,
-            => return Error.InvalidAst,
+            => {
+                try self.printError(region, "Variable is only valid as a pattern or value", .{});
+                return Error.InvalidAst;
+            },
         }
     }
 
@@ -2555,11 +2567,11 @@ pub const Compiler = struct {
     fn printError(self: *Compiler, region: Region, comptime message: []const u8, args: anytype) !void {
         try self.writers.err.print("\nProgram Error: ", .{});
         try self.writers.err.print(message, args);
-        try self.writers.err.print("\n", .{});
+        try self.writers.err.print("\n\n", .{});
 
         try self.writers.err.print("{s}:", .{self.targetModule.name});
         try region.printLineRelative(self.targetModule.source, self.writers.err);
-        try self.writers.err.print(":\n\n", .{});
+        try self.writers.err.print(":\n", .{});
 
         try self.targetModule.highlight(region, self.writers.err);
         try self.writers.err.print("\n", .{});
