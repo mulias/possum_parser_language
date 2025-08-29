@@ -76,16 +76,16 @@ pub const CLI = struct {
 
         const userModule = switch (args.parser) {
             .String => |str| Module{
+                .name = "program",
                 .source = str,
             },
             .Path => |path| Module{
-                .source = try self.readFile(path),
                 .name = path,
-                .showLineNumbers = true,
+                .source = try self.readFile(path),
             },
             .Stdin => Module{
+                .name = "program",
                 .source = try self.readStdin("parser"),
-                .showLineNumbers = true,
             },
         };
 

@@ -213,7 +213,7 @@ pub const VM = struct {
     }
 
     fn loadBuiltinFunctions(self: *VM) !void {
-        const builtinModule = Module{ .source = "" };
+        const builtinModule = Module{ .name = "builtins", .source = "" };
         try self.modules.append(self.allocator, builtinModule);
 
         // Get a pointer to the Module in the modules list, not a local copy,
@@ -227,7 +227,6 @@ pub const VM = struct {
         const stdlibModule = Module{
             .name = filename,
             .source = @embedFile(filename),
-            .showLineNumbers = true,
         };
 
         try self.modules.append(self.allocator, stdlibModule);
@@ -1393,12 +1392,9 @@ pub const VM = struct {
         try self.writers.err.print("\n", .{});
 
         if (self.findModuleForChunk(target_chunk)) |module| {
-            try self.writers.err.print("\n", .{});
+            try self.writers.err.print("\n\n", .{});
 
-            if (module.name) |name| {
-                try self.writers.err.print("{s}:", .{name});
-            }
-
+            try self.writers.err.print("{s}:", .{module.name});
             try target_region.printLineRelative(module.source, self.writers.err);
             try self.writers.err.print(":\n\n", .{});
 

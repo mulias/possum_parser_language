@@ -108,40 +108,44 @@
 
   $ possum -p '"" $ [1, 2 3]' -i ''
   
-  Error at '3': Expected closing ']'
+  Syntax Error: expected closing ']', found '3'
   
-  "" $ [1, 2 3]
-             ^
+  program:1:11-12:
+  1 \xe2\x96\x8f "" $ [1, 2 3] (esc)
+    \xe2\x96\x8f            ^ (esc)
   
   [UnexpectedInput]
   [1]
 
   $ possum -p '"" $ [1, 2, 3,,]' -i ''
   
-  Error at ',': Expect expression.
+  Syntax Error: expected expression, found ','
   
-  "" $ [1, 2, 3,,]
-                ^
+  program:1:14-15:
+  1 \xe2\x96\x8f "" $ [1, 2, 3,,] (esc)
+    \xe2\x96\x8f               ^ (esc)
   
   [UnexpectedInput]
   [1]
 
   $ possum -p '"" $ [...[] ...[]]' -i ''
   
-  Error at '...': Expected closing ']'
+  Syntax Error: expected closing ']', found '...'
   
-  "" $ [...[] ...[]]
-              ^^^
+  program:1:12-15:
+  1 \xe2\x96\x8f "" $ [...[] ...[]] (esc)
+    \xe2\x96\x8f             ^^^ (esc)
   
   [UnexpectedInput]
   [1]
 
   $ possum -p '"" $ [...[], ...[] ...[]]' -i ''
   
-  Error at '...': Expected closing ']'
+  Syntax Error: expected closing ']', found '...'
   
-  "" $ [...[], ...[] ...[]]
-                     ^^^
+  program:1:19-22:
+  1 \xe2\x96\x8f "" $ [...[], ...[] ...[]] (esc)
+    \xe2\x96\x8f                    ^^^ (esc)
   
   [UnexpectedInput]
   [1]

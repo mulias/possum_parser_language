@@ -2557,10 +2557,7 @@ pub const Compiler = struct {
         try self.writers.err.print(message, args);
         try self.writers.err.print("\n", .{});
 
-        if (self.targetModule.name) |name| {
-            try self.writers.err.print("{s}:", .{name});
-        }
-
+        try self.writers.err.print("{s}:", .{self.targetModule.name});
         try region.printLineRelative(self.targetModule.source, self.writers.err);
         try self.writers.err.print(":\n\n", .{});
 

@@ -8,10 +8,9 @@ const highlightRegion = @import("highlight.zig").highlightRegion;
 const Region = @import("region.zig").Region;
 
 pub const Module = struct {
-    name: ?[]const u8 = null,
+    name: []const u8,
     source: []const u8,
     globals: AutoHashMap(StringTable.Id, Elem) = AutoHashMap(StringTable.Id, Elem){},
-    showLineNumbers: bool = false,
 
     pub fn deinit(self: *Module, allocator: Allocator) void {
         self.globals.deinit(allocator);
@@ -27,7 +26,7 @@ pub const Module = struct {
 
     /// Highlight this region in the module source code with context lines and underlines
     pub fn highlight(module: Module, region: Region, writer: *Writer) !void {
-        return highlightRegion(module.source, region, writer, .{ .show_line_numbers = module.showLineNumbers });
+        return highlightRegion(module.source, region, writer, .{ .show_line_numbers = true });
     }
 
     /// Print raw source code for the given region

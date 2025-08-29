@@ -17,9 +17,10 @@
 
   $ possum -p '1 -> ..' -i ''
   
-  Error at end: Expect expression.
+  Syntax Error: expected expression, found end of program
   
-  1 -> ..
+  program:1:7:
+  1 \xe2\x96\x8f 1 -> .. (esc)
   
   [UnexpectedInput]
   [1]

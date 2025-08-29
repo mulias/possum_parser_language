@@ -227,9 +227,6 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, conf
         return;
     }
 
-    // Determine if we should show line numbers
-    const show_line_numbers = config.show_line_numbers and !isSingleLine(source);
-
     // Find affected lines
     const affected = if (is_zero_length)
         // For zero-length regions, find the line containing the position
@@ -251,7 +248,7 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, conf
     );
 
     // Calculate line number width for formatting
-    const line_number_width = if (show_line_numbers)
+    const line_number_width = if (config.show_line_numbers)
         calculateLineNumberWidth(lines.items[display_range.end - 1].line_number)
     else
         0;
@@ -271,7 +268,7 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, conf
             // Skip middle lines, but show truncation indicator after first line
             if (line_index == affected.start_line.? + 1) {
                 // Write truncation message with proper format
-                if (show_line_numbers) {
+                if (config.show_line_numbers) {
                     const skipped_lines = affected.end_line.? - affected.start_line.? - 1;
 
                     // Empty line before message
@@ -293,7 +290,7 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, conf
         }
 
         // Write line number if needed
-        if (show_line_numbers) {
+        if (config.show_line_numbers) {
             // Format line number with right alignment and proper width
             var line_num_buf: [16]u8 = undefined;
             const line_num_str = std.fmt.bufPrint(&line_num_buf, "{d}", .{line.line_number}) catch "?";
@@ -315,7 +312,7 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, conf
 
         // Write line content
         const line_content = source[line.start..line.end];
-        if (show_line_numbers) {
+        if (config.show_line_numbers) {
             // Multi-line format: add space before content if content exists
             if (line_content.len > 0) {
                 try writer.print(" {s}\n", .{line_content});
@@ -335,7 +332,7 @@ pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, conf
                 clamped_region,
                 source,
                 line_number_width,
-                show_line_numbers,
+                config.show_line_numbers,
                 config.underline_char,
             );
         }

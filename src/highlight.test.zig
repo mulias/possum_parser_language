@@ -53,7 +53,7 @@ test "highlight single line - no line numbers" {
     const source = "hello world";
     const region = Region.new(6, 11); // "world"
 
-    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{ .show_line_numbers = false });
 
     const expected =
         \\hello world
@@ -70,7 +70,7 @@ test "highlight single line - region at start" {
     const source = "hello world";
     const region = Region.new(0, 5); // "hello"
 
-    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{ .show_line_numbers = false });
 
     const expected =
         \\hello world
@@ -87,7 +87,7 @@ test "highlight single line - region at end" {
     const source = "hello world";
     const region = Region.new(10, 11); // "d"
 
-    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
+    try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{ .show_line_numbers = false });
 
     const expected =
         \\hello world
@@ -177,7 +177,7 @@ test "highlight with tabs" {
 
     try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
-    const expected = "hello\tworld\n     \t^^^^^\n";
+    const expected = "1 ▏ hello\tworld\n  ▏      \t^^^^^\n";
     try testing.expectEqualStrings(expected, getTestOutput());
 }
 
@@ -203,7 +203,7 @@ test "highlight zero-length region in single line" {
 
     try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
-    const expected = "hello world\n";
+    const expected = "1 ▏ hello world\n";
     try testing.expectEqualStrings(expected, getTestOutput());
 }
 
@@ -242,7 +242,7 @@ test "highlight region outside source bounds" {
 
     try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
-    const expected = "hello\n";
+    const expected = "1 ▏ hello\n";
     try testing.expectEqualStrings(expected, getTestOutput());
 }
 
@@ -256,8 +256,8 @@ test "highlight region partially outside bounds - clamps correctly" {
     try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
-        \\hello
-        \\   ^^
+        \\1 ▏ hello
+        \\  ▏    ^^
         \\
     ;
     try testing.expectEqualStrings(expected, getTestOutput());
@@ -388,8 +388,8 @@ test "highlight unicode characters" {
     try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});
 
     const expected =
-        \\héllo wörld
-        \\      ^^^^^
+        \\1 ▏ héllo wörld
+        \\  ▏       ^^^^^
         \\
     ;
     try testing.expectEqualStrings(expected, getTestOutput());

@@ -109,7 +109,7 @@ pub const Scanner = struct {
             '.' => if (self.match('.'))
                 if (self.match('.')) self.makeToken(.DotDotDot) else self.makeToken(.DotDot)
             else
-                return self.makeError("Unexpected character."),
+                return self.makeToken(.UnexpectedCharacter),
             '+' => self.makeToken(.Plus),
             '*' => self.makeToken(.Star),
             ';' => self.makeToken(.Semicolon),
@@ -135,7 +135,7 @@ pub const Scanner = struct {
                 if (isDigit(c)) return self.scanNumber();
                 if (isLower(c)) return self.scanLowercaseIdentifier();
                 if (isUpper(c)) return self.scanUppercaseIdentifier();
-                return self.makeError("Unexpected character.");
+                return self.makeToken(.UnexpectedCharacter);
             },
         };
     }
@@ -267,13 +267,6 @@ pub const Scanner = struct {
         });
     }
 
-    fn makeError(self: *Scanner, message: []const u8) Token {
-        return Token.new(.Error, message, .{
-            .start = self.pos - self.offset,
-            .end = self.pos,
-        });
-    }
-
     pub fn scanNumber(self: *Scanner) Token {
         // Consume negative sign
         if (self.offset == 0 and self.peek() == '-') self.advance();
@@ -286,7 +279,7 @@ pub const Scanner = struct {
         _ = self.scanScientificPart();
 
         if (self.tokenHasExtraLeadingZero()) {
-            return self.makeError("Invalid number.");
+            return self.makeToken(.InvalidNumber);
         } else {
             return self.makeToken(.Number);
         }

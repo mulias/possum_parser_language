@@ -87,7 +87,7 @@ pub const Parser = struct {
             return node;
         }
 
-        return self.errorAtToken("Expected newline or semicolon between statements");
+        return self.errorAtToken("expected newline or semicolon between statements");
     }
 
     fn expression(self: *Parser) Error!*Ast.RNode {
@@ -155,7 +155,7 @@ pub const Parser = struct {
             .True, .False, .Null => self.literal(),
             .DotDot => self.upperBoundedRange(),
             .DollarSign => self.valueLabel(),
-            else => self.errorAtToken("Expect expression."),
+            else => self.errorAtToken("expected expression"),
         };
     }
 
@@ -180,17 +180,17 @@ pub const Parser = struct {
                 if (!self.tokenSkippedWhitespace) {
                     return self.callOrDefineFunction(leftNode);
                 } else {
-                    return self.errorAtToken("Expected infix operator.");
+                    return self.errorAtToken("expected infix operator");
                 }
             },
             .DotDot => {
                 if (!self.tokenSkippedWhitespace) {
                     return self.fullOrLowerBoundedRange(leftNode);
                 } else {
-                    return self.errorAtToken("Expected infix operator.");
+                    return self.errorAtToken("expected infix operator");
                 }
             },
-            else => self.errorAtToken("Expect infix operator."),
+            else => self.errorAtToken("expected infix operator"),
         };
     }
 
@@ -248,7 +248,7 @@ pub const Parser = struct {
                         try template_parts.append(self.ast.arena.allocator(), expr);
 
                         if (self.token.tokenType != .RightParen) {
-                            return self.errorAtToken("Expect ')' after expression.");
+                            return self.errorAtToken("expected ')' after expression");
                         }
                     }
                     self.scanner.setStringMode(quote_type);
@@ -268,7 +268,8 @@ pub const Parser = struct {
 
                     break;
                 },
-                else => return self.errorAtToken("Unexpected token in string"),
+                .Eof => return self.errorAtToken("expected string ending quote"),
+                else => @panic("Internal Error"),
             }
         }
 
@@ -288,7 +289,7 @@ pub const Parser = struct {
                 const body_token = self.token;
                 try self.advance(); // advance to StringEnd
                 if (self.token.tokenType != .StringEnd) {
-                    return self.errorAtToken("Expected end of string");
+                    return self.errorAtToken("expected string ending quote");
                 }
                 const end_token = self.token;
                 self.scanner.setNormalMode();
@@ -304,8 +305,8 @@ pub const Parser = struct {
 
                 return self.ast.create(.{ .String = "" }, start_token.region.merge(end_token.region));
             },
-            .Eof => return self.errorAtToken("Unterminated backtick string"),
-            else => return self.errorAtToken("Unexpected token in backtick string"),
+            .Eof => return self.errorAtToken("expected string ending quote"),
+            else => @panic("Internal Error"),
         }
     }
 
@@ -383,7 +384,7 @@ pub const Parser = struct {
         try self.advance(); // consume the '('
         const expr = try self.expression();
         if (self.token.tokenType != .RightParen) {
-            return self.errorAtToken("Expect ')' after expression.");
+            return self.errorAtToken("expected ')' after expression");
         }
         const end_region = self.token.region;
         try self.advance(); // advance past the ')'
@@ -400,7 +401,7 @@ pub const Parser = struct {
         try self.advance(); // consume the '-'
 
         if (self.tokenSkippedWhitespace) {
-            return self.errorAtPrevious("Expected expression");
+            return self.errorAtPrevious("expected expression");
         }
 
         const inner = try self.parseWithPrecedence(.Prefix);
@@ -451,7 +452,7 @@ pub const Parser = struct {
         const then_branch = try self.parseWithPrecedence(.Conditional);
 
         if (self.token.tokenType != .Colon) {
-            return self.errorAtToken("Expected ':' after then branch in conditional");
+            return self.errorAtToken("expected ':' after '?' branch in conditional");
         }
         try self.advance(); // advance past the ':'
 
@@ -479,7 +480,7 @@ pub const Parser = struct {
         } else {
             const arguments = try self.paramsOrArgs();
             if (self.token.tokenType != .RightParen) {
-                return self.errorAtToken("Expected closing ')'");
+                return self.errorAtToken("expected ',' or closing ')'");
             }
             const closing_paren_region = self.token.region;
             try self.advance(); // advance past the ')'
@@ -649,7 +650,7 @@ pub const Parser = struct {
 
         // Pure object without spread, use Object AST node
         if (self.token.tokenType != .RightBrace) {
-            return self.errorAtToken("Expected closing '}'");
+            return self.errorAtToken("expected closing '}'");
         }
         const end_region = self.token.region;
         try self.advance(); // advance past the '}'
@@ -675,7 +676,7 @@ pub const Parser = struct {
             }
         } else {
             if (self.token.tokenType != .RightBrace) {
-                return self.errorAtToken("Expected closing '}'");
+                return self.errorAtToken("expected closing '}'");
             }
             const closing_brace = self.token;
             try self.advance(); // advance past the '}'
@@ -701,7 +702,7 @@ pub const Parser = struct {
             }
         } else {
             if (self.token.tokenType != .RightBracket) {
-                return self.errorAtToken("Expected closing ']'");
+                return self.errorAtToken("expected closing ']'");
             }
             const closing_bracket = self.token;
             try self.advance(); // advance past the ']'
@@ -734,7 +735,7 @@ pub const Parser = struct {
                 }
             } else {
                 if (self.token.tokenType != .RightBracket) {
-                    return self.errorAtToken("Expected closing ']'");
+                    return self.errorAtToken("expected closing ']'");
                 }
                 const closing_bracket = self.token;
                 try self.advance(); // advance past the ']'
@@ -765,7 +766,7 @@ pub const Parser = struct {
                     result = try self.ast.createInfix(.Merge, result, remaining, result.region.merge(remaining.region));
                 } else {
                     if (self.token.tokenType != .RightBracket) {
-                        return self.errorAtToken("Expected closing ']'");
+                        return self.errorAtToken("expected closing ']'");
                     }
                     const closing_bracket = self.token;
                     try self.advance(); // advance past the ']'
@@ -809,7 +810,7 @@ pub const Parser = struct {
                 }
             } else {
                 if (self.token.tokenType != .RightBrace) {
-                    return self.errorAtToken("Expected closing '}'");
+                    return self.errorAtToken("expected closing '}'");
                 }
                 const closing_brace = self.token;
                 try self.advance(); // advance past the '}'
@@ -840,7 +841,7 @@ pub const Parser = struct {
                     result = try self.ast.createInfix(.Merge, result, remaining, result.region.merge(remaining.region));
                 } else {
                     if (self.token.tokenType != .RightBrace) {
-                        return self.errorAtToken("Expected closing '}'");
+                        return self.errorAtToken("expected closing '}'");
                     }
                     const closing_brace = self.token;
                     try self.advance(); // advance past the '}'
@@ -858,7 +859,7 @@ pub const Parser = struct {
         }
 
         if (self.token.tokenType != .RightBrace) {
-            return self.errorAtToken("Expected closing '}'");
+            return self.errorAtToken("expected closing '}'");
         }
         const closing_brace = self.token;
         try self.advance(); // advance past the '}'
@@ -867,7 +868,7 @@ pub const Parser = struct {
 
     fn finishArray(self: *Parser, elements: ArrayList(*Ast.RNode), start_region: Region) !*Ast.RNode {
         if (self.token.tokenType != .RightBracket) {
-            return self.errorAtToken("Expected closing ']'");
+            return self.errorAtToken("expected closing ']'");
         }
         const end_region = self.token.region;
         try self.advance(); // advance past the ']'
@@ -890,7 +891,7 @@ pub const Parser = struct {
         const key = try self.expression();
 
         if (self.token.tokenType != .Colon) {
-            return self.errorAtToken("Expected ':' after object member key");
+            return self.errorAtToken("expected ':' after object member key");
         }
         try self.advance(); // advance past the ':'
 
@@ -907,8 +908,10 @@ pub const Parser = struct {
         self.tokenSkippedNewline = false;
 
         while (self.scanner.next()) |token| {
-            if (token.isType(.Error)) {
-                return self.errorAt(token, token.lexeme);
+            if (token.isType(.UnexpectedCharacter)) {
+                return self.errorAt(token, "unexpected character");
+            } else if (token.isType(.InvalidNumber)) {
+                return self.errorAt(token, "invalid number format");
             } else if (token.isType(.WhitespaceWithNewline)) {
                 self.tokenSkippedWhitespace = true;
                 self.tokenSkippedNewline = true;
@@ -958,24 +961,18 @@ pub const Parser = struct {
     }
 
     fn errorAt(self: *Parser, token: Token, message: []const u8) Error {
-        try self.writers.err.print("\nError at ", .{});
-        switch (token.tokenType) {
-            .Eof => {
-                try self.writers.err.print("end", .{});
-            },
-            .Error => {},
-            else => {
-                try self.writers.err.print("'{s}'", .{token.lexeme});
-            },
+        try self.writers.err.print("\nSyntax Error: {s}, ", .{message});
+        if (token.tokenType == .Eof) {
+            try self.writers.err.print("found end of program\n\n", .{});
+        } else {
+            try self.writers.err.print("found '{s}'\n\n", .{token.lexeme});
         }
-        try self.writers.err.print(": {s}\n\n", .{message});
 
-        if (self.module.name) |name| {
-            try self.writers.err.print("{s}: \n", .{name});
-        }
+        try self.writers.err.print("{s}:", .{self.module.name});
+        try token.region.printLineRelative(self.module.source, self.writers.err);
+        try self.writers.err.print(":\n", .{});
 
         try self.module.highlight(token.region, self.writers.err);
-
         try self.writers.err.print("\n", .{});
 
         return Error.UnexpectedInput;

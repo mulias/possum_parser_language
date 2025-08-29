@@ -22,7 +22,7 @@ const config = VMConfig{
 };
 
 fn createTestModule(source: []const u8) Module {
-    return Module{ .source = source };
+    return Module{ .name = "test", .source = source };
 }
 
 test "empty program" {
