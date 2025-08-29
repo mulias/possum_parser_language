@@ -70,6 +70,13 @@ pub const StringTable = struct {
         return mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + sid)), 0);
     }
 
+    pub fn findId(self: *StringTable, string: []const u8) ?Id {
+        if (string.len == 1 and string[0] == 0) return std.math.maxInt(u32);
+        return self.table.getKeyAdapted(string, StringIndexAdapter{
+            .bytes = &self.buffer,
+        });
+    }
+
     pub fn getId(self: *StringTable, string: []const u8) Id {
         if (string.len == 1 and string[0] == 0) return std.math.maxInt(u32);
         return self.table.getKeyAdapted(string, StringIndexAdapter{

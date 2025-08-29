@@ -33,10 +33,9 @@ pub const Ast = struct {
         Null,
         NumberFloat,
         NumberString,
-        ParserVar,
         String,
         True,
-        ValueVar,
+        Identifier,
     };
 
     pub const ObjectPair = struct {
@@ -75,6 +74,13 @@ pub const Ast = struct {
         }
     };
 
+    pub const IdentifierNode = struct {
+        name: []const u8,
+        builtin: bool,
+        underscored: bool,
+        kind: enum { Parser, Value, Underscore },
+    };
+
     pub const Node = union(NodeType) {
         InfixNode: Infix,
         Range: RangeNode,
@@ -90,10 +96,9 @@ pub const Ast = struct {
         Null,
         NumberFloat: f64,
         NumberString: NumberStringNode,
-        ParserVar: []const u8,
         String: []const u8,
         True,
-        ValueVar: []const u8,
+        Identifier: IdentifierNode,
 
         pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
             return switch (self) {
@@ -108,10 +113,9 @@ pub const Ast = struct {
                 .Null,
                 .NumberFloat,
                 .NumberString,
-                .ParserVar,
                 .String,
                 .True,
-                .ValueVar,
+                .Identifier,
                 => true,
                 else => false,
             };
@@ -307,7 +311,7 @@ pub const Ast = struct {
             } else {
                 return null;
             },
-            .ValueVar, .ParserVar => null, // Variables can't be repeated at compile time
+            .Identifier => null,
             else => null, // Other types not supported
         };
     }
@@ -357,10 +361,9 @@ pub const Ast = struct {
             .Null,
             .NumberFloat,
             .NumberString,
-            .ParserVar,
             .String,
             .True,
-            .ValueVar,
+            .Identifier,
             => false,
         };
     }
@@ -559,17 +562,19 @@ pub const Ast = struct {
                     try writer.print("(NumberString {}:{}-{} {s})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, ns.number });
                 }
             },
-            .ParserVar => |s| {
-                try writer.print("(ParserVar {}:{}-{} {s})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, s });
-            },
             .String => |s| {
                 try writer.print("(String {}:{}-{} \"{s}\")", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, s });
             },
             .True => {
                 try writer.print("(True {}:{}-{})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
             },
-            .ValueVar => |s| {
-                try writer.print("(ValueVar {}:{}-{} {s})", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end, s });
+            .Identifier => |ident| {
+                try writer.print("(Identifier {}:{}-{} {s})", .{
+                    line_relative.line,
+                    line_relative.relative_start,
+                    line_relative.relative_end,
+                    ident.name,
+                });
             },
         }
     }

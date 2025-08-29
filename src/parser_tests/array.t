@@ -104,7 +104,7 @@
     (String 1:0-2 "")
     (Merge 1:6-12
       (Array 1:6-7 [])
-      (ValueVar 1:10-11 _)))
+      (Identifier 1:10-11 _)))
 
   $ possum -p '"" $ [1, 2 3]' -i ''
   

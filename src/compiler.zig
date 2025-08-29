@@ -490,7 +490,21 @@ pub const Compiler = struct {
                 try self.writeNegatedParserElem(inner, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
-            .ParserVar,
+            .Identifier => |ident| switch (ident.kind) {
+                .Parser => {
+                    const elem = Elem.parserVar(try self.vm.strings.insert(ident.name));
+                    try self.writeGetVar(elem, region);
+                    try self.emitUnaryOp(.CallFunction, 0, region);
+                },
+                .Value => {
+                    try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
+                    return Error.InvalidAst;
+                },
+                .Underscore => {
+                    try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
+                    return Error.InvalidAst;
+                },
+            },
             .False,
             .True,
             .Null,
@@ -508,10 +522,6 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(elem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
-            },
-            .ValueVar => {
-                try self.printError(region, "Variable is only valid as a pattern or value", .{});
-                return Error.InvalidAst;
             },
             .StringTemplate => |parts| {
                 try self.writeStringTemplate(parts, region, .Parser);
@@ -533,7 +543,7 @@ pub const Compiler = struct {
             .Array,
             .Object,
             => {
-                try self.printError(region, "Variable is only valid as a pattern or value", .{});
+                try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
                 return Error.InvalidAst;
             },
         }
@@ -655,8 +665,16 @@ pub const Compiler = struct {
                     const low_id = try self.makeConstant(low_num);
                     try self.emitUnaryOp(.GetConstant, low_id, low.region);
                 },
-                .ParserVar => {
-                    try self.writeGetVar(low_elem.?, region);
+                .Identifier => |ident| switch (ident.kind) {
+                    .Parser => try self.writeGetVar(low_elem.?, region),
+                    .Value => {
+                        try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
+                        return Error.InvalidAst;
+                    },
+                    .Underscore => {
+                        try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
+                        return Error.InvalidAst;
+                    },
                 },
                 .Negation => |inner| {
                     try self.writeNegatedParserElem(inner, region);
@@ -682,8 +700,16 @@ pub const Compiler = struct {
                     const high_id = try self.makeConstant(high_num);
                     try self.emitUnaryOp(.GetConstant, high_id, high.region);
                 },
-                .ParserVar => {
-                    try self.writeGetVar(high_elem.?, region);
+                .Identifier => |ident| switch (ident.kind) {
+                    .Parser => try self.writeGetVar(high_elem.?, region),
+                    .Value => {
+                        try self.printError(region, "Uppercse variable is only valid as a pattern or value", .{});
+                        return Error.InvalidAst;
+                    },
+                    .Underscore => {
+                        try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
+                        return Error.InvalidAst;
+                    },
                 },
                 .Negation => |inner| {
                     try self.writeNegatedParserElem(inner, region);
@@ -724,9 +750,19 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetConstant, low_id, low_region);
                 try self.emitOp(.ParseLowerBoundedRange, region);
             },
-            .ParserVar => {
-                try self.writeGetVar(low_elem.?, region);
-                try self.emitOp(.ParseLowerBoundedRange, region);
+            .Identifier => |ident| switch (ident.kind) {
+                .Parser => {
+                    try self.writeGetVar(low_elem.?, region);
+                    try self.emitOp(.ParseLowerBoundedRange, region);
+                },
+                .Value => {
+                    try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
+                    return Error.InvalidAst;
+                },
+                .Underscore => {
+                    try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
+                    return Error.InvalidAst;
+                },
             },
             .Negation => |inner| {
                 try self.writeNegatedParserElem(inner, region);
@@ -765,9 +801,19 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetConstant, high_id, high_region);
                 try self.emitOp(.ParseUpperBoundedRange, region);
             },
-            .ParserVar => {
-                try self.writeGetVar(high_elem.?, region);
-                try self.emitOp(.ParseUpperBoundedRange, region);
+            .Identifier => |ident| switch (ident.kind) {
+                .Parser => {
+                    try self.writeGetVar(high_elem.?, region);
+                    try self.emitOp(.ParseUpperBoundedRange, region);
+                },
+                .Value => {
+                    try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
+                    return Error.InvalidAst;
+                },
+                .Underscore => {
+                    try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
+                    return Error.InvalidAst;
+                },
             },
             .Negation => |inner| {
                 try self.writeNegatedParserElem(inner, region);
@@ -815,33 +861,39 @@ pub const Compiler = struct {
                     try self.writeParserRepeatUnknownCount(parser, repeat, region);
                 }
             },
-            .ValueVar => {
-                const elem = try self.nodeToElem(repeat.node) orelse return Error.InvalidAst;
-                const name = elem.asValueVar();
-                if (self.findGlobal(name)) |globalElem| {
-                    if (globalElem.isNumber()) {
-                        try self.writeParserRepeatCount(parser, repeat, region);
+            .Identifier => |ident| switch (ident.kind) {
+                .Parser => {
+                    try self.printError(repeat.region, "Repeat count must be an integer or range pattern, got a parser", .{});
+                    return Error.InvalidAst;
+                },
+                .Value, .Underscore => {
+                    const elem = Elem.valueVar(try self.vm.strings.insert(ident.name));
+                    const name = elem.asValueVar();
+                    if (self.findGlobal(name)) |globalElem| {
+                        if (globalElem.isNumber()) {
+                            try self.writeParserRepeatCount(parser, repeat, region);
+                        } else {
+                            return Error.InvalidAst;
+                        }
+                    } else if (self.localSlot(name)) |slot| {
+                        // The local var is a function arg, so we know it's bound
+                        if (self.currentFunction().arity > slot) {
+                            try self.writeParserRepeatCount(parser, repeat, region);
+                        } else {
+                            try self.emitUnaryOp(.GetLocal, slot, repeat.region);
+                            const knownCountJump = try self.emitJump(.JumpIfBound, repeat.region);
+                            try self.writeParserRepeatUnknownCount(parser, repeat, region);
+                            const endJump = try self.emitJump(.Jump, repeat.region);
+                            try self.patchJump(knownCountJump, region);
+                            try self.writeParserRepeatCount(parser, repeat, region);
+                            try self.patchJump(endJump, region);
+                            try self.emitOp(.Swap, region);
+                            try self.emitOp(.Drop, region);
+                        }
                     } else {
-                        return Error.InvalidAst;
+                        @panic("Internal Error");
                     }
-                } else if (self.localSlot(name)) |slot| {
-                    // The local var is a function arg, so we know it's bound
-                    if (self.currentFunction().arity > slot) {
-                        try self.writeParserRepeatCount(parser, repeat, region);
-                    } else {
-                        try self.emitUnaryOp(.GetLocal, slot, repeat.region);
-                        const knownCountJump = try self.emitJump(.JumpIfBound, repeat.region);
-                        try self.writeParserRepeatUnknownCount(parser, repeat, region);
-                        const endJump = try self.emitJump(.Jump, repeat.region);
-                        try self.patchJump(knownCountJump, region);
-                        try self.writeParserRepeatCount(parser, repeat, region);
-                        try self.patchJump(endJump, region);
-                        try self.emitOp(.Swap, region);
-                        try self.emitOp(.Drop, region);
-                    }
-                } else {
-                    @panic("Internal Error");
-                }
+                },
             },
             else => {
                 if (self.isBoundedRepeatCount(repeat)) {
@@ -1140,21 +1192,25 @@ pub const Compiler = struct {
             .Null,
             .NumberFloat,
             .NumberString,
-            .ParserVar,
             .String,
             .True,
             => true,
-            .ValueVar => {
-                const elem = self.nodeToElem(rnode.node) catch return false;
-                const name = elem.?.asValueVar();
+            .Identifier => |ident| switch (ident.kind) {
+                .Parser => true,
+                .Underscore => false,
+                .Value => {
+                    if (self.vm.strings.findId(ident.name)) |name| {
+                        if (self.findGlobal(name) != null) return true;
 
-                if (self.findGlobal(name) != null) return true;
-
-                if (self.localSlot(name)) |slot| {
-                    return self.currentFunction().arity > slot;
-                } else {
-                    return false;
-                }
+                        if (self.localSlot(name)) |slot| {
+                            return self.currentFunction().arity > slot;
+                        } else {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                },
             },
             .InfixNode => |infix| self.isBoundedRepeatCount(infix.left) and self.isBoundedRepeatCount(infix.left),
             .Range => |range| {
@@ -1191,11 +1247,21 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(negated_elem);
                 try self.emitUnaryOp(.GetConstant, constId, negated.region);
             },
-            .ParserVar => {
-                const elem = try self.nodeToElem(negated.node) orelse return Error.InvalidAst;
+            .Identifier => |ident| switch (ident.kind) {
+                .Parser => {
+                    const elem = try self.nodeToElem(negated.node) orelse return Error.InvalidAst;
 
-                try self.writeGetVar(elem, region);
-                try self.emitOp(.NegateParser, region);
+                    try self.writeGetVar(elem, region);
+                    try self.emitOp(.NegateParser, region);
+                },
+                .Value => {
+                    try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
+                    return Error.InvalidAst;
+                },
+                .Underscore => {
+                    try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
+                    return Error.InvalidAst;
+                },
             },
             else => return Error.InvalidAst,
         }
@@ -1222,7 +1288,7 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetConstant, constId, region);
             } else {
                 const varNameStr = self.vm.strings.get(varName);
-                try self.printError(region, "Undefined variable '{s}'", .{varNameStr});
+                try self.printError(region, "undefined variable '{s}'", .{varNameStr});
                 return Error.UndefinedVariable;
             }
         }
@@ -1238,10 +1304,13 @@ pub const Compiler = struct {
                 number_string_elem.negated = s.negated;
                 return number_string_elem.elem();
             },
-            .ParserVar => |s| Elem.parserVar(try self.vm.strings.insert(s)),
+            .Identifier => |ident| switch (ident.kind) {
+                .Parser => Elem.parserVar(try self.vm.strings.insert(ident.name)),
+                .Value => Elem.valueVar(try self.vm.strings.insert(ident.name)),
+                .Underscore => Elem.valueVar(try self.vm.strings.insert(ident.name)),
+            },
             .String => |s| Elem.string(try self.vm.strings.insert(s)),
             .True => Elem.boolean(true),
-            .ValueVar => |s| Elem.valueVar(try self.vm.strings.insert(s)),
             .Negation => |inner| {
                 const inner_elem = try self.nodeToElem(inner.node);
                 if (inner_elem) |elem| {
@@ -1348,18 +1417,19 @@ pub const Compiler = struct {
                 .Null,
                 .NumberFloat,
                 .NumberString,
-                .ParserVar,
                 .String,
                 .True,
-                .ValueVar,
                 => {
                     const elem = try self.nodeToElem(rnode.node) orelse return Error.InvalidAst;
-                    if (elem.isType(.ParserVar)) {
+                    const constId = try self.makeConstant(elem);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
+                },
+                .Identifier => |ident| switch (ident.kind) {
+                    .Parser => {
+                        const elem = Elem.parserVar(try self.vm.strings.insert(ident.name));
                         try self.writeGetVar(elem, region);
-                    } else {
-                        const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, region);
-                    }
+                    },
+                    .Value, .Underscore => @panic("Internal Error"),
                 },
                 .ValueLabel => {
                     try self.printError(region, "Labeled value is not valid as parser function argument.", .{});
@@ -1440,10 +1510,9 @@ pub const Compiler = struct {
             .Null,
             .NumberFloat,
             .NumberString,
-            .ParserVar,
+            .Identifier,
             .String,
             .True,
-            .ValueVar,
             => {
                 const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
                 switch (elem.getType()) {
@@ -1592,9 +1661,11 @@ pub const Compiler = struct {
             .Function => |function| {
                 const nameNode = function.name.node;
 
-                const functionName = switch (nameNode) {
-                    .ValueVar => |s| try self.vm.strings.insert(s),
-                    else => return Error.InvalidAst,
+                const functionName = if (nameNode == .Identifier and nameNode.Identifier.kind == .Value)
+                    try self.vm.strings.insert(nameNode.Identifier.name)
+                else {
+                    try self.printError(region, "Parser is not valid in pattern", .{});
+                    return Error.InvalidAst;
                 };
 
                 const globalFunctionElem = self.findGlobal(functionName);
@@ -1732,13 +1803,15 @@ pub const Compiler = struct {
                 try self.addValueLocals(declaration.head);
                 try self.addValueLocals(declaration.body);
             },
-            .ValueVar => {
-                const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
-                if (self.findGlobal(elem.asValueVar()) == null) {
-                    const newLocalId = try self.addLocalIfUndefined(elem, region);
-                    if (newLocalId) |_| {
-                        const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, region);
+            .Identifier => |ident| {
+                if (ident.kind == .Value or ident.kind == .Underscore) {
+                    const elem = Elem.valueVar(try self.vm.strings.insert(ident.name));
+                    if (self.findGlobal(elem.asValueVar()) == null) {
+                        const newLocalId = try self.addLocalIfUndefined(elem, region);
+                        if (newLocalId) |_| {
+                            const constId = try self.makeConstant(elem);
+                            try self.emitUnaryOp(.GetConstant, constId, region);
+                        }
                     }
                 }
             },
@@ -1746,7 +1819,6 @@ pub const Compiler = struct {
             .Null,
             .NumberFloat,
             .NumberString,
-            .ParserVar,
             .String,
             .True,
             => {},
@@ -1796,17 +1868,14 @@ pub const Compiler = struct {
                 try self.addClosureLocals(conditional.else_branch);
             },
             .DeclareGlobal => @panic("internal error"),
-            .ValueVar,
-            .ParserVar,
-            => {
-                const elem = try self.nodeToElem(node) orelse unreachable;
-                const varName = switch (elem.getType()) {
-                    .ValueVar => elem.asValueVar(),
-                    .ParserVar => elem.asParserVar(),
-                    else => @panic("Internal Error"),
-                };
+            .Identifier => |ident| {
+                const name = try self.vm.strings.insert(ident.name);
+                const elem = if (ident.kind == .Parser)
+                    Elem.parserVar(name)
+                else
+                    Elem.valueVar(name);
 
-                if (self.parentFunction().localSlot(varName) != null) {
+                if (self.parentFunction().localSlot(name) != null) {
                     const newLocalId = try self.addLocalIfUndefined(elem, region);
                     if (newLocalId) |_| {
                         const constId = try self.makeConstant(elem);
@@ -2021,36 +2090,42 @@ pub const Compiler = struct {
             .Function => |function| {
                 try self.writeValueFunctionCall(function.name, function.paramsOrArgs, region, isTailPosition);
             },
-            .ParserVar => {
-                try self.printError(region, "Parser is not valid in value", .{});
-                return Error.InvalidAst;
-            },
-            .ValueVar => {
-                const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
-                const name = elem.asValueVar();
-                if (self.localSlot(name)) |slot| {
-                    // This local will either be a concrete value or
-                    // unbound, it won't be a function. Value functions are
-                    // all defined globally and called immediately. This
-                    // means that if a function takes a value function as
-                    // an arg then the value function will be called before
-                    // the outer function, and the value used when calling
-                    // the outer function will be concrete.
-                    try self.emitUnaryOp(.GetBoundLocal, slot, region);
-                } else if (self.findGlobal(name)) |globalElem| {
-                    const constId = try self.makeConstant(globalElem);
-                    try self.emitUnaryOp(.GetConstant, constId, region);
-                    if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
-                        if (isTailPosition) {
-                            try self.emitUnaryOp(.CallTailFunction, 0, region);
-                        } else {
-                            try self.emitUnaryOp(.CallFunction, 0, region);
+            .Identifier => |ident| switch (ident.kind) {
+                .Parser => {
+                    try self.printError(region, "Parser is not valid in value", .{});
+                    return Error.InvalidAst;
+                },
+                .Underscore => {
+                    try self.printError(region, "Underscore variable is only valid in patterns", .{});
+                    return Error.InvalidAst;
+                },
+                .Value,
+                => {
+                    const name = try self.vm.strings.insert(ident.name);
+                    if (self.localSlot(name)) |slot| {
+                        // This local will either be a concrete value or
+                        // unbound, it won't be a function. Value functions are
+                        // all defined globally and called immediately. This
+                        // means that if a function takes a value function as
+                        // an arg then the value function will be called before
+                        // the outer function, and the value used when calling
+                        // the outer function will be concrete.
+                        try self.emitUnaryOp(.GetBoundLocal, slot, region);
+                    } else if (self.findGlobal(name)) |globalElem| {
+                        const constId = try self.makeConstant(globalElem);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
+                        if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
+                            if (isTailPosition) {
+                                try self.emitUnaryOp(.CallTailFunction, 0, region);
+                            } else {
+                                try self.emitUnaryOp(.CallFunction, 0, region);
+                            }
                         }
+                    } else {
+                        // All value vars should already be local or global
+                        @panic("Internal Error");
                     }
-                } else {
-                    try self.writers.err.print("{s}\n", .{self.vm.strings.get(name)});
-                    return Error.UndefinedVariable;
-                }
+                },
             },
             .String,
             .NumberString,
@@ -2181,14 +2256,21 @@ pub const Compiler = struct {
 
     fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) Error!void {
         switch (rnode.node) {
-            .ValueVar => {
-                try self.appendDynamicValue(array, rnode, index, region);
+            .Identifier => |ident| switch (ident.kind) {
+                .Parser => {
+                    try self.printError(rnode.region, "Parser is not valid in value", .{});
+                    return Error.InvalidAst;
+                },
+                .Underscore => {
+                    try self.printError(rnode.region, "Underscore variable is only valid in patterns", .{});
+                    return Error.InvalidAst;
+                },
+                .Value => try self.appendDynamicValue(array, rnode, index, region),
             },
             .False,
             .Null,
             .NumberFloat,
             .NumberString,
-            .ParserVar,
             .String,
             .True,
             => {
@@ -2405,10 +2487,9 @@ pub const Compiler = struct {
             .Null,
             .NumberFloat,
             .NumberString,
-            .ParserVar,
+            .Identifier,
             .String,
             .True,
-            .ValueVar,
             => {},
         }
     }
@@ -2423,16 +2504,6 @@ pub const Compiler = struct {
             .NumberFloat => |f| return Elem.numberFloat(f),
             .NumberString => |s| {
                 return Elem.numberStringFromBytes(s.number, self.vm) catch null;
-            },
-            .False, .Null, .ParserVar, .String, .True, .ValueVar => {
-                const elem = self.nodeToElem(rnode.node) catch return null;
-                if (elem) |e| {
-                    switch (e.getType()) {
-                        .NumberString, .NumberFloat => return e,
-                        else => return null,
-                    }
-                }
-                return null;
             },
             else => {},
         }

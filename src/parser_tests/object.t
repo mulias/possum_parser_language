@@ -16,7 +16,7 @@
   (Return 1:0-12
     (String 1:0-2 "")
     (Object 1:5-12 [
-      (ObjectPair (ValueVar 1:6-7 A) (NumberString 1:9-10 1))
+      (ObjectPair (Identifier 1:6-7 A) (NumberString 1:9-10 1))
     ]))
 
   $ possum -p '"" $ {...{"x": Z}}' -i ''
@@ -25,7 +25,7 @@
     (Merge 1:5-18
       (Object 1:5-6 [])
       (Object 1:9-17 [
-        (ObjectPair (String 1:10-13 "x") (ValueVar 1:15-16 Z))
+        (ObjectPair (String 1:10-13 "x") (Identifier 1:15-16 Z))
       ])))
 
   $ possum -p '"" $ {...{"x": Z},}' -i ''
@@ -34,7 +34,7 @@
     (Merge 1:5-19
       (Object 1:5-6 [])
       (Object 1:9-17 [
-        (ObjectPair (String 1:10-13 "x") (ValueVar 1:15-16 Z))
+        (ObjectPair (String 1:10-13 "x") (Identifier 1:15-16 Z))
       ])))
 
   $ possum -p '"" $ {...{"a": 1}, ...{"b": 2}}' -i ''

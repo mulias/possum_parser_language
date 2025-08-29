@@ -143,10 +143,9 @@ pub const Parser = struct {
             .LeftParen => self.grouping(),
             .LeftBracket => self.array(),
             .LeftBrace => self.object(),
-            .LowercaseIdentifier => self.parserVar(),
-            .UnderscoreIdentifier,
-            .UppercaseIdentifier,
-            => self.valueVar(),
+            .LowercaseIdentifier => self.parserIdent(),
+            .UnderscoreIdentifier => self.underscoreIdent(),
+            .UppercaseIdentifier => self.valueIdent(),
             .SingleQuoteStringStart,
             .DoubleQuoteStringStart,
             => self.string(),
@@ -194,16 +193,41 @@ pub const Parser = struct {
         };
     }
 
-    fn parserVar(self: *Parser) !*Ast.RNode {
+    fn parserIdent(self: *Parser) !*Ast.RNode {
         const t = self.token;
         try self.advance();
-        return self.ast.create(.{ .ParserVar = t.lexeme }, t.region);
+        const builtin = t.lexeme[0] == '@';
+        const underscored = !builtin and t.lexeme[0] == '_';
+        return self.ast.create(.{ .Identifier = .{
+            .name = t.lexeme,
+            .builtin = builtin,
+            .underscored = underscored,
+            .kind = .Parser,
+        } }, t.region);
     }
 
-    fn valueVar(self: *Parser) !*Ast.RNode {
+    fn valueIdent(self: *Parser) !*Ast.RNode {
         const t = self.token;
         try self.advance();
-        return self.ast.create(.{ .ValueVar = t.lexeme }, t.region);
+        const builtin = t.lexeme[0] == '@';
+        const underscored = !builtin and t.lexeme[0] == '_';
+        return self.ast.create(.{ .Identifier = .{
+            .name = t.lexeme,
+            .builtin = builtin,
+            .underscored = underscored,
+            .kind = .Value,
+        } }, t.region);
+    }
+
+    fn underscoreIdent(self: *Parser) !*Ast.RNode {
+        const t = self.token;
+        try self.advance();
+        return self.ast.create(.{ .Identifier = .{
+            .name = t.lexeme,
+            .builtin = false,
+            .underscored = false,
+            .kind = .Underscore,
+        } }, t.region);
     }
 
     fn string(self: *Parser) Error!*Ast.RNode {
