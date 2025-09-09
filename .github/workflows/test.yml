@@ -15,4 +15,6 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - uses: nicknovitski/nix-develop@v1
+        with:
+          arguments: ".#ci"
       - run: ./bin/test-all

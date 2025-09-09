@@ -41,6 +41,14 @@
             export NVIM_ZIG_LSP=true
           '';
         };
+
+        ci = pkgs.mkShell {
+          packages = [
+            zig
+            pkgs.python311Packages.cram
+            pkgs.pandoc
+          ];
+        };
       });
     };
 }
