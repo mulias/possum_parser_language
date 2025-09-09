@@ -29,10 +29,9 @@ pub const ElemType = enum(u3) {
     Dyn = 1,
     InputSubstring = 2,
     NumberString = 3,
-    ParserVar = 4,
+    ValueVar = 4,
     String = 5,
-    ValueVar = 6,
-    NumberFloat = 7,
+    NumberFloat = 6,
 };
 
 pub const TaggedType = enum(u3) {
@@ -40,9 +39,8 @@ pub const TaggedType = enum(u3) {
     Dyn = 1,
     InputSubstring = 2,
     NumberString = 3,
-    ParserVar = 4,
+    ValueVar = 4,
     String = 5,
-    ValueVar = 6,
 };
 
 pub const Elem = packed union {
@@ -51,6 +49,7 @@ pub const Elem = packed union {
     tagged: packed struct {
         payload: packed union {
             bits: u48,
+            value_var: ValueVar,
             interned_string: packed struct { sid: u32, _unused: u16 = 0 },
             input_substring: InputSubstringElem,
             number_string: NumberStringElem,
@@ -59,6 +58,12 @@ pub const Elem = packed union {
         type: TaggedType,
         signature: u13 = signature_nan,
     },
+
+    pub const ValueVar = packed struct {
+        sid: u32,
+        placeholder: bool,
+        _unused: u15 = 0,
+    };
 
     pub const InputSubstringElem = packed struct {
         start: u24,
@@ -179,16 +184,9 @@ pub const Elem = packed union {
         }
     };
 
-    pub fn parserVar(sid: StringTable.Id) Elem {
+    pub fn valueVar(sid: StringTable.Id, placeholder: bool) Elem {
         return Elem{ .tagged = .{
-            .payload = .{ .interned_string = .{ .sid = sid } },
-            .type = .ParserVar,
-        } };
-    }
-
-    pub fn valueVar(sid: StringTable.Id) Elem {
-        return Elem{ .tagged = .{
-            .payload = .{ .interned_string = .{ .sid = sid } },
+            .payload = .{ .value_var = .{ .sid = sid, .placeholder = placeholder } },
             .type = .ValueVar,
         } };
     }
@@ -321,14 +319,9 @@ pub const Elem = packed union {
         return self.isConst(.Failure);
     }
 
-    pub fn asParserVar(self: Elem) StringTable.Id {
-        std.debug.assert(self.isType(.ParserVar));
-        return self.tagged.payload.interned_string.sid;
-    }
-
-    pub fn asValueVar(self: Elem) StringTable.Id {
+    pub fn asValueVar(self: Elem) ValueVar {
         std.debug.assert(self.isType(.ValueVar));
-        return self.tagged.payload.interned_string.sid;
+        return self.tagged.payload.value_var;
     }
 
     pub fn asString(self: Elem) StringTable.Id {
@@ -372,20 +365,12 @@ pub const Elem = packed union {
 
     pub fn print(self: Elem, vm: VM, writer: *Writer) Writer.Error!void {
         switch (self.getType()) {
-            .ParserVar => {
-                const sid = self.asParserVar();
-                if (StringTable.asReserved(sid)) |rid| {
-                    try writer.print("_{d}", .{rid});
-                } else {
-                    try writer.print("{s}", .{vm.strings.get(sid)});
-                }
-            },
             .ValueVar => {
-                const sid = self.asValueVar();
-                if (StringTable.asReserved(sid)) |rid| {
+                const v = self.asValueVar();
+                if (StringTable.asReserved(v.sid)) |rid| {
                     try writer.print("_{d}", .{rid});
                 } else {
-                    try writer.print("{s}", .{vm.strings.get(sid)});
+                    try writer.print("{s}", .{vm.strings.get(v.sid)});
                 }
             },
             .String => {
@@ -441,10 +426,11 @@ pub const Elem = packed union {
         }
 
         // Handle non-numbers
-        if (self.isType(.ParserVar)) {
-            return other.isType(.ParserVar) and self.asParserVar() == other.asParserVar();
-        } else if (self.isType(.ValueVar)) {
-            return other.isType(.ValueVar) and self.asValueVar() == other.asValueVar();
+        if (self.isType(.ValueVar)) {
+            if (!other.isType(.ValueVar)) return false;
+            const sid1 = self.asValueVar().sid;
+            const sid2 = other.asValueVar().sid;
+            return sid1 == sid2;
         } else if (self.isType(.String)) {
             const sId1 = self.asString();
             if (other.isType(.String)) {
@@ -525,19 +511,14 @@ pub const Elem = packed union {
     }
 
     pub fn isLessThanOrEqualInRangePattern(value: Elem, high: Elem, vm: VM) !bool {
-        if (value.isType(.ValueVar)) {
+        if (value.isType(.ValueVar) or high.isType(.ValueVar)) {
             return true;
         }
 
         if (value.isType(.String) or value.isType(.InputSubstring) or value.isType(.Dyn)) {
             const value_codepoint = value.toCodepoint(vm) orelse return false;
-
-            if (high.isType(.ValueVar)) {
-                return true;
-            } else {
-                const high_codepoint = high.toCodepoint(vm) orelse return false;
-                return value_codepoint <= high_codepoint;
-            }
+            const high_codepoint = high.toCodepoint(vm) orelse return false;
+            return value_codepoint <= high_codepoint;
         }
 
         if (value.isType(.NumberString)) {
@@ -548,9 +529,7 @@ pub const Elem = packed union {
 
         if (value.isFloat()) {
             const num_value = value.asFloat();
-            if (high.isType(.ValueVar)) {
-                return true;
-            } else if (high.isType(.NumberString)) {
+            if (high.isType(.NumberString)) {
                 const ns = high.asNumberString();
                 const highNum = try ns.toNumberFloat(vm.strings);
                 return value.isLessThanOrEqualInRangePattern(highNum, vm);
@@ -560,7 +539,7 @@ pub const Elem = packed union {
             return false;
         }
 
-        if (value.isType(.Const) or value.isType(.ParserVar)) {
+        if (value.isType(.Const)) {
             return false;
         }
 
@@ -673,7 +652,6 @@ pub const Elem = packed union {
             } else {
                 return null;
             },
-            .ParserVar,
             .ValueVar,
             => return null,
             .Dyn => switch (elemA.asDyn().dynType) {
@@ -952,9 +930,7 @@ pub const Elem = packed union {
                 .Closure,
                 => @panic("Internal Error"),
             },
-            .ParserVar,
-            .ValueVar,
-            => @panic("Internal Error"),
+            .ValueVar => @panic("Internal Error"),
         };
     }
 
@@ -1346,22 +1322,16 @@ pub const Elem = packed union {
             functionType: FunctionType,
             locals: ArrayList(Local),
 
-            pub const Local = union(enum) {
-                ParserVar: StringTable.Id,
-                ValueVar: StringTable.Id,
+            pub const Local = struct {
+                sid: StringTable.Id,
+                kind: enum { Parser, Value, Underscore },
 
                 pub fn name(self: Local) StringTable.Id {
-                    return switch (self) {
-                        .ParserVar => |sId| sId,
-                        .ValueVar => |sId| sId,
-                    };
+                    return self.sid;
                 }
 
                 pub fn isParserVar(self: Local) bool {
-                    return switch (self) {
-                        .ParserVar => true,
-                        .ValueVar => false,
-                    };
+                    return self.kind == .Parser;
                 }
             };
 

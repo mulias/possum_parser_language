@@ -904,17 +904,6 @@ pub const VM = struct {
 
     pub fn callFunction(self: *VM, elem: Elem, argCount: u8, isTailPosition: bool) Error!void {
         switch (elem.getType()) {
-            .ParserVar => {
-                const varName = elem.asParserVar();
-                if (self.findGlobal(varName)) |varElem| {
-                    // Swap the var with the thing it's aliasing on the stack
-                    self.stack.items[self.frame().elemsOffset] = varElem;
-                    try self.callFunction(varElem, argCount, isTailPosition);
-                } else {
-                    const nameStr = self.strings.get(varName);
-                    return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
-                }
-            },
             .String => {
                 const sid = elem.asString();
                 assert(argCount == 0);
@@ -1239,12 +1228,7 @@ pub const VM = struct {
         const local = self.getLocal(slot);
         switch (local.getType()) {
             .ValueVar => {
-                const varName = local.asValueVar();
-                const nameStr = self.strings.get(varName);
-                return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
-            },
-            .ParserVar => {
-                const varName = local.asParserVar();
+                const varName = local.asValueVar().sid;
                 const nameStr = self.strings.get(varName);
                 return self.runtimeError("Undefined variable '{s}'.", .{nameStr});
             },

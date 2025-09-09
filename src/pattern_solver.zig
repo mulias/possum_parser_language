@@ -205,13 +205,13 @@ fn matchLocal(self: *PatternSolver, value: Elem, pattern_var: Pattern.PatternVar
 
     if (pattern_value.isType(.ValueVar)) {
         // Unbound local variable
-        const var_id = pattern_value.asValueVar();
+        const value_var = pattern_value.asValueVar();
 
         if (pattern_var.hasBeenNegated() and !value.isNumber()) {
             // Negating an unbound pattern variable is valid, but if the value is
             // not a number the match always fails.
             return false;
-        } else if (self.vm.varIdIsPlaceholder(var_id)) {
+        } else if (self.vm.varIdIsPlaceholder(value_var.sid)) {
             // Placeholder variable - always matches, no binding
             return true;
         } else if (pattern_var.isNegated()) {
@@ -308,7 +308,7 @@ fn mergePatternType(self: *PatternSolver, part: Simplified) !MergeType {
                 .True, .False => .Boolean,
                 .Null, .Failure => .Untyped,
             },
-            .ParserVar, .ValueVar => .Untyped,
+            .ValueVar => .Untyped,
             .Dyn => switch (elem.asDyn().dynType) {
                 .String => .String,
                 .Array => .Array,
@@ -1403,10 +1403,10 @@ fn evalLocal(self: *PatternSolver, local: Pattern.PatternVar) !?Elem {
             value,
             null,
         );
-    } else if (!value.isType(.ValueVar)) {
-        return value;
-    } else {
+    } else if (value.isType(.ValueVar)) {
         return null;
+    } else {
+        return value;
     }
 }
 
@@ -1438,7 +1438,7 @@ fn resetLocals(self: *PatternSolver, index: usize) !void {
     }
 
     for (locals) |local| {
-        self.vm.setLocal(local.idx, Elem.valueVar(local.sid));
+        self.vm.setLocal(local.idx, Elem.valueVar(local.sid, false));
     }
     self.bound_locals.shrinkRetainingCapacity(index);
 }

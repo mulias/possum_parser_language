@@ -1,5 +1,6 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
+const StringHashMap = std.StringArrayHashMapUnmanaged;
 const Writer = std.Io.Writer;
 const Ast = @import("ast.zig").Ast;
 const Chunk = @import("chunk.zig").Chunk;
@@ -22,6 +23,7 @@ pub const Compiler = struct {
     functions: ArrayList(*Elem.DynElem.Function),
     writers: Writers,
     printBytecode: bool,
+    declarations: StringHashMap(*Ast.RNode),
 
     const Error = error{
         InvalidAst,
@@ -80,10 +82,11 @@ pub const Compiler = struct {
             .functions = functions,
             .writers = vm.writers,
             .printBytecode = printBytecode,
+            .declarations = StringHashMap(*Ast.RNode){},
         };
     }
 
-    fn findGlobal(self: *Compiler, name: StringTable.Id) ?Elem {
+    fn findGlobal(self: *Compiler, sid: StringTable.Id) ?Elem {
         const targetModuleIndex = for (self.vm.modules.items, 0..) |*module, i| {
             if (module == self.targetModule) break i;
         } else return null;
@@ -92,7 +95,7 @@ pub const Compiler = struct {
         var i = targetModuleIndex + 1;
         while (i > 0) {
             i -= 1;
-            if (self.vm.modules.items[i].getGlobal(name)) |elem| {
+            if (self.vm.modules.items[i].getGlobal(sid)) |elem| {
                 return elem;
             }
         }
@@ -101,119 +104,125 @@ pub const Compiler = struct {
 
     pub fn deinit(self: *Compiler) void {
         self.functions.deinit(self.vm.allocator);
+        self.declarations.deinit(self.vm.allocator);
     }
 
     pub fn compile(self: *Compiler) !?*Elem.DynElem.Function {
-        try self.declareGlobals();
-        try self.validateGlobals();
-        try self.resolveGlobalAliases();
-        try self.compileGlobalFunctions();
-        return self.compileMain();
-    }
+        var main_rnode: ?*Ast.RNode = null;
 
-    fn declareGlobals(self: *Compiler) !void {
         for (self.ast.roots.items) |root| {
             if (root.node == .DeclareGlobal) {
                 const global = root.node.DeclareGlobal;
-                try self.declareGlobal(global.head, global.body, root.region);
-            }
-        }
-    }
-
-    fn validateGlobals(self: *Compiler) !void {
-        for (self.ast.roots.items) |root| {
-            if (root.node == .DeclareGlobal) {
-                const global = root.node.DeclareGlobal;
-                try self.validateGlobal(global.head, root.region);
-            }
-        }
-    }
-
-    fn resolveGlobalAliases(self: *Compiler) !void {
-        for (self.ast.roots.items) |root| {
-            if (root.node == .DeclareGlobal) {
-                const global = root.node.DeclareGlobal;
-                try self.resolveGlobalAlias(global.head);
-            }
-        }
-    }
-
-    fn compileGlobalFunctions(self: *Compiler) !void {
-        for (self.ast.roots.items) |root| {
-            if (root.node == .DeclareGlobal) {
-                const global = root.node.DeclareGlobal;
-                try self.compileGlobalFunction(global.head, global.body);
-            }
-        }
-    }
-
-    fn compileMain(self: *Compiler) !?*Elem.DynElem.Function {
-        var main: ?*Ast.RNode = null;
-
-        for (self.ast.roots.items) |root| {
-            if (root.node != .DeclareGlobal) {
-                if (main == null) {
-                    main = root;
-                } else {
-                    try self.printError(root.region, "Only one main parser expression is allowed per module", .{});
-                    return Error.MultipleMainParsers;
+                if (self.globalIdent(global.head)) |ident| {
+                    try self.declarations.put(self.vm.allocator, ident.name, root);
                 }
+            } else if (main_rnode == null) {
+                main_rnode = root;
+            } else {
+                try self.printError(root.region, "Only one main parser expression is allowed per module", .{});
+                return Error.MultipleMainParsers;
             }
         }
 
-        if (main) |main_rnode| {
-            try self.addValueLocals(main_rnode);
-            try self.writeParser(main_rnode, false);
-            try self.emitEnd();
+        try self.declareGlobals();
+        try self.resolveAliaseChains();
+        try self.compileFunctions();
 
-            const main_fn = self.functions.pop() orelse @panic("Internal Error: No Main Function");
-
-            // Update the main function's source region with the actual main parser region
-            main_fn.chunk.source_region = main_rnode.region;
-
-            if (self.printBytecode) {
-                try main_fn.disassemble(self.vm.*, self.writers.debug, self.targetModule);
-            }
-
-            return main_fn;
+        if (main_rnode) |rnode| {
+            return self.compileMain(rnode);
         } else {
             return null;
         }
     }
 
-    fn declareGlobal(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode, region: Region) !void {
-        switch (head.node) {
-            .Function => |function| {
-                try self.declareGlobalFunction(function.name, function.paramsOrArgs, region);
-            },
-            else => {
-                if (try self.nodeToElem(body.node)) |bodyElem| {
-                    try self.declareGlobalAlias(head, bodyElem);
-                } else {
-                    // A function without params
-                    try self.declareGlobalFunction(head, ArrayList(*Ast.RNode){}, region);
-                }
-            },
+    fn declareGlobals(self: *Compiler) !void {
+        var iter = self.declarations.iterator();
+        while (iter.next()) |entry| {
+            const region = entry.value_ptr.*.region;
+            const decl = entry.value_ptr.*.node.DeclareGlobal;
+            switch (decl.head.node) {
+                .Function => |function| {
+                    try self.declareFunction(function.name, function.paramsOrArgs, region);
+                },
+                else => {
+                    if (try self.nodeToElem(decl.body.node)) |body_elem| {
+                        try self.declareAlias(decl.head, body_elem);
+                    } else if (self.nodeToIdent(decl.body.node) == null) {
+                        // A function without params. When the body is a single
+                        // ident it's an alias which we'll resolve later.
+                        try self.declareFunction(decl.head, ArrayList(*Ast.RNode){}, region);
+                    }
+                },
+            }
         }
     }
 
-    fn declareGlobalFunction(self: *Compiler, name: *Ast.RNode, params: ArrayList(*Ast.RNode), region: Region) !void {
+    fn compileFunctions(self: *Compiler) !void {
+        var iter = self.declarations.iterator();
+        while (iter.next()) |entry| {
+            const decl = entry.value_ptr.*.node.DeclareGlobal;
+            if (decl.head.node == .Function or (try self.nodeToElem(decl.body.node) == null and self.nodeToIdent(decl.body.node) == null)) {
+                try self.compileFunction(decl.head, decl.body);
+            }
+        }
+    }
+
+    fn resolveAliaseChains(self: *Compiler) !void {
+        var iter = self.declarations.iterator();
+        while (iter.next()) |entry| {
+            const region = entry.value_ptr.*.region;
+            const decl = entry.value_ptr.*.node.DeclareGlobal;
+            if (decl.head.node != .Function) {
+                if (self.nodeToIdent(decl.body.node) != null) {
+                    const alias_ident = self.globalIdent(decl.head).?;
+                    try self.resolveAliasChain(alias_ident, decl.body, region);
+                }
+            }
+        }
+    }
+
+    fn compileMain(self: *Compiler, main_rnode: *Ast.RNode) !?*Elem.DynElem.Function {
+        try self.addValueLocals(main_rnode);
+        try self.writeParser(main_rnode, false);
+        try self.emitEnd();
+
+        const main_fn = self.functions.pop() orelse @panic("Internal Error: No Main Function");
+
+        // Update the main function's source region with the actual main parser region
+        main_fn.chunk.source_region = main_rnode.region;
+
+        if (self.printBytecode) {
+            try main_fn.disassemble(self.vm.*, self.writers.debug, self.targetModule);
+        }
+
+        return main_fn;
+    }
+
+    fn declareFunction(self: *Compiler, name: *Ast.RNode, params: ArrayList(*Ast.RNode), region: Region) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
 
-        const nameElem = try self.nodeToElem(name.node) orelse return Error.InvalidAst;
-        const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
-        const name_sid = switch (nameVar.getType()) {
-            .ValueVar => nameVar.asValueVar(),
-            .ParserVar => nameVar.asParserVar(),
-            else => return Error.InvalidAst,
+        const name_ident = self.nodeToIdent(name.node) orelse {
+            try self.printError(name.region, "function name must be parser or value varaible", .{});
+            return Error.InvalidAst;
         };
-        const functionType: Elem.DynElem.FunctionType = switch (nameVar.getType()) {
-            .ValueVar => .NamedValue,
-            .ParserVar => .NamedParser,
-            else => return Error.InvalidAst,
+
+        if (name_ident.builtin) {
+            try self.printError(name.region, "unable to define builtin function", .{});
+            return Error.InvalidAst;
+        }
+
+        const functionType: Elem.DynElem.FunctionType = switch (name_ident.kind) {
+            .Parser => .NamedParser,
+            .Value => .NamedValue,
+            .Underscore => {
+                try self.printError(name.region, "function name must be parser or value varaible", .{});
+                return Error.InvalidAst;
+            },
         };
+
+        const name_sid = try self.vm.strings.insert(name_ident.name);
 
         var function = try Elem.DynElem.Function.create(self.vm, .{
             .name = name_sid,
@@ -227,8 +236,8 @@ pub const Compiler = struct {
         try self.functions.append(self.vm.allocator, function);
 
         for (params.items) |param| {
-            if (try self.nodeToElem(param.node)) |elem| {
-                _ = try self.addLocal(elem, param.region);
+            if (self.nodeToIdent(param.node)) |ident| {
+                _ = try self.addLocal(ident, param.region);
                 function.arity += 1;
             } else {
                 return Error.InvalidAst;
@@ -238,149 +247,91 @@ pub const Compiler = struct {
         _ = self.functions.pop();
     }
 
-    fn declareGlobalAlias(self: *Compiler, head: *Ast.RNode, bodyElem: Elem) !void {
+    fn declareAlias(self: *Compiler, head: *Ast.RNode, bodyElem: Elem) !void {
         // Add an alias to the global namespace. Set the given body element as the alias's value.
-        const headElem = try self.nodeToElem(head.node) orelse return Error.InvalidAst;
-        const nameVar = try self.elemToVar(headElem) orelse return Error.InvalidAst;
-        const name = switch (nameVar.getType()) {
-            .ValueVar => nameVar.asValueVar(),
-            .ParserVar => nameVar.asParserVar(),
-            else => return Error.InvalidAst,
+        const ident = self.nodeToIdent(head.node) orelse {
+            try self.printError(head.region, "alias name must be parser or value varaible", .{});
+            return Error.InvalidAst;
         };
 
-        try self.targetModule.addGlobal(self.vm.allocator, name, bodyElem);
+        const sid = try self.vm.strings.insert(ident.name);
+        try self.targetModule.addGlobal(self.vm.allocator, sid, bodyElem);
     }
 
-    fn validateGlobal(self: *Compiler, head: *Ast.RNode, region: Region) !void {
-        const nameElem = switch (head.node) {
-            .Function => |function| try self.nodeToElem(function.name.node) orelse return Error.InvalidAst,
-            else => try self.nodeToElem(head.node) orelse return Error.InvalidAst,
-        };
-        const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
-
-        switch (nameVar.getType()) {
-            .ValueVar => {
-                const name = nameVar.asValueVar();
-                const global = self.findGlobal(name).?;
-                switch (global.getType()) {
-                    .ValueVar,
-                    .String,
-                    .NumberString,
-                    .Const,
-                    => {},
-                    .ParserVar,
-                    => {
-                        try self.printError(region, "parser cannot be assigned to a value alias", .{});
-                        return Error.InvalidGlobalValue;
-                    },
-                    .Dyn => switch (global.asDyn().dynType) {
-                        .String,
-                        .Array,
-                        .Object,
-                        .NativeCode,
-                        => {},
-                        .Function => {
-                            if (global.asDyn().asFunction().functionType != .NamedValue) {
-                                try self.printError(region, "parser cannot be assigned to a value alias", .{});
-                                return Error.InvalidGlobalValue;
-                            }
-                        },
-                        .Closure => @panic("Internal Error"),
-                    },
-                    .InputSubstring,
-                    .NumberFloat,
-                    => @panic("Internal Error"),
-                }
-            },
-            .ParserVar => {
-                const name = nameVar.asParserVar();
-                const global = self.findGlobal(name).?;
-                switch (global.getType()) {
-                    .ParserVar,
-                    .String,
-                    .NumberString,
-                    => {},
-                    .ValueVar => {
-                        try self.printError(region, "value cannot be assigned to a parser alias", .{});
-                        return Error.InvalidGlobalParser;
-                    },
-                    .Dyn => switch (global.asDyn().dynType) {
-                        .String,
-                        .NativeCode,
-                        => {},
-                        .Array,
-                        .Object,
-                        => return Error.InvalidGlobalParser,
-                        .Function => {
-                            if (global.asDyn().asFunction().functionType != .NamedParser) {
-                                try self.printError(region, "value cannot be assigned to a parser alias", .{});
-                                return Error.InvalidGlobalParser;
-                            }
-                        },
-                        .Closure => @panic("Internal Error"),
-                    },
-                    .InputSubstring,
-                    .Const,
-                    .NumberFloat,
-                    => @panic("Internal Error"),
-                }
-            },
-            else => @panic("Internal Error"),
-        }
-    }
-
-    fn resolveGlobalAlias(self: *Compiler, head: *Ast.RNode) !void {
-        const globalName = try self.getGlobalName(head);
-        var aliasName = globalName;
-        var value = self.findGlobal(aliasName);
-
-        if (!value.?.isType(.ValueVar) and !value.?.isType(.ParserVar)) {
-            return;
-        }
-
-        var path = ArrayList(StringTable.Id){};
+    fn resolveAliasChain(self: *Compiler, alias_ident: Ast.IdentifierNode, body: *Ast.RNode, region: Region) !void {
+        var path = StringHashMap(void){};
         defer path.deinit(self.vm.allocator);
 
+        var target = body;
+        var target_ident = self.nodeToIdent(body.node).?;
+
         while (true) {
-            if (value) |foundValue| {
-                try path.append(self.vm.allocator, aliasName);
-
-                aliasName = switch (foundValue.getType()) {
-                    .ValueVar => foundValue.asValueVar(),
-                    .ParserVar => foundValue.asParserVar(),
-                    else => {
-                        try self.targetModule.addGlobal(self.vm.allocator, globalName, foundValue);
-                        break;
-                    },
-                };
-
-                for (path.items) |aliasVisited| {
-                    if (aliasName == aliasVisited) {
-                        const aliasNameStr = self.vm.strings.get(aliasName);
-                        try self.printError(head.region, "Circular alias dependency detected for '{s}'", .{aliasNameStr});
-                        return Error.AliasCycle;
-                    }
+            if (target.node == .Identifier) {
+                if (alias_ident.kind == .Parser and target_ident.kind != .Parser) {
+                    try self.printError(target.region, "Value is not valid as a parser", .{});
+                    return Error.InvalidGlobalParser;
                 }
 
-                value = self.findGlobal(aliasName);
+                if (alias_ident.kind != .Parser and target_ident.kind == .Parser) {
+                    try self.printError(target.region, "Parser is not valid as a value", .{});
+                    return Error.InvalidGlobalValue;
+                }
+            }
+
+            if (path.contains(target_ident.name)) {
+                try self.printError(region, "Circular alias dependency detected for '{s}'", .{alias_ident.name});
+                return Error.AliasCycle;
             } else {
-                const aliasNameStr = self.vm.strings.get(aliasName);
-                try self.printError(head.region, "Unknown variable '{s}' in alias chain", .{aliasNameStr});
-                return Error.UnknownVariable;
+                try path.put(self.vm.allocator, target_ident.name, undefined);
+            }
+
+            if (self.declarations.get(target_ident.name)) |new_target_decl| {
+                const new_target = new_target_decl.node.DeclareGlobal.body;
+                if (self.nodeToIdent(new_target.node)) |new_target_ident| {
+                    target = new_target;
+                    target_ident = new_target_ident;
+                    continue;
+                }
+            }
+
+            break;
+        }
+
+        const alias_sid = try self.vm.strings.insert(alias_ident.name);
+
+        if (alias_ident.kind != .Parser) {
+            if (try self.nodeToElem(target.node)) |target_elem| {
+                if (target_elem.getType() != .ValueVar) {
+                    try self.targetModule.addGlobal(self.vm.allocator, alias_sid, target_elem);
+                    return;
+                }
             }
         }
+
+        if (self.declarations.get(target_ident.name)) |target_decl| {
+            if (try self.nodeToElem(target_decl.node.DeclareGlobal.body.node)) |target_elem| {
+                try self.targetModule.addGlobal(self.vm.allocator, alias_sid, target_elem);
+                return;
+            }
+        }
+
+        const target_sid = try self.vm.strings.insert(target_ident.name);
+        if (self.findGlobal(target_sid)) |target_elem| {
+            try self.targetModule.addGlobal(self.vm.allocator, alias_sid, target_elem);
+            return;
+        } else {
+            try self.printError(region, "Unknown variable '{s}' in alias chain", .{target_ident.name});
+            return Error.UnknownVariable;
+        }
+
+        try self.printError(region, "Unable to resolve alias chain", .{});
+        return Error.UnknownVariable;
     }
 
-    fn compileGlobalFunction(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode) !void {
-        const globalName = try self.getGlobalName(head);
-        const globalVal = self.findGlobal(globalName).?;
-
-        // Exit early if the node is an alias, not a function def
-        const headElem = try self.nodeToElem(head.node);
-        const bodyElem = try self.nodeToElem(body.node);
-        if (headElem != null and bodyElem != null) {
-            return;
-        }
+    fn compileFunction(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode) !void {
+        const global_ident = self.globalIdent(head).?;
+        const global_sid = try self.vm.strings.insert(global_ident.name);
+        const globalVal = (self.findGlobal(global_sid)).?;
 
         if (globalVal.isDynType(.Function)) {
             const function = globalVal.asDyn().asFunction();
@@ -405,18 +356,12 @@ pub const Compiler = struct {
         }
     }
 
-    fn getGlobalName(self: *Compiler, head: *Ast.RNode) !StringTable.Id {
-        const nameElem = switch (head.node) {
-            .Function => |function| try self.nodeToElem(function.name.node) orelse return Error.InvalidAst,
-            else => try self.nodeToElem(head.node) orelse return Error.InvalidAst,
+    fn globalIdent(self: *Compiler, head: *Ast.RNode) ?Ast.IdentifierNode {
+        const name_node = switch (head.node) {
+            .Function => |function| function.name.node,
+            else => head.node,
         };
-        const nameVar = try self.elemToVar(nameElem) orelse return Error.InvalidAst;
-        const name = switch (nameVar.getType()) {
-            .ValueVar => nameVar.asValueVar(),
-            .ParserVar => nameVar.asParserVar(),
-            else => return Error.InvalidAst,
-        };
-        return name;
+        return self.nodeToIdent(name_node);
     }
 
     fn writeParser(self: *Compiler, rnode: *Ast.RNode, isTailPosition: bool) !void {
@@ -492,8 +437,7 @@ pub const Compiler = struct {
             },
             .Identifier => |ident| switch (ident.kind) {
                 .Parser => {
-                    const elem = Elem.parserVar(try self.vm.strings.insert(ident.name));
-                    try self.writeGetVar(elem, region);
+                    try self.writeGetVar(ident, region);
                     try self.emitUnaryOp(.CallFunction, 0, region);
                 },
                 .Value => {
@@ -510,8 +454,8 @@ pub const Compiler = struct {
             .Null,
             => {
                 // In this context `true`/`false`/`null` could be a zero-arg function call
-                const elem = try self.nodeToElem(rnode.node) orelse @panic("Internal Error");
-                try self.writeGetVar(elem, region);
+                const ident = self.nodeToIdent(rnode.node) orelse @panic("Internal Error");
+                try self.writeGetVar(ident, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
             .NumberFloat,
@@ -567,14 +511,11 @@ pub const Compiler = struct {
         call_region: Region,
         isTailPosition: bool,
     ) !void {
-        const function_elem = try self.nodeToElem(function_rnode.node) orelse @panic("Internal Error");
+        // TODO: handle curried function calls like `foo(a)(b)`
+        const function_ident = self.nodeToIdent(function_rnode.node) orelse @panic("Internal Error");
         const function_region = function_rnode.region;
 
-        const functionName = switch (function_elem.getType()) {
-            .ParserVar => function_elem.asParserVar(),
-            .Const => try self.vm.strings.insert(function_elem.asConst().bytes()),
-            else => return Error.InvalidAst,
-        };
+        const functionName = try self.vm.strings.insert(function_ident.name);
 
         var function: ?*Elem.DynElem.Function = null;
 
@@ -666,7 +607,7 @@ pub const Compiler = struct {
                     try self.emitUnaryOp(.GetConstant, low_id, low.region);
                 },
                 .Identifier => |ident| switch (ident.kind) {
-                    .Parser => try self.writeGetVar(low_elem.?, region),
+                    .Parser => try self.writeGetVar(ident, region),
                     .Value => {
                         try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
                         return Error.InvalidAst;
@@ -701,7 +642,7 @@ pub const Compiler = struct {
                     try self.emitUnaryOp(.GetConstant, high_id, high.region);
                 },
                 .Identifier => |ident| switch (ident.kind) {
-                    .Parser => try self.writeGetVar(high_elem.?, region),
+                    .Parser => try self.writeGetVar(ident, region),
                     .Value => {
                         try self.printError(region, "Uppercse variable is only valid as a pattern or value", .{});
                         return Error.InvalidAst;
@@ -752,7 +693,7 @@ pub const Compiler = struct {
             },
             .Identifier => |ident| switch (ident.kind) {
                 .Parser => {
-                    try self.writeGetVar(low_elem.?, region);
+                    try self.writeGetVar(ident, region);
                     try self.emitOp(.ParseLowerBoundedRange, region);
                 },
                 .Value => {
@@ -803,7 +744,7 @@ pub const Compiler = struct {
             },
             .Identifier => |ident| switch (ident.kind) {
                 .Parser => {
-                    try self.writeGetVar(high_elem.?, region);
+                    try self.writeGetVar(ident, region);
                     try self.emitOp(.ParseUpperBoundedRange, region);
                 },
                 .Value => {
@@ -867,8 +808,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 },
                 .Value, .Underscore => {
-                    const elem = Elem.valueVar(try self.vm.strings.insert(ident.name));
-                    const name = elem.asValueVar();
+                    const name = try self.vm.strings.insert(ident.name);
                     if (self.findGlobal(name)) |globalElem| {
                         if (globalElem.isNumber()) {
                             try self.writeParserRepeatCount(parser, repeat, region);
@@ -1249,9 +1189,7 @@ pub const Compiler = struct {
             },
             .Identifier => |ident| switch (ident.kind) {
                 .Parser => {
-                    const elem = try self.nodeToElem(negated.node) orelse return Error.InvalidAst;
-
-                    try self.writeGetVar(elem, region);
+                    try self.writeGetVar(ident, region);
                     try self.emitOp(.NegateParser, region);
                 },
                 .Value => {
@@ -1267,18 +1205,8 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGetVar(self: *Compiler, elem: Elem, region: Region) !void {
-        const varName = switch (elem.getType()) {
-            .ParserVar => elem.asParserVar(),
-            .ValueVar => elem.asValueVar(),
-            .Const => switch (elem.asConst()) {
-                .True => try self.vm.strings.insert("true"),
-                .False => try self.vm.strings.insert("false"),
-                .Null => try self.vm.strings.insert("null"),
-                .Failure => return Error.InvalidAst,
-            },
-            else => return Error.InvalidAst,
-        };
+    fn writeGetVar(self: *Compiler, ident: Ast.IdentifierNode, region: Region) !void {
+        const varName = try self.vm.strings.insert(ident.name);
 
         if (self.localSlot(varName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, region);
@@ -1287,8 +1215,7 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(globalElem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
             } else {
-                const varNameStr = self.vm.strings.get(varName);
-                try self.printError(region, "undefined variable '{s}'", .{varNameStr});
+                try self.printError(region, "undefined variable '{s}'", .{ident.name});
                 return Error.UndefinedVariable;
             }
         }
@@ -1304,10 +1231,13 @@ pub const Compiler = struct {
                 number_string_elem.negated = s.negated;
                 return number_string_elem.elem();
             },
-            .Identifier => |ident| switch (ident.kind) {
-                .Parser => Elem.parserVar(try self.vm.strings.insert(ident.name)),
-                .Value => Elem.valueVar(try self.vm.strings.insert(ident.name)),
-                .Underscore => Elem.valueVar(try self.vm.strings.insert(ident.name)),
+            .Identifier => |ident| if (ident.kind == .Parser) {
+                return null;
+            } else {
+                return Elem.valueVar(
+                    try self.vm.strings.insert(ident.name),
+                    ident.kind == .Underscore or ident.underscored,
+                );
             },
             .String => |s| Elem.string(try self.vm.strings.insert(s)),
             .True => Elem.boolean(true),
@@ -1325,16 +1255,27 @@ pub const Compiler = struct {
         return result;
     }
 
-    fn elemToVar(self: *Compiler, elem: Elem) !?Elem {
-        return switch (elem.getType()) {
-            .ParserVar,
-            .ValueVar,
-            => elem,
-            .Const => switch (elem.asConst()) {
-                .True => Elem.parserVar(try self.vm.strings.insert("true")),
-                .False => Elem.parserVar(try self.vm.strings.insert("false")),
-                .Null => Elem.parserVar(try self.vm.strings.insert("null")),
-                .Failure => null,
+    fn nodeToIdent(self: *Compiler, node: Ast.Node) ?Ast.IdentifierNode {
+        _ = self;
+        return switch (node) {
+            .Identifier => |ident| ident,
+            .True => .{
+                .name = "true",
+                .builtin = false,
+                .underscored = false,
+                .kind = .Parser,
+            },
+            .False => .{
+                .name = "false",
+                .builtin = false,
+                .underscored = false,
+                .kind = .Parser,
+            },
+            .Null => .{
+                .name = "null",
+                .builtin = false,
+                .underscored = false,
+                .kind = .Parser,
             },
             else => null,
         };
@@ -1387,9 +1328,10 @@ pub const Compiler = struct {
 
         for (arguments.items, 0..) |arg, i| {
             const argType: ArgType = if (function) |f| blk: {
-                switch (f.localVar(@intCast(i))) {
-                    .ParserVar => break :blk .Parser,
-                    .ValueVar => break :blk .Value,
+                const local = f.localVar(@intCast(i));
+                switch (local.kind) {
+                    .Parser => break :blk .Parser,
+                    .Value, .Underscore => break :blk .Value,
                 }
             } else .Unspecified;
 
@@ -1426,8 +1368,7 @@ pub const Compiler = struct {
                 },
                 .Identifier => |ident| switch (ident.kind) {
                     .Parser => {
-                        const elem = Elem.parserVar(try self.vm.strings.insert(ident.name));
-                        try self.writeGetVar(elem, region);
+                        try self.writeGetVar(ident, region);
                     },
                     .Value, .Underscore => @panic("Internal Error"),
                 },
@@ -1510,31 +1451,11 @@ pub const Compiler = struct {
             .Null,
             .NumberFloat,
             .NumberString,
-            .Identifier,
             .String,
             .True,
             => {
                 const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
                 switch (elem.getType()) {
-                    .ValueVar => {
-                        const name = elem.asValueVar();
-                        if (self.findGlobal(name)) |globalElem| {
-                            const constId = try self.makeConstant(globalElem);
-                            return Pattern{ .Constant = .{
-                                .sid = name,
-                                .idx = constId,
-                                .negation_count = negation_count,
-                            } };
-                        } else if (self.localSlot(name)) |slot| {
-                            return Pattern{ .Local = .{
-                                .sid = name,
-                                .idx = slot,
-                                .negation_count = negation_count,
-                            } };
-                        } else {
-                            @panic("Internal Error");
-                        }
-                    },
                     .String => {
                         if (negation_count > 0) {
                             try self.printError(region, "Invalid pattern - unable to negate string", .{});
@@ -1575,14 +1496,34 @@ pub const Compiler = struct {
                         },
                         .Failure => return Error.InvalidAst,
                     },
-                    .ParserVar => {
-                        try self.printError(region, "Parser variable not allowed in pattern", .{});
-                        return Error.InvalidAst;
-                    },
                     else => {
                         try self.printError(region, "Invalid AST in pattern", .{});
                         return Error.InvalidAst;
                     },
+                }
+            },
+            .Identifier => |ident| {
+                if (ident.kind == .Value or ident.kind == .Underscore) {
+                    const sid = try self.vm.strings.insert(ident.name);
+                    if (self.findGlobal(sid)) |globalElem| {
+                        const constId = try self.makeConstant(globalElem);
+                        return Pattern{ .Constant = .{
+                            .sid = sid,
+                            .idx = constId,
+                            .negation_count = negation_count,
+                        } };
+                    } else if (self.localSlot(sid)) |slot| {
+                        return Pattern{ .Local = .{
+                            .sid = sid,
+                            .idx = slot,
+                            .negation_count = negation_count,
+                        } };
+                    } else {
+                        @panic("Internal Error");
+                    }
+                } else {
+                    try self.printError(region, "Parser variable not allowed in pattern", .{});
+                    return Error.InvalidAst;
                 }
             },
             .Array => |elements| {
@@ -1661,24 +1602,25 @@ pub const Compiler = struct {
             .Function => |function| {
                 const nameNode = function.name.node;
 
-                const functionName = if (nameNode == .Identifier and nameNode.Identifier.kind == .Value)
-                    try self.vm.strings.insert(nameNode.Identifier.name)
+                const function_ident = if (nameNode == .Identifier and nameNode.Identifier.kind == .Value)
+                    nameNode.Identifier
                 else {
                     try self.printError(region, "Parser is not valid in pattern", .{});
                     return Error.InvalidAst;
                 };
 
-                const globalFunctionElem = self.findGlobal(functionName);
+                const function_name = try self.vm.strings.insert(function_ident.name);
+                const globalFunctionElem = self.findGlobal(function_name);
 
                 const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
                     .{
-                        .sid = functionName,
+                        .sid = function_name,
                         .idx = try self.makeConstant(globalElem),
                         .negation_count = negation_count,
                     }
-                else if (self.localSlot(functionName)) |slot|
+                else if (self.localSlot(function_name)) |slot|
                     .{
-                        .sid = functionName,
+                        .sid = function_name,
                         .idx = slot,
                         .negation_count = negation_count,
                     }
@@ -1805,10 +1747,14 @@ pub const Compiler = struct {
             },
             .Identifier => |ident| {
                 if (ident.kind == .Value or ident.kind == .Underscore) {
-                    const elem = Elem.valueVar(try self.vm.strings.insert(ident.name));
-                    if (self.findGlobal(elem.asValueVar()) == null) {
-                        const newLocalId = try self.addLocalIfUndefined(elem, region);
+                    const sid = try self.vm.strings.insert(ident.name);
+                    if (self.findGlobal(sid) == null) {
+                        const newLocalId = try self.addLocalIfUndefined(ident, region);
                         if (newLocalId) |_| {
+                            const elem = Elem.valueVar(
+                                try self.vm.strings.insert(ident.name),
+                                ident.underscored or ident.kind == .Underscore,
+                            );
                             const constId = try self.makeConstant(elem);
                             try self.emitUnaryOp(.GetConstant, constId, region);
                         }
@@ -1870,13 +1816,13 @@ pub const Compiler = struct {
             .DeclareGlobal => @panic("internal error"),
             .Identifier => |ident| {
                 const name = try self.vm.strings.insert(ident.name);
-                const elem = if (ident.kind == .Parser)
-                    Elem.parserVar(name)
-                else
-                    Elem.valueVar(name);
+                const elem = Elem.valueVar(
+                    name,
+                    ident.kind == .Underscore or ident.underscored,
+                );
 
                 if (self.parentFunction().localSlot(name) != null) {
-                    const newLocalId = try self.addLocalIfUndefined(elem, region);
+                    const newLocalId = try self.addLocalIfUndefined(ident, region);
                     if (newLocalId) |_| {
                         const constId = try self.makeConstant(elem);
                         try self.emitUnaryOp(.GetConstant, constId, region);
@@ -2148,13 +2094,12 @@ pub const Compiler = struct {
         call_region: Region,
         isTailPosition: bool,
     ) !void {
-        const function_elem = try self.nodeToElem(function_rnode.node) orelse @panic("internal error");
+        // TODO: handle curried function calls like `Foo(A)(B)`
+        // TODO: handle non-function with parens like `X = 1 ; "" $ X()`
+        const function_ident = self.nodeToIdent(function_rnode.node) orelse @panic("Internal Error");
         const function_region = function_rnode.region;
 
-        const functionName = switch (function_elem.getType()) {
-            .ValueVar => function_elem.asValueVar(),
-            else => return Error.InvalidAst,
-        };
+        const functionName = try self.vm.strings.insert(function_ident.name);
 
         var function: ?*Elem.DynElem.Function = null;
 
@@ -2513,7 +2458,7 @@ pub const Compiler = struct {
 
     fn placeholderVar(self: *Compiler) Elem {
         const sId = self.vm.strings.getId("_");
-        return Elem.valueVar(sId);
+        return Elem.valueVar(sId, true);
     }
 
     fn chunk(self: *Compiler) *Chunk {
@@ -2535,22 +2480,27 @@ pub const Compiler = struct {
         }
     }
 
-    fn addLocal(self: *Compiler, elem: Elem, region: Region) !?u8 {
-        const local: Elem.DynElem.Function.Local = switch (elem.getType()) {
-            .ParserVar => .{ .ParserVar = elem.asParserVar() },
-            .ValueVar => .{ .ValueVar = elem.asValueVar() },
-            else => return Error.InvalidAst,
-        };
-
-        if (self.isMetaVar(local.name())) {
+    fn addLocal(self: *Compiler, ident: Ast.IdentifierNode, region: Region) !?u8 {
+        if (ident.builtin) {
+            try self.printError(region, "Invalid function param, '@' is reserved for builtins", .{});
             return Error.InvalidAst;
         }
 
-        if (self.currentFunction().functionType == .NamedValue and local.isParserVar()) {
+        if (self.currentFunction().functionType == .NamedValue and ident.kind == .Parser) {
+            try self.printError(region, "Value function params must be values, found a parser", .{});
             return Error.InvalidAst;
         }
 
-        return self.currentFunction().addLocal(self.vm, local) catch |err| switch (err) {
+        const sid = try self.vm.strings.insert(ident.name);
+
+        return self.currentFunction().addLocal(self.vm, .{
+            .sid = sid,
+            .kind = switch (ident.kind) {
+                .Parser => .Parser,
+                .Value => .Value,
+                .Underscore => .Underscore,
+            },
+        }) catch |err| switch (err) {
             error.MaxFunctionLocals => {
                 try self.printError(
                     region,
@@ -2563,8 +2513,8 @@ pub const Compiler = struct {
         };
     }
 
-    fn addLocalIfUndefined(self: *Compiler, elem: Elem, region: Region) !?u8 {
-        return self.addLocal(elem, region) catch |err| switch (err) {
+    fn addLocalIfUndefined(self: *Compiler, ident: Ast.IdentifierNode, region: Region) !?u8 {
+        return self.addLocal(ident, region) catch |err| switch (err) {
             error.VariableNameUsedInScope => return null,
             else => return err,
         };
@@ -2572,10 +2522,6 @@ pub const Compiler = struct {
 
     pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
         return self.currentFunction().localSlot(name);
-    }
-
-    fn isMetaVar(self: *Compiler, sId: StringTable.Id) bool {
-        return self.vm.strings.get(sId)[0] == '@';
     }
 
     fn emitJump(self: *Compiler, op: OpCode, region: Region) !usize {
