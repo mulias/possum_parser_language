@@ -18,6 +18,11 @@ pub const Ast = struct {
         node: Node,
     };
 
+    pub const Error = error{
+        OutOfMemory,
+        InvalidCharacter,
+    };
+
     pub const NodeType = enum {
         InfixNode,
         Range,
@@ -209,47 +214,140 @@ pub const Ast = struct {
         } }, loc);
     }
 
-    pub fn merge(self: *Ast, nodeA: Node, nodeB: Node) !?Node {
-        if (nodeA == .Null) return nodeB;
-        if (nodeB == .Null) return nodeA;
+    pub fn merge(self: *Ast, a: *RNode, b: *RNode) Error!?RNode {
+        if (a.node == .Null) return b.*;
+        if (b.node == .Null) return a.*;
 
-        return switch (nodeA) {
-            .False => switch (nodeB) {
-                .False => Node.False,
-                .True => Node.True,
+        const merged_region = a.region.merge(b.region);
+
+        return switch (a.node) {
+            .False => switch (b.node) {
+                .False, .True => b.*,
                 else => null,
             },
-            .True => switch (nodeB) {
-                .False, .True => Node.True,
+            .True => switch (b.node) {
+                .False, .True => a.*,
                 else => null,
             },
-            .NumberFloat => |a| switch (nodeB) {
-                .NumberFloat => |b| Node{ .NumberFloat = a + b },
+            .String => |a_str| switch (b.node) {
+                .String => |b_str| {
+                    const total_len = a_str.len + b_str.len;
+                    const buffer = try self.arena.allocator().alloc(u8, total_len);
+                    @memcpy(buffer[0..a_str.len], a_str);
+                    @memcpy(buffer[a_str.len..], b_str);
+                    return RNode{ .node = Node{ .String = buffer }, .region = merged_region };
+                },
+                else => null,
+            },
+            .Range => |a_range| switch (b.node) {
+                .Range => |b_range| {
+                    const a_lower_val = if (a_range.lower) |lower|
+                        if (lower.node == .NumberFloat)
+                            lower.node.NumberFloat
+                        else if (lower.node == .NumberString)
+                            try lower.node.NumberString.toFloat()
+                        else
+                            return null
+                    else
+                        0;
+
+                    const b_lower_val = if (b_range.lower) |lower|
+                        if (lower.node == .NumberFloat)
+                            lower.node.NumberFloat
+                        else if (lower.node == .NumberString)
+                            try lower.node.NumberString.toFloat()
+                        else
+                            return null
+                    else
+                        0;
+
+                    const lower_val = a_lower_val + b_lower_val;
+
+                    var lower: ?*RNode = undefined;
+                    var upper: ?*RNode = undefined;
+
+                    if (a_range.upper) |a_upper| {
+                        if (!a_upper.node.isNumberElem()) return null;
+
+                        const a_upper_val = if (a_upper.node == .NumberFloat)
+                            a_upper.node.NumberFloat
+                        else if (a_upper.node == .NumberString)
+                            try a_upper.node.NumberString.toFloat()
+                        else
+                            return null;
+
+                        if (b_range.upper) |b_upper| {
+                            const b_upper_val = if (b_upper.node == .NumberFloat)
+                                b_upper.node.NumberFloat
+                            else if (b_upper.node == .NumberString)
+                                try b_upper.node.NumberString.toFloat()
+                            else
+                                return null;
+
+                            const upper_val = a_upper_val + b_upper_val;
+
+                            lower = try self.create(.{ .NumberFloat = lower_val }, merged_region);
+                            upper = try self.create(.{ .NumberFloat = upper_val }, merged_region);
+                        } else {
+                            lower = try self.create(.{ .NumberFloat = lower_val }, merged_region);
+                            upper = a_upper;
+                        }
+                    } else if (b_range.upper) |b_upper| {
+                        if (!b_upper.node.isNumberElem()) return null;
+                        lower = try self.create(.{ .NumberFloat = lower_val }, merged_region);
+                        upper = b_upper;
+                    } else {
+                        lower = try self.create(.{ .NumberFloat = lower_val }, merged_region);
+                        upper = null;
+                    }
+
+                    return RNode{
+                        .node = .{ .Range = .{ .lower = lower, .upper = upper } },
+                        .region = merged_region,
+                    };
+                },
+                .NumberFloat,
+                .NumberString,
+                => {
+                    return try self.mergeRangeAndNumberNodes(a_range, b.node, merged_region);
+                },
+                else => null,
+            },
+            .NumberFloat => |a_float| switch (b.node) {
+                .NumberFloat => |b_float| RNode{
+                    .node = .{ .NumberFloat = a_float + b_float },
+                    .region = merged_region,
+                },
                 .NumberString => |ns| {
                     const b_float = try ns.toFloat();
-                    return Node{ .NumberFloat = a + b_float };
+                    return RNode{
+                        .node = .{ .NumberFloat = a_float + b_float },
+                        .region = merged_region,
+                    };
+                },
+                .Range => |b_range| {
+                    return try self.mergeRangeAndNumberNodes(b_range, a.node, merged_region);
                 },
                 else => null,
             },
-            .NumberString => |nsa| switch (nodeB) {
-                .NumberFloat => |b| {
-                    const a_float = try nsa.toFloat();
-                    return Node{ .NumberFloat = a_float + b };
+            .NumberString => |a_nstr| switch (b.node) {
+                .NumberFloat => |b_float| {
+                    const a_float = try a_nstr.toFloat();
+                    return RNode{
+                        .node = .{ .NumberFloat = a_float + b_float },
+                        .region = merged_region,
+                    };
                 },
-                .NumberString => |nsb| {
-                    const a_float = try nsa.toFloat();
-                    const b_float = try nsb.toFloat();
-                    return Node{ .NumberFloat = a_float + b_float };
+                .NumberString => |b_nstr| {
+                    const a_float = try a_nstr.toFloat();
+                    const b_float = try b_nstr.toFloat();
+                    return RNode{
+                        .node = .{ .NumberFloat = a_float + b_float },
+                        .region = merged_region,
+                    };
                 },
-                else => null,
-            },
-            .String => |a| switch (nodeB) {
-                .String => |b| {
-                    const total_len = a.len + b.len;
-                    const buffer = try self.arena.allocator().alloc(u8, total_len);
-                    @memcpy(buffer[0..a.len], a);
-                    @memcpy(buffer[a.len..], b);
-                    return Node{ .String = buffer };
+                .Range => |b_range| {
+                    return try self.mergeRangeAndNumberNodes(b_range, a.node, merged_region);
                 },
                 else => null,
             },
@@ -257,48 +355,184 @@ pub const Ast = struct {
         };
     }
 
-    pub fn repeat(self: *Ast, nodeA: Node, nodeB: Node) !?Node {
-        return switch (nodeA) {
-            .NumberFloat => |a| switch (nodeB) {
-                .NumberFloat => |b| Node{ .NumberFloat = a * b },
-                .NumberString => |ns| {
+    fn mergeRangeAndNumberNodes(self: *Ast, range: RangeNode, number: Node, region: Region) Error!?RNode {
+        const float = if (number == .NumberFloat)
+            number.NumberFloat
+        else if (number == .NumberString)
+            try number.NumberString.toFloat()
+        else
+            return null;
+
+        const lower_val = if (range.lower) |lower|
+            if (lower.node == .NumberFloat)
+                lower.node.NumberFloat
+            else if (lower.node == .NumberString)
+                try lower.node.NumberString.toFloat()
+            else
+                return null
+        else
+            0;
+
+        const new_lower = Node{ .NumberFloat = float + lower_val };
+
+        if (range.upper) |upper| {
+            const upper_val = if (upper.node == .NumberFloat)
+                upper.node.NumberFloat
+            else if (upper.node == .NumberString)
+                try upper.node.NumberString.toFloat()
+            else
+                return null;
+
+            const new_upper = Node{ .NumberFloat = float + upper_val };
+
+            const lower_rnode = try self.create(new_lower, region);
+            const upper_rnode = try self.create(new_upper, region);
+            return RNode{
+                .node = .{ .Range = .{ .lower = lower_rnode, .upper = upper_rnode } },
+                .region = region,
+            };
+        } else {
+            const lower_rnode = try self.create(new_lower, region);
+            return RNode{
+                .node = .{ .Range = .{ .lower = lower_rnode, .upper = null } },
+                .region = region,
+            };
+        }
+    }
+
+    pub fn repeat(self: *Ast, a: *RNode, b: *RNode) Error!?RNode {
+        const merged_region = a.region.merge(b.region);
+        
+        return switch (a.node) {
+            .Range => |a_range| switch (b.node) {
+                .Range => |b_range| {
+                    // Both ranges must be number ranges
+                    const a_lower_val = if (a_range.lower) |lower| blk: {
+                        if (!lower.node.isNumberElem()) return null;
+                        const val = if (lower.node == .NumberFloat)
+                            lower.node.NumberFloat
+                        else
+                            try lower.node.NumberString.toFloat();
+                        break :blk val;
+                    } else 0;
+
+                    const b_lower_val = if (b_range.lower) |lower| blk: {
+                        if (!lower.node.isNumberElem()) return null;
+                        const val = if (lower.node == .NumberFloat)
+                            lower.node.NumberFloat
+                        else
+                            try lower.node.NumberString.toFloat();
+                        break :blk val;
+                    } else 0;
+
+                    const new_lower = a_lower_val * b_lower_val;
+                    const new_lower_node = try self.create(.{ .NumberFloat = new_lower }, merged_region);
+
+                    // Handle upper bounds
+                    if (a_range.upper) |a_upper| {
+                        if (!a_upper.node.isNumberElem()) return null;
+                        const a_upper_val = if (a_upper.node == .NumberFloat)
+                            a_upper.node.NumberFloat
+                        else
+                            try a_upper.node.NumberString.toFloat();
+
+                        if (b_range.upper) |b_upper| {
+                            if (!b_upper.node.isNumberElem()) return null;
+                            const b_upper_val = if (b_upper.node == .NumberFloat)
+                                b_upper.node.NumberFloat
+                            else
+                                try b_upper.node.NumberString.toFloat();
+                            const new_upper = a_upper_val * b_upper_val;
+                            const new_upper_node = try self.create(.{ .NumberFloat = new_upper }, merged_region);
+                            return RNode{ 
+                                .node = .{ .Range = .{ .lower = new_lower_node, .upper = new_upper_node } },
+                                .region = merged_region,
+                            };
+                        } else {
+                            // b is open range, result is open
+                            return RNode{ 
+                                .node = .{ .Range = .{ .lower = new_lower_node, .upper = null } },
+                                .region = merged_region,
+                            };
+                        }
+                    } else if (b_range.upper) |_| {
+                        // a is open range, result is open
+                        return RNode{ 
+                            .node = .{ .Range = .{ .lower = new_lower_node, .upper = null } },
+                            .region = merged_region,
+                        };
+                    } else {
+                        // Both open ranges
+                        return RNode{ 
+                            .node = .{ .Range = .{ .lower = new_lower_node, .upper = null } },
+                            .region = merged_region,
+                        };
+                    }
+                },
+                .NumberFloat => |b_float| self.repeatRangeAndNumber(a_range, b_float, merged_region),
+                .NumberString => |ns| blk: {
                     const b_float = try ns.toFloat();
-                    return Node{ .NumberFloat = a * b_float };
+                    break :blk self.repeatRangeAndNumber(a_range, b_float, merged_region);
                 },
                 else => null,
             },
-            .NumberString => |nsa| switch (nodeB) {
-                .NumberFloat => |b| {
+            .NumberFloat => |a_float| switch (b.node) {
+                .NumberFloat => |b_float| RNode{ 
+                    .node = .{ .NumberFloat = a_float * b_float },
+                    .region = merged_region,
+                },
+                .NumberString => |ns| {
+                    const b_float = try ns.toFloat();
+                    return RNode{ 
+                        .node = .{ .NumberFloat = a_float * b_float },
+                        .region = merged_region,
+                    };
+                },
+                .Range => |b_range| self.repeatRangeAndNumber(b_range, a_float, merged_region),
+                else => null,
+            },
+            .NumberString => |nsa| switch (b.node) {
+                .NumberFloat => |b_float| {
                     const a_float = try nsa.toFloat();
-                    return Node{ .NumberFloat = a_float * b };
+                    return RNode{ 
+                        .node = .{ .NumberFloat = a_float * b_float },
+                        .region = merged_region,
+                    };
                 },
                 .NumberString => |nsb| blk: {
                     const a_float = try nsa.toFloat();
                     const b_float = try nsb.toFloat();
-                    break :blk Node{ .NumberFloat = a_float * b_float };
+                    break :blk RNode{ 
+                        .node = .{ .NumberFloat = a_float * b_float },
+                        .region = merged_region,
+                    };
+                },
+                .Range => |b_range| blk: {
+                    const a_float = try nsa.toFloat();
+                    break :blk self.repeatRangeAndNumber(b_range, a_float, merged_region);
                 },
                 else => null,
             },
             // For non-numbers, nodeB must be a non-negative integer
-            .Null, .True, .False => switch (nodeB) {
-                .NumberFloat => |b| if (b >= 0 and b == @floor(b)) nodeA else null,
+            .Null, .True, .False => switch (b.node) {
+                .NumberFloat => |b_float| if (b_float >= 0 and b_float == @floor(b_float)) a.* else null,
                 .NumberString => |ns| {
                     const count = try ns.toFloat();
                     if (count < 0 or count != @floor(count)) return null;
-                    return nodeA;
+                    return a.*;
                 },
                 else => null,
             },
-            .String => |str| if (nodeB == .NumberFloat or nodeB == .NumberString) {
-                const count_float = if (nodeB == .NumberFloat)
-                    nodeB.NumberFloat
+            .String => |str| if (b.node == .NumberFloat or b.node == .NumberString) {
+                const count_float = if (b.node == .NumberFloat)
+                    b.node.NumberFloat
                 else
-                    try nodeB.NumberString.toFloat();
+                    try b.node.NumberString.toFloat();
 
                 if (count_float < 0 or count_float != @floor(count_float)) return null;
                 const count = @as(usize, @intFromFloat(count_float));
                 if (count == 0) return null;
-                if (count == 1) return nodeA;
+                if (count == 1) return a.*;
 
                 // Allocate buffer for repeated string
                 const total_len = str.len * count;
@@ -307,13 +541,56 @@ pub const Ast = struct {
                     const start = i * str.len;
                     @memcpy(buffer[start .. start + str.len], str);
                 }
-                return Node{ .String = buffer };
+                return RNode{ 
+                    .node = .{ .String = buffer },
+                    .region = merged_region,
+                };
             } else {
                 return null;
             },
             .Identifier => null,
             else => null, // Other types not supported
         };
+    }
+
+    fn repeatRangeAndNumber(self: *Ast, range: RangeNode, multiplier: f64, region: Region) Error!?RNode {
+        // multiplier must be non-negative
+        if (multiplier < 0) return null;
+
+        // Extract lower bound (default to 0)
+        const lower_val = if (range.lower) |lower| blk: {
+            if (!lower.node.isNumberElem()) return null;
+            const val = if (lower.node == .NumberFloat)
+                lower.node.NumberFloat
+            else
+                try lower.node.NumberString.toFloat();
+            break :blk val;
+        } else 0;
+
+        // Multiply lower bound
+        const new_lower = lower_val * multiplier;
+        const new_lower_node = try self.create(.{ .NumberFloat = new_lower }, region);
+
+        // Handle upper bound if present
+        if (range.upper) |upper| {
+            if (!upper.node.isNumberElem()) return null;
+            const upper_val = if (upper.node == .NumberFloat)
+                upper.node.NumberFloat
+            else
+                try upper.node.NumberString.toFloat();
+            const new_upper = upper_val * multiplier;
+            const new_upper_node = try self.create(.{ .NumberFloat = new_upper }, region);
+            return RNode{ 
+                .node = .{ .Range = .{ .lower = new_lower_node, .upper = new_upper_node } },
+                .region = region,
+            };
+        } else {
+            // Open range: lower..
+            return RNode{ 
+                .node = .{ .Range = .{ .lower = new_lower_node, .upper = null } },
+                .region = region,
+            };
+        }
     }
 
     pub fn print(self: *Ast, writer: *Writer, vm: VM, source: []const u8) Writer.Error!void {

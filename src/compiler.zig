@@ -2367,8 +2367,8 @@ pub const Compiler = struct {
 
                 switch (infix.infixType) {
                     .Merge => {
-                        if (try self.ast.merge(infix.left.node, infix.right.node)) |merged| {
-                            rnode.node = merged;
+                        if (try self.ast.merge(infix.left, infix.right)) |merged| {
+                            rnode.* = merged;
                         }
                     },
                     .TakeLeft => {
@@ -2392,8 +2392,8 @@ pub const Compiler = struct {
                         }
                     },
                     .Repeat => {
-                        if (try self.ast.repeat(infix.left.node, infix.right.node)) |repeated| {
-                            rnode.node = repeated;
+                        if (try self.ast.repeat(infix.left, infix.right)) |repeated| {
+                            rnode.* = repeated;
                         }
                     },
                     .Backtrack,
