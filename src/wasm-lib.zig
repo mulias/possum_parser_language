@@ -66,7 +66,7 @@ export fn interpret(vm: *VM, parser_ptr: [*]const u8, parser_len: usize, input_p
     const parser = parser_ptr[0..parser_len];
     const input = input_ptr[0..input_len];
 
-    const module = Module{ .source = parser };
+    const module = Module{ .name = "program", .source = parser };
 
     const parsed = vm.interpret(module, input) catch |err| {
         writers.err.print("Error: {s}", .{@errorName(err)}) catch return 1;
