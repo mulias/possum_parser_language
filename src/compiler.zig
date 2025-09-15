@@ -2,7 +2,7 @@ const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const StringHashMap = std.StringArrayHashMapUnmanaged;
 const Writer = std.Io.Writer;
-const Ast = @import("ast.zig").Ast;
+const Ast = @import("can_ast.zig");
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
 const Elem = @import("elem.zig").Elem;
@@ -23,7 +23,8 @@ pub const Compiler = struct {
     functions: ArrayList(*Elem.DynElem.Function),
     writers: Writers,
     printBytecode: bool,
-    declarations: StringHashMap(*Ast.RNode),
+    parser_declarations: StringHashMap(Ast.Parser.Declaration),
+    value_declarations: StringHashMap(Ast.Value.Declaration),
 
     const Error = error{
         InvalidAst,
@@ -82,7 +83,8 @@ pub const Compiler = struct {
             .functions = functions,
             .writers = vm.writers,
             .printBytecode = printBytecode,
-            .declarations = StringHashMap(*Ast.RNode){},
+            .parser_declarations = StringHashMap(Ast.Parser.Declaration){},
+            .value_declarations = StringHashMap(Ast.Value.Declaration){},
         };
     }
 
