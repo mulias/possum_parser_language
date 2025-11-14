@@ -1,6 +1,6 @@
 # Possum Language Documentation
 
-Possum is a text parsing language with some support for general purpose computation. A Possum program is made up of parsers, functions that define both what text inputs are valid and how to transform valid inputs into structured data. The Possum runtime takes a program and an input string and either successfully parses the input into a JSON encoded value, or fails if the input does not meet the parser requirements.
+Possum is programming language centered on parsing text into JSON. A Possum program is made up of parsers, functions that define both what text inputs are valid and how to transform valid inputs into structured data. The Possum runtime takes a program and an input string and either successfully parses the input into a JSON encoded value, or fails if the input does not meet the parser requirements.
 
 ## Literal Parsers
 
@@ -70,7 +70,7 @@ The merge operator `p1 + p2` combines parsed values of the same type. If the two
 
 When a parser successfully matches against the input it returns a JSON value. In many cases the return value is implicit, for example we know that the parser `123 | 456` will either return the value `123`, `456`, or fail. In contrast, the return operator `p $ V` first matches `p`, and then on success returns an explicitly constructed value `V`.
 
-Constructed values can be any valid JSON data, including arrays, objects, `true`, `false`, and `null`. Values can also reference variables, call value functions, be interpolated into strings, numbers can be modified with arithmetic, and arrays and objects can be combined with `...` spread syntax. Finally, in a value context all of the infix operators have similar behaviors, but do not match against the input.
+Constructed values can be any valid JSON data, including arrays, objects, `true`, `false`, and `null`. Values can also reference variables, call value functions, be interpolated into strings, numbers can be modified with arithmetic, and arrays and objects can be combined with `...` spread syntax.
 
 | Constructed Value          | Description                            |
 | -------------------------- | -------------------------------------- |
@@ -96,17 +96,19 @@ Constructed values can be any valid JSON data, including arrays, objects, `true`
 | `Is.Number(N) ? N + 1 : 0` | Control flow                           |
 | `MyArray -> [A, B, C]`     | Destructure                            |
 
+In a value context all of the infix operators have similar behaviors, but do not match against the input.
+
 | Operator       | Description                             |
 | -------------- | --------------------------------------- |
-| `V1 > V2`      | Compute `V1` and `V2`, return `V2`      |
-| `V1 < V2`      | Compute `V1` and `V2`, return `V1`      |
+| `V1 > V2`      | Compute `V1` then `V2`, return `V2`      |
+| `V1 < V2`      | Compute `V1` then `V2`, return `V1`      |
 | `V1 \| V2`     | Compute `V1`, on failure try `V2` instead |
 | `V1 ! V2`      | Same as `>`                             |
-| `V1 + V2`      | Compute `V1` and `V2`, return a merged result |
+| `V1 + V2`      | Compute `V1` then `V2`, return a merged result |
 | `V1 $ V2`      | Same as `>`                             |
 | `V -> P`       | Compute `V`, destructure against the pattern `P` |
-| `V * P`        | Compute `V`, merge with self a number of times determined by the pattern `P` |
-| `V1 & V2`      | Compute `V1` and `V2`, return `V2`
+| `V1 * V2`      | Compute `V1`, merge with self `V2` number of times |
+| `V1 & V2`      | Same as `>`
 | `V1 ? V2 : V3` | Compute `V1`, if successful then compute `V2`. If `V1` fails then try `V3` instead |
 
 Despite not interacting with the parsing state, values still have a concept of failure which is used in control flow. Values can fail by either calling the `@Fail` builtin function, or by failing to destructure against a pattern.
@@ -123,7 +125,7 @@ Patterns can contain variables that are both bound and unbound. Variables must b
 | `p -> "abc"`            | Match a string exactly                                    |
 | `` p -> `\nfoo` ``       | Match the exact string `"\nfoo"`, no escapes             |
 | `p -> "%('a'..'z')%(_)"` | Match a string that starts with a character between "a" and "z", inclusive |
-| `p -> (\u000000.. * 10)` | Match any string of length 10                            |
+| `p -> ("\u000000".. * 10)` | Match any string of length 10                            |
 | `p -> true`             | Match a constant exactly                                  |
 | `p -> 5`                | Match a number exactly                                    |
 | `p -> 2..7`             | Match a number between 2 and 7, inclusive                 |
@@ -131,7 +133,7 @@ Patterns can contain variables that are both bound and unbound. Variables must b
 | `p -> (N + 100)`        | Match the exact number, or if `N` is unbound match any number and bind such that `N + 100` is equal to the parsed value |
 | `p -> [1, 2, 3]`        | Match an array exactly                                    |
 | `p -> [A, ..._]`        | Match an array with at least one element, match or bind the first element to `A` |
-| `p -> ([A] * 5`)        | Match an array of 5 identical elements, match or bind the repeated element to `A` |
+| `p -> ([A] * 5)`        | Match an array of 5 identical elements, match or bind the repeated element to `A` |
 | `p -> [A, ..._, Z]`     | Match an array with at least two elements, match or bind the first element to `A` and last to `Z` |
 | `p -> [1, B, _]`        | Match an array of length 3 starting with `1`, match or bind the second element to `B` |
 | `p -> {"a": 1, "b": 2}` | Match an object exactly                                   |
