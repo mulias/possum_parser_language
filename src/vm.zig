@@ -636,10 +636,7 @@ pub const VM = struct {
                     const f = elem.asFloat();
                     valid = @trunc(f) == f and f >= 0 and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)));
                 } else if (elem.isType(.NumberString)) {
-                    const floatVal = elem.asNumberString().toNumberFloat(self.strings) catch {
-                        try self.push(Elem.failureConst);
-                        return;
-                    };
+                    const floatVal = elem.asNumberString().toNumberFloat(self.strings);
                     const f = floatVal.asFloat();
                     valid = @trunc(f) == f and f >= 0 and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)));
                 }

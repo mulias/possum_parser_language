@@ -314,8 +314,8 @@ fn addNative(vm: *VM) VM.Error!void {
             return vm.push(a);
         }
 
-        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
-        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
+        a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) b.asNumberString().toNumberFloat(vm.strings) else b;
 
         const res = Elem.numberFloat(a.asFloat() + b.asFloat());
         return vm.push(res);
@@ -365,8 +365,8 @@ fn subtractNative(vm: *VM) VM.Error!void {
     b = if (b.isConst(.Null)) Elem.numberFloat(0) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
-        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
+        a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) b.asNumberString().toNumberFloat(vm.strings) else b;
 
         const res = Elem.numberFloat(a.asFloat() - b.asFloat());
         return vm.push(res);
@@ -416,8 +416,8 @@ fn multiplyNative(vm: *VM) VM.Error!void {
     b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
-        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
+        a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) b.asNumberString().toNumberFloat(vm.strings) else b;
 
         const res = Elem.numberFloat(a.asFloat() * b.asFloat());
         return vm.push(res);
@@ -467,8 +467,8 @@ fn divideNative(vm: *VM) VM.Error!void {
     b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
-        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
+        a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) b.asNumberString().toNumberFloat(vm.strings) else b;
 
         if (b.isEql(Elem.numberFloat(0), vm.*)) {
             return vm.runtimeError("@Divide denominator is 0", .{});
@@ -522,8 +522,8 @@ fn powerNative(vm: *VM) VM.Error!void {
     b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
 
     if (a.isNumber() and b.isNumber()) {
-        a = if (a.isType(.NumberString)) try a.asNumberString().toNumberFloat(vm.strings) else a;
-        b = if (b.isType(.NumberString)) try b.asNumberString().toNumberFloat(vm.strings) else b;
+        a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) b.asNumberString().toNumberFloat(vm.strings) else b;
 
         const res = Elem.numberFloat(std.math.pow(f64, a.asFloat(), b.asFloat()));
         return vm.push(res);

@@ -44,7 +44,6 @@ pub const Compiler = struct {
         RangeCodepointsUnordered,
         RangeIntegersUnordered,
         RangeInvalidNumberFormat,
-        RangeIntegerTooLarge,
         UnlabeledStringValue,
         UnlabeledNumberValue,
         UnlabeledBooleanValue,
@@ -461,8 +460,8 @@ pub const Compiler = struct {
             const low_ns = low_elem.?.asNumberString();
             const high_ns = high_elem.?.asNumberString();
 
-            const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
-            const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+            const low_num = low_ns.toNumberFloat(self.vm.strings);
+            const high_num = high_ns.toNumberFloat(self.vm.strings);
 
             if (!low_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
             if (!high_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
@@ -491,7 +490,7 @@ pub const Compiler = struct {
                 },
                 .number_string => {
                     const low_ns = low_elem.?.asNumberString();
-                    const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                    const low_num = low_ns.toNumberFloat(self.vm.strings);
 
                     if (!low_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
 
@@ -518,7 +517,7 @@ pub const Compiler = struct {
                 },
                 .number_string => {
                     const high_ns = high_elem.?.asNumberString();
-                    const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                    const high_num = high_ns.toNumberFloat(self.vm.strings);
 
                     if (!high_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
 
@@ -558,7 +557,7 @@ pub const Compiler = struct {
             },
             .number_string => {
                 const low_ns = low_elem.?.asNumberString();
-                const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                const low_num = low_ns.toNumberFloat(self.vm.strings);
                 const low_f = low_num.asFloat();
 
                 if (@trunc(low_f) != low_f) return Error.RangeInvalidNumberFormat;
@@ -599,7 +598,7 @@ pub const Compiler = struct {
             },
             .number_string => {
                 const high_ns = high_elem.?.asNumberString();
-                const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
+                const high_num = high_ns.toNumberFloat(self.vm.strings);
                 const high_f = high_num.asFloat();
 
                 if (@trunc(high_f) != high_f) return Error.RangeInvalidNumberFormat;
@@ -1283,7 +1282,7 @@ pub const Compiler = struct {
             .number_string => |ns| {
                 const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
                 const maybe_negated = if (negation_count % 2 == 1) ns_elem.asNumberString().negate() else ns_elem.asNumberString();
-                const number = try maybe_negated.toNumberFloat(self.vm.strings);
+                const number = maybe_negated.toNumberFloat(self.vm.strings);
                 return Pattern{ .Number = number.asFloat() };
             },
             .string => |s| {
@@ -1484,7 +1483,7 @@ pub const Compiler = struct {
             .number_string => |ns| {
                 const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
                 const maybe_negated = if (negation_count % 2 == 1) ns_elem.asNumberString().negate() else ns_elem.asNumberString();
-                const number = try maybe_negated.toNumberFloat(self.vm.strings);
+                const number = maybe_negated.toNumberFloat(self.vm.strings);
                 return Pattern{ .Number = number.asFloat() };
             },
             .string => |s| {

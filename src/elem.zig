@@ -152,7 +152,7 @@ pub const Elem = packed union {
             };
         }
 
-        pub fn toNumberFloat(self: NumberStringElem, strings: StringTable) !Elem {
+        pub fn toNumberFloat(self: NumberStringElem, strings: StringTable) Elem {
             const bytes = self.toBytes(strings);
             const f = std.fmt.parseFloat(f64, bytes) catch |err| switch (err) {
                 std.fmt.ParseFloatError.InvalidCharacter => @panic("Internal Error"),
@@ -346,7 +346,7 @@ pub const Elem = packed union {
 
     pub fn asInteger(self: Elem, strings: StringTable) !i64 {
         const f = if (self.isType(.NumberString))
-            (try self.asNumberString().toNumberFloat(strings)).asFloat()
+            self.asNumberString().toNumberFloat(strings).asFloat()
         else
             self.asFloat();
 
@@ -417,11 +417,11 @@ pub const Elem = packed union {
             if (other.isFloat()) {
                 return self.asFloat() == other.asFloat();
             } else if (other.isType(.NumberString)) {
-                const f2 = try other.asNumberString().toNumberFloat(vm.strings);
+                const f2 = other.asNumberString().toNumberFloat(vm.strings);
                 return self.isEql(f2, vm);
             }
         } else if (self.isType(.NumberString)) {
-            const f1 = try self.asNumberString().toNumberFloat(vm.strings);
+            const f1 = self.asNumberString().toNumberFloat(vm.strings);
             return f1.isEql(other, vm);
         }
 
@@ -474,11 +474,11 @@ pub const Elem = packed union {
             const n1 = self.asNumberString();
             if (other.isType(.NumberString)) {
                 const n2 = other.asNumberString();
-                const elem1 = n1.toNumberFloat(vm.strings) catch return false;
-                const elem2 = n2.toNumberFloat(vm.strings) catch return false;
+                const elem1 = n1.toNumberFloat(vm.strings);
+                const elem2 = n2.toNumberFloat(vm.strings);
                 return elem1.isEql(elem2, vm);
             } else if (other.isFloat()) {
-                const elem1 = n1.toNumberFloat(vm.strings) catch return false;
+                const elem1 = n1.toNumberFloat(vm.strings);
                 return elem1.isEql(other, vm);
             }
             return false;
@@ -523,7 +523,7 @@ pub const Elem = packed union {
 
         if (value.isType(.NumberString)) {
             const ns = value.asNumberString();
-            const num = try ns.toNumberFloat(vm.strings);
+            const num = ns.toNumberFloat(vm.strings);
             return num.isLessThanOrEqualInRangePattern(high, vm);
         }
 
@@ -531,7 +531,7 @@ pub const Elem = packed union {
             const num_value = value.asFloat();
             if (high.isType(.NumberString)) {
                 const ns = high.asNumberString();
-                const highNum = try ns.toNumberFloat(vm.strings);
+                const highNum = ns.toNumberFloat(vm.strings);
                 return value.isLessThanOrEqualInRangePattern(highNum, vm);
             } else if (high.isFloat()) {
                 return num_value <= high.asFloat();
@@ -631,7 +631,7 @@ pub const Elem = packed union {
                 if (elemB.isZero(vm.strings)) {
                     return elemA;
                 } else {
-                    const elem1 = try elemA.asNumberString().toNumberFloat(vm.strings);
+                    const elem1 = elemA.asNumberString().toNumberFloat(vm.strings);
                     return merge(elem1, elemB, vm);
                 }
             },
@@ -640,7 +640,7 @@ pub const Elem = packed union {
                     if (elemA.isZero(vm.strings)) {
                         return elemB;
                     } else {
-                        const elem2 = try elemB.asNumberString().toNumberFloat(vm.strings);
+                        const elem2 = elemB.asNumberString().toNumberFloat(vm.strings);
                         return merge(elemA, elem2, vm);
                     }
                 },
@@ -738,12 +738,12 @@ pub const Elem = packed union {
             const floatElem = if (elem.isFloat())
                 elem
             else
-                try elem.asNumberString().toNumberFloat(vm.strings);
+                elem.asNumberString().toNumberFloat(vm.strings);
 
             const floatCount = if (count.isFloat())
                 count
             else
-                try count.asNumberString().toNumberFloat(vm.strings);
+                count.asNumberString().toNumberFloat(vm.strings);
 
             return numberFloat(floatElem.asFloat() * floatCount.asFloat());
         }
@@ -758,7 +758,7 @@ pub const Elem = packed union {
                 return null;
             }
         } else if (count.isType(.NumberString)) {
-            const floatCount = try count.asNumberString().toNumberFloat(vm.strings);
+            const floatCount = count.asNumberString().toNumberFloat(vm.strings);
             const f = floatCount.asFloat();
             if (@trunc(f) == f and f >= 0 and f <= @as(f64, @floatFromInt(std.math.maxInt(i64)))) {
                 repeat_count = @as(i64, @intFromFloat(f));
@@ -820,11 +820,7 @@ pub const Elem = packed union {
 
     pub fn isZero(self: Elem, strings: StringTable) bool {
         return switch (self.getType()) {
-            .NumberString => {
-                const ns = self.asNumberString();
-                const n = ns.toNumberFloat(strings) catch return false;
-                return n.isZero(strings);
-            },
+            .NumberString => self.asNumberString().toNumberFloat(strings).asFloat() == 0,
             .NumberFloat => self.asFloat() == 0,
             else => false,
         };
