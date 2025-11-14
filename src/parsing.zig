@@ -57,7 +57,12 @@ pub fn parseFloat(bytes: []const u8) ?f64 {
 }
 
 pub fn utf8Decode(bytes: []const u8) ?u21 {
-    return switch (bytes.len) {
+    if (bytes.len == 0) return null;
+
+    const expected_len = unicode.utf8ByteSequenceLength(bytes[0]) catch return null;
+    if (bytes.len != expected_len) return null;
+
+    return switch (expected_len) {
         1 => bytes[0],
         2 => unicode.utf8Decode2(bytes[0..2].*) catch null,
         3 => unicode.utf8Decode3(bytes[0..3].*) catch null,
