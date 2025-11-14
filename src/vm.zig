@@ -441,7 +441,7 @@ pub const VM = struct {
             .End => {
                 // End of function cleanup. Remove everything from the stack
                 // frame except the final function result.
-                const prevFrame = self.frames.pop() orelse @panic("VM frame underflow");
+                const prevFrame = self.frames.pop().?;
                 const result = self.pop();
 
                 try self.stack.resize(self.allocator, prevFrame.elemsOffset);
@@ -776,8 +776,8 @@ pub const VM = struct {
                 if (low_elem.isType(.String)) {
                     const low = self.strings.get(low_elem.asString());
                     const high = self.strings.get(high_elem.asString());
-                    const low_codepoint = parsing.utf8Decode(low) orelse @panic("Internal Error");
-                    const high_codepoint = parsing.utf8Decode(high) orelse @panic("Internal Error");
+                    const low_codepoint = parsing.utf8Decode(low).?;
+                    const high_codepoint = parsing.utf8Decode(high).?;
                     try self.parseCharacterRange(low_codepoint, high_codepoint);
                 } else {
                     const low = try low_elem.asInteger(self.strings);
@@ -1295,7 +1295,7 @@ pub const VM = struct {
     }
 
     pub fn pop(self: *VM) Elem {
-        return self.stack.pop() orelse @panic("VM stack underflow");
+        return self.stack.pop().?;
     }
 
     pub fn drop(self: *VM, n: usize) void {
@@ -1321,7 +1321,7 @@ pub const VM = struct {
     }
 
     fn popInputMark(self: *VM) Pos {
-        return self.inputMarks.pop() orelse @panic("VM input marks underflow");
+        return self.inputMarks.pop().?;
     }
 
     fn printInput(self: *VM) !void {

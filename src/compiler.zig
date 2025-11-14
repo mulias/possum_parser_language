@@ -153,7 +153,7 @@ pub const Compiler = struct {
         try self.writeParser(main_rnode, false);
         try self.emitEnd();
 
-        const main_fn = self.functions.pop() orelse @panic("Internal Error: No Main Function");
+        const main_fn = self.functions.pop().?;
 
         // Update the main function's source region with the actual main parser region
         main_fn.chunk.source_region = main_rnode.region;
@@ -403,7 +403,7 @@ pub const Compiler = struct {
         // TODO: handle curried function calls like `foo(a)(b)`
         const function_ident = switch (function_rnode.node) {
             .identifier => |ident| ident,
-            else => @panic("Internal Error: parser function call must be on identifier"),
+            else => @panic("todo"),
         };
         const function_region = function_rnode.region;
 
@@ -2254,7 +2254,7 @@ pub const Compiler = struct {
         const function_ident = if (function_rnode.node == .identifier)
             function_rnode.node.identifier
         else
-            @panic("Internal Error");
+            @panic("todo");
         const function_region = function_rnode.region;
 
         const functionName = try self.vm.strings.insert(function_ident.name);

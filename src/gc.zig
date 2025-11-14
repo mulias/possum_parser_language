@@ -137,7 +137,6 @@ pub const GC = struct {
         self.bytesAllocated -= buf.len;
         if (self.bytesAllocated < 0) {
             self.vm.writers.debug.print("allocated: {} bytes\n", .{self.bytesAllocated}) catch {};
-            // @panic("baz");
         }
     }
 
