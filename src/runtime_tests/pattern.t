@@ -3,43 +3,38 @@
   $ possum -p '4 -> (1 + 1 + 2)' -i '4'
   
   Destructure:
-      4 -> (1 + 1 + 2)
       4 -> 4
-  Destructure Success: 4 -> (1 + 1 + 2)
+  Destructure Success: 4 -> 4
   4
 
   $ possum -p '0 -> (1 + 1 + 2)' -i '0'
   
   Destructure:
-      0 -> (1 + 1 + 2)
       0 -> 4
-  Destructure Failure: 0 -> (1 + 1 + 2)
+  Destructure Failure: 0 -> 4
   [ParserFailure]
   [1]
 
   $ possum -p '5 -> (2 + 3)' -i '5'
   
   Destructure:
-      5 -> (2 + 3)
       5 -> 5
-  Destructure Success: 5 -> (2 + 3)
+  Destructure Success: 5 -> 5
   5
 
   $ possum -p '7 -> (2 + 3)' -i '7'
   
   Destructure:
-      7 -> (2 + 3)
       7 -> 5
-  Destructure Failure: 7 -> (2 + 3)
+  Destructure Failure: 7 -> 5
   [ParserFailure]
   [1]
 
   $ possum -p '10 -> (3 + 2 + 5)' -i '10'
   
   Destructure:
-      10 -> (3 + 2 + 5)
       10 -> 10
-  Destructure Success: 10 -> (3 + 2 + 5)
+  Destructure Success: 10 -> 10
   10
 
   $ possum -p 'X = 3; 7 -> (X + 4)' -i '7'
@@ -86,25 +81,24 @@
   $ possum -p '5 -> (1 + 6 + 3 - (2 + 3))' -i '5'
   
   Destructure:
-      5 -> (1 + 6 + 3 + -2 + -3)
       5 -> 5
-  Destructure Success: 5 -> (1 + 6 + 3 + -2 + -3)
+  Destructure Success: 5 -> 5
   5
 
   $ possum -p '5 -> (X + 6 + 3 - (2 + 3)) $ X' -i '5'
   
   Destructure:
-      5 -> (X + 6 + 3 + -2 + -3)
+      5 -> (X + 6 + 3 + -5)
           1 -> X
-  Destructure Success: 5 -> (X + 6 + 3 + -2 + -3)
+  Destructure Success: 5 -> (X + 6 + 3 + -5)
   1
 
   $ possum -p '5 -> (1 + 6 + 3 - (X + 3)) $ X' -i '5'
   
   Destructure:
-      5 -> (1 + 6 + 3 + -X + -3)
+      5 -> (10 + (-X + -3))
           -2 -> -X
-  Destructure Success: 5 -> (1 + 6 + 3 + -X + -3)
+  Destructure Success: 5 -> (10 + (-X + -3))
   2
 
   $ possum -p 'const([1,2,3]) -> [1, -X, 3] $ X' -i ''

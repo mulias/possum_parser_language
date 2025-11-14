@@ -15,6 +15,8 @@ const OpCode = @import("op_code.zig").OpCode;
 const Parser = @import("parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
 const PatternSolver = @import("pattern_solver.zig");
+const Can = @import("can.zig").Can;
+const CanAst = @import("can_ast.zig");
 const Writers = @import("writer.zig").Writers;
 const builtin = @import("builtin.zig");
 const parsing = @import("parsing.zig");
@@ -192,11 +194,23 @@ pub const VM = struct {
             try parser.ast.print(self.writers.debug, self.*, module.source);
         }
 
+        var can_ast = CanAst.init(self.allocator);
+        defer can_ast.deinit();
+
+        var can = Can{
+            .vm = self,
+            .module = module,
+            .ast = parser.ast,
+            .can_ast = &can_ast,
+            .writers = self.writers,
+        };
+        _ = try can.canonicalize();
+
         const modulePtr = &self.modules.items[self.modules.items.len - 1];
         var compiler = try Compiler.init(
             self,
             modulePtr,
-            parser.ast,
+            can.can_ast.*,
             self.config.printCompiledBytecode,
         );
         defer compiler.deinit();
@@ -236,8 +250,20 @@ pub const VM = struct {
 
         try parser.parse();
 
+        var can_ast = CanAst.init(self.allocator);
+        defer can_ast.deinit();
+
+        var can = Can{
+            .vm = self,
+            .module = stdlibModule,
+            .ast = parser.ast,
+            .can_ast = &can_ast,
+            .writers = self.writers,
+        };
+        _ = try can.canonicalize();
+
         const modulePtr = &self.modules.items[self.modules.items.len - 1];
-        var compiler = try Compiler.init(self, modulePtr, parser.ast, false);
+        var compiler = try Compiler.init(self, modulePtr, can.can_ast.*, false);
         defer compiler.deinit();
 
         _ = try compiler.compile();

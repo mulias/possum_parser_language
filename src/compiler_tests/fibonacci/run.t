@@ -19,27 +19,25 @@
   0016    | GetConstant 3: const
   0018    | GetBoundLocal 0
   0020    | CallTailFunction 1
-  0022    | Jump 22 -> 60
+  0022    | Jump 22 -> 58
   0025    | GetConstant 4: fib
   0027    | GetBoundLocal 0
-  0029    | GetConstant 5: 1
-  0031    | NegateNumber
-  0032    | Merge
-  0033    | CallFunction 1
-  0035    | Destructure 1: N1
-  0037    | TakeRight 37 -> 60
-  0040    | GetConstant 6: fib
-  0042    | GetBoundLocal 0
-  0044    | GetConstant 7: 2
-  0046    | NegateNumber
-  0047    | Merge
-  0048    | CallFunction 1
-  0050    | Destructure 2: N2
-  0052    | TakeRight 52 -> 60
-  0055    | GetBoundLocal 1
-  0057    | GetBoundLocal 2
-  0059    | Merge
-  0060    | End
+  0029    | GetConstant 5: -1
+  0031    | Merge
+  0032    | CallFunction 1
+  0034    | Destructure 1: N1
+  0036    | TakeRight 36 -> 58
+  0039    | GetConstant 6: fib
+  0041    | GetBoundLocal 0
+  0043    | GetConstant 7: -2
+  0045    | Merge
+  0046    | CallFunction 1
+  0048    | Destructure 2: N2
+  0050    | TakeRight 50 -> 58
+  0053    | GetBoundLocal 1
+  0055    | GetBoundLocal 2
+  0057    | Merge
+  0058    | End
   ========================================
   
   ==================Fib===================

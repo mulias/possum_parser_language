@@ -2,7 +2,7 @@ const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const StringHashMap = std.StringArrayHashMapUnmanaged;
 const Writer = std.Io.Writer;
-const Ast = @import("ast.zig").Ast;
+const Ast = @import("can_ast.zig");
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
 const Elem = @import("elem.zig").Elem;
@@ -23,13 +23,9 @@ pub const Compiler = struct {
     functions: ArrayList(*Elem.DynElem.Function),
     writers: Writers,
     printBytecode: bool,
-    declarations: StringHashMap(*Ast.RNode),
 
     const Error = error{
         InvalidAst,
-        ChunkWriteFailure,
-        MultipleMainParsers,
-        UnexpectedMainParser,
         MaxFunctionArgs,
         MaxFunctionLocals,
         OutOfMemory,
@@ -39,7 +35,6 @@ pub const Compiler = struct {
         VariableNameUsedInScope,
         InvalidGlobalValue,
         InvalidGlobalParser,
-        InvalidCharacter,
         AliasCycle,
         UnknownVariable,
         UndefinedVariable,
@@ -54,8 +49,6 @@ pub const Compiler = struct {
         UnlabeledNumberValue,
         UnlabeledBooleanValue,
         UnlabeledNullValue,
-        RangeNotValidInMergePattern,
-        RangeNotValidInValueContext,
     } || Writer.Error;
 
     pub fn init(vm: *VM, targetModule: *Module, ast: Ast, printBytecode: bool) !Compiler {
@@ -82,7 +75,6 @@ pub const Compiler = struct {
             .functions = functions,
             .writers = vm.writers,
             .printBytecode = printBytecode,
-            .declarations = StringHashMap(*Ast.RNode){},
         };
     }
 
@@ -104,85 +96,60 @@ pub const Compiler = struct {
 
     pub fn deinit(self: *Compiler) void {
         self.functions.deinit(self.vm.allocator);
-        self.declarations.deinit(self.vm.allocator);
     }
 
     pub fn compile(self: *Compiler) !?*Elem.DynElem.Function {
-        var main_rnode: ?*Ast.RNode = null;
-
-        for (self.ast.roots.items) |root| {
-            if (root.node == .DeclareGlobal) {
-                const global = root.node.DeclareGlobal;
-                if (self.globalIdent(global.head)) |ident| {
-                    try self.declarations.put(self.vm.allocator, ident.name, root);
-                }
-            } else if (main_rnode == null) {
-                main_rnode = root;
-            } else {
-                try self.printError(root.region, "Only one main parser expression is allowed per module", .{});
-                return Error.MultipleMainParsers;
-            }
-        }
-
         try self.declareGlobals();
         try self.resolveAliaseChains();
         try self.compileFunctions();
 
-        if (main_rnode) |rnode| {
-            return self.compileMain(rnode);
+        if (self.ast.main) |main| {
+            return self.compileMain(main);
         } else {
             return null;
         }
     }
 
     fn declareGlobals(self: *Compiler) !void {
-        var iter = self.declarations.iterator();
-        while (iter.next()) |entry| {
-            const region = entry.value_ptr.*.region;
-            const decl = entry.value_ptr.*.node.DeclareGlobal;
-            switch (decl.head.node) {
-                .Function => |function| {
-                    try self.declareFunction(function.name, function.paramsOrArgs, region);
-                },
-                else => {
-                    if (try self.nodeToElem(decl.body.node)) |body_elem| {
-                        try self.declareAlias(decl.head, body_elem);
-                    } else if (self.nodeToIdent(decl.body.node) == null) {
-                        // A function without params. When the body is a single
-                        // ident it's an alias which we'll resolve later.
-                        try self.declareFunction(decl.head, ArrayList(*Ast.RNode){}, region);
-                    }
-                },
+        var decl_iter = self.ast.declarations.iterator();
+        while (decl_iter.next()) |entry| {
+            const decl = entry.value_ptr.*;
+            if (self.isAliasChain(decl)) {
+                // Wait to resolve until all globals are declared
+                continue;
+            } else if (try self.getAliasBody(decl)) |body_elem| {
+                const sid = try self.vm.strings.insert(decl.identName());
+                try self.targetModule.addGlobal(self.vm.allocator, sid, body_elem);
+                try self.declareAlias(sid, body_elem);
+            } else {
+                try self.declareFunction(decl);
             }
         }
     }
 
     fn compileFunctions(self: *Compiler) !void {
-        var iter = self.declarations.iterator();
-        while (iter.next()) |entry| {
-            const decl = entry.value_ptr.*.node.DeclareGlobal;
-            if (decl.head.node == .Function or (try self.nodeToElem(decl.body.node) == null and self.nodeToIdent(decl.body.node) == null)) {
-                try self.compileFunction(decl.head, decl.body);
+        var decl_iter = self.ast.declarations.iterator();
+        while (decl_iter.next()) |entry| {
+            const decl = entry.value_ptr.*;
+            if (!self.isAlias(decl) and !self.isAliasChain(decl)) {
+                try self.compileFunction(decl);
             }
         }
     }
 
     fn resolveAliaseChains(self: *Compiler) !void {
-        var iter = self.declarations.iterator();
-        while (iter.next()) |entry| {
-            const region = entry.value_ptr.*.region;
-            const decl = entry.value_ptr.*.node.DeclareGlobal;
-            if (decl.head.node != .Function) {
-                if (self.nodeToIdent(decl.body.node) != null) {
-                    const alias_ident = self.globalIdent(decl.head).?;
-                    try self.resolveAliasChain(alias_ident, decl.body, region);
-                }
+        var decl_iter = self.ast.declarations.iterator();
+        while (decl_iter.next()) |entry| {
+            const decl = entry.value_ptr.*;
+
+            if (self.isAliasChain(decl)) {
+                try self.resolveAliasChain(decl);
             }
         }
     }
 
-    fn compileMain(self: *Compiler, main_rnode: *Ast.RNode) !?*Elem.DynElem.Function {
-        try self.addValueLocals(main_rnode);
+    fn compileMain(self: *Compiler, main_rnode: *Ast.Parser.RNode) !?*Elem.DynElem.Function {
+        try self.addValueLocals(.{ .parser = main_rnode });
         try self.writeParser(main_rnode, false);
         try self.emitEnd();
 
@@ -198,98 +165,78 @@ pub const Compiler = struct {
         return main_fn;
     }
 
-    fn declareFunction(self: *Compiler, name: *Ast.RNode, params: ArrayList(*Ast.RNode), region: Region) !void {
+    fn declareFunction(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
 
-        const name_ident = self.nodeToIdent(name.node) orelse {
-            try self.printError(name.region, "function name must be parser or value varaible", .{});
-            return Error.InvalidAst;
-        };
+        const ident_name = decl.identName();
+        const ident_builtin = decl.identBuiltin();
 
-        if (name_ident.builtin) {
-            try self.printError(name.region, "unable to define builtin function", .{});
+        if (ident_builtin) {
+            try self.printError(decl.identRegion(), "unable to define builtin function", .{});
             return Error.InvalidAst;
         }
 
-        const functionType: Elem.DynElem.FunctionType = switch (name_ident.kind) {
-            .Parser => .NamedParser,
-            .Value => .NamedValue,
-            .Underscore => {
-                try self.printError(name.region, "function name must be parser or value varaible", .{});
-                return Error.InvalidAst;
-            },
+        const function_type: Elem.DynElem.FunctionType = switch (decl) {
+            .parser => .NamedParser,
+            .value => .NamedValue,
         };
 
-        const name_sid = try self.vm.strings.insert(name_ident.name);
+        const name_sid = try self.vm.strings.insert(ident_name);
 
         var function = try Elem.DynElem.Function.create(self.vm, .{
             .name = name_sid,
-            .functionType = functionType,
+            .functionType = function_type,
             .arity = 0,
-            .region = region,
+            .region = decl.region(),
         });
 
         try self.targetModule.addGlobal(self.vm.allocator, name_sid, function.dyn.elem());
-
         try self.functions.append(self.vm.allocator, function);
 
-        for (params.items) |param| {
-            if (self.nodeToIdent(param.node)) |ident| {
-                _ = try self.addLocal(ident, param.region);
-                function.arity += 1;
-            } else {
-                return Error.InvalidAst;
-            }
+        switch (decl) {
+            .parser => |p_decl| {
+                for (p_decl.node.params.items) |param_ident| {
+                    _ = try self.addLocal(param_ident);
+                }
+                // addLocal will fail if the number of params is too large
+                function.arity = @as(u8, @intCast(p_decl.node.params.items.len));
+            },
+            .value => |v_decl| {
+                for (v_decl.node.params.items) |param_ident| {
+                    _ = try self.addLocal(.{ .value = param_ident });
+                }
+                // addLocal will fail if the number of params is too large
+                function.arity = @as(u8, @intCast(v_decl.node.params.items.len));
+            },
         }
 
         _ = self.functions.pop();
     }
 
-    fn declareAlias(self: *Compiler, head: *Ast.RNode, bodyElem: Elem) !void {
+    fn declareAlias(self: *Compiler, sid: StringTable.Id, bodyElem: Elem) !void {
         // Add an alias to the global namespace. Set the given body element as the alias's value.
-        const ident = self.nodeToIdent(head.node) orelse {
-            try self.printError(head.region, "alias name must be parser or value varaible", .{});
-            return Error.InvalidAst;
-        };
-
-        const sid = try self.vm.strings.insert(ident.name);
         try self.targetModule.addGlobal(self.vm.allocator, sid, bodyElem);
     }
 
-    fn resolveAliasChain(self: *Compiler, alias_ident: Ast.IdentifierNode, body: *Ast.RNode, region: Region) !void {
+    fn resolveAliasChain(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
         var path = StringHashMap(void){};
         defer path.deinit(self.vm.allocator);
 
-        var target = body;
-        var target_ident = self.nodeToIdent(body.node).?;
+        var target_ident_name = decl.identName();
 
         while (true) {
-            if (target.node == .Identifier) {
-                if (alias_ident.kind == .Parser and target_ident.kind != .Parser) {
-                    try self.printError(target.region, "Value is not valid as a parser", .{});
-                    return Error.InvalidGlobalParser;
-                }
-
-                if (alias_ident.kind != .Parser and target_ident.kind == .Parser) {
-                    try self.printError(target.region, "Parser is not valid as a value", .{});
-                    return Error.InvalidGlobalValue;
-                }
-            }
-
-            if (path.contains(target_ident.name)) {
-                try self.printError(region, "Circular alias dependency detected for '{s}'", .{alias_ident.name});
+            if (path.contains(target_ident_name)) {
+                try self.printError(decl.region(), "Circular alias dependency detected for '{s}'", .{decl.identName()});
                 return Error.AliasCycle;
             } else {
-                try path.put(self.vm.allocator, target_ident.name, undefined);
+                try path.put(self.vm.allocator, target_ident_name, undefined);
             }
 
-            if (self.declarations.get(target_ident.name)) |new_target_decl| {
-                const new_target = new_target_decl.node.DeclareGlobal.body;
-                if (self.nodeToIdent(new_target.node)) |new_target_ident| {
-                    target = new_target;
-                    target_ident = new_target_ident;
+            if (self.ast.declarations.get(target_ident_name)) |next_decl| {
+                if (self.getAliasChainName(next_decl)) |next_target_ident_name| {
+                    target_ident_name = next_target_ident_name;
                     continue;
                 }
             }
@@ -297,132 +244,107 @@ pub const Compiler = struct {
             break;
         }
 
-        const alias_sid = try self.vm.strings.insert(alias_ident.name);
+        const alias_sid = try self.vm.strings.insert(decl.identName());
+        const terminal_sid = try self.vm.strings.insert(target_ident_name);
 
-        if (alias_ident.kind != .Parser) {
-            if (try self.nodeToElem(target.node)) |target_elem| {
-                if (target_elem.getType() != .ValueVar) {
-                    try self.targetModule.addGlobal(self.vm.allocator, alias_sid, target_elem);
-                    return;
-                }
-            }
-        }
-
-        if (self.declarations.get(target_ident.name)) |target_decl| {
-            if (try self.nodeToElem(target_decl.node.DeclareGlobal.body.node)) |target_elem| {
-                try self.targetModule.addGlobal(self.vm.allocator, alias_sid, target_elem);
+        // Try to resolve to a direct alias
+        if (self.ast.declarations.get(target_ident_name)) |terminal_decl| {
+            if (try self.getAliasBody(terminal_decl)) |terminal_elem| {
+                try self.targetModule.addGlobal(self.vm.allocator, alias_sid, terminal_elem);
                 return;
             }
         }
 
-        const target_sid = try self.vm.strings.insert(target_ident.name);
-        if (self.findGlobal(target_sid)) |target_elem| {
-            try self.targetModule.addGlobal(self.vm.allocator, alias_sid, target_elem);
+        // Try to resolve to a compiled function
+        if (self.findGlobal(terminal_sid)) |terminal_elem| {
+            try self.targetModule.addGlobal(self.vm.allocator, alias_sid, terminal_elem);
             return;
         } else {
-            try self.printError(region, "Unknown variable '{s}' in alias chain", .{target_ident.name});
+            try self.printError(decl.region(), "Could not resolve alias, unknown variable '{s}'", .{target_ident_name});
             return Error.UnknownVariable;
         }
-
-        try self.printError(region, "Unable to resolve alias chain", .{});
-        return Error.UnknownVariable;
     }
 
-    fn compileFunction(self: *Compiler, head: *Ast.RNode, body: *Ast.RNode) !void {
-        const global_ident = self.globalIdent(head).?;
-        const global_sid = try self.vm.strings.insert(global_ident.name);
+    fn compileFunction(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
+        const global_sid = try self.vm.strings.insert(decl.identName());
         const globalVal = (self.findGlobal(global_sid)).?;
 
-        if (globalVal.isDynType(.Function)) {
-            const function = globalVal.asDyn().asFunction();
+        const function = globalVal.asDyn().asFunction();
 
-            try self.functions.append(self.vm.allocator, function);
+        try self.functions.append(self.vm.allocator, function);
 
-            if (function.functionType == .NamedParser) {
-                try self.addValueLocals(body);
-                try self.writeParser(body, true);
-            } else {
-                try self.addValueLocals(body);
-                try self.writeValue(body, true);
-            }
-
-            try self.emitEnd();
-
-            if (self.printBytecode) {
-                try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
-            }
-
-            _ = self.functions.pop();
+        switch (decl) {
+            .parser => |p| {
+                try self.addValueLocals(.{ .parser = p.node.body });
+                try self.writeParser(p.node.body, true);
+            },
+            .value => |v| {
+                try self.addValueLocals(.{ .value = v.node.body });
+                try self.writeValue(v.node.body, true);
+            },
         }
+
+        try self.emitEnd();
+
+        if (self.printBytecode) {
+            try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
+        }
+
+        _ = self.functions.pop();
     }
 
-    fn globalIdent(self: *Compiler, head: *Ast.RNode) ?Ast.IdentifierNode {
-        const name_node = switch (head.node) {
-            .Function => |function| function.name.node,
-            else => head.node,
-        };
-        return self.nodeToIdent(name_node);
-    }
-
-    fn writeParser(self: *Compiler, rnode: *Ast.RNode, isTailPosition: bool) !void {
+    fn writeParser(self: *Compiler, rnode: *Ast.Parser.RNode, isTailPosition: bool) !void {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .Backtrack => {
-                    try self.emitOp(.SetInputMark, region);
-                    try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Backtrack, region);
-                    try self.writeParser(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .Merge => {
-                    try self.writeParser(infix.left, false);
-                    try self.writeParser(infix.right, false);
-                    try self.emitOp(.Merge, region);
-                },
-                .TakeLeft => {
-                    try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                    try self.writeParser(infix.right, false);
-                    try self.emitOp(.TakeLeft, region);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .TakeRight => {
-                    try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, region);
-                    try self.writeParser(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .Destructure => {
-                    try self.writeParser(infix.left, false);
-                    const patternId = try self.createPattern(infix.right);
-                    try self.emitUnaryOp(.Destructure, patternId, region);
-                },
-                .Or => {
-                    try self.emitOp(.SetInputMark, region);
-                    try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Or, region);
-                    try self.writeParser(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .Return => {
-                    try self.writeParser(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, region);
-                    try self.writeValue(infix.right, true);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .Repeat => {
-                    try self.writeParserRepeat(infix.left, infix.right, region);
-                },
-                .NumberSubtract => {
-                    try self.printError(region, "Subtraction is only valid in patterns or values", .{});
-                    return Error.InvalidAst;
-                },
+            .backtrack => |backtrack| {
+                try self.emitOp(.SetInputMark, region);
+                try self.writeParser(backtrack.left, false);
+                const jumpIndex = try self.emitJump(.Backtrack, region);
+                try self.writeParser(backtrack.right, isTailPosition);
+                try self.patchJump(jumpIndex, region);
             },
-            .DeclareGlobal => unreachable, // handled by top-level compiler functions
-            .Range => |bounds| {
+            .merge => |merge| {
+                try self.writeParser(merge.left, false);
+                try self.writeParser(merge.right, false);
+                try self.emitOp(.Merge, region);
+            },
+            .take_left => |take_left| {
+                try self.writeParser(take_left.left, false);
+                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
+                try self.writeParser(take_left.right, false);
+                try self.emitOp(.TakeLeft, region);
+                try self.patchJump(jumpIndex, region);
+            },
+            .take_right => |take_right| {
+                try self.writeParser(take_right.left, false);
+                const jumpIndex = try self.emitJump(.TakeRight, region);
+                try self.writeParser(take_right.right, isTailPosition);
+                try self.patchJump(jumpIndex, region);
+            },
+            .destructure => |destructure| {
+                try self.writeParser(destructure.left, false);
+                const patternId = try self.createPattern(destructure.right);
+                try self.emitUnaryOp(.Destructure, patternId, region);
+            },
+            .@"or" => |or_node| {
+                try self.emitOp(.SetInputMark, region);
+                try self.writeParser(or_node.left, false);
+                const jumpIndex = try self.emitJump(.Or, region);
+                try self.writeParser(or_node.right, isTailPosition);
+                try self.patchJump(jumpIndex, region);
+            },
+            .@"return" => |return_node| {
+                try self.writeParser(return_node.left, false);
+                const jumpIndex = try self.emitJump(.TakeRight, region);
+                try self.writeValue(return_node.right, true);
+                try self.patchJump(jumpIndex, region);
+            },
+            .repeat => |repeat| {
+                try self.writeParserRepeat(repeat.left, repeat.right, region);
+            },
+            .range => |bounds| {
                 if (bounds.lower != null and bounds.upper != null) {
                     try self.writeRangeParser(bounds.lower.?, bounds.upper.?, region);
                 } else if (bounds.lower != null) {
@@ -431,46 +353,34 @@ pub const Compiler = struct {
                     try self.writeUpperBoundedRangeParser(bounds.upper.?, region);
                 }
             },
-            .Negation => |inner| {
+            .negation => |inner| {
                 try self.writeNegatedParserElem(inner, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
-            .Identifier => |ident| switch (ident.kind) {
-                .Parser => {
-                    try self.writeGetVar(ident, region);
-                    try self.emitUnaryOp(.CallFunction, 0, region);
-                },
-                .Value => {
-                    try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
-                    return Error.InvalidAst;
-                },
-                .Underscore => {
-                    try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
-                    return Error.InvalidAst;
-                },
-            },
-            .False,
-            .True,
-            .Null,
-            => {
-                // In this context `true`/`false`/`null` could be a zero-arg function call
-                const ident = self.nodeToIdent(rnode.node) orelse @panic("Internal Error");
-                try self.writeGetVar(ident, region);
+            .identifier => |ident| {
+                try self.writeGetVar(ident.name, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
-            .NumberFloat,
-            .NumberString,
-            .String,
-            => {
-                const elem = try self.nodeToElem(rnode.node) orelse @panic("Internal Error");
+            .function_call => |function_call| {
+                try self.writeParserFunctionCall(function_call.function, function_call.args, region, isTailPosition);
+            },
+            .number_string => |ns| {
+                const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
                 const constId = try self.makeConstant(elem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
-            .StringTemplate => |parts| {
-                try self.writeStringTemplate(parts, region, .Parser);
+            .string => |string| {
+                const sid = try self.vm.strings.insert(string);
+                const elem = Elem.string(sid);
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.GetConstant, constId, region);
+                try self.emitUnaryOp(.CallFunction, 0, region);
             },
-            .Conditional => |conditional| {
+            .string_template => |parts| {
+                try self.writeStringTemplateParser(parts, region);
+            },
+            .conditional => |conditional| {
                 try self.emitOp(.SetInputMark, region);
                 try self.writeParser(conditional.condition, false);
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
@@ -480,39 +390,21 @@ pub const Compiler = struct {
                 try self.writeParser(conditional.else_branch, isTailPosition);
                 try self.patchJump(thenElseJumpIndex, region);
             },
-            .Function => |function| {
-                try self.writeParserFunctionCall(function.name, function.paramsOrArgs, region, isTailPosition);
-            },
-            .ValueLabel,
-            .Array,
-            .Object,
-            => {
-                try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
-                return Error.InvalidAst;
-            },
-        }
-    }
-
-    fn negateParserNumber(self: *Compiler, rnode: *Ast.RNode) !Elem {
-        if (try self.nodeToElem(rnode.node)) |elem| {
-            const negated = Elem.negateNumber(elem) catch |err| switch (err) {
-                error.ExpectedNumber => return Error.InvalidAst,
-            };
-            return negated;
-        } else {
-            return Error.InvalidAst;
         }
     }
 
     fn writeParserFunctionCall(
         self: *Compiler,
-        function_rnode: *Ast.RNode,
-        arguments: ArrayList(*Ast.RNode),
+        function_rnode: *Ast.Parser.RNode,
+        arguments: ArrayList(Ast.ParserOrValue.RNode),
         call_region: Region,
         isTailPosition: bool,
     ) !void {
         // TODO: handle curried function calls like `foo(a)(b)`
-        const function_ident = self.nodeToIdent(function_rnode.node) orelse @panic("Internal Error");
+        const function_ident = switch (function_rnode.node) {
+            .identifier => |ident| ident,
+            else => @panic("Internal Error: parser function call must be on identifier"),
+        };
         const function_region = function_rnode.region;
 
         const functionName = try self.vm.strings.insert(function_ident.name);
@@ -542,11 +434,11 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeRangeParser(self: *Compiler, low: *Ast.RNode, high: *Ast.RNode, region: Region) !void {
-        const low_elem = try self.nodeToElem(low.node);
-        const high_elem = try self.nodeToElem(high.node);
+    fn writeRangeParser(self: *Compiler, low: *Ast.Parser.RNode, high: *Ast.Parser.RNode, region: Region) !void {
+        const low_elem = try self.parserNodeToElem(low.node);
+        const high_elem = try self.parserNodeToElem(high.node);
 
-        if (low.node == .String and high.node == .String) {
+        if (low.node == .string and high.node == .string) {
             const low_str = low_elem.?.asString();
             const high_str = high_elem.?.asString();
             const low_bytes = self.vm.strings.get(low_str);
@@ -565,7 +457,7 @@ pub const Compiler = struct {
                 try self.emitByte(low_id, low.region);
                 try self.emitByte(high_id, high.region);
             }
-        } else if (low.node == .NumberString and high.node == .NumberString) {
+        } else if (low.node == .number_string and high.node == .number_string) {
             const low_ns = low_elem.?.asNumberString();
             const high_ns = high_elem.?.asNumberString();
 
@@ -589,7 +481,7 @@ pub const Compiler = struct {
             }
         } else {
             switch (low.node) {
-                .String => {
+                .string => {
                     const low_str = low_elem.?.asString();
                     const low_bytes = self.vm.strings.get(low_str);
                     _ = parsing.utf8Decode(low_bytes) orelse return Error.RangeNotSingleCodepoint;
@@ -597,7 +489,7 @@ pub const Compiler = struct {
                     const low_id = try self.makeConstant(low_elem.?);
                     try self.emitUnaryOp(.GetConstant, low_id, low.region);
                 },
-                .NumberString => {
+                .number_string => {
                     const low_ns = low_elem.?.asNumberString();
                     const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
 
@@ -606,25 +498,17 @@ pub const Compiler = struct {
                     const low_id = try self.makeConstant(low_num);
                     try self.emitUnaryOp(.GetConstant, low_id, low.region);
                 },
-                .Identifier => |ident| switch (ident.kind) {
-                    .Parser => try self.writeGetVar(ident, region),
-                    .Value => {
-                        try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
-                        return Error.InvalidAst;
-                    },
-                    .Underscore => {
-                        try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
-                        return Error.InvalidAst;
-                    },
+                .identifier => |ident| {
+                    try self.writeGetVar(ident.name, low.region);
                 },
-                .Negation => |inner| {
+                .negation => |inner| {
                     try self.writeNegatedParserElem(inner, region);
                 },
                 else => return Error.InvalidAst,
             }
 
             switch (high.node) {
-                .String => {
+                .string => {
                     const high_str = high_elem.?.asString();
                     const high_bytes = self.vm.strings.get(high_str);
                     _ = parsing.utf8Decode(high_bytes) orelse return Error.RangeNotSingleCodepoint;
@@ -632,7 +516,7 @@ pub const Compiler = struct {
                     const high_id = try self.makeConstant(high_elem.?);
                     try self.emitUnaryOp(.GetConstant, high_id, high.region);
                 },
-                .NumberString => {
+                .number_string => {
                     const high_ns = high_elem.?.asNumberString();
                     const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
 
@@ -641,18 +525,10 @@ pub const Compiler = struct {
                     const high_id = try self.makeConstant(high_num);
                     try self.emitUnaryOp(.GetConstant, high_id, high.region);
                 },
-                .Identifier => |ident| switch (ident.kind) {
-                    .Parser => try self.writeGetVar(ident, region),
-                    .Value => {
-                        try self.printError(region, "Uppercse variable is only valid as a pattern or value", .{});
-                        return Error.InvalidAst;
-                    },
-                    .Underscore => {
-                        try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
-                        return Error.InvalidAst;
-                    },
+                .identifier => |ident| {
+                    try self.writeGetVar(ident.name, high.region);
                 },
-                .Negation => |inner| {
+                .negation => |inner| {
                     try self.writeNegatedParserElem(inner, region);
                 },
                 else => return Error.InvalidAst,
@@ -662,12 +538,12 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeLowerBoundedRangeParser(self: *Compiler, low: *Ast.RNode, region: Region) !void {
-        const low_elem = try self.nodeToElem(low.node);
+    fn writeLowerBoundedRangeParser(self: *Compiler, low: *Ast.Parser.RNode, region: Region) !void {
+        const low_elem = try self.parserNodeToElem(low.node);
         const low_region = low.region;
 
         switch (low.node) {
-            .String => {
+            .string => {
                 const low_str = low_elem.?.asString();
                 const low_bytes = self.vm.strings.get(low_str);
                 const low_codepoint = parsing.utf8Decode(low_bytes) orelse return Error.RangeNotSingleCodepoint;
@@ -680,7 +556,7 @@ pub const Compiler = struct {
                     try self.emitOp(.ParseLowerBoundedRange, region);
                 }
             },
-            .NumberString => {
+            .number_string => {
                 const low_ns = low_elem.?.asNumberString();
                 const low_num = low_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
                 const low_f = low_num.asFloat();
@@ -691,21 +567,11 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetConstant, low_id, low_region);
                 try self.emitOp(.ParseLowerBoundedRange, region);
             },
-            .Identifier => |ident| switch (ident.kind) {
-                .Parser => {
-                    try self.writeGetVar(ident, region);
-                    try self.emitOp(.ParseLowerBoundedRange, region);
-                },
-                .Value => {
-                    try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
-                    return Error.InvalidAst;
-                },
-                .Underscore => {
-                    try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
-                    return Error.InvalidAst;
-                },
+            .identifier => |ident| {
+                try self.writeGetVar(ident.name, region);
+                try self.emitOp(.ParseLowerBoundedRange, region);
             },
-            .Negation => |inner| {
+            .negation => |inner| {
                 try self.writeNegatedParserElem(inner, region);
                 try self.emitOp(.ParseLowerBoundedRange, region);
             },
@@ -713,12 +579,12 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeUpperBoundedRangeParser(self: *Compiler, high: *Ast.RNode, region: Region) !void {
-        const high_elem = try self.nodeToElem(high.node);
+    fn writeUpperBoundedRangeParser(self: *Compiler, high: *Ast.Parser.RNode, region: Region) !void {
+        const high_elem = try self.parserNodeToElem(high.node);
         const high_region = high.region;
 
         switch (high.node) {
-            .String => {
+            .string => {
                 const high_str = high_elem.?.asString();
                 const high_bytes = self.vm.strings.get(high_str);
                 const high_codepoint = parsing.utf8Decode(high_bytes) orelse return Error.RangeNotSingleCodepoint;
@@ -731,7 +597,7 @@ pub const Compiler = struct {
                     try self.emitOp(.ParseUpperBoundedRange, region);
                 }
             },
-            .NumberString => {
+            .number_string => {
                 const high_ns = high_elem.?.asNumberString();
                 const high_num = high_ns.toNumberFloat(self.vm.strings) catch return Error.RangeIntegerTooLarge;
                 const high_f = high_num.asFloat();
@@ -742,21 +608,11 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetConstant, high_id, high_region);
                 try self.emitOp(.ParseUpperBoundedRange, region);
             },
-            .Identifier => |ident| switch (ident.kind) {
-                .Parser => {
-                    try self.writeGetVar(ident, region);
-                    try self.emitOp(.ParseUpperBoundedRange, region);
-                },
-                .Value => {
-                    try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
-                    return Error.InvalidAst;
-                },
-                .Underscore => {
-                    try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
-                    return Error.InvalidAst;
-                },
+            .identifier => |ident| {
+                try self.writeGetVar(ident.name, region);
+                try self.emitOp(.ParseUpperBoundedRange, region);
             },
-            .Negation => |inner| {
+            .negation => |inner| {
                 try self.writeNegatedParserElem(inner, region);
                 try self.emitOp(.ParseUpperBoundedRange, region);
             },
@@ -764,16 +620,14 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeParserRepeat(self: *Compiler, parser: *Ast.RNode, repeat: *Ast.RNode, region: Region) !void {
-        try self.simplifyPatternAst(repeat);
-
+    fn writeParserRepeat(self: *Compiler, parser: *Ast.Parser.RNode, repeat: *Ast.Pattern.RNode, region: Region) !void {
         switch (repeat.node) {
-            .NumberFloat,
-            .NumberString,
+            .number_float,
+            .number_string,
             => {
                 return self.writeParserRepeatCount(parser, repeat, region);
             },
-            .Range => |bounds| {
+            .range => |bounds| {
                 if (bounds.lower != null and bounds.upper != null) {
                     const lower = bounds.lower.?;
                     const upper = bounds.upper.?;
@@ -802,38 +656,30 @@ pub const Compiler = struct {
                     try self.writeParserRepeatUnknownCount(parser, repeat, region);
                 }
             },
-            .Identifier => |ident| switch (ident.kind) {
-                .Parser => {
-                    try self.printError(repeat.region, "Repeat count must be an integer or range pattern, got a parser", .{});
-                    return Error.InvalidAst;
-                },
-                .Value, .Underscore => {
-                    const name = try self.vm.strings.insert(ident.name);
-                    if (self.findGlobal(name)) |globalElem| {
-                        if (globalElem.isNumber()) {
-                            try self.writeParserRepeatCount(parser, repeat, region);
-                        } else {
-                            return Error.InvalidAst;
-                        }
-                    } else if (self.localSlot(name)) |slot| {
+            .identifier => |ident| {
+                const name = try self.vm.strings.insert(ident.name);
+                if (self.findGlobal(name) != null) {
+                    // Globals are always bound to a concrete value
+                    try self.writeParserRepeatCount(parser, repeat, region);
+                } else {
+                    const slot = self.localSlot(name).?;
+                    if (self.currentFunction().arity > slot) {
                         // The local var is a function arg, so we know it's bound
-                        if (self.currentFunction().arity > slot) {
-                            try self.writeParserRepeatCount(parser, repeat, region);
-                        } else {
-                            try self.emitUnaryOp(.GetLocal, slot, repeat.region);
-                            const knownCountJump = try self.emitJump(.JumpIfBound, repeat.region);
-                            try self.writeParserRepeatUnknownCount(parser, repeat, region);
-                            const endJump = try self.emitJump(.Jump, repeat.region);
-                            try self.patchJump(knownCountJump, region);
-                            try self.writeParserRepeatCount(parser, repeat, region);
-                            try self.patchJump(endJump, region);
-                            try self.emitOp(.Swap, region);
-                            try self.emitOp(.Drop, region);
-                        }
+                        try self.writeParserRepeatCount(parser, repeat, region);
                     } else {
-                        @panic("Internal Error");
+                        // The value may or may not be bound. Generate
+                        // conditional code covering both cases.
+                        try self.emitUnaryOp(.GetLocal, slot, repeat.region);
+                        const knownCountJump = try self.emitJump(.JumpIfBound, repeat.region);
+                        try self.writeParserRepeatUnknownCount(parser, repeat, region);
+                        const endJump = try self.emitJump(.Jump, repeat.region);
+                        try self.patchJump(knownCountJump, region);
+                        try self.writeParserRepeatCount(parser, repeat, region);
+                        try self.patchJump(endJump, region);
+                        try self.emitOp(.Swap, region);
+                        try self.emitOp(.Drop, region);
                     }
-                },
+                }
             },
             else => {
                 if (self.isBoundedRepeatCount(repeat)) {
@@ -845,14 +691,14 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeParserRepeatCount(self: *Compiler, parser: *Ast.RNode, count: *Ast.RNode, repeat_region: Region) Error!void {
+    fn writeParserRepeatCount(self: *Compiler, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
         // Value accumulator
         const nullId = try self.makeConstant(Elem.nullConst);
         try self.emitUnaryOp(.GetConstant, nullId, parser.region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip to the end and return null
-        try self.writeValue(count, false);
+        try self.writePatternAsBoundRepeatValue(count);
         try self.emitOp(.ValidateRepeatPattern, count.region);
         const nullJump = try self.emitJump(.JumpIfZero, repeat_region);
 
@@ -885,7 +731,7 @@ pub const Compiler = struct {
         try self.emitOp(.Drop, count.region);
     }
 
-    fn writeParserRepeatUnknownCount(self: *Compiler, parser: *Ast.RNode, count: *Ast.RNode, repeat_region: Region) Error!void {
+    fn writeParserRepeatUnknownCount(self: *Compiler, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
         // Count accumulator
         const zero_id = try self.makeConstant(Elem.numberFloat(0));
         try self.emitUnaryOp(.GetConstant, zero_id, count.region);
@@ -925,14 +771,14 @@ pub const Compiler = struct {
         try self.emitOp(.Drop, parser.region);
     }
 
-    fn writeParserRepeatRangeBounded(self: *Compiler, parser: *Ast.RNode, lower: *Ast.RNode, upper: *Ast.RNode, region: Region) Error!void {
+    fn writeParserRepeatRangeBounded(self: *Compiler, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
         // Value accumulator
         const nullId = try self.makeConstant(Elem.nullConst);
         try self.emitUnaryOp(.GetConstant, nullId, region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip the lower bound loop
-        try self.writeValue(lower, false);
+        try self.writePatternAsBoundRepeatValue(lower);
         try self.emitOp(.ValidateRepeatPattern, lower.region);
         const skipLowerBoundJump = try self.emitJump(.JumpIfZero, region);
 
@@ -960,8 +806,8 @@ pub const Compiler = struct {
         // Drop the old counter (it's 0), create a new counter to parse up to
         // to `upper - lower` more times (optional)
         try self.emitOp(.Drop, region);
-        try self.writeValue(upper, false);
-        try self.writeValue(lower, false);
+        try self.writePatternAsBoundRepeatValue(upper);
+        try self.writePatternAsBoundRepeatValue(lower);
         try self.emitOp(.NegateNumber, region);
         try self.emitOp(.Merge, region);
         try self.emitOp(.ValidateRepeatPattern, upper.region);
@@ -999,14 +845,14 @@ pub const Compiler = struct {
         try self.emitOp(.Drop, region);
     }
 
-    fn writeParserRepeatRangeLowerBounded(self: *Compiler, parser: *Ast.RNode, lower: *Ast.RNode, upper_pattern: ?*Ast.RNode, region: Region) Error!void {
+    fn writeParserRepeatRangeLowerBounded(self: *Compiler, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper_pattern: ?*Ast.Pattern.RNode, region: Region) Error!void {
         // Value accumulator
         const nullId = try self.makeConstant(Elem.nullConst);
         try self.emitUnaryOp(.GetConstant, nullId, region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip the lower bound loop
-        try self.writeValue(lower, false);
+        try self.writePatternAsBoundRepeatValue(lower);
         try self.emitOp(.ValidateRepeatPattern, lower.region);
         const skipLowerBoundJump = try self.emitJump(.JumpIfZero, region);
 
@@ -1064,7 +910,7 @@ pub const Compiler = struct {
         // Swap up the count, add the lower to get the total number of iters, destructure
         if (upper_pattern) |upper| {
             try self.emitOp(.Swap, upper.region);
-            try self.writeValue(lower, false);
+            try self.writePatternAsBoundRepeatValue(lower);
             try self.emitOp(.Merge, parser.region);
             const patternId = try self.createPattern(upper);
             try self.emitUnaryOp(.Destructure, patternId, upper.region);
@@ -1076,14 +922,14 @@ pub const Compiler = struct {
         try self.emitOp(.Drop, region);
     }
 
-    fn writeParserRepeatRangeUpperBounded(self: *Compiler, parser: *Ast.RNode, lower_pattern: ?*Ast.RNode, upper: *Ast.RNode, region: Region) Error!void {
+    fn writeParserRepeatRangeUpperBounded(self: *Compiler, parser: *Ast.Parser.RNode, lower_pattern: ?*Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
         // Value accumulator
         const nullId = try self.makeConstant(Elem.nullConst);
         try self.emitUnaryOp(.GetConstant, nullId, region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip to end and return null
-        try self.writeValue(upper, false);
+        try self.writePatternAsBoundRepeatValue(upper);
         try self.emitOp(.ValidateRepeatPattern, upper.region);
         const nullJump = try self.emitJump(.JumpIfZero, region);
 
@@ -1116,7 +962,7 @@ pub const Compiler = struct {
             // But since the count is on the stack we do
             //   -count + upper = completed
             try self.emitOp(.NegateNumber, region);
-            try self.writeValue(upper, false);
+            try self.writePatternAsBoundRepeatValue(upper);
             try self.emitOp(.Merge, region);
             const patternId = try self.createPattern(lower);
             try self.emitUnaryOp(.Destructure, patternId, lower.region);
@@ -1125,20 +971,20 @@ pub const Compiler = struct {
         try self.emitOp(.Drop, region);
     }
 
-    fn isBoundedRepeatCount(self: *Compiler, rnode: *Ast.RNode) bool {
+    fn isBoundedRepeatCount(self: *Compiler, rnode: *Ast.Pattern.RNode) bool {
         return switch (rnode.node) {
-            .Function => true,
-            .False,
-            .Null,
-            .NumberFloat,
-            .NumberString,
-            .String,
-            .True,
+            .function_call,
+            .false,
+            .null,
+            .number_float,
+            .number_string,
+            .string,
+            .true,
             => true,
-            .Identifier => |ident| switch (ident.kind) {
-                .Parser => true,
-                .Underscore => false,
-                .Value => {
+            .identifier => |ident| {
+                if (ident.builtin) {
+                    return true;
+                } else {
                     if (self.vm.strings.findId(ident.name)) |name| {
                         if (self.findGlobal(name) != null) return true;
 
@@ -1150,10 +996,9 @@ pub const Compiler = struct {
                     } else {
                         return false;
                     }
-                },
+                }
             },
-            .InfixNode => |infix| self.isBoundedRepeatCount(infix.left) and self.isBoundedRepeatCount(infix.left),
-            .Range => |range| {
+            .range => |range| {
                 if (range.lower) |lower| {
                     const lower_good = self.isBoundedRepeatCount(lower);
                     if (!lower_good) return false;
@@ -1164,49 +1009,45 @@ pub const Compiler = struct {
                 }
                 return true;
             },
-            .Negation => |inner| self.isBoundedRepeatCount(inner),
-            .ValueLabel => |inner| self.isBoundedRepeatCount(inner),
-            .Array,
-            .Object,
-            .StringTemplate,
-            .Conditional,
-            .DeclareGlobal,
+            .negation => |inner| self.isBoundedRepeatCount(inner),
+            .merge => |merge| self.isBoundedRepeatCount(merge.left) and self.isBoundedRepeatCount(merge.right),
+            .array,
+            .object,
+            .string_template,
+            .repeat,
             => false,
         };
     }
 
-    fn writeNegatedParserElem(self: *Compiler, negated: *Ast.RNode, region: Region) !void {
+    fn writeNegatedParserElem(self: *Compiler, negated: *Ast.Parser.RNode, region: Region) !void {
         switch (negated.node) {
-            .Negation => return Error.InvalidAst,
-            .NumberString => |ns| {
+            .negation => {
+                try self.printError(region, "Double-negated parser", .{});
+                return Error.InvalidAst;
+            },
+            .number_string => |ns| {
                 if (ns.negated) {
+                    try self.printError(region, "Double-negated parser", .{});
                     return Error.InvalidAst;
                 }
-                const elem = try self.nodeToElem(negated.node) orelse return Error.InvalidAst;
-                const negated_elem = elem.negateNumber() catch return Error.InvalidAst;
-                const constId = try self.makeConstant(negated_elem);
+                const elem = try self.numberStringNodeToElem(ns.number, true);
+                const constId = try self.makeConstant(elem);
                 try self.emitUnaryOp(.GetConstant, constId, negated.region);
             },
-            .Identifier => |ident| switch (ident.kind) {
-                .Parser => {
-                    try self.writeGetVar(ident, region);
-                    try self.emitOp(.NegateParser, region);
-                },
-                .Value => {
-                    try self.printError(region, "Uppercase variable is only valid as a pattern or value", .{});
-                    return Error.InvalidAst;
-                },
-                .Underscore => {
-                    try self.printError(region, "Underscore variable is only valid as a pattern or value", .{});
-                    return Error.InvalidAst;
-                },
+            .identifier => |ident| {
+                // Determine at runtime if negating the parser is valid
+                try self.writeGetVar(ident.name, region);
+                try self.emitOp(.NegateParser, region);
             },
-            else => return Error.InvalidAst,
+            else => {
+                try self.printError(region, "Negated parser must be a number or named number parser", .{});
+                return Error.InvalidAst;
+            },
         }
     }
 
-    fn writeGetVar(self: *Compiler, ident: Ast.IdentifierNode, region: Region) !void {
-        const varName = try self.vm.strings.insert(ident.name);
+    fn writeGetVar(self: *Compiler, name: []const u8, region: Region) !void {
+        const varName = try self.vm.strings.insert(name);
 
         if (self.localSlot(varName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, region);
@@ -1215,77 +1056,45 @@ pub const Compiler = struct {
                 const constId = try self.makeConstant(globalElem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
             } else {
-                try self.printError(region, "undefined variable '{s}'", .{ident.name});
+                try self.printError(region, "undefined variable '{s}'", .{name});
                 return Error.UndefinedVariable;
             }
         }
     }
 
-    fn nodeToElem(self: *Compiler, node: Ast.Node) !?Elem {
+    fn parserNodeToElem(self: *Compiler, node: Ast.Parser.Node) !?Elem {
         const result = switch (node) {
-            .False => Elem.boolean(false),
-            .Null => Elem.nullConst,
-            .NumberFloat => |f| Elem.numberFloat(f),
-            .NumberString => |s| {
-                var number_string_elem = try Elem.NumberStringElem.new(s.number, self.vm);
-                number_string_elem.negated = s.negated;
-                return number_string_elem.elem();
-            },
-            .Identifier => |ident| if (ident.kind == .Parser) {
+            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
+            .identifier => {
                 return null;
-            } else {
-                return Elem.valueVar(
-                    try self.vm.strings.insert(ident.name),
-                    ident.kind == .Underscore or ident.underscored,
-                );
             },
-            .String => |s| Elem.string(try self.vm.strings.insert(s)),
-            .True => Elem.boolean(true),
-            .Negation => |inner| {
-                const inner_elem = try self.nodeToElem(inner.node);
-                if (inner_elem) |elem| {
-                    return elem.negateNumber() catch null;
-                } else {
-                    return null;
-                }
-            },
+            .string => |s| Elem.string(try self.vm.strings.insert(s)),
             else => null,
         };
 
         return result;
     }
 
-    fn nodeToIdent(self: *Compiler, node: Ast.Node) ?Ast.IdentifierNode {
-        _ = self;
-        return switch (node) {
-            .Identifier => |ident| ident,
-            .True => .{
-                .name = "true",
-                .builtin = false,
-                .underscored = false,
-                .kind = .Parser,
-            },
-            .False => .{
-                .name = "false",
-                .builtin = false,
-                .underscored = false,
-                .kind = .Parser,
-            },
-            .Null => .{
-                .name = "null",
-                .builtin = false,
-                .underscored = false,
-                .kind = .Parser,
-            },
+    fn valueNodeToElem(self: *Compiler, node: Ast.Value.Node) !?Elem {
+        const result = switch (node) {
+            .false => Elem.boolean(false),
+            .null => Elem.nullConst,
+            .number_float => |f| Elem.numberFloat(f),
+            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
+            .identifier => return null,
+            .string => |s| Elem.string(try self.vm.strings.insert(s)),
+            .true => Elem.boolean(true),
             else => null,
         };
+
+        return result;
     }
 
     const ArgType = enum { Parser, Value, Unspecified };
 
     fn writeParserFunctionArguments(
         self: *Compiler,
-        arguments: ArrayList(*Ast.RNode),
+        arguments: ArrayList(Ast.ParserOrValue.RNode),
         function: ?*Elem.DynElem.Function,
     ) Error!u8 {
         const arg_count = arguments.items.len;
@@ -1293,7 +1102,7 @@ pub const Compiler = struct {
         if (arg_count > std.math.maxInt(u8)) {
             const first_arg = arguments.items[0];
             const last_arg = arguments.items[arg_count - 1];
-            const region = first_arg.region.merge(last_arg.region);
+            const region = first_arg.region().merge(last_arg.region());
 
             try self.printError(
                 region,
@@ -1309,7 +1118,7 @@ pub const Compiler = struct {
                 const region = if (arguments.items.len > 0) blk: {
                     const first_arg = arguments.items[0];
                     const last_arg = arguments.items[arg_count - 1];
-                    break :blk first_arg.region.merge(last_arg.region);
+                    break :blk first_arg.region().merge(last_arg.region());
                 } else blk: {
                     // For zero-argument functions, we don't have argument regions,
                     // so we'll need to handle this case differently
@@ -1341,46 +1150,42 @@ pub const Compiler = struct {
         return @intCast(arg_count);
     }
 
-    fn writeParserFunctionArgument(self: *Compiler, rnode: *Ast.RNode, argType: ArgType) !void {
-        const region = rnode.region;
+    fn writeParserFunctionArgument(self: *Compiler, rnode: Ast.ParserOrValue.RNode, argType: ArgType) !void {
+        const region = rnode.region();
 
         switch (argType) {
-            .Parser => switch (rnode.node) {
-                .InfixNode,
-                .Range,
-                .Negation,
-                .Conditional,
-                .Function,
-                .DeclareGlobal,
-                => {
-                    try self.writeAnonymousFunction(rnode);
-                },
-                .False,
-                .Null,
-                .NumberFloat,
-                .NumberString,
-                .String,
-                .True,
-                => {
-                    const elem = try self.nodeToElem(rnode.node) orelse return Error.InvalidAst;
-                    const constId = try self.makeConstant(elem);
-                    try self.emitUnaryOp(.GetConstant, constId, region);
-                },
-                .Identifier => |ident| switch (ident.kind) {
-                    .Parser => {
-                        try self.writeGetVar(ident, region);
+            .Parser => switch (rnode) {
+                .parser => |p| switch (p.node) {
+                    .number_string => |ns| {
+                        const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                        const constId = try self.makeConstant(elem);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
                     },
-                    .Value, .Underscore => @panic("Internal Error"),
+                    .string => |string| {
+                        const sid = try self.vm.strings.insert(string);
+                        const elem = Elem.string(sid);
+                        const constId = try self.makeConstant(elem);
+                        try self.emitUnaryOp(.GetConstant, constId, region);
+                    },
+                    .identifier => |ident| {
+                        try self.writeGetVar(ident.name, region);
+                    },
+                    else => {
+                        try self.writeParserAnonymousFunction(p);
+                    },
                 },
-                .ValueLabel => {
-                    try self.printError(region, "Labeled value is not valid as parser function argument.", .{});
+                .value => |v| {
+                    try self.printError(v.region, "Expected parser but got value", .{});
                     return Error.InvalidAst;
                 },
-                .Array => @panic("Internal Error: Array should never be a parser"),
-                .Object => @panic("Internal Error: Object should never be a parser"),
-                .StringTemplate => @panic("Internal Error: StringTemplate should be handled in main parser switch"),
             },
-            .Value => try self.writeValueArgument(rnode, false),
+            .Value => switch (rnode) {
+                .value => |v| try self.writeValue(v, false),
+                .parser => |p| {
+                    try self.printError(p.region, "Expected value but got parser", .{});
+                    return Error.InvalidAst;
+                },
+            },
             .Unspecified => {
                 // In this case we don't know the arg type because the function
                 // will be passed in as a variable and is not yet known. Things
@@ -1395,7 +1200,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeAnonymousFunction(self: *Compiler, rnode: *Ast.RNode) !void {
+    fn writeParserAnonymousFunction(self: *Compiler, rnode: *Ast.Parser.RNode) !void {
         const region = rnode.region;
 
         const function = try Elem.DynElem.Function.createAnonParser(
@@ -1408,7 +1213,7 @@ pub const Compiler = struct {
 
         try self.functions.append(self.vm.allocator, function);
 
-        try self.addClosureLocals(rnode);
+        try self.addClosureLocals(.{ .parser = rnode });
 
         if (function.locals.items.len > 0) {
             try self.emitOp(.SetClosureCaptures, region);
@@ -1421,7 +1226,7 @@ pub const Compiler = struct {
             try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
         }
 
-        _ = self.functions.pop() orelse @panic("Internal Error");
+        _ = self.functions.pop();
 
         try self.emitUnaryOp(.GetConstant, constId, region);
         try self.writeCaptureLocals(function, region);
@@ -1437,96 +1242,77 @@ pub const Compiler = struct {
         }
     }
 
-    fn createPattern(self: *Compiler, rnode: *Ast.RNode) Error!u8 {
+    fn createPattern(self: *Compiler, rnode: *Ast.Pattern.RNode) Error!u8 {
         const patternElem = try self.astToPattern(rnode, 0);
         return self.chunk().addPattern(self.vm.allocator, patternElem);
     }
 
-    fn astToPattern(self: *Compiler, rnode: *Ast.RNode, negation_count: u2) Error!Pattern {
+    fn astToPattern(self: *Compiler, rnode: *Ast.Pattern.RNode, negation_count: u2) Error!Pattern {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
-            .False,
-            .Null,
-            .NumberFloat,
-            .NumberString,
-            .String,
-            .True,
-            => {
-                const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
-                switch (elem.getType()) {
-                    .String => {
-                        if (negation_count > 0) {
-                            try self.printError(region, "Invalid pattern - unable to negate string", .{});
-                            return Error.InvalidAst;
-                        }
-                        return Pattern{ .String = elem.asString() };
-                    },
-                    .NumberString => {
-                        const ns = elem.asNumberString();
-                        const maybe_negated = if (negation_count % 2 == 1) ns.negate() else ns;
-                        const number = try maybe_negated.toNumberFloat(self.vm.strings);
-                        return Pattern{ .Number = number.asFloat() };
-                    },
-                    .NumberFloat => {
-                        return Pattern{ .Number = elem.asFloat() };
-                    },
-                    .Const => switch (elem.asConst()) {
-                        .True => {
-                            if (negation_count > 0) {
-                                try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
-                                return Error.InvalidAst;
-                            }
-                            return Pattern{ .Boolean = true };
-                        },
-                        .False => {
-                            if (negation_count > 0) {
-                                try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
-                                return Error.InvalidAst;
-                            }
-                            return Pattern{ .Boolean = false };
-                        },
-                        .Null => {
-                            if (negation_count > 0) {
-                                try self.printError(region, "Invalid pattern - unable to negate null", .{});
-                                return Error.InvalidAst;
-                            }
-                            return Pattern{ .Null = undefined };
-                        },
-                        .Failure => return Error.InvalidAst,
-                    },
-                    else => {
-                        try self.printError(region, "Invalid AST in pattern", .{});
-                        return Error.InvalidAst;
-                    },
-                }
-            },
-            .Identifier => |ident| {
-                if (ident.kind == .Value or ident.kind == .Underscore) {
-                    const sid = try self.vm.strings.insert(ident.name);
-                    if (self.findGlobal(sid)) |globalElem| {
-                        const constId = try self.makeConstant(globalElem);
-                        return Pattern{ .Constant = .{
-                            .sid = sid,
-                            .idx = constId,
-                            .negation_count = negation_count,
-                        } };
-                    } else if (self.localSlot(sid)) |slot| {
-                        return Pattern{ .Local = .{
-                            .sid = sid,
-                            .idx = slot,
-                            .negation_count = negation_count,
-                        } };
-                    } else {
-                        @panic("Internal Error");
-                    }
-                } else {
-                    try self.printError(region, "Parser variable not allowed in pattern", .{});
+            .false => {
+                if (negation_count > 0) {
+                    try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
                     return Error.InvalidAst;
                 }
+                return Pattern{ .Boolean = false };
             },
-            .Array => |elements| {
+            .true => {
+                if (negation_count > 0) {
+                    try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
+                    return Error.InvalidAst;
+                }
+                return Pattern{ .Boolean = true };
+            },
+            .null => {
+                if (negation_count > 0) {
+                    try self.printError(region, "Invalid pattern - unable to negate null", .{});
+                    return Error.InvalidAst;
+                }
+                return Pattern{ .Null = {} };
+            },
+            .number_float => |f| {
+                if (negation_count % 2 == 1) {
+                    return Pattern{ .Number = -f };
+                } else {
+                    return Pattern{ .Number = f };
+                }
+            },
+            .number_string => |ns| {
+                const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                const maybe_negated = if (negation_count % 2 == 1) ns_elem.asNumberString().negate() else ns_elem.asNumberString();
+                const number = try maybe_negated.toNumberFloat(self.vm.strings);
+                return Pattern{ .Number = number.asFloat() };
+            },
+            .string => |s| {
+                if (negation_count > 0) {
+                    try self.printError(region, "Invalid pattern - unable to negate string", .{});
+                    return Error.InvalidAst;
+                }
+                const sid = try self.vm.strings.insert(s);
+                return Pattern{ .String = sid };
+            },
+            .identifier => |ident| {
+                const sid = try self.vm.strings.insert(ident.name);
+                if (self.findGlobal(sid)) |globalElem| {
+                    const constId = try self.makeConstant(globalElem);
+                    return Pattern{ .Constant = .{
+                        .sid = sid,
+                        .idx = constId,
+                        .negation_count = negation_count,
+                    } };
+                } else {
+                    const slot = self.localSlot(sid).?;
+                    return Pattern{ .Local = .{
+                        .sid = sid,
+                        .idx = slot,
+                        .negation_count = negation_count,
+                    } };
+                }
+            },
+            .array => |elements| {
                 if (negation_count > 0) {
                     try self.printError(region, "Invalid pattern - unable to negate array", .{});
                     return Error.InvalidAst;
@@ -1542,7 +1328,7 @@ pub const Compiler = struct {
 
                 return Pattern{ .Array = patternElems };
             },
-            .Object => |pairs| {
+            .object => |pairs| {
                 if (negation_count > 0) {
                     try self.printError(region, "Invalid pattern - unable to negate object", .{});
                     return Error.InvalidAst;
@@ -1560,7 +1346,7 @@ pub const Compiler = struct {
 
                 return Pattern{ .Object = objectPairs };
             },
-            .StringTemplate => |segments| {
+            .string_template => |segments| {
                 if (negation_count > 0) {
                     try self.printError(region, "Invalid pattern - unable to negate string", .{});
                     return Error.InvalidAst;
@@ -1576,7 +1362,7 @@ pub const Compiler = struct {
 
                 return Pattern{ .StringTemplate = templateElems };
             },
-            .Range => |bounds| {
+            .range => |bounds| {
                 var lowerPattern: ?*Pattern = null;
                 var upperPattern: ?*Pattern = null;
 
@@ -1595,15 +1381,15 @@ pub const Compiler = struct {
                     .upper = upperPattern,
                 } };
             },
-            .Negation => |inner| {
+            .negation => |inner| {
                 const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
                 return self.astToPattern(inner, new_negation_count);
             },
-            .Function => |function| {
-                const nameNode = function.name.node;
+            .function_call => |function_call| {
+                const nameNode = function_call.function.node;
 
-                const function_ident = if (nameNode == .Identifier and nameNode.Identifier.kind == .Value)
-                    nameNode.Identifier
+                const function_ident = if (nameNode == .identifier and !nameNode.identifier.underscored)
+                    nameNode.identifier
                 else {
                     try self.printError(region, "Parser is not valid in pattern", .{});
                     return Error.InvalidAst;
@@ -1625,13 +1411,13 @@ pub const Compiler = struct {
                         .negation_count = negation_count,
                     }
                 else {
-                    try self.printError(function.name.region, "Unknown function in pattern", .{});
+                    try self.printError(function_call.function.region, "Unknown function in pattern", .{});
                     return Error.InvalidAst;
                 };
 
                 var args = ArrayList(Pattern){};
-                for (function.paramsOrArgs.items) |arg| {
-                    const argPattern = try self.astToPattern(arg, 0);
+                for (function_call.args.items) |arg| {
+                    const argPattern = try self.astToValueInPattern(arg, 0);
                     try args.append(self.vm.allocator, argPattern);
                 }
 
@@ -1641,55 +1427,30 @@ pub const Compiler = struct {
                     .args = args,
                 } };
             },
-            .InfixNode => |infix| switch (infix.infixType) {
-                .Merge => {
-                    var mergeElems = ArrayList(Pattern){};
-                    try self.collectPatternMergeElements(rnode, &mergeElems, negation_count);
-                    return Pattern{ .Merge = mergeElems };
-                },
-                .Repeat => {
-                    const pattern = try self.vm.allocator.create(Pattern);
-                    pattern.* = try self.astToPattern(infix.left, negation_count);
-
-                    const count = try self.vm.allocator.create(Pattern);
-                    count.* = try self.astToPattern(infix.right, 0);
-                    return Pattern{ .Repeat = .{ .pattern = pattern, .count = count } };
-                },
-                .Destructure => {
-                    try self.printError(region, "Invalid AST: Nested destructure not allowed in pattern", .{});
-                    return Error.InvalidAst;
-                },
-                .NumberSubtract => {
-                    var mergeElems = ArrayList(Pattern){};
-                    try self.collectPatternMergeElements(rnode, &mergeElems, negation_count);
-                    return Pattern{ .Merge = mergeElems };
-                },
-                else => {
-                    try self.printError(region, "Invalid AST in pattern", .{});
-                    return Error.InvalidAst;
-                },
+            .merge => {
+                var mergeElems = ArrayList(Pattern){};
+                try self.collectPatternMergeElements(rnode, &mergeElems, negation_count);
+                return Pattern{ .Merge = mergeElems };
             },
-            else => {
-                try self.printError(region, "Invalid AST in pattern", .{});
-                return Error.InvalidAst;
+            .repeat => |infix| {
+                const pattern = try self.vm.allocator.create(Pattern);
+                pattern.* = try self.astToPattern(infix.left, negation_count);
+
+                const count = try self.vm.allocator.create(Pattern);
+                count.* = try self.astToPattern(infix.right, 0);
+                return Pattern{ .Repeat = .{ .pattern = pattern, .count = count } };
             },
         }
     }
 
-    fn collectPatternMergeElements(self: *Compiler, rnode: *Ast.RNode, elements: *ArrayList(Pattern), negation_count: u2) Error!void {
+    fn collectPatternMergeElements(self: *Compiler, rnode: *Ast.Pattern.RNode, elements: *ArrayList(Pattern), negation_count: u2) Error!void {
         const node = rnode.node;
 
         switch (node) {
-            .InfixNode => |infix| {
-                if (infix.infixType == .Merge) {
-                    try self.collectPatternMergeElements(infix.left, elements, negation_count);
-                    try self.collectPatternMergeElements(infix.right, elements, negation_count);
-                    return;
-                } else if (infix.infixType == .NumberSubtract) {
-                    try self.collectPatternMergeElements(infix.left, elements, negation_count);
-                    try self.collectPatternMergeElements(infix.right, elements, negation_count + 1);
-                    return;
-                }
+            .merge => |merge| {
+                try self.collectPatternMergeElements(merge.left, elements, negation_count);
+                try self.collectPatternMergeElements(merge.right, elements, negation_count);
+                return;
             },
             else => {},
         }
@@ -1699,143 +1460,515 @@ pub const Compiler = struct {
         try elements.append(self.vm.allocator, pattern);
     }
 
-    fn addValueLocals(self: *Compiler, rnode: *Ast.RNode) !void {
+    fn astToValueInPattern(self: *Compiler, rnode: *Ast.Value.RNode, negation_count: u2) Error!Pattern {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
-            .InfixNode => |infix| {
-                try self.addValueLocals(infix.left);
-                try self.addValueLocals(infix.right);
+            .false => {
+                return Pattern{ .Boolean = false };
             },
-            .Function => |function| {
-                for (function.paramsOrArgs.items) |arg| {
-                    try self.addValueLocals(arg);
+            .true => {
+                return Pattern{ .Boolean = true };
+            },
+            .null => {
+                return Pattern{ .Null = {} };
+            },
+            .number_float => |f| {
+                if (negation_count % 2 == 1) {
+                    return Pattern{ .Number = -f };
+                } else {
+                    return Pattern{ .Number = f };
                 }
             },
-            .Range => |bounds| {
-                if (bounds.lower) |lower| try self.addValueLocals(lower);
-                if (bounds.upper) |upper| try self.addValueLocals(upper);
+            .number_string => |ns| {
+                const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                const maybe_negated = if (negation_count % 2 == 1) ns_elem.asNumberString().negate() else ns_elem.asNumberString();
+                const number = try maybe_negated.toNumberFloat(self.vm.strings);
+                return Pattern{ .Number = number.asFloat() };
             },
-            .Negation,
-            .ValueLabel,
-            => |inner| try self.addValueLocals(inner),
-            .Array => |elements| {
-                for (elements.items) |element| {
-                    try self.addValueLocals(element);
+            .string => |s| {
+                if (negation_count > 0) {
+                    try self.printError(region, "Invalid pattern - unable to negate string", .{});
+                    return Error.InvalidAst;
+                }
+                const sid = try self.vm.strings.insert(s);
+                return Pattern{ .String = sid };
+            },
+            .negation => |inner| {
+                const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
+                return self.astToValueInPattern(inner, new_negation_count);
+            },
+            .identifier => |ident| {
+                const name = try self.vm.strings.insert(ident.name);
+
+                if (self.findGlobal(name)) |elem| {
+                    return Pattern{ .Constant = .{
+                        .sid = name,
+                        .idx = try self.makeConstant(elem),
+                        .negation_count = negation_count,
+                    } };
+                } else {
+                    const slot = self.localSlot(name).?;
+                    return Pattern{ .Local = .{
+                        .sid = name,
+                        .idx = slot,
+                        .negation_count = negation_count,
+                    } };
                 }
             },
-            .Object => |pairs| {
-                for (pairs.items) |pair| {
-                    try self.addValueLocals(pair.key);
-                    try self.addValueLocals(pair.value);
-                }
+            else => {
+                try self.printError(region, "Unsupported value node in pattern", .{});
+                return Error.InvalidAst;
             },
-            .StringTemplate => |parts| {
-                for (parts.items) |part| {
-                    try self.addValueLocals(part);
-                }
-            },
-            .Conditional => |conditional| {
-                try self.addValueLocals(conditional.condition);
-                try self.addValueLocals(conditional.then_branch);
-                try self.addValueLocals(conditional.else_branch);
-            },
-            .DeclareGlobal => |declaration| {
-                try self.addValueLocals(declaration.head);
-                try self.addValueLocals(declaration.body);
-            },
-            .Identifier => |ident| {
-                if (ident.kind == .Value or ident.kind == .Underscore) {
-                    const sid = try self.vm.strings.insert(ident.name);
-                    if (self.findGlobal(sid) == null) {
-                        const newLocalId = try self.addLocalIfUndefined(ident, region);
-                        if (newLocalId) |_| {
-                            const elem = Elem.valueVar(
-                                try self.vm.strings.insert(ident.name),
-                                ident.underscored or ident.kind == .Underscore,
-                            );
-                            const constId = try self.makeConstant(elem);
-                            try self.emitUnaryOp(.GetConstant, constId, region);
-                        }
-                    }
-                }
-            },
-            .False,
-            .Null,
-            .NumberFloat,
-            .NumberString,
-            .String,
-            .True,
-            => {},
         }
     }
 
-    fn addClosureLocals(self: *Compiler, rnode: *Ast.RNode) !void {
-        const node = rnode.node;
-        const region = rnode.region;
+    fn addValueLocals(self: *Compiler, rnode: Ast.ParserOrValueOrPattern.RNode) !void {
+        const region = rnode.region();
 
-        switch (node) {
-            .InfixNode => |infix| {
-                try self.addClosureLocals(infix.left);
-                try self.addClosureLocals(infix.right);
-            },
-            .Function => |function| {
-                for (function.paramsOrArgs.items) |arg| {
-                    try self.addClosureLocals(arg);
+        switch (rnode) {
+            .parser => |p| {
+                switch (p.node) {
+                    .@"return" => |ret| {
+                        try self.addValueLocals(.{ .parser = ret.left });
+                        try self.addValueLocals(.{ .value = ret.right });
+                    },
+                    .function_call => |func| {
+                        try self.addValueLocals(.{ .parser = func.function });
+                        for (func.args.items) |arg| {
+                            switch (arg) {
+                                .parser => |p_arg| try self.addValueLocals(.{ .parser = p_arg }),
+                                .value => |v_arg| try self.addValueLocals(.{ .value = v_arg }),
+                            }
+                        }
+                    },
+                    .@"or" => |or_node| {
+                        try self.addValueLocals(.{ .parser = or_node.left });
+                        try self.addValueLocals(.{ .parser = or_node.right });
+                    },
+                    .backtrack => |bt_node| {
+                        try self.addValueLocals(.{ .parser = bt_node.left });
+                        try self.addValueLocals(.{ .parser = bt_node.right });
+                    },
+                    .merge => |merge_node| {
+                        try self.addValueLocals(.{ .parser = merge_node.left });
+                        try self.addValueLocals(.{ .parser = merge_node.right });
+                    },
+                    .take_left => |take_node| {
+                        try self.addValueLocals(.{ .parser = take_node.left });
+                        try self.addValueLocals(.{ .parser = take_node.right });
+                    },
+                    .take_right => |take_node| {
+                        try self.addValueLocals(.{ .parser = take_node.left });
+                        try self.addValueLocals(.{ .parser = take_node.right });
+                    },
+                    .conditional => |cond| {
+                        try self.addValueLocals(.{ .parser = cond.condition });
+                        try self.addValueLocals(.{ .parser = cond.then_branch });
+                        try self.addValueLocals(.{ .parser = cond.else_branch });
+                    },
+                    .destructure => |dest| {
+                        try self.addValueLocals(.{ .parser = dest.left });
+                        try self.addValueLocals(.{ .pattern = dest.right });
+                    },
+                    .negation => |neg| {
+                        try self.addValueLocals(.{ .parser = neg });
+                    },
+                    .range => |range| {
+                        if (range.lower) |lower| try self.addValueLocals(.{ .parser = lower });
+                        if (range.upper) |upper| try self.addValueLocals(.{ .parser = upper });
+                    },
+                    .repeat => |rep| {
+                        try self.addValueLocals(.{ .parser = rep.left });
+                        try self.addValueLocals(.{ .pattern = rep.right });
+                    },
+                    .string_template => |tmpl| {
+                        for (tmpl.items) |item| {
+                            try self.addValueLocals(.{ .parser = item });
+                        }
+                    },
+                    .identifier, .number_string, .string => {},
                 }
             },
-            .Range => |bounds| {
-                if (bounds.lower) |lower| try self.addClosureLocals(lower);
-                if (bounds.upper) |upper| try self.addClosureLocals(upper);
-            },
-            .Negation,
-            .ValueLabel,
-            => |inner| try self.addClosureLocals(inner),
-            .Array => |elements| {
-                for (elements.items) |element| {
-                    try self.addClosureLocals(element);
+            .value => |v| {
+                switch (v.node) {
+                    .@"return" => |ret| {
+                        try self.addValueLocals(.{ .value = ret.left });
+                        try self.addValueLocals(.{ .value = ret.right });
+                    },
+                    .function_call => |func| {
+                        try self.addValueLocals(.{ .value = func.function });
+                        for (func.args.items) |arg| {
+                            try self.addValueLocals(.{ .value = arg });
+                        }
+                    },
+                    .@"or" => |or_node| {
+                        try self.addValueLocals(.{ .value = or_node.left });
+                        try self.addValueLocals(.{ .value = or_node.right });
+                    },
+                    .merge => |merge_node| {
+                        try self.addValueLocals(.{ .value = merge_node.left });
+                        try self.addValueLocals(.{ .value = merge_node.right });
+                    },
+                    .take_left => |take_node| {
+                        try self.addValueLocals(.{ .value = take_node.left });
+                        try self.addValueLocals(.{ .value = take_node.right });
+                    },
+                    .take_right => |take_node| {
+                        try self.addValueLocals(.{ .value = take_node.left });
+                        try self.addValueLocals(.{ .value = take_node.right });
+                    },
+                    .conditional => |cond| {
+                        try self.addValueLocals(.{ .value = cond.condition });
+                        try self.addValueLocals(.{ .value = cond.then_branch });
+                        try self.addValueLocals(.{ .value = cond.else_branch });
+                    },
+                    .destructure => |dest| {
+                        try self.addValueLocals(.{ .value = dest.left });
+                        try self.addValueLocals(.{ .pattern = dest.right });
+                    },
+                    .negation => |neg| {
+                        try self.addValueLocals(.{ .value = neg });
+                    },
+                    .array => |arr| {
+                        for (arr.items) |item| {
+                            try self.addValueLocals(.{ .value = item });
+                        }
+                    },
+                    .object => |obj| {
+                        for (obj.items) |pair| {
+                            try self.addValueLocals(.{ .value = pair.key });
+                            try self.addValueLocals(.{ .value = pair.value });
+                        }
+                    },
+                    .string_template => |tmpl| {
+                        for (tmpl.items) |item| {
+                            try self.addValueLocals(.{ .value = item });
+                        }
+                    },
+                    .repeat => |rep| {
+                        try self.addValueLocals(.{ .value = rep.left });
+                        try self.addValueLocals(.{ .value = rep.right });
+                    },
+                    .identifier => |ident| {
+                        const sid = try self.vm.strings.insert(ident.name);
+                        if (self.findGlobal(sid) == null) {
+                            var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
+                            const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
+                            if (newLocalId) |_| {
+                                const elem = Elem.valueVar(
+                                    sid,
+                                    ident.underscored,
+                                );
+                                const constId = try self.makeConstant(elem);
+                                try self.emitUnaryOp(.GetConstant, constId, region);
+                            }
+                        }
+                    },
+                    .false,
+                    .null,
+                    .number_float,
+                    .number_string,
+                    .string,
+                    .true,
+                    => {},
                 }
             },
-            .Object => |pairs| {
-                for (pairs.items) |pair| {
-                    try self.addClosureLocals(pair.key);
-                    try self.addClosureLocals(pair.value);
+            .pattern => |pat| {
+                switch (pat.node) {
+                    .merge => |merge_node| {
+                        try self.addValueLocals(.{ .pattern = merge_node.left });
+                        try self.addValueLocals(.{ .pattern = merge_node.right });
+                    },
+                    .function_call => |func| {
+                        try self.addValueLocals(.{ .value = func.function });
+                        for (func.args.items) |arg| {
+                            try self.addValueLocals(.{ .value = arg });
+                        }
+                    },
+                    .range => |range| {
+                        if (range.lower) |lower| try self.addValueLocals(.{ .pattern = lower });
+                        if (range.upper) |upper| try self.addValueLocals(.{ .pattern = upper });
+                    },
+                    .repeat => |rep| {
+                        try self.addValueLocals(.{ .pattern = rep.left });
+                        try self.addValueLocals(.{ .pattern = rep.right });
+                    },
+                    .negation => |neg| {
+                        try self.addValueLocals(.{ .pattern = neg });
+                    },
+                    .array => |arr| {
+                        for (arr.items) |item| {
+                            try self.addValueLocals(.{ .pattern = item });
+                        }
+                    },
+                    .object => |obj| {
+                        for (obj.items) |pair| {
+                            try self.addValueLocals(.{ .pattern = pair.key });
+                            try self.addValueLocals(.{ .pattern = pair.value });
+                        }
+                    },
+                    .string_template => |tmpl| {
+                        for (tmpl.items) |item| {
+                            try self.addValueLocals(.{ .pattern = item });
+                        }
+                    },
+                    .identifier => |ident| {
+                        const sid = try self.vm.strings.insert(ident.name);
+                        if (self.findGlobal(sid) == null) {
+                            const value_ident = Ast.Value.Identifier{
+                                .name = ident.name,
+                                .builtin = ident.builtin,
+                                .underscored = ident.underscored,
+                            };
+                            var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = value_ident, .region = region };
+                            const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
+                            if (newLocalId) |_| {
+                                const elem = Elem.valueVar(
+                                    sid,
+                                    ident.underscored,
+                                );
+                                const constId = try self.makeConstant(elem);
+                                try self.emitUnaryOp(.GetConstant, constId, region);
+                            }
+                        }
+                    },
+                    .false,
+                    .null,
+                    .number_float,
+                    .number_string,
+                    .string,
+                    .true,
+                    => {},
                 }
             },
-            .StringTemplate => |parts| {
-                for (parts.items) |part| {
-                    try self.addClosureLocals(part);
-                }
-            },
-            .Conditional => |conditional| {
-                try self.addClosureLocals(conditional.condition);
-                try self.addClosureLocals(conditional.then_branch);
-                try self.addClosureLocals(conditional.else_branch);
-            },
-            .DeclareGlobal => @panic("internal error"),
-            .Identifier => |ident| {
-                const name = try self.vm.strings.insert(ident.name);
-                const elem = Elem.valueVar(
-                    name,
-                    ident.kind == .Underscore or ident.underscored,
-                );
+        }
+    }
 
-                if (self.parentFunction().localSlot(name) != null) {
-                    const newLocalId = try self.addLocalIfUndefined(ident, region);
-                    if (newLocalId) |_| {
-                        const constId = try self.makeConstant(elem);
-                        try self.emitUnaryOp(.GetConstant, constId, region);
-                    }
+    fn addClosureLocals(self: *Compiler, rnode: Ast.ParserOrValueOrPattern.RNode) !void {
+        const region = rnode.region();
+
+        switch (rnode) {
+            .parser => |p| {
+                switch (p.node) {
+                    .@"or" => |infix| {
+                        try self.addClosureLocals(.{ .parser = infix.left });
+                        try self.addClosureLocals(.{ .parser = infix.right });
+                    },
+                    .@"return" => |infix| {
+                        try self.addClosureLocals(.{ .parser = infix.left });
+                        try self.addClosureLocals(.{ .value = infix.right });
+                    },
+                    .backtrack => |infix| {
+                        try self.addClosureLocals(.{ .parser = infix.left });
+                        try self.addClosureLocals(.{ .parser = infix.right });
+                    },
+                    .conditional => |conditional| {
+                        try self.addClosureLocals(.{ .parser = conditional.condition });
+                        try self.addClosureLocals(.{ .parser = conditional.then_branch });
+                        try self.addClosureLocals(.{ .parser = conditional.else_branch });
+                    },
+                    .destructure => |infix| {
+                        try self.addClosureLocals(.{ .parser = infix.left });
+                        try self.addClosureLocals(.{ .pattern = infix.right });
+                    },
+                    .function_call => |fc| {
+                        for (fc.args.items) |arg| {
+                            switch (arg) {
+                                .parser => |parser_arg| try self.addClosureLocals(.{ .parser = parser_arg }),
+                                .value => |value_arg| try self.addClosureLocals(.{ .value = value_arg }),
+                            }
+                        }
+                    },
+                    .identifier => |ident| {
+                        const name = try self.vm.strings.insert(ident.name);
+                        const elem = Elem.valueVar(name, ident.underscored);
+
+                        if (self.parentFunction().localSlot(name) != null) {
+                            var ident_rnode: Ast.RNode(Ast.Parser.Identifier) = .{ .node = ident, .region = region };
+                            const newLocalId = try self.addLocalIfUndefined(.{ .parser = &ident_rnode });
+                            if (newLocalId) |_| {
+                                const constId = try self.makeConstant(elem);
+                                try self.emitUnaryOp(.GetConstant, constId, region);
+                            }
+                        }
+                    },
+                    .merge => |infix| {
+                        try self.addClosureLocals(.{ .parser = infix.left });
+                        try self.addClosureLocals(.{ .parser = infix.right });
+                    },
+                    .negation => |inner| try self.addClosureLocals(.{ .parser = inner }),
+                    .range => |bounds| {
+                        if (bounds.lower) |lower| try self.addClosureLocals(.{ .parser = lower });
+                        if (bounds.upper) |upper| try self.addClosureLocals(.{ .parser = upper });
+                    },
+                    .repeat => |infix| {
+                        try self.addClosureLocals(.{ .parser = infix.left });
+                        try self.addClosureLocals(.{ .pattern = infix.right });
+                    },
+                    .string_template => |parts| {
+                        for (parts.items) |part| {
+                            try self.addClosureLocals(.{ .parser = part });
+                        }
+                    },
+                    .take_left => |infix| {
+                        try self.addClosureLocals(.{ .parser = infix.left });
+                        try self.addClosureLocals(.{ .parser = infix.right });
+                    },
+                    .take_right => |infix| {
+                        try self.addClosureLocals(.{ .parser = infix.left });
+                        try self.addClosureLocals(.{ .parser = infix.right });
+                    },
+                    .number_string,
+                    .string,
+                    => {},
                 }
             },
-            .False,
-            .Null,
-            .NumberFloat,
-            .NumberString,
-            .String,
-            .True,
-            => {},
+            .value => |v| {
+                switch (v.node) {
+                    .@"or" => |infix| {
+                        try self.addClosureLocals(.{ .value = infix.left });
+                        try self.addClosureLocals(.{ .value = infix.right });
+                    },
+                    .@"return" => |infix| {
+                        try self.addClosureLocals(.{ .value = infix.left });
+                        try self.addClosureLocals(.{ .value = infix.right });
+                    },
+                    .merge => |infix| {
+                        try self.addClosureLocals(.{ .value = infix.left });
+                        try self.addClosureLocals(.{ .value = infix.right });
+                    },
+                    .take_left => |infix| {
+                        try self.addClosureLocals(.{ .value = infix.left });
+                        try self.addClosureLocals(.{ .value = infix.right });
+                    },
+                    .take_right => |infix| {
+                        try self.addClosureLocals(.{ .value = infix.left });
+                        try self.addClosureLocals(.{ .value = infix.right });
+                    },
+                    .repeat => |infix| {
+                        try self.addClosureLocals(.{ .value = infix.left });
+                        try self.addClosureLocals(.{ .value = infix.right });
+                    },
+                    .destructure => |infix| {
+                        try self.addClosureLocals(.{ .value = infix.left });
+                        try self.addClosureLocals(.{ .pattern = infix.right });
+                    },
+                    .function_call => |fc| {
+                        try self.addClosureLocals(.{ .value = fc.function });
+                        for (fc.args.items) |arg| {
+                            try self.addClosureLocals(.{ .value = arg });
+                        }
+                    },
+                    .negation => |inner| try self.addClosureLocals(.{ .value = inner }),
+                    .array => |elements| {
+                        for (elements.items) |element| {
+                            try self.addClosureLocals(.{ .value = element });
+                        }
+                    },
+                    .object => |pairs| {
+                        for (pairs.items) |pair| {
+                            try self.addClosureLocals(.{ .value = pair.key });
+                            try self.addClosureLocals(.{ .value = pair.value });
+                        }
+                    },
+                    .string_template => |parts| {
+                        for (parts.items) |part| {
+                            try self.addClosureLocals(.{ .value = part });
+                        }
+                    },
+                    .conditional => |conditional| {
+                        try self.addClosureLocals(.{ .value = conditional.condition });
+                        try self.addClosureLocals(.{ .value = conditional.then_branch });
+                        try self.addClosureLocals(.{ .value = conditional.else_branch });
+                    },
+                    .identifier => |ident| {
+                        const name = try self.vm.strings.insert(ident.name);
+                        const elem = Elem.valueVar(name, ident.underscored);
+
+                        if (self.parentFunction().localSlot(name) != null) {
+                            var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
+                            const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
+                            if (newLocalId) |_| {
+                                const constId = try self.makeConstant(elem);
+                                try self.emitUnaryOp(.GetConstant, constId, region);
+                            }
+                        }
+                    },
+                    .false,
+                    .null,
+                    .number_float,
+                    .number_string,
+                    .string,
+                    .true,
+                    => {},
+                }
+            },
+            .pattern => |pat| {
+                switch (pat.node) {
+                    .merge => |infix| {
+                        try self.addClosureLocals(.{ .pattern = infix.left });
+                        try self.addClosureLocals(.{ .pattern = infix.right });
+                    },
+                    .repeat => |infix| {
+                        try self.addClosureLocals(.{ .pattern = infix.left });
+                        try self.addClosureLocals(.{ .pattern = infix.right });
+                    },
+                    .function_call => |fc| {
+                        try self.addClosureLocals(.{ .value = fc.function });
+                        for (fc.args.items) |arg| {
+                            try self.addClosureLocals(.{ .value = arg });
+                        }
+                    },
+                    .range => |bounds| {
+                        if (bounds.lower) |lower| try self.addClosureLocals(.{ .pattern = lower });
+                        if (bounds.upper) |upper| try self.addClosureLocals(.{ .pattern = upper });
+                    },
+                    .negation => |inner| try self.addClosureLocals(.{ .pattern = inner }),
+                    .array => |elements| {
+                        for (elements.items) |element| {
+                            try self.addClosureLocals(.{ .pattern = element });
+                        }
+                    },
+                    .object => |pairs| {
+                        for (pairs.items) |pair| {
+                            try self.addClosureLocals(.{ .pattern = pair.key });
+                            try self.addClosureLocals(.{ .pattern = pair.value });
+                        }
+                    },
+                    .string_template => |parts| {
+                        for (parts.items) |part| {
+                            try self.addClosureLocals(.{ .pattern = part });
+                        }
+                    },
+                    .identifier => |ident| {
+                        const name = try self.vm.strings.insert(ident.name);
+                        const elem = Elem.valueVar(name, ident.underscored);
+
+                        if (self.parentFunction().localSlot(name) != null) {
+                            const value_ident = Ast.Value.Identifier{
+                                .name = ident.name,
+                                .builtin = ident.builtin,
+                                .underscored = ident.underscored,
+                            };
+                            var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = value_ident, .region = region };
+                            const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
+                            if (newLocalId) |_| {
+                                const constId = try self.makeConstant(elem);
+                                try self.emitUnaryOp(.GetConstant, constId, region);
+                            }
+                        }
+                    },
+                    .false,
+                    .null,
+                    .number_float,
+                    .number_string,
+                    .string,
+                    .true,
+                    => {},
+                }
+            },
         }
     }
 
@@ -1934,96 +2067,123 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValue(self: *Compiler, rnode: *Ast.RNode, isTailPosition: bool) !void {
+    fn writePatternAsBoundRepeatValue(self: *Compiler, rnode: *Ast.Pattern.RNode) !void {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
-            .InfixNode => |infix| switch (infix.infixType) {
-                .Backtrack => {
-                    try self.emitOp(.SetInputMark, region);
-                    try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Backtrack, region);
-                    try self.writeValue(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .Merge => {
-                    try self.writeValue(infix.left, false);
-                    try self.writeValue(infix.right, false);
-                    try self.emitOp(.Merge, region);
-                },
-                .TakeLeft => {
-                    try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                    try self.writeValue(infix.right, false);
-                    try self.emitOp(.TakeLeft, region);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .TakeRight => {
-                    try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, region);
-                    try self.writeValue(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .Destructure => {
-                    try self.writeValue(infix.left, false);
-                    const patternId = try self.createPattern(infix.right);
-                    try self.emitUnaryOp(.Destructure, patternId, region);
-                },
-                .Or => {
-                    try self.emitOp(.SetInputMark, region);
-                    try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.Or, region);
-                    try self.writeValue(infix.right, isTailPosition);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .Return => {
-                    try self.writeValue(infix.left, false);
-                    const jumpIndex = try self.emitJump(.TakeRight, region);
-                    try self.writeValue(infix.right, true);
-                    try self.patchJump(jumpIndex, region);
-                },
-                .Repeat => {
-                    try self.writeValue(infix.left, false);
-                    try self.writeValue(infix.right, false);
-                    try self.emitOp(.RepeatValue, region);
-                },
-                .NumberSubtract => {
-                    if (infix.right.node == .NumberString) {
-                        infix.right.node.NumberString.negated = !infix.right.node.NumberString.negated;
-                        try self.writeValue(infix.left, false);
-                        try self.writeValue(infix.right, false);
-                        try self.emitOp(.Merge, region);
-                    } else {
-                        try self.writeValue(infix.left, false);
-                        try self.writeValue(infix.right, false);
-                        try self.emitOp(.NegateNumber, region);
-                        try self.emitOp(.Merge, region);
-                    }
-                },
+            .number_float => |f| {
+                const elem = Elem.numberFloat(f);
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.GetConstant, constId, region);
             },
-            .DeclareGlobal => @panic("internal error"),
-            .Range => {
-                try self.printError(region, "Range is not valid in value context", .{});
-                return Error.RangeNotValidInValueContext;
+            .number_string => |ns| {
+                const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.GetConstant, constId, region);
             },
-            .Negation => |inner| {
+            .identifier => |ident| {
+                const name = try self.vm.strings.insert(ident.name);
+                if (self.localSlot(name)) |slot| {
+                    try self.emitUnaryOp(.GetBoundLocal, slot, region);
+                } else {
+                    const global = self.findGlobal(name).?;
+                    const constId = try self.makeConstant(global);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
+                }
+            },
+            .merge => |merge| {
+                try self.writePatternAsBoundRepeatValue(merge.left);
+                try self.writePatternAsBoundRepeatValue(merge.right);
+                try self.emitOp(.Merge, region);
+            },
+            .negation => |inner| {
+                try self.writePatternAsBoundRepeatValue(inner);
+                try self.emitOp(.NegateNumber, region);
+            },
+            .function_call => |function_call| {
+                try self.writeValueFunctionCall(function_call.function, function_call.args, region, false);
+            },
+            .null => {
+                const elem = Elem.numberFloat(0);
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.GetConstant, constId, region);
+            },
+            .array,
+            .false,
+            .object,
+            .range,
+            .repeat,
+            .string,
+            .string_template,
+            .true,
+            => {
+                try self.printError(region, "Invalid pattern type for parser repeat", .{});
+                return Error.InvalidAst;
+            },
+        }
+    }
+
+    fn writeValue(self: *Compiler, rnode: *Ast.Value.RNode, isTailPosition: bool) !void {
+        const node = rnode.node;
+        const region = rnode.region;
+
+        switch (node) {
+            .merge => |merge| {
+                try self.writeValue(merge.left, false);
+                try self.writeValue(merge.right, false);
+                try self.emitOp(.Merge, region);
+            },
+            .take_left => |take_left| {
+                try self.writeValue(take_left.left, false);
+                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
+                try self.writeValue(take_left.right, false);
+                try self.emitOp(.TakeLeft, region);
+                try self.patchJump(jumpIndex, region);
+            },
+            .take_right => |take_right| {
+                try self.writeValue(take_right.left, false);
+                const jumpIndex = try self.emitJump(.TakeRight, region);
+                try self.writeValue(take_right.right, isTailPosition);
+                try self.patchJump(jumpIndex, region);
+            },
+            .destructure => |destructure| {
+                try self.writeValue(destructure.left, false);
+                const patternId = try self.createPattern(destructure.right);
+                try self.emitUnaryOp(.Destructure, patternId, region);
+            },
+            .@"or" => |or_node| {
+                try self.emitOp(.SetInputMark, region);
+                try self.writeValue(or_node.left, false);
+                const jumpIndex = try self.emitJump(.Or, region);
+                try self.writeValue(or_node.right, isTailPosition);
+                try self.patchJump(jumpIndex, region);
+            },
+            .@"return" => |return_node| {
+                try self.writeValue(return_node.left, false);
+                const jumpIndex = try self.emitJump(.TakeRight, region);
+                try self.writeValue(return_node.right, true);
+                try self.patchJump(jumpIndex, region);
+            },
+            .repeat => |repeat| {
+                try self.writeValue(repeat.left, false);
+                try self.writeValue(repeat.right, false);
+                try self.emitOp(.RepeatValue, region);
+            },
+            .negation => |inner| {
                 try self.writeValue(inner, false);
                 try self.emitOp(.NegateNumber, region);
             },
-            .ValueLabel => |inner| {
-                try self.writeValue(inner, isTailPosition);
-            },
-            .Array => |elements| {
+            .array => |elements| {
                 try self.writeValueArray(elements, region);
             },
-            .Object => |pairs| {
+            .object => |pairs| {
                 try self.writeValueObject(pairs, region);
             },
-            .StringTemplate => |parts| {
-                try self.writeStringTemplate(parts, region, .Value);
+            .string_template => |parts| {
+                try self.writeStringTemplateValue(parts, region);
             },
-            .Conditional => |conditional| {
+            .conditional => |conditional| {
                 try self.emitOp(.SetInputMark, region);
                 try self.writeValue(conditional.condition, false);
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
@@ -2033,70 +2193,68 @@ pub const Compiler = struct {
                 try self.writeValue(conditional.else_branch, isTailPosition);
                 try self.patchJump(thenElseJumpIndex, region);
             },
-            .Function => |function| {
-                try self.writeValueFunctionCall(function.name, function.paramsOrArgs, region, isTailPosition);
+            .function_call => |function_call| {
+                try self.writeValueFunctionCall(function_call.function, function_call.args, region, isTailPosition);
             },
-            .Identifier => |ident| switch (ident.kind) {
-                .Parser => {
-                    try self.printError(region, "Parser is not valid in value", .{});
-                    return Error.InvalidAst;
-                },
-                .Underscore => {
-                    try self.printError(region, "Underscore variable is only valid in patterns", .{});
-                    return Error.InvalidAst;
-                },
-                .Value,
-                => {
-                    const name = try self.vm.strings.insert(ident.name);
-                    if (self.localSlot(name)) |slot| {
-                        // This local will either be a concrete value or
-                        // unbound, it won't be a function. Value functions are
-                        // all defined globally and called immediately. This
-                        // means that if a function takes a value function as
-                        // an arg then the value function will be called before
-                        // the outer function, and the value used when calling
-                        // the outer function will be concrete.
-                        try self.emitUnaryOp(.GetBoundLocal, slot, region);
-                    } else if (self.findGlobal(name)) |globalElem| {
-                        const constId = try self.makeConstant(globalElem);
-                        try self.emitUnaryOp(.GetConstant, constId, region);
-                        if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
-                            if (isTailPosition) {
-                                try self.emitUnaryOp(.CallTailFunction, 0, region);
-                            } else {
-                                try self.emitUnaryOp(.CallFunction, 0, region);
-                            }
+            .identifier => |ident| {
+                const name = try self.vm.strings.insert(ident.name);
+                if (self.localSlot(name)) |slot| {
+                    // This local will either be a concrete value or
+                    // unbound, it won't be a function. Value functions are
+                    // all defined globally and called immediately. This
+                    // means that if a function takes a value function as
+                    // an arg then the value function will be called before
+                    // the outer function, and the value used when calling
+                    // the outer function will be concrete.
+                    try self.emitUnaryOp(.GetBoundLocal, slot, region);
+                } else {
+                    const globalElem = self.findGlobal(name).?;
+                    const constId = try self.makeConstant(globalElem);
+                    try self.emitUnaryOp(.GetConstant, constId, region);
+                    if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
+                        if (isTailPosition) {
+                            try self.emitUnaryOp(.CallTailFunction, 0, region);
+                        } else {
+                            try self.emitUnaryOp(.CallFunction, 0, region);
                         }
-                    } else {
-                        // All value vars should already be local or global
-                        @panic("Internal Error");
                     }
-                },
+                }
             },
-            .String,
-            .NumberString,
-            .NumberFloat,
-            => {
-                const elem = try self.nodeToElem(node) orelse return Error.InvalidAst;
+            .string => |string| {
+                const sid = try self.vm.strings.insert(string);
+                const elem = Elem.string(sid);
                 const constId = try self.makeConstant(elem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
             },
-            .True => try self.emitOp(.True, region),
-            .False => try self.emitOp(.False, region),
-            .Null => try self.emitOp(.Null, region),
+            .number_string => |ns| {
+                const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.GetConstant, constId, region);
+            },
+            .number_float => |number_float| {
+                const elem = Elem.numberFloat(number_float);
+                const constId = try self.makeConstant(elem);
+                try self.emitUnaryOp(.GetConstant, constId, region);
+            },
+            .true => try self.emitOp(.True, region),
+            .false => try self.emitOp(.False, region),
+            .null => try self.emitOp(.Null, region),
         }
     }
 
     fn writeValueFunctionCall(
         self: *Compiler,
-        function_rnode: *Ast.RNode,
-        arguments: ArrayList(*Ast.RNode),
+        function_rnode: *Ast.Value.RNode,
+        arguments: ArrayList(*Ast.Value.RNode),
         call_region: Region,
         isTailPosition: bool,
     ) !void {
         // TODO: handle curried function calls like `Foo(A)(B)`
         // TODO: handle non-function with parens like `X = 1 ; "" $ X()`
-        const function_ident = self.nodeToIdent(function_rnode.node) orelse @panic("Internal Error");
+        const function_ident = if (function_rnode.node == .identifier)
+            function_rnode.node.identifier
+        else
+            @panic("Internal Error");
         const function_region = function_rnode.region;
 
         const functionName = try self.vm.strings.insert(function_ident.name);
@@ -2128,7 +2286,7 @@ pub const Compiler = struct {
 
     fn writeValueFunctionArguments(
         self: *Compiler,
-        arguments: ArrayList(*Ast.RNode),
+        arguments: ArrayList(*Ast.Value.RNode),
         function: ?*Elem.DynElem.Function,
     ) Error!u8 {
         const arg_count = arguments.items.len;
@@ -2176,7 +2334,7 @@ pub const Compiler = struct {
         return @intCast(arg_count);
     }
 
-    fn writeValueArray(self: *Compiler, elements: ArrayList(*Ast.RNode), region: Region) Error!void {
+    fn writeValueArray(self: *Compiler, elements: ArrayList(*Ast.Value.RNode), region: Region) Error!void {
         var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
         const constId = try self.makeConstant(array.dyn.elem());
         try self.emitUnaryOp(.GetConstant, constId, region);
@@ -2186,87 +2344,77 @@ pub const Compiler = struct {
         }
     }
 
-    fn appendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) !void {
+    fn appendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8) !void {
         try self.writeValue(rnode, false);
-        try self.emitUnaryOp(.InsertAtIndex, index, region);
+        try self.emitUnaryOp(.InsertAtIndex, index, rnode.region);
         try array.append(self.vm, self.placeholderVar());
     }
 
-    fn negateAndAppendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) !void {
+    fn negateAndAppendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) !void {
         try self.writeValue(rnode, false);
         try self.emitOp(.NegateNumber, region);
         try self.emitUnaryOp(.InsertAtIndex, index, region);
         try array.append(self.vm, self.placeholderVar());
     }
 
-    fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.RNode, index: u8, region: Region) Error!void {
+    fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) Error!void {
         switch (rnode.node) {
-            .Identifier => |ident| switch (ident.kind) {
-                .Parser => {
-                    try self.printError(rnode.region, "Parser is not valid in value", .{});
-                    return Error.InvalidAst;
-                },
-                .Underscore => {
-                    try self.printError(rnode.region, "Underscore variable is only valid in patterns", .{});
-                    return Error.InvalidAst;
-                },
-                .Value => try self.appendDynamicValue(array, rnode, index, region),
+            .false => {
+                try array.append(self.vm, Elem.boolean(false));
             },
-            .False,
-            .Null,
-            .NumberFloat,
-            .NumberString,
-            .String,
-            .True,
-            => {
-                const elem = try self.nodeToElem(rnode.node) orelse return Error.InvalidAst;
-                try array.append(self.vm, elem);
+            .true => {
+                try array.append(self.vm, Elem.boolean(true));
             },
-            .InfixNode => try self.appendDynamicValue(array, rnode, index, region),
-            .Function => try self.appendDynamicValue(array, rnode, index, region),
-            .Array => |elements| {
+            .null => {
+                try array.append(self.vm, Elem.nullConst);
+            },
+            .number_float => |f| {
+                try array.append(self.vm, Elem.numberFloat(f));
+            },
+            .number_string => |ns| {
+                try array.append(self.vm, try self.numberStringNodeToElem(ns.number, ns.negated));
+            },
+            .string => |s| {
+                const sid = try self.vm.strings.insert(s);
+                try array.append(self.vm, Elem.string(sid));
+            },
+            .identifier,
+            .function_call,
+            .merge,
+            .@"or",
+            .@"return",
+            .take_left,
+            .take_right,
+            .repeat,
+            .destructure,
+            => try self.appendDynamicValue(array, rnode, index),
+            .array => |elements| {
                 // Special case: empty arrays should be treated as literals
                 if (elements.items.len == 0) {
                     var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
                     try array.append(self.vm, emptyArray.dyn.elem());
                 } else {
-                    try self.appendDynamicValue(array, rnode, index, region);
+                    try self.appendDynamicValue(array, rnode, index);
                 }
             },
-            .Object => |pairs| {
+            .object => |pairs| {
                 // Special case: empty objects should be treated as literals
                 if (pairs.items.len == 0) {
                     var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
                     try array.append(self.vm, emptyObject.dyn.elem());
                 } else {
-                    try self.appendDynamicValue(array, rnode, index, region);
+                    try self.appendDynamicValue(array, rnode, index);
                 }
             },
-            .StringTemplate => try self.appendDynamicValue(array, rnode, index, region),
-            .Range => {
-                try self.printError(region, "Range is not valid in value context", .{});
-                return Error.RangeNotValidInValueContext;
-            },
-            .Conditional => try self.appendDynamicValue(array, rnode, index, region),
-            .Negation => |inner| {
-                if (self.simplifyNegatedNumberNode(rnode)) |elem| {
-                    try array.append(self.vm, elem);
-                } else {
-                    try self.negateAndAppendDynamicValue(array, inner, index, region);
-                }
-            },
-            .ValueLabel => {
-                try self.printError(region, "Value label `$` is not necessary inside array.", .{});
-                return Error.InvalidAst;
-            },
-            .DeclareGlobal => {
-                try self.printError(region, "Invlaid global assignment inside array.", .{});
-                return Error.InvalidAst;
+            .string_template => try self.appendDynamicValue(array, rnode, index),
+            .conditional => try self.appendDynamicValue(array, rnode, index),
+            .negation => |inner| {
+                try self.negateAndAppendDynamicValue(array, inner, index, region);
             },
         }
     }
 
-    fn writeValueObject(self: *Compiler, pairs: ArrayList(Ast.ObjectPair), region: Region) Error!void {
+    fn writeValueObject(self: *Compiler, pairs: ArrayList(Ast.Value.ObjectPair), region: Region) Error!void {
         var object = try Elem.DynElem.Object.create(self.vm, 0);
         const constId = try self.makeConstant(object.dyn.elem());
         try self.emitUnaryOp(.GetConstant, constId, region);
@@ -2299,7 +2447,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValueObjectVal(self: *Compiler, rnode: *Ast.RNode, key: Elem) Error!void {
+    fn writeValueObjectVal(self: *Compiler, rnode: *Ast.Value.RNode, key: Elem) Error!void {
         const region = rnode.region;
         const constId = try self.makeConstant(key);
 
@@ -2307,9 +2455,7 @@ pub const Compiler = struct {
         try self.emitUnaryOp(.InsertAtKey, constId, region);
     }
 
-    const StringTemplateContext = enum { Parser, Value };
-
-    fn writeStringTemplate(self: *Compiler, parts: ArrayList(*Ast.RNode), region: Region, context: StringTemplateContext) Error!void {
+    fn writeStringTemplateParser(self: *Compiler, parts: ArrayList(*Ast.Parser.RNode), region: Region) Error!void {
         // String template should not be empty
         std.debug.assert(parts.items.len > 0);
 
@@ -2317,41 +2463,67 @@ pub const Compiler = struct {
         // string on the stack for `MergeAsString`
         const firstPart = parts.items[0];
 
-        if (firstPart.node != .String) {
+        if (firstPart.node != .string) {
             const empty_string = try self.makeConstant(Elem.string(try self.vm.strings.insert("")));
             try self.emitUnaryOp(.GetConstant, empty_string, region);
         }
 
         // Write all parts with MergeAsString between each part after the first two
         for (parts.items, 0..) |part, i| {
-            try self.writeStringTemplatePart(part, context);
-            if (i > 0 or firstPart.node != .String) {
+            try self.writeParser(part, false);
+            if (i > 0 or firstPart.node != .string) {
                 try self.emitOp(.MergeAsString, region);
             }
         }
     }
 
-    fn writeStringTemplatePart(self: *Compiler, rnode: *Ast.RNode, context: StringTemplateContext) !void {
-        switch (context) {
-            .Parser => try self.writeParser(rnode, false),
-            .Value => try self.writeValue(rnode, false),
+    fn writeStringTemplateValue(self: *Compiler, parts: ArrayList(*Ast.Value.RNode), region: Region) Error!void {
+        // String template should not be empty
+        std.debug.assert(parts.items.len > 0);
+
+        // Check if the first part is a string - if not, we need an empty
+        // string on the stack for `MergeAsString`
+        const firstPart = parts.items[0];
+
+        if (firstPart.node != .string) {
+            const empty_string = try self.makeConstant(Elem.string(try self.vm.strings.insert("")));
+            try self.emitUnaryOp(.GetConstant, empty_string, region);
+        }
+
+        // Write all parts with MergeAsString between each part after the first two
+        for (parts.items, 0..) |part, i| {
+            try self.writeValue(part, false);
+            if (i > 0 or firstPart.node != .string) {
+                try self.emitOp(.MergeAsString, region);
+            }
         }
     }
 
-    fn literalPatternToElem(self: *Compiler, rnode: *Ast.RNode) !?Elem {
+    fn numberStringNodeToElem(self: *Compiler, number: []const u8, negated: bool) !Elem {
+        const elem = try Elem.numberStringFromBytes(number, self.vm);
+        if (negated) {
+            return elem.asNumberString().negate().elem();
+        } else {
+            return elem;
+        }
+    }
+
+    fn literalPatternToElem(self: *Compiler, rnode: *Ast.Value.RNode) !?Elem {
         return switch (rnode.node) {
-            .String,
-            .NumberString,
-            .NumberFloat,
-            .False,
-            .True,
-            .Null,
-            => self.nodeToElem(rnode.node),
-            .Array => |elements| if (elements.items.len == 0) blk: {
+            .string => |s| {
+                const sid = try self.vm.strings.insert(s);
+                return Elem.string(sid);
+            },
+            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
+            .number_float => |f| Elem.numberFloat(f),
+            .false => Elem.boolean(false),
+            .true => Elem.boolean(true),
+            .null => Elem.nullConst,
+            .array => |elements| if (elements.items.len == 0) blk: {
                 var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
                 break :blk emptyArray.dyn.elem();
             } else null,
-            .Object => |pairs| if (pairs.items.len == 0) blk: {
+            .object => |pairs| if (pairs.items.len == 0) blk: {
                 var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
                 break :blk emptyObject.dyn.elem();
             } else null,
@@ -2359,101 +2531,48 @@ pub const Compiler = struct {
         };
     }
 
-    fn simplifyPatternAst(self: *Compiler, rnode: *Ast.RNode) !void {
-        switch (rnode.node) {
-            .InfixNode => |infix| {
-                try self.simplifyPatternAst(infix.left);
-                try self.simplifyPatternAst(infix.right);
+    fn declHasNoParams(self: *Compiler, decl: Ast.ParserOrValue.Declaration) bool {
+        _ = self;
+        return switch (decl) {
+            .parser => |p_decl| p_decl.node.params.items.len == 0,
+            .value => |v_decl| v_decl.node.params.items.len == 0,
+        };
+    }
 
-                switch (infix.infixType) {
-                    .Merge => {
-                        if (try self.ast.merge(infix.left, infix.right)) |merged| {
-                            rnode.* = merged;
-                        }
-                    },
-                    .TakeLeft => {
-                        if (infix.left.node.isElem() and infix.right.node.isElem()) {
-                            rnode.node = infix.left.node;
-                        }
-                    },
-                    .TakeRight => {
-                        if (infix.left.node.isElem() and infix.right.node.isElem()) {
-                            rnode.node = infix.right.node;
-                        }
-                    },
-                    .Or => {
-                        if (infix.left.node.isElem()) {
-                            rnode.node = infix.left.node;
-                        }
-                    },
-                    .Return => {
-                        if (infix.left.node.isElem() and infix.right.node.isElem()) {
-                            rnode.node = infix.right.node;
-                        }
-                    },
-                    .Repeat => {
-                        if (try self.ast.repeat(infix.left, infix.right)) |repeated| {
-                            rnode.* = repeated;
-                        }
-                    },
-                    .Backtrack,
-                    .Destructure,
-                    .NumberSubtract,
-                    => {},
-                }
-            },
-            .Range => |range| {
-                if (range.lower) |lower| try self.simplifyPatternAst(lower);
-                if (range.upper) |upper| try self.simplifyPatternAst(upper);
-            },
-            .Negation => |inner| {
-                try self.simplifyPatternAst(inner);
+    fn isAlias(self: *Compiler, decl: Ast.ParserOrValue.Declaration) bool {
+        return self.getAliasBody(decl) catch null != null;
+    }
 
-                switch (inner.node) {
-                    .NumberString => |ns| {
-                        rnode.node = Ast.Node{ .NumberString = .{ .number = ns.number, .negated = !ns.negated } };
-                    },
-                    .NumberFloat => |f| {
-                        rnode.node = Ast.Node{ .NumberFloat = -f };
-                    },
-                    else => {},
-                }
-            },
-            .ValueLabel => |inner| {
-                try self.simplifyPatternAst(inner);
-            },
-            .Array => {},
-            .Object => {},
-            .StringTemplate => {},
-            .Conditional => {},
-            .Function,
-            .DeclareGlobal,
-            .False,
-            .Null,
-            .NumberFloat,
-            .NumberString,
-            .Identifier,
-            .String,
-            .True,
-            => {},
+    fn getAliasBody(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !?Elem {
+        if (self.declHasNoParams(decl)) {
+            return switch (decl) {
+                .parser => |p_decl| self.parserNodeToElem(p_decl.node.body.node),
+                .value => |v_decl| self.valueNodeToElem(v_decl.node.body.node),
+            };
+        } else {
+            return null;
         }
     }
 
-    fn simplifyNegatedNumberNode(self: *Compiler, rnode: *Ast.RNode) ?Elem {
-        switch (rnode.node) {
-            .Negation => |inner| {
-                if (self.simplifyNegatedNumberNode(inner)) |num| {
-                    return num.negateNumber() catch null;
-                }
-            },
-            .NumberFloat => |f| return Elem.numberFloat(f),
-            .NumberString => |s| {
-                return Elem.numberStringFromBytes(s.number, self.vm) catch null;
-            },
-            else => {},
-        }
+    fn isAliasChain(self: *Compiler, decl: Ast.ParserOrValue.Declaration) bool {
+        return self.getAliasChainName(decl) != null;
+    }
 
-        return null;
+    fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?[]const u8 {
+        if (self.declHasNoParams(decl)) {
+            return switch (decl) {
+                .parser => |p_decl| if (p_decl.node.body.node == .identifier)
+                    p_decl.node.body.node.identifier.name
+                else
+                    null,
+                .value => |v_decl| if (v_decl.node.body.node == .identifier)
+                    v_decl.node.body.node.identifier.name
+                else
+                    null,
+            };
+        } else {
+            return null;
+        }
     }
 
     fn placeholderVar(self: *Compiler) Elem {
@@ -2480,30 +2599,21 @@ pub const Compiler = struct {
         }
     }
 
-    fn addLocal(self: *Compiler, ident: Ast.IdentifierNode, region: Region) !?u8 {
-        if (ident.builtin) {
-            try self.printError(region, "Invalid function param, '@' is reserved for builtins", .{});
+    fn addLocal(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !?u8 {
+        if (ident.builtin()) {
+            try self.printError(ident.region(), "Invalid function param, '@' is reserved for builtins", .{});
             return Error.InvalidAst;
         }
 
-        if (self.currentFunction().functionType == .NamedValue and ident.kind == .Parser) {
-            try self.printError(region, "Value function params must be values, found a parser", .{});
-            return Error.InvalidAst;
-        }
-
-        const sid = try self.vm.strings.insert(ident.name);
+        const sid = try self.vm.strings.insert(ident.name());
 
         return self.currentFunction().addLocal(self.vm, .{
             .sid = sid,
-            .kind = switch (ident.kind) {
-                .Parser => .Parser,
-                .Value => .Value,
-                .Underscore => .Underscore,
-            },
+            .kind = if (ident == .parser) .Parser else if (ident.underscored()) .Underscore else .Value,
         }) catch |err| switch (err) {
             error.MaxFunctionLocals => {
                 try self.printError(
-                    region,
+                    ident.region(),
                     "Can't have more than {} parameters and local variables.",
                     .{std.math.maxInt(u8)},
                 );
@@ -2513,8 +2623,8 @@ pub const Compiler = struct {
         };
     }
 
-    fn addLocalIfUndefined(self: *Compiler, ident: Ast.IdentifierNode, region: Region) !?u8 {
-        return self.addLocal(ident, region) catch |err| switch (err) {
+    fn addLocalIfUndefined(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !?u8 {
+        return self.addLocal(ident) catch |err| switch (err) {
             error.VariableNameUsedInScope => return null,
             else => return err,
         };
