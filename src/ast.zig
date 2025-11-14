@@ -402,7 +402,7 @@ pub const Ast = struct {
 
     pub fn repeat(self: *Ast, a: *RNode, b: *RNode) Error!?RNode {
         const merged_region = a.region.merge(b.region);
-        
+
         return switch (a.node) {
             .Range => |a_range| switch (b.node) {
                 .Range => |b_range| {
@@ -444,26 +444,26 @@ pub const Ast = struct {
                                 try b_upper.node.NumberString.toFloat();
                             const new_upper = a_upper_val * b_upper_val;
                             const new_upper_node = try self.create(.{ .NumberFloat = new_upper }, merged_region);
-                            return RNode{ 
+                            return RNode{
                                 .node = .{ .Range = .{ .lower = new_lower_node, .upper = new_upper_node } },
                                 .region = merged_region,
                             };
                         } else {
                             // b is open range, result is open
-                            return RNode{ 
+                            return RNode{
                                 .node = .{ .Range = .{ .lower = new_lower_node, .upper = null } },
                                 .region = merged_region,
                             };
                         }
                     } else if (b_range.upper) |_| {
                         // a is open range, result is open
-                        return RNode{ 
+                        return RNode{
                             .node = .{ .Range = .{ .lower = new_lower_node, .upper = null } },
                             .region = merged_region,
                         };
                     } else {
                         // Both open ranges
-                        return RNode{ 
+                        return RNode{
                             .node = .{ .Range = .{ .lower = new_lower_node, .upper = null } },
                             .region = merged_region,
                         };
@@ -477,13 +477,13 @@ pub const Ast = struct {
                 else => null,
             },
             .NumberFloat => |a_float| switch (b.node) {
-                .NumberFloat => |b_float| RNode{ 
+                .NumberFloat => |b_float| RNode{
                     .node = .{ .NumberFloat = a_float * b_float },
                     .region = merged_region,
                 },
                 .NumberString => |ns| {
                     const b_float = try ns.toFloat();
-                    return RNode{ 
+                    return RNode{
                         .node = .{ .NumberFloat = a_float * b_float },
                         .region = merged_region,
                     };
@@ -494,7 +494,7 @@ pub const Ast = struct {
             .NumberString => |nsa| switch (b.node) {
                 .NumberFloat => |b_float| {
                     const a_float = try nsa.toFloat();
-                    return RNode{ 
+                    return RNode{
                         .node = .{ .NumberFloat = a_float * b_float },
                         .region = merged_region,
                     };
@@ -502,7 +502,7 @@ pub const Ast = struct {
                 .NumberString => |nsb| blk: {
                     const a_float = try nsa.toFloat();
                     const b_float = try nsb.toFloat();
-                    break :blk RNode{ 
+                    break :blk RNode{
                         .node = .{ .NumberFloat = a_float * b_float },
                         .region = merged_region,
                     };
@@ -541,7 +541,7 @@ pub const Ast = struct {
                     const start = i * str.len;
                     @memcpy(buffer[start .. start + str.len], str);
                 }
-                return RNode{ 
+                return RNode{
                     .node = .{ .String = buffer },
                     .region = merged_region,
                 };
@@ -580,13 +580,13 @@ pub const Ast = struct {
                 try upper.node.NumberString.toFloat();
             const new_upper = upper_val * multiplier;
             const new_upper_node = try self.create(.{ .NumberFloat = new_upper }, region);
-            return RNode{ 
+            return RNode{
                 .node = .{ .Range = .{ .lower = new_lower_node, .upper = new_upper_node } },
                 .region = region,
             };
         } else {
             // Open range: lower..
-            return RNode{ 
+            return RNode{
                 .node = .{ .Range = .{ .lower = new_lower_node, .upper = null } },
                 .region = region,
             };
