@@ -829,9 +829,20 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
                         return false;
                     }
                 },
-                .Pattern => {
-                    // Shouldn't have more unbound parts
-                    @panic("Internal Error");
+                .Pattern => |pattern| {
+                    // Character ranges match exactly 1 character
+                    if (pattern == .Range) {
+                        if (value_index >= value_str.len) return false;
+                        const char_byte = value_str[value_index];
+                        const char_elem = Elem.string(try self.vm.strings.insert(&[_]u8{char_byte}));
+                        if (!(try self.matchPattern(char_elem, pattern))) {
+                            return false;
+                        }
+                        value_index += 1;
+                    } else {
+                        // Shouldn't have more variable-length unbound parts
+                        @panic("Internal Error");
+                    }
                 },
             }
         }
@@ -1062,12 +1073,24 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
                 }
             },
             .Pattern => |pattern| {
-                if (unbound_part == null) {
-                    unbound_part = pattern;
-                    unbound_part_index = part_index;
+                // Character ranges always match exactly 1 character
+                if (pattern == .Range) {
+                    // Assume character range for now (number ranges would need different handling)
+                    // Character ranges have fixed length of 1
+                    if (unbound_part == null) {
+                        before_unbound_length += 1;
+                    } else {
+                        after_unbound_length += 1;
+                    }
                 } else {
-                    // String merge can only have one unbound part
-                    return Error.RuntimeError;
+                    // Other patterns have variable length
+                    if (unbound_part == null) {
+                        unbound_part = pattern;
+                        unbound_part_index = part_index;
+                    } else {
+                        // String merge can only have one unbound part
+                        return Error.RuntimeError;
+                    }
                 }
             },
         }
@@ -1097,7 +1120,21 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
                     @panic("Internal Error");
                 }
             },
-            .Pattern => break,
+            .Pattern => |pattern| {
+                // Character ranges match exactly 1 character
+                if (pattern == .Range) {
+                    if (value_index >= value_str.len) return false;
+                    const char_byte = value_str[value_index];
+                    const char_elem = Elem.string(try self.vm.strings.insert(&[_]u8{char_byte}));
+                    if (!(try self.matchPattern(char_elem, pattern))) {
+                        return false;
+                    }
+                    value_index += 1;
+                } else {
+                    // Variable-length pattern - this is the unbound part
+                    break;
+                }
+            },
         }
     }
 
@@ -1266,9 +1303,20 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
                         return false;
                     }
                 },
-                .Pattern => {
-                    // Shouldn't have more unbound parts
-                    @panic("Internal Error");
+                .Pattern => |pattern| {
+                    // Character ranges match exactly 1 character
+                    if (pattern == .Range) {
+                        if (value_index >= value_str.len) return false;
+                        const char_byte = value_str[value_index];
+                        const char_elem = Elem.string(try self.vm.strings.insert(&[_]u8{char_byte}));
+                        if (!(try self.matchPattern(char_elem, pattern))) {
+                            return false;
+                        }
+                        value_index += 1;
+                    } else {
+                        // Shouldn't have more variable-length unbound parts
+                        @panic("Internal Error");
+                    }
                 },
             }
         }
