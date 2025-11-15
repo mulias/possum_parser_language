@@ -104,7 +104,7 @@ fn matchPattern(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool 
         .Range => |p| self.matchRange(value, p),
         .String => |p| self.matchString(value, p),
         .StringTemplate => |p| self.matchStringTemplate(value, p),
-        .Repeat => @panic("TODO"),
+        .Repeat => |p| self.matchRepeat(value, p),
     };
 }
 
@@ -298,7 +298,6 @@ fn matchMergeOfType(self: *PatternSolver, value: Elem, parts: []Simplified, merg
 }
 
 fn mergePatternType(self: *PatternSolver, part: Simplified) !MergeType {
-    _ = self;
     return switch (part) {
         .Value => |elem| switch (elem.getType()) {
             .String, .InputSubstring => .String,
@@ -322,7 +321,7 @@ fn mergePatternType(self: *PatternSolver, part: Simplified) !MergeType {
             .FunctionCall => .Untyped,
             .Local => .Untyped,
             .Merge => @panic("Internal Error"),
-            .Repeat => @panic("TODO"),
+            .Repeat => |r| try self.mergePatternType(.{ .Pattern = r.pattern.* }),
             .Null => .Untyped,
             .Number => .Number,
             .Object => .Object,
@@ -1196,7 +1195,7 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
                     => {
                         var all_null = true;
                         for (merge_pattern_parts.items) |part| {
-                            if (part != .Pattern or !part.Value.isConst(.Null)) {
+                            if (part == .Value and !part.Value.isConst(.Null)) {
                                 all_null = false;
                             }
                         }
@@ -1251,7 +1250,23 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
                     unbound_elem = dyn_str.dyn.elem();
                 }
             },
-            .Repeat => @panic("TODO"),
+            .Repeat => {
+                // Treat repeat pattern as string for unbound case
+                if (value.isType(.InputSubstring)) {
+                    const start = value.asInputSubstring().start;
+                    if (try Elem.inputSubstringFromRange(start + unbound_start, start + unbound_end)) |elem| {
+                        unbound_elem = elem;
+                    } else {
+                        const str = try Elem.DynElem.String.copy(self.vm, value_str[unbound_start..unbound_end]);
+                        try self.vm.pushTempDyn(&str.dyn);
+                        unbound_elem = str.dyn.elem();
+                    }
+                } else {
+                    const dyn_str = try Elem.DynElem.String.copy(self.vm, unbound_bytes);
+                    try self.vm.pushTempDyn(&dyn_str.dyn);
+                    unbound_elem = dyn_str.dyn.elem();
+                }
+            },
             .Constant,
             .FunctionCall,
             => @panic("Internal Error"),
@@ -1325,6 +1340,208 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
     return true;
 }
 
+fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.RepeatPattern) Error!bool {
+    // Try to evaluate the pattern to see if it's constant
+    const pattern_elem = try self.attemptEval(repeat_pattern.pattern.*);
+
+    if (pattern_elem) |pattern_value| {
+        // Pattern is constant - we can determine the count
+
+        // Handle string repetition
+        if (pattern_value.stringBytes(self.vm.*)) |pattern_str| {
+            const value_str = value.stringBytes(self.vm.*) orelse return false;
+
+            // Special case: empty string (identity element)
+            if (pattern_str.len == 0) {
+                if (value_str.len == 0) {
+                    // "" * N = "" for any N >= 1
+                    // Choose N = 1 as the canonical answer
+                    const count_elem = Elem.numberFloat(1);
+                    return self.matchPattern(count_elem, repeat_pattern.count.*);
+                } else {
+                    // Non-empty value can't be made from repeating empty pattern
+                    return false;
+                }
+            }
+
+            // Check if value length is divisible by pattern length
+            if (value_str.len % pattern_str.len != 0) return false;
+
+            const count = value_str.len / pattern_str.len;
+
+            // Verify value is pattern repeated count times
+            var i: usize = 0;
+            while (i < count) : (i += 1) {
+                const start = i * pattern_str.len;
+                const end = start + pattern_str.len;
+                if (!std.mem.eql(u8, value_str[start..end], pattern_str)) {
+                    return false;
+                }
+            }
+
+            // Match the count pattern with the calculated count
+            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+            return self.matchPattern(count_elem, repeat_pattern.count.*);
+        }
+
+        // Handle array repetition
+        if (pattern_value.isDynType(.Array)) {
+            if (!value.isDynType(.Array)) return false;
+
+            const pattern_array = pattern_value.asDyn().asArray();
+            const value_array = value.asDyn().asArray();
+
+            const pattern_len = pattern_array.len();
+            if (pattern_len == 0) return false;
+            if (value_array.len() % pattern_len != 0) return false;
+
+            const count = value_array.len() / pattern_len;
+
+            // Verify value is pattern array repeated count times
+            var i: usize = 0;
+            while (i < count) : (i += 1) {
+                const start = i * pattern_len;
+                for (0..pattern_len) |j| {
+                    const value_elem = value_array.elems.items[start + j];
+                    const pattern_elem_at_j = pattern_array.elems.items[j];
+                    if (!(try self.checkEquality(value_elem, pattern_elem_at_j))) {
+                        return false;
+                    }
+                }
+            }
+
+            // Match the count pattern with the calculated count
+            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+            return self.matchPattern(count_elem, repeat_pattern.count.*);
+        }
+
+        // Handle number repetition (multiplication)
+        if (pattern_value.isNumber() and value.isNumber()) {
+            // For numbers, pattern * count = value, so count = value / pattern
+            const pattern_float = if (pattern_value.isFloat())
+                pattern_value.asFloat()
+            else
+                pattern_value.asNumberString().toNumberFloat(self.vm.strings).asFloat();
+
+            const value_float = if (value.isFloat())
+                value.asFloat()
+            else
+                value.asNumberString().toNumberFloat(self.vm.strings).asFloat();
+
+            // Special case: zero (identity element)
+            if (pattern_float == 0) {
+                if (value_float == 0) {
+                    // 0 * N = 0 for any N >= 1
+                    // Choose N = 1 as the canonical answer
+                    const count_elem = Elem.numberFloat(1);
+                    return self.matchPattern(count_elem, repeat_pattern.count.*);
+                } else {
+                    // Non-zero value can't be made from repeating zero
+                    return false;
+                }
+            }
+
+            const count_float = value_float / pattern_float;
+
+            const count_elem = Elem.numberFloat(count_float);
+            return self.matchPattern(count_elem, repeat_pattern.count.*);
+        }
+
+        // Handle boolean repetition (OR)
+        if (pattern_value.isType(.Const)) {
+            const pattern_const = pattern_value.asConst();
+            if (pattern_const == .True or pattern_const == .False) {
+                if (!value.isType(.Const)) return false;
+                const value_const = value.asConst();
+                if (value_const != .True and value_const != .False) return false;
+
+                // Check if value equals pattern
+                if (pattern_value.isEql(value, self.vm.*)) {
+                    // true * N = true and false * N = false for any N >= 1
+                    // Choose N = 1 as the canonical answer
+                    const count_elem = Elem.numberFloat(1);
+                    return self.matchPattern(count_elem, repeat_pattern.count.*);
+                } else {
+                    // false can't produce true, and true can't produce false
+                    return false;
+                }
+            }
+        }
+
+        // Other types not supported
+        return false;
+    } else {
+        // Pattern can't be evaluated to a constant (e.g., range, unbound variables)
+        // Try to evaluate the count instead
+        const count_value = try self.attemptEval(repeat_pattern.count.*);
+
+        if (count_value) |count_elem| {
+            // Count is constant, try to match by iterating
+            if (!count_elem.isNumber()) return Error.RuntimeError;
+
+            const count_float = if (count_elem.isFloat())
+                count_elem.asFloat()
+            else
+                count_elem.asNumberString().toNumberFloat(self.vm.strings).asFloat();
+
+            // Count must be a non-negative integer
+            if (count_float < 0 or count_float != @floor(count_float)) return false;
+            const count = @as(usize, @intFromFloat(count_float));
+
+            // Try string pattern matching (character-by-character)
+            if (value.stringBytes(self.vm.*)) |value_str| {
+                // Value must have exactly count characters
+                if (value_str.len != count) return false;
+
+                // Match each character against the pattern
+                for (value_str) |byte| {
+                    const char_elem = Elem.string(try self.vm.strings.insert(&[_]u8{byte}));
+                    if (!(try self.matchPattern(char_elem, repeat_pattern.pattern.*))) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // Try array pattern matching (element-by-element)
+            if (value.isDynType(.Array)) {
+                const value_array = value.asDyn().asArray();
+
+                // Value must have exactly count elements
+                if (value_array.len() != count) return false;
+
+                // Match each element against the pattern
+                for (value_array.elems.items) |elem| {
+                    if (!(try self.matchPattern(elem, repeat_pattern.pattern.*))) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // Try number pattern matching (pattern * count = value, so pattern = value / count)
+            if (value.isNumber()) {
+                if (count_float == 0) return false;
+
+                const value_float = if (value.isFloat())
+                    value.asFloat()
+                else
+                    value.asNumberString().toNumberFloat(self.vm.strings).asFloat();
+
+                const pattern_float = value_float / count_float;
+                const computed_pattern = Elem.numberFloat(pattern_float);
+                return self.matchPattern(computed_pattern, repeat_pattern.pattern.*);
+            }
+
+            // Other value types not supported
+            return false;
+        } else {
+            // Neither pattern nor count can be evaluated - not supported
+            return Error.RuntimeError;
+        }
+    }
+}
+
 fn parseStringAsJsonElem(self: *PatternSolver, bytes: []const u8) !?Elem {
     const json_parsed = std.json.parseFromSlice(
         std.json.Value,
@@ -1353,7 +1570,23 @@ fn simplify(self: *PatternSolver, pattern: Pattern) Error!Simplified {
 
 fn attemptEval(self: *PatternSolver, pattern: Pattern) Error!?Elem {
     return switch (pattern) {
-        .Array => null,
+        .Array => |arr| blk: {
+            // Try to evaluate all elements
+            var elems = try self.vm.allocator.alloc(Elem, arr.items.len);
+            defer self.vm.allocator.free(elems);
+
+            for (arr.items, 0..) |item, i| {
+                elems[i] = try self.attemptEval(item) orelse break :blk null;
+            }
+
+            // All elements are constant, create array
+            const dyn_array = try Elem.DynElem.Array.create(self.vm, arr.items.len);
+            for (elems) |elem| {
+                try dyn_array.append(self.vm, elem);
+            }
+            try self.vm.pushTempDyn(&dyn_array.dyn);
+            break :blk dyn_array.dyn.elem();
+        },
         .Boolean => |b| Elem.boolean(b),
         .Constant => |c| try self.evalConstant(c),
         .FunctionCall => |fc| try self.evalFunctionCall(fc),
@@ -1365,7 +1598,11 @@ fn attemptEval(self: *PatternSolver, pattern: Pattern) Error!?Elem {
         .Range => null,
         .String => |sid| Elem.string(sid),
         .StringTemplate => null,
-        .Repeat => @panic("TODO"),
+        .Repeat => |r| blk: {
+            const pattern_elem = try self.attemptEval(r.pattern.*) orelse break :blk null;
+            const count_elem = try self.attemptEval(r.count.*) orelse break :blk null;
+            break :blk try Elem.repeat(pattern_elem, count_elem, self.vm);
+        },
     };
 }
 
