@@ -19,20 +19,12 @@ pub const Can = struct {
 
     const Error = error{
         OutOfMemory,
-        InvalidGlobalValue,
         InvalidGlobalParser,
-        UnlabeledStringValue,
-        UnlabeledNumberValue,
-        UnlabeledBooleanValue,
-        UnlabeledNullValue,
         RangeNotValidInMergePattern,
         RangeNotValidInValueContext,
         InvalidAst,
-        InvalidIdentifier,
         InvalidFunctionArgument,
         InvalidPatternNode,
-        InvalidDestructurePattern,
-        InvalidRepeatPattern,
         MultipleMainParsers,
     } || Writer.Error;
 

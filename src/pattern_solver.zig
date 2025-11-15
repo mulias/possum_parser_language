@@ -51,7 +51,6 @@ pub fn deinit(self: *PatternSolver) void {
 pub const Error = error{
     RuntimeError,
     OutOfMemory,
-    ExpectedNumber,
 } || VM.Error;
 
 pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool {

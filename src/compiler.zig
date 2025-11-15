@@ -33,8 +33,6 @@ pub const Compiler = struct {
         TooManyPatterns,
         ShortOverflow,
         VariableNameUsedInScope,
-        InvalidGlobalValue,
-        InvalidGlobalParser,
         AliasCycle,
         UnknownVariable,
         UndefinedVariable,
@@ -44,10 +42,6 @@ pub const Compiler = struct {
         RangeCodepointsUnordered,
         RangeIntegersUnordered,
         RangeInvalidNumberFormat,
-        UnlabeledStringValue,
-        UnlabeledNumberValue,
-        UnlabeledBooleanValue,
-        UnlabeledNullValue,
     } || Writer.Error;
 
     pub fn init(vm: *VM, targetModule: *Module, ast: Ast, printBytecode: bool) !Compiler {
