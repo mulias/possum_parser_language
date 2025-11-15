@@ -845,6 +845,32 @@ pub const Pattern = struct {
             } else {
                 return null;
             },
+            .array => |arr| if (b.node == .number_float or b.node == .number_string) {
+                const count_float = if (b.node == .number_float)
+                    b.node.number_float
+                else
+                    try b.node.number_string.toFloat();
+
+                if (count_float < 0 or count_float != @floor(count_float)) return null;
+                const count = @as(usize, @intFromFloat(count_float));
+                if (count == 0) return null;
+                if (count == 1) return a;
+
+                // Create new array with repeated elements
+                var new_array = ArrayList(*Pattern.RNode){};
+                try new_array.ensureTotalCapacity(ast.arena.allocator(), arr.items.len * count);
+                for (0..count) |_| {
+                    for (arr.items) |elem| {
+                        new_array.appendAssumeCapacity(elem);
+                    }
+                }
+                return Pattern.RNode{
+                    .node = .{ .array = new_array },
+                    .region = merged_region,
+                };
+            } else {
+                return null;
+            },
             .identifier => null,
             else => null, // Other types not supported
         };
