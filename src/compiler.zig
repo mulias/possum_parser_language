@@ -442,10 +442,17 @@ pub const Compiler = struct {
             const high_str = high_elem.?.asString();
             const low_bytes = self.vm.strings.get(low_str);
             const high_bytes = self.vm.strings.get(high_str);
-            const low_codepoint = parsing.utf8Decode(low_bytes) orelse return Error.RangeNotSingleCodepoint;
-            const high_codepoint = parsing.utf8Decode(high_bytes) orelse return Error.RangeNotSingleCodepoint;
+            const low_codepoint = parsing.utf8Decode(low_bytes) orelse {
+                try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                return Error.RangeNotSingleCodepoint;
+            };
+            const high_codepoint = parsing.utf8Decode(high_bytes) orelse {
+                try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                return Error.RangeNotSingleCodepoint;
+            };
 
             if (low_codepoint > high_codepoint) {
+                try self.printError(low.region.merge(high.region), "Range upper bound codepoint is less than the lower bound", .{});
                 return Error.RangeCodepointsUnordered;
             } else if (low_codepoint == 0 and high_codepoint == 0x10ffff) {
                 try self.emitOp(.ParseCharacter, region);
@@ -463,13 +470,20 @@ pub const Compiler = struct {
             const low_num = low_ns.toNumberFloat(self.vm.strings);
             const high_num = high_ns.toNumberFloat(self.vm.strings);
 
-            if (!low_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
-            if (!high_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
+            if (!low_num.isInteger(self.vm.strings)) {
+                try self.printError(low.region, "Range bound must be an integer", .{});
+                return Error.RangeInvalidNumberFormat;
+            }
+            if (!high_num.isInteger(self.vm.strings)) {
+                try self.printError(high.region, "Range bound must be an integer", .{});
+                return Error.RangeInvalidNumberFormat;
+            }
 
             const low_int = try low_num.asInteger(self.vm.strings);
             const high_int = try high_num.asInteger(self.vm.strings);
 
             if (low_int > high_int) {
+                try self.printError(low.region.merge(high.region), "Range upper bound is less than the lower bound", .{});
                 return Error.RangeIntegersUnordered;
             } else {
                 const low_id = try self.makeConstant(low_num);
@@ -483,7 +497,10 @@ pub const Compiler = struct {
                 .string => {
                     const low_str = low_elem.?.asString();
                     const low_bytes = self.vm.strings.get(low_str);
-                    _ = parsing.utf8Decode(low_bytes) orelse return Error.RangeNotSingleCodepoint;
+                    _ = parsing.utf8Decode(low_bytes) orelse {
+                        try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                        return Error.RangeNotSingleCodepoint;
+                    };
 
                     const low_id = try self.makeConstant(low_elem.?);
                     try self.emitUnaryOp(.GetConstant, low_id, low.region);
@@ -492,7 +509,10 @@ pub const Compiler = struct {
                     const low_ns = low_elem.?.asNumberString();
                     const low_num = low_ns.toNumberFloat(self.vm.strings);
 
-                    if (!low_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
+                    if (!low_num.isInteger(self.vm.strings)) {
+                        try self.printError(low.region, "Range bound must be an integer", .{});
+                        return Error.RangeInvalidNumberFormat;
+                    }
 
                     const low_id = try self.makeConstant(low_num);
                     try self.emitUnaryOp(.GetConstant, low_id, low.region);
@@ -503,14 +523,20 @@ pub const Compiler = struct {
                 .negation => |inner| {
                     try self.writeNegatedParserElem(inner, region);
                 },
-                else => return Error.InvalidAst,
+                else => {
+                    try self.printError(low.region, "Range bound must be an integer or codepoint", .{});
+                    return Error.InvalidAst;
+                },
             }
 
             switch (high.node) {
                 .string => {
                     const high_str = high_elem.?.asString();
                     const high_bytes = self.vm.strings.get(high_str);
-                    _ = parsing.utf8Decode(high_bytes) orelse return Error.RangeNotSingleCodepoint;
+                    _ = parsing.utf8Decode(high_bytes) orelse {
+                        try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                        return Error.RangeNotSingleCodepoint;
+                    };
 
                     const high_id = try self.makeConstant(high_elem.?);
                     try self.emitUnaryOp(.GetConstant, high_id, high.region);
@@ -519,7 +545,10 @@ pub const Compiler = struct {
                     const high_ns = high_elem.?.asNumberString();
                     const high_num = high_ns.toNumberFloat(self.vm.strings);
 
-                    if (!high_num.isInteger(self.vm.strings)) return Error.RangeInvalidNumberFormat;
+                    if (!high_num.isInteger(self.vm.strings)) {
+                        try self.printError(high.region, "Range bound must be an integer", .{});
+                        return Error.RangeInvalidNumberFormat;
+                    }
 
                     const high_id = try self.makeConstant(high_num);
                     try self.emitUnaryOp(.GetConstant, high_id, high.region);
@@ -530,7 +559,10 @@ pub const Compiler = struct {
                 .negation => |inner| {
                     try self.writeNegatedParserElem(inner, region);
                 },
-                else => return Error.InvalidAst,
+                else => {
+                    try self.printError(high.region, "Range bound must be an integer or codepoint", .{});
+                    return Error.InvalidAst;
+                },
             }
 
             try self.emitOp(.ParseRange, region);
@@ -545,7 +577,10 @@ pub const Compiler = struct {
             .string => {
                 const low_str = low_elem.?.asString();
                 const low_bytes = self.vm.strings.get(low_str);
-                const low_codepoint = parsing.utf8Decode(low_bytes) orelse return Error.RangeNotSingleCodepoint;
+                const low_codepoint = parsing.utf8Decode(low_bytes) orelse {
+                    try self.printError(low.region, "Character range bound must be a single codepoint", .{});
+                    return Error.RangeNotSingleCodepoint;
+                };
 
                 if (low_codepoint == 0) {
                     try self.emitOp(.ParseCharacter, region);
@@ -560,7 +595,10 @@ pub const Compiler = struct {
                 const low_num = low_ns.toNumberFloat(self.vm.strings);
                 const low_f = low_num.asFloat();
 
-                if (@trunc(low_f) != low_f) return Error.RangeInvalidNumberFormat;
+                if (@trunc(low_f) != low_f) {
+                    try self.printError(low.region, "Range bound must be an integer", .{});
+                    return Error.RangeInvalidNumberFormat;
+                }
 
                 const low_id = try self.makeConstant(low_num);
                 try self.emitUnaryOp(.GetConstant, low_id, low_region);
@@ -574,7 +612,10 @@ pub const Compiler = struct {
                 try self.writeNegatedParserElem(inner, region);
                 try self.emitOp(.ParseLowerBoundedRange, region);
             },
-            else => return Error.InvalidAst,
+            else => {
+                try self.printError(low.region, "Range bound must be an integer or codepoint", .{});
+                return Error.InvalidAst;
+            },
         }
     }
 
@@ -586,7 +627,10 @@ pub const Compiler = struct {
             .string => {
                 const high_str = high_elem.?.asString();
                 const high_bytes = self.vm.strings.get(high_str);
-                const high_codepoint = parsing.utf8Decode(high_bytes) orelse return Error.RangeNotSingleCodepoint;
+                const high_codepoint = parsing.utf8Decode(high_bytes) orelse {
+                    try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                    return Error.RangeNotSingleCodepoint;
+                };
 
                 if (high_codepoint == 0x10ffff) {
                     try self.emitOp(.ParseCharacter, region);
@@ -601,7 +645,10 @@ pub const Compiler = struct {
                 const high_num = high_ns.toNumberFloat(self.vm.strings);
                 const high_f = high_num.asFloat();
 
-                if (@trunc(high_f) != high_f) return Error.RangeInvalidNumberFormat;
+                if (@trunc(high_f) != high_f) {
+                    try self.printError(high.region, "Range bound must be an integer", .{});
+                    return Error.RangeInvalidNumberFormat;
+                }
 
                 const high_id = try self.makeConstant(high_num);
                 try self.emitUnaryOp(.GetConstant, high_id, high_region);
@@ -615,7 +662,10 @@ pub const Compiler = struct {
                 try self.writeNegatedParserElem(inner, region);
                 try self.emitOp(.ParseUpperBoundedRange, region);
             },
-            else => return Error.InvalidAst,
+            else => {
+                try self.printError(high.region, "Range bound must be an integer or codepoint", .{});
+                return Error.InvalidAst;
+            },
         }
     }
 
