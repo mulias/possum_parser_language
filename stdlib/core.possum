@@ -526,28 +526,22 @@ _toml.inline_table_pair(value, Doc) =
   maybe(spaces) $
   _Toml.Doc.InsertAtPath(Doc, Key, Val)
 
-toml.string.multi_line_basic = `"""` > maybe(nl) > _toml.string.multi_line_basic($"")
-
-_toml.string.multi_line_basic(Acc) =
-  (`"""""` $ (Acc + `""`)) |
-  (`""""` $ (Acc + `"`)) |
-  (`"""` $ Acc) |
-  (
-    _toml.escaped_ctrl_char |
-    _toml.escaped_unicode |
-    ws |
-    (`\` + ws > "") |
-    unless(char, _ctrl_char | `\`) -> C &
-    _toml.string.multi_line_basic(Acc + C)
+toml.string.multi_line_basic =
+  skip(`"""`) + skip(maybe(nl)) +
+  default(
+    many_until(
+      _toml.escaped_ctrl_char | _toml.escaped_unicode |
+      ws | (`\` + ws > "") | unless(char, _ctrl_char | `\`),
+      `"""`
+    ),
+    $""
   )
+  + skip(`"""`) + (`"` * 0..2)
 
-toml.string.multi_line_literal = `'''` > maybe(nl) > _toml.string.multi_line_literal($"")
-
-_toml.string.multi_line_literal(Acc) =
-  (`'''''` $ (Acc + `''`)) |
-  (`''''` $ (Acc + `'`)) |
-  (`'''` $ Acc) |
-  (char -> C & _toml.string.multi_line_literal(Acc + C))
+toml.string.multi_line_literal =
+  skip(`'''`) + skip(maybe(nl)) +
+  default(many_until(char, `'''`), $"")
+  + skip(`'''`) + (`'` * 0..2)
 
 toml.string.basic = '"' > _toml.string.basic_body < '"'
 
@@ -830,16 +824,11 @@ _Num.FromHexDigits(Hs, Pos, Acc) =
 
 ## Arrays
 
-Array.First(Array) = Array -> [F, ..._] & F
+Array.First(A) = A -> [F, ..._] & F
 
-Array.Rest(Array) = Array -> [_, ...R] & R
+Array.Rest(A) = A -> [_, ...R] & R
 
-Array.Length(A) = _Array.Length(A, 0)
-
-_Array.Length(A, Acc) =
-  A -> [_, ...Rest] ?
-  _Array.Length(Rest, Acc + 1) :
-  Acc
+Array.Length(A) = A -> ([_] * L) & L
 
 Array.Reverse(A) = _Array.Reverse(A, [])
 

@@ -1340,6 +1340,41 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
     return true;
 }
 
+fn getFixedArrayLength(self: *PatternSolver, pattern: Pattern) Error!?usize {
+    return switch (pattern) {
+        .Array => |arr| arr.items.len,
+        .Merge => |merge_parts| blk: {
+            var total_length: usize = 0;
+
+            for (merge_parts.items) |part| {
+                if (try self.attemptEval(part)) |elem| {
+                    // Part evaluated to a constant
+                    if (elem.isDynType(.Array)) {
+                        const array = elem.asDyn().asArray();
+                        total_length += array.len();
+                    } else if (elem.isConst(.Null)) {
+                        // Null has no length, skip it
+                    } else {
+                        // Part is not an array (e.g., unbound scalar variable)
+                        break :blk null;
+                    }
+                } else {
+                    // Part didn't evaluate - check if it's a fixed-length pattern
+                    if (part == .Array) {
+                        total_length += part.Array.items.len;
+                    } else {
+                        // Part has unknown length
+                        break :blk null;
+                    }
+                }
+            }
+
+            break :blk total_length;
+        },
+        else => null,
+    };
+}
+
 fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.RepeatPattern) Error!bool {
     // Try to evaluate the pattern to see if it's constant
     const pattern_elem = try self.attemptEval(repeat_pattern.pattern.*);
@@ -1536,8 +1571,40 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
             // Other value types not supported
             return false;
         } else {
-            // Neither pattern nor count can be evaluated - not supported
-            return Error.RuntimeError;
+            // Neither pattern nor count can be evaluated
+            // Try to determine if pattern has fixed array length
+            if (try self.getFixedArrayLength(repeat_pattern.pattern.*)) |pattern_len| {
+                // Handle array with fixed-length pattern but unbound elements/count
+                if (!value.isDynType(.Array)) return false;
+
+                const value_array = value.asDyn().asArray();
+                if (pattern_len == 0) return false;
+                if (value_array.len() % pattern_len != 0) return false;
+
+                const count = value_array.len() / pattern_len;
+
+                // Match each chunk against the pattern
+                var i: usize = 0;
+                while (i < count) : (i += 1) {
+                    const start = i * pattern_len;
+                    const end = start + pattern_len;
+
+                    // Create array element for this chunk
+                    const chunk_array = try Elem.DynElem.Array.create(self.vm, pattern_len);
+                    try self.vm.pushTempDyn(&chunk_array.dyn);
+                    try chunk_array.elems.appendSlice(self.vm.allocator, value_array.elems.items[start..end]);
+
+                    if (!(try self.matchPattern(chunk_array.dyn.elem(), repeat_pattern.pattern.*))) {
+                        return false;
+                    }
+                }
+
+                // Bind the count
+                const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+                return self.matchPattern(count_elem, repeat_pattern.count.*);
+            } else {
+                return Error.RuntimeError;
+            }
         }
     }
 }

@@ -878,3 +878,17 @@
           1 -> N
   Destructure Success: false -> (false * N)
   false
+
+  $ possum -p 'Length(A) = A -> ([_] * L) $ L ; const(Length([1,2,3]))' -i ''
+  
+  Destructure:
+      [1, 2, 3] -> ([_] * L)
+          [1] -> [_]
+              1 -> _
+          [2] -> [_]
+              2 -> _
+          [3] -> [_]
+              3 -> _
+          3 -> L
+  Destructure Success: [1, 2, 3] -> ([_] * L)
+  3
