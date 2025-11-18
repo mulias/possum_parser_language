@@ -1,6 +1,6 @@
 input(program)
 
-program = ast.node($"program", array(w_arround(statement)))
+program = ast.node(array(w_arround(statement)), $"program")
 
 statement = (named_function | main_parser) < statement_sep
 
@@ -12,7 +12,7 @@ named_function =
   "=" > expr -> Body $
   { "type": "named_function", "ident": Ident, "params": Params, "body": Body }
 
-main_parser = ast.node($"main_parser", expr)
+main_parser = ast.node(expr, $"main_parser")
 
 comment = "#" > chars_until(nl | end)
 
@@ -42,44 +42,44 @@ operand =
   object_node
 
 prefix =
-  ("$"   $ [{"type": "value_label"},         9]) |
-  ("..." $ [{"type": "spread"},              8]) |
-  (".."  $ [{"type": "upper_bounded_range"}, 7]) |
-  ("-"   $ [{"type": "negate"},              6])
+  ast.prefix_node("$",   $"value_label",         $9) |
+  ast.prefix_node("...", $"spread",              $8) |
+  ast.prefix_node("..",  $"upper_bounded_range", $7) |
+  ast.prefix_node("-",   $"negate",              $6)
 
 infix =
-  (".." $ [{"type": "range"},         5, 5.5]) |
-  ("|"  $ [{"type": "or"},            4, 4.5]) |
-  (">"  $ [{"type": "take_right"},    4, 4.5]) |
-  ("<"  $ [{"type": "take_left"},     4, 4.5]) |
-  ("+"  $ [{"type": "merge"},         4, 4.5]) |
-  ("!"  $ [{"type": "backtrack"},     4, 4.5]) |
-  ("->" $ [{"type": "destructure"},   4, 4.5]) |
-  ("$"  $ [{"type": "return"},        4, 4.5]) |
-  ("-"  $ [{"type": "subtract"},      4, 4.5]) |
-  ("*"  $ [{"type": "repeat"},        4, 4.5]) |
-  ("&"  $ [{"type": "and"},           3, 3.5]) |
-  (conditional_infix -> Node $ [Node, 2.5, 2]) |
-  ("="  $ [{"type": "assign"},        1.5, 1])
+  ast.infix_node("..", $"range",         $5, $5.5) |
+  ast.infix_node("|",  $"or",            $4, $4.5) |
+  ast.infix_node(">",  $"take_right",    $4, $4.5) |
+  ast.infix_node("<",  $"take_left",     $4, $4.5) |
+  ast.infix_node("+",  $"merge",         $4, $4.5) |
+  ast.infix_node("!",  $"backtrack",     $4, $4.5) |
+  ast.infix_node("->", $"destructure",   $4, $4.5) |
+  ast.infix_node("$",  $"return",        $4, $4.5) |
+  ast.infix_node("-",  $"subtract",      $4, $4.5) |
+  ast.infix_node("*",  $"repeat",        $4, $4.5) |
+  ast.infix_node("&",  $"and",           $3, $3.5) |
+  conditional_infix(   $"conditional",   $2.5, $2) |
+  ast.infix_node("=",  $"assign",        $1.5, $1)
 
 postfix =
-  (call_function_postfix -> Node       $ [Node, 11]) |
-  (lower_bounded_range_postfix -> Node $ [Node, 10])
+  call_function_postfix(      $"call_function",       $11) |
+  lower_bounded_range_postfix($"lower_bounded_range", $10)
 
 grouped_expr = "(" > w > expr < w < ")"
 
 boolean_node = ast.node(
+  boolean("t" + word -> "true", "f" + word -> "false"),
   $"boolean",
-  boolean("t" + word -> "true", "f" + word -> "false")
 )
 
 null_node = "n" + word -> "null" $ {"type": "null"}
 
 string_node = ast.node(
-  $"string",
   surround(quoted_string_body(`"`), `"`) |
   surround(quoted_string_body(`'`), `'`) |
-  surround(backtick_string_body, "`")
+  surround(backtick_string_body, "`"),
+  $"string",
 )
 
 quoted_string_body(end_quote) =
@@ -98,9 +98,9 @@ string_escape_unicode = `\u` + (hex_numeral * 6)
 backtick_string_body = chars_until("`") | const($"")
 
 template_string_node = ast.node(
-  $"template_string",
   surround(template_string_body(`"`, [], $""), `"`) |
-  surround(template_string_body(`'`, [], $""), `'`)
+  surround(template_string_body(`'`, [], $""), `'`),
+  $"template_string",
 )
 
 template_string_body(end_quote, TemplateParts, Str) =
@@ -120,7 +120,7 @@ template_string_body(end_quote, TemplateParts, Str) =
 AppendNonEmptyString(TemplateParts, Str) =
   Str -> "" ? TemplateParts : [...TemplateParts, {"type": "string", "value": Str}]
 
-number_node = ast.node($"number", number)
+number_node = ast.node(number, $"number")
 
 variable_node(Type, name_format) =
   peek(tuple2(
@@ -139,16 +139,16 @@ parser_variable_node = variable_node($"parser_variable", lower + maybe_many(alnu
 
 value_variable_node = variable_node($"value_variable", upper + maybe_many(alpha | "_" | "."))
 
-underscore_variable_node = ast.node($"underscore_variable", many("_"))
+underscore_variable_node = ast.node(many("_"), $"underscore_variable")
 
 array_node = ast.node(
+  "[" > w > maybe_array_sep(expr, ",") < trailing_comma < "]",
   $"array",
-  "[" > w > maybe_array_sep(expr, ",") < trailing_comma < "]"
 )
 
 object_node = ast.node(
+  "{" > w > maybe_array_sep(object_pair, ",") < trailing_comma < "}",
   $"object",
-  "{" > w > maybe_array_sep(object_pair, ",") < trailing_comma < "}"
 )
 
 object_pair = tuple2_sep(w_arround(expr), ":", w_arround(expr))
@@ -158,16 +158,18 @@ function_args_or_params =
 
 trailing_comma = maybe(w_arround(","))
 
-conditional_infix =
+conditional_infix(Type, LeftBindingPower, RightBindingPower) =
   "?" & w & expr -> Middle & w & ":" $
-  {"type": "conditional", "middle": Middle}
+  {"type": Type, "middle": Middle, "power": [LeftBindingPower, RightBindingPower]}
 
 # Since ".." can be a prefix, infix, or postfix we need to make sure it isn't
 # parsed as postfix when it is intended as infix. To do this we look ahead to
 # make sure there isn't a right hand value, and if there is we fail in order to
 # parse as infix instead.
-lower_bounded_range_postfix =
+lower_bounded_range_postfix(Type, BindingPower) =
   ".." & peek(w > (postfix | infix | end)) $
-  {"type": "lower_bounded_range"}
+  {"type": Type, "power": BindingPower}
 
-call_function_postfix = ast.node($"call_function", function_args_or_params)
+call_function_postfix(Type, BindingPower) =
+  function_args_or_params -> Args $
+  {"type": Type, "args": Args, "power": BindingPower}

@@ -3481,7 +3481,7 @@
         (ValueLabel 714:62-63 (NumberString 714:63-64 0))
       ]))
   
-  (DeclareGlobal 716:0-509
+  (DeclareGlobal 716:0-573
     (Function 716:0-77
       (Identifier 716:0-26 _ast.with_precedence_start) [
         (Identifier 716:27-34 operand)
@@ -3490,15 +3490,16 @@
         (Identifier 716:51-58 postfix)
         (Identifier 716:60-76 LeftBindingPower)
       ])
-    (Conditional 717:2-429
-      (Destructure 717:2-40
+    (Conditional 717:2-493
+      (Destructure 717:2-56
         (Identifier 717:2-8 prefix)
-        (Array 717:12-40 [
-          (Identifier 717:13-19 OpNode)
-          (Identifier 717:21-39 PrefixBindingPower)
-        ]))
-      (TakeRight 717:43-312
-        (Destructure 718:4-117
+        (Merge 717:12-56
+          (Object 717:12-45 [
+            (ObjectPair (String 717:13-20 "power") (Identifier 717:22-40 PrefixBindingPower))
+          ])
+          (Identifier 717:45-55 PrefixNode)))
+      (TakeRight 717:59-352
+        (Destructure 718:4-109
           (Function 718:4-101
             (Identifier 718:4-30 _ast.with_precedence_start) [
               (Identifier 719:6-13 operand)
@@ -3507,1184 +3508,1336 @@
               (Identifier 719:30-37 postfix)
               (Identifier 720:6-24 PrefixBindingPower)
             ])
-          (Identifier 721:9-21 PrefixedNode))
-        (Function 722:4-143
+          (Identifier 721:9-13 Node))
+        (Function 722:4-175
           (Identifier 722:4-29 _ast.with_precedence_rest) [
             (Identifier 723:6-13 operand)
             (Identifier 723:15-21 prefix)
             (Identifier 723:23-28 infix)
             (Identifier 723:30-37 postfix)
             (Identifier 724:6-22 LeftBindingPower)
-            (Merge 725:6-43
+            (Merge 725:6-75
               (Merge 725:6-7
                 (Object 725:6-7 [])
-                (Identifier 725:10-16 OpNode))
-              (Object 725:18-43 [
-                (ObjectPair (String 725:18-28 "prefixed") (Identifier 725:30-42 PrefixedNode))
-              ]))
+                (Identifier 725:10-20 PrefixNode))
+              (Merge 725:22-75
+                (Object 725:22-23 [
+                  (ObjectPair (String 725:22-32 "prefixed") (Identifier 725:34-38 Node))
+                ])
+                (Function 725:43-74
+                  (Identifier 725:43-56 _Ast.MergePos) [
+                    (Identifier 725:57-67 PrefixNode)
+                    (Identifier 725:69-73 Node)
+                  ])))
           ]))
-      (TakeRight 727:6-120
+      (TakeRight 727:6-144
         (Destructure 728:4-19
           (Identifier 728:4-11 operand)
           (Identifier 728:15-19 Node))
-        (Function 729:4-86
+        (Function 729:4-110
           (Identifier 729:4-29 _ast.with_precedence_rest) [
-            (Identifier 729:30-37 operand)
-            (Identifier 729:39-45 prefix)
-            (Identifier 729:47-52 infix)
-            (Identifier 729:54-61 postfix)
-            (Identifier 729:63-79 LeftBindingPower)
-            (Identifier 729:81-85 Node)
+            (Identifier 730:6-13 operand)
+            (Identifier 730:15-21 prefix)
+            (Identifier 730:23-28 infix)
+            (Identifier 730:30-37 postfix)
+            (Identifier 731:6-22 LeftBindingPower)
+            (Identifier 732:6-10 Node)
           ]))))
   
-  (DeclareGlobal 732:0-748
-    (Function 732:0-82
-      (Identifier 732:0-25 _ast.with_precedence_rest) [
-        (Identifier 732:26-33 operand)
-        (Identifier 732:35-41 prefix)
-        (Identifier 732:43-48 infix)
-        (Identifier 732:50-57 postfix)
-        (Identifier 732:59-75 LeftBindingPower)
-        (Identifier 732:77-81 Node)
+  (DeclareGlobal 736:0-862
+    (Function 736:0-82
+      (Identifier 736:0-25 _ast.with_precedence_rest) [
+        (Identifier 736:26-33 operand)
+        (Identifier 736:35-41 prefix)
+        (Identifier 736:43-48 infix)
+        (Identifier 736:50-57 postfix)
+        (Identifier 736:59-75 LeftBindingPower)
+        (Identifier 736:77-81 Node)
       ])
-    (Conditional 733:2-663
-      (TakeRight 733:2-100
-        (Destructure 733:2-40
-          (Identifier 733:2-9 postfix)
-          (Array 733:13-40 [
-            (Identifier 733:14-20 OpNode)
-            (Identifier 733:22-39 RightBindingPower)
-          ]))
-        (Function 734:2-57
-          (Identifier 734:2-7 const) [
-            (Function 734:8-56
-              (Identifier 734:8-19 Is.LessThan) [
-                (Identifier 734:20-36 LeftBindingPower)
-                (Identifier 734:38-55 RightBindingPower)
+    (Conditional 737:2-777
+      (TakeRight 737:2-117
+        (Destructure 737:2-57
+          (Identifier 737:2-9 postfix)
+          (Merge 737:13-57
+            (Object 737:13-45 [
+              (ObjectPair (String 737:14-21 "power") (Identifier 737:23-40 RightBindingPower))
+            ])
+            (Identifier 737:45-56 PostfixNode)))
+        (Function 738:2-57
+          (Identifier 738:2-7 const) [
+            (Function 738:8-56
+              (Identifier 738:8-19 Is.LessThan) [
+                (Identifier 738:20-36 LeftBindingPower)
+                (Identifier 738:38-55 RightBindingPower)
               ])
           ]))
-      (Function 734:60-202
-        (Identifier 735:4-29 _ast.with_precedence_rest) [
-          (Identifier 736:6-13 operand)
-          (Identifier 736:15-21 prefix)
-          (Identifier 736:23-28 infix)
-          (Identifier 736:30-37 postfix)
-          (Identifier 737:6-22 LeftBindingPower)
-          (Merge 738:6-36
-            (Merge 738:6-7
-              (Object 738:6-7 [])
-              (Identifier 738:10-16 OpNode))
-            (Object 738:18-36 [
-              (ObjectPair (String 738:18-29 "postfixed") (Identifier 738:31-35 Node))
-            ]))
+      (Function 738:60-244
+        (Identifier 739:4-29 _ast.with_precedence_rest) [
+          (Identifier 740:6-13 operand)
+          (Identifier 740:15-21 prefix)
+          (Identifier 740:23-28 infix)
+          (Identifier 740:30-37 postfix)
+          (Identifier 741:6-22 LeftBindingPower)
+          (Merge 742:6-78
+            (Merge 742:6-7
+              (Object 742:6-7 [])
+              (Identifier 742:10-21 PostfixNode))
+            (Merge 742:23-78
+              (Object 742:23-24 [
+                (ObjectPair (String 742:23-34 "postfixed") (Identifier 742:36-40 Node))
+              ])
+              (Function 742:45-77
+                (Identifier 742:45-58 _Ast.MergePos) [
+                  (Identifier 742:59-63 Node)
+                  (Identifier 742:65-76 PostfixNode)
+                ])))
         ])
-      (Conditional 741:2-415
-        (TakeRight 741:2-120
-          (Destructure 741:2-60
-            (Identifier 741:2-7 infix)
-            (Array 741:11-60 [
-              (Identifier 741:12-18 OpNode)
-              (Identifier 741:20-37 RightBindingPower)
-              (Identifier 741:39-59 NextLeftBindingPower)
-            ]))
-          (Function 742:2-57
-            (Identifier 742:2-7 const) [
-              (Function 742:8-56
-                (Identifier 742:8-19 Is.LessThan) [
-                  (Identifier 742:20-36 LeftBindingPower)
-                  (Identifier 742:38-55 RightBindingPower)
+      (Conditional 745:2-470
+        (TakeRight 745:2-137
+          (Destructure 745:2-77
+            (Identifier 745:2-7 infix)
+            (Merge 745:11-77
+              (Object 745:11-67 [
+                (ObjectPair
+                  (String 745:12-19 "power")
+                  (Array 745:21-62 [
+                    (Identifier 745:22-39 RightBindingPower)
+                    (Identifier 745:41-61 NextLeftBindingPower)
+                  ]))
+              ])
+              (Identifier 745:67-76 InfixNode)))
+          (Function 746:2-57
+            (Identifier 746:2-7 const) [
+              (Function 746:8-56
+                (Identifier 746:8-19 Is.LessThan) [
+                  (Identifier 746:20-36 LeftBindingPower)
+                  (Identifier 746:38-55 RightBindingPower)
                 ])
             ]))
-        (TakeRight 742:60-336
-          (Destructure 743:4-116
-            (Function 743:4-103
-              (Identifier 743:4-30 _ast.with_precedence_start) [
-                (Identifier 744:6-13 operand)
-                (Identifier 744:15-21 prefix)
-                (Identifier 744:23-28 infix)
-                (Identifier 744:30-37 postfix)
-                (Identifier 745:6-26 NextLeftBindingPower)
+        (TakeRight 746:60-374
+          (Destructure 747:4-116
+            (Function 747:4-103
+              (Identifier 747:4-30 _ast.with_precedence_start) [
+                (Identifier 748:6-13 operand)
+                (Identifier 748:15-21 prefix)
+                (Identifier 748:23-28 infix)
+                (Identifier 748:30-37 postfix)
+                (Identifier 749:6-26 NextLeftBindingPower)
               ])
-            (Identifier 746:9-18 RightNode))
-          (Function 747:4-151
-            (Identifier 747:4-29 _ast.with_precedence_rest) [
-              (Identifier 748:6-13 operand)
-              (Identifier 748:15-21 prefix)
-              (Identifier 748:23-28 infix)
-              (Identifier 748:30-37 postfix)
-              (Identifier 749:6-22 LeftBindingPower)
-              (Merge 750:6-51
-                (Merge 750:6-7
-                  (Object 750:6-7 [])
-                  (Identifier 750:10-16 OpNode))
-                (Object 750:18-51 [
-                  (ObjectPair (String 750:18-24 "left") (Identifier 750:26-30 Node))
-                  (ObjectPair (String 750:32-39 "right") (Identifier 750:41-50 RightNode))
-                ]))
+            (Identifier 750:9-18 RightNode))
+          (Function 751:4-189
+            (Identifier 751:4-29 _ast.with_precedence_rest) [
+              (Identifier 752:6-13 operand)
+              (Identifier 752:15-21 prefix)
+              (Identifier 752:23-28 infix)
+              (Identifier 752:30-37 postfix)
+              (Identifier 753:6-22 LeftBindingPower)
+              (Merge 754:6-89
+                (Merge 754:6-7
+                  (Object 754:6-7 [])
+                  (Identifier 754:10-19 InfixNode))
+                (Merge 754:21-89
+                  (Object 754:21-22 [
+                    (ObjectPair (String 754:21-27 "left") (Identifier 754:29-33 Node))
+                    (ObjectPair (String 754:35-42 "right") (Identifier 754:44-53 RightNode))
+                  ])
+                  (Function 754:58-88
+                    (Identifier 754:58-71 _Ast.MergePos) [
+                      (Identifier 754:72-76 Node)
+                      (Identifier 754:78-87 RightNode)
+                    ])))
             ]))
-        (Function 753:2-13
-          (Identifier 753:2-7 const) [
-            (Identifier 753:8-12 Node)
+        (Function 757:2-13
+          (Identifier 757:2-7 const) [
+            (Identifier 757:8-12 Node)
           ]))))
   
-  (DeclareGlobal 755:0-73
-    (Function 755:0-21
-      (Identifier 755:0-8 ast.node) [
-        (Identifier 755:9-13 Type)
-        (Identifier 755:15-20 value)
+  (DeclareGlobal 759:0-73
+    (Function 759:0-21
+      (Identifier 759:0-8 ast.node) [
+        (Identifier 759:9-14 value)
+        (Identifier 759:16-20 Type)
       ])
-    (Return 756:2-49
-      (Destructure 756:2-16
-        (Identifier 756:2-7 value)
-        (Identifier 756:11-16 Value))
-      (Object 756:19-49 [
-        (ObjectPair (String 756:20-26 "type") (Identifier 756:28-32 Type))
-        (ObjectPair (String 756:34-41 "value") (Identifier 756:43-48 Value))
+    (Return 760:2-49
+      (Destructure 760:2-16
+        (Identifier 760:2-7 value)
+        (Identifier 760:11-16 Value))
+      (Object 760:19-49 [
+        (ObjectPair (String 760:20-26 "type") (Identifier 760:28-32 Type))
+        (ObjectPair (String 760:34-41 "value") (Identifier 760:43-48 Value))
       ])))
   
-  (DeclareGlobal 762:0-14
-    (Identifier 762:0-7 Num.Add)
-    (Identifier 762:10-14 @Add))
-  
-  (DeclareGlobal 764:0-19
-    (Identifier 764:0-7 Num.Sub)
-    (Identifier 764:10-19 @Subtract))
-  
-  (DeclareGlobal 766:0-19
-    (Identifier 766:0-7 Num.Mul)
-    (Identifier 766:10-19 @Multiply))
-  
-  (DeclareGlobal 768:0-17
-    (Identifier 768:0-7 Num.Div)
-    (Identifier 768:10-17 @Divide))
-  
-  (DeclareGlobal 770:0-16
-    (Identifier 770:0-7 Num.Pow)
-    (Identifier 770:10-16 @Power))
-  
-  (DeclareGlobal 772:0-23
-    (Function 772:0-10
-      (Identifier 772:0-7 Num.Inc) [
-        (Identifier 772:8-9 N)
+  (DeclareGlobal 762:0-86
+    (Function 762:0-39
+      (Identifier 762:0-15 ast.prefix_node) [
+        (Identifier 762:16-18 op)
+        (Identifier 762:20-24 Type)
+        (Identifier 762:26-38 BindingPower)
       ])
-    (Function 772:13-23
-      (Identifier 772:13-17 @Add) [
-        (Identifier 772:18-19 N)
-        (NumberString 772:21-22 1)
+    (Return 763:2-44
+      (Identifier 763:2-4 op)
+      (Object 763:7-44 [
+        (ObjectPair (String 763:8-14 "type") (Identifier 763:16-20 Type))
+        (ObjectPair (String 763:22-29 "power") (Identifier 763:31-43 BindingPower))
+      ])))
+  
+  (DeclareGlobal 765:0-133
+    (Function 765:0-61
+      (Identifier 765:0-14 ast.infix_node) [
+        (Identifier 765:15-17 op)
+        (Identifier 765:19-23 Type)
+        (Identifier 765:25-41 LeftBindingPower)
+        (Identifier 765:43-60 RightBindingPower)
+      ])
+    (Return 766:2-69
+      (Identifier 766:2-4 op)
+      (Object 766:7-69 [
+        (ObjectPair (String 766:8-14 "type") (Identifier 766:16-20 Type))
+        (ObjectPair
+          (String 766:22-29 "power")
+          (Array 766:31-68 [
+            (Identifier 766:32-48 LeftBindingPower)
+            (Identifier 766:50-67 RightBindingPower)
+          ]))
+      ])))
+  
+  (DeclareGlobal 768:0-87
+    (Function 768:0-40
+      (Identifier 768:0-16 ast.postfix_node) [
+        (Identifier 768:17-19 op)
+        (Identifier 768:21-25 Type)
+        (Identifier 768:27-39 BindingPower)
+      ])
+    (Return 769:2-44
+      (Identifier 769:2-4 op)
+      (Object 769:7-44 [
+        (ObjectPair (String 769:8-14 "type") (Identifier 769:16-20 Type))
+        (ObjectPair (String 769:22-29 "power") (Identifier 769:31-43 BindingPower))
+      ])))
+  
+  (DeclareGlobal 771:0-166
+    (Function 771:0-25
+      (Identifier 771:0-19 ast.with_offset_pos) [
+        (Identifier 771:20-24 node)
+      ])
+    (TakeRight 772:2-138
+      (TakeRight 772:2-47
+        (Destructure 772:2-30
+          (Identifier 772:2-15 @input.offset)
+          (Identifier 772:19-30 StartOffset))
+        (Destructure 773:2-14
+          (Identifier 773:2-6 node)
+          (Identifier 773:10-14 Node)))
+      (Return 774:2-88
+        (Destructure 774:2-28
+          (Identifier 774:2-15 @input.offset)
+          (Identifier 774:19-28 EndOffset))
+        (Merge 775:2-57
+          (Merge 775:2-3
+            (Object 775:2-3 [])
+            (Identifier 775:6-10 Node))
+          (Object 775:12-57 [
+            (ObjectPair (String 775:12-22 "startpos") (Identifier 775:24-35 StartOffset))
+            (ObjectPair (String 775:37-45 "endpos") (Identifier 775:47-56 EndOffset))
+          ])))))
+  
+  (DeclareGlobal 777:0-323
+    (Function 777:0-23
+      (Identifier 777:0-17 ast.with_line_pos) [
+        (Identifier 777:18-22 node)
+      ])
+    (TakeRight 778:2-297
+      (TakeRight 778:2-112
+        (TakeRight 778:2-85
+          (TakeRight 778:2-68
+            (Destructure 778:2-26
+              (Identifier 778:2-13 @input.line)
+              (Identifier 778:17-26 StartLine))
+            (Destructure 779:2-39
+              (Identifier 779:2-20 @input.line_offset)
+              (Identifier 779:24-39 StartLineOffset)))
+          (Destructure 780:2-14
+            (Identifier 780:2-6 node)
+            (Identifier 780:10-14 Node)))
+        (Destructure 781:2-24
+          (Identifier 781:2-13 @input.line)
+          (Identifier 781:17-24 EndLine)))
+      (Return 782:2-182
+        (Destructure 782:2-37
+          (Identifier 782:2-20 @input.line_offset)
+          (Identifier 782:24-37 EndLineOffset))
+        (Merge 783:2-142
+          (Merge 783:2-3
+            (Object 783:2-3 [])
+            (Identifier 784:7-11 Node))
+          (Object 785:4-125 [
+            (ObjectPair
+              (String 785:4-14 "startpos")
+              (Object 785:16-62 [
+                (ObjectPair (String 785:17-23 "line") (Identifier 785:25-34 StartLine))
+                (ObjectPair (String 785:36-44 "offset") (Identifier 785:46-61 StartLineOffset))
+              ]))
+            (ObjectPair
+              (String 786:4-12 "endpos")
+              (Object 786:14-56 [
+                (ObjectPair (String 786:15-21 "line") (Identifier 786:23-30 EndLine))
+                (ObjectPair (String 786:32-40 "offset") (Identifier 786:42-55 EndLineOffset))
+              ]))
+          ])))))
+  
+  (DeclareGlobal 793:0-14
+    (Identifier 793:0-7 Num.Add)
+    (Identifier 793:10-14 @Add))
+  
+  (DeclareGlobal 795:0-19
+    (Identifier 795:0-7 Num.Sub)
+    (Identifier 795:10-19 @Subtract))
+  
+  (DeclareGlobal 797:0-19
+    (Identifier 797:0-7 Num.Mul)
+    (Identifier 797:10-19 @Multiply))
+  
+  (DeclareGlobal 799:0-17
+    (Identifier 799:0-7 Num.Div)
+    (Identifier 799:10-17 @Divide))
+  
+  (DeclareGlobal 801:0-16
+    (Identifier 801:0-7 Num.Pow)
+    (Identifier 801:10-16 @Power))
+  
+  (DeclareGlobal 803:0-23
+    (Function 803:0-10
+      (Identifier 803:0-7 Num.Inc) [
+        (Identifier 803:8-9 N)
+      ])
+    (Function 803:13-23
+      (Identifier 803:13-17 @Add) [
+        (Identifier 803:18-19 N)
+        (NumberString 803:21-22 1)
       ]))
   
-  (DeclareGlobal 774:0-28
-    (Function 774:0-10
-      (Identifier 774:0-7 Num.Dec) [
-        (Identifier 774:8-9 N)
+  (DeclareGlobal 805:0-28
+    (Function 805:0-10
+      (Identifier 805:0-7 Num.Dec) [
+        (Identifier 805:8-9 N)
       ])
-    (Function 774:13-28
-      (Identifier 774:13-22 @Subtract) [
-        (Identifier 774:23-24 N)
-        (NumberString 774:26-27 1)
+    (Function 805:13-28
+      (Identifier 805:13-22 @Subtract) [
+        (Identifier 805:23-24 N)
+        (NumberString 805:26-27 1)
       ]))
   
-  (DeclareGlobal 776:0-26
-    (Function 776:0-10
-      (Identifier 776:0-7 Num.Abs) [
-        (Identifier 776:8-9 N)
+  (DeclareGlobal 807:0-26
+    (Function 807:0-10
+      (Identifier 807:0-7 Num.Abs) [
+        (Identifier 807:8-9 N)
       ])
-    (Or 776:13-26
-      (Destructure 776:13-21
-        (Identifier 776:13-14 N)
-        (Range 776:18-21 (NumberString 776:18-19 0) ()))
-      (Negation 776:24-26 (Identifier 776:25-26 N))))
+    (Or 807:13-26
+      (Destructure 807:13-21
+        (Identifier 807:13-14 N)
+        (Range 807:18-21 (NumberString 807:18-19 0) ()))
+      (Negation 807:24-26 (Identifier 807:25-26 N))))
   
-  (DeclareGlobal 778:0-32
-    (Function 778:0-13
-      (Identifier 778:0-7 Num.Max) [
-        (Identifier 778:8-9 A)
-        (Identifier 778:11-12 B)
+  (DeclareGlobal 809:0-32
+    (Function 809:0-13
+      (Identifier 809:0-7 Num.Max) [
+        (Identifier 809:8-9 A)
+        (Identifier 809:11-12 B)
       ])
-    (Conditional 778:16-32
-      (Destructure 778:16-24
-        (Identifier 778:16-17 A)
-        (Range 778:21-24 (Identifier 778:21-22 B) ()))
-      (Identifier 778:27-28 A)
-      (Identifier 778:31-32 B)))
+    (Conditional 809:16-32
+      (Destructure 809:16-24
+        (Identifier 809:16-17 A)
+        (Range 809:21-24 (Identifier 809:21-22 B) ()))
+      (Identifier 809:27-28 A)
+      (Identifier 809:31-32 B)))
   
-  (DeclareGlobal 780:0-94
-    (Function 780:0-24
-      (Identifier 780:0-20 Num.FromBinaryDigits) [
-        (Identifier 780:21-23 Bs)
+  (DeclareGlobal 811:0-94
+    (Function 811:0-24
+      (Identifier 811:0-20 Num.FromBinaryDigits) [
+        (Identifier 811:21-23 Bs)
       ])
-    (TakeRight 781:2-67
-      (Destructure 781:2-25
-        (Function 781:2-18
-          (Identifier 781:2-14 Array.Length) [
-            (Identifier 781:15-17 Bs)
+    (TakeRight 812:2-67
+      (Destructure 812:2-25
+        (Function 812:2-18
+          (Identifier 812:2-14 Array.Length) [
+            (Identifier 812:15-17 Bs)
           ])
-        (Identifier 781:22-25 Len))
-      (Function 782:2-39
-        (Identifier 782:2-23 _Num.FromBinaryDigits) [
-          (Identifier 782:24-26 Bs)
-          (NumberSubtract 782:28-35
-            (Identifier 782:28-31 Len)
-            (NumberString 782:34-35 1))
-          (NumberString 782:37-38 0)
+        (Identifier 812:22-25 Len))
+      (Function 813:2-39
+        (Identifier 813:2-23 _Num.FromBinaryDigits) [
+          (Identifier 813:24-26 Bs)
+          (NumberSubtract 813:28-35
+            (Identifier 813:28-31 Len)
+            (NumberString 813:34-35 1))
+          (NumberString 813:37-38 0)
         ])))
   
-  (DeclareGlobal 784:0-191
-    (Function 784:0-35
-      (Identifier 784:0-21 _Num.FromBinaryDigits) [
-        (Identifier 784:22-24 Bs)
-        (Identifier 784:26-29 Pos)
-        (Identifier 784:31-34 Acc)
+  (DeclareGlobal 815:0-191
+    (Function 815:0-35
+      (Identifier 815:0-21 _Num.FromBinaryDigits) [
+        (Identifier 815:22-24 Bs)
+        (Identifier 815:26-29 Pos)
+        (Identifier 815:31-34 Acc)
       ])
-    (Conditional 785:2-153
-      (Destructure 785:2-20
-        (Identifier 785:2-4 Bs)
-        (Merge 785:8-20
-          (Array 785:8-9 [
-            (Identifier 785:9-10 B)
+    (Conditional 816:2-153
+      (Destructure 816:2-20
+        (Identifier 816:2-4 Bs)
+        (Merge 816:8-20
+          (Array 816:8-9 [
+            (Identifier 816:9-10 B)
           ])
-          (Identifier 785:15-19 Rest)))
-      (TakeRight 785:23-145
-        (Destructure 786:4-13
-          (Identifier 786:4-5 B)
-          (Range 786:9-13 (NumberString 786:9-10 0) (NumberString 786:12-13 1)))
-        (Function 787:4-100
-          (Identifier 787:4-25 _Num.FromBinaryDigits) [
-            (Identifier 788:6-10 Rest)
-            (NumberSubtract 789:6-13
-              (Identifier 789:6-9 Pos)
-              (NumberString 789:12-13 1))
-            (Merge 790:6-39
-              (Identifier 790:6-9 Acc)
-              (Function 790:12-39
-                (Identifier 790:12-19 Num.Mul) [
-                  (Identifier 790:20-21 B)
-                  (Function 790:23-38
-                    (Identifier 790:23-30 Num.Pow) [
-                      (NumberString 790:31-32 2)
-                      (Identifier 790:34-37 Pos)
+          (Identifier 816:15-19 Rest)))
+      (TakeRight 816:23-145
+        (Destructure 817:4-13
+          (Identifier 817:4-5 B)
+          (Range 817:9-13 (NumberString 817:9-10 0) (NumberString 817:12-13 1)))
+        (Function 818:4-100
+          (Identifier 818:4-25 _Num.FromBinaryDigits) [
+            (Identifier 819:6-10 Rest)
+            (NumberSubtract 820:6-13
+              (Identifier 820:6-9 Pos)
+              (NumberString 820:12-13 1))
+            (Merge 821:6-39
+              (Identifier 821:6-9 Acc)
+              (Function 821:12-39
+                (Identifier 821:12-19 Num.Mul) [
+                  (Identifier 821:20-21 B)
+                  (Function 821:23-38
+                    (Identifier 821:23-30 Num.Pow) [
+                      (NumberString 821:31-32 2)
+                      (Identifier 821:34-37 Pos)
                     ])
                 ]))
           ]))
-      (Identifier 793:2-5 Acc)))
+      (Identifier 824:2-5 Acc)))
   
-  (DeclareGlobal 795:0-92
-    (Function 795:0-23
-      (Identifier 795:0-19 Num.FromOctalDigits) [
-        (Identifier 795:20-22 Os)
+  (DeclareGlobal 826:0-92
+    (Function 826:0-23
+      (Identifier 826:0-19 Num.FromOctalDigits) [
+        (Identifier 826:20-22 Os)
       ])
-    (TakeRight 796:2-66
-      (Destructure 796:2-25
-        (Function 796:2-18
-          (Identifier 796:2-14 Array.Length) [
-            (Identifier 796:15-17 Os)
+    (TakeRight 827:2-66
+      (Destructure 827:2-25
+        (Function 827:2-18
+          (Identifier 827:2-14 Array.Length) [
+            (Identifier 827:15-17 Os)
           ])
-        (Identifier 796:22-25 Len))
-      (Function 797:2-38
-        (Identifier 797:2-22 _Num.FromOctalDigits) [
-          (Identifier 797:23-25 Os)
-          (NumberSubtract 797:27-34
-            (Identifier 797:27-30 Len)
-            (NumberString 797:33-34 1))
-          (NumberString 797:36-37 0)
+        (Identifier 827:22-25 Len))
+      (Function 828:2-38
+        (Identifier 828:2-22 _Num.FromOctalDigits) [
+          (Identifier 828:23-25 Os)
+          (NumberSubtract 828:27-34
+            (Identifier 828:27-30 Len)
+            (NumberString 828:33-34 1))
+          (NumberString 828:36-37 0)
         ])))
   
-  (DeclareGlobal 799:0-189
-    (Function 799:0-34
-      (Identifier 799:0-20 _Num.FromOctalDigits) [
-        (Identifier 799:21-23 Os)
-        (Identifier 799:25-28 Pos)
-        (Identifier 799:30-33 Acc)
+  (DeclareGlobal 830:0-189
+    (Function 830:0-34
+      (Identifier 830:0-20 _Num.FromOctalDigits) [
+        (Identifier 830:21-23 Os)
+        (Identifier 830:25-28 Pos)
+        (Identifier 830:30-33 Acc)
       ])
-    (Conditional 800:2-152
-      (Destructure 800:2-20
-        (Identifier 800:2-4 Os)
-        (Merge 800:8-20
-          (Array 800:8-9 [
-            (Identifier 800:9-10 O)
+    (Conditional 831:2-152
+      (Destructure 831:2-20
+        (Identifier 831:2-4 Os)
+        (Merge 831:8-20
+          (Array 831:8-9 [
+            (Identifier 831:9-10 O)
           ])
-          (Identifier 800:15-19 Rest)))
-      (TakeRight 800:23-144
-        (Destructure 801:4-13
-          (Identifier 801:4-5 O)
-          (Range 801:9-13 (NumberString 801:9-10 0) (NumberString 801:12-13 7)))
-        (Function 802:4-99
-          (Identifier 802:4-24 _Num.FromOctalDigits) [
-            (Identifier 803:6-10 Rest)
-            (NumberSubtract 804:6-13
-              (Identifier 804:6-9 Pos)
-              (NumberString 804:12-13 1))
-            (Merge 805:6-39
-              (Identifier 805:6-9 Acc)
-              (Function 805:12-39
-                (Identifier 805:12-19 Num.Mul) [
-                  (Identifier 805:20-21 O)
-                  (Function 805:23-38
-                    (Identifier 805:23-30 Num.Pow) [
-                      (NumberString 805:31-32 8)
-                      (Identifier 805:34-37 Pos)
+          (Identifier 831:15-19 Rest)))
+      (TakeRight 831:23-144
+        (Destructure 832:4-13
+          (Identifier 832:4-5 O)
+          (Range 832:9-13 (NumberString 832:9-10 0) (NumberString 832:12-13 7)))
+        (Function 833:4-99
+          (Identifier 833:4-24 _Num.FromOctalDigits) [
+            (Identifier 834:6-10 Rest)
+            (NumberSubtract 835:6-13
+              (Identifier 835:6-9 Pos)
+              (NumberString 835:12-13 1))
+            (Merge 836:6-39
+              (Identifier 836:6-9 Acc)
+              (Function 836:12-39
+                (Identifier 836:12-19 Num.Mul) [
+                  (Identifier 836:20-21 O)
+                  (Function 836:23-38
+                    (Identifier 836:23-30 Num.Pow) [
+                      (NumberString 836:31-32 8)
+                      (Identifier 836:34-37 Pos)
                     ])
                 ]))
           ]))
-      (Identifier 808:2-5 Acc)))
+      (Identifier 839:2-5 Acc)))
   
-  (DeclareGlobal 810:0-88
-    (Function 810:0-21
-      (Identifier 810:0-17 Num.FromHexDigits) [
-        (Identifier 810:18-20 Hs)
+  (DeclareGlobal 841:0-88
+    (Function 841:0-21
+      (Identifier 841:0-17 Num.FromHexDigits) [
+        (Identifier 841:18-20 Hs)
       ])
-    (TakeRight 811:2-64
-      (Destructure 811:2-25
-        (Function 811:2-18
-          (Identifier 811:2-14 Array.Length) [
-            (Identifier 811:15-17 Hs)
+    (TakeRight 842:2-64
+      (Destructure 842:2-25
+        (Function 842:2-18
+          (Identifier 842:2-14 Array.Length) [
+            (Identifier 842:15-17 Hs)
           ])
-        (Identifier 811:22-25 Len))
-      (Function 812:2-36
-        (Identifier 812:2-20 _Num.FromHexDigits) [
-          (Identifier 812:21-23 Hs)
-          (NumberSubtract 812:25-32
-            (Identifier 812:25-28 Len)
-            (NumberString 812:31-32 1))
-          (NumberString 812:34-35 0)
+        (Identifier 842:22-25 Len))
+      (Function 843:2-36
+        (Identifier 843:2-20 _Num.FromHexDigits) [
+          (Identifier 843:21-23 Hs)
+          (NumberSubtract 843:25-32
+            (Identifier 843:25-28 Len)
+            (NumberString 843:31-32 1))
+          (NumberString 843:34-35 0)
         ])))
   
-  (DeclareGlobal 814:0-187
-    (Function 814:0-32
-      (Identifier 814:0-18 _Num.FromHexDigits) [
-        (Identifier 814:19-21 Hs)
-        (Identifier 814:23-26 Pos)
-        (Identifier 814:28-31 Acc)
+  (DeclareGlobal 845:0-187
+    (Function 845:0-32
+      (Identifier 845:0-18 _Num.FromHexDigits) [
+        (Identifier 845:19-21 Hs)
+        (Identifier 845:23-26 Pos)
+        (Identifier 845:28-31 Acc)
       ])
-    (Conditional 815:2-152
-      (Destructure 815:2-20
-        (Identifier 815:2-4 Hs)
-        (Merge 815:8-20
-          (Array 815:8-9 [
-            (Identifier 815:9-10 H)
+    (Conditional 846:2-152
+      (Destructure 846:2-20
+        (Identifier 846:2-4 Hs)
+        (Merge 846:8-20
+          (Array 846:8-9 [
+            (Identifier 846:9-10 H)
           ])
-          (Identifier 815:15-19 Rest)))
-      (TakeRight 815:23-144
-        (Destructure 816:4-14
-          (Identifier 816:4-5 H)
-          (Range 816:9-14 (NumberString 816:9-10 0) (NumberString 816:12-14 15)))
-        (Function 817:4-98
-          (Identifier 817:4-22 _Num.FromHexDigits) [
-            (Identifier 818:6-10 Rest)
-            (NumberSubtract 819:6-13
-              (Identifier 819:6-9 Pos)
-              (NumberString 819:12-13 1))
-            (Merge 820:6-40
-              (Identifier 820:6-9 Acc)
-              (Function 820:12-40
-                (Identifier 820:12-19 Num.Mul) [
-                  (Identifier 820:20-21 H)
-                  (Function 820:23-39
-                    (Identifier 820:23-30 Num.Pow) [
-                      (NumberString 820:31-33 16)
-                      (Identifier 820:35-38 Pos)
+          (Identifier 846:15-19 Rest)))
+      (TakeRight 846:23-144
+        (Destructure 847:4-14
+          (Identifier 847:4-5 H)
+          (Range 847:9-14 (NumberString 847:9-10 0) (NumberString 847:12-14 15)))
+        (Function 848:4-98
+          (Identifier 848:4-22 _Num.FromHexDigits) [
+            (Identifier 849:6-10 Rest)
+            (NumberSubtract 850:6-13
+              (Identifier 850:6-9 Pos)
+              (NumberString 850:12-13 1))
+            (Merge 851:6-40
+              (Identifier 851:6-9 Acc)
+              (Function 851:12-40
+                (Identifier 851:12-19 Num.Mul) [
+                  (Identifier 851:20-21 H)
+                  (Function 851:23-39
+                    (Identifier 851:23-30 Num.Pow) [
+                      (NumberString 851:31-33 16)
+                      (Identifier 851:35-38 Pos)
                     ])
                 ]))
           ]))
-      (Identifier 823:2-5 Acc)))
+      (Identifier 854:2-5 Acc)))
   
-  (DeclareGlobal 827:0-35
-    (Function 827:0-14
-      (Identifier 827:0-11 Array.First) [
-        (Identifier 827:12-13 A)
+  (DeclareGlobal 858:0-35
+    (Function 858:0-14
+      (Identifier 858:0-11 Array.First) [
+        (Identifier 858:12-13 A)
       ])
-    (TakeRight 827:17-35
-      (Destructure 827:17-31
-        (Identifier 827:17-18 A)
-        (Merge 827:22-31
-          (Array 827:22-23 [
-            (Identifier 827:23-24 F)
+    (TakeRight 858:17-35
+      (Destructure 858:17-31
+        (Identifier 858:17-18 A)
+        (Merge 858:22-31
+          (Array 858:22-23 [
+            (Identifier 858:23-24 F)
           ])
-          (Identifier 827:29-30 _)))
-      (Identifier 827:34-35 F)))
+          (Identifier 858:29-30 _)))
+      (Identifier 858:34-35 F)))
   
-  (DeclareGlobal 829:0-34
-    (Function 829:0-13
-      (Identifier 829:0-10 Array.Rest) [
-        (Identifier 829:11-12 A)
+  (DeclareGlobal 860:0-34
+    (Function 860:0-13
+      (Identifier 860:0-10 Array.Rest) [
+        (Identifier 860:11-12 A)
       ])
-    (TakeRight 829:16-34
-      (Destructure 829:16-30
-        (Identifier 829:16-17 A)
-        (Merge 829:21-30
-          (Array 829:21-22 [
-            (Identifier 829:22-23 _)
+    (TakeRight 860:16-34
+      (Destructure 860:16-30
+        (Identifier 860:16-17 A)
+        (Merge 860:21-30
+          (Array 860:21-22 [
+            (Identifier 860:22-23 _)
           ])
-          (Identifier 829:28-29 R)))
-      (Identifier 829:33-34 R)))
+          (Identifier 860:28-29 R)))
+      (Identifier 860:33-34 R)))
   
-  (DeclareGlobal 831:0-36
-    (Function 831:0-15
-      (Identifier 831:0-12 Array.Length) [
-        (Identifier 831:13-14 A)
+  (DeclareGlobal 862:0-36
+    (Function 862:0-15
+      (Identifier 862:0-12 Array.Length) [
+        (Identifier 862:13-14 A)
       ])
-    (TakeRight 831:18-36
-      (Destructure 831:18-32
-        (Identifier 831:18-19 A)
-        (Repeat 831:23-32
-          (Array 831:24-27 [
-            (Identifier 831:25-26 _)
+    (TakeRight 862:18-36
+      (Destructure 862:18-32
+        (Identifier 862:18-19 A)
+        (Repeat 862:23-32
+          (Array 862:24-27 [
+            (Identifier 862:25-26 _)
           ])
-          (Identifier 831:30-31 L)))
-      (Identifier 831:35-36 L)))
+          (Identifier 862:30-31 L)))
+      (Identifier 862:35-36 L)))
   
-  (DeclareGlobal 833:0-40
-    (Function 833:0-16
-      (Identifier 833:0-13 Array.Reverse) [
-        (Identifier 833:14-15 A)
+  (DeclareGlobal 864:0-40
+    (Function 864:0-16
+      (Identifier 864:0-13 Array.Reverse) [
+        (Identifier 864:14-15 A)
       ])
-    (Function 833:19-40
-      (Identifier 833:19-33 _Array.Reverse) [
-        (Identifier 833:34-35 A)
-        (Array 833:37-40 [])
+    (Function 864:19-40
+      (Identifier 864:19-33 _Array.Reverse) [
+        (Identifier 864:34-35 A)
+        (Array 864:37-40 [])
       ]))
   
-  (DeclareGlobal 835:0-98
-    (Function 835:0-22
-      (Identifier 835:0-14 _Array.Reverse) [
-        (Identifier 835:15-16 A)
-        (Identifier 835:18-21 Acc)
+  (DeclareGlobal 866:0-98
+    (Function 866:0-22
+      (Identifier 866:0-14 _Array.Reverse) [
+        (Identifier 866:15-16 A)
+        (Identifier 866:18-21 Acc)
       ])
-    (Conditional 836:2-73
-      (Destructure 836:2-23
-        (Identifier 836:2-3 A)
-        (Merge 836:7-23
-          (Array 836:7-8 [
-            (Identifier 836:8-13 First)
+    (Conditional 867:2-73
+      (Destructure 867:2-23
+        (Identifier 867:2-3 A)
+        (Merge 867:7-23
+          (Array 867:7-8 [
+            (Identifier 867:8-13 First)
           ])
-          (Identifier 836:18-22 Rest)))
-      (Function 837:2-39
-        (Identifier 837:2-16 _Array.Reverse) [
-          (Identifier 837:17-21 Rest)
-          (Merge 837:23-38
-            (Array 837:23-24 [
-              (Identifier 837:24-29 First)
+          (Identifier 867:18-22 Rest)))
+      (Function 868:2-39
+        (Identifier 868:2-16 _Array.Reverse) [
+          (Identifier 868:17-21 Rest)
+          (Merge 868:23-38
+            (Array 868:23-24 [
+              (Identifier 868:24-29 First)
             ])
-            (Identifier 837:34-37 Acc))
+            (Identifier 868:34-37 Acc))
         ])
-      (Identifier 838:2-5 Acc)))
+      (Identifier 869:2-5 Acc)))
   
-  (DeclareGlobal 840:0-40
-    (Function 840:0-16
-      (Identifier 840:0-9 Array.Map) [
-        (Identifier 840:10-11 A)
-        (Identifier 840:13-15 Fn)
+  (DeclareGlobal 871:0-40
+    (Function 871:0-16
+      (Identifier 871:0-9 Array.Map) [
+        (Identifier 871:10-11 A)
+        (Identifier 871:13-15 Fn)
       ])
-    (Function 840:19-40
-      (Identifier 840:19-29 _Array.Map) [
-        (Identifier 840:30-31 A)
-        (Identifier 840:33-35 Fn)
-        (Array 840:37-40 [])
+    (Function 871:19-40
+      (Identifier 871:19-29 _Array.Map) [
+        (Identifier 871:30-31 A)
+        (Identifier 871:33-35 Fn)
+        (Array 871:37-40 [])
       ]))
   
-  (DeclareGlobal 842:0-102
-    (Function 842:0-22
-      (Identifier 842:0-10 _Array.Map) [
-        (Identifier 842:11-12 A)
-        (Identifier 842:14-16 Fn)
-        (Identifier 842:18-21 Acc)
+  (DeclareGlobal 873:0-102
+    (Function 873:0-22
+      (Identifier 873:0-10 _Array.Map) [
+        (Identifier 873:11-12 A)
+        (Identifier 873:14-16 Fn)
+        (Identifier 873:18-21 Acc)
       ])
-    (Conditional 843:2-77
-      (Destructure 843:2-23
-        (Identifier 843:2-3 A)
-        (Merge 843:7-23
-          (Array 843:7-8 [
-            (Identifier 843:8-13 First)
+    (Conditional 874:2-77
+      (Destructure 874:2-23
+        (Identifier 874:2-3 A)
+        (Merge 874:7-23
+          (Array 874:7-8 [
+            (Identifier 874:8-13 First)
           ])
-          (Identifier 843:18-22 Rest)))
-      (Function 844:2-43
-        (Identifier 844:2-12 _Array.Map) [
-          (Identifier 844:13-17 Rest)
-          (Identifier 844:19-21 Fn)
-          (Merge 844:23-42
-            (Merge 844:23-24
-              (Array 844:23-24 [])
-              (Identifier 844:27-30 Acc))
-            (Array 844:32-42 [
-              (Function 844:32-41
-                (Identifier 844:32-34 Fn) [
-                  (Identifier 844:35-40 First)
+          (Identifier 874:18-22 Rest)))
+      (Function 875:2-43
+        (Identifier 875:2-12 _Array.Map) [
+          (Identifier 875:13-17 Rest)
+          (Identifier 875:19-21 Fn)
+          (Merge 875:23-42
+            (Merge 875:23-24
+              (Array 875:23-24 [])
+              (Identifier 875:27-30 Acc))
+            (Array 875:32-42 [
+              (Function 875:32-41
+                (Identifier 875:32-34 Fn) [
+                  (Identifier 875:35-40 First)
                 ])
             ]))
         ])
-      (Identifier 845:2-5 Acc)))
+      (Identifier 876:2-5 Acc)))
   
-  (DeclareGlobal 847:0-50
-    (Function 847:0-21
-      (Identifier 847:0-12 Array.Filter) [
-        (Identifier 847:13-14 A)
-        (Identifier 847:16-20 Pred)
+  (DeclareGlobal 878:0-50
+    (Function 878:0-21
+      (Identifier 878:0-12 Array.Filter) [
+        (Identifier 878:13-14 A)
+        (Identifier 878:16-20 Pred)
       ])
-    (Function 847:24-50
-      (Identifier 847:24-37 _Array.Filter) [
-        (Identifier 847:38-39 A)
-        (Identifier 847:41-45 Pred)
-        (Array 847:47-50 [])
+    (Function 878:24-50
+      (Identifier 878:24-37 _Array.Filter) [
+        (Identifier 878:38-39 A)
+        (Identifier 878:41-45 Pred)
+        (Array 878:47-50 [])
       ]))
   
-  (DeclareGlobal 849:0-128
-    (Function 849:0-27
-      (Identifier 849:0-13 _Array.Filter) [
-        (Identifier 849:14-15 A)
-        (Identifier 849:17-21 Pred)
-        (Identifier 849:23-26 Acc)
+  (DeclareGlobal 880:0-128
+    (Function 880:0-27
+      (Identifier 880:0-13 _Array.Filter) [
+        (Identifier 880:14-15 A)
+        (Identifier 880:17-21 Pred)
+        (Identifier 880:23-26 Acc)
       ])
-    (Conditional 850:2-98
-      (Destructure 850:2-23
-        (Identifier 850:2-3 A)
-        (Merge 850:7-23
-          (Array 850:7-8 [
-            (Identifier 850:8-13 First)
+    (Conditional 881:2-98
+      (Destructure 881:2-23
+        (Identifier 881:2-3 A)
+        (Merge 881:7-23
+          (Array 881:7-8 [
+            (Identifier 881:8-13 First)
           ])
-          (Identifier 850:18-22 Rest)))
-      (Function 851:2-64
-        (Identifier 851:2-15 _Array.Filter) [
-          (Identifier 851:16-20 Rest)
-          (Identifier 851:22-26 Pred)
-          (Conditional 851:28-63
-            (Function 851:28-39
-              (Identifier 851:28-32 Pred) [
-                (Identifier 851:33-38 First)
+          (Identifier 881:18-22 Rest)))
+      (Function 882:2-64
+        (Identifier 882:2-15 _Array.Filter) [
+          (Identifier 882:16-20 Rest)
+          (Identifier 882:22-26 Pred)
+          (Conditional 882:28-63
+            (Function 882:28-39
+              (Identifier 882:28-32 Pred) [
+                (Identifier 882:33-38 First)
               ])
-            (Merge 851:42-57
-              (Merge 851:42-43
-                (Array 851:42-43 [])
-                (Identifier 851:46-49 Acc))
-              (Array 851:51-57 [
-                (Identifier 851:51-56 First)
+            (Merge 882:42-57
+              (Merge 882:42-43
+                (Array 882:42-43 [])
+                (Identifier 882:46-49 Acc))
+              (Array 882:51-57 [
+                (Identifier 882:51-56 First)
               ]))
-            (Identifier 851:60-63 Acc))
-        ])
-      (Identifier 852:2-5 Acc)))
-  
-  (DeclareGlobal 854:0-50
-    (Function 854:0-21
-      (Identifier 854:0-12 Array.Reject) [
-        (Identifier 854:13-14 A)
-        (Identifier 854:16-20 Pred)
-      ])
-    (Function 854:24-50
-      (Identifier 854:24-37 _Array.Reject) [
-        (Identifier 854:38-39 A)
-        (Identifier 854:41-45 Pred)
-        (Array 854:47-50 [])
-      ]))
-  
-  (DeclareGlobal 856:0-128
-    (Function 856:0-27
-      (Identifier 856:0-13 _Array.Reject) [
-        (Identifier 856:14-15 A)
-        (Identifier 856:17-21 Pred)
-        (Identifier 856:23-26 Acc)
-      ])
-    (Conditional 857:2-98
-      (Destructure 857:2-23
-        (Identifier 857:2-3 A)
-        (Merge 857:7-23
-          (Array 857:7-8 [
-            (Identifier 857:8-13 First)
-          ])
-          (Identifier 857:18-22 Rest)))
-      (Function 858:2-64
-        (Identifier 858:2-15 _Array.Reject) [
-          (Identifier 858:16-20 Rest)
-          (Identifier 858:22-26 Pred)
-          (Conditional 858:28-63
-            (Function 858:28-39
-              (Identifier 858:28-32 Pred) [
-                (Identifier 858:33-38 First)
-              ])
-            (Identifier 858:42-45 Acc)
-            (Merge 858:48-63
-              (Merge 858:48-49
-                (Array 858:48-49 [])
-                (Identifier 858:52-55 Acc))
-              (Array 858:57-63 [
-                (Identifier 858:57-62 First)
-              ])))
-        ])
-      (Identifier 859:2-5 Acc)))
-  
-  (DeclareGlobal 861:0-54
-    (Function 861:0-23
-      (Identifier 861:0-15 Array.ZipObject) [
-        (Identifier 861:16-18 Ks)
-        (Identifier 861:20-22 Vs)
-      ])
-    (Function 861:26-54
-      (Identifier 861:26-42 _Array.ZipObject) [
-        (Identifier 861:43-45 Ks)
-        (Identifier 861:47-49 Vs)
-        (Object 861:51-54 [])
-      ]))
-  
-  (DeclareGlobal 863:0-138
-    (Function 863:0-29
-      (Identifier 863:0-16 _Array.ZipObject) [
-        (Identifier 863:17-19 Ks)
-        (Identifier 863:21-23 Vs)
-        (Identifier 863:25-28 Acc)
-      ])
-    (Conditional 864:2-106
-      (TakeRight 864:2-45
-        (Destructure 864:2-22
-          (Identifier 864:2-4 Ks)
-          (Merge 864:8-22
-            (Array 864:8-9 [
-              (Identifier 864:9-10 K)
-            ])
-            (Identifier 864:15-21 KsRest)))
-        (Destructure 864:25-45
-          (Identifier 864:25-27 Vs)
-          (Merge 864:31-45
-            (Array 864:31-32 [
-              (Identifier 864:32-33 V)
-            ])
-            (Identifier 864:38-44 VsRest))))
-      (Function 865:2-50
-        (Identifier 865:2-18 _Array.ZipObject) [
-          (Identifier 865:19-25 KsRest)
-          (Identifier 865:27-33 VsRest)
-          (Merge 865:35-49
-            (Merge 865:35-36
-              (Object 865:35-36 [])
-              (Identifier 865:39-42 Acc))
-            (Object 865:44-49 [
-              (ObjectPair (Identifier 865:44-45 K) (Identifier 865:47-48 V))
-            ]))
-        ])
-      (Identifier 866:2-5 Acc)))
-  
-  (DeclareGlobal 868:0-52
-    (Function 868:0-22
-      (Identifier 868:0-14 Array.ZipPairs) [
-        (Identifier 868:15-17 A1)
-        (Identifier 868:19-21 A2)
-      ])
-    (Function 868:25-52
-      (Identifier 868:25-40 _Array.ZipPairs) [
-        (Identifier 868:41-43 A1)
-        (Identifier 868:45-47 A2)
-        (Array 868:49-52 [])
-      ]))
-  
-  (DeclareGlobal 870:0-154
-    (Function 870:0-28
-      (Identifier 870:0-15 _Array.ZipPairs) [
-        (Identifier 870:16-18 A1)
-        (Identifier 870:20-22 A2)
-        (Identifier 870:24-27 Acc)
-      ])
-    (Conditional 871:2-123
-      (TakeRight 871:2-53
-        (Destructure 871:2-26
-          (Identifier 871:2-4 A1)
-          (Merge 871:8-26
-            (Array 871:8-9 [
-              (Identifier 871:9-15 First1)
-            ])
-            (Identifier 871:20-25 Rest1)))
-        (Destructure 871:29-53
-          (Identifier 871:29-31 A2)
-          (Merge 871:35-53
-            (Array 871:35-36 [
-              (Identifier 871:36-42 First2)
-            ])
-            (Identifier 871:47-52 Rest2))))
-      (Function 872:2-59
-        (Identifier 872:2-17 _Array.ZipPairs) [
-          (Identifier 872:18-23 Rest1)
-          (Identifier 872:25-30 Rest2)
-          (Merge 872:32-58
-            (Merge 872:32-33
-              (Array 872:32-33 [])
-              (Identifier 872:36-39 Acc))
-            (Array 872:41-58 [
-              (Array 872:41-57 [
-                (Identifier 872:42-48 First1)
-                (Identifier 872:50-56 First2)
-              ])
-            ]))
-        ])
-      (Identifier 873:2-5 Acc)))
-  
-  (DeclareGlobal 875:0-42
-    (Function 875:0-24
-      (Identifier 875:0-13 Array.AppendN) [
-        (Identifier 875:14-15 A)
-        (Identifier 875:17-20 Val)
-        (Identifier 875:22-23 N)
-      ])
-    (Merge 875:27-42
-      (Identifier 875:27-28 A)
-      (Repeat 875:31-42
-        (Array 875:32-37 [
-          (Identifier 875:33-36 Val)
-        ])
-        (Identifier 875:40-41 N))))
-  
-  (DeclareGlobal 877:0-44
-    (Function 877:0-18
-      (Identifier 877:0-15 Table.Transpose) [
-        (Identifier 877:16-17 T)
-      ])
-    (Function 877:21-44
-      (Identifier 877:21-37 _Table.Transpose) [
-        (Identifier 877:38-39 T)
-        (Array 877:41-44 [])
-      ]))
-  
-  (DeclareGlobal 879:0-168
-    (Function 879:0-24
-      (Identifier 879:0-16 _Table.Transpose) [
-        (Identifier 879:17-18 T)
-        (Identifier 879:20-23 Acc)
-      ])
-    (Conditional 880:2-141
-      (TakeRight 880:2-77
-        (Destructure 880:2-38
-          (Function 880:2-23
-            (Identifier 880:2-20 _Table.FirstPerRow) [
-              (Identifier 880:21-22 T)
-            ])
-          (Identifier 880:27-38 FirstPerRow))
-        (Destructure 881:2-36
-          (Function 881:2-22
-            (Identifier 881:2-19 _Table.RestPerRow) [
-              (Identifier 881:20-21 T)
-            ])
-          (Identifier 881:26-36 RestPerRow)))
-      (Function 882:2-53
-        (Identifier 882:2-18 _Table.Transpose) [
-          (Identifier 882:19-29 RestPerRow)
-          (Merge 882:31-52
-            (Merge 882:31-32
-              (Array 882:31-32 [])
-              (Identifier 882:35-38 Acc))
-            (Array 882:40-52 [
-              (Identifier 882:40-51 FirstPerRow)
-            ]))
+            (Identifier 882:60-63 Acc))
         ])
       (Identifier 883:2-5 Acc)))
   
-  (DeclareGlobal 885:0-115
+  (DeclareGlobal 885:0-50
     (Function 885:0-21
-      (Identifier 885:0-18 _Table.FirstPerRow) [
-        (Identifier 885:19-20 T)
+      (Identifier 885:0-12 Array.Reject) [
+        (Identifier 885:13-14 A)
+        (Identifier 885:16-20 Pred)
       ])
-    (TakeRight 886:2-91
-      (TakeRight 886:2-48
-        (Destructure 886:2-21
-          (Identifier 886:2-3 T)
-          (Merge 886:7-21
-            (Array 886:7-8 [
-              (Identifier 886:8-11 Row)
+    (Function 885:24-50
+      (Identifier 885:24-37 _Array.Reject) [
+        (Identifier 885:38-39 A)
+        (Identifier 885:41-45 Pred)
+        (Array 885:47-50 [])
+      ]))
+  
+  (DeclareGlobal 887:0-128
+    (Function 887:0-27
+      (Identifier 887:0-13 _Array.Reject) [
+        (Identifier 887:14-15 A)
+        (Identifier 887:17-21 Pred)
+        (Identifier 887:23-26 Acc)
+      ])
+    (Conditional 888:2-98
+      (Destructure 888:2-23
+        (Identifier 888:2-3 A)
+        (Merge 888:7-23
+          (Array 888:7-8 [
+            (Identifier 888:8-13 First)
+          ])
+          (Identifier 888:18-22 Rest)))
+      (Function 889:2-64
+        (Identifier 889:2-15 _Array.Reject) [
+          (Identifier 889:16-20 Rest)
+          (Identifier 889:22-26 Pred)
+          (Conditional 889:28-63
+            (Function 889:28-39
+              (Identifier 889:28-32 Pred) [
+                (Identifier 889:33-38 First)
+              ])
+            (Identifier 889:42-45 Acc)
+            (Merge 889:48-63
+              (Merge 889:48-49
+                (Array 889:48-49 [])
+                (Identifier 889:52-55 Acc))
+              (Array 889:57-63 [
+                (Identifier 889:57-62 First)
+              ])))
+        ])
+      (Identifier 890:2-5 Acc)))
+  
+  (DeclareGlobal 892:0-54
+    (Function 892:0-23
+      (Identifier 892:0-15 Array.ZipObject) [
+        (Identifier 892:16-18 Ks)
+        (Identifier 892:20-22 Vs)
+      ])
+    (Function 892:26-54
+      (Identifier 892:26-42 _Array.ZipObject) [
+        (Identifier 892:43-45 Ks)
+        (Identifier 892:47-49 Vs)
+        (Object 892:51-54 [])
+      ]))
+  
+  (DeclareGlobal 894:0-138
+    (Function 894:0-29
+      (Identifier 894:0-16 _Array.ZipObject) [
+        (Identifier 894:17-19 Ks)
+        (Identifier 894:21-23 Vs)
+        (Identifier 894:25-28 Acc)
+      ])
+    (Conditional 895:2-106
+      (TakeRight 895:2-45
+        (Destructure 895:2-22
+          (Identifier 895:2-4 Ks)
+          (Merge 895:8-22
+            (Array 895:8-9 [
+              (Identifier 895:9-10 K)
             ])
-            (Identifier 886:16-20 Rest)))
-        (Destructure 886:24-48
-          (Identifier 886:24-27 Row)
-          (Merge 886:31-48
-            (Array 886:31-32 [
-              (Identifier 886:32-41 VeryFirst)
+            (Identifier 895:15-21 KsRest)))
+        (Destructure 895:25-45
+          (Identifier 895:25-27 Vs)
+          (Merge 895:31-45
+            (Array 895:31-32 [
+              (Identifier 895:32-33 V)
             ])
-            (Identifier 886:46-47 _))))
-      (Function 887:2-40
-        (Identifier 887:2-21 __Table.FirstPerRow) [
-          (Identifier 887:22-26 Rest)
-          (Array 887:28-39 [
-            (Identifier 887:29-38 VeryFirst)
+            (Identifier 895:38-44 VsRest))))
+      (Function 896:2-50
+        (Identifier 896:2-18 _Array.ZipObject) [
+          (Identifier 896:19-25 KsRest)
+          (Identifier 896:27-33 VsRest)
+          (Merge 896:35-49
+            (Merge 896:35-36
+              (Object 896:35-36 [])
+              (Identifier 896:39-42 Acc))
+            (Object 896:44-49 [
+              (ObjectPair (Identifier 896:44-45 K) (Identifier 896:47-48 V))
+            ]))
+        ])
+      (Identifier 897:2-5 Acc)))
+  
+  (DeclareGlobal 899:0-52
+    (Function 899:0-22
+      (Identifier 899:0-14 Array.ZipPairs) [
+        (Identifier 899:15-17 A1)
+        (Identifier 899:19-21 A2)
+      ])
+    (Function 899:25-52
+      (Identifier 899:25-40 _Array.ZipPairs) [
+        (Identifier 899:41-43 A1)
+        (Identifier 899:45-47 A2)
+        (Array 899:49-52 [])
+      ]))
+  
+  (DeclareGlobal 901:0-154
+    (Function 901:0-28
+      (Identifier 901:0-15 _Array.ZipPairs) [
+        (Identifier 901:16-18 A1)
+        (Identifier 901:20-22 A2)
+        (Identifier 901:24-27 Acc)
+      ])
+    (Conditional 902:2-123
+      (TakeRight 902:2-53
+        (Destructure 902:2-26
+          (Identifier 902:2-4 A1)
+          (Merge 902:8-26
+            (Array 902:8-9 [
+              (Identifier 902:9-15 First1)
+            ])
+            (Identifier 902:20-25 Rest1)))
+        (Destructure 902:29-53
+          (Identifier 902:29-31 A2)
+          (Merge 902:35-53
+            (Array 902:35-36 [
+              (Identifier 902:36-42 First2)
+            ])
+            (Identifier 902:47-52 Rest2))))
+      (Function 903:2-59
+        (Identifier 903:2-17 _Array.ZipPairs) [
+          (Identifier 903:18-23 Rest1)
+          (Identifier 903:25-30 Rest2)
+          (Merge 903:32-58
+            (Merge 903:32-33
+              (Array 903:32-33 [])
+              (Identifier 903:36-39 Acc))
+            (Array 903:41-58 [
+              (Array 903:41-57 [
+                (Identifier 903:42-48 First1)
+                (Identifier 903:50-56 First2)
+              ])
+            ]))
+        ])
+      (Identifier 904:2-5 Acc)))
+  
+  (DeclareGlobal 906:0-42
+    (Function 906:0-24
+      (Identifier 906:0-13 Array.AppendN) [
+        (Identifier 906:14-15 A)
+        (Identifier 906:17-20 Val)
+        (Identifier 906:22-23 N)
+      ])
+    (Merge 906:27-42
+      (Identifier 906:27-28 A)
+      (Repeat 906:31-42
+        (Array 906:32-37 [
+          (Identifier 906:33-36 Val)
+        ])
+        (Identifier 906:40-41 N))))
+  
+  (DeclareGlobal 908:0-44
+    (Function 908:0-18
+      (Identifier 908:0-15 Table.Transpose) [
+        (Identifier 908:16-17 T)
+      ])
+    (Function 908:21-44
+      (Identifier 908:21-37 _Table.Transpose) [
+        (Identifier 908:38-39 T)
+        (Array 908:41-44 [])
+      ]))
+  
+  (DeclareGlobal 910:0-168
+    (Function 910:0-24
+      (Identifier 910:0-16 _Table.Transpose) [
+        (Identifier 910:17-18 T)
+        (Identifier 910:20-23 Acc)
+      ])
+    (Conditional 911:2-141
+      (TakeRight 911:2-77
+        (Destructure 911:2-38
+          (Function 911:2-23
+            (Identifier 911:2-20 _Table.FirstPerRow) [
+              (Identifier 911:21-22 T)
+            ])
+          (Identifier 911:27-38 FirstPerRow))
+        (Destructure 912:2-36
+          (Function 912:2-22
+            (Identifier 912:2-19 _Table.RestPerRow) [
+              (Identifier 912:20-21 T)
+            ])
+          (Identifier 912:26-36 RestPerRow)))
+      (Function 913:2-53
+        (Identifier 913:2-18 _Table.Transpose) [
+          (Identifier 913:19-29 RestPerRow)
+          (Merge 913:31-52
+            (Merge 913:31-32
+              (Array 913:31-32 [])
+              (Identifier 913:35-38 Acc))
+            (Array 913:40-52 [
+              (Identifier 913:40-51 FirstPerRow)
+            ]))
+        ])
+      (Identifier 914:2-5 Acc)))
+  
+  (DeclareGlobal 916:0-115
+    (Function 916:0-21
+      (Identifier 916:0-18 _Table.FirstPerRow) [
+        (Identifier 916:19-20 T)
+      ])
+    (TakeRight 917:2-91
+      (TakeRight 917:2-48
+        (Destructure 917:2-21
+          (Identifier 917:2-3 T)
+          (Merge 917:7-21
+            (Array 917:7-8 [
+              (Identifier 917:8-11 Row)
+            ])
+            (Identifier 917:16-20 Rest)))
+        (Destructure 917:24-48
+          (Identifier 917:24-27 Row)
+          (Merge 917:31-48
+            (Array 917:31-32 [
+              (Identifier 917:32-41 VeryFirst)
+            ])
+            (Identifier 917:46-47 _))))
+      (Function 918:2-40
+        (Identifier 918:2-21 __Table.FirstPerRow) [
+          (Identifier 918:22-26 Rest)
+          (Array 918:28-39 [
+            (Identifier 918:29-38 VeryFirst)
           ])
         ])))
   
-  (DeclareGlobal 889:0-129
-    (Function 889:0-27
-      (Identifier 889:0-19 __Table.FirstPerRow) [
-        (Identifier 889:20-21 T)
-        (Identifier 889:23-26 Acc)
+  (DeclareGlobal 920:0-129
+    (Function 920:0-27
+      (Identifier 920:0-19 __Table.FirstPerRow) [
+        (Identifier 920:20-21 T)
+        (Identifier 920:23-26 Acc)
       ])
-    (Conditional 890:2-99
-      (TakeRight 890:2-44
-        (Destructure 890:2-21
-          (Identifier 890:2-3 T)
-          (Merge 890:7-21
-            (Array 890:7-8 [
-              (Identifier 890:8-11 Row)
+    (Conditional 921:2-99
+      (TakeRight 921:2-44
+        (Destructure 921:2-21
+          (Identifier 921:2-3 T)
+          (Merge 921:7-21
+            (Array 921:7-8 [
+              (Identifier 921:8-11 Row)
             ])
-            (Identifier 890:16-20 Rest)))
-        (Destructure 890:24-44
-          (Identifier 890:24-27 Row)
-          (Merge 890:31-44
-            (Array 890:31-32 [
-              (Identifier 890:32-37 First)
+            (Identifier 921:16-20 Rest)))
+        (Destructure 921:24-44
+          (Identifier 921:24-27 Row)
+          (Merge 921:31-44
+            (Array 921:31-32 [
+              (Identifier 921:32-37 First)
             ])
-            (Identifier 890:42-43 _))))
-      (Function 891:2-44
-        (Identifier 891:2-21 __Table.FirstPerRow) [
-          (Identifier 891:22-26 Rest)
-          (Merge 891:28-43
-            (Merge 891:28-29
-              (Array 891:28-29 [])
-              (Identifier 891:32-35 Acc))
-            (Array 891:37-43 [
-              (Identifier 891:37-42 First)
+            (Identifier 921:42-43 _))))
+      (Function 922:2-44
+        (Identifier 922:2-21 __Table.FirstPerRow) [
+          (Identifier 922:22-26 Rest)
+          (Merge 922:28-43
+            (Merge 922:28-29
+              (Array 922:28-29 [])
+              (Identifier 922:32-35 Acc))
+            (Array 922:37-43 [
+              (Identifier 922:37-42 First)
             ]))
         ])
-      (Identifier 892:2-5 Acc)))
+      (Identifier 923:2-5 Acc)))
   
-  (DeclareGlobal 894:0-48
-    (Function 894:0-20
-      (Identifier 894:0-17 _Table.RestPerRow) [
-        (Identifier 894:18-19 T)
+  (DeclareGlobal 925:0-48
+    (Function 925:0-20
+      (Identifier 925:0-17 _Table.RestPerRow) [
+        (Identifier 925:18-19 T)
       ])
-    (Function 894:23-48
-      (Identifier 894:23-41 __Table.RestPerRow) [
-        (Identifier 894:42-43 T)
-        (Array 894:45-48 [])
+    (Function 925:23-48
+      (Identifier 925:23-41 __Table.RestPerRow) [
+        (Identifier 925:42-43 T)
+        (Array 925:45-48 [])
       ]))
   
-  (DeclareGlobal 896:0-188
-    (Function 896:0-26
-      (Identifier 896:0-18 __Table.RestPerRow) [
-        (Identifier 896:19-20 T)
-        (Identifier 896:22-25 Acc)
+  (DeclareGlobal 927:0-188
+    (Function 927:0-26
+      (Identifier 927:0-18 __Table.RestPerRow) [
+        (Identifier 927:19-20 T)
+        (Identifier 927:22-25 Acc)
       ])
-    (Conditional 897:2-159
-      (Destructure 897:2-21
-        (Identifier 897:2-3 T)
-        (Merge 897:7-21
-          (Array 897:7-8 [
-            (Identifier 897:8-11 Row)
+    (Conditional 928:2-159
+      (Destructure 928:2-21
+        (Identifier 928:2-3 T)
+        (Merge 928:7-21
+          (Array 928:7-8 [
+            (Identifier 928:8-11 Row)
           ])
-          (Identifier 897:16-20 Rest)))
-      (Conditional 897:24-151
-        (Destructure 898:4-26
-          (Identifier 898:4-7 Row)
-          (Merge 898:11-26
-            (Array 898:11-12 [
-              (Identifier 898:12-13 _)
+          (Identifier 928:16-20 Rest)))
+      (Conditional 928:24-151
+        (Destructure 929:4-26
+          (Identifier 929:4-7 Row)
+          (Merge 929:11-26
+            (Array 929:11-12 [
+              (Identifier 929:12-13 _)
             ])
-            (Identifier 898:18-25 RowRest)))
-        (Function 899:4-47
-          (Identifier 899:4-22 __Table.RestPerRow) [
-            (Identifier 899:23-27 Rest)
-            (Merge 899:29-46
-              (Merge 899:29-30
-                (Array 899:29-30 [])
-                (Identifier 899:33-36 Acc))
-              (Array 899:38-46 [
-                (Identifier 899:38-45 RowRest)
+            (Identifier 929:18-25 RowRest)))
+        (Function 930:4-47
+          (Identifier 930:4-22 __Table.RestPerRow) [
+            (Identifier 930:23-27 Rest)
+            (Merge 930:29-46
+              (Merge 930:29-30
+                (Array 930:29-30 [])
+                (Identifier 930:33-36 Acc))
+              (Array 930:38-46 [
+                (Identifier 930:38-45 RowRest)
               ]))
           ])
-        (Function 900:4-42
-          (Identifier 900:4-22 __Table.RestPerRow) [
-            (Identifier 900:23-27 Rest)
-            (Merge 900:29-41
-              (Merge 900:29-30
-                (Array 900:29-30 [])
-                (Identifier 900:33-36 Acc))
-              (Array 900:38-41 [
-                (Array 900:38-41 [])
+        (Function 931:4-42
+          (Identifier 931:4-22 __Table.RestPerRow) [
+            (Identifier 931:23-27 Rest)
+            (Merge 931:29-41
+              (Merge 931:29-30
+                (Array 931:29-30 [])
+                (Identifier 931:33-36 Acc))
+              (Array 931:38-41 [
+                (Array 931:38-41 [])
               ]))
           ]))
-      (Identifier 902:2-5 Acc)))
+      (Identifier 933:2-5 Acc)))
   
-  (DeclareGlobal 904:0-71
-    (Function 904:0-24
-      (Identifier 904:0-21 Table.RotateClockwise) [
-        (Identifier 904:22-23 T)
+  (DeclareGlobal 935:0-71
+    (Function 935:0-24
+      (Identifier 935:0-21 Table.RotateClockwise) [
+        (Identifier 935:22-23 T)
       ])
-    (Function 904:27-71
-      (Identifier 904:27-36 Array.Map) [
-        (Function 904:37-55
-          (Identifier 904:37-52 Table.Transpose) [
-            (Identifier 904:53-54 T)
+    (Function 935:27-71
+      (Identifier 935:27-36 Array.Map) [
+        (Function 935:37-55
+          (Identifier 935:37-52 Table.Transpose) [
+            (Identifier 935:53-54 T)
           ])
-        (Identifier 904:57-70 Array.Reverse)
+        (Identifier 935:57-70 Array.Reverse)
       ]))
   
-  (DeclareGlobal 906:0-67
-    (Function 906:0-31
-      (Identifier 906:0-28 Table.RotateCounterClockwise) [
-        (Identifier 906:29-30 T)
+  (DeclareGlobal 937:0-67
+    (Function 937:0-31
+      (Identifier 937:0-28 Table.RotateCounterClockwise) [
+        (Identifier 937:29-30 T)
       ])
-    (Function 906:34-67
-      (Identifier 906:34-47 Array.Reverse) [
-        (Function 906:48-66
-          (Identifier 906:48-63 Table.Transpose) [
-            (Identifier 906:64-65 T)
+    (Function 937:34-67
+      (Identifier 937:34-47 Array.Reverse) [
+        (Function 937:48-66
+          (Identifier 937:48-63 Table.Transpose) [
+            (Identifier 937:64-65 T)
           ])
       ]))
   
-  (DeclareGlobal 908:0-60
-    (Function 908:0-26
-      (Identifier 908:0-16 Table.ZipObjects) [
-        (Identifier 908:17-19 Ks)
-        (Identifier 908:21-25 Rows)
+  (DeclareGlobal 939:0-60
+    (Function 939:0-26
+      (Identifier 939:0-16 Table.ZipObjects) [
+        (Identifier 939:17-19 Ks)
+        (Identifier 939:21-25 Rows)
       ])
-    (Function 908:29-60
-      (Identifier 908:29-46 _Table.ZipObjects) [
-        (Identifier 908:47-49 Ks)
-        (Identifier 908:51-55 Rows)
-        (Array 908:57-60 [])
+    (Function 939:29-60
+      (Identifier 939:29-46 _Table.ZipObjects) [
+        (Identifier 939:47-49 Ks)
+        (Identifier 939:51-55 Rows)
+        (Array 939:57-60 [])
       ]))
   
-  (DeclareGlobal 910:0-135
-    (Function 910:0-32
-      (Identifier 910:0-17 _Table.ZipObjects) [
-        (Identifier 910:18-20 Ks)
-        (Identifier 910:22-26 Rows)
-        (Identifier 910:28-31 Acc)
+  (DeclareGlobal 941:0-135
+    (Function 941:0-32
+      (Identifier 941:0-17 _Table.ZipObjects) [
+        (Identifier 941:18-20 Ks)
+        (Identifier 941:22-26 Rows)
+        (Identifier 941:28-31 Acc)
       ])
-    (Conditional 911:2-100
-      (Destructure 911:2-24
-        (Identifier 911:2-6 Rows)
-        (Merge 911:10-24
-          (Array 911:10-11 [
-            (Identifier 911:11-14 Row)
+    (Conditional 942:2-100
+      (Destructure 942:2-24
+        (Identifier 942:2-6 Rows)
+        (Merge 942:10-24
+          (Array 942:10-11 [
+            (Identifier 942:11-14 Row)
           ])
-          (Identifier 911:19-23 Rest)))
-      (Function 912:2-65
-        (Identifier 912:2-19 _Table.ZipObjects) [
-          (Identifier 912:20-22 Ks)
-          (Identifier 912:24-28 Rest)
-          (Merge 912:30-64
-            (Merge 912:30-31
-              (Array 912:30-31 [])
-              (Identifier 912:34-37 Acc))
-            (Array 912:39-64 [
-              (Function 912:39-63
-                (Identifier 912:39-54 Array.ZipObject) [
-                  (Identifier 912:55-57 Ks)
-                  (Identifier 912:59-62 Row)
+          (Identifier 942:19-23 Rest)))
+      (Function 943:2-65
+        (Identifier 943:2-19 _Table.ZipObjects) [
+          (Identifier 943:20-22 Ks)
+          (Identifier 943:24-28 Rest)
+          (Merge 943:30-64
+            (Merge 943:30-31
+              (Array 943:30-31 [])
+              (Identifier 943:34-37 Acc))
+            (Array 943:39-64 [
+              (Function 943:39-63
+                (Identifier 943:39-54 Array.ZipObject) [
+                  (Identifier 943:55-57 Ks)
+                  (Identifier 943:59-62 Row)
                 ])
             ]))
         ])
-      (Identifier 913:2-5 Acc)))
+      (Identifier 944:2-5 Acc)))
   
-  (DeclareGlobal 917:0-33
-    (Function 917:0-13
-      (Identifier 917:0-7 Obj.Has) [
-        (Identifier 917:8-9 O)
-        (Identifier 917:11-12 K)
+  (DeclareGlobal 948:0-33
+    (Function 948:0-13
+      (Identifier 948:0-7 Obj.Has) [
+        (Identifier 948:8-9 O)
+        (Identifier 948:11-12 K)
       ])
-    (Destructure 917:16-33
-      (Identifier 917:16-17 O)
-      (Merge 917:21-33
-        (Object 917:21-31 [
-          (ObjectPair (Identifier 917:22-23 K) (Identifier 917:25-26 _))
+    (Destructure 948:16-33
+      (Identifier 948:16-17 O)
+      (Merge 948:21-33
+        (Object 948:21-31 [
+          (ObjectPair (Identifier 948:22-23 K) (Identifier 948:25-26 _))
         ])
-        (Identifier 917:31-32 _))))
+        (Identifier 948:31-32 _))))
   
-  (DeclareGlobal 919:0-37
-    (Function 919:0-13
-      (Identifier 919:0-7 Obj.Get) [
-        (Identifier 919:8-9 O)
-        (Identifier 919:11-12 K)
+  (DeclareGlobal 950:0-37
+    (Function 950:0-13
+      (Identifier 950:0-7 Obj.Get) [
+        (Identifier 950:8-9 O)
+        (Identifier 950:11-12 K)
       ])
-    (TakeRight 919:16-37
-      (Destructure 919:16-33
-        (Identifier 919:16-17 O)
-        (Merge 919:21-33
-          (Object 919:21-31 [
-            (ObjectPair (Identifier 919:22-23 K) (Identifier 919:25-26 V))
+    (TakeRight 950:16-37
+      (Destructure 950:16-33
+        (Identifier 950:16-17 O)
+        (Merge 950:21-33
+          (Object 950:21-31 [
+            (ObjectPair (Identifier 950:22-23 K) (Identifier 950:25-26 V))
           ])
-          (Identifier 919:31-32 _)))
-      (Identifier 919:36-37 V)))
+          (Identifier 950:31-32 _)))
+      (Identifier 950:36-37 V)))
   
-  (DeclareGlobal 921:0-31
-    (Function 921:0-16
-      (Identifier 921:0-7 Obj.Put) [
-        (Identifier 921:8-9 O)
-        (Identifier 921:11-12 K)
-        (Identifier 921:14-15 V)
+  (DeclareGlobal 952:0-31
+    (Function 952:0-16
+      (Identifier 952:0-7 Obj.Put) [
+        (Identifier 952:8-9 O)
+        (Identifier 952:11-12 K)
+        (Identifier 952:14-15 V)
       ])
-    (Merge 921:19-31
-      (Merge 921:19-20
-        (Object 921:19-20 [])
-        (Identifier 921:23-24 O))
-      (Object 921:26-31 [
-        (ObjectPair (Identifier 921:26-27 K) (Identifier 921:29-30 V))
+    (Merge 952:19-31
+      (Merge 952:19-20
+        (Object 952:19-20 [])
+        (Identifier 952:23-24 O))
+      (Object 952:26-31 [
+        (ObjectPair (Identifier 952:26-27 K) (Identifier 952:29-30 V))
       ])))
   
-  (DeclareGlobal 925:0-61
-    (Function 925:0-36
-      (Identifier 925:0-14 Ast.Precedence) [
-        (Identifier 925:15-21 OpNode)
-        (Identifier 925:23-35 BindingPower)
+  (DeclareGlobal 956:0-175
+    (Function 956:0-26
+      (Identifier 956:0-13 _Ast.MergePos) [
+        (Identifier 956:14-18 Left)
+        (Identifier 956:20-25 Right)
       ])
-    (Array 925:39-61 [
-      (Identifier 925:40-46 OpNode)
-      (Identifier 925:48-60 BindingPower)
-    ]))
-  
-  (DeclareGlobal 927:0-114
-    (Function 927:0-64
-      (Identifier 927:0-19 Ast.InfixPrecedence) [
-        (Identifier 927:20-26 OpNode)
-        (Identifier 927:28-44 LeftBindingPower)
-        (Identifier 927:46-63 RightBindingPower)
-      ])
-    (Array 928:2-47 [
-      (Identifier 928:3-9 OpNode)
-      (Identifier 928:11-27 LeftBindingPower)
-      (Identifier 928:29-46 RightBindingPower)
-    ]))
-  
-  (DeclareGlobal 932:0-28
-    (Function 932:0-12
-      (Identifier 932:0-9 Is.String) [
-        (Identifier 932:10-11 V)
-      ])
-    (Destructure 932:15-28
-      (Identifier 932:15-16 V)
-      (Merge 932:20-28
-        (String 932:21-23 "")
-        (Identifier 932:26-27 _))))
-  
-  (DeclareGlobal 934:0-27
-    (Function 934:0-12
-      (Identifier 934:0-9 Is.Number) [
-        (Identifier 934:10-11 V)
-      ])
-    (Destructure 934:15-27
-      (Identifier 934:15-16 V)
-      (Merge 934:20-27
-        (NumberString 934:21-22 0)
-        (Identifier 934:25-26 _))))
-  
-  (DeclareGlobal 936:0-29
-    (Function 936:0-10
-      (Identifier 936:0-7 Is.Bool) [
-        (Identifier 936:8-9 V)
-      ])
-    (Destructure 936:13-29
-      (Identifier 936:13-14 V)
-      (Merge 936:18-29
-        (False 936:19-24)
-        (Identifier 936:27-28 _))))
-  
-  (DeclareGlobal 938:0-22
-    (Function 938:0-10
-      (Identifier 938:0-7 Is.Null) [
-        (Identifier 938:8-9 V)
-      ])
-    (Destructure 938:13-22
-      (Identifier 938:13-14 V)
-      (Null 938:18-22)))
-  
-  (DeclareGlobal 940:0-25
-    (Function 940:0-11
-      (Identifier 940:0-8 Is.Array) [
-        (Identifier 940:9-10 V)
-      ])
-    (Destructure 940:14-25
-      (Identifier 940:14-15 V)
-      (Merge 940:19-25
-        (Array 940:19-20 [])
-        (Identifier 940:23-24 _))))
-  
-  (DeclareGlobal 942:0-26
-    (Function 942:0-12
-      (Identifier 942:0-9 Is.Object) [
-        (Identifier 942:10-11 V)
-      ])
-    (Destructure 942:15-26
-      (Identifier 942:15-16 V)
-      (Merge 942:20-26
-        (Object 942:20-21 [])
-        (Identifier 942:24-25 _))))
-  
-  (DeclareGlobal 944:0-23
-    (Function 944:0-14
-      (Identifier 944:0-8 Is.Equal) [
-        (Identifier 944:9-10 A)
-        (Identifier 944:12-13 B)
-      ])
-    (Destructure 944:17-23
-      (Identifier 944:17-18 A)
-      (Identifier 944:22-23 B)))
-  
-  (DeclareGlobal 946:0-45
-    (Function 946:0-17
-      (Identifier 946:0-11 Is.LessThan) [
-        (Identifier 946:12-13 A)
-        (Identifier 946:15-16 B)
-      ])
-    (Conditional 946:20-45
-      (Destructure 946:20-26
-        (Identifier 946:20-21 A)
-        (Identifier 946:25-26 B))
-      (Identifier 946:29-34 @Fail)
-      (Destructure 946:37-45
-        (Identifier 946:37-38 A)
-        (Range 946:42-45 () (Identifier 946:44-45 B)))))
-  
-  (DeclareGlobal 948:0-35
-    (Function 948:0-24
-      (Identifier 948:0-18 Is.LessThanOrEqual) [
-        (Identifier 948:19-20 A)
-        (Identifier 948:22-23 B)
-      ])
-    (Destructure 948:27-35
-      (Identifier 948:27-28 A)
-      (Range 948:32-35 () (Identifier 948:34-35 B))))
-  
-  (DeclareGlobal 950:0-48
-    (Function 950:0-20
-      (Identifier 950:0-14 Is.GreaterThan) [
-        (Identifier 950:15-16 A)
-        (Identifier 950:18-19 B)
-      ])
-    (Conditional 950:23-48
-      (Destructure 950:23-29
-        (Identifier 950:23-24 A)
-        (Identifier 950:28-29 B))
-      (Identifier 950:32-37 @Fail)
-      (Destructure 950:40-48
-        (Identifier 950:40-41 A)
-        (Range 950:45-48 (Identifier 950:45-46 B) ()))))
-  
-  (DeclareGlobal 952:0-38
-    (Function 952:0-27
-      (Identifier 952:0-21 Is.GreaterThanOrEqual) [
-        (Identifier 952:22-23 A)
-        (Identifier 952:25-26 B)
-      ])
-    (Destructure 952:30-38
-      (Identifier 952:30-31 A)
-      (Range 952:35-38 (Identifier 952:35-36 B) ())))
-  
-  (DeclareGlobal 956:0-51
-    (Function 956:0-12
-      (Identifier 956:0-9 As.Number) [
-        (Identifier 956:10-11 V)
-      ])
-    (Or 956:15-51
-      (Function 956:15-27
-        (Identifier 956:15-24 Is.Number) [
-          (Identifier 956:25-26 V)
+    (Merge 956:29-175
+      (Merge 956:29-30
+        (Object 956:29-30 [])
+        (Conditional 957:5-73
+          (Destructure 957:6-42
+            (Identifier 957:6-10 Left)
+            (Merge 957:14-42
+              (Object 957:14-40 [
+                (ObjectPair (String 957:15-25 "startpos") (Identifier 957:27-35 StartPos))
+              ])
+              (Identifier 957:40-41 _)))
+          (Object 957:45-67 [
+            (ObjectPair (String 957:46-56 "startpos") (Identifier 957:58-66 StartPos))
+          ])
+          (Object 957:70-73 [])))
+      (Conditional 958:5-69
+        (Destructure 958:6-39
+          (Identifier 958:6-11 Right)
+          (Merge 958:15-39
+            (Object 958:15-37 [
+              (ObjectPair (String 958:16-24 "endpos") (Identifier 958:26-32 EndPos))
+            ])
+            (Identifier 958:37-38 _)))
+        (Object 958:42-60 [
+          (ObjectPair (String 958:43-51 "endpos") (Identifier 958:53-59 EndPos))
         ])
-      (Return 956:30-51
-        (Destructure 956:31-46
-          (Identifier 956:31-32 V)
-          (StringTemplate 956:36-46 [
-            (Merge 956:39-44
-              (NumberString 956:39-40 0)
-              (Identifier 956:43-44 N))
-          ]))
-        (Identifier 956:49-50 N))))
+        (Object 958:63-66 []))))
   
-  (DeclareGlobal 958:0-21
-    (Function 958:0-12
-      (Identifier 958:0-9 As.String) [
-        (Identifier 958:10-11 V)
+  (DeclareGlobal 964:0-28
+    (Function 964:0-12
+      (Identifier 964:0-9 Is.String) [
+        (Identifier 964:10-11 V)
       ])
-    (StringTemplate 958:15-21 [
-      (Identifier 958:18-19 V)
+    (Destructure 964:15-28
+      (Identifier 964:15-16 V)
+      (Merge 964:20-28
+        (String 964:21-23 "")
+        (Identifier 964:26-27 _))))
+  
+  (DeclareGlobal 966:0-27
+    (Function 966:0-12
+      (Identifier 966:0-9 Is.Number) [
+        (Identifier 966:10-11 V)
+      ])
+    (Destructure 966:15-27
+      (Identifier 966:15-16 V)
+      (Merge 966:20-27
+        (NumberString 966:21-22 0)
+        (Identifier 966:25-26 _))))
+  
+  (DeclareGlobal 968:0-29
+    (Function 968:0-10
+      (Identifier 968:0-7 Is.Bool) [
+        (Identifier 968:8-9 V)
+      ])
+    (Destructure 968:13-29
+      (Identifier 968:13-14 V)
+      (Merge 968:18-29
+        (False 968:19-24)
+        (Identifier 968:27-28 _))))
+  
+  (DeclareGlobal 970:0-22
+    (Function 970:0-10
+      (Identifier 970:0-7 Is.Null) [
+        (Identifier 970:8-9 V)
+      ])
+    (Destructure 970:13-22
+      (Identifier 970:13-14 V)
+      (Null 970:18-22)))
+  
+  (DeclareGlobal 972:0-25
+    (Function 972:0-11
+      (Identifier 972:0-8 Is.Array) [
+        (Identifier 972:9-10 V)
+      ])
+    (Destructure 972:14-25
+      (Identifier 972:14-15 V)
+      (Merge 972:19-25
+        (Array 972:19-20 [])
+        (Identifier 972:23-24 _))))
+  
+  (DeclareGlobal 974:0-26
+    (Function 974:0-12
+      (Identifier 974:0-9 Is.Object) [
+        (Identifier 974:10-11 V)
+      ])
+    (Destructure 974:15-26
+      (Identifier 974:15-16 V)
+      (Merge 974:20-26
+        (Object 974:20-21 [])
+        (Identifier 974:24-25 _))))
+  
+  (DeclareGlobal 976:0-23
+    (Function 976:0-14
+      (Identifier 976:0-8 Is.Equal) [
+        (Identifier 976:9-10 A)
+        (Identifier 976:12-13 B)
+      ])
+    (Destructure 976:17-23
+      (Identifier 976:17-18 A)
+      (Identifier 976:22-23 B)))
+  
+  (DeclareGlobal 978:0-45
+    (Function 978:0-17
+      (Identifier 978:0-11 Is.LessThan) [
+        (Identifier 978:12-13 A)
+        (Identifier 978:15-16 B)
+      ])
+    (Conditional 978:20-45
+      (Destructure 978:20-26
+        (Identifier 978:20-21 A)
+        (Identifier 978:25-26 B))
+      (Identifier 978:29-34 @Fail)
+      (Destructure 978:37-45
+        (Identifier 978:37-38 A)
+        (Range 978:42-45 () (Identifier 978:44-45 B)))))
+  
+  (DeclareGlobal 980:0-35
+    (Function 980:0-24
+      (Identifier 980:0-18 Is.LessThanOrEqual) [
+        (Identifier 980:19-20 A)
+        (Identifier 980:22-23 B)
+      ])
+    (Destructure 980:27-35
+      (Identifier 980:27-28 A)
+      (Range 980:32-35 () (Identifier 980:34-35 B))))
+  
+  (DeclareGlobal 982:0-48
+    (Function 982:0-20
+      (Identifier 982:0-14 Is.GreaterThan) [
+        (Identifier 982:15-16 A)
+        (Identifier 982:18-19 B)
+      ])
+    (Conditional 982:23-48
+      (Destructure 982:23-29
+        (Identifier 982:23-24 A)
+        (Identifier 982:28-29 B))
+      (Identifier 982:32-37 @Fail)
+      (Destructure 982:40-48
+        (Identifier 982:40-41 A)
+        (Range 982:45-48 (Identifier 982:45-46 B) ()))))
+  
+  (DeclareGlobal 984:0-38
+    (Function 984:0-27
+      (Identifier 984:0-21 Is.GreaterThanOrEqual) [
+        (Identifier 984:22-23 A)
+        (Identifier 984:25-26 B)
+      ])
+    (Destructure 984:30-38
+      (Identifier 984:30-31 A)
+      (Range 984:35-38 (Identifier 984:35-36 B) ())))
+  
+  (DeclareGlobal 988:0-51
+    (Function 988:0-12
+      (Identifier 988:0-9 As.Number) [
+        (Identifier 988:10-11 V)
+      ])
+    (Or 988:15-51
+      (Function 988:15-27
+        (Identifier 988:15-24 Is.Number) [
+          (Identifier 988:25-26 V)
+        ])
+      (Return 988:30-51
+        (Destructure 988:31-46
+          (Identifier 988:31-32 V)
+          (StringTemplate 988:36-46 [
+            (Merge 988:39-44
+              (NumberString 988:39-40 0)
+              (Identifier 988:43-44 N))
+          ]))
+        (Identifier 988:49-50 N))))
+  
+  (DeclareGlobal 990:0-21
+    (Function 990:0-12
+      (Identifier 990:0-9 As.String) [
+        (Identifier 990:10-11 V)
+      ])
+    (StringTemplate 990:15-21 [
+      (Identifier 990:18-19 V)
     ]))
 

@@ -714,31 +714,35 @@ ast.with_operator_precedence(operand, prefix, infix, postfix) =
   _ast.with_precedence_start(operand, prefix, infix, postfix, $0)
 
 _ast.with_precedence_start(operand, prefix, infix, postfix, LeftBindingPower) =
-  prefix -> [OpNode, PrefixBindingPower] ? (
+  prefix -> {"power": PrefixBindingPower, ...PrefixNode} ? (
     _ast.with_precedence_start(
       operand, prefix, infix, postfix,
       PrefixBindingPower
-    ) -> PrefixedNode &
+    ) -> Node &
     _ast.with_precedence_rest(
       operand, prefix, infix, postfix,
       LeftBindingPower,
-      {...OpNode, "prefixed": PrefixedNode}
+      {...PrefixNode, "prefixed": Node, ..._Ast.MergePos(PrefixNode, Node)}
     )
   ) : (
     operand -> Node &
-    _ast.with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node)
+    _ast.with_precedence_rest(
+      operand, prefix, infix, postfix,
+      LeftBindingPower,
+      Node
+    )
   )
 
 _ast.with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node) =
-  postfix -> [OpNode, RightBindingPower] &
+  postfix -> {"power": RightBindingPower, ...PostfixNode} &
   const(Is.LessThan(LeftBindingPower, RightBindingPower)) ? (
     _ast.with_precedence_rest(
       operand, prefix, infix, postfix,
       LeftBindingPower,
-      {...OpNode, "postfixed": Node}
+      {...PostfixNode, "postfixed": Node, ..._Ast.MergePos(Node, PostfixNode)}
     )
   ) :
-  infix -> [OpNode, RightBindingPower, NextLeftBindingPower] &
+  infix -> {"power": [RightBindingPower, NextLeftBindingPower], ...InfixNode} &
   const(Is.LessThan(LeftBindingPower, RightBindingPower)) ? (
     _ast.with_precedence_start(
       operand, prefix, infix, postfix,
@@ -747,13 +751,40 @@ _ast.with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Nod
     _ast.with_precedence_rest(
       operand, prefix, infix, postfix,
       LeftBindingPower,
-      {...OpNode, "left": Node, "right": RightNode}
+      {...InfixNode, "left": Node, "right": RightNode, ..._Ast.MergePos(Node, RightNode)}
     )
   ) :
   const(Node)
 
-ast.node(Type, value) =
+ast.node(value, Type) =
   value -> Value $ {"type": Type, "value": Value}
+
+ast.prefix_node(op, Type, BindingPower) =
+  op $ {"type": Type, "power": BindingPower}
+
+ast.infix_node(op, Type, LeftBindingPower, RightBindingPower) =
+  op $ {"type": Type, "power": [LeftBindingPower, RightBindingPower]}
+
+ast.postfix_node(op, Type, BindingPower) =
+  op $ {"type": Type, "power": BindingPower}
+
+ast.with_offset_pos(node) =
+  @input.offset -> StartOffset &
+  node -> Node &
+  @input.offset -> EndOffset $
+  {...Node, "startpos": StartOffset, "endpos": EndOffset}
+
+ast.with_line_pos(node) =
+  @input.line -> StartLine &
+  @input.line_offset -> StartLineOffset &
+  node -> Node &
+  @input.line -> EndLine &
+  @input.line_offset -> EndLineOffset $
+  {
+    ...Node,
+    "startpos": {"line": StartLine, "offset": StartLineOffset},
+    "endpos": {"line": EndLine, "offset": EndLineOffset},
+  }
 
 # Values
 
@@ -922,10 +953,11 @@ Obj.Put(O, K, V) = {...O, K: V}
 
 ## Abstract Syntax Trees
 
-Ast.Precedence(OpNode, BindingPower) = [OpNode, BindingPower]
+_Ast.MergePos(Left, Right) = {
+  ...(Left -> {"startpos": StartPos, ..._} ? {"startpos": StartPos} : {}),
+  ...(Right -> {"endpos": EndPos, ..._} ? {"endpos": EndPos} : {}),
+}
 
-Ast.InfixPrecedence(OpNode, LeftBindingPower, RightBindingPower) =
-  [OpNode, LeftBindingPower, RightBindingPower]
 
 ## Predicates
 

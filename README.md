@@ -102,13 +102,13 @@ This example uses `possum` as a [shebang script](https://en.wikipedia.org/wiki/S
 
   w = maybe(whitespace)
 
-  program = ast.node($"program", array_sep(expr, w))
+  program = ast.node(array_sep(expr, w), $"program")
 
   expr =
-    ast.node($"number", number) |
-    ast.node($"string", json.string) |
-    ast.node($"apply", apply) |
-    ast.node($"atom", atom)
+    ast.node(number, $"number") |
+    ast.node(json.string, $"string") |
+    ast.node(apply, $"apply") |
+    ast.node(atom, $"atom")
 
   apply = "(" > maybe_array_sep(expr, w) < ")"
 

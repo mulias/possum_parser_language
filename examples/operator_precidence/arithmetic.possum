@@ -1,41 +1,45 @@
 w = maybe(whitespace)
 
-var_node = ast.node($"var", alphas)
+var_node = ast.node(alphas, $"var")
 
-number_node = ast.node($"num", non_negative_number)
+number_node = ast.node(non_negative_number, $"num")
 
-grouped_expr = "(" > w > expr < w < ")"
+grouped_expr_node = "(" > w > expr < w < ")"
 
-operand = var_node | number_node | grouped_expr
+operand = var_node | number_node | grouped_expr_node
 
-conditional_infix =
-  "?" & w & expr -> Middle & w & ":" $ {"type": "cond", "middle": Middle}
+conditional(Type, LeftBindingPower, RightBindingPower) =
+  "?" & w & expr -> Middle & w & ":" $
+  {"type": Type, "middle": Middle, "power": [LeftBindingPower, RightBindingPower]}
 
-index_postfix = ast.node($"index", "[" > w > expr < w < "]")
+index_access(Type, BindingPower) =
+  "[" > w > expr < w < "]" -> Index $
+  {"type": Type, "index": Index, "power": BindingPower}
 
 prefix =
-  ("-" $ Ast.Precedence({"type": "neg"}, 7))
+  ast.prefix_node("-", $"neg", $7)
 
 infix =
-  ("^"  $ Ast.InfixPrecedence({"type": "exp"},    6, 6.5)) |
-  ("*"  $ Ast.InfixPrecedence({"type": "mul"},    5, 5.5)) |
-  ("/"  $ Ast.InfixPrecedence({"type": "div"},    5, 5.5)) |
-  ("+"  $ Ast.InfixPrecedence({"type": "add"},    4, 4.5)) |
-  ("-"  $ Ast.InfixPrecedence({"type": "sub"},    4, 4.5)) |
-  ("==" $ Ast.InfixPrecedence({"type": "eql"},    3, 3.5)) |
-  (conditional_infix ->
-   Node $ Ast.InfixPrecedence(Node,               2.5, 2)) |
-  ("="  $ Ast.InfixPrecedence({"type": "assign"}, 1.5, 1))
+  ast.infix_node("^", $"exp", $6, $6.5) |
+  ast.infix_node("*", $"mul", $5, $5.5) |
+  ast.infix_node("/", $"div", $5, $5.5) |
+  ast.infix_node("+", $"add", $4, $4.5) |
+  ast.infix_node("-", $"sub", $4, $4.5) |
+  ast.infix_node("==", $"eql", $3, $3.5) |
+  conditional($"cond", $2.5, $2) |
+  ast.infix_node("=", $"assign", $1.5, $1)
 
 postfix =
-  ("!" $ Ast.Precedence({"type": "fac"}, 8)) |
-  (index_postfix -> Node $ Ast.Precedence(Node, 8))
+  ast.postfix_node("!", $"fac", $8) |
+  index_access($"index", $8)
+
+node(p) = surround(ast.with_offset_pos(p), w)
 
 expr = ast.with_operator_precedence(
-  surround(operand, w),
-  surround(prefix, w),
-  surround(infix, w),
-  surround(postfix, w)
+  node(operand),
+  node(prefix),
+  node(infix),
+  node(postfix)
 )
 
 expr
