@@ -2306,7 +2306,20 @@ pub const Compiler = struct {
                 const sid = try self.vm.strings.insert(s);
                 try array.append(self.vm, Elem.string(sid));
             },
-            .identifier,
+            .identifier => |ident| {
+                // Try to resolve as a global constant
+                if (self.localSlot(ident.name) == null) {
+                    if (self.findGlobal(ident.name)) |globalElem| {
+                        // If it's not a function, we can inline the constant value
+                        if (!globalElem.isDynType(.Function)) {
+                            try array.append(self.vm, globalElem);
+                            return;
+                        }
+                    }
+                }
+                // Fall back to dynamic value for locals and functions
+                try self.appendDynamicValue(array, rnode, index);
+            },
             .function_call,
             .merge,
             .@"or",
