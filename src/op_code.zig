@@ -9,6 +9,7 @@ pub const OpCode = enum(u8) {
     CallTailFunction,
     CaptureLocal,
     ConditionalThen,
+    CreateClosure,
     Crash,
     Decrement,
     Destructure,
@@ -90,14 +91,14 @@ pub const OpCode = enum(u8) {
             => self.twoConstantsInstruction(chunk, vm, writer, offset),
             .CallFunction,
             .CallTailFunction,
+            .CaptureLocal,
+            .CreateClosure,
             .GetAtIndex,
             .GetBoundLocal,
             .GetLocal,
             .InsertAtIndex,
             .InsertKeyVal,
             => self.byteInstruciton(chunk, writer, offset),
-            .CaptureLocal,
-            => self.twoBytesInstruciton(chunk, writer, offset),
             .Backtrack,
             .ConditionalThen,
             .Jump,
@@ -152,13 +153,6 @@ pub const OpCode = enum(u8) {
         const byte = chunk.read(offset + 1);
         try writer.print("{s} {}\n", .{ @tagName(self), byte });
         return offset + 2;
-    }
-
-    fn twoBytesInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
-        const byte1 = chunk.read(offset + 1);
-        const byte2 = chunk.read(offset + 2);
-        try writer.print("{s} {d} {d}\n", .{ @tagName(self), byte1, byte2 });
-        return offset + 3;
     }
 
     fn jumpInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {

@@ -361,32 +361,25 @@ pub const VM = struct {
                 try self.callFunction(self.peek(argCount), argCount, true);
             },
             .CaptureLocal => {
-                // Create or extend a closure around a function.
+                // Capture a local variable into a closure.
+                // Assumes top of stack is a Closure
+                // Fills the next available null slot
                 const fromSlot = self.readByte();
-                const toSlot = self.readByte();
                 const elem = self.peek(0);
 
-                switch (elem.getType()) {
-                    .Dyn => switch (elem.asDyn().dynType) {
-                        .Function => {
-                            const function = elem.asDyn().asFunction();
-                            var closure = try Elem.DynElem.Closure.create(self, function);
-                            closure.capture(toSlot, self.getLocal(fromSlot));
+                std.debug.assert(elem.isDynType(.Closure));
+                var closure = elem.asDyn().asClosure();
 
-                            self.drop(1);
-                            try self.push(closure.dyn.elem());
-                        },
-                        .Closure => {
-                            var closure = elem.asDyn().asClosure();
-                            closure.capture(toSlot, self.getLocal(fromSlot));
-
-                            self.drop(1);
-                            try self.push(closure.dyn.elem());
-                        },
-                        else => @panic("Internal error"),
-                    },
-                    else => @panic("Internal error"),
+                // Find first null slot
+                var toSlot: usize = 0;
+                while (toSlot < closure.captures.len) : (toSlot += 1) {
+                    if (closure.captures[toSlot] == null) {
+                        break;
+                    }
                 }
+                std.debug.assert(toSlot < closure.captures.len);
+
+                closure.capture(toSlot, self.getLocal(fromSlot));
             },
             .ConditionalThen => {
                 // The `?` part of `condition ? then : else`
@@ -402,6 +395,19 @@ pub const VM = struct {
                     self.inputPos = resetPos;
                     self.frame().ip += offset;
                 }
+            },
+            .CreateClosure => {
+                // Wraps a Function in a Closure with N capture slots.
+                // Takes the local count as operand.
+                const localCount = self.readByte();
+                const elem = self.peek(0);
+
+                std.debug.assert(elem.isDynType(.Function));
+                const function = elem.asDyn().asFunction();
+                const closure = try Elem.DynElem.Closure.create(self, function, localCount);
+
+                _ = self.pop();
+                try self.push(closure.dyn.elem());
             },
             .Crash => {
                 if (self.peekIsSuccess()) {

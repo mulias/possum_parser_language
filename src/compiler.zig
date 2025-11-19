@@ -1266,11 +1266,21 @@ pub const Compiler = struct {
     }
 
     fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.DynElem.Function, region: Region) !void {
-        for (self.currentFunction().locals.items, 0..) |local, fromSlot| {
-            if (targetFunction.localSlot(local.name())) |toSlot| {
-                try self.emitOp(.CaptureLocal, region);
-                try self.emitByte(@as(u8, @intCast(fromSlot)), region);
-                try self.emitByte(toSlot, region);
+        var captureCount: u8 = 0;
+        for (self.currentFunction().locals.items) |local| {
+            if (targetFunction.localSlot(local.name())) |_| {
+                captureCount += 1;
+            }
+        }
+
+        if (captureCount > 0) {
+            const localCount = @as(u8, @intCast(targetFunction.locals.items.len));
+            try self.emitUnaryOp(.CreateClosure, localCount, region);
+
+            for (targetFunction.locals.items) |targetLocal| {
+                if (self.localSlot(targetLocal.name())) |fromSlot| {
+                    try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
+                }
             }
         }
     }

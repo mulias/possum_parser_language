@@ -1475,8 +1475,8 @@ pub const Elem = packed union {
             function: *Function,
             captures: []?Elem,
 
-            pub fn create(vm: *VM, function: *Function) !*Closure {
-                const captures = try vm.gc.allocator().alloc(?Elem, function.locals.items.len);
+            pub fn create(vm: *VM, function: *Function, localCount: u8) !*Closure {
+                const captures = try vm.gc.allocator().alloc(?Elem, localCount);
                 @memset(captures, null);
 
                 const dyn = try vm.gc.createDynElem(Closure, .Closure);

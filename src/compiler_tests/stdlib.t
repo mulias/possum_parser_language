@@ -867,8 +867,9 @@
   0014    | Swap
   0015    | GetConstant 3: tuple1
   0017    | GetConstant 4: @fn743
-  0019    | CaptureLocal 0 1
-  0022    | CaptureLocal 1 0
+  0019    | CreateClosure 2
+  0021    | CaptureLocal 1
+  0023    | CaptureLocal 0
   0025    | CallFunction 1
   0027    | Merge
   0028    | JumpIfFailure 28 -> 63
@@ -880,8 +881,9 @@
   0040    | SetInputMark
   0041    | GetConstant 5: tuple1
   0043    | GetConstant 6: @fn744
-  0045    | CaptureLocal 0 1
-  0048    | CaptureLocal 1 0
+  0045    | CreateClosure 2
+  0047    | CaptureLocal 1
+  0049    | CaptureLocal 0
   0051    | CallFunction 1
   0053    | JumpIfFailure 53 -> 61
   0056    | PopInputMark
@@ -923,40 +925,42 @@
   0000    | GetConstant 0: null
   0002    | GetConstant 1: 1
   0004    | ValidateRepeatPattern
-  0005    | JumpIfZero 5 -> 32
+  0005    | JumpIfZero 5 -> 33
   0008    | Swap
   0009    | GetConstant 2: unless
   0011    | GetConstant 3: @fn745
-  0013    | CaptureLocal 0 0
-  0016    | GetBoundLocal 1
-  0018    | CallFunction 2
-  0020    | Merge
-  0021    | JumpIfFailure 21 -> 55
-  0024    | Swap
-  0025    | Decrement
-  0026    | JumpIfZero 26 -> 32
-  0029    | JumpBack 29 -> 8
-  0032    | Swap
-  0033    | SetInputMark
-  0034    | GetConstant 4: unless
-  0036    | GetConstant 5: @fn746
-  0038    | CaptureLocal 0 0
-  0041    | GetBoundLocal 1
-  0043    | CallFunction 2
-  0045    | JumpIfFailure 45 -> 53
-  0048    | PopInputMark
-  0049    | Merge
-  0050    | JumpBack 50 -> 33
-  0053    | ResetInput
-  0054    | Drop
-  0055    | Swap
+  0013    | CreateClosure 1
+  0015    | CaptureLocal 0
+  0017    | GetBoundLocal 1
+  0019    | CallFunction 2
+  0021    | Merge
+  0022    | JumpIfFailure 22 -> 57
+  0025    | Swap
+  0026    | Decrement
+  0027    | JumpIfZero 27 -> 33
+  0030    | JumpBack 30 -> 8
+  0033    | Swap
+  0034    | SetInputMark
+  0035    | GetConstant 4: unless
+  0037    | GetConstant 5: @fn746
+  0039    | CreateClosure 1
+  0041    | CaptureLocal 0
+  0043    | GetBoundLocal 1
+  0045    | CallFunction 2
+  0047    | JumpIfFailure 47 -> 55
+  0050    | PopInputMark
+  0051    | Merge
+  0052    | JumpBack 52 -> 34
+  0055    | ResetInput
   0056    | Drop
-  0057    | JumpIfFailure 57 -> 67
-  0060    | GetConstant 6: peek
-  0062    | GetBoundLocal 1
-  0064    | CallFunction 1
-  0066    | TakeLeft
-  0067    | End
+  0057    | Swap
+  0058    | Drop
+  0059    | JumpIfFailure 59 -> 69
+  0062    | GetConstant 6: peek
+  0064    | GetBoundLocal 1
+  0066    | CallFunction 1
+  0068    | TakeLeft
+  0069    | End
   ========================================
   
   =================@fn747=================
@@ -975,10 +979,11 @@
   ========================================
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn747
-  0004    | CaptureLocal 0 0
-  0007    | GetConstant 2: []
-  0009    | CallTailFunction 2
-  0011    | End
+  0004    | CreateClosure 1
+  0006    | CaptureLocal 0
+  0008    | GetConstant 2: []
+  0010    | CallTailFunction 2
+  0012    | End
   ========================================
   
   =================@fn749=================
@@ -999,8 +1004,9 @@
   ========================================
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn749
-  0004    | CaptureLocal 0 0
-  0007    | CaptureLocal 1 1
+  0004    | CreateClosure 2
+  0006    | CaptureLocal 0
+  0008    | CaptureLocal 1
   0010    | GetConstant 2: []
   0012    | CallTailFunction 2
   0014    | End
@@ -1186,8 +1192,9 @@
   0017    | Swap
   0018    | GetConstant 3: tuple1
   0020    | GetConstant 4: @fn756
-  0022    | CaptureLocal 0 1
-  0025    | CaptureLocal 1 0
+  0022    | CreateClosure 2
+  0024    | CaptureLocal 1
+  0026    | CaptureLocal 0
   0028    | CallFunction 1
   0030    | Merge
   0031    | JumpIfFailure 31 -> 42
@@ -1255,44 +1262,47 @@
   ========================================
   0000    | GetConstant 0: tuple1
   0002    | GetConstant 1: @fn757
-  0004    | CaptureLocal 0 0
-  0007    | CaptureLocal 1 1
+  0004    | CreateClosure 2
+  0006    | CaptureLocal 0
+  0008    | CaptureLocal 1
   0010    | CallFunction 1
   0012    | GetConstant 2: null
   0014    | GetConstant 3: 0
   0016    | ValidateRepeatPattern
-  0017    | JumpIfZero 17 -> 48
+  0017    | JumpIfZero 17 -> 47
   0020    | Swap
   0021    | GetConstant 4: tuple1
   0023    | GetConstant 5: @fn758
-  0025    | CaptureLocal 0 1
-  0028    | CaptureLocal 1 2
-  0031    | CaptureLocal 2 0
-  0034    | CallFunction 1
-  0036    | Merge
-  0037    | JumpIfFailure 37 -> 75
-  0040    | Swap
-  0041    | Decrement
-  0042    | JumpIfZero 42 -> 48
-  0045    | JumpBack 45 -> 20
-  0048    | Swap
-  0049    | SetInputMark
-  0050    | GetConstant 6: tuple1
-  0052    | GetConstant 7: @fn759
-  0054    | CaptureLocal 0 1
-  0057    | CaptureLocal 1 2
-  0060    | CaptureLocal 2 0
-  0063    | CallFunction 1
-  0065    | JumpIfFailure 65 -> 73
-  0068    | PopInputMark
-  0069    | Merge
-  0070    | JumpBack 70 -> 49
-  0073    | ResetInput
+  0025    | CreateClosure 3
+  0027    | CaptureLocal 2
+  0029    | CaptureLocal 0
+  0031    | CaptureLocal 1
+  0033    | CallFunction 1
+  0035    | Merge
+  0036    | JumpIfFailure 36 -> 73
+  0039    | Swap
+  0040    | Decrement
+  0041    | JumpIfZero 41 -> 47
+  0044    | JumpBack 44 -> 20
+  0047    | Swap
+  0048    | SetInputMark
+  0049    | GetConstant 6: tuple1
+  0051    | GetConstant 7: @fn759
+  0053    | CreateClosure 3
+  0055    | CaptureLocal 2
+  0057    | CaptureLocal 0
+  0059    | CaptureLocal 1
+  0061    | CallFunction 1
+  0063    | JumpIfFailure 63 -> 71
+  0066    | PopInputMark
+  0067    | Merge
+  0068    | JumpBack 68 -> 48
+  0071    | ResetInput
+  0072    | Drop
+  0073    | Swap
   0074    | Drop
-  0075    | Swap
-  0076    | Drop
-  0077    | Merge
-  0078    | End
+  0075    | Merge
+  0076    | End
   ========================================
   
   =================@fn760=================
@@ -1320,29 +1330,30 @@
   0004    | GetConstant 2: First
   0006    | GetConstant 3: peek
   0008    | GetConstant 4: @fn760
-  0010    | CaptureLocal 0 0
-  0013    | CaptureLocal 1 1
-  0016    | CaptureLocal 2 2
-  0019    | CallFunction 1
-  0021    | Destructure 0: [MaxRowLen, _]
-  0023    | TakeRight 23 -> 32
-  0026    | GetBoundLocal 0
-  0028    | CallFunction 0
-  0030    | Destructure 1: First
-  0032    | TakeRight 32 -> 59
-  0035    | GetConstant 5: _rows_padded
-  0037    | GetBoundLocal 0
-  0039    | GetBoundLocal 1
-  0041    | GetBoundLocal 2
-  0043    | GetBoundLocal 3
-  0045    | GetConstant 6: 1
-  0047    | GetBoundLocal 4
-  0049    | GetConstant 7: [_]
-  0051    | GetBoundLocal 6
-  0053    | InsertAtIndex 0
-  0055    | GetConstant 8: []
-  0057    | CallTailFunction 8
-  0059    | End
+  0010    | CreateClosure 3
+  0012    | CaptureLocal 0
+  0014    | CaptureLocal 1
+  0016    | CaptureLocal 2
+  0018    | CallFunction 1
+  0020    | Destructure 0: [MaxRowLen, _]
+  0022    | TakeRight 22 -> 31
+  0025    | GetBoundLocal 0
+  0027    | CallFunction 0
+  0029    | Destructure 1: First
+  0031    | TakeRight 31 -> 58
+  0034    | GetConstant 5: _rows_padded
+  0036    | GetBoundLocal 0
+  0038    | GetBoundLocal 1
+  0040    | GetBoundLocal 2
+  0042    | GetBoundLocal 3
+  0044    | GetConstant 6: 1
+  0046    | GetBoundLocal 4
+  0048    | GetConstant 7: [_]
+  0050    | GetBoundLocal 6
+  0052    | InsertAtIndex 0
+  0054    | GetConstant 8: []
+  0056    | CallTailFunction 8
+  0058    | End
   ========================================
   
   ==============_rows_padded==============
@@ -1675,8 +1686,9 @@
   0008    | Swap
   0009    | GetConstant 2: unless
   0011    | GetConstant 3: @fn771
-  0013    | CaptureLocal 0 0
-  0016    | CaptureLocal 1 1
+  0013    | CreateClosure 2
+  0015    | CaptureLocal 0
+  0017    | CaptureLocal 1
   0019    | GetBoundLocal 2
   0021    | CallFunction 2
   0023    | Merge
@@ -1689,8 +1701,9 @@
   0036    | SetInputMark
   0037    | GetConstant 4: unless
   0039    | GetConstant 5: @fn772
-  0041    | CaptureLocal 0 0
-  0044    | CaptureLocal 1 1
+  0041    | CreateClosure 2
+  0043    | CaptureLocal 0
+  0045    | CaptureLocal 1
   0047    | GetBoundLocal 2
   0049    | CallFunction 2
   0051    | JumpIfFailure 51 -> 59
@@ -1727,8 +1740,9 @@
   ========================================
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn773
-  0004    | CaptureLocal 0 0
-  0007    | CaptureLocal 1 1
+  0004    | CreateClosure 2
+  0006    | CaptureLocal 0
+  0008    | CaptureLocal 1
   0010    | GetConstant 2: {}
   0012    | CallTailFunction 2
   0014    | End
@@ -1757,13 +1771,14 @@
   ========================================
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn775
-  0004    | CaptureLocal 0 0
-  0007    | CaptureLocal 1 1
-  0010    | CaptureLocal 2 2
-  0013    | CaptureLocal 3 3
-  0016    | GetConstant 2: {}
-  0018    | CallTailFunction 2
-  0020    | End
+  0004    | CreateClosure 4
+  0006    | CaptureLocal 0
+  0008    | CaptureLocal 1
+  0010    | CaptureLocal 2
+  0012    | CaptureLocal 3
+  0014    | GetConstant 2: {}
+  0016    | CallTailFunction 2
+  0018    | End
   ========================================
   
   ==================pair==================
@@ -2203,14 +2218,15 @@
   ========================================
   0000    | GetConstant 0: array
   0002    | GetConstant 1: @fn784
-  0004    | CaptureLocal 0 0
-  0007    | CallFunction 1
-  0009    | JumpIfFailure 9 -> 19
-  0012    | GetConstant 2: maybe
-  0014    | GetConstant 3: @fn785
-  0016    | CallFunction 1
-  0018    | TakeLeft
-  0019    | End
+  0004    | CreateClosure 1
+  0006    | CaptureLocal 0
+  0008    | CallFunction 1
+  0010    | JumpIfFailure 10 -> 20
+  0013    | GetConstant 2: maybe
+  0015    | GetConstant 3: @fn785
+  0017    | CallFunction 1
+  0019    | TakeLeft
+  0020    | End
   ========================================
   
   ==============find_before===============
@@ -2266,16 +2282,18 @@
   ========================================
   0000    | GetConstant 0: array
   0002    | GetConstant 1: @fn786
-  0004    | CaptureLocal 0 0
-  0007    | CaptureLocal 1 1
+  0004    | CreateClosure 2
+  0006    | CaptureLocal 0
+  0008    | CaptureLocal 1
   0010    | CallFunction 1
-  0012    | JumpIfFailure 12 -> 25
+  0012    | JumpIfFailure 12 -> 26
   0015    | GetConstant 2: maybe
   0017    | GetConstant 3: @fn787
-  0019    | CaptureLocal 1 0
-  0022    | CallFunction 1
-  0024    | TakeLeft
-  0025    | End
+  0019    | CreateClosure 1
+  0021    | CaptureLocal 1
+  0023    | CallFunction 1
+  0025    | TakeLeft
+  0026    | End
   ========================================
   
   ================succeed=================
@@ -2786,17 +2804,18 @@
   ========================================
   0000    | GetConstant 0: "["
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 18
+  0004    | TakeRight 4 -> 19
   0007    | GetConstant 1: maybe_array_sep
   0009    | GetConstant 2: @fn791
-  0011    | CaptureLocal 0 0
-  0014    | GetConstant 3: ","
-  0016    | CallFunction 2
-  0018    | JumpIfFailure 18 -> 26
-  0021    | GetConstant 4: "]"
-  0023    | CallFunction 0
-  0025    | TakeLeft
-  0026    | End
+  0011    | CreateClosure 1
+  0013    | CaptureLocal 0
+  0015    | GetConstant 3: ","
+  0017    | CallFunction 2
+  0019    | JumpIfFailure 19 -> 27
+  0022    | GetConstant 4: "]"
+  0024    | CallFunction 0
+  0026    | TakeLeft
+  0027    | End
   ========================================
   
   =================@fn794=================
@@ -2850,19 +2869,20 @@
   ========================================
   0000    | GetConstant 0: "{"
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 22
+  0004    | TakeRight 4 -> 23
   0007    | GetConstant 1: maybe_object_sep
   0009    | GetConstant 2: @fn793
   0011    | GetConstant 3: ":"
   0013    | GetConstant 4: @fn795
-  0015    | CaptureLocal 0 0
-  0018    | GetConstant 5: ","
-  0020    | CallFunction 4
-  0022    | JumpIfFailure 22 -> 30
-  0025    | GetConstant 6: "}"
-  0027    | CallFunction 0
-  0029    | TakeLeft
-  0030    | End
+  0015    | CreateClosure 1
+  0017    | CaptureLocal 0
+  0019    | GetConstant 5: ","
+  0021    | CallFunction 4
+  0023    | JumpIfFailure 23 -> 31
+  0026    | GetConstant 6: "}"
+  0028    | CallFunction 0
+  0030    | TakeLeft
+  0031    | End
   ========================================
   
   ==============toml.simple===============
@@ -3100,23 +3120,24 @@
   0010    | TakeRight 10 -> 17
   0013    | GetConstant 3: _toml.ws_newline
   0015    | CallFunction 0
-  0017    | TakeRight 17 -> 52
+  0017    | TakeRight 17 -> 53
   0020    | GetConstant 4: default
   0022    | GetConstant 5: @fn800
-  0024    | CaptureLocal 0 0
-  0027    | GetConstant 6: _Toml.Doc.Empty
-  0029    | CallFunction 0
-  0031    | CallFunction 2
-  0033    | Destructure 1: InnerDoc
-  0035    | TakeRight 35 -> 52
-  0038    | GetConstant 7: _Toml.Doc.AppendAtPath
-  0040    | GetBoundLocal 1
-  0042    | GetBoundLocal 2
-  0044    | GetConstant 8: _Toml.Doc.Value
-  0046    | GetBoundLocal 3
-  0048    | CallFunction 1
-  0050    | CallTailFunction 3
-  0052    | End
+  0024    | CreateClosure 1
+  0026    | CaptureLocal 0
+  0028    | GetConstant 6: _Toml.Doc.Empty
+  0030    | CallFunction 0
+  0032    | CallFunction 2
+  0034    | Destructure 1: InnerDoc
+  0036    | TakeRight 36 -> 53
+  0039    | GetConstant 7: _Toml.Doc.AppendAtPath
+  0041    | GetBoundLocal 1
+  0043    | GetBoundLocal 2
+  0045    | GetConstant 8: _Toml.Doc.Value
+  0047    | GetBoundLocal 3
+  0049    | CallFunction 1
+  0051    | CallTailFunction 3
+  0053    | End
   ========================================
   
   =================@fn802=================
@@ -3675,15 +3696,16 @@
   0002    | SetClosureCaptures
   0003    | GetConstant 1: array_sep
   0005    | GetConstant 2: @fn813
-  0007    | CaptureLocal 0 0
-  0010    | GetConstant 3: ","
-  0012    | CallFunction 2
-  0014    | JumpIfFailure 14 -> 24
-  0017    | GetConstant 4: maybe
-  0019    | GetConstant 5: @fn814
-  0021    | CallFunction 1
-  0023    | TakeLeft
-  0024    | End
+  0007    | CreateClosure 1
+  0009    | CaptureLocal 0
+  0011    | GetConstant 3: ","
+  0013    | CallFunction 2
+  0015    | JumpIfFailure 15 -> 25
+  0018    | GetConstant 4: maybe
+  0020    | GetConstant 5: @fn814
+  0022    | CallFunction 1
+  0024    | TakeLeft
+  0025    | End
   ========================================
   
   ===============toml.array===============
@@ -3698,21 +3720,22 @@
   0004    | TakeRight 4 -> 11
   0007    | GetConstant 1: _toml.ws
   0009    | CallFunction 0
-  0011    | TakeRight 11 -> 25
+  0011    | TakeRight 11 -> 26
   0014    | GetConstant 2: default
   0016    | GetConstant 3: @fn812
-  0018    | CaptureLocal 0 0
-  0021    | GetConstant 4: []
-  0023    | CallFunction 2
-  0025    | JumpIfFailure 25 -> 33
-  0028    | GetConstant 5: _toml.ws
-  0030    | CallFunction 0
-  0032    | TakeLeft
-  0033    | JumpIfFailure 33 -> 41
-  0036    | GetConstant 6: "]"
-  0038    | CallFunction 0
-  0040    | TakeLeft
-  0041    | End
+  0018    | CreateClosure 1
+  0020    | CaptureLocal 0
+  0022    | GetConstant 4: []
+  0024    | CallFunction 2
+  0026    | JumpIfFailure 26 -> 34
+  0029    | GetConstant 5: _toml.ws
+  0031    | CallFunction 0
+  0033    | TakeLeft
+  0034    | JumpIfFailure 34 -> 42
+  0037    | GetConstant 6: "]"
+  0039    | CallFunction 0
+  0041    | TakeLeft
+  0042    | End
   ========================================
   
   ===========toml.inline_table============
