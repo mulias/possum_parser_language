@@ -783,6 +783,9 @@ pub const Can = struct {
             .merge => |merge| {
                 try self.foldValueConstants(merge.left);
                 try self.foldValueConstants(merge.right);
+                if (try CanAst.Value.merge(self.can_ast, merge.left.*, merge.right.*)) |merged| {
+                    rnode.* = merged;
+                }
             },
             .negation => |inner| {
                 try self.foldValueConstants(inner);

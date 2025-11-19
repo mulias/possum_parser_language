@@ -7,17 +7,11 @@
   ========================================
   0000    | GetConstant 0: ""
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 23
+  0004    | TakeRight 4 -> 13
   0007    | GetConstant 1: [1, 2, _]
-  0009    | GetConstant 2: [_]
-  0011    | GetConstant 3: 1
-  0013    | GetConstant 4: 1
-  0015    | Merge
-  0016    | GetConstant 5: 1
-  0018    | Merge
-  0019    | InsertAtIndex 0
-  0021    | InsertAtIndex 2
-  0023    | End
+  0009    | GetConstant 2: [3]
+  0011    | InsertAtIndex 2
+  0013    | End
   ========================================
 
   $ possum -p '1 -> A $ A' -i ''
@@ -68,26 +62,14 @@
 
   $ possum -p 'Foo = 1 + 1 ; "" $ [Foo]' -i ''
   
-  ==================Foo===================
-  Foo = 1 + 1
-  ========================================
-  0000    | GetConstant 0: 1
-  0002    | GetConstant 1: 1
-  0004    | Merge
-  0005    | End
-  ========================================
-  
   =================@main==================
   "" $ [Foo]
   ========================================
   0000    | GetConstant 0: ""
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 15
-  0007    | GetConstant 1: [_]
-  0009    | GetConstant 2: Foo
-  0011    | CallFunction 0
-  0013    | InsertAtIndex 0
-  0015    | End
+  0004    | TakeRight 4 -> 9
+  0007    | GetConstant 1: [2]
+  0009    | End
   ========================================
 
   $ possum -p '1 -> A $ [[A]]' -i ''
@@ -189,15 +171,9 @@
   const({"a": 1 + 2 + 3})
   ========================================
   0000    | GetConstant 0: const
-  0002    | GetConstant 1: {}
-  0004    | GetConstant 3: 1
-  0006    | GetConstant 4: 2
-  0008    | Merge
-  0009    | GetConstant 5: 3
-  0011    | Merge
-  0012    | InsertAtKey 2: "a"
-  0014    | CallFunction 1
-  0016    | End
+  0002    | GetConstant 1: {"a": 6}
+  0004    | CallFunction 1
+  0006    | End
   ========================================
 
   $ possum -p 'const({"a": [{"b": "foo"}]})' -i '12'
@@ -222,13 +198,11 @@
   ========================================
   0000    | GetConstant 0: ""
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 15
+  0004    | TakeRight 4 -> 12
   0007    | GetConstant 1: ""
-  0009    | GetConstant 2: 1
-  0011    | GetConstant 3: 1
-  0013    | Merge
-  0014    | MergeAsString
-  0015    | End
+  0009    | GetConstant 2: 2
+  0011    | MergeAsString
+  0012    | End
   ========================================
 
   $ possum -p 'Obj.Put(O, K, V) = {...O, K: V} ; 1' -i '1'
