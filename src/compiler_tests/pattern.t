@@ -99,6 +99,24 @@
   0010    | End
   ========================================
 
+  $ possum -p 'const([1, @Add(1, 2), 3]) -> [A, @Add(1, 1), 3]' -i ''
+  
+  =================@main==================
+  const([1, @Add(1, 2), 3]) -> [A, @Add(1, 1), 3]
+  ========================================
+  0000    | GetConstant 0: A
+  0002    | GetConstant 1: const
+  0004    | GetConstant 2: [1, _, 3]
+  0006    | GetConstant 3: @Add
+  0008    | GetConstant 4: 1
+  0010    | GetConstant 5: 2
+  0012    | CallFunction 2
+  0014    | InsertAtIndex 1
+  0016    | CallFunction 1
+  0018    | Destructure 0: [A, @Add(1, 1), 3]
+  0020    | End
+  ========================================
+
   $ possum -p 'const([1,2]) -> ([1] + [2])' -i ''
   
   =================@main==================
@@ -107,7 +125,7 @@
   0000    | GetConstant 0: const
   0002    | GetConstant 1: [1, 2]
   0004    | CallFunction 1
-  0006    | Destructure 0: ([1] + [2])
+  0006    | Destructure 0: [1, 2]
   0008    | End
   ========================================
 

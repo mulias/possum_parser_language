@@ -7,11 +7,9 @@
   ========================================
   0000    | GetConstant 0: ""
   0002    | CallFunction 0
-  0004    | TakeRight 4 -> 12
-  0007    | GetConstant 1: [1, 2]
-  0009    | GetConstant 2: [3, 4]
-  0011    | Merge
-  0012    | End
+  0004    | TakeRight 4 -> 9
+  0007    | GetConstant 1: [1, 2, 3, 4]
+  0009    | End
   ========================================
 
   $ possum -p '1..(..90)' -i '1111'

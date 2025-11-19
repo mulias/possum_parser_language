@@ -417,6 +417,18 @@ pub const Value = struct {
                 },
                 else => null,
             },
+            .array => |a_arr| switch (b.node) {
+                .array => |b_arr| {
+                    var merged_array = a_arr;
+                    try merged_array.ensureTotalCapacity(ast.arena.allocator(), a_arr.items.len + b_arr.items.len);
+                    merged_array.appendSliceAssumeCapacity(b_arr.items);
+                    return Value.RNode{
+                        .node = .{ .array = merged_array },
+                        .region = merged_region,
+                    };
+                },
+                else => null,
+            },
             else => null,
         };
     }
@@ -637,6 +649,18 @@ pub const Pattern = struct {
                 },
                 .range => |b_range| {
                     return try mergeRangeAndNumberNodes(ast, b_range, a.node, merged_region);
+                },
+                else => null,
+            },
+            .array => |a_arr| switch (b.node) {
+                .array => |b_arr| {
+                    var merged_array = a_arr;
+                    try merged_array.ensureTotalCapacity(ast.arena.allocator(), a_arr.items.len + b_arr.items.len);
+                    merged_array.appendSliceAssumeCapacity(b_arr.items);
+                    return Pattern.RNode{
+                        .node = .{ .array = merged_array },
+                        .region = merged_region,
+                    };
                 },
                 else => null,
             },
