@@ -321,7 +321,7 @@ pub const Compiler = struct {
             .destructure => |destructure| {
                 try self.writeParser(destructure.left, false);
                 const patternId = try self.createPattern(destructure.right);
-                try self.emitUnaryOp(.Destructure, patternId, region);
+                try self.emitPattern(patternId, region);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
@@ -819,7 +819,7 @@ pub const Compiler = struct {
         try self.emitOp(.Drop, parser.region);
         try self.emitOp(.Swap, count.region);
         const patternId = try self.createPattern(count);
-        try self.emitUnaryOp(.Destructure, patternId, repeat_region);
+        try self.emitPattern(patternId, repeat_region);
 
         // Cleanup: drop the counter
         try self.emitOp(.Drop, parser.region);
@@ -967,7 +967,7 @@ pub const Compiler = struct {
             try self.writePatternAsBoundRepeatValue(lower);
             try self.emitOp(.Merge, parser.region);
             const patternId = try self.createPattern(upper);
-            try self.emitUnaryOp(.Destructure, patternId, upper.region);
+            try self.emitPattern(patternId, upper.region);
             try self.emitOp(.Swap, region);
         }
 
@@ -1019,7 +1019,7 @@ pub const Compiler = struct {
             try self.writePatternAsBoundRepeatValue(upper);
             try self.emitOp(.Merge, region);
             const patternId = try self.createPattern(lower);
-            try self.emitUnaryOp(.Destructure, patternId, lower.region);
+            try self.emitPattern(patternId, lower.region);
         }
 
         try self.emitOp(.Drop, region);
@@ -1300,9 +1300,9 @@ pub const Compiler = struct {
         }
     }
 
-    fn createPattern(self: *Compiler, rnode: *Ast.Pattern.RNode) Error!u8 {
+    fn createPattern(self: *Compiler, rnode: *Ast.Pattern.RNode) Error!u24 {
         const patternElem = try self.astToPattern(rnode, 0);
-        return self.chunk().addPattern(self.vm.allocator, patternElem);
+        return @intCast(try self.targetModule.addPattern(self.vm.allocator, patternElem));
     }
 
     fn astToPattern(self: *Compiler, rnode: *Ast.Pattern.RNode, negation_count: u2) Error!Pattern {
@@ -2104,7 +2104,7 @@ pub const Compiler = struct {
             .destructure => |destructure| {
                 try self.writeValue(destructure.left, false);
                 const patternId = try self.createPattern(destructure.right);
-                try self.emitUnaryOp(.Destructure, patternId, region);
+                try self.emitPattern(patternId, region);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
@@ -2671,6 +2671,18 @@ pub const Compiler = struct {
             try self.emitShort(@intCast(idx), region);
         } else {
             try self.emitOp(.GetConstant3, region);
+            try self.emitMedium(@intCast(idx), region);
+        }
+    }
+
+    fn emitPattern(self: *Compiler, idx: usize, region: Region) !void {
+        if (idx <= 0xFF) {
+            try self.emitUnaryOp(.Destructure, @intCast(idx), region);
+        } else if (idx <= 0xFFFF) {
+            try self.emitOp(.Destructure2, region);
+            try self.emitShort(@intCast(idx), region);
+        } else {
+            try self.emitOp(.Destructure3, region);
             try self.emitMedium(@intCast(idx), region);
         }
     }

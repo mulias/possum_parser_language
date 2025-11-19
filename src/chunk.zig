@@ -3,7 +3,6 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Writer = std.Io.Writer;
 const Elem = @import("elem.zig").Elem;
-const Pattern = @import("pattern.zig").Pattern;
 const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
 const OpCode = @import("op_code.zig").OpCode;
@@ -11,22 +10,16 @@ const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 
 pub const ChunkError = error{
-    TooManyPatterns,
     ShortOverflow,
 };
 
 pub const Chunk = struct {
     code: ArrayList(u8) = ArrayList(u8){},
-    patterns: ArrayList(Pattern) = ArrayList(Pattern){},
     regions: ArrayList(Region) = ArrayList(Region){},
     source_region: Region,
 
     pub fn deinit(self: *Chunk, allocator: Allocator) void {
         self.code.deinit(allocator);
-        for (self.patterns.items) |*pattern| {
-            pattern.deinit(allocator);
-        }
-        self.patterns.deinit(allocator);
         self.regions.deinit(allocator);
     }
 
@@ -40,10 +33,6 @@ pub const Chunk = struct {
 
     pub fn nextByteIndex(self: *Chunk) usize {
         return self.code.items.len;
-    }
-
-    pub fn getPattern(self: *Chunk, idx: u8) Pattern {
-        return self.patterns.items[idx];
     }
 
     pub fn write(self: *Chunk, allocator: Allocator, byte: u8, loc: Region) !void {
@@ -83,13 +72,6 @@ pub const Chunk = struct {
 
     pub fn updateOpAt(self: *Chunk, opIndex: usize, op: OpCode) void {
         self.updateAt(opIndex, @intFromEnum(op));
-    }
-
-    pub fn addPattern(self: *Chunk, allocator: Allocator, pattern: Pattern) !u8 {
-        const idx = self.patterns.items.len;
-        if (idx > std.math.maxInt(u8)) return ChunkError.TooManyPatterns;
-        try self.patterns.append(allocator, pattern);
-        return @as(u8, @intCast(idx));
     }
 
     pub fn disassemble(self: *Chunk, vm: VM, module: Module, writer: *Writer, name: []const u8) !void {

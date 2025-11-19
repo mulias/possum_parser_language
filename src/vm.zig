@@ -406,7 +406,31 @@ pub const VM = struct {
             },
             .Destructure => {
                 const patternIdx = self.readByte();
-                const pattern = self.chunk().getPattern(patternIdx);
+                const pattern = self.frame().function.module.getPattern(patternIdx);
+                const value = self.peek(0);
+
+                if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
+                    // value is already on the stack
+                } else {
+                    self.drop(1);
+                    try self.pushFailure();
+                }
+            },
+            .Destructure2 => {
+                const patternIdx = self.readShort();
+                const pattern = self.frame().function.module.getPattern(patternIdx);
+                const value = self.peek(0);
+
+                if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
+                    // value is already on the stack
+                } else {
+                    self.drop(1);
+                    try self.pushFailure();
+                }
+            },
+            .Destructure3 => {
+                const patternIdx = self.readMedium();
+                const pattern = self.frame().function.module.getPattern(patternIdx);
                 const value = self.peek(0);
 
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {

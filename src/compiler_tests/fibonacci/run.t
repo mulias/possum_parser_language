@@ -45,7 +45,7 @@
   ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
-  0003    | Destructure 0: ..1
+  0003    | Destructure 3: ..1
   0005    | Or 5 -> 27
   0008    | GetConstant 6: Fib
   0010    | GetBoundLocal 0
@@ -67,11 +67,11 @@
   0000    | GetConstant 7: N
   0002    | GetConstant 8: 0
   0004    | ParseLowerBoundedRange
-  0005    | Destructure 0: N
+  0005    | Destructure 4: N
   0007    | TakeRight 7 -> 18
   0010    | GetConstant 3: fib
   0012    | GetBoundLocal 0
   0014    | CallFunction 1
-  0016    | Destructure 1: Fib(N)
+  0016    | Destructure 5: Fib(N)
   0018    | End
   ========================================

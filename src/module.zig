@@ -5,6 +5,7 @@ const AutoHashMap = std.AutoHashMapUnmanaged;
 const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const StringTable = @import("string_table.zig").StringTable;
+const Pattern = @import("pattern.zig").Pattern;
 const hl = @import("highlight.zig");
 const Region = @import("region.zig").Region;
 
@@ -12,10 +13,15 @@ pub const Module = struct {
     name: []const u8,
     source: []const u8,
     constants: ArrayList(Elem) = ArrayList(Elem){},
+    patterns: ArrayList(Pattern) = ArrayList(Pattern){},
     globals: AutoHashMap(StringTable.Id, Elem) = AutoHashMap(StringTable.Id, Elem){},
 
     pub fn deinit(self: *Module, allocator: Allocator) void {
         self.constants.deinit(allocator);
+        for (self.patterns.items) |*pattern| {
+            pattern.deinit(allocator);
+        }
+        self.patterns.deinit(allocator);
         self.globals.deinit(allocator);
     }
 
@@ -35,6 +41,16 @@ pub const Module = struct {
 
     pub fn getConstant(self: Module, idx: usize) Elem {
         return self.constants.items[idx];
+    }
+
+    pub fn addPattern(self: *Module, allocator: Allocator, pattern: Pattern) !usize {
+        const idx = self.patterns.items.len;
+        try self.patterns.append(allocator, pattern);
+        return idx;
+    }
+
+    pub fn getPattern(self: Module, idx: usize) Pattern {
+        return self.patterns.items[idx];
     }
 
     /// Highlight this region in the module source code with context lines and underlines

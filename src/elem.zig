@@ -1548,6 +1548,6 @@ test "struct size" {
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(160, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(136, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Closure));
 }

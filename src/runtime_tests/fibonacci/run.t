@@ -20,7 +20,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, N, 4
-  0005    | Destructure 0: N
+  0005    | Destructure 1: N
   
   Destructure:
       4 -> N

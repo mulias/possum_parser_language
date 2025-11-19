@@ -14,6 +14,8 @@ pub const OpCode = enum(u8) {
     Crash,
     Decrement,
     Destructure,
+    Destructure2,
+    Destructure3,
     Drop,
     End,
     Fail,
@@ -92,7 +94,11 @@ pub const OpCode = enum(u8) {
             .GetConstant3,
             => self.constant3Instruction(chunk, vm, module, writer, offset),
             .Destructure,
-            => self.patternInstruction(chunk, vm, writer, offset),
+            => self.patternInstruction(chunk, vm, module, writer, offset),
+            .Destructure2,
+            => self.pattern2Instruction(chunk, vm, module, writer, offset),
+            .Destructure3,
+            => self.pattern3Instruction(chunk, vm, module, writer, offset),
             .CallFunction,
             .CallTailFunction,
             .CaptureLocal,
@@ -156,13 +162,34 @@ pub const OpCode = enum(u8) {
         return offset + 4;
     }
 
-    fn patternInstruction(self: OpCode, chunk: *Chunk, vm: VM, writer: *Writer, offset: usize) !usize {
+    fn patternInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         const patternIdx = chunk.read(offset + 1);
-        var pattern = chunk.getPattern(patternIdx);
+        var pattern = module.getPattern(patternIdx);
         try writer.print("{s} {}: ", .{ @tagName(self), patternIdx });
         try pattern.print(vm, writer);
         try writer.print("\n", .{});
         return offset + 2;
+    }
+
+    fn pattern2Instruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        var patternIdx = @as(usize, @intCast(chunk.read(offset + 1))) << 8;
+        patternIdx |= chunk.read(offset + 2);
+        var pattern = module.getPattern(patternIdx);
+        try writer.print("{s} {}: ", .{ @tagName(self), patternIdx });
+        try pattern.print(vm, writer);
+        try writer.print("\n", .{});
+        return offset + 3;
+    }
+
+    fn pattern3Instruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        var patternIdx = @as(usize, @intCast(chunk.read(offset + 1))) << 16;
+        patternIdx |= @as(usize, @intCast(chunk.read(offset + 2))) << 8;
+        patternIdx |= chunk.read(offset + 3);
+        var pattern = module.getPattern(patternIdx);
+        try writer.print("{s} {}: ", .{ @tagName(self), patternIdx });
+        try pattern.print(vm, writer);
+        try writer.print("\n", .{});
+        return offset + 4;
     }
 
     fn codepointRangeInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
