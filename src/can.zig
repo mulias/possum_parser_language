@@ -187,17 +187,17 @@ pub const Can = struct {
                 return Error.InvalidAst;
             },
             .False => CanAst.Parser.Node{ .identifier = .{
-                .name = "false",
+                .name = try self.vm.strings.insert("false"),
                 .builtin = false,
                 .underscored = false,
             } },
             .True => CanAst.Parser.Node{ .identifier = .{
-                .name = "true",
+                .name = try self.vm.strings.insert("true"),
                 .builtin = false,
                 .underscored = false,
             } },
             .Null => CanAst.Parser.Node{ .identifier = .{
-                .name = "null",
+                .name = try self.vm.strings.insert("null"),
                 .builtin = false,
                 .underscored = false,
             } },
@@ -216,7 +216,7 @@ pub const Can = struct {
                     return Error.InvalidGlobalParser;
                 }
                 break :blk CanAst.Parser.Node{ .identifier = .{
-                    .name = ident.name,
+                    .name = try self.vm.strings.insert(ident.name),
                     .builtin = ident.builtin,
                     .underscored = ident.underscored,
                 } };
@@ -327,7 +327,7 @@ pub const Can = struct {
                     return Error.InvalidAst;
                 }
                 break :blk CanAst.Value.Node{ .identifier = .{
-                    .name = ident.name,
+                    .name = try self.vm.strings.insert(ident.name),
                     .builtin = ident.builtin,
                     .underscored = ident.underscored,
                 } };
@@ -459,7 +459,7 @@ pub const Can = struct {
                     return Error.InvalidPatternNode;
                 }
                 break :blk CanAst.Pattern.Node{ .identifier = .{
-                    .name = ident.name,
+                    .name = try self.vm.strings.insert(ident.name),
                     .builtin = ident.builtin,
                     .underscored = ident.underscored,
                 } };
@@ -540,7 +540,7 @@ pub const Can = struct {
         region: Region,
     ) !*CanAst.RNode(CanAst.Parser.Declaration) {
         const can_name_ident = CanAst.Parser.Identifier{
-            .name = name_ident.name,
+            .name = try self.vm.strings.insert(name_ident.name),
             .builtin = name_ident.builtin,
             .underscored = name_ident.underscored,
         };
@@ -558,7 +558,7 @@ pub const Can = struct {
                 CanAst.ParserOrValue.Identifier{ .parser = try CanAst.Parser.createIdent(
                     self.can_ast,
                     .{
-                        .name = param_ident.name,
+                        .name = try self.vm.strings.insert(param_ident.name),
                         .builtin = param_ident.builtin,
                         .underscored = param_ident.underscored,
                     },
@@ -568,7 +568,7 @@ pub const Can = struct {
                 CanAst.ParserOrValue.Identifier{ .value = try CanAst.Value.createIdent(
                     self.can_ast,
                     .{
-                        .name = param_ident.name,
+                        .name = try self.vm.strings.insert(param_ident.name),
                         .builtin = param_ident.builtin,
                         .underscored = param_ident.underscored,
                     },
@@ -596,7 +596,7 @@ pub const Can = struct {
         region: Region,
     ) !*CanAst.RNode(CanAst.Value.Declaration) {
         const can_name_ident = CanAst.Value.Identifier{
-            .name = name_ident.name,
+            .name = try self.vm.strings.insert(name_ident.name),
             .builtin = name_ident.builtin,
             .underscored = name_ident.underscored,
         };
@@ -613,7 +613,7 @@ pub const Can = struct {
             const value_ident = try CanAst.Value.createIdent(
                 self.can_ast,
                 .{
-                    .name = param_ident.name,
+                    .name = try self.vm.strings.insert(param_ident.name),
                     .builtin = param_ident.builtin,
                     .underscored = param_ident.underscored,
                 },

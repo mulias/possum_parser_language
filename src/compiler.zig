@@ -1,6 +1,6 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
-const StringHashMap = std.StringArrayHashMapUnmanaged;
+const AutoHashMap = std.AutoHashMapUnmanaged;
 const Writer = std.Io.Writer;
 const Ast = @import("can_ast.zig");
 const Chunk = @import("chunk.zig").Chunk;
@@ -111,7 +111,7 @@ pub const Compiler = struct {
                 // Wait to resolve until all globals are declared
                 continue;
             } else if (try self.getAliasBody(decl)) |body_elem| {
-                const sid = try self.vm.strings.insert(decl.identName());
+                const sid = decl.identName();
                 try self.targetModule.addGlobal(self.vm.allocator, sid, body_elem);
                 try self.declareAlias(sid, body_elem);
             } else {
@@ -163,10 +163,9 @@ pub const Compiler = struct {
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
 
-        const ident_name = decl.identName();
-        const ident_builtin = decl.identBuiltin();
+        const function_name = decl.identName();
 
-        if (ident_builtin) {
+        if (decl.identBuiltin()) {
             try self.printError(decl.identRegion(), "unable to define builtin function", .{});
             return Error.InvalidAst;
         }
@@ -176,16 +175,14 @@ pub const Compiler = struct {
             .value => .NamedValue,
         };
 
-        const name_sid = try self.vm.strings.insert(ident_name);
-
         var function = try Elem.DynElem.Function.create(self.vm, .{
-            .name = name_sid,
+            .name = function_name,
             .functionType = function_type,
             .arity = 0,
             .region = decl.region(),
         });
 
-        try self.targetModule.addGlobal(self.vm.allocator, name_sid, function.dyn.elem());
+        try self.targetModule.addGlobal(self.vm.allocator, function_name, function.dyn.elem());
         try self.functions.append(self.vm.allocator, function);
 
         switch (decl) {
@@ -214,14 +211,14 @@ pub const Compiler = struct {
     }
 
     fn resolveAliasChain(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
-        var path = StringHashMap(void){};
+        var path = AutoHashMap(StringTable.Id, void){};
         defer path.deinit(self.vm.allocator);
 
         var target_ident_name = decl.identName();
 
         while (true) {
             if (path.contains(target_ident_name)) {
-                try self.printError(decl.region(), "Circular alias dependency detected for '{s}'", .{decl.identName()});
+                try self.printError(decl.region(), "Circular alias dependency detected for '{s}'", .{self.vm.strings.get(decl.identName())});
                 return Error.AliasCycle;
             } else {
                 try path.put(self.vm.allocator, target_ident_name, undefined);
@@ -237,8 +234,8 @@ pub const Compiler = struct {
             break;
         }
 
-        const alias_sid = try self.vm.strings.insert(decl.identName());
-        const terminal_sid = try self.vm.strings.insert(target_ident_name);
+        const alias_sid = decl.identName();
+        const terminal_sid = target_ident_name;
 
         // Try to resolve to a direct alias
         if (self.ast.declarations.get(target_ident_name)) |terminal_decl| {
@@ -253,13 +250,13 @@ pub const Compiler = struct {
             try self.targetModule.addGlobal(self.vm.allocator, alias_sid, terminal_elem);
             return;
         } else {
-            try self.printError(decl.region(), "Could not resolve alias, unknown variable '{s}'", .{target_ident_name});
+            try self.printError(decl.region(), "Could not resolve alias, unknown variable '{s}'", .{self.vm.strings.get(target_ident_name)});
             return Error.UnknownVariable;
         }
     }
 
     fn compileFunction(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
-        const global_sid = try self.vm.strings.insert(decl.identName());
+        const global_sid = decl.identName();
         const globalVal = (self.findGlobal(global_sid)).?;
 
         const function = globalVal.asDyn().asFunction();
@@ -400,7 +397,7 @@ pub const Compiler = struct {
         };
         const function_region = function_rnode.region;
 
-        const functionName = try self.vm.strings.insert(function_ident.name);
+        const functionName = function_ident.name;
 
         var function: ?*Elem.DynElem.Function = null;
 
@@ -700,12 +697,11 @@ pub const Compiler = struct {
                 }
             },
             .identifier => |ident| {
-                const name = try self.vm.strings.insert(ident.name);
-                if (self.findGlobal(name) != null) {
+                if (self.findGlobal(ident.name) != null) {
                     // Globals are always bound to a concrete value
                     try self.writeParserRepeatCount(parser, repeat, region);
                 } else {
-                    const slot = self.localSlot(name).?;
+                    const slot = self.localSlot(ident.name).?;
                     if (self.currentFunction().arity > slot) {
                         // The local var is a function arg, so we know it's bound
                         try self.writeParserRepeatCount(parser, repeat, region);
@@ -1028,14 +1024,10 @@ pub const Compiler = struct {
                 if (ident.builtin) {
                     return true;
                 } else {
-                    if (self.vm.strings.findId(ident.name)) |name| {
-                        if (self.findGlobal(name) != null) return true;
-
-                        if (self.localSlot(name)) |slot| {
-                            return self.currentFunction().arity > slot;
-                        } else {
-                            return false;
-                        }
+                    if (self.findGlobal(ident.name) != null) {
+                        return true;
+                    } else if (self.localSlot(ident.name)) |slot| {
+                        return self.currentFunction().arity > slot;
                     } else {
                         return false;
                     }
@@ -1089,17 +1081,15 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGetVar(self: *Compiler, name: []const u8, region: Region) !void {
-        const varName = try self.vm.strings.insert(name);
-
-        if (self.localSlot(varName)) |slot| {
+    fn writeGetVar(self: *Compiler, name: StringTable.Id, region: Region) !void {
+        if (self.localSlot(name)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, region);
         } else {
-            if (self.findGlobal(varName)) |globalElem| {
+            if (self.findGlobal(name)) |globalElem| {
                 const constId = try self.makeConstant(globalElem);
                 try self.emitUnaryOp(.GetConstant, constId, region);
             } else {
-                try self.printError(region, "undefined variable '{s}'", .{name});
+                try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(name)});
                 return Error.UndefinedVariable;
             }
         }
@@ -1338,7 +1328,7 @@ pub const Compiler = struct {
                 return Pattern{ .String = sid };
             },
             .identifier => |ident| {
-                const sid = try self.vm.strings.insert(ident.name);
+                const sid = ident.name;
                 if (self.findGlobal(sid)) |globalElem| {
                     const constId = try self.makeConstant(globalElem);
                     return Pattern{ .Constant = .{
@@ -1438,18 +1428,17 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 };
 
-                const function_name = try self.vm.strings.insert(function_ident.name);
-                const globalFunctionElem = self.findGlobal(function_name);
+                const globalFunctionElem = self.findGlobal(function_ident.name);
 
                 const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
                     .{
-                        .sid = function_name,
+                        .sid = function_ident.name,
                         .idx = try self.makeConstant(globalElem),
                         .negation_count = negation_count,
                     }
-                else if (self.localSlot(function_name)) |slot|
+                else if (self.localSlot(function_ident.name)) |slot|
                     .{
-                        .sid = function_name,
+                        .sid = function_ident.name,
                         .idx = slot,
                         .negation_count = negation_count,
                     }
@@ -1543,18 +1532,16 @@ pub const Compiler = struct {
                 return self.astToValueInPattern(inner, new_negation_count);
             },
             .identifier => |ident| {
-                const name = try self.vm.strings.insert(ident.name);
-
-                if (self.findGlobal(name)) |elem| {
+                if (self.findGlobal(ident.name)) |elem| {
                     return Pattern{ .Constant = .{
-                        .sid = name,
+                        .sid = ident.name,
                         .idx = try self.makeConstant(elem),
                         .negation_count = negation_count,
                     } };
                 } else {
-                    const slot = self.localSlot(name).?;
+                    const slot = self.localSlot(ident.name).?;
                     return Pattern{ .Local = .{
-                        .sid = name,
+                        .sid = ident.name,
                         .idx = slot,
                         .negation_count = negation_count,
                     } };
@@ -1695,13 +1682,12 @@ pub const Compiler = struct {
                         try self.addValueLocals(.{ .value = rep.right });
                     },
                     .identifier => |ident| {
-                        const sid = try self.vm.strings.insert(ident.name);
-                        if (self.findGlobal(sid) == null) {
+                        if (self.findGlobal(ident.name) == null) {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
                             if (newLocalId) |_| {
                                 const elem = Elem.valueVar(
-                                    sid,
+                                    ident.name,
                                     ident.underscored,
                                 );
                                 const constId = try self.makeConstant(elem);
@@ -1758,8 +1744,7 @@ pub const Compiler = struct {
                         }
                     },
                     .identifier => |ident| {
-                        const sid = try self.vm.strings.insert(ident.name);
-                        if (self.findGlobal(sid) == null) {
+                        if (self.findGlobal(ident.name) == null) {
                             const value_ident = Ast.Value.Identifier{
                                 .name = ident.name,
                                 .builtin = ident.builtin,
@@ -1769,7 +1754,7 @@ pub const Compiler = struct {
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
                             if (newLocalId) |_| {
                                 const elem = Elem.valueVar(
-                                    sid,
+                                    ident.name,
                                     ident.underscored,
                                 );
                                 const constId = try self.makeConstant(elem);
@@ -1825,10 +1810,9 @@ pub const Compiler = struct {
                         }
                     },
                     .identifier => |ident| {
-                        const name = try self.vm.strings.insert(ident.name);
-                        const elem = Elem.valueVar(name, ident.underscored);
+                        const elem = Elem.valueVar(ident.name, ident.underscored);
 
-                        if (self.parentFunction().localSlot(name) != null) {
+                        if (self.parentFunction().localSlot(ident.name) != null) {
                             var ident_rnode: Ast.RNode(Ast.Parser.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .parser = &ident_rnode });
                             if (newLocalId) |_| {
@@ -1927,10 +1911,9 @@ pub const Compiler = struct {
                         try self.addClosureLocals(.{ .value = conditional.else_branch });
                     },
                     .identifier => |ident| {
-                        const name = try self.vm.strings.insert(ident.name);
-                        const elem = Elem.valueVar(name, ident.underscored);
+                        const elem = Elem.valueVar(ident.name, ident.underscored);
 
-                        if (self.parentFunction().localSlot(name) != null) {
+                        if (self.parentFunction().localSlot(ident.name) != null) {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
                             if (newLocalId) |_| {
@@ -1986,10 +1969,9 @@ pub const Compiler = struct {
                         }
                     },
                     .identifier => |ident| {
-                        const name = try self.vm.strings.insert(ident.name);
-                        const elem = Elem.valueVar(name, ident.underscored);
+                        const elem = Elem.valueVar(ident.name, ident.underscored);
 
-                        if (self.parentFunction().localSlot(name) != null) {
+                        if (self.parentFunction().localSlot(ident.name) != null) {
                             const value_ident = Ast.Value.Identifier{
                                 .name = ident.name,
                                 .builtin = ident.builtin,
@@ -2031,11 +2013,10 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.GetConstant, constId, region);
             },
             .identifier => |ident| {
-                const name = try self.vm.strings.insert(ident.name);
-                if (self.localSlot(name)) |slot| {
+                if (self.localSlot(ident.name)) |slot| {
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const global = self.findGlobal(name).?;
+                    const global = self.findGlobal(ident.name).?;
                     const constId = try self.makeConstant(global);
                     try self.emitUnaryOp(.GetConstant, constId, region);
                 }
@@ -2145,8 +2126,7 @@ pub const Compiler = struct {
                 try self.writeValueFunctionCall(function_call.function, function_call.args, region, isTailPosition);
             },
             .identifier => |ident| {
-                const name = try self.vm.strings.insert(ident.name);
-                if (self.localSlot(name)) |slot| {
+                if (self.localSlot(ident.name)) |slot| {
                     // This local will either be a concrete value or
                     // unbound, it won't be a function. Value functions are
                     // all defined globally and called immediately. This
@@ -2156,7 +2136,7 @@ pub const Compiler = struct {
                     // the outer function will be concrete.
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const globalElem = self.findGlobal(name).?;
+                    const globalElem = self.findGlobal(ident.name).?;
                     const constId = try self.makeConstant(globalElem);
                     try self.emitUnaryOp(.GetConstant, constId, region);
                     if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
@@ -2205,7 +2185,7 @@ pub const Compiler = struct {
             @panic("todo");
         const function_region = function_rnode.region;
 
-        const functionName = try self.vm.strings.insert(function_ident.name);
+        const functionName = function_ident.name;
 
         var function: ?*Elem.DynElem.Function = null;
 
@@ -2506,7 +2486,7 @@ pub const Compiler = struct {
         return self.getAliasChainName(decl) != null;
     }
 
-    fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?[]const u8 {
+    fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?StringTable.Id {
         if (self.declHasNoParams(decl)) {
             return switch (decl) {
                 .parser => |p_decl| if (p_decl.node.body.node == .identifier)
@@ -2553,10 +2533,8 @@ pub const Compiler = struct {
             return Error.InvalidAst;
         }
 
-        const sid = try self.vm.strings.insert(ident.name());
-
         return self.currentFunction().addLocal(self.vm, .{
-            .sid = sid,
+            .sid = ident.name(),
             .kind = if (ident == .parser) .Parser else if (ident.underscored()) .Underscore else .Value,
         }) catch |err| switch (err) {
             error.MaxFunctionLocals => {

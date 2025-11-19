@@ -2,11 +2,12 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
-const StringHashMap = std.StringArrayHashMapUnmanaged;
+const AutoArrayHashMap = std.AutoArrayHashMapUnmanaged;
 const Region = @import("region.zig").Region;
+const StringTable = @import("string_table.zig").StringTable;
 
 arena: ArenaAllocator,
-declarations: StringHashMap(ParserOrValue.Declaration),
+declarations: AutoArrayHashMap(StringTable.Id, ParserOrValue.Declaration),
 main: ?*Parser.RNode,
 
 pub const Ast = @This();
@@ -71,7 +72,7 @@ pub const ParserOrValue = struct {
         parser: *Ast.RNode(Parser.Identifier),
         value: *Ast.RNode(Value.Identifier),
 
-        pub fn name(self: ParserOrValue.Identifier) []const u8 {
+        pub fn name(self: ParserOrValue.Identifier) StringTable.Id {
             return switch (self) {
                 .parser => |p| p.node.name,
                 .value => |v| v.node.name,
@@ -104,7 +105,7 @@ pub const ParserOrValue = struct {
         parser: *Ast.RNode(Parser.Declaration),
         value: *Ast.RNode(Value.Declaration),
 
-        pub fn identName(self: ParserOrValue.Declaration) []const u8 {
+        pub fn identName(self: ParserOrValue.Declaration) StringTable.Id {
             return switch (self) {
                 .parser => |p| p.node.ident.node.name,
                 .value => |v| v.node.ident.node.name,
@@ -208,7 +209,7 @@ pub const Parser = struct {
     };
 
     pub const Identifier = struct {
-        name: []const u8,
+        name: StringTable.Id,
         builtin: bool,
         underscored: bool,
     };
@@ -321,7 +322,7 @@ pub const Value = struct {
     };
 
     pub const Identifier = struct {
-        name: []const u8,
+        name: StringTable.Id,
         builtin: bool,
         underscored: bool,
     };
@@ -492,7 +493,7 @@ pub const Pattern = struct {
     };
 
     pub const Identifier = struct {
-        name: []const u8,
+        name: StringTable.Id,
         builtin: bool,
         underscored: bool,
     };
