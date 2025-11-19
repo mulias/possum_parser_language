@@ -2,6 +2,7 @@ const std = @import("std");
 const Writer = std.io.Writer;
 const Chunk = @import("chunk.zig").Chunk;
 const VM = @import("vm.zig").VM;
+const Module = @import("module.zig").Module;
 
 pub const OpCode = enum(u8) {
     Backtrack,
@@ -20,10 +21,11 @@ pub const OpCode = enum(u8) {
     GetAtIndex,
     GetBoundLocal,
     GetConstant,
+    GetConstant2,
+    GetConstant3,
     GetLocal,
     Increment,
     InsertAtIndex,
-    InsertAtKey,
     InsertKeyVal,
     Jump,
     JumpBack,
@@ -37,8 +39,9 @@ pub const OpCode = enum(u8) {
     NegateParser,
     Null,
     Or,
-    ParseCharacter,
-    ParseFixedRange,
+    ParseCodepoint,
+    ParseCodepointRange,
+    ParseIntegerRange,
     ParseLowerBoundedRange,
     ParseRange,
     ParseUpperBoundedRange,
@@ -53,7 +56,7 @@ pub const OpCode = enum(u8) {
     TakeRight,
     True,
 
-    pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, writer: *Writer, offset: usize) !usize {
+    pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         return switch (self) {
             .Crash,
             .Decrement,
@@ -67,7 +70,7 @@ pub const OpCode = enum(u8) {
             .NegateNumber,
             .NegateParser,
             .Null,
-            .ParseCharacter,
+            .ParseCodepoint,
             .ParseLowerBoundedRange,
             .ParseRange,
             .ParseUpperBoundedRange,
@@ -82,13 +85,14 @@ pub const OpCode = enum(u8) {
             .True,
             => self.simpleInstruction(writer, offset),
             .GetConstant,
-            .InsertAtKey,
             .NativeCode,
-            => self.constantInstruction(chunk, vm, writer, offset),
+            => self.constantInstruction(chunk, vm, module, writer, offset),
+            .GetConstant2,
+            => self.constant2Instruction(chunk, vm, module, writer, offset),
+            .GetConstant3,
+            => self.constant3Instruction(chunk, vm, module, writer, offset),
             .Destructure,
             => self.patternInstruction(chunk, vm, writer, offset),
-            .ParseFixedRange,
-            => self.twoConstantsInstruction(chunk, vm, writer, offset),
             .CallFunction,
             .CallTailFunction,
             .CaptureLocal,
@@ -99,6 +103,10 @@ pub const OpCode = enum(u8) {
             .InsertAtIndex,
             .InsertKeyVal,
             => self.byteInstruciton(chunk, writer, offset),
+            .ParseCodepointRange,
+            => self.codepointRangeInstruction(chunk, writer, offset),
+            .ParseIntegerRange,
+            => self.integerRangeInstruction(chunk, writer, offset),
             .Backtrack,
             .ConditionalThen,
             .Jump,
@@ -118,13 +126,34 @@ pub const OpCode = enum(u8) {
         return offset + 1;
     }
 
-    fn constantInstruction(self: OpCode, chunk: *Chunk, vm: VM, writer: *Writer, offset: usize) !usize {
+    fn constantInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         const constantIdx = chunk.read(offset + 1);
-        var constantElem = chunk.getConstant(constantIdx);
+        var constantElem = module.getConstant(constantIdx);
         try writer.print("{s} {}: ", .{ @tagName(self), constantIdx });
         try constantElem.print(vm, writer);
         try writer.print("\n", .{});
         return offset + 2;
+    }
+
+    fn constant2Instruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        var constantIdx = @as(usize, @intCast(chunk.read(offset + 1))) << 8;
+        constantIdx |= chunk.read(offset + 2);
+        var constantElem = module.getConstant(constantIdx);
+        try writer.print("{s} {}: ", .{ @tagName(self), constantIdx });
+        try constantElem.print(vm, writer);
+        try writer.print("\n", .{});
+        return offset + 3;
+    }
+
+    fn constant3Instruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        var constantIdx = @as(usize, @intCast(chunk.read(offset + 1))) << 16;
+        constantIdx |= @as(usize, @intCast(chunk.read(offset + 2))) << 8;
+        constantIdx |= chunk.read(offset + 3);
+        var constantElem = module.getConstant(constantIdx);
+        try writer.print("{s} {}: ", .{ @tagName(self), constantIdx });
+        try constantElem.print(vm, writer);
+        try writer.print("\n", .{});
+        return offset + 4;
     }
 
     fn patternInstruction(self: OpCode, chunk: *Chunk, vm: VM, writer: *Writer, offset: usize) !usize {
@@ -136,16 +165,17 @@ pub const OpCode = enum(u8) {
         return offset + 2;
     }
 
-    fn twoConstantsInstruction(self: OpCode, chunk: *Chunk, vm: VM, writer: *Writer, offset: usize) !usize {
+    fn codepointRangeInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const byte1 = chunk.read(offset + 1);
         const byte2 = chunk.read(offset + 2);
-        var constant1 = chunk.getConstant(byte1);
-        var constant2 = chunk.getConstant(byte2);
-        try writer.print("{s} {} {}: ", .{ @tagName(self), byte1, byte2 });
-        try constant1.print(vm, writer);
-        try writer.print(" ", .{});
-        try constant2.print(vm, writer);
-        try writer.print("\n", .{});
+        try writer.print("{s} '{c}'..'{c}'\n", .{ @tagName(self), byte1, byte2 });
+        return offset + 3;
+    }
+
+    fn integerRangeInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const byte1 = chunk.read(offset + 1);
+        const byte2 = chunk.read(offset + 2);
+        try writer.print("{s} {d}..{d}\n", .{ @tagName(self), byte1, byte2 });
         return offset + 3;
     }
 

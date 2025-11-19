@@ -1312,6 +1312,7 @@ pub const Elem = packed union {
 
         pub const Function = struct {
             dyn: DynElem,
+            module: *Module,
             arity: u8,
             chunk: Chunk,
             name: StringTable.Id,
@@ -1331,7 +1332,7 @@ pub const Elem = packed union {
                 }
             };
 
-            pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8, region: Region }) !*Function {
+            pub fn create(vm: *VM, fields: struct { module: *Module, name: StringTable.Id, functionType: FunctionType, arity: u8, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1339,6 +1340,7 @@ pub const Elem = packed union {
 
                 function.* = Function{
                     .dyn = dyn.*,
+                    .module = fields.module,
                     .arity = fields.arity,
                     .chunk = chunk,
                     .name = fields.name,
@@ -1349,7 +1351,7 @@ pub const Elem = packed union {
                 return function;
             }
 
-            pub fn createAnonParser(vm: *VM, fields: struct { arity: u8, region: Region }) !*Function {
+            pub fn createAnonParser(vm: *VM, fields: struct { module: *Module, arity: u8, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1363,6 +1365,7 @@ pub const Elem = packed union {
 
                 function.* = Function{
                     .dyn = dyn.*,
+                    .module = fields.module,
                     .arity = fields.arity,
                     .chunk = chunk,
                     .name = name,
@@ -1388,9 +1391,9 @@ pub const Elem = packed union {
                 return self == other.asFunction();
             }
 
-            pub fn disassemble(self: *Function, vm: VM, writer: *Writer, module: ?*Module) Writer.Error!void {
+            pub fn disassemble(self: *Function, vm: VM, writer: *Writer) Writer.Error!void {
                 const label = vm.strings.get(self.name);
-                try self.chunk.disassemble(vm, writer, label, module);
+                try self.chunk.disassemble(vm, self.module.*, writer, label);
             }
 
             pub fn addLocal(self: *Function, vm: *VM, local: Local) !?u8 {
@@ -1545,6 +1548,6 @@ test "struct size" {
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(176, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(160, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Closure));
 }

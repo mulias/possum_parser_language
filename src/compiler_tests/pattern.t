@@ -324,9 +324,9 @@
   =================@main==================
   const(Is.Array([1]))
   ========================================
-  0000    | GetConstant 0: const
-  0002    | GetConstant 1: Is.Array
-  0004    | GetConstant 2: [1]
+  0000    | GetConstant 1: const
+  0002    | GetConstant 2: Is.Array
+  0004    | GetConstant 3: [1]
   0006    | CallFunction 1
   0008    | CallFunction 1
   0010    | End
@@ -375,12 +375,12 @@
   0039    | Merge
   0040    | CallTailFunction 2
   0042    | Jump 42 -> 59
-  0045    | GetConstant 7: __Table.RestPerRow
+  0045    | GetConstant 4: __Table.RestPerRow
   0047    | GetBoundLocal 3
-  0049    | GetConstant 8: []
+  0049    | GetConstant 7: []
   0051    | GetBoundLocal 1
   0053    | Merge
-  0054    | GetConstant 9: [[]]
+  0054    | GetConstant 8: [[]]
   0056    | Merge
   0057    | CallTailFunction 2
   0059    | Jump 59 -> 64
@@ -391,7 +391,7 @@
   =================@main==================
   1
   ========================================
-  0000    | GetConstant 0: 1
+  0000    | GetConstant 9: 1
   0002    | CallFunction 0
   0004    | End
   ========================================
@@ -413,7 +413,7 @@
   =================@main==================
   1
   ========================================
-  0000    | GetConstant 0: 1
+  0000    | GetConstant 2: 1
   0002    | CallFunction 0
   0004    | End
   ========================================

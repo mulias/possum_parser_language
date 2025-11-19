@@ -40,7 +40,7 @@ pub const Pattern = union(PatternType) {
 
     pub const PatternVar = struct {
         sid: StringTable.Id,
-        idx: u8, // stack index/chunk constant id
+        idx: u24, // stack index/module constant id
         negation_count: u2,
 
         pub fn isNegated(self: PatternVar) bool {

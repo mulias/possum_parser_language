@@ -2,6 +2,7 @@ const std = @import("std");
 const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMapUnmanaged;
+const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const StringTable = @import("string_table.zig").StringTable;
 const hl = @import("highlight.zig");
@@ -10,9 +11,11 @@ const Region = @import("region.zig").Region;
 pub const Module = struct {
     name: []const u8,
     source: []const u8,
+    constants: ArrayList(Elem) = ArrayList(Elem){},
     globals: AutoHashMap(StringTable.Id, Elem) = AutoHashMap(StringTable.Id, Elem){},
 
     pub fn deinit(self: *Module, allocator: Allocator) void {
+        self.constants.deinit(allocator);
         self.globals.deinit(allocator);
     }
 
@@ -22,6 +25,16 @@ pub const Module = struct {
 
     pub fn getGlobal(self: *Module, name: StringTable.Id) ?Elem {
         return self.globals.get(name);
+    }
+
+    pub fn addConstant(self: *Module, allocator: Allocator, elem: Elem) !usize {
+        const idx = self.constants.items.len;
+        try self.constants.append(allocator, elem);
+        return idx;
+    }
+
+    pub fn getConstant(self: Module, idx: usize) Elem {
+        return self.constants.items[idx];
     }
 
     /// Highlight this region in the module source code with context lines and underlines

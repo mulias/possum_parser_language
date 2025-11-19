@@ -62,7 +62,7 @@ pub const VM = struct {
     allocator: Allocator,
     gc: GC,
     strings: StringTable,
-    modules: ArrayList(Module),
+    modules: ArrayList(*Module),
     active_compiler: ?*Compiler,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
@@ -125,7 +125,7 @@ pub const VM = struct {
         self.allocator = allocator;
         self.gc = GC.init(self, allocator);
         self.strings = StringTable.init(allocator);
-        self.modules = ArrayList(Module){};
+        self.modules = ArrayList(*Module){};
         self.active_compiler = null;
         self.stack = ArrayList(Elem){};
         self.frames = ArrayList(CallFrame){};
@@ -147,8 +147,9 @@ pub const VM = struct {
     pub fn deinit(self: *VM) void {
         self.gc.deinit();
         self.strings.deinit();
-        for (self.modules.items) |*module| {
+        for (self.modules.items) |module| {
             module.deinit(self.allocator);
+            self.allocator.destroy(module);
         }
         self.modules.deinit(self.allocator);
         self.stack.deinit(self.allocator);
@@ -183,15 +184,17 @@ pub const VM = struct {
     }
 
     pub fn compile(self: *VM, module: Module) !void {
-        try self.modules.append(self.allocator, module);
+        const modulePtr = try self.allocator.create(Module);
+        modulePtr.* = module;
+        try self.modules.append(self.allocator, modulePtr);
 
-        var parser = Parser.init(self, module);
+        var parser = Parser.init(self, modulePtr.*);
         defer parser.deinit();
 
         try parser.parse();
 
         if (self.config.printAst) {
-            try parser.ast.print(self.writers.debug, self.*, module.source);
+            try parser.ast.print(self.writers.debug, self.*, modulePtr.source);
         }
 
         var can_ast = CanAst.init(self.allocator);
@@ -199,14 +202,12 @@ pub const VM = struct {
 
         var can = Can{
             .vm = self,
-            .module = module,
+            .module = modulePtr.*,
             .ast = parser.ast,
             .can_ast = &can_ast,
             .writers = self.writers,
         };
         _ = try can.canonicalize();
-
-        const modulePtr = &self.modules.items[self.modules.items.len - 1];
         var compiler = try Compiler.init(
             self,
             modulePtr,
@@ -227,25 +228,23 @@ pub const VM = struct {
     }
 
     fn loadBuiltinFunctions(self: *VM) !void {
-        const builtinModule = Module{ .name = "builtins", .source = "" };
-        try self.modules.append(self.allocator, builtinModule);
+        const modulePtr = try self.allocator.create(Module);
+        modulePtr.* = Module{ .name = "builtins", .source = "" };
+        try self.modules.append(self.allocator, modulePtr);
 
-        // Get a pointer to the Module in the modules list, not a local copy,
-        // so modifications affect the VM-owned instance
-        const modulePtr = &self.modules.items[self.modules.items.len - 1];
         try builtin.loadFunctions(self, modulePtr);
     }
 
     fn loadStdlib(self: *VM) !void {
         const filename = "stdlib/core.possum";
-        const stdlibModule = Module{
+        const modulePtr = try self.allocator.create(Module);
+        modulePtr.* = Module{
             .name = filename,
             .source = @embedFile(filename),
         };
+        try self.modules.append(self.allocator, modulePtr);
 
-        try self.modules.append(self.allocator, stdlibModule);
-
-        var parser = Parser.init(self, stdlibModule);
+        var parser = Parser.init(self, modulePtr.*);
         defer parser.deinit();
 
         try parser.parse();
@@ -255,43 +254,20 @@ pub const VM = struct {
 
         var can = Can{
             .vm = self,
-            .module = stdlibModule,
+            .module = modulePtr.*,
             .ast = parser.ast,
             .can_ast = &can_ast,
             .writers = self.writers,
         };
         _ = try can.canonicalize();
-
-        const modulePtr = &self.modules.items[self.modules.items.len - 1];
         var compiler = try Compiler.init(self, modulePtr, can.can_ast.*, false);
         defer compiler.deinit();
 
         _ = try compiler.compile();
     }
 
-    pub fn findModuleForFunction(self: *VM, function: *Elem.DynElem.Function) ?*Module {
-        const function_name = function.name;
-
-        // Search backwards through modules (most recent first)
-        var i = self.modules.items.len;
-        while (i > 0) {
-            i -= 1;
-            const module = &self.modules.items[i];
-
-            if (module.getGlobal(function_name)) |stored_elem| {
-                // Compare function pointers directly since they should be the same instance
-                if (stored_elem.isType(.Dyn)) {
-                    const dyn = stored_elem.asDyn();
-                    if (dyn.isType(.Function)) {
-                        const stored_function = dyn.asFunction();
-                        if (stored_function == function) {
-                            return module;
-                        }
-                    }
-                }
-            }
-        }
-        return null;
+    pub fn currentFunctionModule(self: *VM) *Module {
+        return self.frame().function.module;
     }
 
     pub fn run(self: *VM) !void {
@@ -300,8 +276,7 @@ pub const VM = struct {
         }
 
         if (self.config.printExecutedBytecode) {
-            const module = self.findModuleForFunction(self.frame().function);
-            try self.frame().function.disassemble(self.*, self.writers.debug, module);
+            try self.frame().function.disassemble(self.*, self.writers.debug);
         }
 
         while (true) {
@@ -504,30 +479,6 @@ pub const VM = struct {
                     try self.push(copy.dyn.elem());
                 }
             },
-            .InsertAtKey => {
-                const idx = self.readByte();
-                const keyElem = self.chunk().getConstant(idx);
-                const val = self.peek(0);
-                const object_elem = self.peek(1);
-
-                if (val.isFailure() or object_elem.isFailure()) {
-                    self.drop(2);
-                    try self.pushFailure();
-                } else {
-                    const object = object_elem.asDyn().asObject();
-                    const key = if (keyElem.isType(.String)) keyElem.asString() else @panic("Internal Error");
-
-                    var copy = try Elem.DynElem.Object.create(self, object.members.count());
-                    try self.pushTempDyn(&copy.dyn);
-                    defer self.dropTempDyn();
-
-                    try copy.concat(self, object);
-                    try copy.put(self, key, val);
-
-                    self.drop(2);
-                    try self.push(copy.dyn.elem());
-                }
-            },
             .InsertKeyVal => {
                 const placeholder_key = self.readByte();
                 const val = self.peek(0);
@@ -610,7 +561,15 @@ pub const VM = struct {
             },
             .GetConstant => {
                 const idx = self.readByte();
-                try self.push(self.chunk().getConstant(idx));
+                try self.push(self.frame().function.module.getConstant(idx));
+            },
+            .GetConstant2 => {
+                const idx = self.readShort();
+                try self.push(self.frame().function.module.getConstant(idx));
+            },
+            .GetConstant3 => {
+                const idx = self.readMedium();
+                try self.push(self.frame().function.module.getConstant(idx));
             },
             .SetClosureCaptures => {
                 var function = self.getFunctionElem().asDyn();
@@ -688,7 +647,7 @@ pub const VM = struct {
             },
             .NativeCode => {
                 const idx = self.readByte();
-                const elem = self.chunk().getConstant(idx);
+                const elem = self.frame().function.module.getConstant(idx);
 
                 if (elem.isDynType(.NativeCode)) {
                     const nc = elem.asDyn().asNativeCode();
@@ -747,7 +706,7 @@ pub const VM = struct {
                     self.inputPos = resetPos;
                 }
             },
-            .ParseCharacter => {
+            .ParseCodepoint => {
                 const start = self.inputPos.offset;
 
                 if (start < self.input.len) {
@@ -770,23 +729,16 @@ pub const VM = struct {
                     try self.pushFailure();
                 }
             },
-            .ParseFixedRange => {
-                const low_idx = self.readByte();
-                const high_idx = self.readByte();
-                const low_elem = self.chunk().getConstant(low_idx);
-                const high_elem = self.chunk().getConstant(high_idx);
+            .ParseCodepointRange => {
+                const low_codepoint = self.readByte();
+                const high_codepoint = self.readByte();
 
-                if (low_elem.isType(.String)) {
-                    const low = self.strings.get(low_elem.asString());
-                    const high = self.strings.get(high_elem.asString());
-                    const low_codepoint = parsing.utf8Decode(low).?;
-                    const high_codepoint = parsing.utf8Decode(high).?;
-                    try self.parseCharacterRange(low_codepoint, high_codepoint);
-                } else {
-                    const low = try low_elem.asInteger(self.strings);
-                    const high = try high_elem.asInteger(self.strings);
-                    try self.parseIntegerRange(low, high);
-                }
+                try self.parseCharacterRange(@as(u21, @intCast(low_codepoint)), @as(u21, @intCast(high_codepoint)));
+            },
+            .ParseIntegerRange => {
+                const low_int = self.readByte();
+                const high_int = self.readByte();
+                try self.parseIntegerRange(@as(i64, @intCast(low_int)), @as(i64, @intCast(high_int)));
             },
             .ParseLowerBoundedRange => {
                 const low_elem = self.peek(0);
@@ -926,7 +878,8 @@ pub const VM = struct {
             try self.printElems();
 
             if (self.frames.items.len > 0) {
-                _ = try self.chunk().disassembleInstruction(self.*, self.writers.debug, self.frame().ip);
+                const module = self.currentFunctionModule();
+                _ = try self.chunk().disassembleInstruction(self.*, module.*, self.writers.debug, self.frame().ip);
             }
         }
     }
@@ -952,8 +905,7 @@ pub const VM = struct {
                         var function = dyn.asFunction();
 
                         if (self.config.printExecutedBytecode) {
-                            const module = self.findModuleForFunction(function);
-                            try function.disassemble(self.*, self.writers.debug, module);
+                            try function.disassemble(self.*, self.writers.debug);
                         }
 
                         if (function.arity == argCount) {
@@ -1231,8 +1183,8 @@ pub const VM = struct {
         return &self.frame().function.chunk;
     }
 
-    pub fn getConstant(self: *VM, idx: u8) Elem {
-        return self.chunk().getConstant(idx);
+    pub fn getConstant(self: *VM, idx: usize) Elem {
+        return self.frame().function.module.getConstant(idx);
     }
 
     fn addFrame(self: *VM, function: *Elem.DynElem.Function) !void {
@@ -1287,6 +1239,14 @@ pub const VM = struct {
         self.frame().ip += 2;
         const items = self.chunk().code.items;
         return (@as(u16, @intCast(items[self.frame().ip - 2])) << 8) | items[self.frame().ip - 1];
+    }
+
+    fn readMedium(self: *VM) u24 {
+        self.frame().ip += 3;
+        const items = self.chunk().code.items;
+        return (@as(u24, @intCast(items[self.frame().ip - 3])) << 16) |
+            (@as(u24, @intCast(items[self.frame().ip - 2])) << 8) |
+            items[self.frame().ip - 1];
     }
 
     pub fn push(self: *VM, elem: Elem) !void {
@@ -1373,7 +1333,7 @@ pub const VM = struct {
     // Linear scan of module globals to find the module that contains the
     // target chunk. Intended for error reporting.
     fn findModuleForChunk(self: *VM, target_chunk: *Chunk) ?*Module {
-        for (self.modules.items) |*module| {
+        for (self.modules.items) |module| {
             var iterator = module.globals.iterator();
             while (iterator.next()) |entry| {
                 const elem = entry.value_ptr.*;

@@ -29,6 +29,7 @@ pub fn loadFunctions(vm: *VM, module: *Module) !void {
 fn createFailParser(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@fail");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedParser,
         .arity = 0,
@@ -47,6 +48,7 @@ fn createFailParser(vm: *VM, module: *Module) !void {
 fn createFailValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Fail");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 0,
@@ -65,6 +67,7 @@ fn createFailValue(vm: *VM, module: *Module) !void {
 fn createCrashValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Crash");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 1,
@@ -88,6 +91,7 @@ fn createCrashValue(vm: *VM, module: *Module) !void {
 fn createCodepointValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Codepoint");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 1,
@@ -103,7 +107,8 @@ fn createCodepointValue(vm: *VM, module: *Module) !void {
         stringToCodepoint,
     );
 
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const argName = try vm.strings.insert("HexString");
     _ = try fun.addLocal(vm, .{ .sid = argName, .kind = .Value });
@@ -113,7 +118,7 @@ fn createCodepointValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
     try fun.chunk.write(vm.allocator, 0, loc);
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -143,6 +148,7 @@ fn stringToCodepoint(vm: *VM) VM.Error!void {
 fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@SurrogatePairCodepoint");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
@@ -158,7 +164,8 @@ fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
         stringsToSurrogateCodepoint,
     );
 
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const arg1 = try vm.strings.insert("HighSurrogate");
     const arg2 = try vm.strings.insert("LowSurrogate");
@@ -172,7 +179,7 @@ fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
     try fun.chunk.write(vm.allocator, 1, loc);
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -207,6 +214,7 @@ fn stringsToSurrogateCodepoint(vm: *VM) VM.Error!void {
 fn createDbgParser(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@dbg");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedParser,
         .arity = 1,
@@ -217,7 +225,8 @@ fn createDbgParser(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const arg1 = try vm.strings.insert("p");
     _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Parser });
@@ -229,13 +238,14 @@ fn createDbgParser(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .CallFunction, loc);
     try fun.chunk.write(vm.allocator, 0, loc);
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
 fn createDbgValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Dbg");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 1,
@@ -246,7 +256,8 @@ fn createDbgValue(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const arg1 = try vm.strings.insert("V");
     _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Value });
@@ -256,7 +267,7 @@ fn createDbgValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
     try fun.chunk.write(vm.allocator, 0, loc);
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -272,6 +283,7 @@ fn dbgNative(vm: *VM) VM.Error!void {
 fn createAddValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Add");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
@@ -282,7 +294,8 @@ fn createAddValue(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "addNative", addNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
@@ -296,7 +309,7 @@ fn createAddValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
     try fun.chunk.write(vm.allocator, 1, loc);
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -329,6 +342,7 @@ fn addNative(vm: *VM) VM.Error!void {
 fn createSubtractValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Subtract");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
@@ -339,7 +353,8 @@ fn createSubtractValue(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "subtractNative", subtractNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
@@ -353,7 +368,7 @@ fn createSubtractValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
     try fun.chunk.write(vm.allocator, 1, loc);
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -380,6 +395,7 @@ fn subtractNative(vm: *VM) VM.Error!void {
 fn createMultiplyValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Multiply");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
@@ -390,7 +406,8 @@ fn createMultiplyValue(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "multiplyNative", multiplyNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
@@ -404,7 +421,7 @@ fn createMultiplyValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
     try fun.chunk.write(vm.allocator, 1, loc);
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -431,6 +448,7 @@ fn multiplyNative(vm: *VM) VM.Error!void {
 fn createDivideValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Divide");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
@@ -441,7 +459,8 @@ fn createDivideValue(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "divideNative", divideNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
@@ -455,7 +474,7 @@ fn createDivideValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
     try fun.chunk.write(vm.allocator, 1, loc);
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -486,6 +505,7 @@ fn divideNative(vm: *VM) VM.Error!void {
 fn createPowerValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Power");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedValue,
         .arity = 2,
@@ -496,7 +516,8 @@ fn createPowerValue(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "powerNative", powerNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const arg1 = try vm.strings.insert("A");
     const arg2 = try vm.strings.insert("B");
@@ -510,7 +531,7 @@ fn createPowerValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
     try fun.chunk.write(vm.allocator, 1, loc);
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -537,6 +558,7 @@ fn powerNative(vm: *VM) VM.Error!void {
 fn createInputOffset(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@input.offset");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedParser,
         .arity = 0,
@@ -547,12 +569,13 @@ fn createInputOffset(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "inputOffsetNative", inputOffsetNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -565,6 +588,7 @@ fn inputOffsetNative(vm: *VM) VM.Error!void {
 fn createInputLine(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@input.line");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedParser,
         .arity = 0,
@@ -575,12 +599,13 @@ fn createInputLine(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "inputLineNative", inputLineNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -593,6 +618,7 @@ fn inputLineNative(vm: *VM) VM.Error!void {
 fn createInputLineOffset(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@input.line_offset");
     var fun = try Function.create(vm, .{
+        .module = module,
         .name = name,
         .functionType = .NamedParser,
         .arity = 0,
@@ -603,12 +629,13 @@ fn createInputLineOffset(vm: *VM, module: *Module) !void {
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "inputLineOffsetNative", inputLineOffsetNative);
-    const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
 
     const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
-    try fun.chunk.write(vm.allocator, nc_id, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 

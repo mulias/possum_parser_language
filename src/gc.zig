@@ -198,6 +198,13 @@ pub const GC = struct {
             while (iter.next()) |global| {
                 self.markElem(global.value_ptr.*);
             }
+
+            if (self.print_trace and module.constants.items.len > 0) {
+                self.vm.writers.debug.print("    module {s}: marking {} constants\n", .{ module.name, module.constants.items.len }) catch {};
+            }
+            for (module.constants.items) |elem| {
+                self.markElem(elem);
+            }
         }
 
         if (self.vm.active_compiler) |compiler| {
@@ -272,13 +279,7 @@ pub const GC = struct {
                 var iter = object.members.iterator();
                 while (iter.next()) |entry| self.markElem(entry.value_ptr.*);
             },
-            .Function => {
-                const function = dyn.asFunction();
-                if (self.print_trace and function.chunk.constants.items.len > 0) {
-                    self.vm.writers.debug.print("  blacken Function {s}: marking {} constants\n", .{ self.vm.strings.get(function.name), function.chunk.constants.items.len }) catch {};
-                }
-                for (function.chunk.constants.items) |elem| self.markElem(elem);
-            },
+            .Function => {},
             .Closure => {
                 const closure = dyn.asClosure();
                 self.markDyn(&closure.function.dyn);

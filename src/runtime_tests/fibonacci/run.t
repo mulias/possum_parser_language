@@ -5,12 +5,12 @@
   input   | 4 @ Line 1 byte 0
   Frames  | @main
   Stack   | @main
-  0000    | GetConstant 0: N
+  0000    | GetConstant 3: N
   
   input   | 4 @ Line 1 byte 0
   Frames  | @main
   Stack   | @main, N
-  0002    | GetConstant 1: 0
+  0002    | GetConstant 4: 0
   
   input   | 4 @ Line 1 byte 0
   Frames  | @main
@@ -34,7 +34,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4
-  0010    | GetConstant 2: Fib
+  0010    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
@@ -225,7 +225,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, 1
-  0017    | GetConstant 2: Fib
+  0017    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -235,7 +235,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 2
-  0021    | GetConstant 3: -2
+  0021    | GetConstant 2: -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -289,7 +289,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, 1
-  0017    | GetConstant 2: Fib
+  0017    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -299,7 +299,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, 1, Fib, 3
-  0021    | GetConstant 3: -2
+  0021    | GetConstant 2: -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -353,7 +353,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, 2
-  0017    | GetConstant 2: Fib
+  0017    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
@@ -363,7 +363,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, 2, Fib, 4
-  0021    | GetConstant 3: -2
+  0021    | GetConstant 2: -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
@@ -456,7 +456,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, 2, Fib, 2, 1
-  0017    | GetConstant 2: Fib
+  0017    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -466,7 +466,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 2
-  0021    | GetConstant 3: -2
+  0021    | GetConstant 2: -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib

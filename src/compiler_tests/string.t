@@ -83,7 +83,7 @@
   0009    | GetConstant 2: " and "
   0011    | CallFunction 0
   0013    | MergeAsString
-  0014    | GetConstant 3: word
+  0014    | GetConstant 1: word
   0016    | CallFunction 0
   0018    | MergeAsString
   0019    | End
@@ -97,8 +97,8 @@
   0000    | GetConstant 0: ""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 12
-  0007    | GetConstant 1: ""
-  0009    | GetConstant 2: 5
+  0007    | GetConstant 0: ""
+  0009    | GetConstant 1: 5
   0011    | MergeAsString
   0012    | End
   ========================================

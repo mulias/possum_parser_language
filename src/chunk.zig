@@ -11,21 +11,18 @@ const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 
 pub const ChunkError = error{
-    TooManyConstants,
     TooManyPatterns,
     ShortOverflow,
 };
 
 pub const Chunk = struct {
     code: ArrayList(u8) = ArrayList(u8){},
-    constants: ArrayList(Elem) = ArrayList(Elem){},
     patterns: ArrayList(Pattern) = ArrayList(Pattern){},
     regions: ArrayList(Region) = ArrayList(Region){},
     source_region: Region,
 
     pub fn deinit(self: *Chunk, allocator: Allocator) void {
         self.code.deinit(allocator);
-        self.constants.deinit(allocator);
         for (self.patterns.items) |*pattern| {
             pattern.deinit(allocator);
         }
@@ -45,10 +42,6 @@ pub const Chunk = struct {
         return self.code.items.len;
     }
 
-    pub fn getConstant(self: *Chunk, idx: u8) Elem {
-        return self.constants.items[idx];
-    }
-
     pub fn getPattern(self: *Chunk, idx: u8) Pattern {
         return self.patterns.items[idx];
     }
@@ -65,6 +58,12 @@ pub const Chunk = struct {
     pub fn writeShort(self: *Chunk, allocator: Allocator, short: u16, loc: Region) !void {
         try self.write(allocator, shortUpperBytes(short), loc);
         try self.write(allocator, shortLowerBytes(short), loc);
+    }
+
+    pub fn writeMedium(self: *Chunk, allocator: Allocator, medium: u24, loc: Region) !void {
+        try self.write(allocator, mediumUpperBytes(medium), loc);
+        try self.write(allocator, mediumMiddleBytes(medium), loc);
+        try self.write(allocator, mediumLowerBytes(medium), loc);
     }
 
     pub fn updateAt(self: *Chunk, index: usize, value: u8) void {
@@ -86,13 +85,6 @@ pub const Chunk = struct {
         self.updateAt(opIndex, @intFromEnum(op));
     }
 
-    pub fn addConstant(self: *Chunk, allocator: Allocator, e: Elem) !u8 {
-        const idx = self.constants.items.len;
-        if (idx > std.math.maxInt(u8)) return ChunkError.TooManyConstants;
-        try self.constants.append(allocator, e);
-        return @as(u8, @intCast(idx));
-    }
-
     pub fn addPattern(self: *Chunk, allocator: Allocator, pattern: Pattern) !u8 {
         const idx = self.patterns.items.len;
         if (idx > std.math.maxInt(u8)) return ChunkError.TooManyPatterns;
@@ -100,23 +92,21 @@ pub const Chunk = struct {
         return @as(u8, @intCast(idx));
     }
 
-    pub fn disassemble(self: *Chunk, vm: VM, writer: *Writer, name: []const u8, module: ?*Module) !void {
+    pub fn disassemble(self: *Chunk, vm: VM, module: Module, writer: *Writer, name: []const u8) !void {
         try writer.print("\n{s:=^40}\n", .{name});
 
-        if (module) |mod| {
-            try mod.printSourceRange(self.source_region, writer);
-            try writer.print("\n{s:=^40}\n", .{""});
-        }
+        try module.printSourceRange(self.source_region, writer);
+        try writer.print("\n{s:=^40}\n", .{""});
 
         var offset: usize = 0;
         while (offset < self.code.items.len) {
-            offset = try self.disassembleInstruction(vm, writer, offset);
+            offset = try self.disassembleInstruction(vm, module, writer, offset);
         }
 
         try writer.print("{s:=^40}\n", .{""});
     }
 
-    pub fn disassembleInstruction(self: *Chunk, vm: VM, writer: *Writer, offset: usize) !usize {
+    pub fn disassembleInstruction(self: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         // print address
         try writer.print("{:0>4} ", .{offset});
 
@@ -124,7 +114,7 @@ pub const Chunk = struct {
 
         const instruction = self.readOp(offset);
 
-        return instruction.disassemble(self, vm, writer, offset);
+        return instruction.disassemble(self, vm, module, writer, offset);
     }
 
     pub fn region(self: *Chunk) Region {
@@ -139,5 +129,17 @@ pub const Chunk = struct {
 
     fn shortUpperBytes(short: u16) u8 {
         return @as(u8, @intCast((short >> 8) & 0xff));
+    }
+
+    fn mediumLowerBytes(medium: u24) u8 {
+        return @as(u8, @intCast(medium & 0xff));
+    }
+
+    fn mediumMiddleBytes(medium: u24) u8 {
+        return @as(u8, @intCast((medium >> 8) & 0xff));
+    }
+
+    fn mediumUpperBytes(medium: u24) u8 {
+        return @as(u8, @intCast((medium >> 16) & 0xff));
     }
 };

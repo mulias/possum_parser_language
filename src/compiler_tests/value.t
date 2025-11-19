@@ -108,11 +108,11 @@
   =================@main==================
   "" $ [Foo]
   ========================================
-  0000    | GetConstant 0: ""
+  0000    | GetConstant 2: ""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 15
-  0007    | GetConstant 1: [_]
-  0009    | GetConstant 2: Foo
+  0007    | GetConstant 3: [_]
+  0009    | GetConstant 4: Foo
   0011    | CallFunction 0
   0013    | InsertAtIndex 0
   0015    | End
@@ -130,9 +130,9 @@
   =================@main==================
   const([...A, ...A])
   ========================================
-  0000    | GetConstant 0: const
-  0002    | GetConstant 1: []
-  0004    | GetConstant 2: A
+  0000    | GetConstant 1: const
+  0002    | GetConstant 2: []
+  0004    | GetConstant 3: A
   0006    | CallFunction 0
   0008    | Merge
   0009    | GetConstant 3: A
@@ -152,17 +152,19 @@
   0004    | GetConstant 2: 1
   0006    | CallFunction 0
   0008    | Destructure 0: A
-  0010    | TakeRight 10 -> 32
+  0010    | TakeRight 10 -> 36
   0013    | GetConstant 3: 2
   0015    | CallFunction 0
   0017    | Destructure 1: B
-  0019    | TakeRight 19 -> 32
-  0022    | GetConstant 4: {}
-  0024    | GetBoundLocal 0
-  0026    | InsertAtKey 5: "a"
-  0028    | GetBoundLocal 1
-  0030    | InsertAtKey 6: "b"
-  0032    | End
+  0019    | TakeRight 19 -> 36
+  0022    | GetConstant 4: {_0_, _1_}
+  0024    | GetConstant 5: "a"
+  0026    | GetBoundLocal 0
+  0028    | InsertKeyVal 0
+  0030    | GetConstant 6: "b"
+  0032    | GetBoundLocal 1
+  0034    | InsertKeyVal 1
+  0036    | End
   ========================================
 
   $ possum -p 'const({"a": 1 + 2 + 3})' -i '12'
@@ -182,13 +184,14 @@
   const({"a": [{"b": "foo"}]})
   ========================================
   0000    | GetConstant 0: const
-  0002    | GetConstant 1: {}
-  0004    | GetConstant 3: [_]
-  0006    | GetConstant 4: {"b": "foo"}
-  0008    | InsertAtIndex 0
-  0010    | InsertAtKey 2: "a"
-  0012    | CallFunction 1
-  0014    | End
+  0002    | GetConstant 1: {_0_}
+  0004    | GetConstant 2: "a"
+  0006    | GetConstant 3: [_]
+  0008    | GetConstant 4: {"b": "foo"}
+  0010    | InsertAtIndex 0
+  0012    | InsertKeyVal 0
+  0014    | CallFunction 1
+  0016    | End
   ========================================
 
   $ possum -p '"" $ "%(1 + 1)"' -i ''
@@ -199,8 +202,8 @@
   0000    | GetConstant 0: ""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 12
-  0007    | GetConstant 1: ""
-  0009    | GetConstant 2: 2
+  0007    | GetConstant 0: ""
+  0009    | GetConstant 1: 2
   0011    | MergeAsString
   0012    | End
   ========================================
@@ -224,7 +227,7 @@
   =================@main==================
   1
   ========================================
-  0000    | GetConstant 0: 1
+  0000    | GetConstant 2: 1
   0002    | CallFunction 0
   0004    | End
   ========================================
@@ -241,7 +244,7 @@
   =================@main==================
   1
   ========================================
-  0000    | GetConstant 0: 1
+  0000    | GetConstant 1: 1
   0002    | CallFunction 0
   0004    | End
   ========================================
@@ -388,11 +391,11 @@
   =================@main==================
   "" $ [A]
   ========================================
-  0000    | GetConstant 0: ""
+  0000    | GetConstant 2: ""
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 15
-  0007    | GetConstant 1: [_]
-  0009    | GetConstant 2: A
+  0007    | GetConstant 3: [_]
+  0009    | GetConstant 4: A
   0011    | CallFunction 0
   0013    | InsertAtIndex 0
   0015    | End
