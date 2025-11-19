@@ -74,9 +74,6 @@ fn createCrashValue(vm: *VM, module: *Module) !void {
     // Prevent GC
     try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
 
-    const argName = try vm.strings.insert("Message");
-    _ = try fun.addLocal(vm, .{ .sid = argName, .kind = .Value });
-
     const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
@@ -104,9 +101,6 @@ fn createCodepointValue(vm: *VM, module: *Module) !void {
     );
 
     const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
-
-    const argName = try vm.strings.insert("HexString");
-    _ = try fun.addLocal(vm, .{ .sid = argName, .kind = .Value });
 
     const loc = Region.new(0, 0);
 
@@ -159,11 +153,6 @@ fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
     );
 
     const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
-
-    const arg1 = try vm.strings.insert("HighSurrogate");
-    const arg2 = try vm.strings.insert("LowSurrogate");
-    _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Value });
-    _ = try fun.addLocal(vm, .{ .sid = arg2, .kind = .Value });
 
     const loc = Region.new(0, 0);
 
@@ -219,9 +208,6 @@ fn createDbgParser(vm: *VM, module: *Module) !void {
     const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
     const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
 
-    const arg1 = try vm.strings.insert("p");
-    _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Parser });
-
     const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
@@ -247,9 +233,6 @@ fn createDbgValue(vm: *VM, module: *Module) !void {
 
     const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
     const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
-
-    const arg1 = try vm.strings.insert("V");
-    _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Value });
 
     const loc = Region.new(0, 0);
 
@@ -283,11 +266,6 @@ fn createAddValue(vm: *VM, module: *Module) !void {
 
     const native_code = try NativeCode.create(vm, "addNative", addNative);
     const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
-
-    const arg1 = try vm.strings.insert("A");
-    const arg2 = try vm.strings.insert("B");
-    _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Value });
-    _ = try fun.addLocal(vm, .{ .sid = arg2, .kind = .Value });
 
     const loc = Region.new(0, 0);
 
@@ -341,11 +319,6 @@ fn createSubtractValue(vm: *VM, module: *Module) !void {
     const native_code = try NativeCode.create(vm, "subtractNative", subtractNative);
     const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
 
-    const arg1 = try vm.strings.insert("A");
-    const arg2 = try vm.strings.insert("B");
-    _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Value });
-    _ = try fun.addLocal(vm, .{ .sid = arg2, .kind = .Value });
-
     const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
@@ -392,11 +365,6 @@ fn createMultiplyValue(vm: *VM, module: *Module) !void {
     const native_code = try NativeCode.create(vm, "multiplyNative", multiplyNative);
     const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
 
-    const arg1 = try vm.strings.insert("A");
-    const arg2 = try vm.strings.insert("B");
-    _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Value });
-    _ = try fun.addLocal(vm, .{ .sid = arg2, .kind = .Value });
-
     const loc = Region.new(0, 0);
 
     try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
@@ -442,11 +410,6 @@ fn createDivideValue(vm: *VM, module: *Module) !void {
 
     const native_code = try NativeCode.create(vm, "divideNative", divideNative);
     const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
-
-    const arg1 = try vm.strings.insert("A");
-    const arg2 = try vm.strings.insert("B");
-    _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Value });
-    _ = try fun.addLocal(vm, .{ .sid = arg2, .kind = .Value });
 
     const loc = Region.new(0, 0);
 
@@ -497,11 +460,6 @@ fn createPowerValue(vm: *VM, module: *Module) !void {
 
     const native_code = try NativeCode.create(vm, "powerNative", powerNative);
     const nc_id = try fun.chunk.addConstant(vm.allocator, native_code.dyn.elem());
-
-    const arg1 = try vm.strings.insert("A");
-    const arg2 = try vm.strings.insert("B");
-    _ = try fun.addLocal(vm, .{ .sid = arg1, .kind = .Value });
-    _ = try fun.addLocal(vm, .{ .sid = arg2, .kind = .Value });
 
     const loc = Region.new(0, 0);
 

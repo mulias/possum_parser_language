@@ -1316,20 +1316,6 @@ pub const Elem = packed union {
             chunk: Chunk,
             name: StringTable.Id,
             functionType: FunctionType,
-            locals: ArrayList(Local),
-
-            pub const Local = struct {
-                sid: StringTable.Id,
-                kind: enum { Parser, Value, Underscore },
-
-                pub fn name(self: Local) StringTable.Id {
-                    return self.sid;
-                }
-
-                pub fn isParserVar(self: Local) bool {
-                    return self.kind == .Parser;
-                }
-            };
 
             pub fn create(vm: *VM, fields: struct { name: StringTable.Id, functionType: FunctionType, arity: u8, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
@@ -1343,7 +1329,6 @@ pub const Elem = packed union {
                     .chunk = chunk,
                     .name = fields.name,
                     .functionType = fields.functionType,
-                    .locals = ArrayList(Local){},
                 };
 
                 return function;
@@ -1367,7 +1352,6 @@ pub const Elem = packed union {
                     .chunk = chunk,
                     .name = name,
                     .functionType = .AnonParser,
-                    .locals = ArrayList(Local){},
                 };
 
                 return function;
@@ -1375,7 +1359,6 @@ pub const Elem = packed union {
 
             pub fn destroy(self: *Function, vm: *VM) void {
                 self.chunk.deinit(vm.allocator);
-                self.locals.deinit(vm.gc.allocator());
                 vm.gc.allocator().destroy(self);
             }
 
@@ -1391,39 +1374,6 @@ pub const Elem = packed union {
             pub fn disassemble(self: *Function, vm: VM, writer: *Writer, module: ?*Module) Writer.Error!void {
                 const label = vm.strings.get(self.name);
                 try self.chunk.disassemble(vm, writer, label, module);
-            }
-
-            pub fn addLocal(self: *Function, vm: *VM, local: Local) !?u8 {
-                if (self.locals.items.len >= std.math.maxInt(u8)) {
-                    return error.MaxFunctionLocals;
-                }
-
-                for (self.locals.items) |item| {
-                    if (item.name() == local.name()) {
-                        return error.VariableNameUsedInScope;
-                    }
-                }
-
-                try self.locals.append(vm.gc.allocator(), local);
-
-                return @as(u8, @intCast(self.locals.items.len - 1));
-            }
-
-            pub fn localSlot(self: *Function, name: StringTable.Id) ?u8 {
-                var i = self.locals.items.len;
-                while (i > 0) {
-                    i -= 1;
-
-                    if (self.locals.items[i].name() == name) {
-                        return @as(u8, @intCast(i));
-                    }
-                }
-
-                return null;
-            }
-
-            pub fn localVar(self: *Function, slot: u8) Local {
-                return self.locals.items[@as(usize, @intCast(slot))];
             }
 
             pub fn nameBytes(self: *Function, vm: VM) []const u8 {
@@ -1528,13 +1478,6 @@ pub const Elem = packed union {
             pub fn capture(self: *Closure, index: usize, local: Elem) void {
                 self.captures[index] = local;
             }
-
-            pub fn getCaptured(self: *Closure, name: StringTable.Id) ?Elem {
-                if (self.function.localSlot(name)) |slot| {
-                    return self.captures[slot];
-                }
-                return null;
-            }
         };
     };
 };
@@ -1545,6 +1488,6 @@ test "struct size" {
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(176, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(152, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Closure));
 }

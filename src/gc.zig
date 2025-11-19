@@ -205,7 +205,7 @@ pub const GC = struct {
                 self.vm.writers.debug.print("    active compiler functions: {}\n", .{compiler.functions.items.len}) catch {};
             }
             for (compiler.functions.items) |f| {
-                self.markDyn(&f.dyn);
+                self.markDyn(&f.function.dyn);
             }
         }
 

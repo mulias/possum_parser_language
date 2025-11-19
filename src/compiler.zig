@@ -20,9 +20,27 @@ pub const Compiler = struct {
     vm: *VM,
     targetModule: *Module,
     ast: Ast,
-    functions: ArrayList(*Elem.DynElem.Function),
+    functions: ArrayList(FunctionContext),
     writers: Writers,
     printBytecode: bool,
+
+    const FunctionContext = struct {
+        function: *Elem.DynElem.Function,
+        locals: ArrayList(Local),
+
+        pub const Local = struct {
+            sid: StringTable.Id,
+            kind: enum { Parser, Value, Underscore },
+
+            pub fn name(self: Local) StringTable.Id {
+                return self.sid;
+            }
+        };
+
+        pub fn localVar(self: FunctionContext, slot: u8) Local {
+            return self.locals.items[@as(usize, @intCast(slot))];
+        }
+    };
 
     const Error = error{
         InvalidAst,
@@ -52,8 +70,11 @@ pub const Compiler = struct {
             .region = undefined,
         });
 
-        var functions = ArrayList(*Elem.DynElem.Function){};
-        try functions.append(vm.allocator, main);
+        var functions = ArrayList(FunctionContext){};
+        try functions.append(vm.allocator, .{
+            .function = main,
+            .locals = ArrayList(FunctionContext.Local){},
+        });
 
         try targetModule.addGlobal(vm.allocator, main.name, main.dyn.elem());
 
@@ -88,6 +109,9 @@ pub const Compiler = struct {
     }
 
     pub fn deinit(self: *Compiler) void {
+        for (self.functions.items) |*fc| {
+            fc.locals.deinit(self.vm.allocator);
+        }
         self.functions.deinit(self.vm.allocator);
     }
 
@@ -146,16 +170,17 @@ pub const Compiler = struct {
         try self.writeParser(main_rnode, false);
         try self.emitEnd();
 
-        const main_fn = self.functions.pop().?;
+        var main_fc = self.functions.pop().?;
+        main_fc.locals.deinit(self.vm.allocator);
 
         // Update the main function's source region with the actual main parser region
-        main_fn.chunk.source_region = main_rnode.region;
+        main_fc.function.chunk.source_region = main_rnode.region;
 
         if (self.printBytecode) {
-            try main_fn.disassemble(self.vm.*, self.writers.debug, self.targetModule);
+            try main_fc.function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
         }
 
-        return main_fn;
+        return main_fc.function;
     }
 
     fn declareFunction(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
@@ -183,26 +208,37 @@ pub const Compiler = struct {
         });
 
         try self.targetModule.addGlobal(self.vm.allocator, function_name, function.dyn.elem());
-        try self.functions.append(self.vm.allocator, function);
 
         switch (decl) {
             .parser => |p_decl| {
-                for (p_decl.node.params.items) |param_ident| {
-                    _ = try self.addLocal(param_ident);
+                if (p_decl.node.params.items.len > std.math.maxInt(u8)) {
+                    const firstParam = p_decl.node.params.items[0];
+                    const region = switch (firstParam) {
+                        .parser => |p| p.region,
+                        .value => |v| v.region,
+                    };
+                    try self.printError(
+                        region,
+                        "Can't have more than {} parameters.",
+                        .{std.math.maxInt(u8)},
+                    );
+                    return error.MaxFunctionLocals;
                 }
-                // addLocal will fail if the number of params is too large
                 function.arity = @as(u8, @intCast(p_decl.node.params.items.len));
             },
             .value => |v_decl| {
-                for (v_decl.node.params.items) |param_ident| {
-                    _ = try self.addLocal(.{ .value = param_ident });
+                if (v_decl.node.params.items.len > std.math.maxInt(u8)) {
+                    const firstParam = v_decl.node.params.items[0];
+                    try self.printError(
+                        firstParam.region,
+                        "Can't have more than {} parameters.",
+                        .{std.math.maxInt(u8)},
+                    );
+                    return error.MaxFunctionLocals;
                 }
-                // addLocal will fail if the number of params is too large
                 function.arity = @as(u8, @intCast(v_decl.node.params.items.len));
             },
         }
-
-        _ = self.functions.pop();
     }
 
     fn declareAlias(self: *Compiler, sid: StringTable.Id, bodyElem: Elem) !void {
@@ -261,14 +297,23 @@ pub const Compiler = struct {
 
         const function = globalVal.asDyn().asFunction();
 
-        try self.functions.append(self.vm.allocator, function);
+        try self.functions.append(self.vm.allocator, .{
+            .function = function,
+            .locals = .{},
+        });
 
         switch (decl) {
             .parser => |p| {
+                for (p.node.params.items) |param_ident| {
+                    _ = try self.addLocal(param_ident);
+                }
                 try self.addValueLocals(.{ .parser = p.node.body });
                 try self.writeParser(p.node.body, true);
             },
             .value => |v| {
+                for (v.node.params.items) |param_ident| {
+                    _ = try self.addLocal(.{ .value = param_ident });
+                }
                 try self.addValueLocals(.{ .value = v.node.body });
                 try self.writeValue(v.node.body, true);
             },
@@ -280,7 +325,8 @@ pub const Compiler = struct {
             try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
         }
 
-        _ = self.functions.pop();
+        var fc = self.functions.pop().?;
+        fc.locals.deinit(self.vm.allocator);
     }
 
     fn writeParser(self: *Compiler, rnode: *Ast.Parser.RNode, isTailPosition: bool) !void {
@@ -1128,7 +1174,7 @@ pub const Compiler = struct {
     fn writeParserFunctionArguments(
         self: *Compiler,
         arguments: ArrayList(Ast.ParserOrValue.RNode),
-        function: ?*Elem.DynElem.Function,
+        function_context: ?FunctionContext,
     ) Error!u8 {
         const arg_count = arguments.items.len;
 
@@ -1145,9 +1191,9 @@ pub const Compiler = struct {
             return Error.MaxFunctionArgs;
         }
 
-        if (function) |f| {
-            if (f.arity != arg_count) {
-                const functionNameStr = self.vm.strings.get(f.name);
+        if (function_context) |fc| {
+            if (fc.function.arity != arg_count) {
+                const functionNameStr = self.vm.strings.get(fc.function.name);
                 const region = if (arguments.items.len > 0) blk: {
                     const first_arg = arguments.items[0];
                     const last_arg = arguments.items[arg_count - 1];
@@ -1158,19 +1204,19 @@ pub const Compiler = struct {
                     break :blk Region.new(0, 0);
                 };
 
-                if (f.arity < arg_count) {
-                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
+                if (fc.function.arity < arg_count) {
+                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, fc.function.arity, arg_count });
                     return Error.FunctionCallTooManyArgs;
                 } else {
-                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
+                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, fc.function.arity, arg_count });
                     return Error.FunctionCallTooFewArgs;
                 }
             }
         }
 
         for (arguments.items, 0..) |arg, i| {
-            const argType: ArgType = if (function) |f| blk: {
-                const local = f.localVar(@intCast(i));
+            const argType: ArgType = if (function_context) |fc| blk: {
+                const local = fc.localVar(@intCast(i));
                 switch (local.kind) {
                     .Parser => break :blk .Parser,
                     .Value, .Underscore => break :blk .Value,
@@ -1244,11 +1290,15 @@ pub const Compiler = struct {
         // Prevent GC
         const constId = try self.makeConstant(function.dyn.elem());
 
-        try self.functions.append(self.vm.allocator, function);
+        try self.functions.append(self.vm.allocator, .{
+            .function = function,
+            .locals = .{},
+        });
 
         try self.addClosureLocals(.{ .parser = rnode });
 
-        if (function.locals.items.len > 0) {
+        const targetLocals = self.currentLocals().items;
+        if (targetLocals.len > 0) {
             try self.emitOp(.SetClosureCaptures, region);
         }
 
@@ -1259,25 +1309,40 @@ pub const Compiler = struct {
             try function.disassemble(self.vm.*, self.writers.debug, self.targetModule);
         }
 
-        _ = self.functions.pop();
+        var fc = self.functions.pop().?;
+        defer fc.locals.deinit(self.vm.allocator);
 
         try self.emitUnaryOp(.GetConstant, constId, region);
-        try self.writeCaptureLocals(function, region);
+        try self.writeCaptureLocals(fc.locals.items, region);
     }
 
-    fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.DynElem.Function, region: Region) !void {
+    fn writeCaptureLocals(self: *Compiler, targetLocals: []const FunctionContext.Local, region: Region) !void {
+        // Helper to find a local slot by name in the target locals
+        const localSlotInTarget = struct {
+            fn find(locals: []const FunctionContext.Local, name: StringTable.Id) ?u8 {
+                var i = locals.len;
+                while (i > 0) {
+                    i -= 1;
+                    if (locals[i].name() == name) {
+                        return @as(u8, @intCast(i));
+                    }
+                }
+                return null;
+            }
+        }.find;
+
         var captureCount: u8 = 0;
-        for (self.currentFunction().locals.items) |local| {
-            if (targetFunction.localSlot(local.name())) |_| {
+        for (self.currentLocals().items) |local| {
+            if (localSlotInTarget(targetLocals, local.name())) |_| {
                 captureCount += 1;
             }
         }
 
         if (captureCount > 0) {
-            const localCount = @as(u8, @intCast(targetFunction.locals.items.len));
+            const localCount = @as(u8, @intCast(targetLocals.len));
             try self.emitUnaryOp(.CreateClosure, localCount, region);
 
-            for (targetFunction.locals.items) |targetLocal| {
+            for (targetLocals) |targetLocal| {
                 if (self.localSlot(targetLocal.name())) |fromSlot| {
                     try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
                 }
@@ -1822,7 +1887,7 @@ pub const Compiler = struct {
                     .identifier => |ident| {
                         const elem = Elem.valueVar(ident.name, ident.underscored);
 
-                        if (self.parentFunction().localSlot(ident.name) != null) {
+                        if (localSlotInLocals(self.parentLocals().items, ident.name) != null) {
                             var ident_rnode: Ast.RNode(Ast.Parser.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .parser = &ident_rnode });
                             if (newLocalId) |_| {
@@ -1923,7 +1988,7 @@ pub const Compiler = struct {
                     .identifier => |ident| {
                         const elem = Elem.valueVar(ident.name, ident.underscored);
 
-                        if (self.parentFunction().localSlot(ident.name) != null) {
+                        if (localSlotInLocals(self.parentLocals().items, ident.name) != null) {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
                             if (newLocalId) |_| {
@@ -1981,7 +2046,7 @@ pub const Compiler = struct {
                     .identifier => |ident| {
                         const elem = Elem.valueVar(ident.name, ident.underscored);
 
-                        if (self.parentFunction().localSlot(ident.name) != null) {
+                        if (localSlotInLocals(self.parentLocals().items, ident.name) != null) {
                             const value_ident = Ast.Value.Identifier{
                                 .name = ident.name,
                                 .builtin = ident.builtin,
@@ -2536,18 +2601,42 @@ pub const Compiler = struct {
     }
 
     fn currentFunction(self: *Compiler) *Elem.DynElem.Function {
-        return self.functions.items[self.functions.items.len - 1];
+        return self.functions.items[self.functions.items.len - 1].function;
+    }
+
+    fn currentLocals(self: *Compiler) *ArrayList(FunctionContext.Local) {
+        return &self.functions.items[self.functions.items.len - 1].locals;
     }
 
     fn parentFunction(self: *Compiler) *Elem.DynElem.Function {
         var parentIndex = self.functions.items.len - 2;
         while (true) {
-            if (self.functions.items[parentIndex].functionType == .AnonParser) {
+            if (self.functions.items[parentIndex].function.functionType == .AnonParser) {
                 parentIndex -= 1;
             } else {
-                return self.functions.items[parentIndex];
+                return self.functions.items[parentIndex].function;
             }
         }
+    }
+
+    fn parentLocals(self: *Compiler) *ArrayList(FunctionContext.Local) {
+        var parentIndex = self.functions.items.len - 2;
+        while (true) {
+            if (self.functions.items[parentIndex].function.functionType == .AnonParser) {
+                parentIndex -= 1;
+            } else {
+                return &self.functions.items[parentIndex].locals;
+            }
+        }
+    }
+
+    fn localSlotInLocals(locals: []const FunctionContext.Local, name: StringTable.Id) ?u8 {
+        for (locals, 0..) |local, i| {
+            if (local.name() == name) {
+                return @as(u8, @intCast(i));
+            }
+        }
+        return null;
     }
 
     fn addLocal(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !?u8 {
@@ -2556,20 +2645,29 @@ pub const Compiler = struct {
             return Error.InvalidAst;
         }
 
-        return self.currentFunction().addLocal(self.vm, .{
+        const locals = self.currentLocals();
+        const local = FunctionContext.Local{
             .sid = ident.name(),
-            .kind = if (ident == .parser) .Parser else if (ident.underscored()) .Underscore else .Value,
-        }) catch |err| switch (err) {
-            error.MaxFunctionLocals => {
-                try self.printError(
-                    ident.region(),
-                    "Can't have more than {} parameters and local variables.",
-                    .{std.math.maxInt(u8)},
-                );
-                return err;
-            },
-            else => return err,
+            .kind = if (ident == .parser) .Parser else .Value,
         };
+
+        if (locals.items.len >= std.math.maxInt(u8)) {
+            try self.printError(
+                ident.region(),
+                "Can't have more than {} parameters and local variables.",
+                .{std.math.maxInt(u8)},
+            );
+            return error.MaxFunctionLocals;
+        }
+
+        for (locals.items) |item| {
+            if (item.sid == local.sid) {
+                return error.VariableNameUsedInScope;
+            }
+        }
+
+        try locals.append(self.vm.allocator, local);
+        return @as(u8, @intCast(locals.items.len - 1));
     }
 
     fn addLocalIfUndefined(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !?u8 {
@@ -2580,7 +2678,15 @@ pub const Compiler = struct {
     }
 
     pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
-        return self.currentFunction().localSlot(name);
+        const locals = self.currentLocals();
+        var i = locals.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (locals.items[i].name() == name) {
+                return @as(u8, @intCast(i));
+            }
+        }
+        return null;
     }
 
     fn emitJump(self: *Compiler, op: OpCode, region: Region) !usize {
