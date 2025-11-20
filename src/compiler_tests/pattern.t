@@ -1124,11 +1124,9 @@
   "" $ 0 -> (0 * N)
   ========================================
   0000    | PushCharVar N
-  0002    | PushEmptyString
-  0003    | TakeRight 3 -> 7
-  0006    | PushNumberZero
-  0007    | Destructure 0: (0 * N)
-  0009    | End
+  0002    | PushNumberZero
+  0003    | Destructure 0: (0 * N)
+  0005    | End
   ========================================
 
   $ possum -p 'const($true) -> (true * N)' -i ''

@@ -16,10 +16,8 @@
   ==================foo===================
   foo(A) = "" $ A
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 6
-  0004    | GetBoundLocal 0
-  0006    | End
+  0000    | GetBoundLocal 0
+  0002    | End
   ========================================
   
   Program Error: Expected value but got parser

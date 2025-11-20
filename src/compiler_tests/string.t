@@ -83,11 +83,9 @@
   "" $ "%(5)"
   ========================================
   0000    | PushEmptyString
-  0001    | TakeRight 1 -> 8
-  0004    | PushEmptyString
-  0005    | PushNumber 5
-  0007    | MergeAsString
-  0008    | End
+  0001    | PushNumber 5
+  0003    | MergeAsString
+  0004    | End
   ========================================
 
   $ possum -p '"" -> "%(Str)"' -i ''

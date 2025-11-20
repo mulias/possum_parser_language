@@ -5,12 +5,10 @@
   =================@main==================
   "" $ [1, 2, [1+1+1]]
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 10
-  0004    | GetConstant 0: [1, 2, _]
-  0006    | GetConstant 1: [3]
-  0008    | InsertAtIndex 2
-  0010    | End
+  0000    | GetConstant 0: [1, 2, _]
+  0002    | GetConstant 1: [3]
+  0004    | InsertAtIndex 2
+  0006    | End
   ========================================
 
   $ possum -p '1 -> A $ A' -i ''
@@ -61,10 +59,8 @@
   =================@main==================
   "" $ [Foo]
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 6
-  0004    | GetConstant 0: [2]
-  0006    | End
+  0000    | GetConstant 0: [2]
+  0002    | End
   ========================================
 
   $ possum -p '1 -> A $ [[A]]' -i ''
@@ -102,12 +98,10 @@
   =================@main==================
   "" $ [Foo]
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 10
-  0004    | GetConstant 0: [_]
-  0006    | CallFunctionConstant 1: Foo
-  0008    | InsertAtIndex 0
-  0010    | End
+  0000    | GetConstant 0: [_]
+  0002    | CallFunctionConstant 1: Foo
+  0004    | InsertAtIndex 0
+  0006    | End
   ========================================
 
   $ possum -p 'A = [1,2,3] ; const([...A, ...A])' -i ''
@@ -188,11 +182,9 @@
   "" $ "%(1 + 1)"
   ========================================
   0000    | PushEmptyString
-  0001    | TakeRight 1 -> 7
-  0004    | PushEmptyString
-  0005    | PushNumberTwo
-  0006    | MergeAsString
-  0007    | End
+  0001    | PushNumberTwo
+  0002    | MergeAsString
+  0003    | End
   ========================================
 
   $ possum -p 'Obj.Put(O, K, V) = {...O, K: V} ; 1' -i '1'
@@ -239,15 +231,13 @@
   =================@main==================
   "" $ (1 ? 2 : 3)
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 14
-  0004    | SetInputMark
-  0005    | PushNumberOne
-  0006    | ConditionalThen 6 -> 13
-  0009    | PushNumberTwo
-  0010    | Jump 10 -> 14
-  0013    | PushNumberThree
-  0014    | End
+  0000    | SetInputMark
+  0001    | PushNumberOne
+  0002    | ConditionalThen 2 -> 9
+  0005    | PushNumberTwo
+  0006    | Jump 6 -> 10
+  0009    | PushNumberThree
+  0010    | End
   ========================================
 
   $ possum -p '"" $ [1 ? 2 : 3]' -i ''
@@ -255,17 +245,15 @@
   =================@main==================
   "" $ [1 ? 2 : 3]
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 18
-  0004    | GetConstant 0: [_]
-  0006    | SetInputMark
-  0007    | PushNumberOne
-  0008    | ConditionalThen 8 -> 15
-  0011    | PushNumberTwo
-  0012    | Jump 12 -> 16
-  0015    | PushNumberThree
-  0016    | InsertAtIndex 0
-  0018    | End
+  0000    | GetConstant 0: [_]
+  0002    | SetInputMark
+  0003    | PushNumberOne
+  0004    | ConditionalThen 4 -> 11
+  0007    | PushNumberTwo
+  0008    | Jump 8 -> 12
+  0011    | PushNumberThree
+  0012    | InsertAtIndex 0
+  0014    | End
   ========================================
 
   $ possum -p 'X = 1 ; "" $ [1, -X, 3]' -i ''
@@ -273,13 +261,11 @@
   =================@main==================
   "" $ [1, -X, 3]
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 10
-  0004    | GetConstant 0: [1, _, 3]
-  0006    | PushNumberOne
-  0007    | NegateNumber
-  0008    | InsertAtIndex 1
-  0010    | End
+  0000    | GetConstant 0: [1, _, 3]
+  0002    | PushNumberOne
+  0003    | NegateNumber
+  0004    | InsertAtIndex 1
+  0006    | End
   ========================================
 
   $ possum -p '"ab" * 3' -i 'ababab'
@@ -331,10 +317,8 @@
   =================@main==================
   "" $ A
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 5
-  0004    | PushNumberOne
-  0005    | End
+  0000    | PushNumberOne
+  0001    | End
   ========================================
 
   $ possum -p 'A = 1 ; "" $ [A]' -i ''
@@ -342,10 +326,8 @@
   =================@main==================
   "" $ [A]
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 6
-  0004    | GetConstant 0: [1]
-  0006    | End
+  0000    | GetConstant 0: [1]
+  0002    | End
   ========================================
 
   $ possum -p 'Foo(X) = X ; A = [Foo] ; "" $ [A]' -i ''
@@ -369,11 +351,9 @@
   =================@main==================
   "" $ [A]
   ========================================
-  0000    | PushEmptyString
-  0001    | TakeRight 1 -> 10
-  0004    | GetConstant 2: [_]
-  0006    | CallFunctionConstant 3: A
-  0008    | InsertAtIndex 0
-  0010    | End
+  0000    | GetConstant 2: [_]
+  0002    | CallFunctionConstant 3: A
+  0004    | InsertAtIndex 0
+  0006    | End
   ========================================
 

@@ -324,10 +324,15 @@ pub const Compiler = struct {
                 try self.patchJump(jumpIndex, region);
             },
             .@"return" => |return_node| {
-                try self.writeParser(return_node.left, false);
-                const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeValue(return_node.right, true);
-                try self.patchJump(jumpIndex, region);
+                // Special case: `"" $ Foo` will always succeed and push `Foo` on the stack
+                if (return_node.left.node == .string and return_node.left.node.string.len == 0) {
+                    try self.writeValue(return_node.right, true);
+                } else {
+                    try self.writeParser(return_node.left, false);
+                    const jumpIndex = try self.emitJump(.TakeRight, region);
+                    try self.writeValue(return_node.right, true);
+                    try self.patchJump(jumpIndex, region);
+                }
             },
             .repeat => |repeat| {
                 try self.writeParserRepeat(repeat.left, repeat.right, region);
