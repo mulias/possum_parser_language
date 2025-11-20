@@ -479,11 +479,11 @@ pub const VM = struct {
                 try self.stack.resize(self.allocator, prevFrame.elemsOffset);
                 try self.push(result);
             },
-            .Fail => {
+            .PushFail => {
                 // Push singleton failure value.
                 try self.pushFailure();
             },
-            .False => {
+            .PushFalse => {
                 // Push singleton false value.
                 try self.push(Elem.boolean(false));
             },
@@ -740,7 +740,7 @@ pub const VM = struct {
                 self.drop(1);
                 try self.push(negated);
             },
-            .Null => {
+            .PushNull => {
                 // Push singleton null value.
                 try self.push(Elem.nullConst);
             },
@@ -908,7 +908,7 @@ pub const VM = struct {
                     self.frame().ip += offset;
                 }
             },
-            .True => {
+            .PushTrue => {
                 // Push singleton true value.
                 try self.push(Elem.boolean(true));
             },

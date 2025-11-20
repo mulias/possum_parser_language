@@ -757,7 +757,7 @@
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 8
-  0007    | True
+  0007    | PushTrue
   0008    | End
   ========================================
   
@@ -767,7 +767,7 @@
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 8
-  0007    | False
+  0007    | PushFalse
   0008    | End
   ========================================
   
@@ -791,14 +791,14 @@
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
   0004    | TakeRight 4 -> 8
-  0007    | Null
+  0007    | PushNull
   0008    | End
   ========================================
   
   =================array==================
   array(elem) = tuple1(elem) * 1..
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberOne
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 25
@@ -862,7 +862,7 @@
   0000    | GetConstant 54: tuple1
   0002    | GetBoundLocal 0
   0004    | CallFunction 1
-  0006    | Null
+  0006    | PushNull
   0007    | PushNumberZero
   0008    | ValidateRepeatPattern
   0009    | JumpIfZero 9 -> 37
@@ -924,7 +924,7 @@
   ==============array_until===============
   array_until(elem, stop) = unless(tuple1(elem), stop) * 1.. < peek(stop)
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberOne
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 31
@@ -1146,7 +1146,7 @@
   =================tuple==================
   tuple(elem, N) = tuple1(elem) * N
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | GetBoundLocal 1
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 27
@@ -1185,7 +1185,7 @@
   0000    | GetConstant 54: tuple1
   0002    | GetBoundLocal 0
   0004    | CallFunction 1
-  0006    | Null
+  0006    | PushNull
   0007    | GetBoundLocal 2
   0009    | PushNumberNegOne
   0010    | Merge
@@ -1268,7 +1268,7 @@
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
   0010    | CallFunction 1
-  0012    | Null
+  0012    | PushNull
   0013    | PushNumberZero
   0014    | ValidateRepeatPattern
   0015    | JumpIfZero 15 -> 45
@@ -1568,7 +1568,7 @@
   =================object=================
   object(key, value) = pair(key, value) * 1..
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberOne
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 27
@@ -1610,7 +1610,7 @@
   0004    | GetBoundLocal 1
   0006    | GetBoundLocal 2
   0008    | CallFunction 3
-  0010    | Null
+  0010    | PushNull
   0011    | PushNumberZero
   0012    | ValidateRepeatPattern
   0013    | JumpIfZero 13 -> 46
@@ -1681,7 +1681,7 @@
   object_until(key, value, stop) =
     unless(pair(key, value), stop) * 1.. < peek(stop)
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberOne
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 33
@@ -1975,7 +1975,7 @@
   ==================many==================
   many(p) = p * 1..
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberOne
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 23
@@ -2008,7 +2008,7 @@
   ========================================
   0000    | GetBoundLocal 0
   0002    | CallFunction 0
-  0004    | Null
+  0004    | PushNull
   0005    | PushNumberZero
   0006    | ValidateRepeatPattern
   0007    | JumpIfZero 7 -> 34
@@ -2046,7 +2046,7 @@
   ===============many_until===============
   many_until(p, stop) = unless(p, stop) * 1.. < peek(stop)
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberOne
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 27
@@ -2086,7 +2086,7 @@
   ===============maybe_many===============
   maybe_many(p) = p * 0..
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberZero
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 23
@@ -2302,7 +2302,7 @@
   succeed = const($null)
   ========================================
   0000    | GetConstant 93: const
-  0002    | Null
+  0002    | PushNull
   0003    | CallTailFunction 1
   0005    | End
   ========================================
@@ -2757,7 +2757,7 @@
   0002    | GetConstant 170: "\u"
   0004    | CallFunction 0
   0006    | TakeRight 6 -> 35
-  0009    | Null
+  0009    | PushNull
   0010    | PushNumber 4
   0012    | ValidateRepeatPattern
   0013    | JumpIfZero 13 -> 34
@@ -3992,7 +3992,7 @@
   0029    | GetConstant2 276: """""
   0032    | CallFunction 1
   0034    | Merge
-  0035    | Null
+  0035    | PushNull
   0036    | PushNumberZero
   0037    | ValidateRepeatPattern
   0038    | JumpIfZero 38 -> 58
@@ -4072,7 +4072,7 @@
   0029    | GetConstant2 283: "'''"
   0032    | CallFunction 1
   0034    | Merge
-  0035    | Null
+  0035    | PushNull
   0036    | PushNumberZero
   0037    | ValidateRepeatPattern
   0038    | JumpIfZero 38 -> 58
@@ -4272,7 +4272,7 @@
   0003    | GetConstant 170: "\u"
   0005    | CallFunction 0
   0007    | TakeRight 7 -> 36
-  0010    | Null
+  0010    | PushNull
   0011    | PushNumber 4
   0013    | ValidateRepeatPattern
   0014    | JumpIfZero 14 -> 35
@@ -4296,7 +4296,7 @@
   0050    | GetConstant2 290: "\U"
   0053    | CallFunction 0
   0055    | TakeRight 55 -> 84
-  0058    | Null
+  0058    | PushNull
   0059    | PushNumber 8
   0061    | ValidateRepeatPattern
   0062    | JumpIfZero 62 -> 83
@@ -4387,7 +4387,7 @@
   ==========_toml.datetime.year===========
   _toml.datetime.year = numeral * 4
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumber 4
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 25
@@ -4445,7 +4445,7 @@
   ========================================
   0000    | PushChar '.'
   0002    | CallFunction 0
-  0004    | Null
+  0004    | PushNull
   0005    | PushNumberOne
   0006    | ValidateRepeatPattern
   0007    | JumpIfZero 7 -> 27

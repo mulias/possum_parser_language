@@ -305,7 +305,7 @@
   =================@main==================
   "ab" * 3
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberThree
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 24
@@ -328,7 +328,7 @@
   =================@main==================
   2 * (2 * 2)
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumber 4
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 24

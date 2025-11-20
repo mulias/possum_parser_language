@@ -2149,9 +2149,9 @@ pub const Compiler = struct {
                 const elem = Elem.numberFloat(number_float);
                 try self.writeConstant(elem, region);
             },
-            .true => try self.emitOp(.True, region),
-            .false => try self.emitOp(.False, region),
-            .null => try self.emitOp(.Null, region),
+            .true => try self.emitOp(.PushTrue, region),
+            .false => try self.emitOp(.PushFalse, region),
+            .null => try self.emitOp(.PushNull, region),
         }
     }
 
@@ -2428,9 +2428,9 @@ pub const Compiler = struct {
     fn writeConstant(self: *Compiler, elem: Elem, region: Region) !void {
         switch (elem.getType()) {
             .Const => switch (elem.asConst()) {
-                .True => return try self.emitOp(.True, region),
-                .False => return try self.emitOp(.False, region),
-                .Null => return try self.emitOp(.Null, region),
+                .True => return try self.emitOp(.PushTrue, region),
+                .False => return try self.emitOp(.PushFalse, region),
+                .Null => return try self.emitOp(.PushNull, region),
                 .Failure => {},
             },
             .Dyn => {

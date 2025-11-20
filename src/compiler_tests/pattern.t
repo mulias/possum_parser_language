@@ -608,7 +608,7 @@
   =================@main==================
   "ab" * 3
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberThree
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 24
@@ -631,7 +631,7 @@
   =================@main==================
   2 * (2 * 2)
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumber 4
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 24
@@ -654,7 +654,7 @@
   =================@main==================
   2 * (2 + (-1 * -1))
   ========================================
-  0000    | Null
+  0000    | PushNull
   0001    | PushNumberThree
   0002    | ValidateRepeatPattern
   0003    | JumpIfZero 3 -> 23
@@ -1182,7 +1182,7 @@
   ========================================
   0000    | PushCharVar N
   0002    | GetConstant 0: const
-  0004    | True
+  0004    | PushTrue
   0005    | CallFunction 1
   0007    | Destructure 0: (true * N)
   0009    | End
@@ -1195,7 +1195,7 @@
   ========================================
   0000    | PushCharVar N
   0002    | GetConstant 0: const
-  0004    | False
+  0004    | PushFalse
   0005    | CallFunction 1
   0007    | Destructure 0: (false * N)
   0009    | End

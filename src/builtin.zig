@@ -41,7 +41,7 @@ fn createFailParser(vm: *VM, module: *Module) !void {
 
     const loc = Region.new(0, 0);
 
-    try fun.chunk.writeOp(vm.allocator, .Fail, loc);
+    try fun.chunk.writeOp(vm.allocator, .PushFail, loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
@@ -60,7 +60,7 @@ fn createFailValue(vm: *VM, module: *Module) !void {
 
     const loc = Region.new(0, 0);
 
-    try fun.chunk.writeOp(vm.allocator, .Fail, loc);
+    try fun.chunk.writeOp(vm.allocator, .PushFail, loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
 
