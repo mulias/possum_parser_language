@@ -1303,20 +1303,13 @@ pub const Elem = packed union {
             }
         };
 
-        pub const FunctionType = enum {
-            AnonParser,
-            Main,
-            NamedParser,
-            NamedValue,
-        };
-
         pub const Function = struct {
             dyn: DynElem,
             module: *Module,
             arity: u8,
             chunk: Chunk,
             name: StringTable.Id,
-            functionType: FunctionType,
+            is_anonymous: bool,
             locals: ArrayList(Local),
 
             pub const Local = struct {
@@ -1332,7 +1325,7 @@ pub const Elem = packed union {
                 }
             };
 
-            pub fn create(vm: *VM, fields: struct { module: *Module, name: StringTable.Id, functionType: FunctionType, arity: u8, region: Region }) !*Function {
+            pub fn create(vm: *VM, fields: struct { module: *Module, name: StringTable.Id, arity: u8, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1344,7 +1337,7 @@ pub const Elem = packed union {
                     .arity = fields.arity,
                     .chunk = chunk,
                     .name = fields.name,
-                    .functionType = fields.functionType,
+                    .is_anonymous = false,
                     .locals = ArrayList(Local){},
                 };
 
@@ -1369,7 +1362,7 @@ pub const Elem = packed union {
                     .arity = fields.arity,
                     .chunk = chunk,
                     .name = name,
-                    .functionType = .AnonParser,
+                    .is_anonymous = true,
                     .locals = ArrayList(Local){},
                 };
 

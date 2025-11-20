@@ -31,7 +31,6 @@ fn createFailParser(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedParser,
         .arity = 0,
         .region = Region.new(0, 0),
     });
@@ -50,7 +49,6 @@ fn createFailValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 0,
         .region = Region.new(0, 0),
     });
@@ -69,7 +67,6 @@ fn createCrashValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 1,
         .region = Region.new(0, 0),
     });
@@ -93,7 +90,6 @@ fn createCodepointValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 1,
         .region = Region.new(0, 0),
     });
@@ -150,7 +146,6 @@ fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 2,
         .region = Region.new(0, 0),
     });
@@ -216,7 +211,6 @@ fn createDbgParser(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedParser,
         .arity = 1,
         .region = Region.new(0, 0),
     });
@@ -247,7 +241,6 @@ fn createDbgValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 1,
         .region = Region.new(0, 0),
     });
@@ -285,7 +278,6 @@ fn createAddValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 2,
         .region = Region.new(0, 0),
     });
@@ -344,7 +336,6 @@ fn createSubtractValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 2,
         .region = Region.new(0, 0),
     });
@@ -397,7 +388,6 @@ fn createMultiplyValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 2,
         .region = Region.new(0, 0),
     });
@@ -450,7 +440,6 @@ fn createDivideValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 2,
         .region = Region.new(0, 0),
     });
@@ -507,7 +496,6 @@ fn createPowerValue(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedValue,
         .arity = 2,
         .region = Region.new(0, 0),
     });
@@ -560,7 +548,6 @@ fn createInputOffset(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedParser,
         .arity = 0,
         .region = Region.new(0, 0),
     });
@@ -590,7 +577,6 @@ fn createInputLine(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedParser,
         .arity = 0,
         .region = Region.new(0, 0),
     });
@@ -620,7 +606,6 @@ fn createInputLineOffset(vm: *VM, module: *Module) !void {
     var fun = try Function.create(vm, .{
         .module = module,
         .name = name,
-        .functionType = .NamedParser,
         .arity = 0,
         .region = Region.new(0, 0),
     });

@@ -49,7 +49,6 @@ pub const Compiler = struct {
         const main = try Elem.DynElem.Function.create(vm, .{
             .module = targetModule,
             .name = try vm.strings.insert("@main"),
-            .functionType = .Main,
             .arity = 0,
             .region = undefined,
         });
@@ -174,15 +173,9 @@ pub const Compiler = struct {
             return Error.InvalidAst;
         }
 
-        const function_type: Elem.DynElem.FunctionType = switch (decl) {
-            .parser => .NamedParser,
-            .value => .NamedValue,
-        };
-
         var function = try Elem.DynElem.Function.create(self.vm, .{
             .module = self.targetModule,
             .name = function_name,
-            .functionType = function_type,
             .arity = 0,
             .region = decl.region(),
         });
@@ -2625,7 +2618,7 @@ pub const Compiler = struct {
     fn parentFunction(self: *Compiler) *Elem.DynElem.Function {
         var parentIndex = self.functions.items.len - 2;
         while (true) {
-            if (self.functions.items[parentIndex].functionType == .AnonParser) {
+            if (self.functions.items[parentIndex].is_anonymous) {
                 parentIndex -= 1;
             } else {
                 return self.functions.items[parentIndex];
