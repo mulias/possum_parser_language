@@ -1,17 +1,5 @@
   $ export PRINT_COMPILED_BYTECODE=true RUN_VM=false
 
-  $ possum -p '"" $ ([1,2] + [3, 4])' -i '1111'
-  
-  =================@main==================
-  "" $ ([1,2] + [3, 4])
-  ========================================
-  0000    | GetConstant 0: ""
-  0002    | CallFunction 0
-  0004    | TakeRight 4 -> 9
-  0007    | GetConstant 1: [1, 2, 3, 4]
-  0009    | End
-  ========================================
-
   $ possum -p '1..(..90)' -i '1111'
   
   Program Error: Range bound must be an integer or codepoint
@@ -28,11 +16,11 @@
   ==================foo===================
   foo(A) = "" $ A
   ========================================
-  0000    | GetConstant 0: ""
-  0002    | CallFunction 0
-  0004    | TakeRight 4 -> 9
-  0007    | GetBoundLocal 0
-  0009    | End
+  0000    | PushEmptyString
+  0001    | CallFunction 0
+  0003    | TakeRight 3 -> 8
+  0006    | GetBoundLocal 0
+  0008    | End
   ========================================
   
   Program Error: Expected value but got parser

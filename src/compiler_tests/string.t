@@ -5,9 +5,9 @@
   =================@main==================
   ""
   ========================================
-  0000    | GetConstant 0: ""
-  0002    | CallFunction 0
-  0004    | End
+  0000    | PushEmptyString
+  0001    | CallFunction 0
+  0003    | End
   ========================================
 
   $ possum -p '"hello"' -i ''
@@ -35,11 +35,11 @@
   =================@main==================
   "%(word)"
   ========================================
-  0000    | GetConstant 0: ""
-  0002    | GetConstant 1: word
-  0004    | CallFunction 0
-  0006    | MergeAsString
-  0007    | End
+  0000    | PushEmptyString
+  0001    | GetConstant 0: word
+  0003    | CallFunction 0
+  0005    | MergeAsString
+  0006    | End
   ========================================
 
   $ possum -p '"Hello %(word)"' -i ''
@@ -60,14 +60,14 @@
   =================@main==================
   "%(word) World"
   ========================================
-  0000    | GetConstant 0: ""
-  0002    | GetConstant 1: word
-  0004    | CallFunction 0
-  0006    | MergeAsString
-  0007    | GetConstant 2: " World"
-  0009    | CallFunction 0
-  0011    | MergeAsString
-  0012    | End
+  0000    | PushEmptyString
+  0001    | GetConstant 0: word
+  0003    | CallFunction 0
+  0005    | MergeAsString
+  0006    | GetConstant 1: " World"
+  0008    | CallFunction 0
+  0010    | MergeAsString
+  0011    | End
   ========================================
 
   $ possum -p '"Hello %(word) and %(word)"' -i ''
@@ -94,13 +94,13 @@
   =================@main==================
   "" $ "%(5)"
   ========================================
-  0000    | GetConstant 0: ""
-  0002    | CallFunction 0
-  0004    | TakeRight 4 -> 12
-  0007    | GetConstant 0: ""
-  0009    | GetConstant 1: 5
-  0011    | MergeAsString
-  0012    | End
+  0000    | PushEmptyString
+  0001    | CallFunction 0
+  0003    | TakeRight 3 -> 10
+  0006    | PushEmptyString
+  0007    | PushNumber 5
+  0009    | MergeAsString
+  0010    | End
   ========================================
 
   $ possum -p '"" -> "%(Str)"' -i ''
@@ -109,10 +109,10 @@
   "" -> "%(Str)"
   ========================================
   0000    | GetConstant 0: Str
-  0002    | GetConstant 1: ""
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%(Str)"
-  0008    | End
+  0002    | PushEmptyString
+  0003    | CallFunction 0
+  0005    | Destructure 0: "%(Str)"
+  0007    | End
   ========================================
 
   $ possum -p '"Hello %(int + word)"' -i ''

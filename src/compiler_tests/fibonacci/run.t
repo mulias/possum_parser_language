@@ -19,25 +19,25 @@
   0016    | GetConstant 2: const
   0018    | GetBoundLocal 0
   0020    | CallTailFunction 1
-  0022    | Jump 22 -> 58
+  0022    | Jump 22 -> 57
   0025    | GetConstant 3: fib
   0027    | GetBoundLocal 0
-  0029    | GetConstant 4: -1
-  0031    | Merge
-  0032    | CallFunction 1
-  0034    | Destructure 1: N1
-  0036    | TakeRight 36 -> 58
-  0039    | GetConstant 3: fib
-  0041    | GetBoundLocal 0
-  0043    | GetConstant 5: -2
-  0045    | Merge
-  0046    | CallFunction 1
-  0048    | Destructure 2: N2
-  0050    | TakeRight 50 -> 58
-  0053    | GetBoundLocal 1
-  0055    | GetBoundLocal 2
-  0057    | Merge
-  0058    | End
+  0029    | PushNumberNegOne
+  0030    | Merge
+  0031    | CallFunction 1
+  0033    | Destructure 1: N1
+  0035    | TakeRight 35 -> 57
+  0038    | GetConstant 3: fib
+  0040    | GetBoundLocal 0
+  0042    | PushNegNumber -2
+  0044    | Merge
+  0045    | CallFunction 1
+  0047    | Destructure 2: N2
+  0049    | TakeRight 49 -> 57
+  0052    | GetBoundLocal 1
+  0054    | GetBoundLocal 2
+  0056    | Merge
+  0057    | End
   ========================================
   
   ==================Fib===================
@@ -46,32 +46,32 @@
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | Destructure 3: ..1
-  0005    | Or 5 -> 27
-  0008    | GetConstant 6: Fib
+  0005    | Or 5 -> 26
+  0008    | GetConstant 4: Fib
   0010    | GetBoundLocal 0
-  0012    | GetConstant 4: -1
-  0014    | Merge
-  0015    | CallFunction 1
-  0017    | GetConstant 6: Fib
-  0019    | GetBoundLocal 0
-  0021    | GetConstant 5: -2
-  0023    | Merge
-  0024    | CallFunction 1
-  0026    | Merge
-  0027    | End
+  0012    | PushNumberNegOne
+  0013    | Merge
+  0014    | CallFunction 1
+  0016    | GetConstant 4: Fib
+  0018    | GetBoundLocal 0
+  0020    | PushNegNumber -2
+  0022    | Merge
+  0023    | CallFunction 1
+  0025    | Merge
+  0026    | End
   ========================================
   
   =================@main==================
   0.. -> N & fib(N) -> Fib(N)
   ========================================
-  0000    | GetConstant 7: N
-  0002    | GetConstant 8: 0
-  0004    | ParseLowerBoundedRange
-  0005    | Destructure 4: N
-  0007    | TakeRight 7 -> 18
-  0010    | GetConstant 3: fib
-  0012    | GetBoundLocal 0
-  0014    | CallFunction 1
-  0016    | Destructure 5: Fib(N)
-  0018    | End
+  0000    | PushCharVar N
+  0002    | PushNumberZero
+  0003    | ParseLowerBoundedRange
+  0004    | Destructure 4: N
+  0006    | TakeRight 6 -> 17
+  0009    | GetConstant 3: fib
+  0011    | GetBoundLocal 0
+  0013    | CallFunction 1
+  0015    | Destructure 5: Fib(N)
+  0017    | End
   ========================================

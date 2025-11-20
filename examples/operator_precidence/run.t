@@ -69,7 +69,6 @@
           "startpos": 2,
           "endpos": 15,
           "postfixed": {
-            "type": "index",
             "index": {
               "type": "add",
               "startpos": 4,
@@ -83,6 +82,7 @@
                 "right": {"type": "var", "value": "b", "startpos": 12, "endpos": 13}
               }
             },
+            "type": "index",
             "startpos": 2,
             "endpos": 14,
             "postfixed": {"type": "var", "value": "a", "startpos": 2, "endpos": 3}

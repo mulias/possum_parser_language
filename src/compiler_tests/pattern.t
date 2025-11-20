@@ -17,11 +17,11 @@
   =================@main==================
   const([1,2,3]) -> [A,B,C]
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: B
-  0004    | GetConstant 2: C
-  0006    | GetConstant 3: const
-  0008    | GetConstant 4: [1, 2, 3]
+  0000    | PushCharVar A
+  0002    | PushCharVar B
+  0004    | PushCharVar C
+  0006    | GetConstant 0: const
+  0008    | GetConstant 1: [1, 2, 3]
   0010    | CallFunction 1
   0012    | Destructure 0: [A, B, C]
   0014    | End
@@ -32,10 +32,10 @@
   =================@main==================
   const([1,2,3]) -> [A,B,C]
   ========================================
-  0000    | GetConstant 0: B
-  0002    | GetConstant 1: C
-  0004    | GetConstant 2: const
-  0006    | GetConstant 3: [1, 2, 3]
+  0000    | PushCharVar B
+  0002    | PushCharVar C
+  0004    | GetConstant 0: const
+  0006    | GetConstant 1: [1, 2, 3]
   0008    | CallFunction 1
   0010    | Destructure 0: [A, B, C]
   0012    | End
@@ -46,9 +46,9 @@
   =================@main==================
   const([1,2,3]) -> [A, 2, 3]
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: [1, 2, 3]
+  0000    | PushCharVar A
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: [1, 2, 3]
   0006    | CallFunction 1
   0008    | Destructure 0: [A, 2, 3]
   0010    | End
@@ -59,12 +59,12 @@
   =================@main==================
   const([1,[[2],3]]) -> [A, [[B], 3]] $ B
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: B
-  0004    | GetConstant 2: const
-  0006    | GetConstant 3: [1, _]
-  0008    | GetConstant 4: [_, 3]
-  0010    | GetConstant 5: [2]
+  0000    | PushCharVar A
+  0002    | PushCharVar B
+  0004    | GetConstant 0: const
+  0006    | GetConstant 1: [1, _]
+  0008    | GetConstant 2: [_, 3]
+  0010    | GetConstant 3: [2]
   0012    | InsertAtIndex 0
   0014    | InsertAtIndex 1
   0016    | CallFunction 1
@@ -79,11 +79,11 @@
   =================@main==================
   3 -> (2 + B)
   ========================================
-  0000    | GetConstant 0: B
-  0002    | GetConstant 1: 3
-  0004    | CallFunction 0
-  0006    | Destructure 0: (2 + B)
-  0008    | End
+  0000    | PushCharVar B
+  0002    | PushNumberStringThree
+  0003    | CallFunction 0
+  0005    | Destructure 0: (2 + B)
+  0007    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [A, 1 + 1, 3]' -i ''
@@ -91,9 +91,9 @@
   =================@main==================
   const([1,2,3]) -> [A, 1 + 1, 3]
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: [1, 2, 3]
+  0000    | PushCharVar A
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: [1, 2, 3]
   0006    | CallFunction 1
   0008    | Destructure 0: [A, 2, 3]
   0010    | End
@@ -104,17 +104,17 @@
   =================@main==================
   const([1, @Add(1, 2), 3]) -> [A, @Add(1, 1), 3]
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: [1, _, 3]
-  0006    | GetConstant 3: @Add
-  0008    | GetConstant 4: 1
-  0010    | GetConstant 5: 2
-  0012    | CallFunction 2
-  0014    | InsertAtIndex 1
-  0016    | CallFunction 1
-  0018    | Destructure 0: [A, @Add(1, 1), 3]
-  0020    | End
+  0000    | PushCharVar A
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: [1, _, 3]
+  0006    | GetConstant 2: @Add
+  0008    | PushNumberOne
+  0009    | PushNumberTwo
+  0010    | CallFunction 2
+  0012    | InsertAtIndex 1
+  0014    | CallFunction 1
+  0016    | Destructure 0: [A, @Add(1, 1), 3]
+  0018    | End
   ========================================
 
   $ possum -p 'const([1,2]) -> ([1] + [2])' -i ''
@@ -134,9 +134,9 @@
   =================@main==================
   const([1,2,3]) -> ([1] + B + [3])
   ========================================
-  0000    | GetConstant 0: B
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: [1, 2, 3]
+  0000    | PushCharVar B
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: [1, 2, 3]
   0006    | CallFunction 1
   0008    | Destructure 0: ([1] + B + [3])
   0010    | End
@@ -147,10 +147,10 @@
   =================@main==================
   const([1,[2],2,3]) -> ([1,A] + A + [3])
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: [1, _, 2, 3]
-  0006    | GetConstant 3: [2]
+  0000    | PushCharVar A
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: [1, _, 2, 3]
+  0006    | GetConstant 2: [2]
   0008    | InsertAtIndex 1
   0010    | CallFunction 1
   0012    | Destructure 0: ([1, A] + A + [3])
@@ -203,10 +203,10 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> {"a": A, "b": B}
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: B
-  0004    | GetConstant 2: const
-  0006    | GetConstant 3: {"a": 1, "b": 2}
+  0000    | PushCharVar A
+  0002    | PushCharVar B
+  0004    | GetConstant 0: const
+  0006    | GetConstant 1: {"a": 1, "b": 2}
   0008    | CallFunction 1
   0010    | Destructure 0: {"a": A, "b": B}
   0012    | End
@@ -217,12 +217,12 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> {"a": _, "b": _}
   ========================================
-  0000    | GetConstant 0: _
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: {"a": 1, "b": 2}
-  0006    | CallFunction 1
-  0008    | Destructure 0: {"a": _, "b": _}
-  0010    | End
+  0000    | PushUnderscoreVar
+  0001    | GetConstant 0: const
+  0003    | GetConstant 1: {"a": 1, "b": 2}
+  0005    | CallFunction 1
+  0007    | Destructure 0: {"a": _, "b": _}
+  0009    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> ({"a": 1} + B)' -i ''
@@ -230,9 +230,9 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> ({"a": 1} + B)
   ========================================
-  0000    | GetConstant 0: B
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: {"a": 1, "b": 2}
+  0000    | PushCharVar B
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
   0008    | Destructure 0: ({"a": 1} + B)
   0010    | End
@@ -243,9 +243,9 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> ({"b": 2} + A)
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: {"a": 1, "b": 2}
+  0000    | PushCharVar A
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
   0008    | Destructure 0: ({"b": 2} + A)
   0010    | End
@@ -256,9 +256,9 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> (A + {"b": 2})
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: {"a": 1, "b": 2}
+  0000    | PushCharVar A
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
   0008    | Destructure 0: (A + {"b": 2})
   0010    | End
@@ -269,9 +269,9 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> {"a": 1, ...B}
   ========================================
-  0000    | GetConstant 0: B
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: {"a": 1, "b": 2}
+  0000    | PushCharVar B
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
   0008    | Destructure 0: ({"a": 1} + B)
   0010    | End
@@ -282,10 +282,10 @@
   =================@main==================
   2 -> 0..5
   ========================================
-  0000    | GetConstant 0: 2
-  0002    | CallFunction 0
-  0004    | Destructure 0: 0..5
-  0006    | End
+  0000    | PushNumberStringTwo
+  0001    | CallFunction 0
+  0003    | Destructure 0: 0..5
+  0005    | End
   ========================================
 
   $ possum -p 'char -> "a".."z"' -i 'q'
@@ -315,18 +315,18 @@
   ================Is.Array================
   Is.Array(V) = V -> [..._]
   ========================================
-  0000    | GetConstant 0: _
-  0002    | GetBoundLocal 0
-  0004    | Destructure 0: ([] + _)
-  0006    | End
+  0000    | PushUnderscoreVar
+  0001    | GetBoundLocal 0
+  0003    | Destructure 0: ([] + _)
+  0005    | End
   ========================================
   
   =================@main==================
   const(Is.Array([1]))
   ========================================
-  0000    | GetConstant 1: const
-  0002    | GetConstant 2: Is.Array
-  0004    | GetConstant 3: [1]
+  0000    | GetConstant 0: const
+  0002    | GetConstant 1: Is.Array
+  0004    | GetConstant 2: [1]
   0006    | CallFunction 1
   0008    | CallFunction 1
   0010    | End
@@ -354,46 +354,46 @@
   ========================================
   0000    | GetConstant 0: Row
   0002    | GetConstant 1: Rest
-  0004    | GetConstant 2: _
-  0006    | GetConstant 3: RowRest
-  0008    | SetInputMark
-  0009    | GetBoundLocal 0
-  0011    | Destructure 0: ([Row] + Rest)
-  0013    | ConditionalThen 13 -> 62
-  0016    | SetInputMark
-  0017    | GetBoundLocal 2
-  0019    | Destructure 1: ([_] + RowRest)
-  0021    | ConditionalThen 21 -> 45
-  0024    | GetConstant 4: __Table.RestPerRow
-  0026    | GetBoundLocal 3
-  0028    | GetConstant 5: []
-  0030    | GetBoundLocal 1
-  0032    | Merge
-  0033    | GetConstant 6: [_]
-  0035    | GetBoundLocal 5
-  0037    | InsertAtIndex 0
-  0039    | Merge
-  0040    | CallTailFunction 2
-  0042    | Jump 42 -> 59
-  0045    | GetConstant 4: __Table.RestPerRow
-  0047    | GetBoundLocal 3
-  0049    | GetConstant 7: []
-  0051    | GetBoundLocal 1
+  0004    | PushUnderscoreVar
+  0005    | GetConstant 2: RowRest
+  0007    | SetInputMark
+  0008    | GetBoundLocal 0
+  0010    | Destructure 0: ([Row] + Rest)
+  0012    | ConditionalThen 12 -> 59
+  0015    | SetInputMark
+  0016    | GetBoundLocal 2
+  0018    | Destructure 1: ([_] + RowRest)
+  0020    | ConditionalThen 20 -> 43
+  0023    | GetConstant 3: __Table.RestPerRow
+  0025    | GetBoundLocal 3
+  0027    | PushEmptyArray
+  0028    | GetBoundLocal 1
+  0030    | Merge
+  0031    | GetConstant 4: [_]
+  0033    | GetBoundLocal 5
+  0035    | InsertAtIndex 0
+  0037    | Merge
+  0038    | CallTailFunction 2
+  0040    | Jump 40 -> 56
+  0043    | GetConstant 3: __Table.RestPerRow
+  0045    | GetBoundLocal 3
+  0047    | PushEmptyArray
+  0048    | GetBoundLocal 1
+  0050    | Merge
+  0051    | GetConstant 5: [[]]
   0053    | Merge
-  0054    | GetConstant 8: [[]]
-  0056    | Merge
-  0057    | CallTailFunction 2
-  0059    | Jump 59 -> 64
-  0062    | GetBoundLocal 1
-  0064    | End
+  0054    | CallTailFunction 2
+  0056    | Jump 56 -> 61
+  0059    | GetBoundLocal 1
+  0061    | End
   ========================================
   
   =================@main==================
   1
   ========================================
-  0000    | GetConstant 9: 1
-  0002    | CallFunction 0
-  0004    | End
+  0000    | PushNumberStringOne
+  0001    | CallFunction 0
+  0003    | End
   ========================================
 
   $ possum -p 'Obj.Get(O, K) = O -> {K: V, ..._} & V ; 1' -i '1'
@@ -401,21 +401,21 @@
   ================Obj.Get=================
   Obj.Get(O, K) = O -> {K: V, ..._} & V
   ========================================
-  0000    | GetConstant 0: V
-  0002    | GetConstant 1: _
-  0004    | GetBoundLocal 0
-  0006    | Destructure 0: ({K: V} + _)
-  0008    | TakeRight 8 -> 13
-  0011    | GetBoundLocal 2
-  0013    | End
+  0000    | PushCharVar V
+  0002    | PushUnderscoreVar
+  0003    | GetBoundLocal 0
+  0005    | Destructure 0: ({K: V} + _)
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocal 2
+  0012    | End
   ========================================
   
   =================@main==================
   1
   ========================================
-  0000    | GetConstant 2: 1
-  0002    | CallFunction 0
-  0004    | End
+  0000    | PushNumberStringOne
+  0001    | CallFunction 0
+  0003    | End
   ========================================
 
   $ possum -p '4 -> (1 + 1 + 2)' -i '4'
@@ -445,8 +445,8 @@
   =================@main==================
   5 -> (2 + X + 3)
   ========================================
-  0000    | GetConstant 0: X
-  0002    | GetConstant 1: 5
+  0000    | PushCharVar X
+  0002    | GetConstant 0: 5
   0004    | CallFunction 0
   0006    | Destructure 0: (2 + X + 3)
   0008    | End
@@ -479,8 +479,8 @@
   =================@main==================
   6 -> (1 + X + 3) $ X
   ========================================
-  0000    | GetConstant 0: X
-  0002    | GetConstant 1: 6
+  0000    | PushCharVar X
+  0002    | GetConstant 0: 6
   0004    | CallFunction 0
   0006    | Destructure 0: (1 + X + 3)
   0008    | TakeRight 8 -> 13
@@ -504,8 +504,8 @@
   =================@main==================
   6 -> (1 + X - 3) $ X
   ========================================
-  0000    | GetConstant 0: X
-  0002    | GetConstant 1: 6
+  0000    | PushCharVar X
+  0002    | GetConstant 0: 6
   0004    | CallFunction 0
   0006    | Destructure 0: (1 + X + -3)
   0008    | TakeRight 8 -> 13
@@ -518,8 +518,8 @@
   =================@main==================
   6 -> (1 - X + 3) $ X
   ========================================
-  0000    | GetConstant 0: X
-  0002    | GetConstant 1: 6
+  0000    | PushCharVar X
+  0002    | GetConstant 0: 6
   0004    | CallFunction 0
   0006    | Destructure 0: (1 + -X + 3)
   0008    | TakeRight 8 -> 13
@@ -543,8 +543,8 @@
   =================@main==================
   5 -> -(X + 1) $ X
   ========================================
-  0000    | GetConstant 0: X
-  0002    | GetConstant 1: 5
+  0000    | PushCharVar X
+  0002    | GetConstant 0: 5
   0004    | CallFunction 0
   0006    | Destructure 0: (-X + -1)
   0008    | TakeRight 8 -> 13
@@ -557,9 +557,9 @@
   =================@main==================
   const([1, 5, 2]) -> [1, -(X + 1), 2] $ X
   ========================================
-  0000    | GetConstant 0: X
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: [1, 5, 2]
+  0000    | PushCharVar X
+  0002    | GetConstant 0: const
+  0004    | GetConstant 1: [1, 5, 2]
   0006    | CallFunction 1
   0008    | Destructure 0: [1, (-X + -1), 2]
   0010    | TakeRight 10 -> 15
@@ -572,7 +572,7 @@
   =================@main==================
   "1" -> "%(1)"
   ========================================
-  0000    | GetConstant 0: "1"
+  0000    | PushChar '1'
   0002    | CallFunction 0
   0004    | Destructure 0: "%(1)"
   0006    | End
@@ -583,7 +583,7 @@
   =================@main==================
   "2" -> "%(1 + 1)"
   ========================================
-  0000    | GetConstant 0: "2"
+  0000    | PushChar '2'
   0002    | CallFunction 0
   0004    | Destructure 0: "%(2)"
   0006    | End
@@ -594,8 +594,8 @@
   =================@main==================
   "50" -> "%(0 + N)" $ N
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: "50"
+  0000    | PushCharVar N
+  0002    | GetConstant 0: "50"
   0004    | CallFunction 0
   0006    | Destructure 0: "%(0 + N)"
   0008    | TakeRight 8 -> 13
@@ -608,22 +608,22 @@
   =================@main==================
   "ab" * 3
   ========================================
-  0000    | GetConstant 0: null
-  0002    | GetConstant 1: 3
-  0004    | ValidateRepeatPattern
-  0005    | JumpIfZero 5 -> 26
-  0008    | Swap
-  0009    | GetConstant 2: "ab"
-  0011    | CallFunction 0
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 25
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 26
-  0022    | JumpBack 22 -> 8
-  0025    | Swap
-  0026    | Drop
-  0027    | End
+  0000    | Null
+  0001    | PushNumberThree
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 24
+  0006    | Swap
+  0007    | GetConstant 0: "ab"
+  0009    | CallFunction 0
+  0011    | Merge
+  0012    | JumpIfFailure 12 -> 23
+  0015    | Swap
+  0016    | Decrement
+  0017    | JumpIfZero 17 -> 24
+  0020    | JumpBack 20 -> 6
+  0023    | Swap
+  0024    | Drop
+  0025    | End
   ========================================
 
   $ possum -p '2 * (2 * 2)' -i '2222'
@@ -631,22 +631,22 @@
   =================@main==================
   2 * (2 * 2)
   ========================================
-  0000    | GetConstant 0: null
-  0002    | GetConstant 1: 4
-  0004    | ValidateRepeatPattern
-  0005    | JumpIfZero 5 -> 26
-  0008    | Swap
-  0009    | GetConstant 2: 2
-  0011    | CallFunction 0
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 25
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 26
-  0022    | JumpBack 22 -> 8
-  0025    | Swap
-  0026    | Drop
-  0027    | End
+  0000    | Null
+  0001    | PushNumber 4
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 24
+  0007    | Swap
+  0008    | PushNumberStringTwo
+  0009    | CallFunction 0
+  0011    | Merge
+  0012    | JumpIfFailure 12 -> 23
+  0015    | Swap
+  0016    | Decrement
+  0017    | JumpIfZero 17 -> 24
+  0020    | JumpBack 20 -> 7
+  0023    | Swap
+  0024    | Drop
+  0025    | End
   ========================================
 
   $ possum -p '2 * (2 + (-1 * -1))' -i '2222'
@@ -654,22 +654,22 @@
   =================@main==================
   2 * (2 + (-1 * -1))
   ========================================
-  0000    | GetConstant 0: null
-  0002    | GetConstant 1: 3
-  0004    | ValidateRepeatPattern
-  0005    | JumpIfZero 5 -> 26
-  0008    | Swap
-  0009    | GetConstant 2: 2
-  0011    | CallFunction 0
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 25
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 26
-  0022    | JumpBack 22 -> 8
-  0025    | Swap
-  0026    | Drop
-  0027    | End
+  0000    | Null
+  0001    | PushNumberThree
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 23
+  0006    | Swap
+  0007    | PushNumberStringTwo
+  0008    | CallFunction 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 22
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 23
+  0019    | JumpBack 19 -> 6
+  0022    | Swap
+  0023    | Drop
+  0024    | End
   ========================================
 
   $ possum -p '123 -> V' -i '123'
@@ -677,8 +677,8 @@
   =================@main==================
   123 -> V
   ========================================
-  0000    | GetConstant 0: V
-  0002    | GetConstant 1: 123
+  0000    | PushCharVar V
+  0002    | GetConstant 0: 123
   0004    | CallFunction 0
   0006    | Destructure 0: V
   0008    | End
@@ -712,12 +712,12 @@
   =================@main==================
   many(char) -> "%(`a`..`z`)%(_)"
   ========================================
-  0000    | GetConstant 0: _
-  0002    | GetConstant 1: many
-  0004    | GetConstant 2: char
-  0006    | CallFunction 1
-  0008    | Destructure 0: "%("a".."z")%(_)"
-  0010    | End
+  0000    | PushUnderscoreVar
+  0001    | GetConstant 0: many
+  0003    | GetConstant 1: char
+  0005    | CallFunction 1
+  0007    | Destructure 0: "%("a".."z")%(_)"
+  0009    | End
   ========================================
 
   $ possum -p 'numerals -> ("3" * 10)' -i '3333333333'
@@ -749,11 +749,11 @@
   bool(1, 0) -> true
   ========================================
   0000    | GetConstant 0: boolean
-  0002    | GetConstant 1: 1
-  0004    | GetConstant 2: 0
-  0006    | CallFunction 2
-  0008    | Destructure 0: true
-  0010    | End
+  0002    | PushNumberStringOne
+  0003    | PushNumberStringZero
+  0004    | CallFunction 2
+  0006    | Destructure 0: true
+  0008    | End
   ========================================
 
   $ possum -p 'int -> 5' -i '5'
@@ -783,8 +783,8 @@
   =================@main==================
   8 -> (0 + N)
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: 8
+  0000    | PushCharVar N
+  0002    | GetConstant 0: 8
   0004    | CallFunction 0
   0006    | Destructure 0: (0 + N)
   0008    | End
@@ -795,8 +795,8 @@
   =================@main==================
   8 -> (N + 100)
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: 8
+  0000    | PushCharVar N
+  0002    | GetConstant 0: 8
   0004    | CallFunction 0
   0006    | Destructure 0: (N + 100)
   0008    | End
@@ -819,13 +819,13 @@
   =================@main==================
   array(digit) -> [A, ..._]
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: _
-  0004    | GetConstant 2: array
-  0006    | GetConstant 3: digit
-  0008    | CallFunction 1
-  0010    | Destructure 0: ([A] + _)
-  0012    | End
+  0000    | PushCharVar A
+  0002    | PushUnderscoreVar
+  0003    | GetConstant 0: array
+  0005    | GetConstant 1: digit
+  0007    | CallFunction 1
+  0009    | Destructure 0: ([A] + _)
+  0011    | End
   ========================================
 
   $ possum -p 'array(digit) -> ([1] * 5)' -i '11111'
@@ -845,9 +845,9 @@
   =================@main==================
   array(digit) -> ([A] * 5)
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: array
-  0004    | GetConstant 2: digit
+  0000    | PushCharVar A
+  0002    | GetConstant 0: array
+  0004    | GetConstant 1: digit
   0006    | CallFunction 1
   0008    | Destructure 0: [A, A, A, A, A]
   0010    | End
@@ -858,9 +858,9 @@
   =================@main==================
   array(digit) -> ([1] * N) $ N
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: array
-  0004    | GetConstant 2: digit
+  0000    | PushCharVar N
+  0002    | GetConstant 0: array
+  0004    | GetConstant 1: digit
   0006    | CallFunction 1
   0008    | Destructure 0: ([1] * N)
   0010    | TakeRight 10 -> 15
@@ -873,14 +873,14 @@
   =================@main==================
   array(digit) -> [A, ..._, Z]
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: _
-  0004    | GetConstant 2: Z
-  0006    | GetConstant 3: array
-  0008    | GetConstant 4: digit
-  0010    | CallFunction 1
-  0012    | Destructure 0: ([A] + _ + [Z])
-  0014    | End
+  0000    | PushCharVar A
+  0002    | PushUnderscoreVar
+  0003    | PushCharVar Z
+  0005    | GetConstant 0: array
+  0007    | GetConstant 1: digit
+  0009    | CallFunction 1
+  0011    | Destructure 0: ([A] + _ + [Z])
+  0013    | End
   ========================================
 
   $ possum -p 'array(digit) -> [1, B, _]' -i '123'
@@ -888,13 +888,13 @@
   =================@main==================
   array(digit) -> [1, B, _]
   ========================================
-  0000    | GetConstant 0: B
-  0002    | GetConstant 1: _
-  0004    | GetConstant 2: array
-  0006    | GetConstant 3: digit
-  0008    | CallFunction 1
-  0010    | Destructure 0: [1, B, _]
-  0012    | End
+  0000    | PushCharVar B
+  0002    | PushUnderscoreVar
+  0003    | GetConstant 0: array
+  0005    | GetConstant 1: digit
+  0007    | CallFunction 1
+  0009    | Destructure 0: [1, B, _]
+  0011    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": 1, "b": 2}' -i 'a1b2'
@@ -915,13 +915,13 @@
   =================@main==================
   object(alpha, digit) -> {"a": 1, ..._}
   ========================================
-  0000    | GetConstant 0: _
-  0002    | GetConstant 1: object
-  0004    | GetConstant 2: alpha
-  0006    | GetConstant 3: digit
-  0008    | CallFunction 2
-  0010    | Destructure 0: ({"a": 1} + _)
-  0012    | End
+  0000    | PushUnderscoreVar
+  0001    | GetConstant 0: object
+  0003    | GetConstant 1: alpha
+  0005    | GetConstant 2: digit
+  0007    | CallFunction 2
+  0009    | Destructure 0: ({"a": 1} + _)
+  0011    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {_: 1, ..._}' -i 'a1b2'
@@ -929,13 +929,13 @@
   =================@main==================
   object(alpha, digit) -> {_: 1, ..._}
   ========================================
-  0000    | GetConstant 0: _
-  0002    | GetConstant 1: object
-  0004    | GetConstant 2: alpha
-  0006    | GetConstant 3: digit
-  0008    | CallFunction 2
-  0010    | Destructure 0: ({_: 1} + _)
-  0012    | End
+  0000    | PushUnderscoreVar
+  0001    | GetConstant 0: object
+  0003    | GetConstant 1: alpha
+  0005    | GetConstant 2: digit
+  0007    | CallFunction 2
+  0009    | Destructure 0: ({_: 1} + _)
+  0011    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": A, ..._}' -i 'a1b2'
@@ -943,14 +943,14 @@
   =================@main==================
   object(alpha, digit) -> {"a": A, ..._}
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: _
-  0004    | GetConstant 2: object
-  0006    | GetConstant 3: alpha
-  0008    | GetConstant 4: digit
-  0010    | CallFunction 2
-  0012    | Destructure 0: ({"a": A} + _)
-  0014    | End
+  0000    | PushCharVar A
+  0002    | PushUnderscoreVar
+  0003    | GetConstant 0: object
+  0005    | GetConstant 1: alpha
+  0007    | GetConstant 2: digit
+  0009    | CallFunction 2
+  0011    | Destructure 0: ({"a": A} + _)
+  0013    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {..._, "a": A}' -i 'a1b2'
@@ -958,14 +958,14 @@
   =================@main==================
   object(alpha, digit) -> {..._, "a": A}
   ========================================
-  0000    | GetConstant 0: _
-  0002    | GetConstant 1: A
-  0004    | GetConstant 2: object
-  0006    | GetConstant 3: alpha
-  0008    | GetConstant 4: digit
-  0010    | CallFunction 2
-  0012    | Destructure 0: ({} + _ + {"a": A})
-  0014    | End
+  0000    | PushUnderscoreVar
+  0001    | PushCharVar A
+  0003    | GetConstant 0: object
+  0005    | GetConstant 1: alpha
+  0007    | GetConstant 2: digit
+  0009    | CallFunction 2
+  0011    | Destructure 0: ({} + _ + {"a": A})
+  0013    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": _, "b": B}' -i 'a1b2'
@@ -973,14 +973,14 @@
   =================@main==================
   object(alpha, digit) -> {"a": _, "b": B}
   ========================================
-  0000    | GetConstant 0: _
-  0002    | GetConstant 1: B
-  0004    | GetConstant 2: object
-  0006    | GetConstant 3: alpha
-  0008    | GetConstant 4: digit
-  0010    | CallFunction 2
-  0012    | Destructure 0: {"a": _, "b": B}
-  0014    | End
+  0000    | PushUnderscoreVar
+  0001    | PushCharVar B
+  0003    | GetConstant 0: object
+  0005    | GetConstant 1: alpha
+  0007    | GetConstant 2: digit
+  0009    | CallFunction 2
+  0011    | Destructure 0: {"a": _, "b": B}
+  0013    | End
   ========================================
 
   $ possum -p 'array(digit) -> [...A]' -i '123'
@@ -988,9 +988,9 @@
   =================@main==================
   array(digit) -> [...A]
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: array
-  0004    | GetConstant 2: digit
+  0000    | PushCharVar A
+  0002    | GetConstant 0: array
+  0004    | GetConstant 1: digit
   0006    | CallFunction 1
   0008    | Destructure 0: ([] + A)
   0010    | End
@@ -1001,10 +1001,10 @@
   =================@main==================
   object(alpha, digit) -> {...O}
   ========================================
-  0000    | GetConstant 0: O
-  0002    | GetConstant 1: object
-  0004    | GetConstant 2: alpha
-  0006    | GetConstant 3: digit
+  0000    | PushCharVar O
+  0002    | GetConstant 0: object
+  0004    | GetConstant 1: alpha
+  0006    | GetConstant 2: digit
   0008    | CallFunction 2
   0010    | Destructure 0: ({} + O)
   0012    | End
@@ -1015,8 +1015,8 @@
   =================@main==================
   "abc" -> "%(S)"
   ========================================
-  0000    | GetConstant 0: S
-  0002    | GetConstant 1: "abc"
+  0000    | PushCharVar S
+  0002    | GetConstant 0: "abc"
   0004    | CallFunction 0
   0006    | Destructure 0: "%(S)"
   0008    | End
@@ -1038,8 +1038,8 @@
   =================@main==================
   "null" -> "%(null + N)" $ N
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: "null"
+  0000    | PushCharVar N
+  0002    | GetConstant 0: "null"
   0004    | CallFunction 0
   0006    | Destructure 0: "%(N)"
   0008    | TakeRight 8 -> 13
@@ -1052,8 +1052,8 @@
   =================@main==================
   "true" -> "%(true + B)" $ B
   ========================================
-  0000    | GetConstant 0: B
-  0002    | GetConstant 1: "true"
+  0000    | PushCharVar B
+  0002    | GetConstant 0: "true"
   0004    | CallFunction 0
   0006    | Destructure 0: "%(true + B)"
   0008    | TakeRight 8 -> 13
@@ -1066,8 +1066,8 @@
   =================@main==================
   "123" -> "%(0 + N)"
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: "123"
+  0000    | PushCharVar N
+  0002    | GetConstant 0: "123"
   0004    | CallFunction 0
   0006    | Destructure 0: "%(0 + N)"
   0008    | End
@@ -1078,8 +1078,8 @@
   =================@main==================
   "123" -> "%(N + 1)"
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: "123"
+  0000    | PushCharVar N
+  0002    | GetConstant 0: "123"
   0004    | CallFunction 0
   0006    | Destructure 0: "%(N + 1)"
   0008    | End
@@ -1090,8 +1090,8 @@
   =================@main==================
   "[1,2,3]" -> "%([...A])"
   ========================================
-  0000    | GetConstant 0: A
-  0002    | GetConstant 1: "[1,2,3]"
+  0000    | PushCharVar A
+  0002    | GetConstant 0: "[1,2,3]"
   0004    | CallFunction 0
   0006    | Destructure 0: "%([] + A)"
   0008    | End
@@ -1102,11 +1102,11 @@
   =================@main==================
   `{"a": 1, "b": 2}` -> "%({..._})"
   ========================================
-  0000    | GetConstant 0: _
-  0002    | GetConstant 1: "{"a": 1, "b": 2}"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%({} + _)"
-  0008    | End
+  0000    | PushUnderscoreVar
+  0001    | GetConstant 0: "{"a": 1, "b": 2}"
+  0003    | CallFunction 0
+  0005    | Destructure 0: "%({} + _)"
+  0007    | End
   ========================================
 
   $ possum -p '"abcabcabc" -> "%( `abc` * N)" $ N' -i 'abcabcabc'
@@ -1114,8 +1114,8 @@
   =================@main==================
   "abcabcabc" -> "%( `abc` * N)" $ N
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: "abcabcabc"
+  0000    | PushCharVar N
+  0002    | GetConstant 0: "abcabcabc"
   0004    | CallFunction 0
   0006    | Destructure 0: "%(("abc" * N))"
   0008    | TakeRight 8 -> 13
@@ -1128,8 +1128,8 @@
   =================@main==================
   "prefix123123suffix" -> "%(`prefix` + (`123` * N) + `suffix`)" $ N
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: "prefix123123suffix"
+  0000    | PushCharVar N
+  0002    | GetConstant 0: "prefix123123suffix"
   0004    | CallFunction 0
   0006    | Destructure 0: "%("prefix" + ("123" * N) + "suffix")"
   0008    | TakeRight 8 -> 13
@@ -1142,11 +1142,11 @@
   =================@main==================
   "" -> ("" * N)
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: ""
-  0004    | CallFunction 0
-  0006    | Destructure 0: ("" * N)
-  0008    | End
+  0000    | PushCharVar N
+  0002    | PushEmptyString
+  0003    | CallFunction 0
+  0005    | Destructure 0: ("" * N)
+  0007    | End
   ========================================
 
   $ possum -p '"" -> "%(`` * N)"' -i ''
@@ -1154,11 +1154,11 @@
   =================@main==================
   "" -> "%(`` * N)"
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: ""
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%(("" * N))"
-  0008    | End
+  0000    | PushCharVar N
+  0002    | PushEmptyString
+  0003    | CallFunction 0
+  0005    | Destructure 0: "%(("" * N))"
+  0007    | End
   ========================================
 
   $ possum -p '"" $ 0 -> (0 * N)' -i ''
@@ -1166,13 +1166,13 @@
   =================@main==================
   "" $ 0 -> (0 * N)
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: ""
-  0004    | CallFunction 0
-  0006    | TakeRight 6 -> 11
-  0009    | GetConstant 2: 0
-  0011    | Destructure 0: (0 * N)
-  0013    | End
+  0000    | PushCharVar N
+  0002    | PushEmptyString
+  0003    | CallFunction 0
+  0005    | TakeRight 5 -> 9
+  0008    | PushNumberZero
+  0009    | Destructure 0: (0 * N)
+  0011    | End
   ========================================
 
   $ possum -p 'const($true) -> (true * N)' -i ''
@@ -1180,8 +1180,8 @@
   =================@main==================
   const($true) -> (true * N)
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: const
+  0000    | PushCharVar N
+  0002    | GetConstant 0: const
   0004    | True
   0005    | CallFunction 1
   0007    | Destructure 0: (true * N)
@@ -1193,8 +1193,8 @@
   =================@main==================
   const($false) -> (false * N)
   ========================================
-  0000    | GetConstant 0: N
-  0002    | GetConstant 1: const
+  0000    | PushCharVar N
+  0002    | GetConstant 0: const
   0004    | False
   0005    | CallFunction 1
   0007    | Destructure 0: (false * N)

@@ -361,15 +361,13 @@ pub const Compiler = struct {
             },
             .number_string => |ns| {
                 const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                const constId = try self.makeConstant(elem);
-                try self.emitConstant(constId, region);
+                try self.writeConstant(elem, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
             .string => |string| {
                 const sid = try self.vm.strings.insert(string);
                 const elem = Elem.string(sid);
-                const constId = try self.makeConstant(elem);
-                try self.emitConstant(constId, region);
+                try self.writeConstant(elem, region);
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
             .string_template => |parts| {
@@ -411,8 +409,7 @@ pub const Compiler = struct {
         } else {
             if (self.findGlobal(functionName)) |global| {
                 function = global.asDyn().asFunction();
-                const constId = try self.makeConstant(global);
-                try self.emitConstant(constId, function_region);
+                try self.writeConstant(global, function_region);
             } else {
                 const functionNameStr = self.vm.strings.get(functionName);
                 try self.printError(function_region, "Undefined function '{s}'", .{functionNameStr});
@@ -457,11 +454,8 @@ pub const Compiler = struct {
                 try self.emitByte(@as(u8, @intCast(low_codepoint)), low.region);
                 try self.emitByte(@as(u8, @intCast(high_codepoint)), high.region);
             } else {
-                const low_id = try self.makeConstant(low_elem.?);
-                const high_id = try self.makeConstant(high_elem.?);
-
-                try self.emitConstant(low_id, low.region);
-                try self.emitConstant(high_id, high.region);
+                try self.writeConstant(low_elem.?, low.region);
+                try self.writeConstant(high_elem.?, high.region);
                 try self.emitOp(.ParseRange, region);
             }
         } else if (low.node == .number_string and high.node == .number_string) {
@@ -491,11 +485,8 @@ pub const Compiler = struct {
                 try self.emitByte(@as(u8, @intCast(low_int)), low.region);
                 try self.emitByte(@as(u8, @intCast(high_int)), high.region);
             } else {
-                const low_id = try self.makeConstant(low_elem.?);
-                const high_id = try self.makeConstant(high_elem.?);
-
-                try self.emitConstant(low_id, low.region);
-                try self.emitConstant(high_id, high.region);
+                try self.writeConstant(low_elem.?, low.region);
+                try self.writeConstant(high_elem.?, high.region);
                 try self.emitOp(.ParseRange, region);
             }
         } else {
@@ -508,8 +499,7 @@ pub const Compiler = struct {
                         return Error.RangeNotSingleCodepoint;
                     };
 
-                    const low_id = try self.makeConstant(low_elem.?);
-                    try self.emitConstant(low_id, low.region);
+                    try self.writeConstant(low_elem.?, low.region);
                 },
                 .number_string => {
                     const low_ns = low_elem.?.asNumberString();
@@ -520,8 +510,7 @@ pub const Compiler = struct {
                         return Error.RangeInvalidNumberFormat;
                     }
 
-                    const low_id = try self.makeConstant(low_num);
-                    try self.emitConstant(low_id, low.region);
+                    try self.writeConstant(low_num, low.region);
                 },
                 .identifier => |ident| {
                     try self.writeGetVar(ident.name, low.region);
@@ -544,8 +533,7 @@ pub const Compiler = struct {
                         return Error.RangeNotSingleCodepoint;
                     };
 
-                    const high_id = try self.makeConstant(high_elem.?);
-                    try self.emitConstant(high_id, high.region);
+                    try self.writeConstant(high_elem.?, high.region);
                 },
                 .number_string => {
                     const high_ns = high_elem.?.asNumberString();
@@ -556,8 +544,7 @@ pub const Compiler = struct {
                         return Error.RangeInvalidNumberFormat;
                     }
 
-                    const high_id = try self.makeConstant(high_num);
-                    try self.emitConstant(high_id, high.region);
+                    try self.writeConstant(high_num, high.region);
                 },
                 .identifier => |ident| {
                     try self.writeGetVar(ident.name, high.region);
@@ -591,8 +578,7 @@ pub const Compiler = struct {
                 if (low_codepoint == 0) {
                     try self.emitOp(.ParseCodepoint, region);
                 } else {
-                    const low_id = try self.makeConstant(low_elem.?);
-                    try self.emitConstant(low_id, low_region);
+                    try self.writeConstant(low_elem.?, low_region);
                     try self.emitOp(.ParseLowerBoundedRange, region);
                 }
             },
@@ -606,8 +592,7 @@ pub const Compiler = struct {
                     return Error.RangeInvalidNumberFormat;
                 }
 
-                const low_id = try self.makeConstant(low_num);
-                try self.emitConstant(low_id, low_region);
+                try self.writeConstant(low_num, low_region);
                 try self.emitOp(.ParseLowerBoundedRange, region);
             },
             .identifier => |ident| {
@@ -641,8 +626,7 @@ pub const Compiler = struct {
                 if (high_codepoint == 0x10ffff) {
                     try self.emitOp(.ParseCodepoint, region);
                 } else {
-                    const high_id = try self.makeConstant(high_elem.?);
-                    try self.emitConstant(high_id, high_region);
+                    try self.writeConstant(high_elem.?, high_region);
                     try self.emitOp(.ParseUpperBoundedRange, region);
                 }
             },
@@ -656,8 +640,7 @@ pub const Compiler = struct {
                     return Error.RangeInvalidNumberFormat;
                 }
 
-                const high_id = try self.makeConstant(high_num);
-                try self.emitConstant(high_id, high_region);
+                try self.writeConstant(high_num, high_region);
                 try self.emitOp(.ParseUpperBoundedRange, region);
             },
             .identifier => |ident| {
@@ -747,8 +730,7 @@ pub const Compiler = struct {
 
     fn writeParserRepeatCount(self: *Compiler, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
         // Value accumulator
-        const nullId = try self.makeConstant(Elem.nullConst);
-        try self.emitConstant(nullId, parser.region);
+        try self.writeConstant(Elem.nullConst, parser.region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip to the end and return null
@@ -787,12 +769,10 @@ pub const Compiler = struct {
 
     fn writeParserRepeatUnknownCount(self: *Compiler, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
         // Count accumulator
-        const zero_id = try self.makeConstant(Elem.numberFloat(0));
-        try self.emitConstant(zero_id, count.region);
+        try self.writeConstant(Elem.numberFloat(0), count.region);
 
         // Value accumulator
-        const null_id = try self.makeConstant(Elem.nullConst);
-        try self.emitConstant(null_id, parser.region);
+        try self.writeConstant(Elem.nullConst, parser.region);
 
         // Start of the parse loop
         const loopStart = self.chunk().code.items.len;
@@ -827,8 +807,7 @@ pub const Compiler = struct {
 
     fn writeParserRepeatRangeBounded(self: *Compiler, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
         // Value accumulator
-        const nullId = try self.makeConstant(Elem.nullConst);
-        try self.emitConstant(nullId, region);
+        try self.writeConstant(Elem.nullConst, region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip the lower bound loop
@@ -901,8 +880,7 @@ pub const Compiler = struct {
 
     fn writeParserRepeatRangeLowerBounded(self: *Compiler, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper_pattern: ?*Ast.Pattern.RNode, region: Region) Error!void {
         // Value accumulator
-        const nullId = try self.makeConstant(Elem.nullConst);
-        try self.emitConstant(nullId, region);
+        try self.writeConstant(Elem.nullConst, region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip the lower bound loop
@@ -978,8 +956,7 @@ pub const Compiler = struct {
 
     fn writeParserRepeatRangeUpperBounded(self: *Compiler, parser: *Ast.Parser.RNode, lower_pattern: ?*Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
         // Value accumulator
-        const nullId = try self.makeConstant(Elem.nullConst);
-        try self.emitConstant(nullId, region);
+        try self.writeConstant(Elem.nullConst, region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip to end and return null
@@ -1081,8 +1058,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 }
                 const elem = try self.numberStringNodeToElem(ns.number, true);
-                const constId = try self.makeConstant(elem);
-                try self.emitConstant(constId, negated.region);
+                try self.writeConstant(elem, negated.region);
             },
             .identifier => |ident| {
                 // Determine at runtime if negating the parser is valid
@@ -1101,8 +1077,7 @@ pub const Compiler = struct {
             try self.emitUnaryOp(.GetBoundLocal, slot, region);
         } else {
             if (self.findGlobal(name)) |globalElem| {
-                const constId = try self.makeConstant(globalElem);
-                try self.emitConstant(constId, region);
+                try self.writeConstant(globalElem, region);
             } else {
                 try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(name)});
                 return Error.UndefinedVariable;
@@ -1206,14 +1181,12 @@ pub const Compiler = struct {
                 .parser => |p| switch (p.node) {
                     .number_string => |ns| {
                         const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                        const constId = try self.makeConstant(elem);
-                        try self.emitConstant(constId, region);
+                        try self.writeConstant(elem, region);
                     },
                     .string => |string| {
                         const sid = try self.vm.strings.insert(string);
                         const elem = Elem.string(sid);
-                        const constId = try self.makeConstant(elem);
-                        try self.emitConstant(constId, region);
+                        try self.writeConstant(elem, region);
                     },
                     .identifier => |ident| {
                         try self.writeGetVar(ident.name, region);
@@ -1715,8 +1688,7 @@ pub const Compiler = struct {
                                     ident.name,
                                     ident.underscored,
                                 );
-                                const constId = try self.makeConstant(elem);
-                                try self.emitConstant(constId, region);
+                                try self.writeConstant(elem, region);
                             }
                         }
                     },
@@ -1782,8 +1754,7 @@ pub const Compiler = struct {
                                     ident.name,
                                     ident.underscored,
                                 );
-                                const constId = try self.makeConstant(elem);
-                                try self.emitConstant(constId, region);
+                                try self.writeConstant(elem, region);
                             }
                         }
                     },
@@ -1841,8 +1812,7 @@ pub const Compiler = struct {
                             var ident_rnode: Ast.RNode(Ast.Parser.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .parser = &ident_rnode });
                             if (newLocalId) |_| {
-                                const constId = try self.makeConstant(elem);
-                                try self.emitConstant(constId, region);
+                                try self.writeConstant(elem, region);
                             }
                         }
                     },
@@ -1942,8 +1912,7 @@ pub const Compiler = struct {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
                             if (newLocalId) |_| {
-                                const constId = try self.makeConstant(elem);
-                                try self.emitConstant(constId, region);
+                                try self.writeConstant(elem, region);
                             }
                         }
                     },
@@ -2005,8 +1974,7 @@ pub const Compiler = struct {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = value_ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
                             if (newLocalId) |_| {
-                                const constId = try self.makeConstant(elem);
-                                try self.emitConstant(constId, region);
+                                try self.writeConstant(elem, region);
                             }
                         }
                     },
@@ -2029,21 +1997,18 @@ pub const Compiler = struct {
         switch (node) {
             .number_float => |f| {
                 const elem = Elem.numberFloat(f);
-                const constId = try self.makeConstant(elem);
-                try self.emitConstant(constId, region);
+                try self.writeConstant(elem, region);
             },
             .number_string => |ns| {
                 const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                const constId = try self.makeConstant(elem);
-                try self.emitConstant(constId, region);
+                try self.writeConstant(elem, region);
             },
             .identifier => |ident| {
                 if (self.localSlot(ident.name)) |slot| {
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
                     const global = self.findGlobal(ident.name).?;
-                    const constId = try self.makeConstant(global);
-                    try self.emitConstant(constId, region);
+                    try self.writeConstant(global, region);
                 }
             },
             .merge => |merge| {
@@ -2060,8 +2025,7 @@ pub const Compiler = struct {
             },
             .null => {
                 const elem = Elem.numberFloat(0);
-                const constId = try self.makeConstant(elem);
-                try self.emitConstant(constId, region);
+                try self.writeConstant(elem, region);
             },
             .array,
             .false,
@@ -2162,8 +2126,7 @@ pub const Compiler = struct {
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
                     const globalElem = self.findGlobal(ident.name).?;
-                    const constId = try self.makeConstant(globalElem);
-                    try self.emitConstant(constId, region);
+                    try self.writeConstant(globalElem, region);
                     if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
                         if (isTailPosition) {
                             try self.emitUnaryOp(.CallTailFunction, 0, region);
@@ -2176,18 +2139,15 @@ pub const Compiler = struct {
             .string => |string| {
                 const sid = try self.vm.strings.insert(string);
                 const elem = Elem.string(sid);
-                const constId = try self.makeConstant(elem);
-                try self.emitConstant(constId, region);
+                try self.writeConstant(elem, region);
             },
             .number_string => |ns| {
                 const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                const constId = try self.makeConstant(elem);
-                try self.emitConstant(constId, region);
+                try self.writeConstant(elem, region);
             },
             .number_float => |number_float| {
                 const elem = Elem.numberFloat(number_float);
-                const constId = try self.makeConstant(elem);
-                try self.emitConstant(constId, region);
+                try self.writeConstant(elem, region);
             },
             .true => try self.emitOp(.True, region),
             .false => try self.emitOp(.False, region),
@@ -2219,8 +2179,7 @@ pub const Compiler = struct {
         } else {
             if (self.findGlobal(functionName)) |global| {
                 function = global.asDyn().asFunction();
-                const constId = try self.makeConstant(global);
-                try self.emitConstant(constId, function_region);
+                try self.writeConstant(global, function_region);
             } else {
                 const functionNameStr = self.vm.strings.get(functionName);
                 try self.printError(function_region, "Undefined function '{s}'", .{functionNameStr});
@@ -2288,9 +2247,12 @@ pub const Compiler = struct {
     }
 
     fn writeValueArray(self: *Compiler, elements: ArrayList(*Ast.Value.RNode), region: Region) Error!void {
+        if (elements.items.len == 0) {
+            return try self.emitOp(.PushEmptyArray, region);
+        }
+
         var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
-        const constId = try self.makeConstant(array.dyn.elem());
-        try self.emitConstant(constId, region);
+        try self.writeConstant(array.dyn.elem(), region);
 
         for (elements.items, 0..) |element, index| {
             try self.writeArrayElem(array, element, @intCast(index), region);
@@ -2381,9 +2343,12 @@ pub const Compiler = struct {
     }
 
     fn writeValueObject(self: *Compiler, pairs: ArrayList(Ast.Value.ObjectPair), region: Region) Error!void {
+        if (pairs.items.len == 0) {
+            return try self.emitOp(.PushEmptyObject, region);
+        }
+
         var object = try Elem.DynElem.Object.create(self.vm, 0);
-        const constId = try self.makeConstant(object.dyn.elem());
-        try self.emitConstant(constId, region);
+        try self.writeConstant(object.dyn.elem(), region);
 
         for (pairs.items, 0..) |pair, index| {
             if (try self.literalPatternToElem(pair.key)) |key_elem| {
@@ -2427,8 +2392,7 @@ pub const Compiler = struct {
         const firstPart = parts.items[0];
 
         if (firstPart.node != .string) {
-            const empty_string = try self.makeConstant(Elem.string(try self.vm.strings.insert("")));
-            try self.emitConstant(empty_string, region);
+            try self.writeConstant(Elem.string(try self.vm.strings.insert("")), region);
         }
 
         // Write all parts with MergeAsString between each part after the first two
@@ -2449,8 +2413,7 @@ pub const Compiler = struct {
         const firstPart = parts.items[0];
 
         if (firstPart.node != .string) {
-            const empty_string = try self.makeConstant(Elem.string(try self.vm.strings.insert("")));
-            try self.emitConstant(empty_string, region);
+            try self.writeConstant(Elem.string(try self.vm.strings.insert("")), region);
         }
 
         // Write all parts with MergeAsString between each part after the first two
@@ -2460,6 +2423,82 @@ pub const Compiler = struct {
                 try self.emitOp(.MergeAsString, region);
             }
         }
+    }
+
+    fn writeConstant(self: *Compiler, elem: Elem, region: Region) !void {
+        switch (elem.getType()) {
+            .Const => switch (elem.asConst()) {
+                .True => return try self.emitOp(.True, region),
+                .False => return try self.emitOp(.False, region),
+                .Null => return try self.emitOp(.Null, region),
+                .Failure => {},
+            },
+            .Dyn => {
+                // Arrays and objects are created as constants before adding
+                // elements, so we can't check here if it's empty because it
+                // will always appear empty. Instead emit `PushEmptyArray` or
+                // `PushEmptyObject` manually in cases where we know it's
+                // empty.
+            },
+            .InputSubstring => {},
+            .NumberString => {
+                const ns = elem.asNumberString();
+                const bytes = ns.toBytes(self.vm.strings);
+
+                if (std.mem.eql(u8, bytes, "-1")) {
+                    return try self.emitOp(.PushNumberStringNegOne, region);
+                } else if (bytes.len == 1) {
+                    switch (bytes[0]) {
+                        '0' => return try self.emitOp(.PushNumberStringZero, region),
+                        '1' => return try self.emitOp(.PushNumberStringOne, region),
+                        '2' => return try self.emitOp(.PushNumberStringTwo, region),
+                        '3' => return try self.emitOp(.PushNumberStringThree, region),
+                        else => {},
+                    }
+                }
+            },
+            .ValueVar => {
+                const sid = elem.asValueVar().sid;
+                const bytes = self.vm.strings.get(sid);
+                if (bytes.len == 1 and bytes[0] == '_') {
+                    return try self.emitOp(.PushUnderscoreVar, region);
+                } else if (bytes.len == 1) {
+                    return try self.emitUnaryOp(.PushCharVar, bytes[0], region);
+                }
+            },
+            .String => {
+                const sid = elem.asString();
+                const bytes = self.vm.strings.get(sid);
+                if (bytes.len == 0) {
+                    return try self.emitOp(.PushEmptyString, region);
+                } else if (bytes.len == 1) {
+                    return try self.emitUnaryOp(.PushChar, bytes[0], region);
+                }
+            },
+            .NumberFloat => {
+                const n = elem.asFloat();
+                if (n == @floor(n)) {
+                    if (n == -1) {
+                        return try self.emitOp(.PushNumberNegOne, region);
+                    } else if (0 <= n and n <= 255) {
+                        const byte: u8 = @intFromFloat(n);
+                        switch (byte) {
+                            0 => return try self.emitOp(.PushNumberZero, region),
+                            1 => return try self.emitOp(.PushNumberOne, region),
+                            2 => return try self.emitOp(.PushNumberTwo, region),
+                            3 => return try self.emitOp(.PushNumberThree, region),
+                            else => return try self.emitUnaryOp(.PushNumber, byte, region),
+                        }
+                    } else if (-255 <= n and n <= -1) {
+                        const byte_val: u8 = @intFromFloat(-n);
+                        return try self.emitUnaryOp(.PushNegNumber, byte_val, region);
+                    }
+                }
+            },
+        }
+
+        const constId = try self.makeConstant(elem);
+        return try self.emitConstant(constId, region);
     }
 
     fn numberStringNodeToElem(self: *Compiler, number: []const u8, negated: bool) !Elem {

@@ -74,6 +74,15 @@ pub const VM = struct {
     pattern_solver: PatternSolver,
     writers: Writers,
     config: Config,
+    singleton_empty_array: ?Elem,
+    singleton_empty_object: ?Elem,
+    singleton_empty_string: Elem,
+    singleton_underscore_var: Elem,
+    singleton_neg_one: Elem,
+    singleton_zero: Elem,
+    singleton_one: Elem,
+    singleton_two: Elem,
+    singleton_three: Elem,
 
     const CallFrame = struct {
         function: *Elem.DynElem.Function,
@@ -114,6 +123,15 @@ pub const VM = struct {
             .pattern_solver = undefined,
             .writers = undefined,
             .config = undefined,
+            .singleton_empty_array = null,
+            .singleton_empty_object = null,
+            .singleton_empty_string = undefined,
+            .singleton_underscore_var = undefined,
+            .singleton_neg_one = undefined,
+            .singleton_zero = undefined,
+            .singleton_one = undefined,
+            .singleton_two = undefined,
+            .singleton_three = undefined,
         };
 
         return self;
@@ -135,6 +153,15 @@ pub const VM = struct {
         self.inputPos = Pos{};
         self.uniqueIdCount = 0;
         self.pattern_solver = PatternSolver.init(self);
+        self.singleton_empty_array = null;
+        self.singleton_empty_object = null;
+        self.singleton_empty_string = Elem.string(try self.strings.insert(""));
+        self.singleton_underscore_var = Elem.valueVar(try self.strings.insert("_"), true);
+        self.singleton_neg_one = try Elem.numberStringFromBytes("-1", self);
+        self.singleton_zero = try Elem.numberStringFromBytes("0", self);
+        self.singleton_one = try Elem.numberStringFromBytes("1", self);
+        self.singleton_two = try Elem.numberStringFromBytes("2", self);
+        self.singleton_three = try Elem.numberStringFromBytes("3", self);
         errdefer self.deinit();
 
         try self.loadBuiltinFunctions();
@@ -884,6 +911,76 @@ pub const VM = struct {
             .True => {
                 // Push singleton true value.
                 try self.push(Elem.boolean(true));
+            },
+            .PushChar => {
+                const byte = self.readByte();
+                try self.push(Elem.string(try self.strings.insert(&[_]u8{byte})));
+            },
+            .PushCharVar => {
+                const byte = self.readByte();
+                try self.push(Elem.valueVar(try self.strings.insert(&[_]u8{byte}), false));
+            },
+            .PushEmptyArray => {
+                if (self.singleton_empty_array) |empty_array| {
+                    try self.push(empty_array);
+                } else {
+                    const empty_array = (try Elem.DynElem.Array.create(self, 0)).dyn.elem();
+                    self.singleton_empty_array = empty_array;
+                    try self.push(empty_array);
+                }
+            },
+            .PushEmptyObject => {
+                if (self.singleton_empty_object) |empty_object| {
+                    try self.push(empty_object);
+                } else {
+                    const empty_object = (try Elem.DynElem.Object.create(self, 0)).dyn.elem();
+                    self.singleton_empty_object = empty_object;
+                    try self.push(empty_object);
+                }
+            },
+            .PushEmptyString => {
+                try self.push(self.singleton_empty_string);
+            },
+            .PushNumber => {
+                const byte = self.readByte();
+                try self.push(Elem.numberFloat(@floatFromInt(byte)));
+            },
+            .PushNegNumber => {
+                const byte = self.readByte();
+                try self.push(Elem.numberFloat(-@as(f64, @floatFromInt(byte))));
+            },
+            .PushNumberNegOne => {
+                try self.push(Elem.numberFloat(-1));
+            },
+            .PushNumberZero => {
+                try self.push(Elem.numberFloat(0));
+            },
+            .PushNumberOne => {
+                try self.push(Elem.numberFloat(1));
+            },
+            .PushNumberTwo => {
+                try self.push(Elem.numberFloat(2));
+            },
+            .PushNumberThree => {
+                try self.push(Elem.numberFloat(3));
+            },
+            .PushNumberStringNegOne => {
+                try self.push(self.singleton_neg_one);
+            },
+            .PushNumberStringZero => {
+                try self.push(self.singleton_zero);
+            },
+            .PushNumberStringOne => {
+                try self.push(self.singleton_one);
+            },
+            .PushNumberStringTwo => {
+                try self.push(self.singleton_two);
+            },
+            .PushNumberStringThree => {
+                try self.push(self.singleton_three);
+            },
+            .PushUnderscoreVar => {
+                try self.push(self.singleton_underscore_var);
             },
         }
     }

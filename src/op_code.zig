@@ -10,8 +10,8 @@ pub const OpCode = enum(u8) {
     CallTailFunction,
     CaptureLocal,
     ConditionalThen,
-    CreateClosure,
     Crash,
+    CreateClosure,
     Decrement,
     Destructure,
     Destructure2,
@@ -31,9 +31,9 @@ pub const OpCode = enum(u8) {
     InsertKeyVal,
     Jump,
     JumpBack,
+    JumpIfBound,
     JumpIfFailure,
     JumpIfZero,
-    JumpIfBound,
     Merge,
     MergeAsString,
     NativeCode,
@@ -48,15 +48,33 @@ pub const OpCode = enum(u8) {
     ParseRange,
     ParseUpperBoundedRange,
     PopInputMark,
+    PushChar,
+    PushCharVar,
+    PushEmptyArray,
+    PushEmptyObject,
+    PushEmptyString,
+    PushNegNumber,
+    PushNumber,
+    PushNumberNegOne,
+    PushNumberOne,
+    PushNumberStringNegOne,
+    PushNumberStringOne,
+    PushNumberStringThree,
+    PushNumberStringTwo,
+    PushNumberStringZero,
+    PushNumberThree,
+    PushNumberTwo,
+    PushNumberZero,
+    PushUnderscoreVar,
     RepeatValue,
     ResetInput,
     SetClosureCaptures,
     SetInputMark,
     Swap,
-    ValidateRepeatPattern,
     TakeLeft,
     TakeRight,
     True,
+    ValidateRepeatPattern,
 
     pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         return switch (self) {
@@ -77,14 +95,28 @@ pub const OpCode = enum(u8) {
             .ParseRange,
             .ParseUpperBoundedRange,
             .PopInputMark,
+            .PushEmptyArray,
+            .PushEmptyObject,
+            .PushEmptyString,
+            .PushNumberNegOne,
+            .PushNumberOne,
+            .PushNumberStringNegOne,
+            .PushNumberStringOne,
+            .PushNumberStringThree,
+            .PushNumberStringTwo,
+            .PushNumberStringZero,
+            .PushNumberThree,
+            .PushNumberTwo,
+            .PushNumberZero,
+            .PushUnderscoreVar,
             .RepeatValue,
             .ResetInput,
             .SetClosureCaptures,
             .SetInputMark,
             .Swap,
-            .ValidateRepeatPattern,
             .TakeLeft,
             .True,
+            .ValidateRepeatPattern,
             => self.simpleInstruction(writer, offset),
             .GetConstant,
             .NativeCode,
@@ -109,6 +141,14 @@ pub const OpCode = enum(u8) {
             .InsertAtIndex,
             .InsertKeyVal,
             => self.byteInstruciton(chunk, writer, offset),
+            .PushChar,
+            => self.pushCharInstruciton(chunk, writer, offset),
+            .PushNumber,
+            => self.pushNumberInstruciton(chunk, writer, offset),
+            .PushCharVar,
+            => self.pushCharVarInstruciton(chunk, writer, offset),
+            .PushNegNumber,
+            => self.pushNegNumberInstruction(chunk, writer, offset),
             .ParseCodepointRange,
             => self.codepointRangeInstruction(chunk, writer, offset),
             .ParseIntegerRange,
@@ -209,6 +249,30 @@ pub const OpCode = enum(u8) {
     fn byteInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const byte = chunk.read(offset + 1);
         try writer.print("{s} {}\n", .{ @tagName(self), byte });
+        return offset + 2;
+    }
+
+    fn pushCharInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const byte = chunk.read(offset + 1);
+        try writer.print("{s} '{c}'\n", .{ @tagName(self), byte });
+        return offset + 2;
+    }
+
+    fn pushNumberInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const byte = chunk.read(offset + 1);
+        try writer.print("{s} {}\n", .{ @tagName(self), @as(f64, @floatFromInt(byte)) });
+        return offset + 2;
+    }
+
+    fn pushCharVarInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const byte = chunk.read(offset + 1);
+        try writer.print("{s} {c}\n", .{ @tagName(self), byte });
+        return offset + 2;
+    }
+
+    fn pushNegNumberInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const byte = chunk.read(offset + 1);
+        try writer.print("{s} {}\n", .{ @tagName(self), -@as(f64, @floatFromInt(byte)) });
         return offset + 2;
     }
 
