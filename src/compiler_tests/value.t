@@ -103,12 +103,11 @@
   "" $ [Foo]
   ========================================
   0000    | PushEmptyString
-  0001    | TakeRight 1 -> 12
+  0001    | TakeRight 1 -> 10
   0004    | GetConstant 0: [_]
-  0006    | GetConstant 1: Foo
-  0008    | CallFunction 0
-  0010    | InsertAtIndex 0
-  0012    | End
+  0006    | CallFunctionConstant 1: Foo
+  0008    | InsertAtIndex 0
+  0010    | End
   ========================================
 
   $ possum -p 'A = [1,2,3] ; const([...A, ...A])' -i ''
@@ -125,14 +124,12 @@
   ========================================
   0000    | GetConstant 1: const
   0002    | PushEmptyArray
-  0003    | GetConstant 2: A
-  0005    | CallFunction 0
-  0007    | Merge
-  0008    | GetConstant 2: A
-  0010    | CallFunction 0
-  0012    | Merge
-  0013    | CallFunction 1
-  0015    | End
+  0003    | CallFunctionConstant 2: A
+  0005    | Merge
+  0006    | CallFunctionConstant 2: A
+  0008    | Merge
+  0009    | CallFunction 1
+  0011    | End
   ========================================
 
   $ possum -p '1 -> A & 2 -> B $ {"a": A, "b": B}' -i '12'
@@ -293,19 +290,18 @@
   0000    | PushNull
   0001    | PushNumberThree
   0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 24
+  0003    | JumpIfZero 3 -> 22
   0006    | Swap
-  0007    | GetConstant 0: "ab"
-  0009    | CallFunction 0
-  0011    | Merge
-  0012    | JumpIfFailure 12 -> 23
-  0015    | Swap
-  0016    | Decrement
-  0017    | JumpIfZero 17 -> 24
-  0020    | JumpBack 20 -> 6
-  0023    | Swap
-  0024    | Drop
-  0025    | End
+  0007    | CallFunctionConstant 0: "ab"
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 21
+  0013    | Swap
+  0014    | Decrement
+  0015    | JumpIfZero 15 -> 22
+  0018    | JumpBack 18 -> 6
+  0021    | Swap
+  0022    | Drop
+  0023    | End
   ========================================
 
   $ possum -p '2 * (2 * 2)' -i '2222'
@@ -374,11 +370,10 @@
   "" $ [A]
   ========================================
   0000    | PushEmptyString
-  0001    | TakeRight 1 -> 12
+  0001    | TakeRight 1 -> 10
   0004    | GetConstant 2: [_]
-  0006    | GetConstant 3: A
-  0008    | CallFunction 0
-  0010    | InsertAtIndex 0
-  0012    | End
+  0006    | CallFunctionConstant 3: A
+  0008    | InsertAtIndex 0
+  0010    | End
   ========================================
 

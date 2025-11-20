@@ -353,8 +353,16 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.CallFunction, 0, region);
             },
             .identifier => |ident| {
-                try self.writeGetVar(ident.name, region);
-                try self.emitUnaryOp(.CallFunction, 0, region);
+                if (self.localSlot(ident.name)) |slot| {
+                    try self.emitUnaryOp(.CallFunctionLocal, slot, region);
+                } else {
+                    if (self.findGlobal(ident.name)) |globalElem| {
+                        try self.writeCallFunctionConstant(globalElem, region, false);
+                    } else {
+                        try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(ident.name)});
+                        return Error.UndefinedVariable;
+                    }
+                }
             },
             .function_call => |function_call| {
                 try self.writeParserFunctionCall(function_call.function, function_call.args, region, isTailPosition);
@@ -374,8 +382,7 @@ pub const Compiler = struct {
                     }
                 } else {
                     const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                    try self.writeConstant(elem, region);
-                    try self.emitUnaryOp(.CallFunction, 0, region);
+                    try self.writeCallFunctionConstant(elem, region, false);
                 }
             },
             .string => |string| {
@@ -386,8 +393,7 @@ pub const Compiler = struct {
                 } else {
                     const sid = try self.vm.strings.insert(string);
                     const elem = Elem.string(sid);
-                    try self.writeConstant(elem, region);
-                    try self.emitUnaryOp(.CallFunction, 0, region);
+                    try self.writeCallFunctionConstant(elem, region, false);
                 }
             },
             .string_template => |parts| {
@@ -2146,13 +2152,10 @@ pub const Compiler = struct {
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
                     const globalElem = self.findGlobal(ident.name).?;
-                    try self.writeConstant(globalElem, region);
                     if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
-                        if (isTailPosition) {
-                            try self.emitUnaryOp(.CallTailFunction, 0, region);
-                        } else {
-                            try self.emitUnaryOp(.CallFunction, 0, region);
-                        }
+                        try self.writeCallFunctionConstant(globalElem, region, isTailPosition);
+                    } else {
+                        try self.writeConstant(globalElem, region);
                     }
                 }
             },
@@ -2521,6 +2524,15 @@ pub const Compiler = struct {
         return try self.emitConstant(constId, region);
     }
 
+    fn writeCallFunctionConstant(self: *Compiler, elem: Elem, region: Region, isTailPosition: bool) !void {
+        const constId = try self.makeConstant(elem);
+        if (isTailPosition) {
+            return try self.emitCallTailFunctionConstant(constId, region);
+        } else {
+            return try self.emitCallFunctionConstant(constId, region);
+        }
+    }
+
     fn numberStringNodeToElem(self: *Compiler, number: []const u8, negated: bool) !Elem {
         const elem = try Elem.numberStringFromBytes(number, self.vm);
         if (negated) {
@@ -2730,6 +2742,30 @@ pub const Compiler = struct {
             try self.emitShort(@intCast(idx), region);
         } else {
             try self.emitOp(.GetConstant3, region);
+            try self.emitMedium(@intCast(idx), region);
+        }
+    }
+
+    fn emitCallFunctionConstant(self: *Compiler, idx: usize, region: Region) !void {
+        if (idx <= 0xFF) {
+            try self.emitUnaryOp(.CallFunctionConstant, @intCast(idx), region);
+        } else if (idx <= 0xFFFF) {
+            try self.emitOp(.CallFunctionConstant2, region);
+            try self.emitShort(@intCast(idx), region);
+        } else {
+            try self.emitOp(.CallFunctionConstant3, region);
+            try self.emitMedium(@intCast(idx), region);
+        }
+    }
+
+    fn emitCallTailFunctionConstant(self: *Compiler, idx: usize, region: Region) !void {
+        if (idx <= 0xFF) {
+            try self.emitUnaryOp(.CallTailFunctionConstant, @intCast(idx), region);
+        } else if (idx <= 0xFFFF) {
+            try self.emitOp(.CallTailFunctionConstant2, region);
+            try self.emitShort(@intCast(idx), region);
+        } else {
+            try self.emitOp(.CallTailFunctionConstant3, region);
             try self.emitMedium(@intCast(idx), region);
         }
     }

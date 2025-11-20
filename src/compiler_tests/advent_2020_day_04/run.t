@@ -6,12 +6,10 @@
   space | nl
   ========================================
   0000    | SetInputMark
-  0001    | GetConstant 4: space
-  0003    | CallFunction 0
-  0005    | Or 5 -> 12
-  0008    | GetConstant 5: newline
-  0010    | CallFunction 0
-  0012    | End
+  0001    | CallFunctionConstant 4: space
+  0003    | Or 3 -> 8
+  0006    | CallFunctionConstant 5: newline
+  0008    | End
   ========================================
   
   ================passport================
@@ -34,37 +32,32 @@
     }
   ========================================
   0000    | PushUnderscoreVar
-  0001    | GetConstant 6: passport
-  0003    | CallFunction 0
-  0005    | Destructure 0: ({"byr": _, "iyr": _, "eyr": _, "hgt": _, "hcl": _, "ecl": _, "pid": _} + _)
-  0007    | End
+  0001    | CallFunctionConstant 6: passport
+  0003    | Destructure 0: ({"byr": _, "iyr": _, "eyr": _, "hgt": _, "hcl": _, "ecl": _, "pid": _} + _)
+  0005    | End
   ========================================
   
   ==========count_valid_passport==========
   count_valid_passport = (valid_passport $ 1) | (passport $ 0)
   ========================================
   0000    | SetInputMark
-  0001    | GetConstant 7: valid_passport
-  0003    | CallFunction 0
-  0005    | TakeRight 5 -> 9
-  0008    | PushNumberOne
-  0009    | Or 9 -> 20
-  0012    | GetConstant 6: passport
-  0014    | CallFunction 0
-  0016    | TakeRight 16 -> 20
-  0019    | PushNumberZero
-  0020    | End
+  0001    | CallFunctionConstant 7: valid_passport
+  0003    | TakeRight 3 -> 7
+  0006    | PushNumberOne
+  0007    | Or 7 -> 16
+  0010    | CallFunctionConstant 6: passport
+  0012    | TakeRight 12 -> 16
+  0015    | PushNumberZero
+  0016    | End
   ========================================
   
   =================@fn434=================
   nl+nl
   ========================================
-  0000    | GetConstant 5: newline
-  0002    | CallFunction 0
-  0004    | GetConstant 5: newline
-  0006    | CallFunction 0
-  0008    | Merge
-  0009    | End
+  0000    | CallFunctionConstant 5: newline
+  0002    | CallFunctionConstant 5: newline
+  0004    | Merge
+  0005    | End
   ========================================
   
   =================@main==================

@@ -162,12 +162,11 @@
   "foobar" -> ("fo" + Ob + "ar") $ Ob
   ========================================
   0000    | GetConstant 0: Ob
-  0002    | GetConstant 1: "foobar"
-  0004    | CallFunction 0
-  0006    | Destructure 0: ("fo" + Ob + "ar")
-  0008    | TakeRight 8 -> 13
-  0011    | GetBoundLocal 0
-  0013    | End
+  0002    | CallFunctionConstant 1: "foobar"
+  0004    | Destructure 0: ("fo" + Ob + "ar")
+  0006    | TakeRight 6 -> 11
+  0009    | GetBoundLocal 0
+  0011    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [1, ...Rest] $ Rest' -i ''
@@ -291,10 +290,9 @@
   =================@main==================
   char -> "a".."z"
   ========================================
-  0000    | GetConstant 0: char
-  0002    | CallFunction 0
-  0004    | Destructure 0: "a".."z"
-  0006    | End
+  0000    | CallFunctionConstant 0: char
+  0002    | Destructure 0: "a".."z"
+  0004    | End
   ========================================
 
   $ possum -p 'char -> .."z"' -i '!'
@@ -302,10 +300,9 @@
   =================@main==================
   char -> .."z"
   ========================================
-  0000    | GetConstant 0: char
-  0002    | CallFunction 0
-  0004    | Destructure 0: .."z"
-  0006    | End
+  0000    | CallFunctionConstant 0: char
+  0002    | Destructure 0: .."z"
+  0004    | End
   ========================================
 
   $ possum -p 'const(Is.Array([1])) ; Is.Array(V) = V -> [..._]' -i '1'
@@ -578,12 +575,11 @@
   "50" -> "%(0 + N)" $ N
   ========================================
   0000    | PushCharVar N
-  0002    | GetConstant 0: "50"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%(0 + N)"
-  0008    | TakeRight 8 -> 13
-  0011    | GetBoundLocal 0
-  0013    | End
+  0002    | CallFunctionConstant 0: "50"
+  0004    | Destructure 0: "%(0 + N)"
+  0006    | TakeRight 6 -> 11
+  0009    | GetBoundLocal 0
+  0011    | End
   ========================================
 
   $ possum -p '"ab" * 3' -i 'ababab'
@@ -594,19 +590,18 @@
   0000    | PushNull
   0001    | PushNumberThree
   0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 24
+  0003    | JumpIfZero 3 -> 22
   0006    | Swap
-  0007    | GetConstant 0: "ab"
-  0009    | CallFunction 0
-  0011    | Merge
-  0012    | JumpIfFailure 12 -> 23
-  0015    | Swap
-  0016    | Decrement
-  0017    | JumpIfZero 17 -> 24
-  0020    | JumpBack 20 -> 6
-  0023    | Swap
-  0024    | Drop
-  0025    | End
+  0007    | CallFunctionConstant 0: "ab"
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 21
+  0013    | Swap
+  0014    | Decrement
+  0015    | JumpIfZero 15 -> 22
+  0018    | JumpBack 18 -> 6
+  0021    | Swap
+  0022    | Drop
+  0023    | End
   ========================================
 
   $ possum -p '2 * (2 * 2)' -i '2222'
@@ -659,10 +654,9 @@
   123 -> V
   ========================================
   0000    | PushCharVar V
-  0002    | GetConstant 0: 123
-  0004    | CallFunction 0
-  0006    | Destructure 0: V
-  0008    | End
+  0002    | CallFunctionConstant 0: 123
+  0004    | Destructure 0: V
+  0006    | End
   ========================================
 
   $ possum -p '"abc" -> "abc"' -i 'abc'
@@ -670,10 +664,9 @@
   =================@main==================
   "abc" -> "abc"
   ========================================
-  0000    | GetConstant 0: "abc"
-  0002    | CallFunction 0
-  0004    | Destructure 0: "abc"
-  0006    | End
+  0000    | CallFunctionConstant 0: "abc"
+  0002    | Destructure 0: "abc"
+  0004    | End
   ========================================
 
   $ possum -p 'many(char) -> `\nfoo`' -i '\nfoo'
@@ -706,10 +699,9 @@
   =================@main==================
   numerals -> ("3" * 10)
   ========================================
-  0000    | GetConstant 0: numerals
-  0002    | CallFunction 0
-  0004    | Destructure 0: "3333333333"
-  0006    | End
+  0000    | CallFunctionConstant 0: numerals
+  0002    | Destructure 0: "3333333333"
+  0004    | End
   ========================================
 
   $ possum -p 'many(char) -> ("\u000000".. * 10)' -i '12345678901234567890'
@@ -742,10 +734,9 @@
   =================@main==================
   int -> 5
   ========================================
-  0000    | GetConstant 0: integer
-  0002    | CallFunction 0
-  0004    | Destructure 0: 5
-  0006    | End
+  0000    | CallFunctionConstant 0: integer
+  0002    | Destructure 0: 5
+  0004    | End
   ========================================
 
   $ possum -p '5 -> 2..7' -i '5'
@@ -994,10 +985,9 @@
   "abc" -> "%(S)"
   ========================================
   0000    | PushCharVar S
-  0002    | GetConstant 0: "abc"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%(S)"
-  0008    | End
+  0002    | CallFunctionConstant 0: "abc"
+  0004    | Destructure 0: "%(S)"
+  0006    | End
   ========================================
 
   $ possum -p '"null" -> "%(null)"' -i 'null'
@@ -1005,10 +995,9 @@
   =================@main==================
   "null" -> "%(null)"
   ========================================
-  0000    | GetConstant 0: "null"
-  0002    | CallFunction 0
-  0004    | Destructure 0: "%(null)"
-  0006    | End
+  0000    | CallFunctionConstant 0: "null"
+  0002    | Destructure 0: "%(null)"
+  0004    | End
   ========================================
 
   $ possum -p '"null" -> "%(null + N)" $ N' -i 'null'
@@ -1017,12 +1006,11 @@
   "null" -> "%(null + N)" $ N
   ========================================
   0000    | PushCharVar N
-  0002    | GetConstant 0: "null"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%(N)"
-  0008    | TakeRight 8 -> 13
-  0011    | GetBoundLocal 0
-  0013    | End
+  0002    | CallFunctionConstant 0: "null"
+  0004    | Destructure 0: "%(N)"
+  0006    | TakeRight 6 -> 11
+  0009    | GetBoundLocal 0
+  0011    | End
   ========================================
 
   $ possum -p '"true" -> "%(true + B)" $ B' -i 'true'
@@ -1031,12 +1019,11 @@
   "true" -> "%(true + B)" $ B
   ========================================
   0000    | PushCharVar B
-  0002    | GetConstant 0: "true"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%(true + B)"
-  0008    | TakeRight 8 -> 13
-  0011    | GetBoundLocal 0
-  0013    | End
+  0002    | CallFunctionConstant 0: "true"
+  0004    | Destructure 0: "%(true + B)"
+  0006    | TakeRight 6 -> 11
+  0009    | GetBoundLocal 0
+  0011    | End
   ========================================
 
   $ possum -p '"123" -> "%(0 + N)"' -i '123'
@@ -1045,10 +1032,9 @@
   "123" -> "%(0 + N)"
   ========================================
   0000    | PushCharVar N
-  0002    | GetConstant 0: "123"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%(0 + N)"
-  0008    | End
+  0002    | CallFunctionConstant 0: "123"
+  0004    | Destructure 0: "%(0 + N)"
+  0006    | End
   ========================================
 
   $ possum -p '"123" -> "%(N + 1)"' -i '123'
@@ -1057,10 +1043,9 @@
   "123" -> "%(N + 1)"
   ========================================
   0000    | PushCharVar N
-  0002    | GetConstant 0: "123"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%(N + 1)"
-  0008    | End
+  0002    | CallFunctionConstant 0: "123"
+  0004    | Destructure 0: "%(N + 1)"
+  0006    | End
   ========================================
 
   $ possum -p '"[1,2,3]" -> "%([...A])"' -i '[1,2,3]'
@@ -1069,10 +1054,9 @@
   "[1,2,3]" -> "%([...A])"
   ========================================
   0000    | PushCharVar A
-  0002    | GetConstant 0: "[1,2,3]"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%([] + A)"
-  0008    | End
+  0002    | CallFunctionConstant 0: "[1,2,3]"
+  0004    | Destructure 0: "%([] + A)"
+  0006    | End
   ========================================
 
   $ possum -p '`{"a": 1, "b": 2}` -> "%({..._})"' -i '{"a": 1, "b": 2}'
@@ -1081,10 +1065,9 @@
   `{"a": 1, "b": 2}` -> "%({..._})"
   ========================================
   0000    | PushUnderscoreVar
-  0001    | GetConstant 0: "{"a": 1, "b": 2}"
-  0003    | CallFunction 0
-  0005    | Destructure 0: "%({} + _)"
-  0007    | End
+  0001    | CallFunctionConstant 0: "{"a": 1, "b": 2}"
+  0003    | Destructure 0: "%({} + _)"
+  0005    | End
   ========================================
 
   $ possum -p '"abcabcabc" -> "%( `abc` * N)" $ N' -i 'abcabcabc'
@@ -1093,12 +1076,11 @@
   "abcabcabc" -> "%( `abc` * N)" $ N
   ========================================
   0000    | PushCharVar N
-  0002    | GetConstant 0: "abcabcabc"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%(("abc" * N))"
-  0008    | TakeRight 8 -> 13
-  0011    | GetBoundLocal 0
-  0013    | End
+  0002    | CallFunctionConstant 0: "abcabcabc"
+  0004    | Destructure 0: "%(("abc" * N))"
+  0006    | TakeRight 6 -> 11
+  0009    | GetBoundLocal 0
+  0011    | End
   ========================================
 
   $ possum -p '"prefix123123suffix" -> "%(`prefix` + (`123` * N) + `suffix`)" $ N' -i 'prefix123123suffix'
@@ -1107,12 +1089,11 @@
   "prefix123123suffix" -> "%(`prefix` + (`123` * N) + `suffix`)" $ N
   ========================================
   0000    | PushCharVar N
-  0002    | GetConstant 0: "prefix123123suffix"
-  0004    | CallFunction 0
-  0006    | Destructure 0: "%("prefix" + ("123" * N) + "suffix")"
-  0008    | TakeRight 8 -> 13
-  0011    | GetBoundLocal 0
-  0013    | End
+  0002    | CallFunctionConstant 0: "prefix123123suffix"
+  0004    | Destructure 0: "%("prefix" + ("123" * N) + "suffix")"
+  0006    | TakeRight 6 -> 11
+  0009    | GetBoundLocal 0
+  0011    | End
   ========================================
 
   $ possum -p '"" -> ("" * N)' -i ''

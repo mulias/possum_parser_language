@@ -356,11 +356,51 @@ pub const VM = struct {
                 const argCount = self.readByte();
                 try self.callFunction(self.peek(argCount), argCount, false);
             },
+            .CallFunctionConstant => {
+                const idx = self.readByte();
+                try self.push(self.frame().function.module.getConstant(idx));
+                try self.callFunction(self.peek(0), 0, false);
+            },
+            .CallFunctionConstant2 => {
+                const idx = self.readShort();
+                try self.push(self.frame().function.module.getConstant(idx));
+                try self.callFunction(self.peek(0), 0, false);
+            },
+            .CallFunctionConstant3 => {
+                const idx = self.readMedium();
+                try self.push(self.frame().function.module.getConstant(idx));
+                try self.callFunction(self.peek(0), 0, false);
+            },
             .CallTailFunction => {
                 // Postfix, function and args on stack.
                 // Reuse stack frame and continue eval within new function.
                 const argCount = self.readByte();
                 try self.callFunction(self.peek(argCount), argCount, true);
+            },
+            .CallTailFunctionConstant => {
+                const idx = self.readByte();
+                try self.push(self.frame().function.module.getConstant(idx));
+                try self.callFunction(self.peek(0), 0, true);
+            },
+            .CallTailFunctionConstant2 => {
+                const idx = self.readShort();
+                try self.push(self.frame().function.module.getConstant(idx));
+                try self.callFunction(self.peek(0), 0, true);
+            },
+            .CallTailFunctionConstant3 => {
+                const idx = self.readMedium();
+                try self.push(self.frame().function.module.getConstant(idx));
+                try self.callFunction(self.peek(0), 0, true);
+            },
+            .CallFunctionLocal => {
+                const slot = self.readByte();
+                try self.push(try self.getBoundLocal(slot));
+                try self.callFunction(self.peek(0), 0, false);
+            },
+            .CallTailFunctionLocal => {
+                const slot = self.readByte();
+                try self.push(try self.getBoundLocal(slot));
+                try self.callFunction(self.peek(0), 0, true);
             },
             .CaptureLocal => {
                 // Capture a local variable into a closure.
