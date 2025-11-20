@@ -360,15 +360,35 @@ pub const Compiler = struct {
                 try self.writeParserFunctionCall(function_call.function, function_call.args, region, isTailPosition);
             },
             .number_string => |ns| {
-                const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                try self.writeConstant(elem, region);
-                try self.emitUnaryOp(.CallFunction, 0, region);
+                const bytes = ns.number;
+
+                if (std.mem.eql(u8, bytes, "-1")) {
+                    return try self.emitOp(.ParseNegOne, region);
+                } else if (bytes.len == 1) {
+                    switch (bytes[0]) {
+                        '0' => try self.emitOp(.ParseZero, region),
+                        '1' => try self.emitOp(.ParseOne, region),
+                        '2' => try self.emitOp(.ParseTwo, region),
+                        '3' => try self.emitOp(.ParseThree, region),
+                        else => try self.emitUnaryOp(.ParseNumberStringChar, bytes[0], region),
+                    }
+                } else {
+                    const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                    try self.writeConstant(elem, region);
+                    try self.emitUnaryOp(.CallFunction, 0, region);
+                }
             },
             .string => |string| {
-                const sid = try self.vm.strings.insert(string);
-                const elem = Elem.string(sid);
-                try self.writeConstant(elem, region);
-                try self.emitUnaryOp(.CallFunction, 0, region);
+                if (string.len == 0) {
+                    return try self.emitOp(.PushEmptyString, region);
+                } else if (string.len == 1) {
+                    return try self.emitUnaryOp(.ParseChar, string[0], region);
+                } else {
+                    const sid = try self.vm.strings.insert(string);
+                    const elem = Elem.string(sid);
+                    try self.writeConstant(elem, region);
+                    try self.emitUnaryOp(.CallFunction, 0, region);
+                }
             },
             .string_template => |parts| {
                 try self.writeStringTemplateParser(parts, region);

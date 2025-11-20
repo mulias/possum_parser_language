@@ -83,10 +83,10 @@
       {
         "type": "main_parser",
         "value": {
-          "type": "call_function",
           "args": [
             {"type": "parser_variable", "name": "int", "is_meta": false, "is_underscored": false}
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "array", "is_meta": false, "is_underscored": false}
         }
       }
@@ -130,10 +130,10 @@
       {
         "type": "main_parser",
         "value": {
-          "type": "call_function",
           "args": [
             {"type": "parser_variable", "name": "program", "is_meta": false, "is_underscored": false}
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "input", "is_meta": false, "is_underscored": false}
         }
       },
@@ -142,19 +142,18 @@
         "ident": {"type": "parser_variable", "name": "program", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
-              "type": "call_function",
               "args": [
                 {
-                  "type": "call_function",
                   "args": [
                     {"type": "parser_variable", "name": "statement", "is_meta": false, "is_underscored": false}
                   ],
+                  "type": "call_function",
                   "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
                 }
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "array", "is_meta": false, "is_underscored": false}
             },
             {
@@ -162,6 +161,7 @@
               "prefixed": {"type": "string", "value": "program"}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -189,18 +189,18 @@
             "type": "or",
             "left": {"type": "parser_variable", "name": "nl", "is_meta": false, "is_underscored": false},
             "right": {
-              "type": "call_function",
               "args": [
                 {"type": "string", "value": ";"}
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
             }
           },
           "right": {
-            "type": "call_function",
             "args": [
               {"type": "parser_variable", "name": "end", "is_meta": false, "is_underscored": false}
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
           }
         }
@@ -231,7 +231,6 @@
               "right": {
                 "type": "destructure",
                 "left": {
-                  "type": "call_function",
                   "args": [
                     {"type": "parser_variable", "name": "function_args_or_params", "is_meta": false, "is_underscored": false},
                     {
@@ -239,6 +238,7 @@
                       "value": []
                     }
                   ],
+                  "type": "call_function",
                   "postfixed": {"type": "parser_variable", "name": "default", "is_meta": false, "is_underscored": false}
                 },
                 "right": {"type": "value_variable", "name": "Params", "is_meta": false, "is_underscored": false}
@@ -286,7 +286,6 @@
         "ident": {"type": "parser_variable", "name": "main_parser", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false},
             {
@@ -294,6 +293,7 @@
               "prefixed": {"type": "string", "value": "main_parser"}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -305,7 +305,6 @@
           "type": "take_right",
           "left": {"type": "string", "value": "#"},
           "right": {
-            "type": "call_function",
             "args": [
               {
                 "type": "or",
@@ -313,6 +312,7 @@
                 "right": {"type": "parser_variable", "name": "end", "is_meta": false, "is_underscored": false}
               }
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "chars_until", "is_meta": false, "is_underscored": false}
           }
         }
@@ -322,7 +322,6 @@
         "ident": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
               "type": "or",
@@ -330,6 +329,7 @@
               "right": {"type": "parser_variable", "name": "whitespace", "is_meta": false, "is_underscored": false}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
         }
       },
@@ -340,11 +340,11 @@
           {"type": "parser_variable", "name": "p", "is_meta": false, "is_underscored": false}
         ],
         "body": {
-          "type": "call_function",
           "args": [
             {"type": "parser_variable", "name": "p", "is_meta": false, "is_underscored": false},
             {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
         }
       },
@@ -353,7 +353,6 @@
         "ident": {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
               "type": "take_right",
@@ -361,17 +360,17 @@
               "right": {"type": "parser_variable", "name": "operand", "is_meta": false, "is_underscored": false}
             },
             {
-              "type": "call_function",
               "args": [
                 {"type": "parser_variable", "name": "prefix", "is_meta": false, "is_underscored": false}
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
             },
             {
-              "type": "call_function",
               "args": [
                 {"type": "parser_variable", "name": "infix", "is_meta": false, "is_underscored": false}
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
             },
             {
@@ -380,6 +379,7 @@
               "right": {"type": "parser_variable", "name": "postfix", "is_meta": false, "is_underscored": false}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.with_operator_precedence", "is_meta": false, "is_underscored": false}
         }
       },
@@ -440,7 +440,6 @@
             "left": {
               "type": "or",
               "left": {
-                "type": "call_function",
                 "args": [
                   {"type": "string", "value": "$"},
                   {
@@ -452,10 +451,10 @@
                     "prefixed": {"type": "number", "value": 9}
                   }
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_meta": false, "is_underscored": false}
               },
               "right": {
-                "type": "call_function",
                 "args": [
                   {"type": "string", "value": "..."},
                   {
@@ -467,11 +466,11 @@
                     "prefixed": {"type": "number", "value": 8}
                   }
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_meta": false, "is_underscored": false}
               }
             },
             "right": {
-              "type": "call_function",
               "args": [
                 {"type": "string", "value": ".."},
                 {
@@ -483,11 +482,11 @@
                   "prefixed": {"type": "number", "value": 7}
                 }
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_meta": false, "is_underscored": false}
             }
           },
           "right": {
-            "type": "call_function",
             "args": [
               {"type": "string", "value": "-"},
               {
@@ -499,6 +498,7 @@
                 "prefixed": {"type": "number", "value": 6}
               }
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_meta": false, "is_underscored": false}
           }
         }
@@ -532,7 +532,6 @@
                               "left": {
                                 "type": "or",
                                 "left": {
-                                  "type": "call_function",
                                   "args": [
                                     {"type": "string", "value": ".."},
                                     {
@@ -548,10 +547,10 @@
                                       "prefixed": {"type": "number", "value": 5.5}
                                     }
                                   ],
+                                  "type": "call_function",
                                   "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                                 },
                                 "right": {
-                                  "type": "call_function",
                                   "args": [
                                     {"type": "string", "value": "|"},
                                     {
@@ -567,11 +566,11 @@
                                       "prefixed": {"type": "number", "value": 4.5}
                                     }
                                   ],
+                                  "type": "call_function",
                                   "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                                 }
                               },
                               "right": {
-                                "type": "call_function",
                                 "args": [
                                   {"type": "string", "value": ">"},
                                   {
@@ -587,11 +586,11 @@
                                     "prefixed": {"type": "number", "value": 4.5}
                                   }
                                 ],
+                                "type": "call_function",
                                 "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                               }
                             },
                             "right": {
-                              "type": "call_function",
                               "args": [
                                 {"type": "string", "value": "<"},
                                 {
@@ -607,11 +606,11 @@
                                   "prefixed": {"type": "number", "value": 4.5}
                                 }
                               ],
+                              "type": "call_function",
                               "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                             }
                           },
                           "right": {
-                            "type": "call_function",
                             "args": [
                               {"type": "string", "value": "+"},
                               {
@@ -627,11 +626,11 @@
                                 "prefixed": {"type": "number", "value": 4.5}
                               }
                             ],
+                            "type": "call_function",
                             "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                           }
                         },
                         "right": {
-                          "type": "call_function",
                           "args": [
                             {"type": "string", "value": "!"},
                             {
@@ -647,11 +646,11 @@
                               "prefixed": {"type": "number", "value": 4.5}
                             }
                           ],
+                          "type": "call_function",
                           "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                         }
                       },
                       "right": {
-                        "type": "call_function",
                         "args": [
                           {"type": "string", "value": "->"},
                           {
@@ -667,11 +666,11 @@
                             "prefixed": {"type": "number", "value": 4.5}
                           }
                         ],
+                        "type": "call_function",
                         "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                       }
                     },
                     "right": {
-                      "type": "call_function",
                       "args": [
                         {"type": "string", "value": "$"},
                         {
@@ -687,11 +686,11 @@
                           "prefixed": {"type": "number", "value": 4.5}
                         }
                       ],
+                      "type": "call_function",
                       "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                     }
                   },
                   "right": {
-                    "type": "call_function",
                     "args": [
                       {"type": "string", "value": "-"},
                       {
@@ -707,11 +706,11 @@
                         "prefixed": {"type": "number", "value": 4.5}
                       }
                     ],
+                    "type": "call_function",
                     "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                   }
                 },
                 "right": {
-                  "type": "call_function",
                   "args": [
                     {"type": "string", "value": "*"},
                     {
@@ -727,11 +726,11 @@
                       "prefixed": {"type": "number", "value": 4.5}
                     }
                   ],
+                  "type": "call_function",
                   "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
                 }
               },
               "right": {
-                "type": "call_function",
                 "args": [
                   {"type": "string", "value": "&"},
                   {
@@ -747,11 +746,11 @@
                     "prefixed": {"type": "number", "value": 3.5}
                   }
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
               }
             },
             "right": {
-              "type": "call_function",
               "args": [
                 {
                   "type": "value_label",
@@ -766,11 +765,11 @@
                   "prefixed": {"type": "number", "value": 2}
                 }
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "conditional_infix", "is_meta": false, "is_underscored": false}
             }
           },
           "right": {
-            "type": "call_function",
             "args": [
               {"type": "string", "value": "="},
               {
@@ -786,6 +785,7 @@
                 "prefixed": {"type": "number", "value": 1}
               }
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
           }
         }
@@ -797,7 +797,6 @@
         "body": {
           "type": "or",
           "left": {
-            "type": "call_function",
             "args": [
               {
                 "type": "value_label",
@@ -808,10 +807,10 @@
                 "prefixed": {"type": "number", "value": 11}
               }
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "call_function_postfix", "is_meta": false, "is_underscored": false}
           },
           "right": {
-            "type": "call_function",
             "args": [
               {
                 "type": "value_label",
@@ -822,6 +821,7 @@
                 "prefixed": {"type": "number", "value": 10}
               }
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "lower_bounded_range_postfix", "is_meta": false, "is_underscored": false}
           }
         }
@@ -853,10 +853,8 @@
         "ident": {"type": "parser_variable", "name": "boolean_node", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
-              "type": "call_function",
               "args": [
                 {
                   "type": "destructure",
@@ -877,6 +875,7 @@
                   "right": {"type": "string", "value": "false"}
                 }
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "boolean", "is_meta": false, "is_underscored": false}
             },
             {
@@ -884,6 +883,7 @@
               "prefixed": {"type": "string", "value": "boolean"}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -918,47 +918,46 @@
         "ident": {"type": "parser_variable", "name": "string_node", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
               "type": "or",
               "left": {
                 "type": "or",
                 "left": {
-                  "type": "call_function",
                   "args": [
                     {
-                      "type": "call_function",
                       "args": [
                         {"type": "string", "value": "\""}
                       ],
+                      "type": "call_function",
                       "postfixed": {"type": "parser_variable", "name": "quoted_string_body", "is_meta": false, "is_underscored": false}
                     },
                     {"type": "string", "value": "\""}
                   ],
+                  "type": "call_function",
                   "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
                 },
                 "right": {
-                  "type": "call_function",
                   "args": [
                     {
-                      "type": "call_function",
                       "args": [
                         {"type": "string", "value": "'"}
                       ],
+                      "type": "call_function",
                       "postfixed": {"type": "parser_variable", "name": "quoted_string_body", "is_meta": false, "is_underscored": false}
                     },
                     {"type": "string", "value": "'"}
                   ],
+                  "type": "call_function",
                   "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
                 }
               },
               "right": {
-                "type": "call_function",
                 "args": [
                   {"type": "parser_variable", "name": "backtick_string_body", "is_meta": false, "is_underscored": false},
                   {"type": "string", "value": "`"}
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
               }
             },
@@ -967,6 +966,7 @@
               "prefixed": {"type": "string", "value": "string"}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -979,7 +979,6 @@
         "body": {
           "type": "or",
           "left": {
-            "type": "call_function",
             "args": [
               {
                 "type": "or",
@@ -989,7 +988,6 @@
                   "right": {"type": "parser_variable", "name": "string_escape_unicode", "is_meta": false, "is_underscored": false}
                 },
                 "right": {
-                  "type": "call_function",
                   "args": [
                     {"type": "parser_variable", "name": "char", "is_meta": false, "is_underscored": false},
                     {
@@ -1002,20 +1000,22 @@
                       "right": {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false}
                     }
                   ],
+                  "type": "call_function",
                   "postfixed": {"type": "parser_variable", "name": "unless", "is_meta": false, "is_underscored": false}
                 }
               }
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "many", "is_meta": false, "is_underscored": false}
           },
           "right": {
-            "type": "call_function",
             "args": [
               {
                 "type": "value_label",
                 "prefixed": {"type": "string", "value": ""}
               }
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "const", "is_meta": false, "is_underscored": false}
           }
         }
@@ -1083,20 +1083,20 @@
         "body": {
           "type": "or",
           "left": {
-            "type": "call_function",
             "args": [
               {"type": "string", "value": "`"}
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "chars_until", "is_meta": false, "is_underscored": false}
           },
           "right": {
-            "type": "call_function",
             "args": [
               {
                 "type": "value_label",
                 "prefixed": {"type": "string", "value": ""}
               }
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "const", "is_meta": false, "is_underscored": false}
           }
         }
@@ -1106,15 +1106,12 @@
         "ident": {"type": "parser_variable", "name": "template_string_node", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
               "type": "or",
               "left": {
-                "type": "call_function",
                 "args": [
                   {
-                    "type": "call_function",
                     "args": [
                       {"type": "string", "value": "\""},
                       {
@@ -1126,17 +1123,17 @@
                         "prefixed": {"type": "string", "value": ""}
                       }
                     ],
+                    "type": "call_function",
                     "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
                   },
                   {"type": "string", "value": "\""}
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
               },
               "right": {
-                "type": "call_function",
                 "args": [
                   {
-                    "type": "call_function",
                     "args": [
                       {"type": "string", "value": "'"},
                       {
@@ -1148,10 +1145,12 @@
                         "prefixed": {"type": "string", "value": ""}
                       }
                     ],
+                    "type": "call_function",
                     "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
                   },
                   {"type": "string", "value": "'"}
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
               }
             },
@@ -1160,6 +1159,7 @@
               "prefixed": {"type": "string", "value": "template_string"}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -1174,35 +1174,35 @@
         "body": {
           "type": "conditional",
           "middle": {
-            "type": "call_function",
             "args": [
               {
-                "type": "call_function",
                 "args": [
                   {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
                   {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "value_variable", "name": "AppendNonEmptyString", "is_meta": false, "is_underscored": false}
               }
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "const", "is_meta": false, "is_underscored": false}
           },
           "left": {
-            "type": "call_function",
             "args": [
               {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false}
             ],
+            "type": "call_function",
             "postfixed": {"type": "parser_variable", "name": "peek", "is_meta": false, "is_underscored": false}
           },
           "right": {
             "type": "conditional",
             "middle": {
-              "type": "call_function",
               "args": [
                 {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false},
                 {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
                 {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
             },
             "left": {
@@ -1223,10 +1223,10 @@
                   "left": {
                     "type": "destructure",
                     "left": {
-                      "type": "call_function",
                       "args": [
                         {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
                       ],
+                      "type": "call_function",
                       "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
                     },
                     "right": {"type": "value_variable", "name": "Expr", "is_meta": false, "is_underscored": false}
@@ -1234,7 +1234,6 @@
                   "right": {"type": "string", "value": ")"}
                 },
                 "right": {
-                  "type": "call_function",
                   "args": [
                     {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false},
                     {
@@ -1243,11 +1242,11 @@
                         {
                           "type": "spread",
                           "prefixed": {
-                            "type": "call_function",
                             "args": [
                               {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
                               {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
                             ],
+                            "type": "call_function",
                             "postfixed": {"type": "value_variable", "name": "AppendNonEmptyString", "is_meta": false, "is_underscored": false}
                           }
                         },
@@ -1259,6 +1258,7 @@
                       "prefixed": {"type": "string", "value": ""}
                     }
                   ],
+                  "type": "call_function",
                   "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
                 }
               },
@@ -1275,18 +1275,17 @@
                       "right": {"type": "parser_variable", "name": "string_escape_unicode", "is_meta": false, "is_underscored": false}
                     },
                     "right": {
-                      "type": "call_function",
                       "args": [
                         {"type": "parser_variable", "name": "char", "is_meta": false, "is_underscored": false},
                         {"type": "string", "value": "\\"}
                       ],
+                      "type": "call_function",
                       "postfixed": {"type": "parser_variable", "name": "unless", "is_meta": false, "is_underscored": false}
                     }
                   },
                   "right": {"type": "value_variable", "name": "Next", "is_meta": false, "is_underscored": false}
                 },
                 "right": {
-                  "type": "call_function",
                   "args": [
                     {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false},
                     {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
@@ -1296,6 +1295,7 @@
                       "right": {"type": "value_variable", "name": "Next", "is_meta": false, "is_underscored": false}
                     }
                   ],
+                  "type": "call_function",
                   "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
                 }
               }
@@ -1347,7 +1347,6 @@
         "ident": {"type": "parser_variable", "name": "number_node", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {"type": "parser_variable", "name": "number", "is_meta": false, "is_underscored": false},
             {
@@ -1355,6 +1354,7 @@
               "prefixed": {"type": "string", "value": "number"}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -1370,37 +1370,37 @@
           "left": {
             "type": "destructure",
             "left": {
-              "type": "call_function",
               "args": [
                 {
-                  "type": "call_function",
                   "args": [
                     {
-                      "type": "call_function",
                       "args": [
                         {"type": "string", "value": "@"},
                         {"type": "parser_variable", "name": "succeed", "is_meta": false, "is_underscored": false}
                       ],
+                      "type": "call_function",
                       "postfixed": {"type": "parser_variable", "name": "boolean", "is_meta": false, "is_underscored": false}
                     },
                     {
-                      "type": "call_function",
                       "args": [
                         {
-                          "type": "call_function",
                           "args": [
                             {"type": "string", "value": "_"}
                           ],
+                          "type": "call_function",
                           "postfixed": {"type": "parser_variable", "name": "many", "is_meta": false, "is_underscored": false}
                         },
                         {"type": "parser_variable", "name": "succeed", "is_meta": false, "is_underscored": false}
                       ],
+                      "type": "call_function",
                       "postfixed": {"type": "parser_variable", "name": "boolean", "is_meta": false, "is_underscored": false}
                     }
                   ],
+                  "type": "call_function",
                   "postfixed": {"type": "parser_variable", "name": "tuple2", "is_meta": false, "is_underscored": false}
                 }
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "peek", "is_meta": false, "is_underscored": false}
             },
             "right": {
@@ -1420,17 +1420,17 @@
                 "left": {
                   "type": "merge",
                   "left": {
-                    "type": "call_function",
                     "args": [
                       {"type": "string", "value": "@"}
                     ],
+                    "type": "call_function",
                     "postfixed": {"type": "parser_variable", "name": "maybe", "is_meta": false, "is_underscored": false}
                   },
                   "right": {
-                    "type": "call_function",
                     "args": [
                       {"type": "string", "value": "_"}
                     ],
+                    "type": "call_function",
                     "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
                   }
                 },
@@ -1467,7 +1467,6 @@
         "ident": {"type": "parser_variable", "name": "parser_variable_node", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
               "type": "value_label",
@@ -1477,7 +1476,6 @@
               "type": "merge",
               "left": {"type": "parser_variable", "name": "lower", "is_meta": false, "is_underscored": false},
               "right": {
-                "type": "call_function",
                 "args": [
                   {
                     "type": "or",
@@ -1489,10 +1487,12 @@
                     "right": {"type": "string", "value": "."}
                   }
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
               }
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "variable_node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -1501,7 +1501,6 @@
         "ident": {"type": "parser_variable", "name": "value_variable_node", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
               "type": "value_label",
@@ -1511,7 +1510,6 @@
               "type": "merge",
               "left": {"type": "parser_variable", "name": "upper", "is_meta": false, "is_underscored": false},
               "right": {
-                "type": "call_function",
                 "args": [
                   {
                     "type": "or",
@@ -1523,10 +1521,12 @@
                     "right": {"type": "string", "value": "."}
                   }
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
               }
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "variable_node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -1535,13 +1535,12 @@
         "ident": {"type": "parser_variable", "name": "underscore_variable_node", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
-              "type": "call_function",
               "args": [
                 {"type": "string", "value": "_"}
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "many", "is_meta": false, "is_underscored": false}
             },
             {
@@ -1549,6 +1548,7 @@
               "prefixed": {"type": "string", "value": "underscore_variable"}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -1557,7 +1557,6 @@
         "ident": {"type": "parser_variable", "name": "array_node", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
               "type": "take_left",
@@ -1571,11 +1570,11 @@
                     "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
                   },
                   "right": {
-                    "type": "call_function",
                     "args": [
                       {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false},
                       {"type": "string", "value": ","}
                     ],
+                    "type": "call_function",
                     "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
                   }
                 },
@@ -1588,6 +1587,7 @@
               "prefixed": {"type": "string", "value": "array"}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -1596,7 +1596,6 @@
         "ident": {"type": "parser_variable", "name": "object_node", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
               "type": "take_left",
@@ -1610,11 +1609,11 @@
                     "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
                   },
                   "right": {
-                    "type": "call_function",
                     "args": [
                       {"type": "parser_variable", "name": "object_pair", "is_meta": false, "is_underscored": false},
                       {"type": "string", "value": ","}
                     ],
+                    "type": "call_function",
                     "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
                   }
                 },
@@ -1627,6 +1626,7 @@
               "prefixed": {"type": "string", "value": "object"}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
         }
       },
@@ -1635,24 +1635,24 @@
         "ident": {"type": "parser_variable", "name": "object_pair", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
-              "type": "call_function",
               "args": [
                 {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
             },
             {"type": "string", "value": ":"},
             {
-              "type": "call_function",
               "args": [
                 {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "tuple2_sep", "is_meta": false, "is_underscored": false}
         }
       },
@@ -1672,17 +1672,17 @@
                 "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
               },
               "right": {
-                "type": "call_function",
                 "args": [
                   {
-                    "type": "call_function",
                     "args": [
                       {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
                     ],
+                    "type": "call_function",
                     "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
                   },
                   {"type": "string", "value": ","}
                 ],
+                "type": "call_function",
                 "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
               }
             },
@@ -1696,16 +1696,16 @@
         "ident": {"type": "parser_variable", "name": "trailing_comma", "is_meta": false, "is_underscored": false},
         "params": [],
         "body": {
-          "type": "call_function",
           "args": [
             {
-              "type": "call_function",
               "args": [
                 {"type": "string", "value": ","}
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
             }
           ],
+          "type": "call_function",
           "postfixed": {"type": "parser_variable", "name": "maybe", "is_meta": false, "is_underscored": false}
         }
       },
@@ -1778,7 +1778,6 @@
           "right": {
             "type": "return",
             "left": {
-              "type": "call_function",
               "args": [
                 {
                   "type": "take_right",
@@ -1794,6 +1793,7 @@
                   }
                 }
               ],
+              "type": "call_function",
               "postfixed": {"type": "parser_variable", "name": "peek", "is_meta": false, "is_underscored": false}
             },
             "right": {

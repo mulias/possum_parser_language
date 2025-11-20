@@ -6,8 +6,7 @@
   ""
   ========================================
   0000    | PushEmptyString
-  0001    | CallFunction 0
-  0003    | End
+  0001    | End
   ========================================
 
   $ possum -p '"hello"' -i ''
@@ -95,12 +94,11 @@
   "" $ "%(5)"
   ========================================
   0000    | PushEmptyString
-  0001    | CallFunction 0
-  0003    | TakeRight 3 -> 10
-  0006    | PushEmptyString
-  0007    | PushNumber 5
-  0009    | MergeAsString
-  0010    | End
+  0001    | TakeRight 1 -> 8
+  0004    | PushEmptyString
+  0005    | PushNumber 5
+  0007    | MergeAsString
+  0008    | End
   ========================================
 
   $ possum -p '"" -> "%(Str)"' -i ''
@@ -110,9 +108,8 @@
   ========================================
   0000    | GetConstant 0: Str
   0002    | PushEmptyString
-  0003    | CallFunction 0
-  0005    | Destructure 0: "%(Str)"
-  0007    | End
+  0003    | Destructure 0: "%(Str)"
+  0005    | End
   ========================================
 
   $ possum -p '"Hello %(int + word)"' -i ''

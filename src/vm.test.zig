@@ -1405,7 +1405,7 @@ test "'a' -> A $ [[A]]" {
         const result = try vm.interpret(testModule, "a");
 
         vm.gc.mode = .NoGC;
-        const innerArray = [_]Elem{Elem.string(vm.strings.getId("a"))};
+        const innerArray = [_]Elem{Elem.inputSubstring(0, 1)};
         const outerArray = [_]Elem{(try Elem.DynElem.Array.copy(&vm, &innerArray)).dyn.elem()};
         const array = (try Elem.DynElem.Array.copy(&vm, &outerArray)).dyn.elem();
 

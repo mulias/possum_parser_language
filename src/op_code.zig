@@ -38,12 +38,19 @@ pub const OpCode = enum(u8) {
     NegateNumber,
     NegateParser,
     Or,
+    ParseChar,
     ParseCodepoint,
     ParseCodepointRange,
     ParseIntegerRange,
     ParseLowerBoundedRange,
+    ParseNegOne,
+    ParseNumberStringChar,
+    ParseOne,
     ParseRange,
+    ParseThree,
+    ParseTwo,
     ParseUpperBoundedRange,
+    ParseZero,
     PopInputMark,
     PushChar,
     PushCharVar,
@@ -55,6 +62,7 @@ pub const OpCode = enum(u8) {
     PushNegNumber,
     PushNull,
     PushNumber,
+    PushNumberStringChar,
     PushNumberNegOne,
     PushNumberOne,
     PushNumberStringNegOne,
@@ -117,6 +125,11 @@ pub const OpCode = enum(u8) {
             .Swap,
             .TakeLeft,
             .ValidateRepeatPattern,
+            .ParseNegOne,
+            .ParseZero,
+            .ParseOne,
+            .ParseTwo,
+            .ParseThree,
             => self.simpleInstruction(writer, offset),
             .GetConstant,
             .NativeCode,
@@ -141,14 +154,18 @@ pub const OpCode = enum(u8) {
             .InsertAtIndex,
             .InsertKeyVal,
             => self.byteInstruciton(chunk, writer, offset),
+            .ParseChar,
             .PushChar,
-            => self.pushCharInstruciton(chunk, writer, offset),
+            => self.charInstruction(chunk, writer, offset),
             .PushNumber,
             => self.pushNumberInstruciton(chunk, writer, offset),
             .PushCharVar,
             => self.pushCharVarInstruciton(chunk, writer, offset),
             .PushNegNumber,
             => self.pushNegNumberInstruction(chunk, writer, offset),
+            .PushNumberStringChar,
+            .ParseNumberStringChar,
+            => self.numberStringInstruction(chunk, writer, offset),
             .ParseCodepointRange,
             => self.codepointRangeInstruction(chunk, writer, offset),
             .ParseIntegerRange,
@@ -252,7 +269,7 @@ pub const OpCode = enum(u8) {
         return offset + 2;
     }
 
-    fn pushCharInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+    fn charInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const byte = chunk.read(offset + 1);
         try writer.print("{s} '{c}'\n", .{ @tagName(self), byte });
         return offset + 2;
@@ -273,6 +290,12 @@ pub const OpCode = enum(u8) {
     fn pushNegNumberInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const byte = chunk.read(offset + 1);
         try writer.print("{s} {}\n", .{ @tagName(self), -@as(f64, @floatFromInt(byte)) });
+        return offset + 2;
+    }
+
+    fn numberStringInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const byte = chunk.read(offset + 1);
+        try writer.print("{s} {c}\n", .{ @tagName(self), byte });
         return offset + 2;
     }
 

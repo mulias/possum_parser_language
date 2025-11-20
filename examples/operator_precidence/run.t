@@ -31,14 +31,14 @@
   $ possum $TESTDIR/arithmetic.possum -i 'a ? b : c == 0 ? d : e'
   {
     "type": "cond",
-    "startpos": 0,
     "middle": {"type": "var", "value": "b", "startpos": 4, "endpos": 5},
+    "startpos": 0,
     "endpos": 22,
     "left": {"type": "var", "value": "a", "startpos": 0, "endpos": 1},
     "right": {
       "type": "cond",
-      "startpos": 8,
       "middle": {"type": "var", "value": "d", "startpos": 17, "endpos": 18},
+      "startpos": 8,
       "endpos": 22,
       "left": {
         "type": "eql",

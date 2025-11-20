@@ -757,6 +757,34 @@ pub const VM = struct {
                     self.inputPos = resetPos;
                 }
             },
+            .ParseNegOne => {
+                const ns = self.singleton_neg_one.asNumberString();
+                try self.parseNumberString(ns);
+            },
+            .ParseZero => {
+                const ns = self.singleton_zero.asNumberString();
+                try self.parseNumberString(ns);
+            },
+            .ParseOne => {
+                const ns = self.singleton_one.asNumberString();
+                try self.parseNumberString(ns);
+            },
+            .ParseTwo => {
+                const ns = self.singleton_two.asNumberString();
+                try self.parseNumberString(ns);
+            },
+            .ParseThree => {
+                const ns = self.singleton_three.asNumberString();
+                try self.parseNumberString(ns);
+            },
+            .ParseNumberStringChar => {
+                const char = self.readByte();
+                try self.parseNumberStringCharacter(char);
+            },
+            .ParseChar => {
+                const char = self.readByte();
+                try self.parseCharacter(char);
+            },
             .ParseCodepoint => {
                 const start = self.inputPos.offset;
 
@@ -784,7 +812,7 @@ pub const VM = struct {
                 const low_codepoint = self.readByte();
                 const high_codepoint = self.readByte();
 
-                try self.parseCharacterRange(@as(u21, @intCast(low_codepoint)), @as(u21, @intCast(high_codepoint)));
+                try self.parseCodepointRange(@as(u21, @intCast(low_codepoint)), @as(u21, @intCast(high_codepoint)));
             },
             .ParseIntegerRange => {
                 const low_int = self.readByte();
@@ -799,7 +827,7 @@ pub const VM = struct {
 
                     if (parsing.utf8Decode(bytes)) |codepoint| {
                         self.drop(1);
-                        try self.parseCharacterLowerBounded(codepoint);
+                        try self.parseCodepointLowerBounded(codepoint);
                     } else {
                         return self.runtimeError("Range parser lower bound string must be a single valid codepoint", .{});
                     }
@@ -823,7 +851,7 @@ pub const VM = struct {
                         if (parsing.utf8Decode(high_bytes)) |high_codepoint| {
                             if (low_codepoint <= high_codepoint) {
                                 self.drop(2);
-                                try self.parseCharacterRange(low_codepoint, high_codepoint);
+                                try self.parseCodepointRange(low_codepoint, high_codepoint);
                             } else {
                                 return self.runtimeError("Range parser lower bound can't be larger than upper bound", .{});
                             }
@@ -854,7 +882,7 @@ pub const VM = struct {
 
                     if (parsing.utf8Decode(bytes)) |codepoint| {
                         self.drop(1);
-                        try self.parseCharacterUpperBounded(codepoint);
+                        try self.parseCodepointUpperBounded(codepoint);
                     } else {
                         return self.runtimeError("Range parser upper bound string must be a single valid codepoint", .{});
                     }
@@ -978,6 +1006,11 @@ pub const VM = struct {
             },
             .PushNumberStringThree => {
                 try self.push(self.singleton_three);
+            },
+            .PushNumberStringChar => {
+                const char = self.readByte();
+                const elem = try Elem.numberStringFromBytes(&[_]u8{char}, self);
+                try self.push(elem);
             },
             .PushUnderscoreVar => {
                 try self.push(self.singleton_underscore_var);
@@ -1109,7 +1142,42 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
-    fn parseCharacterRange(self: *VM, low: u21, high: u21) !void {
+    fn parseCharacter(self: *VM, char: u8) !void {
+        const start = self.inputPos.offset;
+
+        if (start < self.input.len and self.input[start] == char) {
+            const end = start + 1;
+
+            if (self.isNewlineChar(start, 1)) {
+                self.inputPos.line += 1;
+                self.inputPos.line_start = end;
+            }
+            self.inputPos.offset = end;
+
+            if (try Elem.inputSubstringFromRange(start, end)) |elem| {
+                try self.push(elem);
+            } else {
+                try self.push(Elem.string(try self.strings.insert(&[_]u8{char})));
+            }
+
+            return;
+        }
+        try self.pushFailure();
+    }
+
+    fn parseNumberStringCharacter(self: *VM, char: u8) !void {
+        const start = self.inputPos.offset;
+
+        if (start < self.input.len and self.input[start] == char) {
+            const ns = try Elem.numberStringFromBytes(&[_]u8{char}, self);
+            try self.push(ns);
+
+            return;
+        }
+        try self.pushFailure();
+    }
+
+    fn parseCodepointRange(self: *VM, low: u21, high: u21) !void {
         const low_length = unicode.utf8CodepointSequenceLength(low) catch 1;
         const high_length = unicode.utf8CodepointSequenceLength(high) catch 1;
         const start = self.inputPos.offset;
@@ -1141,7 +1209,7 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
-    fn parseCharacterLowerBounded(self: *VM, low: u21) !void {
+    fn parseCodepointLowerBounded(self: *VM, low: u21) !void {
         const low_length = unicode.utf8CodepointSequenceLength(low) catch @panic("Internal Error");
         const start = self.inputPos.offset;
 
@@ -1172,7 +1240,7 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
-    fn parseCharacterUpperBounded(self: *VM, high: u21) !void {
+    fn parseCodepointUpperBounded(self: *VM, high: u21) !void {
         const high_length = unicode.utf8CodepointSequenceLength(high) catch @panic("Internal Error");
         const start = self.inputPos.offset;
 
