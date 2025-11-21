@@ -2,11 +2,13 @@ const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.AutoHashMapUnmanaged;
 const Writer = std.Io.Writer;
+const unicode = std.unicode;
 const VM = @import("vm.zig").VM;
 const Pattern = @import("pattern.zig").Pattern;
 const Elem = @import("elem.zig").Elem;
 const StringTable = @import("string_table.zig").StringTable;
-const isValidNumberString = @import("parsing.zig").isValidNumberString;
+const parsing = @import("parsing.zig");
+const isValidNumberString = parsing.isValidNumberString;
 
 const Simplified = union(enum) {
     Pattern: Pattern,
@@ -1531,6 +1533,67 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
                     return value_str.len == 0;
                 }
 
+                // Range patterns match codepoint-by-codepoint (each codepoint is validated against the range)
+                if (repeat_pattern.pattern.* == .Range) {
+                    const range = repeat_pattern.pattern.Range;
+
+                    // Evaluate range bounds to get codepoint limits
+                    const lower_codepoint: ?u21 = if (range.lower) |lower_pattern| blk: {
+                        const lower_elem = try self.attemptEval(lower_pattern.*) orelse return Error.RuntimeError;
+                        if (lower_elem.stringBytes(self.vm.*)) |bytes| {
+                            break :blk parsing.utf8Decode(bytes);
+                        } else {
+                            return Error.RuntimeError;
+                        }
+                    } else null;
+
+                    const upper_codepoint: ?u21 = if (range.upper) |upper_pattern| blk: {
+                        const upper_elem = try self.attemptEval(upper_pattern.*) orelse return Error.RuntimeError;
+                        if (upper_elem.stringBytes(self.vm.*)) |bytes| {
+                            break :blk parsing.utf8Decode(bytes);
+                        } else {
+                            return Error.RuntimeError;
+                        }
+                    } else null;
+
+                    // Iterate through string by codepoint and validate each against range
+                    var codepoint_count: usize = 0;
+                    var byte_index: usize = 0;
+                    while (byte_index < value_str.len) {
+                        const byte_len = unicode.utf8ByteSequenceLength(value_str[byte_index]) catch return false;
+                        if (byte_index + byte_len > value_str.len) return false;
+
+                        const codepoint = parsing.utf8Decode(value_str[byte_index .. byte_index + byte_len]) orelse return false;
+
+                        // Check if codepoint is within range bounds
+                        if (lower_codepoint) |lower| {
+                            if (codepoint < lower) return false;
+                        }
+                        if (upper_codepoint) |upper| {
+                            if (codepoint > upper) return false;
+                        }
+
+                        if (self.printSteps) {
+                            self.depth = self.depth +| 1;
+                            defer self.depth = self.depth -| 1;
+
+                            try self.printIndentation();
+                            try self.vm.writers.debug.print("\"", .{});
+                            try self.vm.writers.debug.writeAll(value_str[byte_index .. byte_index + byte_len]);
+                            try self.vm.writers.debug.print("\" -> ", .{});
+                            try repeat_pattern.pattern.print(self.vm.*, self.vm.writers.debug);
+                            try self.vm.writers.debug.print("\n", .{});
+                        }
+
+                        codepoint_count += 1;
+                        byte_index += byte_len;
+                    }
+
+                    // Verify codepoint count matches expected count
+                    return codepoint_count == count;
+                }
+
+                // For other patterns (like unbound variables), compute repeated chunks
                 // Check if value length is divisible by count
                 if (value_str.len % count != 0) return false;
 
