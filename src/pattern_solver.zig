@@ -1523,19 +1523,46 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
             if (count_float < 0 or count_float != @floor(count_float)) return false;
             const count = @as(usize, @intFromFloat(count_float));
 
-            // Try string pattern matching (character-by-character)
+            // Try string pattern matching
             if (value.stringBytes(self.vm.*)) |value_str| {
-                // Value must have exactly count characters
-                if (value_str.len != count) return false;
+                // Special case: count is 0
+                if (count == 0) {
+                    // Pattern * 0 = "" for any pattern (empty string identity)
+                    return value_str.len == 0;
+                }
 
-                // Match each character against the pattern
-                for (value_str) |byte| {
-                    const char_elem = Elem.string(try self.vm.strings.insert(&[_]u8{byte}));
-                    if (!(try self.matchPattern(char_elem, repeat_pattern.pattern.*))) {
+                // Check if value length is divisible by count
+                if (value_str.len % count != 0) return false;
+
+                const chunk_len = value_str.len / count;
+
+                // Verify all chunks are equal
+                var i: usize = 1;
+                while (i < count) : (i += 1) {
+                    const start = i * chunk_len;
+                    const end = start + chunk_len;
+                    if (!std.mem.eql(u8, value_str[0..chunk_len], value_str[start..end])) {
                         return false;
                     }
                 }
-                return true;
+
+                // Match the first chunk against the pattern to bind variables
+                const chunk_elem = if (value.isType(.InputSubstring)) blk: {
+                    const start = value.asInputSubstring().start;
+                    if (try Elem.inputSubstringFromRange(start, start + chunk_len)) |elem| {
+                        break :blk elem;
+                    } else {
+                        const str = try Elem.DynElem.String.copy(self.vm, value_str[0..chunk_len]);
+                        try self.vm.pushTempDyn(&str.dyn);
+                        break :blk str.dyn.elem();
+                    }
+                } else blk: {
+                    const dyn_str = try Elem.DynElem.String.copy(self.vm, value_str[0..chunk_len]);
+                    try self.vm.pushTempDyn(&dyn_str.dyn);
+                    break :blk dyn_str.dyn.elem();
+                };
+
+                return self.matchPattern(chunk_elem, repeat_pattern.pattern.*);
             }
 
             // Try array pattern matching (element-by-element)
