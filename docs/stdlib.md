@@ -204,12 +204,17 @@ These parsers and value functions are always available in Possum programs, unles
 
 ### Abstract Syntax Trees
 
-See the `stdlib-ast` docs for more detailed documentation.
+See the `stdlib-ast` docs for detailed documentation.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
 | `ast.with_operator_precedence(operand, prefix, infix, postfix)` | `operands`s with prefix and postfix operators, composed with infix operators | Abstract syntax tree |
-| `ast.node(Type, value)` | `value`               | Object with `"type"`, `"value"`, `"start"`, and `"end"` fields |
+| `ast.node(value, Type)` | `value`               | Object with `"type"`, `"value"`, `"start"`, and `"end"` fields |
+| `ast.prefix_node(op, Type, BindingPower)` | `op` | Object with `"type"` and `"power"` fields |
+| `ast.infix_node(op, Type, LeftBindingPower, RightBindingPower)` | `op` | Object with `"type"` and `"power"` fields |
+| `ast.postfix_node(op, Type, BindingPower)` | `op` | Object with `"type"` and `"power"` fields |
+| `ast.with_offset_pos(node)` | `node`            | Object produced by `node` with additional `startpos` and `endpos` fields |
+| `ast.with_line_pos(node)` | `node`              | Object produced by `node` with additional `startpos` and `endpos` fields |
 
 ## Values
 
@@ -252,15 +257,6 @@ See the `stdlib-ast` docs for more detailed documentation.
 | ------------------ | ------------------------------------------------------- |
 | `Obj.Get(O, K)`    | Retrieve the value associated with the key `K` in the object `O` |
 | `Obj.Put(O, K, V)` | Add the key `K` with value `V` to the object `O`        |
-
-### Abstract Syntax Trees
-
-See the `stdlib-ast` docs for more detailed documentation.
-
-| Value Function     | Behavior                                                |
-| ------------------ | ------------------------------------------------------- |
-| `Ast.OpPrecedence(OpNode, BindingPower)` | Returns array with two elements, `OpNode` and `BindingPower` |
-| `Ast.InfixOpPrecedence(OpNode, LeftBindingPower, RightBindingPower)` | Returns array with three elements, `OpNode`, `LeftBindingPower`, and `RightBindingPower` |
 
 ### Predicates
 
