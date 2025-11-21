@@ -25,7 +25,7 @@ OPTIONS
     --no-stdlib
         Do not import the standard library.
 
-    --docs={overview | advanced | language | cli | stdlib}
+    --docs={overview | advanced | language | cli | stdlib | stdlib-ast}
         Show documentation in the terminal.
           * overview: Example-based guide covering Possum's main features.
           * advanced: Continuation of the example-based guide, focusing on more
