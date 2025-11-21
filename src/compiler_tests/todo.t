@@ -10,21 +10,3 @@
   
   [InvalidAst]
   [1]
-
-  $ possum -p 'foo(A) = "" $ A ; foo("a")' -i ''
-  
-  ==================foo===================
-  foo(A) = "" $ A
-  ========================================
-  0000    | GetBoundLocal 0
-  0002    | End
-  ========================================
-  
-  Program Error: Expected value but got parser
-  
-  program:1:22-25:
-  1 \xe2\x96\x8f foo(A) = "" $ A ; foo("a") (esc)
-    \xe2\x96\x8f                       ^^^ (esc)
-  
-  [InvalidAst]
-  [1]

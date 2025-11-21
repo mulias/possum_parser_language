@@ -39,6 +39,7 @@ pub const Compiler = struct {
         UndefinedVariable,
         FunctionCallTooManyArgs,
         FunctionCallTooFewArgs,
+        FunctionCallTypeMismatch,
         RangeNotSingleCodepoint,
         RangeCodepointsUnordered,
         RangeIntegersUnordered,
@@ -185,15 +186,20 @@ pub const Compiler = struct {
 
         switch (decl) {
             .parser => |p_decl| {
-                for (p_decl.node.params.items) |param_ident| {
+                for (p_decl.node.params.items, 0..) |param_ident, i| {
                     _ = try self.addLocal(param_ident);
+                    function.param_types.set(
+                        @intCast(i),
+                        if (param_ident == .parser) .Parser else .Value,
+                    );
                 }
                 // addLocal will fail if the number of params is too large
                 function.arity = @as(u5, @intCast(p_decl.node.params.items.len));
             },
             .value => |v_decl| {
-                for (v_decl.node.params.items) |param_ident| {
+                for (v_decl.node.params.items, 0..) |param_ident, i| {
                     _ = try self.addLocal(.{ .value = param_ident });
+                    function.param_types.set(@intCast(i), .Value);
                 }
                 // addLocal will fail if the number of params is too large
                 function.arity = @as(u5, @intCast(v_decl.node.params.items.len));
@@ -412,41 +418,102 @@ pub const Compiler = struct {
 
     fn writeParserFunctionCall(
         self: *Compiler,
-        function_rnode: *Ast.Parser.RNode,
+        function: *Ast.Parser.RNode,
         arguments: ArrayList(Ast.ParserOrValue.RNode),
         call_region: Region,
         isTailPosition: bool,
     ) !void {
-        // TODO: handle curried function calls like `foo(a)(b)`
-        const function_ident = switch (function_rnode.node) {
+        const function_ident = switch (function.node) {
             .identifier => |ident| ident,
             else => @panic("todo"),
         };
-        const function_region = function_rnode.region;
+        const function_id = function_ident.name;
+        const arg_count = arguments.items.len;
 
-        const functionName = function_ident.name;
+        var function_elem: ?*Elem.DynElem.Function = null;
 
-        var function: ?*Elem.DynElem.Function = null;
-
-        if (self.localSlot(functionName)) |slot| {
-            try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
+        // Try to get the function elem. The function might be passed in as a
+        // param to another function, in which case we would only now the exact
+        // elem at runtime.
+        if (self.localSlot(function_id)) |slot| {
+            try self.emitUnaryOp(.GetBoundLocal, slot, function.region);
+        } else if (self.findGlobal(function_id)) |global| {
+            function_elem = global.asDyn().asFunction();
+            try self.writeConstant(global, function.region);
         } else {
-            if (self.findGlobal(functionName)) |global| {
-                function = global.asDyn().asFunction();
-                try self.writeConstant(global, function_region);
-            } else {
-                const functionNameStr = self.vm.strings.get(functionName);
-                try self.printError(function_region, "Undefined function '{s}'", .{functionNameStr});
-                return Error.UndefinedVariable;
-            }
+            const function_name = self.vm.strings.get(function_id);
+            try self.printError(function.region, "Undefined function '{s}'", .{function_name});
+            return Error.UndefinedVariable;
         }
 
-        const arg_count = try self.writeParserFunctionArguments(arguments, function);
+        // If we know the function elem now then we can validate that the
+        // function is getting called with the correct number of args and that
+        // the args all match the expected param types. If the function elem is
+        // only runtime known then we need to emit a runtime version of this
+        // check.
+        if (function_elem) |f| {
+            if (f.arity != arg_count) {
+                const function_elem_name = self.vm.strings.get(f.name);
+                const region = if (arguments.items.len > 0) blk: {
+                    const first_arg = arguments.items[0];
+                    const last_arg = arguments.items[arg_count - 1];
+                    break :blk first_arg.region().merge(last_arg.region());
+                } else blk: {
+                    break :blk function.region;
+                };
+
+                if (f.arity < arg_count) {
+                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ function_elem_name, f.arity, arg_count });
+                    return Error.FunctionCallTooManyArgs;
+                } else {
+                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ function_elem_name, f.arity, arg_count });
+                    return Error.FunctionCallTooFewArgs;
+                }
+            }
+
+            for (arguments.items, 0..) |arg, i| {
+                const expected_type = f.param_types.get(@intCast(i));
+                const is_parser_arg = switch (arg) {
+                    .parser => true,
+                    .value => false,
+                };
+
+                const expected_is_parser = expected_type == .Parser;
+                if (is_parser_arg != expected_is_parser) {
+                    if (expected_is_parser) {
+                        try self.printError(arg.region(), "Expected parser but got value", .{});
+                    } else {
+                        try self.printError(arg.region(), "Expected value but got parser", .{});
+                    }
+                    return Error.FunctionCallTypeMismatch;
+                }
+            }
+        } else {
+            // No matter what we know the max param count
+            if (arg_count > std.math.maxInt(u5)) {
+                const first_arg = arguments.items[0];
+                const last_arg = arguments.items[arg_count - 1];
+                const region = first_arg.region().merge(last_arg.region());
+
+                try self.printError(
+                    region,
+                    "Can't have more than {} arguments.",
+                    .{std.math.maxInt(u5)},
+                );
+                return Error.MaxFunctionArgs;
+            }
+
+            //TODO: Runtime checks
+        }
+
+        for (arguments.items) |arg| {
+            try self.writeParserFunctionArgument(arg);
+        }
 
         if (isTailPosition) {
-            try self.emitUnaryOp(.CallTailFunction, arg_count, call_region);
+            try self.emitUnaryOp(.CallTailFunction, @intCast(arg_count), call_region);
         } else {
-            try self.emitUnaryOp(.CallFunction, arg_count, call_region);
+            try self.emitUnaryOp(.CallFunction, @intCast(arg_count), call_region);
         }
     }
 
@@ -1137,115 +1204,32 @@ pub const Compiler = struct {
         return result;
     }
 
-    const ArgType = enum { Parser, Value, Unspecified };
-
-    fn writeParserFunctionArguments(
-        self: *Compiler,
-        arguments: ArrayList(Ast.ParserOrValue.RNode),
-        function: ?*Elem.DynElem.Function,
-    ) Error!u8 {
-        const arg_count = arguments.items.len;
-
-        if (arg_count > std.math.maxInt(u8)) {
-            const first_arg = arguments.items[0];
-            const last_arg = arguments.items[arg_count - 1];
-            const region = first_arg.region().merge(last_arg.region());
-
-            try self.printError(
-                region,
-                "Can't have more than {} parameters.",
-                .{std.math.maxInt(u8)},
-            );
-            return Error.MaxFunctionArgs;
-        }
-
-        if (function) |f| {
-            if (f.arity != arg_count) {
-                const functionNameStr = self.vm.strings.get(f.name);
-                const region = if (arguments.items.len > 0) blk: {
-                    const first_arg = arguments.items[0];
-                    const last_arg = arguments.items[arg_count - 1];
-                    break :blk first_arg.region().merge(last_arg.region());
-                } else blk: {
-                    // For zero-argument functions, we don't have argument regions,
-                    // so we'll need to handle this case differently
-                    break :blk Region.new(0, 0);
-                };
-
-                if (f.arity < arg_count) {
-                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
-                    return Error.FunctionCallTooManyArgs;
-                } else {
-                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
-                    return Error.FunctionCallTooFewArgs;
-                }
-            }
-        }
-
-        for (arguments.items, 0..) |arg, i| {
-            const argType: ArgType = if (function) |f| blk: {
-                const local = f.localVar(@intCast(i));
-                switch (local.kind) {
-                    .Parser => break :blk .Parser,
-                    .Value, .Underscore => break :blk .Value,
-                }
-            } else .Unspecified;
-
-            try self.writeParserFunctionArgument(arg, argType);
-        }
-
-        return @intCast(arg_count);
-    }
-
-    fn writeParserFunctionArgument(self: *Compiler, rnode: Ast.ParserOrValue.RNode, argType: ArgType) !void {
+    fn writeParserFunctionArgument(self: *Compiler, rnode: Ast.ParserOrValue.RNode) !void {
         const region = rnode.region();
 
-        switch (argType) {
-            .Parser => switch (rnode) {
-                .parser => |p| switch (p.node) {
-                    .number_string => |ns| {
-                        const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                        try self.writeConstant(elem, region);
-                    },
-                    .string => |string| {
-                        const sid = try self.vm.strings.insert(string);
-                        const elem = Elem.string(sid);
-                        try self.writeConstant(elem, region);
-                    },
-                    .identifier => |ident| {
-                        try self.writeGetVar(ident.name, region);
-                    },
-                    else => {
-                        try self.writeParserAnonymousFunction(p);
-                    },
+        switch (rnode) {
+            .parser => |p| switch (p.node) {
+                .number_string => |ns| {
+                    const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                    try self.writeConstant(elem, region);
                 },
-                .value => |v| {
-                    try self.printError(v.region, "Expected parser but got value", .{});
-                    return Error.InvalidAst;
+                .string => |string| {
+                    const sid = try self.vm.strings.insert(string);
+                    const elem = Elem.string(sid);
+                    try self.writeConstant(elem, region);
+                },
+                .identifier => |ident| {
+                    try self.writeGetVar(ident.name, region);
+                },
+                else => {
+                    try self.writeParserAnonymousFunction(p);
                 },
             },
-            .Value => switch (rnode) {
-                .value => |v| try self.writeValue(v, false),
-                .parser => |p| {
-                    try self.printError(p.region, "Expected value but got parser", .{});
-                    return Error.InvalidAst;
-                },
-            },
-            .Unspecified => {
-                // In this case we don't know the arg type because the function
-                // will be passed in as a variable and is not yet known. Things
-                // we could do:
-                // - Find all places the var is assigned and monomoprphise
-                // - Defer logic to runtime
-                // - For each arg determine if the arg must be a parser or
-                //   value. If it could be either then fail with a message
-                //   asking the user to extract a variable to specify.
-                @panic("todo");
-            },
+            .value => |v| try self.writeValue(v, false),
         }
     }
 
-    fn writeParserAnonymousFunction(self: *Compiler, rnode: *Ast.Parser.RNode) !void {
+    fn writeParserAnonymousFunction(self: *Compiler, rnode: *Ast.Parser.RNode) Error!void {
         const region = rnode.region;
 
         const function = try Elem.DynElem.Function.createAnonParser(
