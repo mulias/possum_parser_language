@@ -1311,7 +1311,6 @@ pub const Elem = packed union {
             chunk: Chunk,
             name: StringTable.Id,
             is_anonymous: bool,
-            locals: ArrayList(Local),
 
             pub const ParamType = enum { Parser, Value };
 
@@ -1333,19 +1332,6 @@ pub const Elem = packed union {
                 }
             };
 
-            pub const Local = struct {
-                sid: StringTable.Id,
-                kind: enum { Parser, Value, Underscore },
-
-                pub fn name(self: Local) StringTable.Id {
-                    return self.sid;
-                }
-
-                pub fn isParserVar(self: Local) bool {
-                    return self.kind == .Parser;
-                }
-            };
-
             pub fn create(vm: *VM, fields: struct { module: *Module, name: StringTable.Id, arity: u5, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
@@ -1360,7 +1346,6 @@ pub const Elem = packed union {
                     .chunk = chunk,
                     .name = fields.name,
                     .is_anonymous = false,
-                    .locals = ArrayList(Local){},
                 };
 
                 return function;
@@ -1386,7 +1371,6 @@ pub const Elem = packed union {
                     .chunk = chunk,
                     .name = name,
                     .is_anonymous = true,
-                    .locals = ArrayList(Local){},
                 };
 
                 return function;
@@ -1394,7 +1378,6 @@ pub const Elem = packed union {
 
             pub fn destroy(self: *Function, vm: *VM) void {
                 self.chunk.deinit(vm.allocator);
-                self.locals.deinit(vm.gc.allocator());
                 vm.gc.allocator().destroy(self);
             }
 
@@ -1410,39 +1393,6 @@ pub const Elem = packed union {
             pub fn disassemble(self: *Function, vm: VM, writer: *Writer) Writer.Error!void {
                 const label = vm.strings.get(self.name);
                 try self.chunk.disassemble(vm, self.module.*, writer, label);
-            }
-
-            pub fn addLocal(self: *Function, vm: *VM, local: Local) !?u8 {
-                if (self.locals.items.len >= std.math.maxInt(u5)) {
-                    return error.MaxFunctionLocals;
-                }
-
-                for (self.locals.items) |item| {
-                    if (item.name() == local.name()) {
-                        return error.VariableNameUsedInScope;
-                    }
-                }
-
-                try self.locals.append(vm.gc.allocator(), local);
-
-                return @as(u5, @intCast(self.locals.items.len - 1));
-            }
-
-            pub fn localSlot(self: *Function, name: StringTable.Id) ?u8 {
-                var i = self.locals.items.len;
-                while (i > 0) {
-                    i -= 1;
-
-                    if (self.locals.items[i].name() == name) {
-                        return @as(u8, @intCast(i));
-                    }
-                }
-
-                return null;
-            }
-
-            pub fn localVar(self: *Function, slot: u8) Local {
-                return self.locals.items[@as(usize, @intCast(slot))];
             }
 
             pub fn nameBytes(self: *Function, vm: VM) []const u8 {
@@ -1564,6 +1514,6 @@ test "struct size" {
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(144, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(120, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Closure));
 }

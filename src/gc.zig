@@ -216,10 +216,10 @@ pub const GC = struct {
 
         if (self.vm.active_compiler) |compiler| {
             if (self.print_trace) {
-                self.vm.writers.debug.print("    active compiler functions: {}\n", .{compiler.functions.items.len}) catch {};
+                self.vm.writers.debug.print("    active compiler functions: {}\n", .{compiler.function_contexts.contexts.items.len}) catch {};
             }
-            for (compiler.functions.items) |f| {
-                self.markDyn(&f.dyn);
+            for (compiler.function_contexts.contexts.items) |fc| {
+                self.markDyn(&fc.function.dyn);
             }
         }
 

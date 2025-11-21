@@ -132,6 +132,13 @@ pub const ParserOrValue = struct {
                 .value => |v| v.region,
             };
         }
+
+        pub fn param_count(self: ParserOrValue.Declaration) usize {
+            return switch (self) {
+                .parser => |p| p.node.params.items.len,
+                .value => |v| v.node.params.items.len,
+            };
+        }
     };
 };
 

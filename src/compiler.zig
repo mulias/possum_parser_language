@@ -1,4 +1,5 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const Writer = std.Io.Writer;
@@ -20,10 +21,93 @@ pub const Compiler = struct {
     vm: *VM,
     targetModule: *Module,
     ast: Ast,
-    functions: ArrayList(*Elem.DynElem.Function),
+    function_contexts: FunctionContexts,
     writers: Writers,
     printBytecode: bool,
     constant_map: AutoHashMap(u64, usize),
+
+    const FunctionContexts = struct {
+        contexts: ArrayList(Context) = .{},
+
+        const Context = struct {
+            function: *Elem.DynElem.Function,
+            locals: ArrayList(StringTable.Id) = .{},
+
+            pub fn init(function: *Elem.DynElem.Function) Context {
+                return .{ .function = function };
+            }
+
+            pub fn deinit(self: *Context, allocator: Allocator) void {
+                self.locals.deinit(allocator);
+            }
+
+            pub fn addLocal(self: *Context, allocator: Allocator, sid: StringTable.Id) !void {
+                for (self.locals.items) |item| {
+                    if (item == sid) {
+                        return error.VariableNameUsedInScope;
+                    }
+                }
+                try self.locals.append(allocator, sid);
+            }
+
+            pub fn localSlot(self: *const Context, name: StringTable.Id) ?u8 {
+                var i = self.locals.items.len;
+                while (i > 0) {
+                    i -= 1;
+                    if (self.locals.items[i] == name) {
+                        return @intCast(i);
+                    }
+                }
+                return null;
+            }
+        };
+
+        pub fn deinit(self: *FunctionContexts, allocator: Allocator) void {
+            for (self.contexts.items) |*context| {
+                context.deinit(allocator);
+            }
+            self.contexts.deinit(allocator);
+        }
+
+        pub fn append(self: *FunctionContexts, allocator: Allocator, function: *Elem.DynElem.Function) !void {
+            try self.contexts.append(allocator, Context.init(function));
+        }
+
+        pub fn pop(self: *FunctionContexts, allocator: Allocator) *Elem.DynElem.Function {
+            var context = self.contexts.pop().?;
+            context.locals.deinit(allocator);
+            return context.function;
+        }
+
+        fn currentFunction(self: *const FunctionContexts) *Elem.DynElem.Function {
+            return self.current().function;
+        }
+
+        // Note: Returns a pointer into an ArrayList which will be invalidated if
+        // the list is reallocated on `append`. Don't use this pointer after
+        // pushing a new function onto the list.
+        fn current(self: *const FunctionContexts) *Context {
+            return &self.contexts.items[self.contexts.items.len - 1];
+        }
+
+        fn parentFunction(self: *const FunctionContexts) *Elem.DynElem.Function {
+            return self.parent().function;
+        }
+
+        // Note: Returns a pointer into an ArrayList which will be invalidated if
+        // the list is reallocated on `append`. Don't use this pointer after
+        // pushing a new function onto the list.
+        fn parent(self: *const FunctionContexts) *Context {
+            var parentIndex = self.contexts.items.len - 2;
+            while (true) {
+                if (self.contexts.items[parentIndex].function.is_anonymous) {
+                    parentIndex -= 1;
+                } else {
+                    return &self.contexts.items[parentIndex];
+                }
+            }
+        }
+    };
 
     const Error = error{
         InvalidAst,
@@ -54,8 +138,8 @@ pub const Compiler = struct {
             .region = undefined,
         });
 
-        var functions = ArrayList(*Elem.DynElem.Function){};
-        try functions.append(vm.allocator, main);
+        var function_contexts = FunctionContexts{};
+        try function_contexts.append(vm.allocator, main);
 
         try targetModule.addGlobal(vm.allocator, main.name, main.dyn.elem());
 
@@ -67,7 +151,7 @@ pub const Compiler = struct {
             .vm = vm,
             .targetModule = targetModule,
             .ast = ast,
-            .functions = functions,
+            .function_contexts = function_contexts,
             .writers = vm.writers,
             .printBytecode = printBytecode,
             .constant_map = AutoHashMap(u64, usize){},
@@ -92,7 +176,7 @@ pub const Compiler = struct {
 
     pub fn deinit(self: *Compiler) void {
         self.constant_map.deinit(self.vm.allocator);
-        self.functions.deinit(self.vm.allocator);
+        self.function_contexts.deinit(self.vm.allocator);
     }
 
     pub fn compile(self: *Compiler) !?*Elem.DynElem.Function {
@@ -150,7 +234,7 @@ pub const Compiler = struct {
         try self.writeParser(main_rnode, false);
         try self.emitEnd();
 
-        const main_fn = self.functions.pop().?;
+        const main_fn = self.function_contexts.pop(self.vm.allocator);
 
         // Update the main function's source region with the actual main parser region
         main_fn.chunk.source_region = main_rnode.region;
@@ -182,31 +266,34 @@ pub const Compiler = struct {
         });
 
         try self.targetModule.addGlobal(self.vm.allocator, function_name, function.dyn.elem());
-        try self.functions.append(self.vm.allocator, function);
+
+        if (decl.param_count() > std.math.maxInt(u5)) {
+            try self.printError(
+                decl.identRegion(),
+                "Can't have more than {} parameters.",
+                .{std.math.maxInt(u5)},
+            );
+            return Error.MaxFunctionLocals;
+        }
 
         switch (decl) {
             .parser => |p_decl| {
                 for (p_decl.node.params.items, 0..) |param_ident, i| {
-                    _ = try self.addLocal(param_ident);
                     function.param_types.set(
                         @intCast(i),
                         if (param_ident == .parser) .Parser else .Value,
                     );
                 }
-                // addLocal will fail if the number of params is too large
-                function.arity = @as(u5, @intCast(p_decl.node.params.items.len));
+                function.arity = @intCast(p_decl.node.params.items.len);
             },
             .value => |v_decl| {
                 for (v_decl.node.params.items, 0..) |param_ident, i| {
-                    _ = try self.addLocal(.{ .value = param_ident });
+                    _ = param_ident;
                     function.param_types.set(@intCast(i), .Value);
                 }
-                // addLocal will fail if the number of params is too large
-                function.arity = @as(u5, @intCast(v_decl.node.params.items.len));
+                function.arity = @intCast(v_decl.node.params.items.len);
             },
         }
-
-        _ = self.functions.pop();
     }
 
     fn declareAlias(self: *Compiler, sid: StringTable.Id, bodyElem: Elem) !void {
@@ -265,14 +352,20 @@ pub const Compiler = struct {
 
         const function = globalVal.asDyn().asFunction();
 
-        try self.functions.append(self.vm.allocator, function);
+        try self.function_contexts.append(self.vm.allocator, function);
 
         switch (decl) {
             .parser => |p| {
+                for (p.node.params.items) |param_ident| {
+                    try self.addLocal(param_ident);
+                }
                 try self.addValueLocals(.{ .parser = p.node.body });
                 try self.writeParser(p.node.body, true);
             },
             .value => |v| {
+                for (v.node.params.items) |param_ident| {
+                    try self.addLocal(.{ .value = param_ident });
+                }
                 try self.addValueLocals(.{ .value = v.node.body });
                 try self.writeValue(v.node.body, true);
             },
@@ -284,7 +377,7 @@ pub const Compiler = struct {
             try function.disassemble(self.vm.*, self.writers.debug);
         }
 
-        _ = self.functions.pop();
+        _ = self.function_contexts.pop(self.vm.allocator);
     }
 
     fn writeParser(self: *Compiler, rnode: *Ast.Parser.RNode, isTailPosition: bool) !void {
@@ -807,7 +900,7 @@ pub const Compiler = struct {
                     try self.writeParserRepeatCount(parser, repeat, region);
                 } else {
                     const slot = self.localSlot(ident.name).?;
-                    if (self.currentFunction().arity > slot) {
+                    if (self.function_contexts.currentFunction().arity > slot) {
                         // The local var is a function arg, so we know it's bound
                         try self.writeParserRepeatCount(parser, repeat, region);
                     } else {
@@ -1126,7 +1219,7 @@ pub const Compiler = struct {
                     if (self.findGlobal(ident.name) != null) {
                         return true;
                     } else if (self.localSlot(ident.name)) |slot| {
-                        return self.currentFunction().arity > slot;
+                        return self.function_contexts.currentFunction().arity > slot;
                     } else {
                         return false;
                     }
@@ -1256,11 +1349,11 @@ pub const Compiler = struct {
         // Prevent GC
         const constId = try self.makeConstant(function.dyn.elem());
 
-        try self.functions.append(self.vm.allocator, function);
+        try self.function_contexts.append(self.vm.allocator, function);
 
         try self.addClosureLocals(.{ .parser = rnode });
 
-        if (function.locals.items.len > 0) {
+        if (self.function_contexts.current().locals.items.len > 0) {
             try self.emitOp(.SetClosureCaptures, region);
         }
 
@@ -1271,26 +1364,35 @@ pub const Compiler = struct {
             try function.disassemble(self.vm.*, self.writers.debug);
         }
 
-        _ = self.functions.pop();
+        // Save target locals before popping (need to copy since pop deallocates)
+        const targetContext = self.function_contexts.current();
+        const targetLocals = try self.vm.allocator.dupe(StringTable.Id, targetContext.locals.items);
+        defer self.vm.allocator.free(targetLocals);
 
+        _ = self.function_contexts.pop(self.vm.allocator);
+
+        // In the parent function: get the anon function and wrap it in a closure if necessary
         try self.emitConstant(constId, region);
-        try self.writeCaptureLocals(function, region);
+        try self.writeCaptureLocals(targetLocals, region);
     }
 
-    fn writeCaptureLocals(self: *Compiler, targetFunction: *Elem.DynElem.Function, region: Region) !void {
+    fn writeCaptureLocals(self: *Compiler, targetLocals: []const StringTable.Id, region: Region) !void {
         var captureCount: u8 = 0;
-        for (self.currentFunction().locals.items) |local| {
-            if (targetFunction.localSlot(local.name())) |_| {
-                captureCount += 1;
+        for (self.function_contexts.current().locals.items) |local| {
+            for (targetLocals) |targetLocal| {
+                if (targetLocal == local) {
+                    captureCount += 1;
+                    break;
+                }
             }
         }
 
         if (captureCount > 0) {
-            const localCount = @as(u8, @intCast(targetFunction.locals.items.len));
+            const localCount = @as(u8, @intCast(targetLocals.len));
             try self.emitUnaryOp(.CreateClosure, localCount, region);
 
-            for (targetFunction.locals.items) |targetLocal| {
-                if (self.localSlot(targetLocal.name())) |fromSlot| {
+            for (targetLocals) |targetLocal| {
+                if (self.localSlot(targetLocal)) |fromSlot| {
                     try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
                 }
             }
@@ -1707,11 +1809,8 @@ pub const Compiler = struct {
                         if (self.findGlobal(ident.name) == null) {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
-                            if (newLocalId) |_| {
-                                const elem = Elem.valueVar(
-                                    ident.name,
-                                    ident.underscored,
-                                );
+                            if (newLocalId) {
+                                const elem = Elem.valueVar(ident.name, ident.underscored);
                                 try self.writeConstant(elem, region);
                             }
                         }
@@ -1773,11 +1872,8 @@ pub const Compiler = struct {
                             };
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = value_ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
-                            if (newLocalId) |_| {
-                                const elem = Elem.valueVar(
-                                    ident.name,
-                                    ident.underscored,
-                                );
+                            if (newLocalId) {
+                                const elem = Elem.valueVar(ident.name, ident.underscored);
                                 try self.writeConstant(elem, region);
                             }
                         }
@@ -1832,10 +1928,10 @@ pub const Compiler = struct {
                     .identifier => |ident| {
                         const elem = Elem.valueVar(ident.name, ident.underscored);
 
-                        if (self.parentFunction().localSlot(ident.name) != null) {
+                        if (self.function_contexts.parent().localSlot(ident.name) != null) {
                             var ident_rnode: Ast.RNode(Ast.Parser.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .parser = &ident_rnode });
-                            if (newLocalId) |_| {
+                            if (newLocalId) {
                                 try self.writeConstant(elem, region);
                             }
                         }
@@ -1932,10 +2028,10 @@ pub const Compiler = struct {
                     .identifier => |ident| {
                         const elem = Elem.valueVar(ident.name, ident.underscored);
 
-                        if (self.parentFunction().localSlot(ident.name) != null) {
+                        if (self.function_contexts.parent().localSlot(ident.name) != null) {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
-                            if (newLocalId) |_| {
+                            if (newLocalId) {
                                 try self.writeConstant(elem, region);
                             }
                         }
@@ -1989,7 +2085,7 @@ pub const Compiler = struct {
                     .identifier => |ident| {
                         const elem = Elem.valueVar(ident.name, ident.underscored);
 
-                        if (self.parentFunction().localSlot(ident.name) != null) {
+                        if (self.function_contexts.parent().localSlot(ident.name) != null) {
                             const value_ident = Ast.Value.Identifier{
                                 .name = ident.name,
                                 .builtin = ident.builtin,
@@ -1997,7 +2093,7 @@ pub const Compiler = struct {
                             };
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = value_ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
-                            if (newLocalId) |_| {
+                            if (newLocalId) {
                                 try self.writeConstant(elem, region);
                             }
                         }
@@ -2613,55 +2709,28 @@ pub const Compiler = struct {
     }
 
     fn chunk(self: *Compiler) *Chunk {
-        return &self.currentFunction().chunk;
+        return &self.function_contexts.currentFunction().chunk;
     }
 
-    fn currentFunction(self: *Compiler) *Elem.DynElem.Function {
-        return self.functions.items[self.functions.items.len - 1];
-    }
-
-    fn parentFunction(self: *Compiler) *Elem.DynElem.Function {
-        var parentIndex = self.functions.items.len - 2;
-        while (true) {
-            if (self.functions.items[parentIndex].is_anonymous) {
-                parentIndex -= 1;
-            } else {
-                return self.functions.items[parentIndex];
-            }
-        }
-    }
-
-    fn addLocal(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !?u8 {
+    fn addLocal(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !void {
         if (ident.builtin()) {
             try self.printError(ident.region(), "Invalid function param, '@' is reserved for builtins", .{});
             return Error.InvalidAst;
         }
 
-        return self.currentFunction().addLocal(self.vm, .{
-            .sid = ident.name(),
-            .kind = if (ident == .parser) .Parser else if (ident.underscored()) .Underscore else .Value,
-        }) catch |err| switch (err) {
-            error.MaxFunctionLocals => {
-                try self.printError(
-                    ident.region(),
-                    "Can't have more than {} parameters.",
-                    .{std.math.maxInt(u5)},
-                );
-                return err;
-            },
-            else => return err,
-        };
+        try self.function_contexts.current().addLocal(self.vm.allocator, ident.name());
     }
 
-    fn addLocalIfUndefined(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !?u8 {
-        return self.addLocal(ident) catch |err| switch (err) {
-            error.VariableNameUsedInScope => return null,
-            else => return err,
+    fn addLocalIfUndefined(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !bool {
+        self.addLocal(ident) catch |err| switch (err) {
+            error.VariableNameUsedInScope => return false,
+            else => |other_error| return other_error,
         };
+        return true;
     }
 
     pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
-        return self.currentFunction().localSlot(name);
+        return self.function_contexts.current().localSlot(name);
     }
 
     fn emitJump(self: *Compiler, op: OpCode, region: Region) !usize {
