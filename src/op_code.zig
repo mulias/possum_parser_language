@@ -5,6 +5,9 @@ const VM = @import("vm.zig").VM;
 const Module = @import("module.zig").Module;
 
 pub const OpCode = enum(u8) {
+    AssertFunctionArity,
+    AssertParamTypes,
+    AssertParamTypes4,
     Backtrack,
     CallFunction,
     CallFunctionConstant,
@@ -158,6 +161,7 @@ pub const OpCode = enum(u8) {
             => self.pattern2Instruction(chunk, vm, module, writer, offset),
             .Destructure3,
             => self.pattern3Instruction(chunk, vm, module, writer, offset),
+            .AssertFunctionArity,
             .CallFunction,
             .CallTailFunction,
             .CallFunctionLocal,
@@ -197,6 +201,10 @@ pub const OpCode = enum(u8) {
             => self.jumpInstruction(chunk, writer, offset),
             .JumpBack,
             => self.jumpBackInstruction(chunk, writer, offset),
+            .AssertParamTypes,
+            => self.paramTypesInstruction(chunk, writer, offset),
+            .AssertParamTypes4,
+            => self.paramTypes4Instruction(chunk, writer, offset),
         };
     }
 
@@ -329,5 +337,20 @@ pub const OpCode = enum(u8) {
         const target = @as(isize, @intCast(offset)) + 3 - jump;
         try writer.print("{s} {} -> {}\n", .{ @tagName(self), offset, target });
         return offset + 3;
+    }
+
+    fn paramTypesInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const param_types = chunk.read(offset + 1);
+        try writer.print("{s} {b:0>8}\n", .{ @tagName(self), param_types });
+        return offset + 2;
+    }
+
+    fn paramTypes4Instruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const param_types = (@as(u32, @intCast(chunk.read(offset + 1))) << 24) |
+            (@as(u32, @intCast(chunk.read(offset + 2))) << 16) |
+            (@as(u32, @intCast(chunk.read(offset + 3))) << 8) |
+            chunk.read(offset + 4);
+        try writer.print("{s} {b:0>32}\n", .{ @tagName(self), param_types });
+        return offset + 5;
     }
 };

@@ -337,6 +337,43 @@ pub const VM = struct {
 
     fn runOp(self: *VM, opCode: OpCode) !void {
         switch (opCode) {
+            .AssertFunctionArity => {
+                const expected_arity = self.readByte();
+                const function_elem = self.peek(0);
+                if (function_elem.isDynType(.Function)) {
+                    const function = function_elem.asDyn().asFunction();
+                    if (function.arity != expected_arity) {
+                        return self.runtimeError("Expected {} arguments but got {}.", .{ function.arity, expected_arity });
+                    }
+                } else {
+                    return self.runtimeError("Expected function.", .{});
+                }
+            },
+            .AssertParamTypes => {
+                const expected_types = self.readByte();
+                const function_elem = self.peek(0);
+                if (function_elem.isDynType(.Function)) {
+                    const function = function_elem.asDyn().asFunction();
+                    const actual_types = @as(u8, @intCast(function.param_types.bitset & 0x7F));
+                    if (actual_types != expected_types) {
+                        return self.runtimeError("Function parameter types do not match expected types.", .{});
+                    }
+                } else {
+                    return self.runtimeError("Expected function.", .{});
+                }
+            },
+            .AssertParamTypes4 => {
+                const expected_types = self.readLong();
+                const function_elem = self.peek(0);
+                if (function_elem.isDynType(.Function)) {
+                    const function = function_elem.asDyn().asFunction();
+                    if (function.param_types.bitset != expected_types) {
+                        return self.runtimeError("Function parameter types do not match expected types.", .{});
+                    }
+                } else {
+                    return self.runtimeError("Expected function.", .{});
+                }
+            },
             .Backtrack => {
                 // Infix, lhs on stack.
                 // If lhs succeeded then pop, return to prev input position.
@@ -1475,6 +1512,15 @@ pub const VM = struct {
         const items = self.chunk().code.items;
         return (@as(u24, @intCast(items[self.frame().ip - 3])) << 16) |
             (@as(u24, @intCast(items[self.frame().ip - 2])) << 8) |
+            items[self.frame().ip - 1];
+    }
+
+    fn readLong(self: *VM) u32 {
+        self.frame().ip += 4;
+        const items = self.chunk().code.items;
+        return (@as(u32, @intCast(items[self.frame().ip - 4])) << 24) |
+            (@as(u32, @intCast(items[self.frame().ip - 3])) << 16) |
+            (@as(u32, @intCast(items[self.frame().ip - 2])) << 8) |
             items[self.frame().ip - 1];
     }
 

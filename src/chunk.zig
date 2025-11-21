@@ -55,6 +55,13 @@ pub const Chunk = struct {
         try self.write(allocator, mediumLowerBytes(medium), loc);
     }
 
+    pub fn writeLong(self: *Chunk, allocator: Allocator, long: u32, loc: Region) !void {
+        try self.write(allocator, longByte3(long), loc);
+        try self.write(allocator, longByte2(long), loc);
+        try self.write(allocator, longByte1(long), loc);
+        try self.write(allocator, longByte0(long), loc);
+    }
+
     pub fn updateAt(self: *Chunk, index: usize, value: u8) void {
         self.code.items[index] = value;
     }
@@ -123,5 +130,21 @@ pub const Chunk = struct {
 
     fn mediumUpperBytes(medium: u24) u8 {
         return @as(u8, @intCast((medium >> 16) & 0xff));
+    }
+
+    fn longByte0(long: u32) u8 {
+        return @as(u8, @intCast(long & 0xff));
+    }
+
+    fn longByte1(long: u32) u8 {
+        return @as(u8, @intCast((long >> 8) & 0xff));
+    }
+
+    fn longByte2(long: u32) u8 {
+        return @as(u8, @intCast((long >> 16) & 0xff));
+    }
+
+    fn longByte3(long: u32) u8 {
+        return @as(u8, @intCast((long >> 24) & 0xff));
     }
 };

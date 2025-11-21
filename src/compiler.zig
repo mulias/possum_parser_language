@@ -503,7 +503,23 @@ pub const Compiler = struct {
                 return Error.MaxFunctionArgs;
             }
 
-            //TODO: Runtime checks
+            try self.emitUnaryOp(.AssertFunctionArity, @intCast(arg_count), call_region);
+
+            var expected_param_types = Elem.DynElem.Function.ParamTypes{};
+            for (arguments.items, 0..) |arg, i| {
+                switch (arg) {
+                    .parser => expected_param_types.set(@intCast(i), .Parser),
+                    .value => expected_param_types.set(@intCast(i), .Value),
+                }
+            }
+
+            if (arg_count < 8) {
+                // We can fit the expected params in a single byte
+                try self.emitUnaryOp(.AssertParamTypes, @intCast(expected_param_types.bitset & 0x7F), call_region);
+            } else {
+                try self.emitOp(.AssertParamTypes4, call_region);
+                try self.emitLong(expected_param_types.bitset, call_region);
+            }
         }
 
         for (arguments.items) |arg| {
@@ -2701,6 +2717,10 @@ pub const Compiler = struct {
 
     fn emitMedium(self: *Compiler, medium: u24, region: Region) !void {
         try self.chunk().writeMedium(self.vm.allocator, medium, region);
+    }
+
+    fn emitLong(self: *Compiler, long: u32, region: Region) !void {
+        try self.chunk().writeLong(self.vm.allocator, long, region);
     }
 
     fn makeConstant(self: *Compiler, elem: Elem) !u24 {
