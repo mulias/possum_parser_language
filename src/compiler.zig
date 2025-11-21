@@ -189,14 +189,14 @@ pub const Compiler = struct {
                     _ = try self.addLocal(param_ident);
                 }
                 // addLocal will fail if the number of params is too large
-                function.arity = @as(u8, @intCast(p_decl.node.params.items.len));
+                function.arity = @as(u5, @intCast(p_decl.node.params.items.len));
             },
             .value => |v_decl| {
                 for (v_decl.node.params.items) |param_ident| {
                     _ = try self.addLocal(.{ .value = param_ident });
                 }
                 // addLocal will fail if the number of params is too large
-                function.arity = @as(u8, @intCast(v_decl.node.params.items.len));
+                function.arity = @as(u5, @intCast(v_decl.node.params.items.len));
             },
         }
 
@@ -2644,8 +2644,8 @@ pub const Compiler = struct {
             error.MaxFunctionLocals => {
                 try self.printError(
                     ident.region(),
-                    "Can't have more than {} parameters and local variables.",
-                    .{std.math.maxInt(u8)},
+                    "Can't have more than {} parameters.",
+                    .{std.math.maxInt(u5)},
                 );
                 return err;
             },

@@ -1306,11 +1306,32 @@ pub const Elem = packed union {
         pub const Function = struct {
             dyn: DynElem,
             module: *Module,
-            arity: u8,
+            arity: u5,
+            param_types: ParamTypes,
             chunk: Chunk,
             name: StringTable.Id,
             is_anonymous: bool,
             locals: ArrayList(Local),
+
+            pub const ParamType = enum { Parser, Value };
+
+            pub const ParamTypes = struct {
+                bitset: u32 = 0,
+
+                pub fn set(self: *ParamTypes, index: u5, param_type: ParamType) void {
+                    const bit_value: u32 = switch (param_type) {
+                        .Parser => 0,
+                        .Value => 1,
+                    };
+                    const mask: u32 = @as(u32, 1) << index;
+                    self.bitset = (self.bitset & ~mask) | (bit_value << index);
+                }
+
+                pub fn get(self: ParamTypes, index: u5) ParamType {
+                    const bit = (self.bitset >> index) & 1;
+                    return if (bit == 0) .Parser else .Value;
+                }
+            };
 
             pub const Local = struct {
                 sid: StringTable.Id,
@@ -1325,7 +1346,7 @@ pub const Elem = packed union {
                 }
             };
 
-            pub fn create(vm: *VM, fields: struct { module: *Module, name: StringTable.Id, arity: u8, region: Region }) !*Function {
+            pub fn create(vm: *VM, fields: struct { module: *Module, name: StringTable.Id, arity: u5, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1335,6 +1356,7 @@ pub const Elem = packed union {
                     .dyn = dyn.*,
                     .module = fields.module,
                     .arity = fields.arity,
+                    .param_types = ParamTypes{},
                     .chunk = chunk,
                     .name = fields.name,
                     .is_anonymous = false,
@@ -1344,7 +1366,7 @@ pub const Elem = packed union {
                 return function;
             }
 
-            pub fn createAnonParser(vm: *VM, fields: struct { module: *Module, arity: u8, region: Region }) !*Function {
+            pub fn createAnonParser(vm: *VM, fields: struct { module: *Module, arity: u5, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1360,6 +1382,7 @@ pub const Elem = packed union {
                     .dyn = dyn.*,
                     .module = fields.module,
                     .arity = fields.arity,
+                    .param_types = ParamTypes{},
                     .chunk = chunk,
                     .name = name,
                     .is_anonymous = true,
@@ -1390,7 +1413,7 @@ pub const Elem = packed union {
             }
 
             pub fn addLocal(self: *Function, vm: *VM, local: Local) !?u8 {
-                if (self.locals.items.len >= std.math.maxInt(u8)) {
+                if (self.locals.items.len >= std.math.maxInt(u5)) {
                     return error.MaxFunctionLocals;
                 }
 
@@ -1402,7 +1425,7 @@ pub const Elem = packed union {
 
                 try self.locals.append(vm.gc.allocator(), local);
 
-                return @as(u8, @intCast(self.locals.items.len - 1));
+                return @as(u5, @intCast(self.locals.items.len - 1));
             }
 
             pub fn localSlot(self: *Function, name: StringTable.Id) ?u8 {
@@ -1541,6 +1564,6 @@ test "struct size" {
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(136, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(144, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Closure));
 }
