@@ -216,7 +216,7 @@
   0033    | SetInputMark
   0034    | CallFunctionConstant 19: "\xe2\x81\x9f" (esc)
   0036    | Or 36 -> 41
-  0039    | CallFunctionConstant 20: "\xe3\x80\x80" (esc)
+  0039    | CallTailFunctionConstant 20: "\xe3\x80\x80" (esc)
   0041    | End
   ========================================
   
@@ -247,7 +247,7 @@
   0019    | SetInputMark
   0020    | CallFunctionConstant 24: "\xe2\x80\xa8" (esc)
   0022    | Or 22 -> 27
-  0025    | CallFunctionConstant 25: "\xe2\x80\xa9" (esc)
+  0025    | CallTailFunctionConstant 25: "\xe2\x80\xa9" (esc)
   0027    | End
   ========================================
   
@@ -4091,7 +4091,7 @@
   0010    | SetInputMark
   0011    | CallFunctionConstant2 295: "11"
   0014    | Or 14 -> 20
-  0017    | CallFunctionConstant2 296: "12"
+  0017    | CallTailFunctionConstant2 296: "12"
   0020    | End
   ========================================
   
@@ -4106,7 +4106,7 @@
   0011    | SetInputMark
   0012    | CallFunctionConstant2 297: "30"
   0015    | Or 15 -> 21
-  0018    | CallFunctionConstant2 298: "31"
+  0018    | CallTailFunctionConstant2 298: "31"
   0021    | End
   ========================================
   
@@ -4236,7 +4236,7 @@
   0004    | ParseCodepointRange '0'..'9'
   0007    | Merge
   0008    | Or 8 -> 14
-  0011    | CallFunctionConstant2 304: "60"
+  0011    | CallTailFunctionConstant2 304: "60"
   0014    | End
   ========================================
   

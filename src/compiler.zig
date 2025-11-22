@@ -487,7 +487,7 @@ pub const Compiler = struct {
                     }
                 } else {
                     const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                    try self.writeCallFunctionConstant(elem, region, false);
+                    try self.writeCallFunctionConstant(elem, region, isTailPosition);
                 }
             },
             .string => |string| {
@@ -498,7 +498,7 @@ pub const Compiler = struct {
                 } else {
                     const sid = try self.vm.strings.insert(string);
                     const elem = Elem.string(sid);
-                    try self.writeCallFunctionConstant(elem, region, false);
+                    try self.writeCallFunctionConstant(elem, region, isTailPosition);
                 }
             },
             .string_template => |parts| {
