@@ -122,7 +122,7 @@
   0005    | Merge
   0006    | CallFunctionConstant 2: A
   0008    | Merge
-  0009    | CallFunction 1
+  0009    | CallTailFunction 1
   0011    | End
   ========================================
 
@@ -156,7 +156,7 @@
   ========================================
   0000    | GetConstant 0: const
   0002    | GetConstant 1: {"a": 6}
-  0004    | CallFunction 1
+  0004    | CallTailFunction 1
   0006    | End
   ========================================
 
@@ -172,7 +172,7 @@
   0008    | GetConstant 3: {"b": "foo"}
   0010    | InsertAtIndex 0
   0012    | InsertKeyVal 0
-  0014    | CallFunction 1
+  0014    | CallTailFunction 1
   0016    | End
   ========================================
 

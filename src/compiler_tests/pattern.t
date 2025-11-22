@@ -323,7 +323,7 @@
   0002    | GetConstant 1: Is.Array
   0004    | GetConstant 2: [1]
   0006    | CallFunction 1
-  0008    | CallFunction 1
+  0008    | CallTailFunction 1
   0010    | End
   ========================================
 

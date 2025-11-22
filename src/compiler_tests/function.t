@@ -31,7 +31,7 @@
   ========================================
   0000    | GetConstant 2: foo
   0002    | GetConstant 3: bar
-  0004    | CallFunction 1
+  0004    | CallTailFunction 1
   0006    | End
   ========================================
 
@@ -66,7 +66,7 @@
   ========================================
   0000    | GetConstant 1: foo
   0002    | GetConstant 2: bar
-  0004    | CallFunction 1
+  0004    | CallTailFunction 1
   0006    | End
   ========================================
 
@@ -99,7 +99,7 @@
   ========================================
   0000    | GetConstant 0: foo
   0002    | GetConstant 1: bar
-  0004    | CallFunction 1
+  0004    | CallTailFunction 1
   0006    | End
   ========================================
 
@@ -146,6 +146,6 @@
   ========================================
   0000    | GetConstant 10: foo
   0002    | GetConstant 11: bar
-  0004    | CallFunction 1
+  0004    | CallTailFunction 1
   0006    | End
   ========================================

@@ -231,7 +231,7 @@ pub const Compiler = struct {
 
     fn compileMain(self: *Compiler, main_rnode: *Ast.Parser.RNode) !?*Elem.DynElem.Function {
         try self.addValueLocals(.{ .parser = main_rnode });
-        try self.writeParser(main_rnode, false);
+        try self.writeParser(main_rnode, true);
         try self.emitEnd();
 
         const main_fn = self.function_contexts.pop(self.vm.allocator);

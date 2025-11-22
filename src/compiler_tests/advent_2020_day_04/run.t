@@ -66,7 +66,7 @@
   0000    | GetConstant 8: many_sep
   0002    | GetConstant 9: count_valid_passport
   0004    | GetConstant 10: @fn434
-  0006    | CallFunction 2
+  0006    | CallTailFunction 2
   0008    | End
   ========================================
 
