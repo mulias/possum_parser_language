@@ -119,7 +119,7 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 1: alpha
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 4: numeral
+  0006    | CallTailFunctionConstant 4: numeral
   0008    | End
   ========================================
   
@@ -179,7 +179,7 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 13: newline
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 14: end_of_input
+  0006    | CallTailFunctionConstant 14: end_of_input
   0008    | End
   ========================================
   
@@ -266,7 +266,7 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 21: space
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 13: newline
+  0006    | CallTailFunctionConstant 13: newline
   0008    | End
   ========================================
   
@@ -533,7 +533,7 @@
   0004    | CallFunctionConstant 41: numerals
   0006    | Merge
   0007    | Or 7 -> 12
-  0010    | CallFunctionConstant 4: numeral
+  0010    | CallTailFunctionConstant 4: numeral
   0012    | End
   ========================================
   
@@ -2000,7 +2000,7 @@
   0005    | GetBoundLocal 1
   0007    | CallFunction 2
   0009    | Or 9 -> 14
-  0012    | CallFunctionConstant 125: succeed
+  0012    | CallTailFunctionConstant 125: succeed
   0014    | End
   ========================================
   
@@ -2024,7 +2024,7 @@
   0000    | SetInputMark
   0001    | CallFunctionLocal 0
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 125: succeed
+  0006    | CallTailFunctionConstant 125: succeed
   0008    | End
   ========================================
   
@@ -2034,7 +2034,7 @@
   0000    | SetInputMark
   0001    | CallFunctionLocal 1
   0003    | ConditionalThen 3 -> 11
-  0006    | CallFunctionConstant 126: @fail
+  0006    | CallTailFunctionConstant 126: @fail
   0008    | Jump 8 -> 13
   0011    | CallTailFunctionLocal 0
   0013    | End
@@ -2105,7 +2105,7 @@
   0000    | SetInputMark
   0001    | CallFunctionLocal 1
   0003    | ConditionalThen 3 -> 11
-  0006    | CallFunctionConstant 126: @fail
+  0006    | CallTailFunctionConstant 126: @fail
   0008    | Jump 8 -> 30
   0011    | SetInputMark
   0012    | CallFunctionLocal 0
@@ -2228,9 +2228,9 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 8: char
   0003    | ConditionalThen 3 -> 11
-  0006    | CallFunctionConstant 126: @fail
+  0006    | CallTailFunctionConstant 126: @fail
   0008    | Jump 8 -> 13
-  0011    | CallFunctionConstant 125: succeed
+  0011    | CallTailFunctionConstant 125: succeed
   0013    | End
   ========================================
   
@@ -2454,7 +2454,7 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 162: _escaped_surrogate_pair
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 163: _escaped_codepoint
+  0006    | CallTailFunctionConstant 163: _escaped_codepoint
   0008    | End
   ========================================
   
@@ -2464,7 +2464,7 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 164: _valid_surrogate_pair
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 165: _invalid_surrogate_pair
+  0006    | CallTailFunctionConstant 165: _invalid_surrogate_pair
   0008    | End
   ========================================
   
@@ -2934,7 +2934,7 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 9: whitespace
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 210: _toml.comment
+  0006    | CallTailFunctionConstant 210: _toml.comment
   0008    | End
   ========================================
   
@@ -2953,7 +2953,7 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 212: spaces
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 210: _toml.comment
+  0006    | CallTailFunctionConstant 210: _toml.comment
   0008    | End
   ========================================
   
@@ -3169,7 +3169,7 @@
   0010    | SetInputMark
   0011    | CallFunctionConstant 230: toml.string.basic
   0013    | Or 13 -> 18
-  0016    | CallFunctionConstant 231: toml.string.literal
+  0016    | CallTailFunctionConstant 231: toml.string.literal
   0018    | End
   ========================================
   
@@ -3345,7 +3345,7 @@
   0014    | SetInputMark
   0015    | CallFunctionConstant 230: toml.string.basic
   0017    | Or 17 -> 22
-  0020    | CallFunctionConstant 231: toml.string.literal
+  0020    | CallTailFunctionConstant 231: toml.string.literal
   0022    | End
   ========================================
   
@@ -3365,7 +3365,7 @@
   0012    | SetInputMark
   0013    | CallFunctionConstant 246: toml.datetime.local_date
   0015    | Or 15 -> 20
-  0018    | CallFunctionConstant 248: toml.datetime.local_time
+  0018    | CallTailFunctionConstant 248: toml.datetime.local_time
   0020    | End
   ========================================
   
@@ -3397,7 +3397,7 @@
   0031    | SetInputMark
   0032    | CallFunctionConstant2 257: toml.number.float
   0035    | Or 35 -> 41
-  0038    | CallFunctionConstant2 258: toml.number.integer
+  0038    | CallTailFunctionConstant2 258: toml.number.integer
   0041    | End
   ========================================
   
@@ -4290,7 +4290,7 @@
   0002    | PushChar '_'
   0004    | CallFunction 1
   0006    | TakeRight 6 -> 11
-  0009    | CallFunctionConstant 4: numeral
+  0009    | CallTailFunctionConstant 4: numeral
   0011    | End
   ========================================
   
@@ -4305,7 +4305,7 @@
   0009    | CallFunction 1
   0011    | Merge
   0012    | Or 12 -> 17
-  0015    | CallFunctionConstant 4: numeral
+  0015    | CallTailFunctionConstant 4: numeral
   0017    | End
   ========================================
   

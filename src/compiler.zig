@@ -458,7 +458,7 @@ pub const Compiler = struct {
                     }
                 } else {
                     if (self.findGlobal(ident.name)) |globalElem| {
-                        try self.writeCallFunctionConstant(globalElem, region, false);
+                        try self.writeCallFunctionConstant(globalElem, region, isTailPosition);
                     } else {
                         try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(ident.name)});
                         return Error.UndefinedVariable;

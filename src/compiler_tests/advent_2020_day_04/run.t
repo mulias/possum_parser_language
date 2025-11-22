@@ -8,7 +8,7 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 4: space
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 5: newline
+  0006    | CallTailFunctionConstant 5: newline
   0008    | End
   ========================================
   
