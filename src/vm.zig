@@ -163,12 +163,6 @@ pub const VM = struct {
         self.singleton_two = try Elem.numberStringFromBytes("2", self);
         self.singleton_three = try Elem.numberStringFromBytes("3", self);
         errdefer self.deinit();
-
-        try self.loadBuiltinFunctions();
-
-        if (self.config.includeStdlib) {
-            try self.loadStdlib();
-        }
     }
 
     pub fn deinit(self: *VM) void {
@@ -215,6 +209,14 @@ pub const VM = struct {
         modulePtr.* = module;
         try self.modules.append(self.allocator, modulePtr);
 
+        const builtin_module = try self.loadBuiltinFunctions();
+        try modulePtr.imported_modules.append(self.allocator, builtin_module);
+
+        if (self.config.includeStdlib) {
+            const stdlib_module = try self.loadStdlib(&.{builtin_module});
+            try modulePtr.imported_modules.append(self.allocator, stdlib_module);
+        }
+
         var parser = Parser.init(self, modulePtr.*);
         defer parser.deinit();
 
@@ -254,20 +256,25 @@ pub const VM = struct {
         }
     }
 
-    fn loadBuiltinFunctions(self: *VM) !void {
+    fn loadBuiltinFunctions(self: *VM) !*Module {
         const modulePtr = try self.allocator.create(Module);
         modulePtr.* = Module{ .name = "builtins", .source = "" };
         try self.modules.append(self.allocator, modulePtr);
 
         try builtin.loadFunctions(self, modulePtr);
+
+        return modulePtr;
     }
 
-    fn loadStdlib(self: *VM) !void {
+    fn loadStdlib(self: *VM, imported: []const *Module) !*Module {
         const filename = "stdlib/core.possum";
         const modulePtr = try self.allocator.create(Module);
+        var imported_list = ArrayList(*Module){};
+        try imported_list.appendSlice(self.allocator, imported);
         modulePtr.* = Module{
             .name = filename,
             .source = @embedFile(filename),
+            .imported_modules = imported_list,
         };
         try self.modules.append(self.allocator, modulePtr);
 
@@ -291,6 +298,8 @@ pub const VM = struct {
         defer compiler.deinit();
 
         _ = try compiler.compile();
+
+        return modulePtr;
     }
 
     pub fn currentFunctionModule(self: *VM) *Module {

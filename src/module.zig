@@ -15,6 +15,7 @@ pub const Module = struct {
     constants: ArrayList(Elem) = ArrayList(Elem){},
     patterns: ArrayList(Pattern) = ArrayList(Pattern){},
     globals: AutoHashMap(StringTable.Id, Elem) = AutoHashMap(StringTable.Id, Elem){},
+    imported_modules: ArrayList(*Module) = ArrayList(*Module){},
 
     pub fn deinit(self: *Module, allocator: Allocator) void {
         self.constants.deinit(allocator);
@@ -23,6 +24,7 @@ pub const Module = struct {
         }
         self.patterns.deinit(allocator);
         self.globals.deinit(allocator);
+        self.imported_modules.deinit(allocator);
     }
 
     pub fn addGlobal(self: *Module, allocator: Allocator, name: StringTable.Id, elem: Elem) !void {
@@ -31,6 +33,22 @@ pub const Module = struct {
 
     pub fn getGlobal(self: *Module, name: StringTable.Id) ?Elem {
         return self.globals.get(name);
+    }
+
+    pub fn findGlobal(self: *Module, sid: StringTable.Id) ?Elem {
+        if (self.getGlobal(sid)) |elem| {
+            return elem;
+        }
+
+        // Search backwards through imported modules
+        var i = self.imported_modules.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.imported_modules.items[i].getGlobal(sid)) |elem| {
+                return elem;
+            }
+        }
+        return null;
     }
 
     pub fn addConstant(self: *Module, allocator: Allocator, elem: Elem) !usize {
