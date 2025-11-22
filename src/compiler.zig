@@ -425,11 +425,11 @@ pub const Compiler = struct {
             .@"return" => |return_node| {
                 // Special case: `"" $ Foo` will always succeed and push `Foo` on the stack
                 if (return_node.left.node == .string and return_node.left.node.string.len == 0) {
-                    try self.writeValue(return_node.right, true);
+                    try self.writeValue(return_node.right, isTailPosition);
                 } else {
                     try self.writeParser(return_node.left, false);
                     const jumpIndex = try self.emitJump(.TakeRight, region);
-                    try self.writeValue(return_node.right, true);
+                    try self.writeValue(return_node.right, isTailPosition);
                     try self.patchJump(jumpIndex, region);
                 }
             },
@@ -2204,7 +2204,7 @@ pub const Compiler = struct {
             .@"return" => |return_node| {
                 try self.writeValue(return_node.left, false);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeValue(return_node.right, true);
+                try self.writeValue(return_node.right, isTailPosition);
                 try self.patchJump(jumpIndex, region);
             },
             .repeat => |repeat| {

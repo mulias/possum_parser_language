@@ -3984,7 +3984,7 @@
   0034    | TakeRight 34 -> 43
   0037    | GetConstant 172: @Codepoint
   0039    | GetBoundLocal 0
-  0041    | CallTailFunction 1
+  0041    | CallFunction 1
   0043    | Or 43 -> 87
   0046    | CallFunctionConstant2 290: "\U"
   0049    | TakeRight 49 -> 76
