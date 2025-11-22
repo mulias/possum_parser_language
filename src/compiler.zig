@@ -451,7 +451,11 @@ pub const Compiler = struct {
             },
             .identifier => |ident| {
                 if (self.localSlot(ident.name)) |slot| {
-                    try self.emitUnaryOp(.CallFunctionLocal, slot, region);
+                    if (isTailPosition) {
+                        try self.emitUnaryOp(.CallTailFunctionLocal, slot, region);
+                    } else {
+                        try self.emitUnaryOp(.CallFunctionLocal, slot, region);
+                    }
                 } else {
                     if (self.findGlobal(ident.name)) |globalElem| {
                         try self.writeCallFunctionConstant(globalElem, region, false);

@@ -775,7 +775,7 @@
   0004    | SetClosureCaptures
   0005    | CallFunctionLocal 0
   0007    | TakeRight 7 -> 12
-  0010    | CallFunctionLocal 1
+  0010    | CallTailFunctionLocal 1
   0012    | End
   ========================================
   
@@ -787,7 +787,7 @@
   0004    | SetClosureCaptures
   0005    | CallFunctionLocal 0
   0007    | TakeRight 7 -> 12
-  0010    | CallFunctionLocal 1
+  0010    | CallTailFunctionLocal 1
   0012    | End
   ========================================
   
@@ -1094,7 +1094,7 @@
   0004    | SetClosureCaptures
   0005    | CallFunctionLocal 0
   0007    | TakeRight 7 -> 12
-  0010    | CallFunctionLocal 1
+  0010    | CallTailFunctionLocal 1
   0012    | End
   ========================================
   
@@ -2036,7 +2036,7 @@
   0003    | ConditionalThen 3 -> 11
   0006    | CallFunctionConstant 126: @fail
   0008    | Jump 8 -> 13
-  0011    | CallFunctionLocal 0
+  0011    | CallTailFunctionLocal 0
   0013    | End
   ========================================
   
