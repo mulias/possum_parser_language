@@ -48,5 +48,16 @@
   [MaxFunctionLocals]
   [1]
 
-
+  $ possum -p 'p = 1 + 1 ; -p' -i '-11'
+  
+  Runtime Error: Negation is only supported for numbers.
+  
+  
+  program:1:12-14:
+  
+  1 \xe2\x96\x8f p = 1 + 1 ; -p (esc)
+    \xe2\x96\x8f             ^^ (esc)
+  
+  [RuntimeError]
+  [1]
 

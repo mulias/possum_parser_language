@@ -447,7 +447,11 @@ pub const Compiler = struct {
             },
             .negation => |inner| {
                 try self.writeNegatedParserElem(inner, region);
-                try self.emitUnaryOp(.CallFunction, 0, region);
+                if (isTailPosition) {
+                    try self.emitUnaryOp(.CallTailFunction, 0, region);
+                } else {
+                    try self.emitUnaryOp(.CallFunction, 0, region);
+                }
             },
             .identifier => |ident| {
                 if (self.localSlot(ident.name)) |slot| {
