@@ -1305,7 +1305,7 @@ pub const Elem = packed union {
 
         pub const Function = struct {
             dyn: DynElem,
-            module: *Module,
+            mid: Module.Id,
             arity: u5,
             param_types: ParamTypes,
             chunk: Chunk,
@@ -1332,7 +1332,7 @@ pub const Elem = packed union {
                 }
             };
 
-            pub fn create(vm: *VM, fields: struct { module: *Module, name: StringTable.Id, arity: u5, region: Region }) !*Function {
+            pub fn create(vm: *VM, fields: struct { module_id: Module.Id, name: StringTable.Id, arity: u5, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1340,7 +1340,7 @@ pub const Elem = packed union {
 
                 function.* = Function{
                     .dyn = dyn.*,
-                    .module = fields.module,
+                    .mid = fields.module_id,
                     .arity = fields.arity,
                     .param_types = ParamTypes{},
                     .chunk = chunk,
@@ -1351,7 +1351,7 @@ pub const Elem = packed union {
                 return function;
             }
 
-            pub fn createAnonParser(vm: *VM, fields: struct { module: *Module, arity: u5, region: Region }) !*Function {
+            pub fn createAnonParser(vm: *VM, fields: struct { module_id: Module.Id, arity: u5, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1365,7 +1365,7 @@ pub const Elem = packed union {
 
                 function.* = Function{
                     .dyn = dyn.*,
-                    .module = fields.module,
+                    .mid = fields.module_id,
                     .arity = fields.arity,
                     .param_types = ParamTypes{},
                     .chunk = chunk,
@@ -1392,7 +1392,7 @@ pub const Elem = packed union {
 
             pub fn disassemble(self: *Function, vm: VM, writer: *Writer) Writer.Error!void {
                 const label = vm.strings.get(self.name);
-                try self.chunk.disassemble(vm, self.module.*, writer, label);
+                try self.chunk.disassemble(vm, vm.getModule(self.mid).*, writer, label);
             }
 
             pub fn nameBytes(self: *Function, vm: VM) []const u8 {
@@ -1514,6 +1514,6 @@ test "struct size" {
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
-    try std.testing.expectEqual(120, @sizeOf(Elem.DynElem.Function));
+    try std.testing.expectEqual(112, @sizeOf(Elem.DynElem.Function));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Closure));
 }

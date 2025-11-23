@@ -10,12 +10,15 @@ const hl = @import("highlight.zig");
 const Region = @import("region.zig").Region;
 
 pub const Module = struct {
+    id: Id,
     name: []const u8,
     source: []const u8,
     constants: ArrayList(Elem) = ArrayList(Elem){},
     patterns: ArrayList(Pattern) = ArrayList(Pattern){},
     globals: AutoHashMap(StringTable.Id, Elem) = AutoHashMap(StringTable.Id, Elem){},
-    imported_modules: ArrayList(*Module) = ArrayList(*Module){},
+    dependencies: ArrayList(Id) = .{},
+
+    pub const Id = u16;
 
     pub fn deinit(self: *Module, allocator: Allocator) void {
         self.constants.deinit(allocator);
@@ -24,7 +27,7 @@ pub const Module = struct {
         }
         self.patterns.deinit(allocator);
         self.globals.deinit(allocator);
-        self.imported_modules.deinit(allocator);
+        self.dependencies.deinit(allocator);
     }
 
     pub fn addGlobal(self: *Module, allocator: Allocator, name: StringTable.Id, elem: Elem) !void {
@@ -33,22 +36,6 @@ pub const Module = struct {
 
     pub fn getGlobal(self: *Module, name: StringTable.Id) ?Elem {
         return self.globals.get(name);
-    }
-
-    pub fn findGlobal(self: *Module, sid: StringTable.Id) ?Elem {
-        if (self.getGlobal(sid)) |elem| {
-            return elem;
-        }
-
-        // Search backwards through imported modules
-        var i = self.imported_modules.items.len;
-        while (i > 0) {
-            i -= 1;
-            if (self.imported_modules.items[i].getGlobal(sid)) |elem| {
-                return elem;
-            }
-        }
-        return null;
     }
 
     pub fn addConstant(self: *Module, allocator: Allocator, elem: Elem) !usize {
@@ -69,6 +56,10 @@ pub const Module = struct {
 
     pub fn getPattern(self: Module, idx: usize) Pattern {
         return self.patterns.items[idx];
+    }
+
+    pub fn addDependency(self: *Module, allocator: Allocator, module_id: Id) !void {
+        try self.dependencies.append(allocator, module_id);
     }
 
     /// Highlight this region in the module source code with context lines and underlines

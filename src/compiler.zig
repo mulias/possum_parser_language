@@ -131,7 +131,7 @@ pub const Compiler = struct {
 
     pub fn init(vm: *VM, targetModule: *Module, ast: Ast, printBytecode: bool) !Compiler {
         const main = try Elem.DynElem.Function.create(vm, .{
-            .module = targetModule,
+            .module_id = targetModule.id,
             .name = try vm.strings.insert("@main"),
             .arity = 0,
             .region = undefined,
@@ -182,7 +182,7 @@ pub const Compiler = struct {
                 continue;
             } else if (try self.getAliasBody(decl)) |body_elem| {
                 const sid = decl.identName();
-                try self.module().addGlobal(self.vm.allocator, sid, body_elem);
+                try self.addGlobal(sid, body_elem);
                 try self.declareAlias(sid, body_elem);
             } else {
                 try self.declareFunction(decl);
@@ -241,13 +241,13 @@ pub const Compiler = struct {
         }
 
         var function = try Elem.DynElem.Function.create(self.vm, .{
-            .module = self.module(),
+            .module_id = self.moduleId(),
             .name = function_name,
             .arity = 0,
             .region = decl.region(),
         });
 
-        try self.module().addGlobal(self.vm.allocator, function_name, function.dyn.elem());
+        try self.addGlobal(function_name, function.dyn.elem());
 
         if (decl.param_count() > std.math.maxInt(u5)) {
             try self.printError(
@@ -280,7 +280,7 @@ pub const Compiler = struct {
 
     fn declareAlias(self: *Compiler, sid: StringTable.Id, bodyElem: Elem) !void {
         // Add an alias to the global namespace. Set the given body element as the alias's value.
-        try self.module().addGlobal(self.vm.allocator, sid, bodyElem);
+        try self.addGlobal(sid, bodyElem);
     }
 
     fn resolveAliasChain(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
@@ -313,14 +313,14 @@ pub const Compiler = struct {
         // Try to resolve to a direct alias
         if (self.ast.declarations.get(target_ident_name)) |terminal_decl| {
             if (try self.getAliasBody(terminal_decl)) |terminal_elem| {
-                try self.module().addGlobal(self.vm.allocator, alias_sid, terminal_elem);
+                try self.addGlobal(alias_sid, terminal_elem);
                 return;
             }
         }
 
         // Try to resolve to a compiled function
-        if (self.module().findGlobal(terminal_sid)) |terminal_elem| {
-            try self.module().addGlobal(self.vm.allocator, alias_sid, terminal_elem);
+        if (self.findGlobal(terminal_sid)) |terminal_elem| {
+            try self.addGlobal(alias_sid, terminal_elem);
             return;
         } else {
             try self.printError(decl.region(), "Could not resolve alias, unknown variable '{s}'", .{self.vm.strings.get(target_ident_name)});
@@ -330,7 +330,7 @@ pub const Compiler = struct {
 
     fn compileFunction(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
         const global_sid = decl.identName();
-        const globalVal = (self.module().findGlobal(global_sid)).?;
+        const globalVal = (self.findGlobal(global_sid)).?;
 
         const function = globalVal.asDyn().asFunction();
 
@@ -443,7 +443,7 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.CallFunctionLocal, slot, region);
                     }
                 } else {
-                    if (self.module().findGlobal(ident.name)) |globalElem| {
+                    if (self.findGlobal(ident.name)) |globalElem| {
                         try self.writeCallFunctionConstant(globalElem, region, isTailPosition);
                     } else {
                         try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(ident.name)});
@@ -520,7 +520,7 @@ pub const Compiler = struct {
         // elem at runtime.
         if (self.localSlot(function_id)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function.region);
-        } else if (self.module().findGlobal(function_id)) |global| {
+        } else if (self.findGlobal(function_id)) |global| {
             function_elem = global.asDyn().asFunction();
             try self.writeConstant(global, function.region);
         } else {
@@ -885,7 +885,7 @@ pub const Compiler = struct {
                 }
             },
             .identifier => |ident| {
-                if (self.module().findGlobal(ident.name) != null) {
+                if (self.findGlobal(ident.name) != null) {
                     // Globals are always bound to a concrete value
                     try self.writeParserRepeatCount(parser, repeat, region);
                 } else {
@@ -1206,7 +1206,7 @@ pub const Compiler = struct {
                 if (ident.builtin) {
                     return true;
                 } else {
-                    if (self.module().findGlobal(ident.name) != null) {
+                    if (self.findGlobal(ident.name) != null) {
                         return true;
                     } else if (self.localSlot(ident.name)) |slot| {
                         return self.function_contexts.currentFunction().arity > slot;
@@ -1266,7 +1266,7 @@ pub const Compiler = struct {
         if (self.localSlot(name)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, region);
         } else {
-            if (self.module().findGlobal(name)) |globalElem| {
+            if (self.findGlobal(name)) |globalElem| {
                 try self.writeConstant(globalElem, region);
             } else {
                 try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(name)});
@@ -1333,7 +1333,7 @@ pub const Compiler = struct {
 
         const function = try Elem.DynElem.Function.createAnonParser(
             self.vm,
-            .{ .module = self.module(), .arity = 0, .region = region },
+            .{ .module_id = self.moduleId(), .arity = 0, .region = region },
         );
 
         // Prevent GC
@@ -1443,7 +1443,7 @@ pub const Compiler = struct {
             },
             .identifier => |ident| {
                 const sid = ident.name;
-                if (self.module().findGlobal(sid)) |globalElem| {
+                if (self.findGlobal(sid)) |globalElem| {
                     const constId = try self.makeConstant(globalElem);
                     return Pattern{ .Constant = .{
                         .sid = sid,
@@ -1542,7 +1542,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 };
 
-                const globalFunctionElem = self.module().findGlobal(function_ident.name);
+                const globalFunctionElem = self.findGlobal(function_ident.name);
 
                 const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
                     .{
@@ -1646,7 +1646,7 @@ pub const Compiler = struct {
                 return self.astToValueInPattern(inner, new_negation_count);
             },
             .identifier => |ident| {
-                if (self.module().findGlobal(ident.name)) |elem| {
+                if (self.findGlobal(ident.name)) |elem| {
                     return Pattern{ .Constant = .{
                         .sid = ident.name,
                         .idx = try self.makeConstant(elem),
@@ -1796,7 +1796,7 @@ pub const Compiler = struct {
                         try self.addValueLocals(.{ .value = rep.right });
                     },
                     .identifier => |ident| {
-                        if (self.module().findGlobal(ident.name) == null) {
+                        if (self.findGlobal(ident.name) == null) {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
                             if (newLocalId) {
@@ -1854,7 +1854,7 @@ pub const Compiler = struct {
                         }
                     },
                     .identifier => |ident| {
-                        if (self.module().findGlobal(ident.name) == null) {
+                        if (self.findGlobal(ident.name) == null) {
                             const value_ident = Ast.Value.Identifier{
                                 .name = ident.name,
                                 .builtin = ident.builtin,
@@ -2117,7 +2117,7 @@ pub const Compiler = struct {
                 if (self.localSlot(ident.name)) |slot| {
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const global = self.module().findGlobal(ident.name).?;
+                    const global = self.findGlobal(ident.name).?;
                     try self.writeConstant(global, region);
                 }
             },
@@ -2235,7 +2235,7 @@ pub const Compiler = struct {
                     // the outer function will be concrete.
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const globalElem = self.module().findGlobal(ident.name).?;
+                    const globalElem = self.findGlobal(ident.name).?;
                     if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
                         try self.writeCallFunctionConstant(globalElem, region, isTailPosition);
                     } else {
@@ -2284,7 +2284,7 @@ pub const Compiler = struct {
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
-            if (self.module().findGlobal(functionName)) |global| {
+            if (self.findGlobal(functionName)) |global| {
                 function = global.asDyn().asFunction();
                 try self.writeConstant(global, function_region);
             } else {
@@ -2403,7 +2403,7 @@ pub const Compiler = struct {
             .identifier => |ident| {
                 // Try to resolve as a global constant
                 if (self.localSlot(ident.name) == null) {
-                    if (self.module().findGlobal(ident.name)) |globalElem| {
+                    if (self.findGlobal(ident.name)) |globalElem| {
                         // If it's not a function, we can inline the constant value
                         if (!globalElem.isDynType(.Function)) {
                             try array.append(self.vm, globalElem);
@@ -2702,8 +2702,20 @@ pub const Compiler = struct {
         return &self.function_contexts.currentFunction().chunk;
     }
 
+    fn moduleId(self: *Compiler) Module.Id {
+        return self.function_contexts.currentFunction().mid;
+    }
+
     fn module(self: *Compiler) *Module {
-        return self.function_contexts.currentFunction().module;
+        return self.vm.getModule(self.moduleId());
+    }
+
+    fn findGlobal(self: *Compiler, sid: StringTable.Id) ?Elem {
+        return self.vm.findGlobal(self.moduleId(), sid);
+    }
+
+    fn addGlobal(self: *Compiler, sid: StringTable.Id, elem: Elem) !void {
+        return self.vm.getModule(self.moduleId()).addGlobal(self.vm.allocator, sid, elem);
     }
 
     fn addLocal(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !void {

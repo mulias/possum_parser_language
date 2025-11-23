@@ -29,7 +29,7 @@ pub fn loadFunctions(vm: *VM, module: *Module) !void {
 fn createFailParser(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@fail");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 0,
         .region = Region.new(0, 0),
@@ -47,7 +47,7 @@ fn createFailParser(vm: *VM, module: *Module) !void {
 fn createFailValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Fail");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 0,
         .region = Region.new(0, 0),
@@ -65,7 +65,7 @@ fn createFailValue(vm: *VM, module: *Module) !void {
 fn createCrashValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Crash");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 1,
         .region = Region.new(0, 0),
@@ -85,7 +85,7 @@ fn createCrashValue(vm: *VM, module: *Module) !void {
 fn createCodepointValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Codepoint");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 1,
         .region = Region.new(0, 0),
@@ -138,7 +138,7 @@ fn stringToCodepoint(vm: *VM) VM.Error!void {
 fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@SurrogatePairCodepoint");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 2,
         .region = Region.new(0, 0),
@@ -198,7 +198,7 @@ fn stringsToSurrogateCodepoint(vm: *VM) VM.Error!void {
 fn createDbgParser(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@dbg");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 1,
         .region = Region.new(0, 0),
@@ -225,7 +225,7 @@ fn createDbgParser(vm: *VM, module: *Module) !void {
 fn createDbgValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Dbg");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 1,
         .region = Region.new(0, 0),
@@ -259,7 +259,7 @@ fn dbgNative(vm: *VM) VM.Error!void {
 fn createAddValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Add");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 2,
         .region = Region.new(0, 0),
@@ -312,7 +312,7 @@ fn addNative(vm: *VM) VM.Error!void {
 fn createSubtractValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Subtract");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 2,
         .region = Region.new(0, 0),
@@ -359,7 +359,7 @@ fn subtractNative(vm: *VM) VM.Error!void {
 fn createMultiplyValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Multiply");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 2,
         .region = Region.new(0, 0),
@@ -406,7 +406,7 @@ fn multiplyNative(vm: *VM) VM.Error!void {
 fn createDivideValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Divide");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 2,
         .region = Region.new(0, 0),
@@ -457,7 +457,7 @@ fn divideNative(vm: *VM) VM.Error!void {
 fn createPowerValue(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@Power");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 2,
         .region = Region.new(0, 0),
@@ -504,7 +504,7 @@ fn powerNative(vm: *VM) VM.Error!void {
 fn createInputOffset(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@input.offset");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 0,
         .region = Region.new(0, 0),
@@ -533,7 +533,7 @@ fn inputOffsetNative(vm: *VM) VM.Error!void {
 fn createInputLine(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@input.line");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 0,
         .region = Region.new(0, 0),
@@ -562,7 +562,7 @@ fn inputLineNative(vm: *VM) VM.Error!void {
 fn createInputLineOffset(vm: *VM, module: *Module) !void {
     const name = try vm.strings.insert("@input.line_offset");
     var fun = try Function.create(vm, .{
-        .module = module,
+        .module_id = module.id,
         .name = name,
         .arity = 0,
         .region = Region.new(0, 0),

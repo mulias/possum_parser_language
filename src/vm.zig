@@ -14,6 +14,7 @@ const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Parser = @import("parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
+const Pattern = @import("pattern.zig").Pattern;
 const PatternSolver = @import("pattern_solver.zig");
 const Can = @import("can.zig").Can;
 const CanAst = @import("can_ast.zig");
@@ -190,44 +191,61 @@ pub const VM = struct {
     }
 
     pub fn compile(self: *VM, module_name: []const u8, source: []const u8) !void {
-        const modulePtr = try self.allocator.create(Module);
-        modulePtr.* = Module{
-            .name = module_name,
-            .source = source,
-        };
-        try self.modules.append(self.allocator, modulePtr);
+        const builtin_module = try self.createModule("builtins", "");
+        try builtin.loadFunctions(self, builtin_module);
 
-        const builtin_module = try self.loadBuiltinFunctions();
-        try modulePtr.imported_modules.append(self.allocator, builtin_module);
+        const module = try self.createModule(module_name, source);
+        try module.addDependency(self.allocator, builtin_module.id);
 
         if (self.config.includeStdlib) {
-            const stdlib_module = try self.loadStdlib(&.{builtin_module});
-            try modulePtr.imported_modules.append(self.allocator, stdlib_module);
+            const filename = "stdlib/core.possum";
+            const stdlib_module = try self.createModule(filename, @embedFile(filename));
+            try stdlib_module.addDependency(self.allocator, builtin_module.id);
+
+            try module.addDependency(self.allocator, stdlib_module.id);
+
+            var stdlib_parser = Parser.init(self, stdlib_module.*);
+            defer stdlib_parser.deinit();
+            try stdlib_parser.parse();
+
+            var stdlib_can_ast = CanAst.init(self.allocator);
+            defer stdlib_can_ast.deinit();
+            var stdlib_can = Can{
+                .vm = self,
+                .module = stdlib_module.*,
+                .ast = stdlib_parser.ast,
+                .can_ast = &stdlib_can_ast,
+                .writers = self.writers,
+            };
+            _ = try stdlib_can.canonicalize();
+
+            var stdlib_compiler = try Compiler.init(self, stdlib_module, stdlib_can.can_ast.*, false);
+            defer stdlib_compiler.deinit();
+            _ = try stdlib_compiler.compile();
         }
 
-        var parser = Parser.init(self, modulePtr.*);
+        var parser = Parser.init(self, module.*);
         defer parser.deinit();
-
         try parser.parse();
 
         if (self.config.printAst) {
-            try parser.ast.print(self.writers.debug, self.*, modulePtr.source);
+            try parser.ast.print(self.writers.debug, self.*, module.source);
         }
 
         var can_ast = CanAst.init(self.allocator);
         defer can_ast.deinit();
-
         var can = Can{
             .vm = self,
-            .module = modulePtr.*,
+            .module = module.*,
             .ast = parser.ast,
             .can_ast = &can_ast,
             .writers = self.writers,
         };
         _ = try can.canonicalize();
+
         var compiler = try Compiler.init(
             self,
-            modulePtr,
+            module,
             can.can_ast.*,
             self.config.printCompiledBytecode,
         );
@@ -241,54 +259,50 @@ pub const VM = struct {
         }
     }
 
-    fn loadBuiltinFunctions(self: *VM) !*Module {
-        const modulePtr = try self.allocator.create(Module);
-        modulePtr.* = Module{ .name = "builtins", .source = "" };
-        try self.modules.append(self.allocator, modulePtr);
+    fn createModule(self: *VM, name: []const u8, source: []const u8) !*Module {
+        const new_id = self.modules.items.len;
+        if (new_id > std.math.maxInt(u16)) {
+            @panic("todo");
+        }
 
-        try builtin.loadFunctions(self, modulePtr);
-
-        return modulePtr;
+        const module = try self.allocator.create(Module);
+        module.* = Module{
+            .id = @intCast(new_id),
+            .name = name,
+            .source = source,
+        };
+        try self.modules.append(self.allocator, module);
+        return module;
     }
 
-    fn loadStdlib(self: *VM, imported: []const *Module) !*Module {
-        const filename = "stdlib/core.possum";
-        const modulePtr = try self.allocator.create(Module);
-        var imported_list = ArrayList(*Module){};
-        try imported_list.appendSlice(self.allocator, imported);
-        modulePtr.* = Module{
-            .name = filename,
-            .source = @embedFile(filename),
-            .imported_modules = imported_list,
-        };
-        try self.modules.append(self.allocator, modulePtr);
+    pub fn getModule(self: VM, mid: Module.Id) *Module {
+        return self.modules.items[mid];
+    }
 
-        var parser = Parser.init(self, modulePtr.*);
-        defer parser.deinit();
+    pub fn getGlobal(self: VM, mid: Module.Id, name: StringTable.Id) ?Elem {
+        return self.modules[mid].getGlobal(name);
+    }
 
-        try parser.parse();
+    pub fn findGlobal(self: VM, mid: Module.Id, sid: StringTable.Id) ?Elem {
+        const module = self.modules.items[mid];
 
-        var can_ast = CanAst.init(self.allocator);
-        defer can_ast.deinit();
+        if (module.getGlobal(sid)) |elem| {
+            return elem;
+        }
 
-        var can = Can{
-            .vm = self,
-            .module = modulePtr.*,
-            .ast = parser.ast,
-            .can_ast = &can_ast,
-            .writers = self.writers,
-        };
-        _ = try can.canonicalize();
-        var compiler = try Compiler.init(self, modulePtr, can.can_ast.*, false);
-        defer compiler.deinit();
-
-        _ = try compiler.compile();
-
-        return modulePtr;
+        // Search backwards through imported modules
+        var i = module.dependencies.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.findGlobal(module.dependencies.items[i], sid)) |elem| {
+                return elem;
+            }
+        }
+        return null;
     }
 
     pub fn currentFunctionModule(self: *VM) *Module {
-        return self.frame().function.module;
+        return self.getModule(self.frame().function.mid);
     }
 
     pub fn run(self: *VM) !void {
@@ -389,17 +403,17 @@ pub const VM = struct {
             },
             .CallFunctionConstant => {
                 const idx = self.readByte();
-                try self.push(self.frame().function.module.getConstant(idx));
+                try self.push(self.getConstant(idx));
                 try self.callFunction(self.peek(0), 0, false);
             },
             .CallFunctionConstant2 => {
                 const idx = self.readShort();
-                try self.push(self.frame().function.module.getConstant(idx));
+                try self.push(self.getConstant(idx));
                 try self.callFunction(self.peek(0), 0, false);
             },
             .CallFunctionConstant3 => {
                 const idx = self.readMedium();
-                try self.push(self.frame().function.module.getConstant(idx));
+                try self.push(self.getConstant(idx));
                 try self.callFunction(self.peek(0), 0, false);
             },
             .CallTailFunction => {
@@ -410,17 +424,17 @@ pub const VM = struct {
             },
             .CallTailFunctionConstant => {
                 const idx = self.readByte();
-                try self.push(self.frame().function.module.getConstant(idx));
+                try self.push(self.getConstant(idx));
                 try self.callFunction(self.peek(0), 0, true);
             },
             .CallTailFunctionConstant2 => {
                 const idx = self.readShort();
-                try self.push(self.frame().function.module.getConstant(idx));
+                try self.push(self.getConstant(idx));
                 try self.callFunction(self.peek(0), 0, true);
             },
             .CallTailFunctionConstant3 => {
                 const idx = self.readMedium();
-                try self.push(self.frame().function.module.getConstant(idx));
+                try self.push(self.getConstant(idx));
                 try self.callFunction(self.peek(0), 0, true);
             },
             .CallFunctionLocal => {
@@ -504,7 +518,7 @@ pub const VM = struct {
             },
             .Destructure => {
                 const patternIdx = self.readByte();
-                const pattern = self.frame().function.module.getPattern(patternIdx);
+                const pattern = self.getPattern(patternIdx);
                 const value = self.peek(0);
 
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
@@ -516,7 +530,7 @@ pub const VM = struct {
             },
             .Destructure2 => {
                 const patternIdx = self.readShort();
-                const pattern = self.frame().function.module.getPattern(patternIdx);
+                const pattern = self.getPattern(patternIdx);
                 const value = self.peek(0);
 
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
@@ -528,7 +542,7 @@ pub const VM = struct {
             },
             .Destructure3 => {
                 const patternIdx = self.readMedium();
-                const pattern = self.frame().function.module.getPattern(patternIdx);
+                const pattern = self.getPattern(patternIdx);
                 const value = self.peek(0);
 
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
@@ -683,15 +697,15 @@ pub const VM = struct {
             },
             .GetConstant => {
                 const idx = self.readByte();
-                try self.push(self.frame().function.module.getConstant(idx));
+                try self.push(self.getConstant(idx));
             },
             .GetConstant2 => {
                 const idx = self.readShort();
-                try self.push(self.frame().function.module.getConstant(idx));
+                try self.push(self.getConstant(idx));
             },
             .GetConstant3 => {
                 const idx = self.readMedium();
-                try self.push(self.frame().function.module.getConstant(idx));
+                try self.push(self.getConstant(idx));
             },
             .SetClosureCaptures => {
                 var function = self.getFunctionElem().asDyn();
@@ -769,7 +783,7 @@ pub const VM = struct {
             },
             .NativeCode => {
                 const idx = self.readByte();
-                const elem = self.frame().function.module.getConstant(idx);
+                const elem = self.getConstant(idx);
 
                 if (elem.isDynType(.NativeCode)) {
                     const nc = elem.asDyn().asNativeCode();
@@ -1444,7 +1458,11 @@ pub const VM = struct {
     }
 
     pub fn getConstant(self: *VM, idx: usize) Elem {
-        return self.frame().function.module.getConstant(idx);
+        return self.currentFunctionModule().getConstant(idx);
+    }
+
+    pub fn getPattern(self: *VM, idx: usize) Pattern {
+        return self.currentFunctionModule().getPattern(idx);
     }
 
     fn addFrame(self: *VM, function: *Elem.DynElem.Function) !void {
@@ -1606,6 +1624,7 @@ pub const VM = struct {
             self.frame();
 
         const function = target_frame.function;
+        const module = self.getModule(function.mid);
         const region = function.chunk.regions.items[target_frame.ip - 1];
 
         try self.writers.err.print("\nRuntime Error: ", .{});
@@ -1614,11 +1633,11 @@ pub const VM = struct {
 
         try self.writers.err.print("\n\n", .{});
 
-        try self.writers.err.print("{s}:", .{function.module.name});
-        try region.printLineRelative(function.module.source, self.writers.err);
+        try self.writers.err.print("{s}:", .{module.name});
+        try region.printLineRelative(module.source, self.writers.err);
         try self.writers.err.print(":\n\n", .{});
 
-        try function.module.highlight(region, self.writers.err);
+        try module.highlight(region, self.writers.err);
         try self.writers.err.print("\n", .{});
 
         return Error.RuntimeError;
