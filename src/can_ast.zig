@@ -185,7 +185,7 @@ pub const Parser = struct {
 
     pub const Declaration = struct {
         ident: *Ast.RNode(Identifier),
-        params: ArrayList(ParserOrValue.Identifier),
+        params: ArrayList(ParserOrValue.Identifier) = .{},
         body: *Parser.RNode,
     };
 
@@ -291,7 +291,7 @@ pub const Value = struct {
 
     pub const Declaration = struct {
         ident: *Ast.RNode(Identifier),
-        params: ArrayList(*Ast.RNode(Identifier)),
+        params: ArrayList(*Ast.RNode(Identifier)) = .{},
         body: *Value.RNode,
     };
 
