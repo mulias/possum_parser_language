@@ -192,11 +192,11 @@ pub const VM = struct {
         return null;
     }
 
-    pub fn interpret(self: *VM, module: Module, input: []const u8) !Elem {
+    pub fn interpret(self: *VM, module_name: []const u8, source: []const u8, input: []const u8) !Elem {
         if (input.len > std.math.maxInt(u32)) return error.InputTooLong;
 
         self.input = input;
-        try self.compile(module);
+        try self.compile(module_name, source);
         try self.run();
         assert(self.stack.items.len == 1);
 
@@ -204,9 +204,12 @@ pub const VM = struct {
         return self.peek(0);
     }
 
-    pub fn compile(self: *VM, module: Module) !void {
+    pub fn compile(self: *VM, module_name: []const u8, source: []const u8) !void {
         const modulePtr = try self.allocator.create(Module);
-        modulePtr.* = module;
+        modulePtr.* = Module{
+            .name = module_name,
+            .source = source,
+        };
         try self.modules.append(self.allocator, modulePtr);
 
         const builtin_module = try self.loadBuiltinFunctions();

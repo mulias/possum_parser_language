@@ -6,7 +6,6 @@ const Chunk = @import("chunk.zig").Chunk;
 const Env = @import("env.zig").Env;
 const OpCode = @import("op_code.zig").OpCode;
 const VM = @import("vm.zig").VM;
-const Module = @import("module.zig").Module;
 const VMConfig = @import("vm.zig").Config;
 const Writers = @import("writer.zig").Writers;
 const build_options = @import("build_options");
@@ -74,20 +73,23 @@ pub const CLI = struct {
         var config = VMConfig{ .includeStdlib = args.stdlib };
         config.setEnv(env);
 
-        const userModule = switch (args.parser) {
-            .String => |str| Module{
-                .name = "program",
-                .source = str,
+        var module_name: []const u8 = undefined;
+        var source: []const u8 = undefined;
+
+        switch (args.parser) {
+            .String => |str| {
+                module_name = "program";
+                source = str;
             },
-            .Path => |path| Module{
-                .name = path,
-                .source = try self.readFile(path),
+            .Path => |path| {
+                module_name = path;
+                source = try self.readFile(path);
             },
-            .Stdin => Module{
-                .name = "program",
-                .source = try self.readStdin("parser"),
+            .Stdin => {
+                module_name = "program";
+                source = try self.readStdin("parser");
             },
-        };
+        }
 
         const input = switch (args.input) {
             .String => |str| str,
@@ -99,7 +101,7 @@ pub const CLI = struct {
         try vm.init(self.allocator, self.writers, config);
 
         if (config.runVM) {
-            const parsed = try vm.interpret(userModule, input);
+            const parsed = try vm.interpret(module_name, source, input);
 
             if (parsed.isFailure()) {
                 return error.ParserFailure;
@@ -108,7 +110,7 @@ pub const CLI = struct {
                 try self.writers.out.print("\n", .{});
             }
         } else {
-            try vm.compile(userModule);
+            try vm.compile(module_name, source);
         }
     }
 
