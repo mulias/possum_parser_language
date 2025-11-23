@@ -180,18 +180,6 @@ pub const VM = struct {
         self.pattern_solver.deinit();
     }
 
-    fn findGlobal(self: *VM, name: StringTable.Id) ?Elem {
-        // Search backwards through modules
-        var i = self.modules.items.len;
-        while (i > 0) {
-            i -= 1;
-            if (self.modules.items[i].getGlobal(name)) |elem| {
-                return elem;
-            }
-        }
-        return null;
-    }
-
     pub fn interpret(self: *VM, module_name: []const u8, source: []const u8, input: []const u8) !Elem {
         if (input.len > std.math.maxInt(u32)) return error.InputTooLong;
 
@@ -1617,50 +1605,27 @@ pub const VM = struct {
         return self.input[line_start..line_end];
     }
 
-    // Linear scan of module globals to find the module that contains the
-    // target chunk. Intended for error reporting.
-    fn findModuleForChunk(self: *VM, target_chunk: *Chunk) ?*Module {
-        for (self.modules.items) |module| {
-            var iterator = module.globals.iterator();
-            while (iterator.next()) |entry| {
-                const elem = entry.value_ptr.*;
-                if (elem.isType(.Dyn)) {
-                    const dyn_elem = elem.asDyn();
-                    if (dyn_elem.isType(.Function)) {
-                        const function = dyn_elem.asFunction();
-                        if (&function.chunk == target_chunk) {
-                            return module;
-                        }
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
     pub fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
         const target_frame = if (self.frame().function.isBuiltin(self.*))
             self.parentFrame() orelse self.frame()
         else
             self.frame();
 
-        const target_chunk = &target_frame.function.chunk;
-        const target_region = target_chunk.regions.items[target_frame.ip - 1];
+        const function = target_frame.function;
+        const region = function.chunk.regions.items[target_frame.ip - 1];
 
         try self.writers.err.print("\nRuntime Error: ", .{});
         try self.writers.err.print(message, args);
         try self.writers.err.print("\n", .{});
 
-        if (self.findModuleForChunk(target_chunk)) |module| {
-            try self.writers.err.print("\n\n", .{});
+        try self.writers.err.print("\n\n", .{});
 
-            try self.writers.err.print("{s}:", .{module.name});
-            try target_region.printLineRelative(module.source, self.writers.err);
-            try self.writers.err.print(":\n\n", .{});
+        try self.writers.err.print("{s}:", .{function.module.name});
+        try region.printLineRelative(function.module.source, self.writers.err);
+        try self.writers.err.print(":\n\n", .{});
 
-            try module.highlight(target_region, self.writers.err);
-            try self.writers.err.print("\n", .{});
-        }
+        try function.module.highlight(region, self.writers.err);
+        try self.writers.err.print("\n", .{});
 
         return Error.RuntimeError;
     }
