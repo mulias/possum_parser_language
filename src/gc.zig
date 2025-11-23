@@ -214,15 +214,6 @@ pub const GC = struct {
             }
         }
 
-        if (self.vm.active_compiler) |compiler| {
-            if (self.print_trace) {
-                self.vm.writers.debug.print("    active compiler functions: {}\n", .{compiler.function_contexts.contexts.items.len}) catch {};
-            }
-            for (compiler.function_contexts.contexts.items) |fc| {
-                self.markDyn(&fc.function.dyn);
-            }
-        }
-
         if (self.print_trace) {
             self.vm.writers.debug.print("    temp dyns: {}\n", .{self.vm.temp_dyns.items.len}) catch {};
         }

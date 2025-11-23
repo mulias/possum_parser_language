@@ -63,7 +63,6 @@ pub const VM = struct {
     gc: GC,
     strings: StringTable,
     modules: ArrayList(*Module),
-    active_compiler: ?*Compiler,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
     temp_dyns: ArrayList(*Elem.DynElem),
@@ -112,7 +111,6 @@ pub const VM = struct {
             .gc = undefined,
             .strings = undefined,
             .modules = undefined,
-            .active_compiler = undefined,
             .stack = undefined,
             .frames = undefined,
             .temp_dyns = undefined,
@@ -144,7 +142,6 @@ pub const VM = struct {
         self.gc = GC.init(self, allocator);
         self.strings = StringTable.init(allocator);
         self.modules = ArrayList(*Module){};
-        self.active_compiler = null;
         self.stack = ArrayList(Elem){};
         self.frames = ArrayList(CallFrame){};
         self.temp_dyns = ArrayList(*Elem.DynElem){};
@@ -235,9 +232,6 @@ pub const VM = struct {
             self.config.printCompiledBytecode,
         );
         defer compiler.deinit();
-
-        self.active_compiler = &compiler;
-        defer self.active_compiler = null;
 
         const function = try compiler.compile();
 
