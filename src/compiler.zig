@@ -19,7 +19,6 @@ const parsing = @import("parsing.zig");
 
 pub const Compiler = struct {
     vm: *VM,
-    targetModule: *Module,
     ast: Ast,
     function_contexts: FunctionContexts,
     writers: Writers,
@@ -149,7 +148,6 @@ pub const Compiler = struct {
 
         return Compiler{
             .vm = vm,
-            .targetModule = targetModule,
             .ast = ast,
             .function_contexts = function_contexts,
             .writers = vm.writers,
@@ -184,7 +182,7 @@ pub const Compiler = struct {
                 continue;
             } else if (try self.getAliasBody(decl)) |body_elem| {
                 const sid = decl.identName();
-                try self.targetModule.addGlobal(self.vm.allocator, sid, body_elem);
+                try self.module().addGlobal(self.vm.allocator, sid, body_elem);
                 try self.declareAlias(sid, body_elem);
             } else {
                 try self.declareFunction(decl);
@@ -243,13 +241,13 @@ pub const Compiler = struct {
         }
 
         var function = try Elem.DynElem.Function.create(self.vm, .{
-            .module = self.targetModule,
+            .module = self.module(),
             .name = function_name,
             .arity = 0,
             .region = decl.region(),
         });
 
-        try self.targetModule.addGlobal(self.vm.allocator, function_name, function.dyn.elem());
+        try self.module().addGlobal(self.vm.allocator, function_name, function.dyn.elem());
 
         if (decl.param_count() > std.math.maxInt(u5)) {
             try self.printError(
@@ -282,7 +280,7 @@ pub const Compiler = struct {
 
     fn declareAlias(self: *Compiler, sid: StringTable.Id, bodyElem: Elem) !void {
         // Add an alias to the global namespace. Set the given body element as the alias's value.
-        try self.targetModule.addGlobal(self.vm.allocator, sid, bodyElem);
+        try self.module().addGlobal(self.vm.allocator, sid, bodyElem);
     }
 
     fn resolveAliasChain(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
@@ -315,14 +313,14 @@ pub const Compiler = struct {
         // Try to resolve to a direct alias
         if (self.ast.declarations.get(target_ident_name)) |terminal_decl| {
             if (try self.getAliasBody(terminal_decl)) |terminal_elem| {
-                try self.targetModule.addGlobal(self.vm.allocator, alias_sid, terminal_elem);
+                try self.module().addGlobal(self.vm.allocator, alias_sid, terminal_elem);
                 return;
             }
         }
 
         // Try to resolve to a compiled function
-        if (self.targetModule.findGlobal(terminal_sid)) |terminal_elem| {
-            try self.targetModule.addGlobal(self.vm.allocator, alias_sid, terminal_elem);
+        if (self.module().findGlobal(terminal_sid)) |terminal_elem| {
+            try self.module().addGlobal(self.vm.allocator, alias_sid, terminal_elem);
             return;
         } else {
             try self.printError(decl.region(), "Could not resolve alias, unknown variable '{s}'", .{self.vm.strings.get(target_ident_name)});
@@ -332,7 +330,7 @@ pub const Compiler = struct {
 
     fn compileFunction(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
         const global_sid = decl.identName();
-        const globalVal = (self.targetModule.findGlobal(global_sid)).?;
+        const globalVal = (self.module().findGlobal(global_sid)).?;
 
         const function = globalVal.asDyn().asFunction();
 
@@ -445,7 +443,7 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.CallFunctionLocal, slot, region);
                     }
                 } else {
-                    if (self.targetModule.findGlobal(ident.name)) |globalElem| {
+                    if (self.module().findGlobal(ident.name)) |globalElem| {
                         try self.writeCallFunctionConstant(globalElem, region, isTailPosition);
                     } else {
                         try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(ident.name)});
@@ -522,7 +520,7 @@ pub const Compiler = struct {
         // elem at runtime.
         if (self.localSlot(function_id)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function.region);
-        } else if (self.targetModule.findGlobal(function_id)) |global| {
+        } else if (self.module().findGlobal(function_id)) |global| {
             function_elem = global.asDyn().asFunction();
             try self.writeConstant(global, function.region);
         } else {
@@ -887,7 +885,7 @@ pub const Compiler = struct {
                 }
             },
             .identifier => |ident| {
-                if (self.targetModule.findGlobal(ident.name) != null) {
+                if (self.module().findGlobal(ident.name) != null) {
                     // Globals are always bound to a concrete value
                     try self.writeParserRepeatCount(parser, repeat, region);
                 } else {
@@ -1208,7 +1206,7 @@ pub const Compiler = struct {
                 if (ident.builtin) {
                     return true;
                 } else {
-                    if (self.targetModule.findGlobal(ident.name) != null) {
+                    if (self.module().findGlobal(ident.name) != null) {
                         return true;
                     } else if (self.localSlot(ident.name)) |slot| {
                         return self.function_contexts.currentFunction().arity > slot;
@@ -1268,7 +1266,7 @@ pub const Compiler = struct {
         if (self.localSlot(name)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, region);
         } else {
-            if (self.targetModule.findGlobal(name)) |globalElem| {
+            if (self.module().findGlobal(name)) |globalElem| {
                 try self.writeConstant(globalElem, region);
             } else {
                 try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(name)});
@@ -1335,7 +1333,7 @@ pub const Compiler = struct {
 
         const function = try Elem.DynElem.Function.createAnonParser(
             self.vm,
-            .{ .module = self.targetModule, .arity = 0, .region = region },
+            .{ .module = self.module(), .arity = 0, .region = region },
         );
 
         // Prevent GC
@@ -1393,7 +1391,7 @@ pub const Compiler = struct {
 
     fn createPattern(self: *Compiler, rnode: *Ast.Pattern.RNode) Error!u24 {
         const patternElem = try self.astToPattern(rnode, 0);
-        return @intCast(try self.targetModule.addPattern(self.vm.allocator, patternElem));
+        return @intCast(try self.module().addPattern(self.vm.allocator, patternElem));
     }
 
     fn astToPattern(self: *Compiler, rnode: *Ast.Pattern.RNode, negation_count: u2) Error!Pattern {
@@ -1445,7 +1443,7 @@ pub const Compiler = struct {
             },
             .identifier => |ident| {
                 const sid = ident.name;
-                if (self.targetModule.findGlobal(sid)) |globalElem| {
+                if (self.module().findGlobal(sid)) |globalElem| {
                     const constId = try self.makeConstant(globalElem);
                     return Pattern{ .Constant = .{
                         .sid = sid,
@@ -1544,7 +1542,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 };
 
-                const globalFunctionElem = self.targetModule.findGlobal(function_ident.name);
+                const globalFunctionElem = self.module().findGlobal(function_ident.name);
 
                 const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
                     .{
@@ -1648,7 +1646,7 @@ pub const Compiler = struct {
                 return self.astToValueInPattern(inner, new_negation_count);
             },
             .identifier => |ident| {
-                if (self.targetModule.findGlobal(ident.name)) |elem| {
+                if (self.module().findGlobal(ident.name)) |elem| {
                     return Pattern{ .Constant = .{
                         .sid = ident.name,
                         .idx = try self.makeConstant(elem),
@@ -1798,7 +1796,7 @@ pub const Compiler = struct {
                         try self.addValueLocals(.{ .value = rep.right });
                     },
                     .identifier => |ident| {
-                        if (self.targetModule.findGlobal(ident.name) == null) {
+                        if (self.module().findGlobal(ident.name) == null) {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
                             const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
                             if (newLocalId) {
@@ -1856,7 +1854,7 @@ pub const Compiler = struct {
                         }
                     },
                     .identifier => |ident| {
-                        if (self.targetModule.findGlobal(ident.name) == null) {
+                        if (self.module().findGlobal(ident.name) == null) {
                             const value_ident = Ast.Value.Identifier{
                                 .name = ident.name,
                                 .builtin = ident.builtin,
@@ -2119,7 +2117,7 @@ pub const Compiler = struct {
                 if (self.localSlot(ident.name)) |slot| {
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const global = self.targetModule.findGlobal(ident.name).?;
+                    const global = self.module().findGlobal(ident.name).?;
                     try self.writeConstant(global, region);
                 }
             },
@@ -2237,7 +2235,7 @@ pub const Compiler = struct {
                     // the outer function will be concrete.
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const globalElem = self.targetModule.findGlobal(ident.name).?;
+                    const globalElem = self.module().findGlobal(ident.name).?;
                     if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
                         try self.writeCallFunctionConstant(globalElem, region, isTailPosition);
                     } else {
@@ -2286,7 +2284,7 @@ pub const Compiler = struct {
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
-            if (self.targetModule.findGlobal(functionName)) |global| {
+            if (self.module().findGlobal(functionName)) |global| {
                 function = global.asDyn().asFunction();
                 try self.writeConstant(global, function_region);
             } else {
@@ -2405,7 +2403,7 @@ pub const Compiler = struct {
             .identifier => |ident| {
                 // Try to resolve as a global constant
                 if (self.localSlot(ident.name) == null) {
-                    if (self.targetModule.findGlobal(ident.name)) |globalElem| {
+                    if (self.module().findGlobal(ident.name)) |globalElem| {
                         // If it's not a function, we can inline the constant value
                         if (!globalElem.isDynType(.Function)) {
                             try array.append(self.vm, globalElem);
@@ -2704,6 +2702,10 @@ pub const Compiler = struct {
         return &self.function_contexts.currentFunction().chunk;
     }
 
+    fn module(self: *Compiler) *Module {
+        return self.function_contexts.currentFunction().module;
+    }
+
     fn addLocal(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !void {
         if (ident.builtin()) {
             try self.printError(ident.region(), "Invalid function param, '@' is reserved for builtins", .{});
@@ -2788,7 +2790,7 @@ pub const Compiler = struct {
         if (self.constant_map.get(elem.bits)) |idx| {
             return @as(u24, @intCast(idx));
         }
-        const idx = try self.targetModule.addConstant(self.vm.allocator, elem);
+        const idx = try self.module().addConstant(self.vm.allocator, elem);
         if (idx > 0xFFFFFF) {
             try self.writers.err.print("Too many constants in module.", .{});
             return Error.TooManyConstants;
@@ -2850,11 +2852,11 @@ pub const Compiler = struct {
         try self.writers.err.print(message, args);
         try self.writers.err.print("\n\n", .{});
 
-        try self.writers.err.print("{s}:", .{self.targetModule.name});
-        try region.printLineRelative(self.targetModule.source, self.writers.err);
+        try self.writers.err.print("{s}:", .{self.module().name});
+        try region.printLineRelative(self.module().source, self.writers.err);
         try self.writers.err.print(":\n", .{});
 
-        try self.targetModule.highlight(region, self.writers.err);
+        try self.module().highlight(region, self.writers.err);
         try self.writers.err.print("\n", .{});
     }
 };
