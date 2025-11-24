@@ -17,11 +17,13 @@ const VM = @import("vm.zig").VM;
 const Writers = @import("writer.zig").Writers;
 const Module = @import("module.zig").Module;
 const parsing = @import("parsing.zig");
+const Parser = @import("parser.zig").Parser;
 
 pub const Compiler = struct {
     vm: *VM,
-    can: Can,
-    function_contexts: FunctionContexts,
+    ast: []Can = &.{},
+    function_contexts: FunctionContexts = .{},
+    target_module_id: Module.Id,
     writers: Writers,
     printBytecode: bool,
     constant_map: AutoHashMap(u64, usize),
@@ -130,52 +132,81 @@ pub const Compiler = struct {
         RangeInvalidNumberFormat,
     } || Writer.Error;
 
-    pub fn init(vm: *VM, targetModule: *Module, can: Can, printBytecode: bool) !Compiler {
-        const main = try Elem.DynElem.Function.create(vm, .{
-            .module_id = targetModule.id,
-            .name = try vm.strings.insert("@main"),
-            .arity = 0,
-            .region = undefined,
-        });
-
-        var function_contexts = FunctionContexts{};
-        try function_contexts.append(vm.allocator, main);
-
-        try targetModule.addGlobal(vm.allocator, main.name, main.dyn.elem());
-
-        // Ensure that the strings table includes the placeholder var, which
-        // might be used directly by the compiler.
-        _ = try vm.strings.insert("_");
-
+    pub fn init(vm: *VM) Compiler {
         return Compiler{
             .vm = vm,
-            .can = can,
-            .function_contexts = function_contexts,
             .writers = vm.writers,
-            .printBytecode = printBytecode,
+            .printBytecode = vm.config.printCompiledBytecode,
             .constant_map = AutoHashMap(u64, usize){},
+            .target_module_id = undefined,
         };
     }
 
     pub fn deinit(self: *Compiler) void {
+        for (self.ast) |*can| can.deinit();
+        if (self.ast.len > 0) self.vm.allocator.free(self.ast);
+
         self.constant_map.deinit(self.vm.allocator);
         self.function_contexts.deinit(self.vm.allocator);
     }
 
-    pub fn compile(self: *Compiler) !?*Elem.DynElem.Function {
-        try self.declareGlobals();
-        try self.resolveAliaseChains();
-        try self.compileFunctions();
+    pub fn compile(self: *Compiler, target_module_id: Module.Id) !?*Elem.DynElem.Function {
+        self.target_module_id = target_module_id;
 
-        if (self.can.main) |main| {
-            return self.compileMain(main);
-        } else {
-            return null;
+        self.ast = try self.vm.allocator.alloc(Can, self.vm.modules.items.len);
+        for (self.ast, 0..) |*can, module_id| {
+            can.* = Can.init(self.vm, @intCast(module_id));
+        }
+
+        // Ensure that the strings table includes the placeholder var, which
+        // might be used directly by the compiler.
+        _ = try self.vm.strings.insert("_");
+
+        var main_fn: ?*Elem.DynElem.Function = null;
+
+        for (self.vm.modules.items) |module| {
+            self.constant_map.clearRetainingCapacity();
+
+            try self.parse(module);
+            try self.declareGlobals(module);
+            try self.resolveAliaseChains(module);
+            try self.compileFunctions(module);
+
+            if (module.id == target_module_id) {
+                if (self.getAst(module.id).main) |main_ast| {
+                    main_fn = try self.compileMain(module.id, main_ast);
+                }
+            }
+        }
+
+        return main_fn;
+    }
+
+    fn parse(self: *Compiler, module: *Module) !void {
+        if (module.source.len > 0) {
+            var parser = Parser.init(self.vm, module.id, module.source, .{
+                .printScanner = self.vm.config.printScanner,
+                .printParser = self.vm.config.printParser,
+            });
+            defer parser.deinit();
+            try parser.parse();
+
+            if (self.vm.config.printAst and module.id == self.target_module_id) {
+                try parser.ast.print(
+                    self.vm.writers.debug,
+                    self.vm.*,
+                    module.source,
+                );
+            }
+
+            const can = self.getAst(module.id);
+            _ = try can.canonicalize(parser.ast);
         }
     }
 
-    fn declareGlobals(self: *Compiler) !void {
-        var decl_iter = self.can.declarations.iterator();
+    fn declareGlobals(self: *Compiler, module: *Module) !void {
+        const can = self.getAst(module.id);
+        var decl_iter = can.declarations.iterator();
         while (decl_iter.next()) |entry| {
             const decl = entry.value_ptr.*;
             if (self.isAliasChain(decl)) {
@@ -183,38 +214,49 @@ pub const Compiler = struct {
                 continue;
             } else if (try self.getAliasBody(decl)) |body_elem| {
                 const sid = decl.identName();
-                try self.addGlobal(sid, body_elem);
-                try self.declareAlias(sid, body_elem);
+                try module.addGlobal(self.vm.allocator, sid, body_elem);
             } else {
-                try self.declareFunction(decl);
+                try self.declareFunction(module.id, decl);
             }
         }
     }
 
-    fn compileFunctions(self: *Compiler) !void {
-        var decl_iter = self.can.declarations.iterator();
+    fn compileFunctions(self: *Compiler, module: *Module) !void {
+        const can = self.getAst(module.id);
+
+        var decl_iter = can.declarations.iterator();
         while (decl_iter.next()) |entry| {
             const decl = entry.value_ptr.*;
             if (!self.isAlias(decl) and !self.isAliasChain(decl)) {
-                try self.compileFunction(decl);
+                try self.compileFunction(module.id, decl);
             }
         }
     }
 
-    fn resolveAliaseChains(self: *Compiler) !void {
-        var decl_iter = self.can.declarations.iterator();
+    fn resolveAliaseChains(self: *Compiler, module: *Module) !void {
+        const can = self.getAst(module.id);
+        var decl_iter = can.declarations.iterator();
         while (decl_iter.next()) |entry| {
             const decl = entry.value_ptr.*;
 
             if (self.isAliasChain(decl)) {
-                try self.resolveAliasChain(decl);
+                try self.resolveAliasChain(module.id, decl);
             }
         }
     }
 
-    fn compileMain(self: *Compiler, main_rnode: *Ast.Parser.RNode) !?*Elem.DynElem.Function {
-        try self.addValueLocals(.{ .parser = main_rnode });
-        try self.writeParser(main_rnode, true);
+    fn compileMain(self: *Compiler, module_id: Module.Id, main_rnode: *Ast.Parser.RNode) !?*Elem.DynElem.Function {
+        const main = try Elem.DynElem.Function.create(self.vm, .{
+            .module_id = module_id,
+            .name = try self.vm.strings.insert("@main"),
+            .arity = 0,
+            .region = undefined,
+        });
+
+        try self.function_contexts.append(self.vm.allocator, main);
+
+        try self.addValueLocals(module_id, .{ .parser = main_rnode });
+        try self.writeParser(module_id, main_rnode, true);
         try self.emitEnd();
 
         const main_fn = self.function_contexts.pop(self.vm.allocator);
@@ -222,14 +264,14 @@ pub const Compiler = struct {
         // Update the main function's source region with the actual main parser region
         main_fn.chunk.source_region = main_rnode.region;
 
-        if (self.printBytecode) {
+        if (self.printBytecode and module_id == self.target_module_id) {
             try main_fn.disassemble(self.vm.*, self.writers.debug);
         }
 
         return main_fn;
     }
 
-    fn declareFunction(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
+    fn declareFunction(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
@@ -237,21 +279,22 @@ pub const Compiler = struct {
         const function_name = decl.identName();
 
         if (decl.identBuiltin()) {
-            try self.printError(decl.identRegion(), "unable to define builtin function", .{});
+            try self.printError(module_id, decl.identRegion(), "unable to define builtin function", .{});
             return Error.InvalidAst;
         }
 
         var function = try Elem.DynElem.Function.create(self.vm, .{
-            .module_id = self.moduleId(),
+            .module_id = module_id,
             .name = function_name,
             .arity = 0,
             .region = decl.region(),
         });
 
-        try self.addGlobal(function_name, function.dyn.elem());
+        try self.addGlobal(module_id, function_name, function.dyn.elem());
 
         if (decl.param_count() > std.math.maxInt(u5)) {
             try self.printError(
+                module_id,
                 decl.identRegion(),
                 "Can't have more than {} parameters.",
                 .{std.math.maxInt(u5)},
@@ -279,12 +322,9 @@ pub const Compiler = struct {
         }
     }
 
-    fn declareAlias(self: *Compiler, sid: StringTable.Id, bodyElem: Elem) !void {
-        // Add an alias to the global namespace. Set the given body element as the alias's value.
-        try self.addGlobal(sid, bodyElem);
-    }
+    fn resolveAliasChain(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
+        const ast = self.getAst(module_id);
 
-    fn resolveAliasChain(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
         var path = AutoHashMap(StringTable.Id, void){};
         defer path.deinit(self.vm.allocator);
 
@@ -292,13 +332,13 @@ pub const Compiler = struct {
 
         while (true) {
             if (path.contains(target_ident_name)) {
-                try self.printError(decl.region(), "Circular alias dependency detected for '{s}'", .{self.vm.strings.get(decl.identName())});
+                try self.printError(module_id, decl.region(), "Circular alias dependency detected for '{s}'", .{self.vm.strings.get(decl.identName())});
                 return Error.AliasCycle;
             } else {
                 try path.put(self.vm.allocator, target_ident_name, undefined);
             }
 
-            if (self.can.declarations.get(target_ident_name)) |next_decl| {
+            if (ast.declarations.get(target_ident_name)) |next_decl| {
                 if (self.getAliasChainName(next_decl)) |next_target_ident_name| {
                     target_ident_name = next_target_ident_name;
                     continue;
@@ -312,26 +352,26 @@ pub const Compiler = struct {
         const terminal_sid = target_ident_name;
 
         // Try to resolve to a direct alias
-        if (self.can.declarations.get(target_ident_name)) |terminal_decl| {
+        if (ast.declarations.get(target_ident_name)) |terminal_decl| {
             if (try self.getAliasBody(terminal_decl)) |terminal_elem| {
-                try self.addGlobal(alias_sid, terminal_elem);
+                try self.addGlobal(module_id, alias_sid, terminal_elem);
                 return;
             }
         }
 
         // Try to resolve to a compiled function
-        if (self.findGlobal(terminal_sid)) |terminal_elem| {
-            try self.addGlobal(alias_sid, terminal_elem);
+        if (self.findGlobal(module_id, terminal_sid)) |terminal_elem| {
+            try self.addGlobal(module_id, alias_sid, terminal_elem);
             return;
         } else {
-            try self.printError(decl.region(), "Could not resolve alias, unknown variable '{s}'", .{self.vm.strings.get(target_ident_name)});
+            try self.printError(module_id, decl.region(), "Could not resolve alias, unknown variable '{s}'", .{self.vm.strings.get(target_ident_name)});
             return Error.UnknownVariable;
         }
     }
 
-    fn compileFunction(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !void {
+    fn compileFunction(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
         const global_sid = decl.identName();
-        const globalVal = (self.findGlobal(global_sid)).?;
+        const globalVal = (self.findGlobal(module_id, global_sid)).?;
 
         const function = globalVal.asDyn().asFunction();
 
@@ -340,96 +380,96 @@ pub const Compiler = struct {
         switch (decl) {
             .parser => |p| {
                 for (p.node.params.items) |param_ident| {
-                    try self.addLocal(param_ident);
+                    try self.addLocal(module_id, param_ident);
                 }
-                try self.addValueLocals(.{ .parser = p.node.body });
-                try self.writeParser(p.node.body, true);
+                try self.addValueLocals(module_id, .{ .parser = p.node.body });
+                try self.writeParser(module_id, p.node.body, true);
             },
             .value => |v| {
                 for (v.node.params.items) |param_ident| {
-                    try self.addLocal(.{ .value = param_ident });
+                    try self.addLocal(module_id, .{ .value = param_ident });
                 }
-                try self.addValueLocals(.{ .value = v.node.body });
-                try self.writeValue(v.node.body, true);
+                try self.addValueLocals(module_id, .{ .value = v.node.body });
+                try self.writeValue(module_id, v.node.body, true);
             },
         }
 
         try self.emitEnd();
 
-        if (self.printBytecode) {
+        if (self.printBytecode and module_id == self.target_module_id) {
             try function.disassemble(self.vm.*, self.writers.debug);
         }
 
         _ = self.function_contexts.pop(self.vm.allocator);
     }
 
-    fn writeParser(self: *Compiler, rnode: *Ast.Parser.RNode, isTailPosition: bool) !void {
+    fn writeParser(self: *Compiler, module_id: Module.Id, rnode: *Ast.Parser.RNode, isTailPosition: bool) !void {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
             .backtrack => |backtrack| {
                 try self.emitOp(.SetInputMark, region);
-                try self.writeParser(backtrack.left, false);
+                try self.writeParser(module_id, backtrack.left, false);
                 const jumpIndex = try self.emitJump(.Backtrack, region);
-                try self.writeParser(backtrack.right, isTailPosition);
-                try self.patchJump(jumpIndex, region);
+                try self.writeParser(module_id, backtrack.right, isTailPosition);
+                try self.patchJump(module_id, jumpIndex, region);
             },
             .merge => |merge| {
-                try self.writeParser(merge.left, false);
-                try self.writeParser(merge.right, false);
+                try self.writeParser(module_id, merge.left, false);
+                try self.writeParser(module_id, merge.right, false);
                 try self.emitOp(.Merge, region);
             },
             .take_left => |take_left| {
-                try self.writeParser(take_left.left, false);
+                try self.writeParser(module_id, take_left.left, false);
                 const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeParser(take_left.right, false);
+                try self.writeParser(module_id, take_left.right, false);
                 try self.emitOp(.TakeLeft, region);
-                try self.patchJump(jumpIndex, region);
+                try self.patchJump(module_id, jumpIndex, region);
             },
             .take_right => |take_right| {
-                try self.writeParser(take_right.left, false);
+                try self.writeParser(module_id, take_right.left, false);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeParser(take_right.right, isTailPosition);
-                try self.patchJump(jumpIndex, region);
+                try self.writeParser(module_id, take_right.right, isTailPosition);
+                try self.patchJump(module_id, jumpIndex, region);
             },
             .destructure => |destructure| {
-                try self.writeParser(destructure.left, false);
-                const patternId = try self.createPattern(destructure.right);
+                try self.writeParser(module_id, destructure.left, false);
+                const patternId = try self.createPattern(module_id, destructure.right);
                 try self.emitPattern(patternId, region);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
-                try self.writeParser(or_node.left, false);
+                try self.writeParser(module_id, or_node.left, false);
                 const jumpIndex = try self.emitJump(.Or, region);
-                try self.writeParser(or_node.right, isTailPosition);
-                try self.patchJump(jumpIndex, region);
+                try self.writeParser(module_id, or_node.right, isTailPosition);
+                try self.patchJump(module_id, jumpIndex, region);
             },
             .@"return" => |return_node| {
                 // Special case: `"" $ Foo` will always succeed and push `Foo` on the stack
                 if (return_node.left.node == .string and return_node.left.node.string.len == 0) {
-                    try self.writeValue(return_node.right, isTailPosition);
+                    try self.writeValue(module_id, return_node.right, isTailPosition);
                 } else {
-                    try self.writeParser(return_node.left, false);
+                    try self.writeParser(module_id, return_node.left, false);
                     const jumpIndex = try self.emitJump(.TakeRight, region);
-                    try self.writeValue(return_node.right, isTailPosition);
-                    try self.patchJump(jumpIndex, region);
+                    try self.writeValue(module_id, return_node.right, isTailPosition);
+                    try self.patchJump(module_id, jumpIndex, region);
                 }
             },
             .repeat => |repeat| {
-                try self.writeParserRepeat(repeat.left, repeat.right, region);
+                try self.writeParserRepeat(module_id, repeat.left, repeat.right, region);
             },
             .range => |bounds| {
                 if (bounds.lower != null and bounds.upper != null) {
-                    try self.writeRangeParser(bounds.lower.?, bounds.upper.?, region);
+                    try self.writeRangeParser(module_id, bounds.lower.?, bounds.upper.?, region);
                 } else if (bounds.lower != null) {
-                    try self.writeLowerBoundedRangeParser(bounds.lower.?, region);
+                    try self.writeLowerBoundedRangeParser(module_id, bounds.lower.?, region);
                 } else {
-                    try self.writeUpperBoundedRangeParser(bounds.upper.?, region);
+                    try self.writeUpperBoundedRangeParser(module_id, bounds.upper.?, region);
                 }
             },
             .negation => |inner| {
-                try self.writeNegatedParserElem(inner, region);
+                try self.writeNegatedParserElem(module_id, inner, region);
                 if (isTailPosition) {
                     try self.emitUnaryOp(.CallTailFunction, 0, region);
                 } else {
@@ -444,16 +484,16 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.CallFunctionLocal, slot, region);
                     }
                 } else {
-                    if (self.findGlobal(ident.name)) |globalElem| {
-                        try self.writeCallFunctionConstant(globalElem, region, isTailPosition);
+                    if (self.findGlobal(module_id, ident.name)) |globalElem| {
+                        try self.writeCallFunctionConstant(module_id, globalElem, region, isTailPosition);
                     } else {
-                        try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(ident.name)});
+                        try self.printError(module_id, region, "undefined variable '{s}'", .{self.vm.strings.get(ident.name)});
                         return Error.UndefinedVariable;
                     }
                 }
             },
             .function_call => |function_call| {
-                try self.writeParserFunctionCall(function_call.function, function_call.args, region, isTailPosition);
+                try self.writeParserFunctionCall(module_id, function_call.function, function_call.args, region, isTailPosition);
             },
             .number_string => |ns| {
                 const bytes = ns.number;
@@ -470,7 +510,7 @@ pub const Compiler = struct {
                     }
                 } else {
                     const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                    try self.writeCallFunctionConstant(elem, region, isTailPosition);
+                    try self.writeCallFunctionConstant(module_id, elem, region, isTailPosition);
                 }
             },
             .string => |string| {
@@ -481,27 +521,28 @@ pub const Compiler = struct {
                 } else {
                     const sid = try self.vm.strings.insert(string);
                     const elem = Elem.string(sid);
-                    try self.writeCallFunctionConstant(elem, region, isTailPosition);
+                    try self.writeCallFunctionConstant(module_id, elem, region, isTailPosition);
                 }
             },
             .string_template => |parts| {
-                try self.writeStringTemplateParser(parts, region);
+                try self.writeStringTemplateParser(module_id, parts, region);
             },
             .conditional => |conditional| {
                 try self.emitOp(.SetInputMark, region);
-                try self.writeParser(conditional.condition, false);
+                try self.writeParser(module_id, conditional.condition, false);
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
-                try self.writeParser(conditional.then_branch, isTailPosition);
+                try self.writeParser(module_id, conditional.then_branch, isTailPosition);
                 const thenElseJumpIndex = try self.emitJump(.Jump, region);
-                try self.patchJump(ifThenJumpIndex, region);
-                try self.writeParser(conditional.else_branch, isTailPosition);
-                try self.patchJump(thenElseJumpIndex, region);
+                try self.patchJump(module_id, ifThenJumpIndex, region);
+                try self.writeParser(module_id, conditional.else_branch, isTailPosition);
+                try self.patchJump(module_id, thenElseJumpIndex, region);
             },
         }
     }
 
     fn writeParserFunctionCall(
         self: *Compiler,
+        module_id: Module.Id,
         function: *Ast.Parser.RNode,
         arguments: ArrayList(Ast.ParserOrValue.RNode),
         call_region: Region,
@@ -521,12 +562,12 @@ pub const Compiler = struct {
         // elem at runtime.
         if (self.localSlot(function_id)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function.region);
-        } else if (self.findGlobal(function_id)) |global| {
+        } else if (self.findGlobal(module_id, function_id)) |global| {
             function_elem = global.asDyn().asFunction();
-            try self.writeConstant(global, function.region);
+            try self.writeConstant(module_id, global, function.region);
         } else {
             const function_name = self.vm.strings.get(function_id);
-            try self.printError(function.region, "Undefined function '{s}'", .{function_name});
+            try self.printError(module_id, function.region, "Undefined function '{s}'", .{function_name});
             return Error.UndefinedVariable;
         }
 
@@ -547,10 +588,10 @@ pub const Compiler = struct {
                 };
 
                 if (f.arity < arg_count) {
-                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ function_elem_name, f.arity, arg_count });
+                    try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got {d}", .{ function_elem_name, f.arity, arg_count });
                     return Error.FunctionCallTooManyArgs;
                 } else {
-                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ function_elem_name, f.arity, arg_count });
+                    try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got {d}", .{ function_elem_name, f.arity, arg_count });
                     return Error.FunctionCallTooFewArgs;
                 }
             }
@@ -565,9 +606,9 @@ pub const Compiler = struct {
                 const expected_is_parser = expected_type == .Parser;
                 if (is_parser_arg != expected_is_parser) {
                     if (expected_is_parser) {
-                        try self.printError(arg.region(), "Expected parser but got value", .{});
+                        try self.printError(module_id, arg.region(), "Expected parser but got value", .{});
                     } else {
-                        try self.printError(arg.region(), "Expected value but got parser", .{});
+                        try self.printError(module_id, arg.region(), "Expected value but got parser", .{});
                     }
                     return Error.FunctionCallTypeMismatch;
                 }
@@ -580,6 +621,7 @@ pub const Compiler = struct {
                 const region = first_arg.region().merge(last_arg.region());
 
                 try self.printError(
+                    module_id,
                     region,
                     "Can't have more than {} arguments.",
                     .{std.math.maxInt(u5)},
@@ -607,7 +649,7 @@ pub const Compiler = struct {
         }
 
         for (arguments.items) |arg| {
-            try self.writeParserFunctionArgument(arg);
+            try self.writeParserFunctionArgument(module_id, arg);
         }
 
         if (isTailPosition) {
@@ -617,7 +659,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeRangeParser(self: *Compiler, low: *Ast.Parser.RNode, high: *Ast.Parser.RNode, region: Region) !void {
+    fn writeRangeParser(self: *Compiler, module_id: Module.Id, low: *Ast.Parser.RNode, high: *Ast.Parser.RNode, region: Region) !void {
         const low_elem = try self.parserNodeToElem(low.node);
         const high_elem = try self.parserNodeToElem(high.node);
 
@@ -627,16 +669,16 @@ pub const Compiler = struct {
             const low_bytes = self.vm.strings.get(low_str);
             const high_bytes = self.vm.strings.get(high_str);
             const low_codepoint = parsing.utf8Decode(low_bytes) orelse {
-                try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
                 return Error.RangeNotSingleCodepoint;
             };
             const high_codepoint = parsing.utf8Decode(high_bytes) orelse {
-                try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
                 return Error.RangeNotSingleCodepoint;
             };
 
             if (low_codepoint > high_codepoint) {
-                try self.printError(low.region.merge(high.region), "Range upper bound codepoint is less than the lower bound", .{});
+                try self.printError(module_id, low.region.merge(high.region), "Range upper bound codepoint is less than the lower bound", .{});
                 return Error.RangeCodepointsUnordered;
             } else if (low_codepoint == 0 and high_codepoint == 0x10ffff) {
                 try self.emitOp(.ParseCodepoint, region);
@@ -645,8 +687,8 @@ pub const Compiler = struct {
                 try self.emitByte(@as(u8, @intCast(low_codepoint)), low.region);
                 try self.emitByte(@as(u8, @intCast(high_codepoint)), high.region);
             } else {
-                try self.writeConstant(low_elem.?, low.region);
-                try self.writeConstant(high_elem.?, high.region);
+                try self.writeConstant(module_id, low_elem.?, low.region);
+                try self.writeConstant(module_id, high_elem.?, high.region);
                 try self.emitOp(.ParseRange, region);
             }
         } else if (low.node == .number_string and high.node == .number_string) {
@@ -657,11 +699,11 @@ pub const Compiler = struct {
             const high_num = high_ns.toNumberFloat(self.vm.strings);
 
             if (!low_num.isInteger(self.vm.strings)) {
-                try self.printError(low.region, "Range bound must be an integer", .{});
+                try self.printError(module_id, low.region, "Range bound must be an integer", .{});
                 return Error.RangeInvalidNumberFormat;
             }
             if (!high_num.isInteger(self.vm.strings)) {
-                try self.printError(high.region, "Range bound must be an integer", .{});
+                try self.printError(module_id, high.region, "Range bound must be an integer", .{});
                 return Error.RangeInvalidNumberFormat;
             }
 
@@ -669,15 +711,15 @@ pub const Compiler = struct {
             const high_int = try high_num.asInteger(self.vm.strings);
 
             if (low_int > high_int) {
-                try self.printError(low.region.merge(high.region), "Range upper bound is less than the lower bound", .{});
+                try self.printError(module_id, low.region.merge(high.region), "Range upper bound is less than the lower bound", .{});
                 return Error.RangeIntegersUnordered;
             } else if (0 <= low_int and low_int <= 255 and 0 <= high_int and high_int <= 255) {
                 try self.emitOp(.ParseIntegerRange, region);
                 try self.emitByte(@as(u8, @intCast(low_int)), low.region);
                 try self.emitByte(@as(u8, @intCast(high_int)), high.region);
             } else {
-                try self.writeConstant(low_elem.?, low.region);
-                try self.writeConstant(high_elem.?, high.region);
+                try self.writeConstant(module_id, low_elem.?, low.region);
+                try self.writeConstant(module_id, high_elem.?, high.region);
                 try self.emitOp(.ParseRange, region);
             }
         } else {
@@ -686,31 +728,31 @@ pub const Compiler = struct {
                     const low_str = low_elem.?.asString();
                     const low_bytes = self.vm.strings.get(low_str);
                     _ = parsing.utf8Decode(low_bytes) orelse {
-                        try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                        try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
                         return Error.RangeNotSingleCodepoint;
                     };
 
-                    try self.writeConstant(low_elem.?, low.region);
+                    try self.writeConstant(module_id, low_elem.?, low.region);
                 },
                 .number_string => {
                     const low_ns = low_elem.?.asNumberString();
                     const low_num = low_ns.toNumberFloat(self.vm.strings);
 
                     if (!low_num.isInteger(self.vm.strings)) {
-                        try self.printError(low.region, "Range bound must be an integer", .{});
+                        try self.printError(module_id, low.region, "Range bound must be an integer", .{});
                         return Error.RangeInvalidNumberFormat;
                     }
 
-                    try self.writeConstant(low_num, low.region);
+                    try self.writeConstant(module_id, low_num, low.region);
                 },
                 .identifier => |ident| {
-                    try self.writeGetVar(ident.name, low.region);
+                    try self.writeGetVar(module_id, ident.name, low.region);
                 },
                 .negation => |inner| {
-                    try self.writeNegatedParserElem(inner, region);
+                    try self.writeNegatedParserElem(module_id, inner, region);
                 },
                 else => {
-                    try self.printError(low.region, "Range bound must be an integer or codepoint", .{});
+                    try self.printError(module_id, low.region, "Range bound must be an integer or codepoint", .{});
                     return Error.InvalidAst;
                 },
             }
@@ -720,31 +762,31 @@ pub const Compiler = struct {
                     const high_str = high_elem.?.asString();
                     const high_bytes = self.vm.strings.get(high_str);
                     _ = parsing.utf8Decode(high_bytes) orelse {
-                        try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                        try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
                         return Error.RangeNotSingleCodepoint;
                     };
 
-                    try self.writeConstant(high_elem.?, high.region);
+                    try self.writeConstant(module_id, high_elem.?, high.region);
                 },
                 .number_string => {
                     const high_ns = high_elem.?.asNumberString();
                     const high_num = high_ns.toNumberFloat(self.vm.strings);
 
                     if (!high_num.isInteger(self.vm.strings)) {
-                        try self.printError(high.region, "Range bound must be an integer", .{});
+                        try self.printError(module_id, high.region, "Range bound must be an integer", .{});
                         return Error.RangeInvalidNumberFormat;
                     }
 
-                    try self.writeConstant(high_num, high.region);
+                    try self.writeConstant(module_id, high_num, high.region);
                 },
                 .identifier => |ident| {
-                    try self.writeGetVar(ident.name, high.region);
+                    try self.writeGetVar(module_id, ident.name, high.region);
                 },
                 .negation => |inner| {
-                    try self.writeNegatedParserElem(inner, region);
+                    try self.writeNegatedParserElem(module_id, inner, region);
                 },
                 else => {
-                    try self.printError(high.region, "Range bound must be an integer or codepoint", .{});
+                    try self.printError(module_id, high.region, "Range bound must be an integer or codepoint", .{});
                     return Error.InvalidAst;
                 },
             }
@@ -753,7 +795,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeLowerBoundedRangeParser(self: *Compiler, low: *Ast.Parser.RNode, region: Region) !void {
+    fn writeLowerBoundedRangeParser(self: *Compiler, module_id: Module.Id, low: *Ast.Parser.RNode, region: Region) !void {
         const low_elem = try self.parserNodeToElem(low.node);
         const low_region = low.region;
 
@@ -762,14 +804,14 @@ pub const Compiler = struct {
                 const low_str = low_elem.?.asString();
                 const low_bytes = self.vm.strings.get(low_str);
                 const low_codepoint = parsing.utf8Decode(low_bytes) orelse {
-                    try self.printError(low.region, "Character range bound must be a single codepoint", .{});
+                    try self.printError(module_id, low.region, "Character range bound must be a single codepoint", .{});
                     return Error.RangeNotSingleCodepoint;
                 };
 
                 if (low_codepoint == 0) {
                     try self.emitOp(.ParseCodepoint, region);
                 } else {
-                    try self.writeConstant(low_elem.?, low_region);
+                    try self.writeConstant(module_id, low_elem.?, low_region);
                     try self.emitOp(.ParseLowerBoundedRange, region);
                 }
             },
@@ -779,29 +821,29 @@ pub const Compiler = struct {
                 const low_f = low_num.asFloat();
 
                 if (@trunc(low_f) != low_f) {
-                    try self.printError(low.region, "Range bound must be an integer", .{});
+                    try self.printError(module_id, low.region, "Range bound must be an integer", .{});
                     return Error.RangeInvalidNumberFormat;
                 }
 
-                try self.writeConstant(low_num, low_region);
+                try self.writeConstant(module_id, low_num, low_region);
                 try self.emitOp(.ParseLowerBoundedRange, region);
             },
             .identifier => |ident| {
-                try self.writeGetVar(ident.name, region);
+                try self.writeGetVar(module_id, ident.name, region);
                 try self.emitOp(.ParseLowerBoundedRange, region);
             },
             .negation => |inner| {
-                try self.writeNegatedParserElem(inner, region);
+                try self.writeNegatedParserElem(module_id, inner, region);
                 try self.emitOp(.ParseLowerBoundedRange, region);
             },
             else => {
-                try self.printError(low.region, "Range bound must be an integer or codepoint", .{});
+                try self.printError(module_id, low.region, "Range bound must be an integer or codepoint", .{});
                 return Error.InvalidAst;
             },
         }
     }
 
-    fn writeUpperBoundedRangeParser(self: *Compiler, high: *Ast.Parser.RNode, region: Region) !void {
+    fn writeUpperBoundedRangeParser(self: *Compiler, module_id: Module.Id, high: *Ast.Parser.RNode, region: Region) !void {
         const high_elem = try self.parserNodeToElem(high.node);
         const high_region = high.region;
 
@@ -810,14 +852,14 @@ pub const Compiler = struct {
                 const high_str = high_elem.?.asString();
                 const high_bytes = self.vm.strings.get(high_str);
                 const high_codepoint = parsing.utf8Decode(high_bytes) orelse {
-                    try self.printError(high.region, "Character range bound must be a single codepoint", .{});
+                    try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
                     return Error.RangeNotSingleCodepoint;
                 };
 
                 if (high_codepoint == 0x10ffff) {
                     try self.emitOp(.ParseCodepoint, region);
                 } else {
-                    try self.writeConstant(high_elem.?, high_region);
+                    try self.writeConstant(module_id, high_elem.?, high_region);
                     try self.emitOp(.ParseUpperBoundedRange, region);
                 }
             },
@@ -827,105 +869,105 @@ pub const Compiler = struct {
                 const high_f = high_num.asFloat();
 
                 if (@trunc(high_f) != high_f) {
-                    try self.printError(high.region, "Range bound must be an integer", .{});
+                    try self.printError(module_id, high.region, "Range bound must be an integer", .{});
                     return Error.RangeInvalidNumberFormat;
                 }
 
-                try self.writeConstant(high_num, high_region);
+                try self.writeConstant(module_id, high_num, high_region);
                 try self.emitOp(.ParseUpperBoundedRange, region);
             },
             .identifier => |ident| {
-                try self.writeGetVar(ident.name, region);
+                try self.writeGetVar(module_id, ident.name, region);
                 try self.emitOp(.ParseUpperBoundedRange, region);
             },
             .negation => |inner| {
-                try self.writeNegatedParserElem(inner, region);
+                try self.writeNegatedParserElem(module_id, inner, region);
                 try self.emitOp(.ParseUpperBoundedRange, region);
             },
             else => {
-                try self.printError(high.region, "Range bound must be an integer or codepoint", .{});
+                try self.printError(module_id, high.region, "Range bound must be an integer or codepoint", .{});
                 return Error.InvalidAst;
             },
         }
     }
 
-    fn writeParserRepeat(self: *Compiler, parser: *Ast.Parser.RNode, repeat: *Ast.Pattern.RNode, region: Region) !void {
+    fn writeParserRepeat(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, repeat: *Ast.Pattern.RNode, region: Region) !void {
         switch (repeat.node) {
             .number_float,
             .number_string,
             => {
-                return self.writeParserRepeatCount(parser, repeat, region);
+                return self.writeParserRepeatCount(module_id, parser, repeat, region);
             },
             .range => |bounds| {
                 if (bounds.lower != null and bounds.upper != null) {
                     const lower = bounds.lower.?;
                     const upper = bounds.upper.?;
 
-                    if (self.isBoundedRepeatCount(lower) and self.isBoundedRepeatCount(upper)) {
+                    if (self.isBoundedRepeatCount(module_id, lower) and self.isBoundedRepeatCount(module_id, upper)) {
                         // Both bounds: repeat between min and max times
-                        try self.writeParserRepeatRangeBounded(parser, lower, upper, region);
-                    } else if (self.isBoundedRepeatCount(lower)) {
+                        try self.writeParserRepeatRangeBounded(module_id, parser, lower, upper, region);
+                    } else if (self.isBoundedRepeatCount(module_id, lower)) {
                         // Lower bound number, upper bound pattern
-                        try self.writeParserRepeatRangeLowerBounded(parser, lower, upper, region);
-                    } else if (self.isBoundedRepeatCount(upper)) {
+                        try self.writeParserRepeatRangeLowerBounded(module_id, parser, lower, upper, region);
+                    } else if (self.isBoundedRepeatCount(module_id, upper)) {
                         // Upper bound number, lower bound pattern
-                        try self.writeParserRepeatRangeUpperBounded(parser, lower, upper, region);
+                        try self.writeParserRepeatRangeUpperBounded(module_id, parser, lower, upper, region);
                     } else {
                         // Pattern matching fallback
-                        try self.writeParserRepeatUnknownCount(parser, repeat, region);
+                        try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
                     }
-                } else if (bounds.lower != null and self.isBoundedRepeatCount(bounds.lower.?)) {
+                } else if (bounds.lower != null and self.isBoundedRepeatCount(module_id, bounds.lower.?)) {
                     // Lower bound only: repeat at least n times
-                    try self.writeParserRepeatRangeLowerBounded(parser, bounds.lower.?, null, region);
-                } else if (bounds.upper != null and self.isBoundedRepeatCount(bounds.upper.?)) {
+                    try self.writeParserRepeatRangeLowerBounded(module_id, parser, bounds.lower.?, null, region);
+                } else if (bounds.upper != null and self.isBoundedRepeatCount(module_id, bounds.upper.?)) {
                     // Upper bound only: repeat at most n times
-                    try self.writeParserRepeatRangeUpperBounded(parser, null, bounds.upper.?, region);
+                    try self.writeParserRepeatRangeUpperBounded(module_id, parser, null, bounds.upper.?, region);
                 } else {
                     // Pattern matching fallback
-                    try self.writeParserRepeatUnknownCount(parser, repeat, region);
+                    try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
                 }
             },
             .identifier => |ident| {
-                if (self.findGlobal(ident.name) != null) {
+                if (self.findGlobal(module_id, ident.name) != null) {
                     // Globals are always bound to a concrete value
-                    try self.writeParserRepeatCount(parser, repeat, region);
+                    try self.writeParserRepeatCount(module_id, parser, repeat, region);
                 } else {
                     const slot = self.localSlot(ident.name).?;
                     if (self.function_contexts.currentFunction().arity > slot) {
                         // The local var is a function arg, so we know it's bound
-                        try self.writeParserRepeatCount(parser, repeat, region);
+                        try self.writeParserRepeatCount(module_id, parser, repeat, region);
                     } else {
                         // The value may or may not be bound. Generate
                         // conditional code covering both cases.
                         try self.emitUnaryOp(.GetLocal, slot, repeat.region);
                         const knownCountJump = try self.emitJump(.JumpIfBound, repeat.region);
-                        try self.writeParserRepeatUnknownCount(parser, repeat, region);
+                        try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
                         const endJump = try self.emitJump(.Jump, repeat.region);
-                        try self.patchJump(knownCountJump, region);
-                        try self.writeParserRepeatCount(parser, repeat, region);
-                        try self.patchJump(endJump, region);
+                        try self.patchJump(module_id, knownCountJump, region);
+                        try self.writeParserRepeatCount(module_id, parser, repeat, region);
+                        try self.patchJump(module_id, endJump, region);
                         try self.emitOp(.Swap, region);
                         try self.emitOp(.Drop, region);
                     }
                 }
             },
             else => {
-                if (self.isBoundedRepeatCount(repeat)) {
-                    try self.writeParserRepeatCount(parser, repeat, region);
+                if (self.isBoundedRepeatCount(module_id, repeat)) {
+                    try self.writeParserRepeatCount(module_id, parser, repeat, region);
                 } else {
-                    try self.writeParserRepeatUnknownCount(parser, repeat, region);
+                    try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
                 }
             },
         }
     }
 
-    fn writeParserRepeatCount(self: *Compiler, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
+    fn writeParserRepeatCount(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
         // Value accumulator
-        try self.writeConstant(Elem.nullConst, parser.region);
+        try self.writeConstant(module_id, Elem.nullConst, parser.region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip to the end and return null
-        try self.writePatternAsBoundRepeatValue(count);
+        try self.writePatternAsBoundRepeatValue(module_id, count);
         try self.emitOp(.ValidateRepeatPattern, count.region);
         const nullJump = try self.emitJump(.JumpIfZero, repeat_region);
 
@@ -935,7 +977,7 @@ pub const Compiler = struct {
         try self.emitOp(.Swap, repeat_region);
 
         // Run parser, accumulate, end loop if failure
-        try self.writeParser(parser, false);
+        try self.writeParser(module_id, parser, false);
         try self.emitOp(.Merge, parser.region);
         const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
 
@@ -949,28 +991,28 @@ pub const Compiler = struct {
 
         // For the failure case swap up the counter. The
         // non-failure case already has the counter on top.
-        try self.patchJump(failureJump, parser.region);
+        try self.patchJump(module_id, failureJump, parser.region);
         try self.emitOp(.Swap, repeat_region);
 
         // Cleanup: drop the counter
-        try self.patchJump(nullJump, count.region);
-        try self.patchJump(doneJump, repeat_region);
+        try self.patchJump(module_id, nullJump, count.region);
+        try self.patchJump(module_id, doneJump, repeat_region);
         try self.emitOp(.Drop, count.region);
     }
 
-    fn writeParserRepeatUnknownCount(self: *Compiler, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
+    fn writeParserRepeatUnknownCount(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
         // Count accumulator
-        try self.writeConstant(Elem.numberFloat(0), count.region);
+        try self.writeConstant(module_id, Elem.numberFloat(0), count.region);
 
         // Value accumulator
-        try self.writeConstant(Elem.nullConst, parser.region);
+        try self.writeConstant(module_id, Elem.nullConst, parser.region);
 
         // Start of the parse loop
         const loopStart = self.chunk().code.items.len;
 
         // Run parser, end loop if failure, otherwise accumulate
         try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(parser, false);
+        try self.writeParser(module_id, parser, false);
         const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
         try self.emitOp(.PopInputMark, parser.region);
         try self.emitOp(.Merge, parser.region);
@@ -985,24 +1027,24 @@ pub const Compiler = struct {
 
         // When we fail the stack has [..., count, acc, failure]
         // Drop the failure, destructure the count, return acc
-        try self.patchJump(failureJump, parser.region);
+        try self.patchJump(module_id, failureJump, parser.region);
         try self.emitOp(.ResetInput, parser.region);
         try self.emitOp(.Drop, parser.region);
         try self.emitOp(.Swap, count.region);
-        const patternId = try self.createPattern(count);
+        const patternId = try self.createPattern(module_id, count);
         try self.emitPattern(patternId, repeat_region);
 
         // Cleanup: drop the counter
         try self.emitOp(.Drop, parser.region);
     }
 
-    fn writeParserRepeatRangeBounded(self: *Compiler, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
+    fn writeParserRepeatRangeBounded(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
         // Value accumulator
-        try self.writeConstant(Elem.nullConst, region);
+        try self.writeConstant(module_id, Elem.nullConst, region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip the lower bound loop
-        try self.writePatternAsBoundRepeatValue(lower);
+        try self.writePatternAsBoundRepeatValue(module_id, lower);
         try self.emitOp(.ValidateRepeatPattern, lower.region);
         const skipLowerBoundJump = try self.emitJump(.JumpIfZero, region);
 
@@ -1012,7 +1054,7 @@ pub const Compiler = struct {
         try self.emitOp(.Swap, region);
 
         // Run parser, accumulate, end loop if failure
-        try self.writeParser(parser, false);
+        try self.writeParser(module_id, parser, false);
         try self.emitOp(.Merge, parser.region);
         const failureLowerBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
 
@@ -1024,14 +1066,14 @@ pub const Compiler = struct {
         // Otherwise return to loop start
         try self.emitJumpBack(.JumpBack, loopStartRequired, region);
 
-        try self.patchJump(skipLowerBoundJump, region);
-        try self.patchJump(doneLowerBoundJump, region);
+        try self.patchJump(module_id, skipLowerBoundJump, region);
+        try self.patchJump(module_id, doneLowerBoundJump, region);
 
         // Drop the old counter (it's 0), create a new counter to parse up to
         // to `upper - lower` more times (optional)
         try self.emitOp(.Drop, region);
-        try self.writePatternAsBoundRepeatValue(upper);
-        try self.writePatternAsBoundRepeatValue(lower);
+        try self.writePatternAsBoundRepeatValue(module_id, upper);
+        try self.writePatternAsBoundRepeatValue(module_id, lower);
         try self.emitOp(.NegateNumber, region);
         try self.emitOp(.Merge, region);
         try self.emitOp(.ValidateRepeatPattern, upper.region);
@@ -1041,7 +1083,7 @@ pub const Compiler = struct {
         const loopStart = self.chunk().code.items.len;
         try self.emitOp(.Swap, region);
         try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(parser, false);
+        try self.writeParser(module_id, parser, false);
         const failureUpperBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
         try self.emitOp(.PopInputMark, parser.region);
         try self.emitOp(.Merge, parser.region);
@@ -1051,31 +1093,31 @@ pub const Compiler = struct {
         try self.emitJumpBack(.JumpBack, loopStart, region);
 
         // Parser failed, stack is [..., count, acc, failure]
-        try self.patchJump(failureUpperBoundJump, parser.region);
+        try self.patchJump(module_id, failureUpperBoundJump, parser.region);
         try self.emitOp(.ResetInput, parser.region);
         try self.emitOp(.Drop, parser.region);
 
         // Got here by failing before reaching the minimum number of iters. The
         // stack is [..., count, failure] and we want to return failure
-        try self.patchJump(failureLowerBoundJump, region);
+        try self.patchJump(module_id, failureLowerBoundJump, region);
 
         // Swap up the count
         try self.emitOp(.Swap, region);
 
         // Got here by matching against a zero count, stack is [..., acc, count]
-        try self.patchJump(skipUpperBoundJump, region);
-        try self.patchJump(doneJump, region);
+        try self.patchJump(module_id, skipUpperBoundJump, region);
+        try self.patchJump(module_id, doneJump, region);
 
         try self.emitOp(.Drop, region);
     }
 
-    fn writeParserRepeatRangeLowerBounded(self: *Compiler, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper_pattern: ?*Ast.Pattern.RNode, region: Region) Error!void {
+    fn writeParserRepeatRangeLowerBounded(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper_pattern: ?*Ast.Pattern.RNode, region: Region) Error!void {
         // Value accumulator
-        try self.writeConstant(Elem.nullConst, region);
+        try self.writeConstant(module_id, Elem.nullConst, region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip the lower bound loop
-        try self.writePatternAsBoundRepeatValue(lower);
+        try self.writePatternAsBoundRepeatValue(module_id, lower);
         try self.emitOp(.ValidateRepeatPattern, lower.region);
         const skipLowerBoundJump = try self.emitJump(.JumpIfZero, region);
 
@@ -1085,7 +1127,7 @@ pub const Compiler = struct {
         try self.emitOp(.Swap, region);
 
         // Run parser, accumulate, end loop if failure
-        try self.writeParser(parser, false);
+        try self.writeParser(module_id, parser, false);
         try self.emitOp(.Merge, parser.region);
         const failureLowerBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
 
@@ -1098,8 +1140,8 @@ pub const Compiler = struct {
         try self.emitJumpBack(.JumpBack, loopStartRequired, region);
 
         // Now continue parsing indefinitely (optional iterations)
-        try self.patchJump(skipLowerBoundJump, region);
-        try self.patchJump(doneLowerBoundJump, region);
+        try self.patchJump(module_id, skipLowerBoundJump, region);
+        try self.patchJump(module_id, doneLowerBoundJump, region);
 
         // Count under acc
         try self.emitOp(.Swap, region);
@@ -1109,7 +1151,7 @@ pub const Compiler = struct {
 
         // Run parser, end loop if failure, otherwise accumulate
         try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(parser, false);
+        try self.writeParser(module_id, parser, false);
         const failureJumpOptional = try self.emitJump(.JumpIfFailure, parser.region);
         try self.emitOp(.PopInputMark, parser.region);
         try self.emitOp(.Merge, parser.region);
@@ -1126,32 +1168,32 @@ pub const Compiler = struct {
 
         // When we fail the stack has [..., count, acc, failure]
         // Drop the failure, maybe destructure the count, return acc
-        try self.patchJump(failureJumpOptional, parser.region);
+        try self.patchJump(module_id, failureJumpOptional, parser.region);
         try self.emitOp(.ResetInput, parser.region);
         try self.emitOp(.Drop, parser.region);
 
         // Swap up the count, add the lower to get the total number of iters, destructure
         if (upper_pattern) |upper| {
             try self.emitOp(.Swap, upper.region);
-            try self.writePatternAsBoundRepeatValue(lower);
+            try self.writePatternAsBoundRepeatValue(module_id, lower);
             try self.emitOp(.Merge, parser.region);
-            const patternId = try self.createPattern(upper);
+            const patternId = try self.createPattern(module_id, upper);
             try self.emitPattern(patternId, upper.region);
             try self.emitOp(.Swap, region);
         }
 
-        try self.patchJump(failureLowerBoundJump, region);
+        try self.patchJump(module_id, failureLowerBoundJump, region);
         try self.emitOp(.Swap, region);
         try self.emitOp(.Drop, region);
     }
 
-    fn writeParserRepeatRangeUpperBounded(self: *Compiler, parser: *Ast.Parser.RNode, lower_pattern: ?*Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
+    fn writeParserRepeatRangeUpperBounded(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, lower_pattern: ?*Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
         // Value accumulator
-        try self.writeConstant(Elem.nullConst, region);
+        try self.writeConstant(module_id, Elem.nullConst, region);
 
         // Create the counter, validate it, if it starts at zero
         // then skip to end and return null
-        try self.writePatternAsBoundRepeatValue(upper);
+        try self.writePatternAsBoundRepeatValue(module_id, upper);
         try self.emitOp(.ValidateRepeatPattern, upper.region);
         const nullJump = try self.emitJump(.JumpIfZero, region);
 
@@ -1159,7 +1201,7 @@ pub const Compiler = struct {
         const loopStart = self.chunk().code.items.len;
         try self.emitOp(.Swap, region);
         try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(parser, false);
+        try self.writeParser(module_id, parser, false);
         const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
         try self.emitOp(.PopInputMark, parser.region);
         try self.emitOp(.Merge, parser.region);
@@ -1170,13 +1212,13 @@ pub const Compiler = struct {
 
         // Parser failed, stack is [..., count, acc, failure]
         // Drop the failure and swap up the count so we can pattern match/cleanup
-        try self.patchJump(failureJump, parser.region);
+        try self.patchJump(module_id, failureJump, parser.region);
         try self.emitOp(.ResetInput, parser.region);
         try self.emitOp(.Drop, parser.region);
         try self.emitOp(.Swap, region);
 
-        try self.patchJump(nullJump, region);
-        try self.patchJump(doneJump, region);
+        try self.patchJump(module_id, nullJump, region);
+        try self.patchJump(module_id, doneJump, region);
 
         if (lower_pattern) |lower| {
             // Use the remaining count to figure out the number of successful iters
@@ -1184,16 +1226,16 @@ pub const Compiler = struct {
             // But since the count is on the stack we do
             //   -count + upper = completed
             try self.emitOp(.NegateNumber, region);
-            try self.writePatternAsBoundRepeatValue(upper);
+            try self.writePatternAsBoundRepeatValue(module_id, upper);
             try self.emitOp(.Merge, region);
-            const patternId = try self.createPattern(lower);
+            const patternId = try self.createPattern(module_id, lower);
             try self.emitPattern(patternId, lower.region);
         }
 
         try self.emitOp(.Drop, region);
     }
 
-    fn isBoundedRepeatCount(self: *Compiler, rnode: *Ast.Pattern.RNode) bool {
+    fn isBoundedRepeatCount(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) bool {
         return switch (rnode.node) {
             .function_call,
             .false,
@@ -1207,7 +1249,7 @@ pub const Compiler = struct {
                 if (ident.builtin) {
                     return true;
                 } else {
-                    if (self.findGlobal(ident.name) != null) {
+                    if (self.findGlobal(module_id, ident.name) != null) {
                         return true;
                     } else if (self.localSlot(ident.name)) |slot| {
                         return self.function_contexts.currentFunction().arity > slot;
@@ -1218,17 +1260,17 @@ pub const Compiler = struct {
             },
             .range => |range| {
                 if (range.lower) |lower| {
-                    const lower_good = self.isBoundedRepeatCount(lower);
+                    const lower_good = self.isBoundedRepeatCount(module_id, lower);
                     if (!lower_good) return false;
                 }
                 if (range.upper) |upper| {
-                    const upper_good = self.isBoundedRepeatCount(upper);
+                    const upper_good = self.isBoundedRepeatCount(module_id, upper);
                     if (!upper_good) return false;
                 }
                 return true;
             },
-            .negation => |inner| self.isBoundedRepeatCount(inner),
-            .merge => |merge| self.isBoundedRepeatCount(merge.left) and self.isBoundedRepeatCount(merge.right),
+            .negation => |inner| self.isBoundedRepeatCount(module_id, inner),
+            .merge => |merge| self.isBoundedRepeatCount(module_id, merge.left) and self.isBoundedRepeatCount(module_id, merge.right),
             .array,
             .object,
             .string_template,
@@ -1237,40 +1279,40 @@ pub const Compiler = struct {
         };
     }
 
-    fn writeNegatedParserElem(self: *Compiler, negated: *Ast.Parser.RNode, region: Region) !void {
+    fn writeNegatedParserElem(self: *Compiler, module_id: Module.Id, negated: *Ast.Parser.RNode, region: Region) !void {
         switch (negated.node) {
             .negation => {
-                try self.printError(region, "Double-negated parser", .{});
+                try self.printError(module_id, region, "Double-negated parser", .{});
                 return Error.InvalidAst;
             },
             .number_string => |ns| {
                 if (ns.negated) {
-                    try self.printError(region, "Double-negated parser", .{});
+                    try self.printError(module_id, region, "Double-negated parser", .{});
                     return Error.InvalidAst;
                 }
                 const elem = try self.numberStringNodeToElem(ns.number, true);
-                try self.writeConstant(elem, negated.region);
+                try self.writeConstant(module_id, elem, negated.region);
             },
             .identifier => |ident| {
                 // Determine at runtime if negating the parser is valid
-                try self.writeGetVar(ident.name, region);
+                try self.writeGetVar(module_id, ident.name, region);
                 try self.emitOp(.NegateParser, region);
             },
             else => {
-                try self.printError(region, "Negated parser must be a number or named number parser", .{});
+                try self.printError(module_id, region, "Negated parser must be a number or named number parser", .{});
                 return Error.InvalidAst;
             },
         }
     }
 
-    fn writeGetVar(self: *Compiler, name: StringTable.Id, region: Region) !void {
+    fn writeGetVar(self: *Compiler, module_id: Module.Id, name: StringTable.Id, region: Region) !void {
         if (self.localSlot(name)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, region);
         } else {
-            if (self.findGlobal(name)) |globalElem| {
-                try self.writeConstant(globalElem, region);
+            if (self.findGlobal(module_id, name)) |globalElem| {
+                try self.writeConstant(module_id, globalElem, region);
             } else {
-                try self.printError(region, "undefined variable '{s}'", .{self.vm.strings.get(name)});
+                try self.printError(module_id, region, "undefined variable '{s}'", .{self.vm.strings.get(name)});
                 return Error.UndefinedVariable;
             }
         }
@@ -1304,54 +1346,54 @@ pub const Compiler = struct {
         return result;
     }
 
-    fn writeParserFunctionArgument(self: *Compiler, rnode: Ast.ParserOrValue.RNode) !void {
+    fn writeParserFunctionArgument(self: *Compiler, module_id: Module.Id, rnode: Ast.ParserOrValue.RNode) !void {
         const region = rnode.region();
 
         switch (rnode) {
             .parser => |p| switch (p.node) {
                 .number_string => |ns| {
                     const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                    try self.writeConstant(elem, region);
+                    try self.writeConstant(module_id, elem, region);
                 },
                 .string => |string| {
                     const sid = try self.vm.strings.insert(string);
                     const elem = Elem.string(sid);
-                    try self.writeConstant(elem, region);
+                    try self.writeConstant(module_id, elem, region);
                 },
                 .identifier => |ident| {
-                    try self.writeGetVar(ident.name, region);
+                    try self.writeGetVar(module_id, ident.name, region);
                 },
                 else => {
-                    try self.writeParserAnonymousFunction(p);
+                    try self.writeParserAnonymousFunction(module_id, p);
                 },
             },
-            .value => |v| try self.writeValue(v, false),
+            .value => |v| try self.writeValue(module_id, v, false),
         }
     }
 
-    fn writeParserAnonymousFunction(self: *Compiler, rnode: *Ast.Parser.RNode) Error!void {
+    fn writeParserAnonymousFunction(self: *Compiler, module_id: Module.Id, rnode: *Ast.Parser.RNode) Error!void {
         const region = rnode.region;
 
         const function = try Elem.DynElem.Function.createAnonParser(
             self.vm,
-            .{ .module_id = self.moduleId(), .arity = 0, .region = region },
+            .{ .module_id = module_id, .arity = 0, .region = region },
         );
 
         // Prevent GC
-        const constId = try self.makeConstant(function.dyn.elem());
+        const constId = try self.makeConstant(module_id, function.dyn.elem());
 
         try self.function_contexts.append(self.vm.allocator, function);
 
-        try self.addClosureLocals(.{ .parser = rnode });
+        try self.addClosureLocals(module_id, .{ .parser = rnode });
 
         if (self.function_contexts.current().locals.items.len > 0) {
             try self.emitOp(.SetClosureCaptures, region);
         }
 
-        try self.writeParser(rnode, true);
+        try self.writeParser(module_id, rnode, true);
         try self.emitEnd();
 
-        if (self.printBytecode) {
+        if (self.printBytecode and module_id == self.target_module_id) {
             try function.disassemble(self.vm.*, self.writers.debug);
         }
 
@@ -1390,33 +1432,34 @@ pub const Compiler = struct {
         }
     }
 
-    fn createPattern(self: *Compiler, rnode: *Ast.Pattern.RNode) Error!u24 {
-        const patternElem = try self.astToPattern(rnode, 0);
-        return @intCast(try self.module().addPattern(self.vm.allocator, patternElem));
+    fn createPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) Error!u24 {
+        const patternElem = try self.astToPattern(module_id, rnode, 0);
+        const module = self.vm.getModule(module_id);
+        return @intCast(try module.addPattern(self.vm.allocator, patternElem));
     }
 
-    fn astToPattern(self: *Compiler, rnode: *Ast.Pattern.RNode, negation_count: u2) Error!Pattern {
+    fn astToPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode, negation_count: u2) Error!Pattern {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
             .false => {
                 if (negation_count > 0) {
-                    try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
+                    try self.printError(module_id, region, "Invalid pattern - unable to negate boolean", .{});
                     return Error.InvalidAst;
                 }
                 return Pattern{ .Boolean = false };
             },
             .true => {
                 if (negation_count > 0) {
-                    try self.printError(region, "Invalid pattern - unable to negate boolean", .{});
+                    try self.printError(module_id, region, "Invalid pattern - unable to negate boolean", .{});
                     return Error.InvalidAst;
                 }
                 return Pattern{ .Boolean = true };
             },
             .null => {
                 if (negation_count > 0) {
-                    try self.printError(region, "Invalid pattern - unable to negate null", .{});
+                    try self.printError(module_id, region, "Invalid pattern - unable to negate null", .{});
                     return Error.InvalidAst;
                 }
                 return Pattern{ .Null = {} };
@@ -1436,7 +1479,7 @@ pub const Compiler = struct {
             },
             .string => |s| {
                 if (negation_count > 0) {
-                    try self.printError(region, "Invalid pattern - unable to negate string", .{});
+                    try self.printError(module_id, region, "Invalid pattern - unable to negate string", .{});
                     return Error.InvalidAst;
                 }
                 const sid = try self.vm.strings.insert(s);
@@ -1444,8 +1487,8 @@ pub const Compiler = struct {
             },
             .identifier => |ident| {
                 const sid = ident.name;
-                if (self.findGlobal(sid)) |globalElem| {
-                    const constId = try self.makeConstant(globalElem);
+                if (self.findGlobal(module_id, sid)) |globalElem| {
+                    const constId = try self.makeConstant(module_id, globalElem);
                     return Pattern{ .Constant = .{
                         .sid = sid,
                         .idx = constId,
@@ -1462,7 +1505,7 @@ pub const Compiler = struct {
             },
             .array => |elements| {
                 if (negation_count > 0) {
-                    try self.printError(region, "Invalid pattern - unable to negate array", .{});
+                    try self.printError(module_id, region, "Invalid pattern - unable to negate array", .{});
                     return Error.InvalidAst;
                 }
 
@@ -1470,7 +1513,7 @@ pub const Compiler = struct {
                 try patternElems.ensureTotalCapacity(self.vm.allocator, elements.items.len);
 
                 for (elements.items) |elementNode| {
-                    const elementPattern = try self.astToPattern(elementNode, 0);
+                    const elementPattern = try self.astToPattern(module_id, elementNode, 0);
                     try patternElems.append(self.vm.allocator, elementPattern);
                 }
 
@@ -1478,7 +1521,7 @@ pub const Compiler = struct {
             },
             .object => |pairs| {
                 if (negation_count > 0) {
-                    try self.printError(region, "Invalid pattern - unable to negate object", .{});
+                    try self.printError(module_id, region, "Invalid pattern - unable to negate object", .{});
                     return Error.InvalidAst;
                 }
 
@@ -1487,8 +1530,8 @@ pub const Compiler = struct {
 
                 for (pairs.items) |pair| {
                     try objectPairs.append(self.vm.allocator, .{
-                        .key = try self.astToPattern(pair.key, 0),
-                        .value = try self.astToPattern(pair.value, 0),
+                        .key = try self.astToPattern(module_id, pair.key, 0),
+                        .value = try self.astToPattern(module_id, pair.value, 0),
                     });
                 }
 
@@ -1496,7 +1539,7 @@ pub const Compiler = struct {
             },
             .string_template => |segments| {
                 if (negation_count > 0) {
-                    try self.printError(region, "Invalid pattern - unable to negate string", .{});
+                    try self.printError(module_id, region, "Invalid pattern - unable to negate string", .{});
                     return Error.InvalidAst;
                 }
 
@@ -1504,7 +1547,7 @@ pub const Compiler = struct {
                 try templateElems.ensureTotalCapacity(self.vm.allocator, segments.items.len);
 
                 for (segments.items) |segmentNode| {
-                    const segmentPattern = try self.astToPattern(segmentNode, 0);
+                    const segmentPattern = try self.astToPattern(module_id, segmentNode, 0);
                     try templateElems.append(self.vm.allocator, segmentPattern);
                 }
 
@@ -1516,12 +1559,12 @@ pub const Compiler = struct {
 
                 if (bounds.lower) |lower| {
                     lowerPattern = try self.vm.allocator.create(Pattern);
-                    lowerPattern.?.* = try self.astToPattern(lower, negation_count);
+                    lowerPattern.?.* = try self.astToPattern(module_id, lower, negation_count);
                 }
 
                 if (bounds.upper) |upper| {
                     upperPattern = try self.vm.allocator.create(Pattern);
-                    upperPattern.?.* = try self.astToPattern(upper, negation_count);
+                    upperPattern.?.* = try self.astToPattern(module_id, upper, negation_count);
                 }
 
                 return Pattern{ .Range = .{
@@ -1531,7 +1574,7 @@ pub const Compiler = struct {
             },
             .negation => |inner| {
                 const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
-                return self.astToPattern(inner, new_negation_count);
+                return self.astToPattern(module_id, inner, new_negation_count);
             },
             .function_call => |function_call| {
                 const nameNode = function_call.function.node;
@@ -1539,16 +1582,16 @@ pub const Compiler = struct {
                 const function_ident = if (nameNode == .identifier and !nameNode.identifier.underscored)
                     nameNode.identifier
                 else {
-                    try self.printError(region, "Parser is not valid in pattern", .{});
+                    try self.printError(module_id, region, "Parser is not valid in pattern", .{});
                     return Error.InvalidAst;
                 };
 
-                const globalFunctionElem = self.findGlobal(function_ident.name);
+                const globalFunctionElem = self.findGlobal(module_id, function_ident.name);
 
                 const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
                     .{
                         .sid = function_ident.name,
-                        .idx = try self.makeConstant(globalElem),
+                        .idx = try self.makeConstant(module_id, globalElem),
                         .negation_count = negation_count,
                     }
                 else if (self.localSlot(function_ident.name)) |slot|
@@ -1558,13 +1601,13 @@ pub const Compiler = struct {
                         .negation_count = negation_count,
                     }
                 else {
-                    try self.printError(function_call.function.region, "Unknown function in pattern", .{});
+                    try self.printError(module_id, function_call.function.region, "Unknown function in pattern", .{});
                     return Error.InvalidAst;
                 };
 
                 var args = ArrayList(Pattern){};
                 for (function_call.args.items) |arg| {
-                    const argPattern = try self.astToValueInPattern(arg, 0);
+                    const argPattern = try self.astToValueInPattern(module_id, arg, 0);
                     try args.append(self.vm.allocator, argPattern);
                 }
 
@@ -1576,38 +1619,38 @@ pub const Compiler = struct {
             },
             .merge => {
                 var mergeElems = ArrayList(Pattern){};
-                try self.collectPatternMergeElements(rnode, &mergeElems, negation_count);
+                try self.collectPatternMergeElements(module_id, rnode, &mergeElems, negation_count);
                 return Pattern{ .Merge = mergeElems };
             },
             .repeat => |infix| {
                 const pattern = try self.vm.allocator.create(Pattern);
-                pattern.* = try self.astToPattern(infix.left, negation_count);
+                pattern.* = try self.astToPattern(module_id, infix.left, negation_count);
 
                 const count = try self.vm.allocator.create(Pattern);
-                count.* = try self.astToPattern(infix.right, 0);
+                count.* = try self.astToPattern(module_id, infix.right, 0);
                 return Pattern{ .Repeat = .{ .pattern = pattern, .count = count } };
             },
         }
     }
 
-    fn collectPatternMergeElements(self: *Compiler, rnode: *Ast.Pattern.RNode, elements: *ArrayList(Pattern), negation_count: u2) Error!void {
+    fn collectPatternMergeElements(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode, elements: *ArrayList(Pattern), negation_count: u2) Error!void {
         const node = rnode.node;
 
         switch (node) {
             .merge => |merge| {
-                try self.collectPatternMergeElements(merge.left, elements, negation_count);
-                try self.collectPatternMergeElements(merge.right, elements, negation_count);
+                try self.collectPatternMergeElements(module_id, merge.left, elements, negation_count);
+                try self.collectPatternMergeElements(module_id, merge.right, elements, negation_count);
                 return;
             },
             else => {},
         }
 
         // Merge pattern part
-        const pattern = try self.astToPattern(rnode, negation_count);
+        const pattern = try self.astToPattern(module_id, rnode, negation_count);
         try elements.append(self.vm.allocator, pattern);
     }
 
-    fn astToValueInPattern(self: *Compiler, rnode: *Ast.Value.RNode, negation_count: u2) Error!Pattern {
+    fn astToValueInPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Value.RNode, negation_count: u2) Error!Pattern {
         const node = rnode.node;
         const region = rnode.region;
 
@@ -1636,7 +1679,7 @@ pub const Compiler = struct {
             },
             .string => |s| {
                 if (negation_count > 0) {
-                    try self.printError(region, "Invalid pattern - unable to negate string", .{});
+                    try self.printError(module_id, region, "Invalid pattern - unable to negate string", .{});
                     return Error.InvalidAst;
                 }
                 const sid = try self.vm.strings.insert(s);
@@ -1644,13 +1687,13 @@ pub const Compiler = struct {
             },
             .negation => |inner| {
                 const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
-                return self.astToValueInPattern(inner, new_negation_count);
+                return self.astToValueInPattern(module_id, inner, new_negation_count);
             },
             .identifier => |ident| {
-                if (self.findGlobal(ident.name)) |elem| {
+                if (self.findGlobal(module_id, ident.name)) |elem| {
                     return Pattern{ .Constant = .{
                         .sid = ident.name,
-                        .idx = try self.makeConstant(elem),
+                        .idx = try self.makeConstant(module_id, elem),
                         .negation_count = negation_count,
                     } };
                 } else {
@@ -1663,74 +1706,74 @@ pub const Compiler = struct {
                 }
             },
             else => {
-                try self.printError(region, "Unsupported value node in pattern", .{});
+                try self.printError(module_id, region, "Unsupported value node in pattern", .{});
                 return Error.InvalidAst;
             },
         }
     }
 
-    fn addValueLocals(self: *Compiler, rnode: Ast.ParserOrValueOrPattern.RNode) !void {
+    fn addValueLocals(self: *Compiler, module_id: Module.Id, rnode: Ast.ParserOrValueOrPattern.RNode) !void {
         const region = rnode.region();
 
         switch (rnode) {
             .parser => |p| {
                 switch (p.node) {
                     .@"return" => |ret| {
-                        try self.addValueLocals(.{ .parser = ret.left });
-                        try self.addValueLocals(.{ .value = ret.right });
+                        try self.addValueLocals(module_id, .{ .parser = ret.left });
+                        try self.addValueLocals(module_id, .{ .value = ret.right });
                     },
                     .function_call => |func| {
-                        try self.addValueLocals(.{ .parser = func.function });
+                        try self.addValueLocals(module_id, .{ .parser = func.function });
                         for (func.args.items) |arg| {
                             switch (arg) {
-                                .parser => |p_arg| try self.addValueLocals(.{ .parser = p_arg }),
-                                .value => |v_arg| try self.addValueLocals(.{ .value = v_arg }),
+                                .parser => |p_arg| try self.addValueLocals(module_id, .{ .parser = p_arg }),
+                                .value => |v_arg| try self.addValueLocals(module_id, .{ .value = v_arg }),
                             }
                         }
                     },
                     .@"or" => |or_node| {
-                        try self.addValueLocals(.{ .parser = or_node.left });
-                        try self.addValueLocals(.{ .parser = or_node.right });
+                        try self.addValueLocals(module_id, .{ .parser = or_node.left });
+                        try self.addValueLocals(module_id, .{ .parser = or_node.right });
                     },
                     .backtrack => |bt_node| {
-                        try self.addValueLocals(.{ .parser = bt_node.left });
-                        try self.addValueLocals(.{ .parser = bt_node.right });
+                        try self.addValueLocals(module_id, .{ .parser = bt_node.left });
+                        try self.addValueLocals(module_id, .{ .parser = bt_node.right });
                     },
                     .merge => |merge_node| {
-                        try self.addValueLocals(.{ .parser = merge_node.left });
-                        try self.addValueLocals(.{ .parser = merge_node.right });
+                        try self.addValueLocals(module_id, .{ .parser = merge_node.left });
+                        try self.addValueLocals(module_id, .{ .parser = merge_node.right });
                     },
                     .take_left => |take_node| {
-                        try self.addValueLocals(.{ .parser = take_node.left });
-                        try self.addValueLocals(.{ .parser = take_node.right });
+                        try self.addValueLocals(module_id, .{ .parser = take_node.left });
+                        try self.addValueLocals(module_id, .{ .parser = take_node.right });
                     },
                     .take_right => |take_node| {
-                        try self.addValueLocals(.{ .parser = take_node.left });
-                        try self.addValueLocals(.{ .parser = take_node.right });
+                        try self.addValueLocals(module_id, .{ .parser = take_node.left });
+                        try self.addValueLocals(module_id, .{ .parser = take_node.right });
                     },
                     .conditional => |cond| {
-                        try self.addValueLocals(.{ .parser = cond.condition });
-                        try self.addValueLocals(.{ .parser = cond.then_branch });
-                        try self.addValueLocals(.{ .parser = cond.else_branch });
+                        try self.addValueLocals(module_id, .{ .parser = cond.condition });
+                        try self.addValueLocals(module_id, .{ .parser = cond.then_branch });
+                        try self.addValueLocals(module_id, .{ .parser = cond.else_branch });
                     },
                     .destructure => |dest| {
-                        try self.addValueLocals(.{ .parser = dest.left });
-                        try self.addValueLocals(.{ .pattern = dest.right });
+                        try self.addValueLocals(module_id, .{ .parser = dest.left });
+                        try self.addValueLocals(module_id, .{ .pattern = dest.right });
                     },
                     .negation => |neg| {
-                        try self.addValueLocals(.{ .parser = neg });
+                        try self.addValueLocals(module_id, .{ .parser = neg });
                     },
                     .range => |range| {
-                        if (range.lower) |lower| try self.addValueLocals(.{ .parser = lower });
-                        if (range.upper) |upper| try self.addValueLocals(.{ .parser = upper });
+                        if (range.lower) |lower| try self.addValueLocals(module_id, .{ .parser = lower });
+                        if (range.upper) |upper| try self.addValueLocals(module_id, .{ .parser = upper });
                     },
                     .repeat => |rep| {
-                        try self.addValueLocals(.{ .parser = rep.left });
-                        try self.addValueLocals(.{ .pattern = rep.right });
+                        try self.addValueLocals(module_id, .{ .parser = rep.left });
+                        try self.addValueLocals(module_id, .{ .pattern = rep.right });
                     },
                     .string_template => |tmpl| {
                         for (tmpl.items) |item| {
-                            try self.addValueLocals(.{ .parser = item });
+                            try self.addValueLocals(module_id, .{ .parser = item });
                         }
                     },
                     .identifier, .number_string, .string => {},
@@ -1739,70 +1782,70 @@ pub const Compiler = struct {
             .value => |v| {
                 switch (v.node) {
                     .@"return" => |ret| {
-                        try self.addValueLocals(.{ .value = ret.left });
-                        try self.addValueLocals(.{ .value = ret.right });
+                        try self.addValueLocals(module_id, .{ .value = ret.left });
+                        try self.addValueLocals(module_id, .{ .value = ret.right });
                     },
                     .function_call => |func| {
-                        try self.addValueLocals(.{ .value = func.function });
+                        try self.addValueLocals(module_id, .{ .value = func.function });
                         for (func.args.items) |arg| {
-                            try self.addValueLocals(.{ .value = arg });
+                            try self.addValueLocals(module_id, .{ .value = arg });
                         }
                     },
                     .@"or" => |or_node| {
-                        try self.addValueLocals(.{ .value = or_node.left });
-                        try self.addValueLocals(.{ .value = or_node.right });
+                        try self.addValueLocals(module_id, .{ .value = or_node.left });
+                        try self.addValueLocals(module_id, .{ .value = or_node.right });
                     },
                     .merge => |merge_node| {
-                        try self.addValueLocals(.{ .value = merge_node.left });
-                        try self.addValueLocals(.{ .value = merge_node.right });
+                        try self.addValueLocals(module_id, .{ .value = merge_node.left });
+                        try self.addValueLocals(module_id, .{ .value = merge_node.right });
                     },
                     .take_left => |take_node| {
-                        try self.addValueLocals(.{ .value = take_node.left });
-                        try self.addValueLocals(.{ .value = take_node.right });
+                        try self.addValueLocals(module_id, .{ .value = take_node.left });
+                        try self.addValueLocals(module_id, .{ .value = take_node.right });
                     },
                     .take_right => |take_node| {
-                        try self.addValueLocals(.{ .value = take_node.left });
-                        try self.addValueLocals(.{ .value = take_node.right });
+                        try self.addValueLocals(module_id, .{ .value = take_node.left });
+                        try self.addValueLocals(module_id, .{ .value = take_node.right });
                     },
                     .conditional => |cond| {
-                        try self.addValueLocals(.{ .value = cond.condition });
-                        try self.addValueLocals(.{ .value = cond.then_branch });
-                        try self.addValueLocals(.{ .value = cond.else_branch });
+                        try self.addValueLocals(module_id, .{ .value = cond.condition });
+                        try self.addValueLocals(module_id, .{ .value = cond.then_branch });
+                        try self.addValueLocals(module_id, .{ .value = cond.else_branch });
                     },
                     .destructure => |dest| {
-                        try self.addValueLocals(.{ .value = dest.left });
-                        try self.addValueLocals(.{ .pattern = dest.right });
+                        try self.addValueLocals(module_id, .{ .value = dest.left });
+                        try self.addValueLocals(module_id, .{ .pattern = dest.right });
                     },
                     .negation => |neg| {
-                        try self.addValueLocals(.{ .value = neg });
+                        try self.addValueLocals(module_id, .{ .value = neg });
                     },
                     .array => |arr| {
                         for (arr.items) |item| {
-                            try self.addValueLocals(.{ .value = item });
+                            try self.addValueLocals(module_id, .{ .value = item });
                         }
                     },
                     .object => |obj| {
                         for (obj.items) |pair| {
-                            try self.addValueLocals(.{ .value = pair.key });
-                            try self.addValueLocals(.{ .value = pair.value });
+                            try self.addValueLocals(module_id, .{ .value = pair.key });
+                            try self.addValueLocals(module_id, .{ .value = pair.value });
                         }
                     },
                     .string_template => |tmpl| {
                         for (tmpl.items) |item| {
-                            try self.addValueLocals(.{ .value = item });
+                            try self.addValueLocals(module_id, .{ .value = item });
                         }
                     },
                     .repeat => |rep| {
-                        try self.addValueLocals(.{ .value = rep.left });
-                        try self.addValueLocals(.{ .value = rep.right });
+                        try self.addValueLocals(module_id, .{ .value = rep.left });
+                        try self.addValueLocals(module_id, .{ .value = rep.right });
                     },
                     .identifier => |ident| {
-                        if (self.findGlobal(ident.name) == null) {
+                        if (self.findGlobal(module_id, ident.name) == null) {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
+                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .value = &ident_rnode });
                             if (newLocalId) {
                                 const elem = Elem.valueVar(ident.name, ident.underscored);
-                                try self.writeConstant(elem, region);
+                                try self.writeConstant(module_id, elem, region);
                             }
                         }
                     },
@@ -1818,54 +1861,54 @@ pub const Compiler = struct {
             .pattern => |pat| {
                 switch (pat.node) {
                     .merge => |merge_node| {
-                        try self.addValueLocals(.{ .pattern = merge_node.left });
-                        try self.addValueLocals(.{ .pattern = merge_node.right });
+                        try self.addValueLocals(module_id, .{ .pattern = merge_node.left });
+                        try self.addValueLocals(module_id, .{ .pattern = merge_node.right });
                     },
                     .function_call => |func| {
-                        try self.addValueLocals(.{ .value = func.function });
+                        try self.addValueLocals(module_id, .{ .value = func.function });
                         for (func.args.items) |arg| {
-                            try self.addValueLocals(.{ .value = arg });
+                            try self.addValueLocals(module_id, .{ .value = arg });
                         }
                     },
                     .range => |range| {
-                        if (range.lower) |lower| try self.addValueLocals(.{ .pattern = lower });
-                        if (range.upper) |upper| try self.addValueLocals(.{ .pattern = upper });
+                        if (range.lower) |lower| try self.addValueLocals(module_id, .{ .pattern = lower });
+                        if (range.upper) |upper| try self.addValueLocals(module_id, .{ .pattern = upper });
                     },
                     .repeat => |rep| {
-                        try self.addValueLocals(.{ .pattern = rep.left });
-                        try self.addValueLocals(.{ .pattern = rep.right });
+                        try self.addValueLocals(module_id, .{ .pattern = rep.left });
+                        try self.addValueLocals(module_id, .{ .pattern = rep.right });
                     },
                     .negation => |neg| {
-                        try self.addValueLocals(.{ .pattern = neg });
+                        try self.addValueLocals(module_id, .{ .pattern = neg });
                     },
                     .array => |arr| {
                         for (arr.items) |item| {
-                            try self.addValueLocals(.{ .pattern = item });
+                            try self.addValueLocals(module_id, .{ .pattern = item });
                         }
                     },
                     .object => |obj| {
                         for (obj.items) |pair| {
-                            try self.addValueLocals(.{ .pattern = pair.key });
-                            try self.addValueLocals(.{ .pattern = pair.value });
+                            try self.addValueLocals(module_id, .{ .pattern = pair.key });
+                            try self.addValueLocals(module_id, .{ .pattern = pair.value });
                         }
                     },
                     .string_template => |tmpl| {
                         for (tmpl.items) |item| {
-                            try self.addValueLocals(.{ .pattern = item });
+                            try self.addValueLocals(module_id, .{ .pattern = item });
                         }
                     },
                     .identifier => |ident| {
-                        if (self.findGlobal(ident.name) == null) {
+                        if (self.findGlobal(module_id, ident.name) == null) {
                             const value_ident = Ast.Value.Identifier{
                                 .name = ident.name,
                                 .builtin = ident.builtin,
                                 .underscored = ident.underscored,
                             };
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = value_ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
+                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .value = &ident_rnode });
                             if (newLocalId) {
                                 const elem = Elem.valueVar(ident.name, ident.underscored);
-                                try self.writeConstant(elem, region);
+                                try self.writeConstant(module_id, elem, region);
                             }
                         }
                     },
@@ -1881,38 +1924,38 @@ pub const Compiler = struct {
         }
     }
 
-    fn addClosureLocals(self: *Compiler, rnode: Ast.ParserOrValueOrPattern.RNode) !void {
+    fn addClosureLocals(self: *Compiler, module_id: Module.Id, rnode: Ast.ParserOrValueOrPattern.RNode) !void {
         const region = rnode.region();
 
         switch (rnode) {
             .parser => |p| {
                 switch (p.node) {
                     .@"or" => |infix| {
-                        try self.addClosureLocals(.{ .parser = infix.left });
-                        try self.addClosureLocals(.{ .parser = infix.right });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
                     },
                     .@"return" => |infix| {
-                        try self.addClosureLocals(.{ .parser = infix.left });
-                        try self.addClosureLocals(.{ .value = infix.right });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
+                        try self.addClosureLocals(module_id, .{ .value = infix.right });
                     },
                     .backtrack => |infix| {
-                        try self.addClosureLocals(.{ .parser = infix.left });
-                        try self.addClosureLocals(.{ .parser = infix.right });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
                     },
                     .conditional => |conditional| {
-                        try self.addClosureLocals(.{ .parser = conditional.condition });
-                        try self.addClosureLocals(.{ .parser = conditional.then_branch });
-                        try self.addClosureLocals(.{ .parser = conditional.else_branch });
+                        try self.addClosureLocals(module_id, .{ .parser = conditional.condition });
+                        try self.addClosureLocals(module_id, .{ .parser = conditional.then_branch });
+                        try self.addClosureLocals(module_id, .{ .parser = conditional.else_branch });
                     },
                     .destructure => |infix| {
-                        try self.addClosureLocals(.{ .parser = infix.left });
-                        try self.addClosureLocals(.{ .pattern = infix.right });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
+                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
                     },
                     .function_call => |fc| {
                         for (fc.args.items) |arg| {
                             switch (arg) {
-                                .parser => |parser_arg| try self.addClosureLocals(.{ .parser = parser_arg }),
-                                .value => |value_arg| try self.addClosureLocals(.{ .value = value_arg }),
+                                .parser => |parser_arg| try self.addClosureLocals(module_id, .{ .parser = parser_arg }),
+                                .value => |value_arg| try self.addClosureLocals(module_id, .{ .value = value_arg }),
                             }
                         }
                     },
@@ -1921,37 +1964,37 @@ pub const Compiler = struct {
 
                         if (self.function_contexts.parent().localSlot(ident.name) != null) {
                             var ident_rnode: Ast.RNode(Ast.Parser.Identifier) = .{ .node = ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(.{ .parser = &ident_rnode });
+                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .parser = &ident_rnode });
                             if (newLocalId) {
-                                try self.writeConstant(elem, region);
+                                try self.writeConstant(module_id, elem, region);
                             }
                         }
                     },
                     .merge => |infix| {
-                        try self.addClosureLocals(.{ .parser = infix.left });
-                        try self.addClosureLocals(.{ .parser = infix.right });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
                     },
-                    .negation => |inner| try self.addClosureLocals(.{ .parser = inner }),
+                    .negation => |inner| try self.addClosureLocals(module_id, .{ .parser = inner }),
                     .range => |bounds| {
-                        if (bounds.lower) |lower| try self.addClosureLocals(.{ .parser = lower });
-                        if (bounds.upper) |upper| try self.addClosureLocals(.{ .parser = upper });
+                        if (bounds.lower) |lower| try self.addClosureLocals(module_id, .{ .parser = lower });
+                        if (bounds.upper) |upper| try self.addClosureLocals(module_id, .{ .parser = upper });
                     },
                     .repeat => |infix| {
-                        try self.addClosureLocals(.{ .parser = infix.left });
-                        try self.addClosureLocals(.{ .pattern = infix.right });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
+                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
                     },
                     .string_template => |parts| {
                         for (parts.items) |part| {
-                            try self.addClosureLocals(.{ .parser = part });
+                            try self.addClosureLocals(module_id, .{ .parser = part });
                         }
                     },
                     .take_left => |infix| {
-                        try self.addClosureLocals(.{ .parser = infix.left });
-                        try self.addClosureLocals(.{ .parser = infix.right });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
                     },
                     .take_right => |infix| {
-                        try self.addClosureLocals(.{ .parser = infix.left });
-                        try self.addClosureLocals(.{ .parser = infix.right });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
+                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
                     },
                     .number_string,
                     .string,
@@ -1961,69 +2004,69 @@ pub const Compiler = struct {
             .value => |v| {
                 switch (v.node) {
                     .@"or" => |infix| {
-                        try self.addClosureLocals(.{ .value = infix.left });
-                        try self.addClosureLocals(.{ .value = infix.right });
+                        try self.addClosureLocals(module_id, .{ .value = infix.left });
+                        try self.addClosureLocals(module_id, .{ .value = infix.right });
                     },
                     .@"return" => |infix| {
-                        try self.addClosureLocals(.{ .value = infix.left });
-                        try self.addClosureLocals(.{ .value = infix.right });
+                        try self.addClosureLocals(module_id, .{ .value = infix.left });
+                        try self.addClosureLocals(module_id, .{ .value = infix.right });
                     },
                     .merge => |infix| {
-                        try self.addClosureLocals(.{ .value = infix.left });
-                        try self.addClosureLocals(.{ .value = infix.right });
+                        try self.addClosureLocals(module_id, .{ .value = infix.left });
+                        try self.addClosureLocals(module_id, .{ .value = infix.right });
                     },
                     .take_left => |infix| {
-                        try self.addClosureLocals(.{ .value = infix.left });
-                        try self.addClosureLocals(.{ .value = infix.right });
+                        try self.addClosureLocals(module_id, .{ .value = infix.left });
+                        try self.addClosureLocals(module_id, .{ .value = infix.right });
                     },
                     .take_right => |infix| {
-                        try self.addClosureLocals(.{ .value = infix.left });
-                        try self.addClosureLocals(.{ .value = infix.right });
+                        try self.addClosureLocals(module_id, .{ .value = infix.left });
+                        try self.addClosureLocals(module_id, .{ .value = infix.right });
                     },
                     .repeat => |infix| {
-                        try self.addClosureLocals(.{ .value = infix.left });
-                        try self.addClosureLocals(.{ .value = infix.right });
+                        try self.addClosureLocals(module_id, .{ .value = infix.left });
+                        try self.addClosureLocals(module_id, .{ .value = infix.right });
                     },
                     .destructure => |infix| {
-                        try self.addClosureLocals(.{ .value = infix.left });
-                        try self.addClosureLocals(.{ .pattern = infix.right });
+                        try self.addClosureLocals(module_id, .{ .value = infix.left });
+                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
                     },
                     .function_call => |fc| {
-                        try self.addClosureLocals(.{ .value = fc.function });
+                        try self.addClosureLocals(module_id, .{ .value = fc.function });
                         for (fc.args.items) |arg| {
-                            try self.addClosureLocals(.{ .value = arg });
+                            try self.addClosureLocals(module_id, .{ .value = arg });
                         }
                     },
-                    .negation => |inner| try self.addClosureLocals(.{ .value = inner }),
+                    .negation => |inner| try self.addClosureLocals(module_id, .{ .value = inner }),
                     .array => |elements| {
                         for (elements.items) |element| {
-                            try self.addClosureLocals(.{ .value = element });
+                            try self.addClosureLocals(module_id, .{ .value = element });
                         }
                     },
                     .object => |pairs| {
                         for (pairs.items) |pair| {
-                            try self.addClosureLocals(.{ .value = pair.key });
-                            try self.addClosureLocals(.{ .value = pair.value });
+                            try self.addClosureLocals(module_id, .{ .value = pair.key });
+                            try self.addClosureLocals(module_id, .{ .value = pair.value });
                         }
                     },
                     .string_template => |parts| {
                         for (parts.items) |part| {
-                            try self.addClosureLocals(.{ .value = part });
+                            try self.addClosureLocals(module_id, .{ .value = part });
                         }
                     },
                     .conditional => |conditional| {
-                        try self.addClosureLocals(.{ .value = conditional.condition });
-                        try self.addClosureLocals(.{ .value = conditional.then_branch });
-                        try self.addClosureLocals(.{ .value = conditional.else_branch });
+                        try self.addClosureLocals(module_id, .{ .value = conditional.condition });
+                        try self.addClosureLocals(module_id, .{ .value = conditional.then_branch });
+                        try self.addClosureLocals(module_id, .{ .value = conditional.else_branch });
                     },
                     .identifier => |ident| {
                         const elem = Elem.valueVar(ident.name, ident.underscored);
 
                         if (self.function_contexts.parent().localSlot(ident.name) != null) {
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
+                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .value = &ident_rnode });
                             if (newLocalId) {
-                                try self.writeConstant(elem, region);
+                                try self.writeConstant(module_id, elem, region);
                             }
                         }
                     },
@@ -2039,38 +2082,38 @@ pub const Compiler = struct {
             .pattern => |pat| {
                 switch (pat.node) {
                     .merge => |infix| {
-                        try self.addClosureLocals(.{ .pattern = infix.left });
-                        try self.addClosureLocals(.{ .pattern = infix.right });
+                        try self.addClosureLocals(module_id, .{ .pattern = infix.left });
+                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
                     },
                     .repeat => |infix| {
-                        try self.addClosureLocals(.{ .pattern = infix.left });
-                        try self.addClosureLocals(.{ .pattern = infix.right });
+                        try self.addClosureLocals(module_id, .{ .pattern = infix.left });
+                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
                     },
                     .function_call => |fc| {
-                        try self.addClosureLocals(.{ .value = fc.function });
+                        try self.addClosureLocals(module_id, .{ .value = fc.function });
                         for (fc.args.items) |arg| {
-                            try self.addClosureLocals(.{ .value = arg });
+                            try self.addClosureLocals(module_id, .{ .value = arg });
                         }
                     },
                     .range => |bounds| {
-                        if (bounds.lower) |lower| try self.addClosureLocals(.{ .pattern = lower });
-                        if (bounds.upper) |upper| try self.addClosureLocals(.{ .pattern = upper });
+                        if (bounds.lower) |lower| try self.addClosureLocals(module_id, .{ .pattern = lower });
+                        if (bounds.upper) |upper| try self.addClosureLocals(module_id, .{ .pattern = upper });
                     },
-                    .negation => |inner| try self.addClosureLocals(.{ .pattern = inner }),
+                    .negation => |inner| try self.addClosureLocals(module_id, .{ .pattern = inner }),
                     .array => |elements| {
                         for (elements.items) |element| {
-                            try self.addClosureLocals(.{ .pattern = element });
+                            try self.addClosureLocals(module_id, .{ .pattern = element });
                         }
                     },
                     .object => |pairs| {
                         for (pairs.items) |pair| {
-                            try self.addClosureLocals(.{ .pattern = pair.key });
-                            try self.addClosureLocals(.{ .pattern = pair.value });
+                            try self.addClosureLocals(module_id, .{ .pattern = pair.key });
+                            try self.addClosureLocals(module_id, .{ .pattern = pair.value });
                         }
                     },
                     .string_template => |parts| {
                         for (parts.items) |part| {
-                            try self.addClosureLocals(.{ .pattern = part });
+                            try self.addClosureLocals(module_id, .{ .pattern = part });
                         }
                     },
                     .identifier => |ident| {
@@ -2083,9 +2126,9 @@ pub const Compiler = struct {
                                 .underscored = ident.underscored,
                             };
                             var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = value_ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(.{ .value = &ident_rnode });
+                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .value = &ident_rnode });
                             if (newLocalId) {
-                                try self.writeConstant(elem, region);
+                                try self.writeConstant(module_id, elem, region);
                             }
                         }
                     },
@@ -2101,42 +2144,42 @@ pub const Compiler = struct {
         }
     }
 
-    fn writePatternAsBoundRepeatValue(self: *Compiler, rnode: *Ast.Pattern.RNode) !void {
+    fn writePatternAsBoundRepeatValue(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) !void {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
             .number_float => |f| {
                 const elem = Elem.numberFloat(f);
-                try self.writeConstant(elem, region);
+                try self.writeConstant(module_id, elem, region);
             },
             .number_string => |ns| {
                 const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                try self.writeConstant(elem, region);
+                try self.writeConstant(module_id, elem, region);
             },
             .identifier => |ident| {
                 if (self.localSlot(ident.name)) |slot| {
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const global = self.findGlobal(ident.name).?;
-                    try self.writeConstant(global, region);
+                    const global = self.findGlobal(module_id, ident.name).?;
+                    try self.writeConstant(module_id, global, region);
                 }
             },
             .merge => |merge| {
-                try self.writePatternAsBoundRepeatValue(merge.left);
-                try self.writePatternAsBoundRepeatValue(merge.right);
+                try self.writePatternAsBoundRepeatValue(module_id, merge.left);
+                try self.writePatternAsBoundRepeatValue(module_id, merge.right);
                 try self.emitOp(.Merge, region);
             },
             .negation => |inner| {
-                try self.writePatternAsBoundRepeatValue(inner);
+                try self.writePatternAsBoundRepeatValue(module_id, inner);
                 try self.emitOp(.NegateNumber, region);
             },
             .function_call => |function_call| {
-                try self.writeValueFunctionCall(function_call.function, function_call.args, region, false);
+                try self.writeValueFunctionCall(module_id, function_call.function, function_call.args, region, false);
             },
             .null => {
                 const elem = Elem.numberFloat(0);
-                try self.writeConstant(elem, region);
+                try self.writeConstant(module_id, elem, region);
             },
             .array,
             .false,
@@ -2147,83 +2190,83 @@ pub const Compiler = struct {
             .string_template,
             .true,
             => {
-                try self.printError(region, "Invalid pattern type for parser repeat", .{});
+                try self.printError(module_id, region, "Invalid pattern type for parser repeat", .{});
                 return Error.InvalidAst;
             },
         }
     }
 
-    fn writeValue(self: *Compiler, rnode: *Ast.Value.RNode, isTailPosition: bool) !void {
+    fn writeValue(self: *Compiler, module_id: Module.Id, rnode: *Ast.Value.RNode, isTailPosition: bool) !void {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
             .merge => |merge| {
-                try self.writeValue(merge.left, false);
-                try self.writeValue(merge.right, false);
+                try self.writeValue(module_id, merge.left, false);
+                try self.writeValue(module_id, merge.right, false);
                 try self.emitOp(.Merge, region);
             },
             .take_left => |take_left| {
-                try self.writeValue(take_left.left, false);
+                try self.writeValue(module_id, take_left.left, false);
                 const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeValue(take_left.right, false);
+                try self.writeValue(module_id, take_left.right, false);
                 try self.emitOp(.TakeLeft, region);
-                try self.patchJump(jumpIndex, region);
+                try self.patchJump(module_id, jumpIndex, region);
             },
             .take_right => |take_right| {
-                try self.writeValue(take_right.left, false);
+                try self.writeValue(module_id, take_right.left, false);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeValue(take_right.right, isTailPosition);
-                try self.patchJump(jumpIndex, region);
+                try self.writeValue(module_id, take_right.right, isTailPosition);
+                try self.patchJump(module_id, jumpIndex, region);
             },
             .destructure => |destructure| {
-                try self.writeValue(destructure.left, false);
-                const patternId = try self.createPattern(destructure.right);
+                try self.writeValue(module_id, destructure.left, false);
+                const patternId = try self.createPattern(module_id, destructure.right);
                 try self.emitPattern(patternId, region);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
-                try self.writeValue(or_node.left, false);
+                try self.writeValue(module_id, or_node.left, false);
                 const jumpIndex = try self.emitJump(.Or, region);
-                try self.writeValue(or_node.right, isTailPosition);
-                try self.patchJump(jumpIndex, region);
+                try self.writeValue(module_id, or_node.right, isTailPosition);
+                try self.patchJump(module_id, jumpIndex, region);
             },
             .@"return" => |return_node| {
-                try self.writeValue(return_node.left, false);
+                try self.writeValue(module_id, return_node.left, false);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeValue(return_node.right, isTailPosition);
-                try self.patchJump(jumpIndex, region);
+                try self.writeValue(module_id, return_node.right, isTailPosition);
+                try self.patchJump(module_id, jumpIndex, region);
             },
             .repeat => |repeat| {
-                try self.writeValue(repeat.left, false);
-                try self.writeValue(repeat.right, false);
+                try self.writeValue(module_id, repeat.left, false);
+                try self.writeValue(module_id, repeat.right, false);
                 try self.emitOp(.RepeatValue, region);
             },
             .negation => |inner| {
-                try self.writeValue(inner, false);
+                try self.writeValue(module_id, inner, false);
                 try self.emitOp(.NegateNumber, region);
             },
             .array => |elements| {
-                try self.writeValueArray(elements, region);
+                try self.writeValueArray(module_id, elements, region);
             },
             .object => |pairs| {
-                try self.writeValueObject(pairs, region);
+                try self.writeValueObject(module_id, pairs, region);
             },
             .string_template => |parts| {
-                try self.writeStringTemplateValue(parts, region);
+                try self.writeStringTemplateValue(module_id, parts, region);
             },
             .conditional => |conditional| {
                 try self.emitOp(.SetInputMark, region);
-                try self.writeValue(conditional.condition, false);
+                try self.writeValue(module_id, conditional.condition, false);
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
-                try self.writeValue(conditional.then_branch, isTailPosition);
+                try self.writeValue(module_id, conditional.then_branch, isTailPosition);
                 const thenElseJumpIndex = try self.emitJump(.Jump, region);
-                try self.patchJump(ifThenJumpIndex, region);
-                try self.writeValue(conditional.else_branch, isTailPosition);
-                try self.patchJump(thenElseJumpIndex, region);
+                try self.patchJump(module_id, ifThenJumpIndex, region);
+                try self.writeValue(module_id, conditional.else_branch, isTailPosition);
+                try self.patchJump(module_id, thenElseJumpIndex, region);
             },
             .function_call => |function_call| {
-                try self.writeValueFunctionCall(function_call.function, function_call.args, region, isTailPosition);
+                try self.writeValueFunctionCall(module_id, function_call.function, function_call.args, region, isTailPosition);
             },
             .identifier => |ident| {
                 if (self.localSlot(ident.name)) |slot| {
@@ -2236,26 +2279,26 @@ pub const Compiler = struct {
                     // the outer function will be concrete.
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const globalElem = self.findGlobal(ident.name).?;
+                    const globalElem = self.findGlobal(module_id, ident.name).?;
                     if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
-                        try self.writeCallFunctionConstant(globalElem, region, isTailPosition);
+                        try self.writeCallFunctionConstant(module_id, globalElem, region, isTailPosition);
                     } else {
-                        try self.writeConstant(globalElem, region);
+                        try self.writeConstant(module_id, globalElem, region);
                     }
                 }
             },
             .string => |string| {
                 const sid = try self.vm.strings.insert(string);
                 const elem = Elem.string(sid);
-                try self.writeConstant(elem, region);
+                try self.writeConstant(module_id, elem, region);
             },
             .number_string => |ns| {
                 const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                try self.writeConstant(elem, region);
+                try self.writeConstant(module_id, elem, region);
             },
             .number_float => |number_float| {
                 const elem = Elem.numberFloat(number_float);
-                try self.writeConstant(elem, region);
+                try self.writeConstant(module_id, elem, region);
             },
             .true => try self.emitOp(.PushTrue, region),
             .false => try self.emitOp(.PushFalse, region),
@@ -2265,6 +2308,7 @@ pub const Compiler = struct {
 
     fn writeValueFunctionCall(
         self: *Compiler,
+        module_id: Module.Id,
         function_rnode: *Ast.Value.RNode,
         arguments: ArrayList(*Ast.Value.RNode),
         call_region: Region,
@@ -2285,17 +2329,17 @@ pub const Compiler = struct {
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
-            if (self.findGlobal(functionName)) |global| {
+            if (self.findGlobal(module_id, functionName)) |global| {
                 function = global.asDyn().asFunction();
-                try self.writeConstant(global, function_region);
+                try self.writeConstant(module_id, global, function_region);
             } else {
                 const functionNameStr = self.vm.strings.get(functionName);
-                try self.printError(function_region, "Undefined function '{s}'", .{functionNameStr});
+                try self.printError(module_id, function_region, "Undefined function '{s}'", .{functionNameStr});
                 return Error.UndefinedVariable;
             }
         }
 
-        const argCount = try self.writeValueFunctionArguments(arguments, function);
+        const argCount = try self.writeValueFunctionArguments(module_id, arguments, function);
 
         if (isTailPosition) {
             try self.emitUnaryOp(.CallTailFunction, argCount, call_region);
@@ -2306,6 +2350,7 @@ pub const Compiler = struct {
 
     fn writeValueFunctionArguments(
         self: *Compiler,
+        module_id: Module.Id,
         arguments: ArrayList(*Ast.Value.RNode),
         function: ?*Elem.DynElem.Function,
     ) Error!u8 {
@@ -2317,6 +2362,7 @@ pub const Compiler = struct {
             const region = first_arg.region.merge(last_arg.region);
 
             try self.printError(
+                module_id,
                 region,
                 "Can't have more than {} parameters.",
                 .{std.math.maxInt(u8)},
@@ -2338,49 +2384,49 @@ pub const Compiler = struct {
                 };
 
                 if (f.arity < arg_count) {
-                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
+                    try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
                     return Error.FunctionCallTooManyArgs;
                 } else {
-                    try self.printError(region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
+                    try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
                     return Error.FunctionCallTooFewArgs;
                 }
             }
         }
 
         for (arguments.items) |arg| {
-            try self.writeValue(arg, false);
+            try self.writeValue(module_id, arg, false);
         }
 
         return @intCast(arg_count);
     }
 
-    fn writeValueArray(self: *Compiler, elements: ArrayList(*Ast.Value.RNode), region: Region) Error!void {
+    fn writeValueArray(self: *Compiler, module_id: Module.Id, elements: ArrayList(*Ast.Value.RNode), region: Region) Error!void {
         if (elements.items.len == 0) {
             return try self.emitOp(.PushEmptyArray, region);
         }
 
         var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
-        try self.writeConstant(array.dyn.elem(), region);
+        try self.writeConstant(module_id, array.dyn.elem(), region);
 
         for (elements.items, 0..) |element, index| {
-            try self.writeArrayElem(array, element, @intCast(index), region);
+            try self.writeArrayElem(module_id, array, element, @intCast(index), region);
         }
     }
 
-    fn appendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8) !void {
-        try self.writeValue(rnode, false);
+    fn appendDynamicValue(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8) !void {
+        try self.writeValue(module_id, rnode, false);
         try self.emitUnaryOp(.InsertAtIndex, index, rnode.region);
         try array.append(self.vm, self.placeholderVar());
     }
 
-    fn negateAndAppendDynamicValue(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) !void {
-        try self.writeValue(rnode, false);
+    fn negateAndAppendDynamicValue(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) !void {
+        try self.writeValue(module_id, rnode, false);
         try self.emitOp(.NegateNumber, region);
         try self.emitUnaryOp(.InsertAtIndex, index, region);
         try array.append(self.vm, self.placeholderVar());
     }
 
-    fn writeArrayElem(self: *Compiler, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) Error!void {
+    fn writeArrayElem(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) Error!void {
         switch (rnode.node) {
             .false => {
                 try array.append(self.vm, Elem.boolean(false));
@@ -2404,7 +2450,7 @@ pub const Compiler = struct {
             .identifier => |ident| {
                 // Try to resolve as a global constant
                 if (self.localSlot(ident.name) == null) {
-                    if (self.findGlobal(ident.name)) |globalElem| {
+                    if (self.findGlobal(module_id, ident.name)) |globalElem| {
                         // If it's not a function, we can inline the constant value
                         if (!globalElem.isDynType(.Function)) {
                             try array.append(self.vm, globalElem);
@@ -2413,7 +2459,7 @@ pub const Compiler = struct {
                     }
                 }
                 // Fall back to dynamic value for locals and functions
-                try self.appendDynamicValue(array, rnode, index);
+                try self.appendDynamicValue(module_id, array, rnode, index);
             },
             .function_call,
             .merge,
@@ -2423,14 +2469,14 @@ pub const Compiler = struct {
             .take_right,
             .repeat,
             .destructure,
-            => try self.appendDynamicValue(array, rnode, index),
+            => try self.appendDynamicValue(module_id, array, rnode, index),
             .array => |elements| {
                 // Special case: empty arrays should be treated as literals
                 if (elements.items.len == 0) {
                     var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
                     try array.append(self.vm, emptyArray.dyn.elem());
                 } else {
-                    try self.appendDynamicValue(array, rnode, index);
+                    try self.appendDynamicValue(module_id, array, rnode, index);
                 }
             },
             .object => |pairs| {
@@ -2439,24 +2485,24 @@ pub const Compiler = struct {
                     var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
                     try array.append(self.vm, emptyObject.dyn.elem());
                 } else {
-                    try self.appendDynamicValue(array, rnode, index);
+                    try self.appendDynamicValue(module_id, array, rnode, index);
                 }
             },
-            .string_template => try self.appendDynamicValue(array, rnode, index),
-            .conditional => try self.appendDynamicValue(array, rnode, index),
+            .string_template => try self.appendDynamicValue(module_id, array, rnode, index),
+            .conditional => try self.appendDynamicValue(module_id, array, rnode, index),
             .negation => |inner| {
-                try self.negateAndAppendDynamicValue(array, inner, index, region);
+                try self.negateAndAppendDynamicValue(module_id, array, inner, index, region);
             },
         }
     }
 
-    fn writeValueObject(self: *Compiler, pairs: ArrayList(Ast.Value.ObjectPair), region: Region) Error!void {
+    fn writeValueObject(self: *Compiler, module_id: Module.Id, pairs: ArrayList(Ast.Value.ObjectPair), region: Region) Error!void {
         if (pairs.items.len == 0) {
             return try self.emitOp(.PushEmptyObject, region);
         }
 
         var object = try Elem.DynElem.Object.create(self.vm, 0);
-        try self.writeConstant(object.dyn.elem(), region);
+        try self.writeConstant(module_id, object.dyn.elem(), region);
 
         for (pairs.items, 0..) |pair, index| {
             if (try self.literalPatternToElem(pair.key)) |key_elem| {
@@ -2474,24 +2520,24 @@ pub const Compiler = struct {
                     const key_sid = key_elem.asString();
                     try object.put(self.vm, key_sid, val_elem);
                 } else {
-                    try self.writeInsertObjectPiar(pair, object, index);
+                    try self.writeInsertObjectPiar(module_id, pair, object, index);
                 }
             } else {
-                try self.writeInsertObjectPiar(pair, object, index);
+                try self.writeInsertObjectPiar(module_id, pair, object, index);
             }
         }
     }
 
-    fn writeInsertObjectPiar(self: *Compiler, pair: Ast.Value.ObjectPair, object: *Elem.DynElem.Object, index: usize) !void {
+    fn writeInsertObjectPiar(self: *Compiler, module_id: Module.Id, pair: Ast.Value.ObjectPair, object: *Elem.DynElem.Object, index: usize) !void {
         std.debug.assert(index <= 255);
         const pos = @as(u8, @intCast(index));
         try object.putReservedId(self.vm, pos, self.placeholderVar());
-        try self.writeValue(pair.key, false);
-        try self.writeValue(pair.value, false);
+        try self.writeValue(module_id, pair.key, false);
+        try self.writeValue(module_id, pair.value, false);
         try self.emitUnaryOp(.InsertKeyVal, pos, pair.key.region);
     }
 
-    fn writeStringTemplateParser(self: *Compiler, parts: ArrayList(*Ast.Parser.RNode), region: Region) Error!void {
+    fn writeStringTemplateParser(self: *Compiler, module_id: Module.Id, parts: ArrayList(*Ast.Parser.RNode), region: Region) Error!void {
         // String template should not be empty
         std.debug.assert(parts.items.len > 0);
 
@@ -2500,19 +2546,19 @@ pub const Compiler = struct {
         const firstPart = parts.items[0];
 
         if (firstPart.node != .string) {
-            try self.writeConstant(Elem.string(try self.vm.strings.insert("")), region);
+            try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert("")), region);
         }
 
         // Write all parts with MergeAsString between each part after the first two
         for (parts.items, 0..) |part, i| {
-            try self.writeParser(part, false);
+            try self.writeParser(module_id, part, false);
             if (i > 0 or firstPart.node != .string) {
                 try self.emitOp(.MergeAsString, region);
             }
         }
     }
 
-    fn writeStringTemplateValue(self: *Compiler, parts: ArrayList(*Ast.Value.RNode), region: Region) Error!void {
+    fn writeStringTemplateValue(self: *Compiler, module_id: Module.Id, parts: ArrayList(*Ast.Value.RNode), region: Region) Error!void {
         // String template should not be empty
         std.debug.assert(parts.items.len > 0);
 
@@ -2521,19 +2567,19 @@ pub const Compiler = struct {
         const firstPart = parts.items[0];
 
         if (firstPart.node != .string) {
-            try self.writeConstant(Elem.string(try self.vm.strings.insert("")), region);
+            try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert("")), region);
         }
 
         // Write all parts with MergeAsString between each part after the first two
         for (parts.items, 0..) |part, i| {
-            try self.writeValue(part, false);
+            try self.writeValue(module_id, part, false);
             if (i > 0 or firstPart.node != .string) {
                 try self.emitOp(.MergeAsString, region);
             }
         }
     }
 
-    fn writeConstant(self: *Compiler, elem: Elem, region: Region) !void {
+    fn writeConstant(self: *Compiler, module_id: Module.Id, elem: Elem, region: Region) !void {
         switch (elem.getType()) {
             .Const => switch (elem.asConst()) {
                 .True => return try self.emitOp(.PushTrue, region),
@@ -2605,12 +2651,12 @@ pub const Compiler = struct {
             },
         }
 
-        const constId = try self.makeConstant(elem);
+        const constId = try self.makeConstant(module_id, elem);
         return try self.emitConstant(constId, region);
     }
 
-    fn writeCallFunctionConstant(self: *Compiler, elem: Elem, region: Region, isTailPosition: bool) !void {
-        const constId = try self.makeConstant(elem);
+    fn writeCallFunctionConstant(self: *Compiler, module_id: Module.Id, elem: Elem, region: Region, isTailPosition: bool) !void {
+        const constId = try self.makeConstant(module_id, elem);
         if (isTailPosition) {
             return try self.emitCallTailFunctionConstant(constId, region);
         } else {
@@ -2703,33 +2749,29 @@ pub const Compiler = struct {
         return &self.function_contexts.currentFunction().chunk;
     }
 
-    fn moduleId(self: *Compiler) Module.Id {
-        return self.function_contexts.currentFunction().mid;
+    fn findGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id) ?Elem {
+        return self.vm.findGlobal(module_id, sid);
     }
 
-    fn module(self: *Compiler) *Module {
-        return self.vm.getModule(self.moduleId());
+    fn addGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id, elem: Elem) !void {
+        return self.vm.getModule(module_id).addGlobal(self.vm.allocator, sid, elem);
     }
 
-    fn findGlobal(self: *Compiler, sid: StringTable.Id) ?Elem {
-        return self.vm.findGlobal(self.moduleId(), sid);
+    fn getAst(self: *Compiler, module_id: Module.Id) *Can {
+        return &self.ast[module_id];
     }
 
-    fn addGlobal(self: *Compiler, sid: StringTable.Id, elem: Elem) !void {
-        return self.vm.getModule(self.moduleId()).addGlobal(self.vm.allocator, sid, elem);
-    }
-
-    fn addLocal(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !void {
+    fn addLocal(self: *Compiler, module_id: Module.Id, ident: Ast.ParserOrValue.Identifier) !void {
         if (ident.builtin()) {
-            try self.printError(ident.region(), "Invalid function param, '@' is reserved for builtins", .{});
+            try self.printError(module_id, ident.region(), "Invalid function param, '@' is reserved for builtins", .{});
             return Error.InvalidAst;
         }
 
         try self.function_contexts.current().addLocal(self.vm.allocator, ident.name());
     }
 
-    fn addLocalIfUndefined(self: *Compiler, ident: Ast.ParserOrValue.Identifier) !bool {
-        self.addLocal(ident) catch |err| switch (err) {
+    fn addLocalIfUndefined(self: *Compiler, module_id: Module.Id, ident: Ast.ParserOrValue.Identifier) !bool {
+        self.addLocal(module_id, ident) catch |err| switch (err) {
             error.VariableNameUsedInScope => return false,
             else => |other_error| return other_error,
         };
@@ -2747,7 +2789,7 @@ pub const Compiler = struct {
         return self.chunk().nextByteIndex() - 2;
     }
 
-    fn patchJump(self: *Compiler, offset: usize, region: Region) !void {
+    fn patchJump(self: *Compiler, module_id: Module.Id, offset: usize, region: Region) !void {
         const jump = self.chunk().nextByteIndex() - offset - 2;
 
         std.debug.assert(self.chunk().read(offset) == 0xff);
@@ -2755,7 +2797,7 @@ pub const Compiler = struct {
 
         self.chunk().updateShortAt(offset, @as(u16, @intCast(jump))) catch |err| switch (err) {
             ChunkError.ShortOverflow => {
-                try self.printError(region, "Too much code to jump over.", .{});
+                try self.printError(module_id, region, "Too much code to jump over.", .{});
                 return err;
             },
             else => return err,
@@ -2799,11 +2841,12 @@ pub const Compiler = struct {
         try self.chunk().writeLong(self.vm.allocator, long, region);
     }
 
-    fn makeConstant(self: *Compiler, elem: Elem) !u24 {
+    fn makeConstant(self: *Compiler, module_id: Module.Id, elem: Elem) !u24 {
         if (self.constant_map.get(elem.bits)) |idx| {
             return @as(u24, @intCast(idx));
         }
-        const idx = try self.module().addConstant(self.vm.allocator, elem);
+        const module = self.vm.getModule(module_id);
+        const idx = try module.addConstant(self.vm.allocator, elem);
         if (idx > 0xFFFFFF) {
             try self.writers.err.print("Too many constants in module.", .{});
             return Error.TooManyConstants;
@@ -2860,16 +2903,18 @@ pub const Compiler = struct {
         }
     }
 
-    fn printError(self: *Compiler, region: Region, comptime message: []const u8, args: anytype) !void {
+    fn printError(self: *Compiler, module_id: Module.Id, region: Region, comptime message: []const u8, args: anytype) !void {
+        const module = self.vm.getModule(module_id);
+
         try self.writers.err.print("\nProgram Error: ", .{});
         try self.writers.err.print(message, args);
         try self.writers.err.print("\n\n", .{});
 
-        try self.writers.err.print("{s}:", .{self.module().name});
-        try region.printLineRelative(self.module().source, self.writers.err);
+        try self.writers.err.print("{s}:", .{module.name});
+        try region.printLineRelative(module.source, self.writers.err);
         try self.writers.err.print(":\n", .{});
 
-        try self.module().highlight(region, self.writers.err);
+        try module.highlight(region, self.writers.err);
         try self.writers.err.print("\n", .{});
     }
 };

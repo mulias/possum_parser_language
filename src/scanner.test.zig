@@ -13,7 +13,7 @@ const writers = Writers{
 };
 
 fn init(source: []const u8) Scanner {
-    return Scanner.init(source, writers, false);
+    return Scanner.init(source, writers, .{ .printTokens = false });
 }
 
 fn expectToken(scanner: *Scanner, expected: Token) !void {

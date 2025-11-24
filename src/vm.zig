@@ -63,6 +63,7 @@ pub const VM = struct {
     gc: GC,
     strings: StringTable,
     modules: ArrayList(*Module),
+    compiler: ?*const Compiler,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
     temp_dyns: ArrayList(*Elem.DynElem),
@@ -111,6 +112,7 @@ pub const VM = struct {
             .gc = undefined,
             .strings = undefined,
             .modules = undefined,
+            .compiler = undefined,
             .stack = undefined,
             .frames = undefined,
             .temp_dyns = undefined,
@@ -142,6 +144,7 @@ pub const VM = struct {
         self.gc = GC.init(self, allocator);
         self.strings = StringTable.init(allocator);
         self.modules = ArrayList(*Module){};
+        self.compiler = null;
         self.stack = ArrayList(Elem){};
         self.frames = ArrayList(CallFrame){};
         self.temp_dyns = ArrayList(*Elem.DynElem){};
@@ -193,50 +196,26 @@ pub const VM = struct {
         const builtin_module = try self.createModule("builtins", "");
         try builtin.loadFunctions(self, builtin_module);
 
-        const module = try self.createModule(module_name, source);
-        try module.addDependency(self.allocator, builtin_module.id);
-
+        var maybe_stdlib_id: ?Module.Id = null;
         if (self.config.includeStdlib) {
             const filename = "stdlib/core.possum";
             const stdlib_module = try self.createModule(filename, @embedFile(filename));
             try stdlib_module.addDependency(self.allocator, builtin_module.id);
-
-            try module.addDependency(self.allocator, stdlib_module.id);
-
-            var stdlib_parser = Parser.init(self, stdlib_module.*);
-            defer stdlib_parser.deinit();
-            try stdlib_parser.parse();
-
-            var stdlib_can = Can.init(self, stdlib_module.*, stdlib_parser.ast);
-            defer stdlib_can.deinit();
-            _ = try stdlib_can.canonicalize();
-
-            var stdlib_compiler = try Compiler.init(self, stdlib_module, stdlib_can, false);
-            defer stdlib_compiler.deinit();
-            _ = try stdlib_compiler.compile();
+            maybe_stdlib_id = stdlib_module.id;
         }
 
-        var parser = Parser.init(self, module.*);
-        defer parser.deinit();
-        try parser.parse();
-
-        if (self.config.printAst) {
-            try parser.ast.print(self.writers.debug, self.*, module.source);
+        const module = try self.createModule(module_name, source);
+        try module.addDependency(self.allocator, builtin_module.id);
+        if (maybe_stdlib_id) |stdlib_id| {
+            try module.addDependency(self.allocator, stdlib_id);
         }
 
-        var can = Can.init(self, module.*, parser.ast);
-        defer can.deinit();
-        _ = try can.canonicalize();
-
-        var compiler = try Compiler.init(
-            self,
-            module,
-            can,
-            self.config.printCompiledBytecode,
-        );
+        var compiler = Compiler.init(self);
+        self.compiler = &compiler;
+        defer self.compiler = null;
         defer compiler.deinit();
 
-        const function = try compiler.compile();
+        const function = try compiler.compile(module.id);
 
         if (function) |main| {
             try self.push(main.dyn.elem());

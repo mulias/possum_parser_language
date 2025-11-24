@@ -16,16 +16,17 @@ const Writers = @import("writer.zig").Writers;
 const parsing = @import("parsing.zig");
 
 pub const Parser = struct {
-    vm: *VM,
+    vm: *const VM,
     scanner: Scanner,
     source: []const u8,
-    module: Module,
+    module_id: Module.Id,
     token: Token,
     tokenSkippedWhitespace: bool,
     tokenSkippedNewline: bool,
     ast: Ast,
     writers: Writers,
     printDebug: bool,
+    printScanner: bool,
 
     const Error = error{
         OutOfMemory,
@@ -36,23 +37,24 @@ pub const Parser = struct {
         InvalidEscapeSequence,
     } || Writer.Error;
 
-    pub fn init(vm: *VM, module: Module) Parser {
-        const ast = Ast.init(vm.allocator);
-        return initWithAst(vm, module, ast);
-    }
-
-    fn initWithAst(vm: *VM, module: Module, ast: Ast) Parser {
+    pub fn init(
+        vm: *const VM,
+        module_id: Module.Id,
+        source: []const u8,
+        debug: struct { printScanner: bool, printParser: bool },
+    ) Parser {
         return Parser{
             .vm = vm,
             .scanner = undefined,
-            .source = undefined,
-            .module = module,
+            .source = source,
+            .module_id = module_id,
             .token = undefined,
             .tokenSkippedWhitespace = false,
             .tokenSkippedNewline = false,
-            .ast = ast,
+            .ast = Ast.init(vm.allocator),
             .writers = vm.writers,
-            .printDebug = vm.config.printParser,
+            .printDebug = debug.printParser,
+            .printScanner = debug.printScanner,
         };
     }
 
@@ -61,8 +63,11 @@ pub const Parser = struct {
     }
 
     pub fn parse(self: *Parser) !void {
-        self.scanner = Scanner.init(self.module.source, self.writers, self.vm.config.printScanner);
-        self.source = self.module.source;
+        self.scanner = Scanner.init(
+            self.source,
+            self.writers,
+            .{ .printTokens = self.printScanner },
+        );
 
         try self.advance();
 
@@ -985,6 +990,7 @@ pub const Parser = struct {
     }
 
     fn errorAt(self: *Parser, token: Token, message: []const u8) Error {
+        const module = self.vm.getModule(self.module_id);
         try self.writers.err.print("\nSyntax Error: {s}, ", .{message});
         if (token.tokenType == .Eof) {
             try self.writers.err.print("found end of program\n\n", .{});
@@ -992,14 +998,14 @@ pub const Parser = struct {
             try self.writers.err.print("found '{s}'\n\n", .{token.lexeme});
         }
 
-        try self.writers.err.print("{s}:", .{self.module.name});
-        try token.region.printLineRelative(self.module.source, self.writers.err);
+        try self.writers.err.print("{s}:", .{module.name});
+        try token.region.printLineRelative(module.source, self.writers.err);
         try self.writers.err.print(":\n", .{});
 
         if (token.tokenType == .Eof) {
-            try self.module.highlightEnd(self.writers.err);
+            try module.highlightEnd(self.writers.err);
         } else {
-            try self.module.highlight(token.region, self.writers.err);
+            try module.highlight(token.region, self.writers.err);
         }
         try self.writers.err.print("\n", .{});
 

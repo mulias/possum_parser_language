@@ -20,7 +20,11 @@ pub const Scanner = struct {
     mode: ScanMode,
     stringQuote: ?u8,
 
-    pub fn init(source: []const u8, writers: Writers, printDebug: bool) Scanner {
+    pub fn init(
+        source: []const u8,
+        writers: Writers,
+        debug: struct { printTokens: bool },
+    ) Scanner {
         return Scanner{
             .source = source,
             .offset = 0,
@@ -28,7 +32,7 @@ pub const Scanner = struct {
             .pos = 0,
             .atEnd = false,
             .writers = writers,
-            .printDebug = printDebug,
+            .printDebug = debug.printTokens,
             .mode = .Normal,
             .stringQuote = null,
         };

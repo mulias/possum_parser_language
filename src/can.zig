@@ -5,7 +5,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.AutoArrayHashMapUnmanaged;
 const StringHashMap = std.StringArrayHashMapUnmanaged;
 const Writer = std.Io.Writer;
-const Ast = @import("ast.zig").Ast;
+const ParsedAst = @import("ast.zig").Ast;
 const CanAst = @import("can_ast.zig");
 const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
@@ -15,18 +15,16 @@ const Writers = @import("writer.zig").Writers;
 
 pub const Can = struct {
     vm: *VM,
-    module: Module,
-    ast: Ast,
+    module_id: Module.Id,
     arena: ArenaAllocator,
     declarations: HashMap(StringTable.Id, CanAst.ParserOrValue.Declaration) = .{},
     main: ?*CanAst.Parser.RNode = null,
     writers: Writers,
 
-    pub fn init(vm: *VM, module: Module, ast: Ast) Can {
+    pub fn init(vm: *VM, module_id: Module.Id) Can {
         return Can{
             .vm = vm,
-            .module = module,
-            .ast = ast,
+            .module_id = module_id,
             .arena = ArenaAllocator.init(vm.allocator),
             .writers = vm.writers,
         };
@@ -55,12 +53,12 @@ pub const Can = struct {
         MultipleMainParsers,
     } || Writer.Error;
 
-    pub fn canonicalize(self: *Can) !void {
-        for (self.ast.roots.items) |root| try self.convertRoot(root);
+    pub fn canonicalize(self: *Can, ast: ParsedAst) !void {
+        for (ast.roots.items) |root| try self.convertRoot(root);
         try self.foldConstants();
     }
 
-    fn convertRoot(self: *Can, root: *Ast.RNode) !void {
+    fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
         if (root.node == .DeclareGlobal) {
             const global = root.node.DeclareGlobal;
             const head = global.head;
@@ -72,19 +70,19 @@ pub const Can = struct {
 
                 const name_ident = switch (func.name.node) {
                     .Identifier => |ident| ident,
-                    .False => Ast.IdentifierNode{
+                    .False => ParsedAst.IdentifierNode{
                         .name = "false",
                         .builtin = false,
                         .underscored = false,
                         .kind = .Parser,
                     },
-                    .True => Ast.IdentifierNode{
+                    .True => ParsedAst.IdentifierNode{
                         .name = "true",
                         .builtin = false,
                         .underscored = false,
                         .kind = .Parser,
                     },
-                    .Null => Ast.IdentifierNode{
+                    .Null => ParsedAst.IdentifierNode{
                         .name = "null",
                         .builtin = false,
                         .underscored = false,
@@ -128,7 +126,7 @@ pub const Can = struct {
         }
     }
 
-    fn convertParser(self: *Can, rnode: *Ast.RNode) Error!*CanAst.Parser.RNode {
+    fn convertParser(self: *Can, rnode: *ParsedAst.RNode) Error!*CanAst.Parser.RNode {
         const region = rnode.region;
         const node = switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
@@ -253,7 +251,7 @@ pub const Can = struct {
         return CanAst.Parser.create(self.arena.allocator(), node, region);
     }
 
-    fn convertValue(self: *Can, rnode: *Ast.RNode) Error!*CanAst.Value.RNode {
+    fn convertValue(self: *Can, rnode: *ParsedAst.RNode) Error!*CanAst.Value.RNode {
         const region = rnode.region;
         const node = switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
@@ -368,7 +366,7 @@ pub const Can = struct {
         return CanAst.Value.create(self.arena.allocator(), node, region);
     }
 
-    fn convertLabeledValue(self: *Can, rnode: *Ast.RNode) Error!*CanAst.Value.RNode {
+    fn convertLabeledValue(self: *Can, rnode: *ParsedAst.RNode) Error!*CanAst.Value.RNode {
         const region = rnode.region;
         switch (rnode.node) {
             .InfixNode,
@@ -409,7 +407,7 @@ pub const Can = struct {
         }
     }
 
-    fn convertPattern(self: *Can, rnode: *Ast.RNode) Error!*CanAst.Pattern.RNode {
+    fn convertPattern(self: *Can, rnode: *ParsedAst.RNode) Error!*CanAst.Pattern.RNode {
         const region = rnode.region;
         const node = switch (rnode.node) {
             .InfixNode => |infix| switch (infix.infixType) {
@@ -504,7 +502,7 @@ pub const Can = struct {
         return CanAst.Pattern.create(self.arena.allocator(), node, region);
     }
 
-    fn convertParserFunctionCallArg(self: *Can, rnode: *Ast.RNode) !CanAst.ParserOrValue.RNode {
+    fn convertParserFunctionCallArg(self: *Can, rnode: *ParsedAst.RNode) !CanAst.ParserOrValue.RNode {
         if (isParserArg(rnode.node)) {
             return CanAst.ParserOrValue.RNode{ .parser = try self.convertParser(rnode) };
         } else {
@@ -512,7 +510,7 @@ pub const Can = struct {
         }
     }
 
-    fn convertParserStringTemplate(self: *Can, parts: ArrayList(*Ast.RNode)) !ArrayList(*CanAst.Parser.RNode) {
+    fn convertParserStringTemplate(self: *Can, parts: ArrayList(*ParsedAst.RNode)) !ArrayList(*CanAst.Parser.RNode) {
         var converted = ArrayList(*CanAst.Parser.RNode){};
         try converted.ensureTotalCapacity(self.arena.allocator(), parts.items.len);
 
@@ -524,7 +522,7 @@ pub const Can = struct {
         return converted;
     }
 
-    fn convertValueStringTemplate(self: *Can, parts: ArrayList(*Ast.RNode)) !ArrayList(*CanAst.Value.RNode) {
+    fn convertValueStringTemplate(self: *Can, parts: ArrayList(*ParsedAst.RNode)) !ArrayList(*CanAst.Value.RNode) {
         var converted = ArrayList(*CanAst.Value.RNode){};
         try converted.ensureTotalCapacity(self.arena.allocator(), parts.items.len);
 
@@ -536,7 +534,7 @@ pub const Can = struct {
         return converted;
     }
 
-    fn convertPatternStringTemplate(self: *Can, parts: ArrayList(*Ast.RNode)) !ArrayList(*CanAst.Pattern.RNode) {
+    fn convertPatternStringTemplate(self: *Can, parts: ArrayList(*ParsedAst.RNode)) !ArrayList(*CanAst.Pattern.RNode) {
         var converted = ArrayList(*CanAst.Pattern.RNode){};
         try converted.ensureTotalCapacity(self.arena.allocator(), parts.items.len);
 
@@ -548,7 +546,7 @@ pub const Can = struct {
         return converted;
     }
 
-    fn convertValueFunctionCall(self: *Can, func: Ast.FunctionNode) !CanAst.Value.FunctionCall {
+    fn convertValueFunctionCall(self: *Can, func: ParsedAst.FunctionNode) !CanAst.Value.FunctionCall {
         const name_node = func.name;
         const args = func.paramsOrArgs;
 
@@ -568,10 +566,10 @@ pub const Can = struct {
 
     fn convertParserDecl(
         self: *Can,
-        name_ident: Ast.IdentifierNode,
+        name_ident: ParsedAst.IdentifierNode,
         name_region: Region,
-        params: ArrayList(*Ast.RNode),
-        body: *Ast.RNode,
+        params: ArrayList(*ParsedAst.RNode),
+        body: *ParsedAst.RNode,
         region: Region,
     ) !*CanAst.RNode(CanAst.Parser.Declaration) {
         const can_name_ident = CanAst.Parser.Identifier{
@@ -624,10 +622,10 @@ pub const Can = struct {
 
     fn convertValueDecl(
         self: *Can,
-        name_ident: Ast.IdentifierNode,
+        name_ident: ParsedAst.IdentifierNode,
         name_region: Region,
-        params: ArrayList(*Ast.RNode),
-        body: *Ast.RNode,
+        params: ArrayList(*ParsedAst.RNode),
+        body: *ParsedAst.RNode,
         region: Region,
     ) !*CanAst.RNode(CanAst.Value.Declaration) {
         const can_name_ident = CanAst.Value.Identifier{
@@ -667,7 +665,7 @@ pub const Can = struct {
         return CanAst.Value.createDeclaration(self.arena.allocator(), decl_node, region);
     }
 
-    fn convertParserAliasDecl(self: *Can, name: *Ast.RNode, body: *Ast.RNode) !*CanAst.RNode(CanAst.Parser.Declaration) {
+    fn convertParserAliasDecl(self: *Can, name: *ParsedAst.RNode, body: *ParsedAst.RNode) !*CanAst.RNode(CanAst.Parser.Declaration) {
         const name_ident = name.node.Identifier;
         const name_id = CanAst.Parser.Identifier{
             .name = name_ident.name,
@@ -685,7 +683,7 @@ pub const Can = struct {
         return CanAst.Parser.create(self.can_ast, decl_node, name.region);
     }
 
-    fn convertValueAliasDecl(self: *Can, name: *Ast.RNode, body: *Ast.RNode) !*CanAst.Value.RNode {
+    fn convertValueAliasDecl(self: *Can, name: *ParsedAst.RNode, body: *ParsedAst.RNode) !*CanAst.Value.RNode {
         const name_ident = name.node.Identifier;
         const name_id = CanAst.Value.Identifier{
             .name = name_ident.name,
@@ -909,7 +907,7 @@ pub const Can = struct {
         }
     }
 
-    fn isParserArg(node: Ast.Node) bool {
+    fn isParserArg(node: ParsedAst.Node) bool {
         return switch (node) {
             .NumberFloat,
             .NumberString,
@@ -934,15 +932,16 @@ pub const Can = struct {
     }
 
     fn printError(self: *Can, region: Region, comptime format: []const u8, args: anytype) !void {
+        const module = self.vm.getModule(self.module_id);
         try self.writers.err.print("\nValidation Error: ", .{});
         try self.writers.err.print(format, args);
         try self.writers.err.print("\n\n", .{});
 
-        try self.writers.err.print("{s}:", .{self.module.name});
-        try region.printLineRelative(self.module.source, self.writers.err);
+        try self.writers.err.print("{s}:", .{module.name});
+        try region.printLineRelative(module.source, self.writers.err);
         try self.writers.err.print(":\n", .{});
 
-        try self.module.highlight(region, self.writers.err);
+        try module.highlight(region, self.writers.err);
         try self.writers.err.print("\n", .{});
     }
 };

@@ -177,6 +177,12 @@ pub const GC = struct {
             self.vm.writers.debug.print("    stack items: {}\n", .{self.vm.stack.items.len}) catch {};
         }
 
+        if (self.vm.compiler) |compiler| {
+            for (compiler.function_contexts.contexts.items) |fc| {
+                self.markDyn(&fc.function.dyn);
+            }
+        }
+
         if (self.vm.singleton_empty_array) |empty_array| {
             self.markDyn(empty_array.asDyn());
         }
