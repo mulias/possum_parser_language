@@ -233,10 +233,10 @@ pub const Can = struct {
                 .negated = f < 0,
             } },
             .NumberString => |ns| CanAst.Parser.Node{ .number_string = .{
-                .number = ns.number,
+                .number = try self.arena.allocator().dupe(u8, ns.number),
                 .negated = ns.negated,
             } },
-            .String => |s| CanAst.Parser.Node{ .string = s },
+            .String => |s| CanAst.Parser.Node{ .string = try self.arena.allocator().dupe(u8, s) },
             .Identifier => |ident| blk: {
                 if (ident.kind != .Parser) {
                     try self.printError(region, "Value identifier '{s}' is not valid in parser context", .{ident.name});
@@ -346,12 +346,12 @@ pub const Can = struct {
                     break :blk CanAst.Value.Node{ .number_float = f };
                 } else |_| {
                     break :blk CanAst.Value.Node{ .number_string = .{
-                        .number = ns.number,
+                        .number = try self.arena.allocator().dupe(u8, ns.number),
                         .negated = ns.negated,
                     } };
                 }
             },
-            .String => |s| CanAst.Value.Node{ .string = s },
+            .String => |s| CanAst.Value.Node{ .string = try self.arena.allocator().dupe(u8, s) },
             .Identifier => |ident| blk: {
                 if (ident.kind == .Parser) {
                     try self.printError(region, "Parser identifier '{s}' is not valid in value context", .{ident.name});
@@ -482,12 +482,12 @@ pub const Can = struct {
                     break :blk CanAst.Pattern.Node{ .number_float = f };
                 } else |_| {
                     break :blk CanAst.Pattern.Node{ .number_string = .{
-                        .number = ns.number,
+                        .number = try self.arena.allocator().dupe(u8, ns.number),
                         .negated = ns.negated,
                     } };
                 }
             },
-            .String => |s| CanAst.Pattern.Node{ .string = s },
+            .String => |s| CanAst.Pattern.Node{ .string = try self.arena.allocator().dupe(u8, s) },
             .Identifier => |ident| blk: {
                 if (ident.kind == .Parser) {
                     try self.printError(region, "Parser variable not allowed in pattern", .{});
