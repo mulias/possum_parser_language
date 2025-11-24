@@ -26,7 +26,12 @@ pub const Compiler = struct {
     target_module_id: Module.Id,
     writers: Writers,
     printBytecode: bool,
-    constant_map: AutoHashMap(u64, usize),
+    constant_map: AutoHashMap(ConstantMapKey, usize),
+
+    const ConstantMapKey = struct {
+        module_id: u32,
+        elem_bits: u64,
+    };
 
     const FunctionContexts = struct {
         contexts: ArrayList(Context) = .{},
@@ -137,7 +142,7 @@ pub const Compiler = struct {
             .vm = vm,
             .writers = vm.writers,
             .printBytecode = vm.config.printCompiledBytecode,
-            .constant_map = AutoHashMap(u64, usize){},
+            .constant_map = .{},
             .target_module_id = undefined,
         };
     }
@@ -165,8 +170,6 @@ pub const Compiler = struct {
         var main_fn: ?*Elem.DynElem.Function = null;
 
         for (self.vm.modules.items) |module| {
-            self.constant_map.clearRetainingCapacity();
-
             try self.parse(module);
             try self.declareGlobals(module);
             try self.resolveAliaseChains(module);
@@ -2782,6 +2785,18 @@ pub const Compiler = struct {
         return self.function_contexts.current().localSlot(name);
     }
 
+    fn getConstant(self: *Compiler, module_id: Module.Id, elem: Elem) ?usize {
+        return self.constant_map.get(.{ .module_id = module_id, .elem_bits = elem.bits });
+    }
+
+    fn putConstant(self: *Compiler, module_id: Module.Id, elem: Elem, const_id: usize) !void {
+        try self.constant_map.put(
+            self.vm.allocator,
+            .{ .module_id = module_id, .elem_bits = elem.bits },
+            const_id,
+        );
+    }
+
     fn emitJump(self: *Compiler, op: OpCode, region: Region) !usize {
         try self.emitOp(op, region);
         // Dummy operands that will be patched later
@@ -2842,7 +2857,7 @@ pub const Compiler = struct {
     }
 
     fn makeConstant(self: *Compiler, module_id: Module.Id, elem: Elem) !u24 {
-        if (self.constant_map.get(elem.bits)) |idx| {
+        if (self.getConstant(module_id, elem)) |idx| {
             return @as(u24, @intCast(idx));
         }
         const module = self.vm.getModule(module_id);
@@ -2851,7 +2866,7 @@ pub const Compiler = struct {
             try self.writers.err.print("Too many constants in module.", .{});
             return Error.TooManyConstants;
         }
-        try self.constant_map.put(self.vm.allocator, elem.bits, idx);
+        try self.putConstant(module_id, elem, idx);
         return @as(u24, @intCast(idx));
     }
 
