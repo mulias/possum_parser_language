@@ -4,6 +4,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const Writer = std.Io.Writer;
 const Ast = @import("can_ast.zig");
+const Can = @import("can.zig").Can;
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
 const Elem = @import("elem.zig").Elem;
@@ -19,7 +20,7 @@ const parsing = @import("parsing.zig");
 
 pub const Compiler = struct {
     vm: *VM,
-    ast: Ast,
+    can: Can,
     function_contexts: FunctionContexts,
     writers: Writers,
     printBytecode: bool,
@@ -129,7 +130,7 @@ pub const Compiler = struct {
         RangeInvalidNumberFormat,
     } || Writer.Error;
 
-    pub fn init(vm: *VM, targetModule: *Module, ast: Ast, printBytecode: bool) !Compiler {
+    pub fn init(vm: *VM, targetModule: *Module, can: Can, printBytecode: bool) !Compiler {
         const main = try Elem.DynElem.Function.create(vm, .{
             .module_id = targetModule.id,
             .name = try vm.strings.insert("@main"),
@@ -148,7 +149,7 @@ pub const Compiler = struct {
 
         return Compiler{
             .vm = vm,
-            .ast = ast,
+            .can = can,
             .function_contexts = function_contexts,
             .writers = vm.writers,
             .printBytecode = printBytecode,
@@ -166,7 +167,7 @@ pub const Compiler = struct {
         try self.resolveAliaseChains();
         try self.compileFunctions();
 
-        if (self.ast.main) |main| {
+        if (self.can.main) |main| {
             return self.compileMain(main);
         } else {
             return null;
@@ -174,7 +175,7 @@ pub const Compiler = struct {
     }
 
     fn declareGlobals(self: *Compiler) !void {
-        var decl_iter = self.ast.declarations.iterator();
+        var decl_iter = self.can.declarations.iterator();
         while (decl_iter.next()) |entry| {
             const decl = entry.value_ptr.*;
             if (self.isAliasChain(decl)) {
@@ -191,7 +192,7 @@ pub const Compiler = struct {
     }
 
     fn compileFunctions(self: *Compiler) !void {
-        var decl_iter = self.ast.declarations.iterator();
+        var decl_iter = self.can.declarations.iterator();
         while (decl_iter.next()) |entry| {
             const decl = entry.value_ptr.*;
             if (!self.isAlias(decl) and !self.isAliasChain(decl)) {
@@ -201,7 +202,7 @@ pub const Compiler = struct {
     }
 
     fn resolveAliaseChains(self: *Compiler) !void {
-        var decl_iter = self.ast.declarations.iterator();
+        var decl_iter = self.can.declarations.iterator();
         while (decl_iter.next()) |entry| {
             const decl = entry.value_ptr.*;
 
@@ -297,7 +298,7 @@ pub const Compiler = struct {
                 try path.put(self.vm.allocator, target_ident_name, undefined);
             }
 
-            if (self.ast.declarations.get(target_ident_name)) |next_decl| {
+            if (self.can.declarations.get(target_ident_name)) |next_decl| {
                 if (self.getAliasChainName(next_decl)) |next_target_ident_name| {
                     target_ident_name = next_target_ident_name;
                     continue;
@@ -311,7 +312,7 @@ pub const Compiler = struct {
         const terminal_sid = target_ident_name;
 
         // Try to resolve to a direct alias
-        if (self.ast.declarations.get(target_ident_name)) |terminal_decl| {
+        if (self.can.declarations.get(target_ident_name)) |terminal_decl| {
             if (try self.getAliasBody(terminal_decl)) |terminal_elem| {
                 try self.addGlobal(alias_sid, terminal_elem);
                 return;

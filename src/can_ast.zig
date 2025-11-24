@@ -6,31 +6,7 @@ const AutoArrayHashMap = std.AutoArrayHashMapUnmanaged;
 const Region = @import("region.zig").Region;
 const StringTable = @import("string_table.zig").StringTable;
 
-arena: ArenaAllocator,
-declarations: AutoArrayHashMap(StringTable.Id, ParserOrValue.Declaration),
-main: ?*Parser.RNode,
-
 pub const Ast = @This();
-
-pub fn init(allocator: Allocator) Ast {
-    return Ast{
-        .arena = ArenaAllocator.init(allocator),
-        .declarations = .{},
-        .main = null,
-    };
-}
-
-pub fn deinit(self: *Ast) void {
-    self.arena.deinit();
-}
-
-pub fn addParserDeclaration(self: *Ast, decl: *RNode(Parser.Declaration)) !void {
-    try self.declarations.put(self.arena.allocator(), decl.node.ident.node.name, .{ .parser = decl });
-}
-
-pub fn addValueDeclaration(self: *Ast, decl: *RNode(Value.Declaration)) !void {
-    try self.declarations.put(self.arena.allocator(), decl.node.ident.node.name, .{ .value = decl });
-}
 
 pub fn RNode(comptime Node: type) type {
     return struct {
@@ -221,20 +197,20 @@ pub const Parser = struct {
         underscored: bool,
     };
 
-    pub fn create(ast: *Ast, node: Node, region: Region) !*Parser.RNode {
-        const ptr = try ast.arena.allocator().create(Parser.RNode);
+    pub fn create(allocator: Allocator, node: Node, region: Region) !*Parser.RNode {
+        const ptr = try allocator.create(Parser.RNode);
         ptr.* = Parser.RNode{ .region = region, .node = node };
         return ptr;
     }
 
-    pub fn createDeclaration(ast: *Ast, node: Declaration, region: Region) !*Ast.RNode(Declaration) {
-        const ptr = try ast.arena.allocator().create(Ast.RNode(Declaration));
+    pub fn createDeclaration(allocator: Allocator, node: Declaration, region: Region) !*Ast.RNode(Declaration) {
+        const ptr = try allocator.create(Ast.RNode(Declaration));
         ptr.* = Ast.RNode(Declaration){ .region = region, .node = node };
         return ptr;
     }
 
-    pub fn createIdent(ast: *Ast, node: Identifier, region: Region) !*Ast.RNode(Identifier) {
-        const ptr = try ast.arena.allocator().create(Ast.RNode(Identifier));
+    pub fn createIdent(allocator: Allocator, node: Identifier, region: Region) !*Ast.RNode(Identifier) {
+        const ptr = try allocator.create(Ast.RNode(Identifier));
         ptr.* = Ast.RNode(Identifier){ .region = region, .node = node };
         return ptr;
     }
@@ -334,20 +310,20 @@ pub const Value = struct {
         underscored: bool,
     };
 
-    pub fn create(ast: *Ast, node: Node, region: Region) !*Value.RNode {
-        const ptr = try ast.arena.allocator().create(Value.RNode);
+    pub fn create(allocator: Allocator, node: Node, region: Region) !*Value.RNode {
+        const ptr = try allocator.create(Value.RNode);
         ptr.* = Value.RNode{ .region = region, .node = node };
         return ptr;
     }
 
-    pub fn createDeclaration(ast: *Ast, node: Declaration, region: Region) !*Ast.RNode(Declaration) {
-        const ptr = try ast.arena.allocator().create(Ast.RNode(Declaration));
+    pub fn createDeclaration(allocator: Allocator, node: Declaration, region: Region) !*Ast.RNode(Declaration) {
+        const ptr = try allocator.create(Ast.RNode(Declaration));
         ptr.* = Ast.RNode(Declaration){ .region = region, .node = node };
         return ptr;
     }
 
-    pub fn createIdent(ast: *Ast, node: Identifier, region: Region) !*Ast.RNode(Identifier) {
-        const ptr = try ast.arena.allocator().create(Ast.RNode(Identifier));
+    pub fn createIdent(allocator: Allocator, node: Identifier, region: Region) !*Ast.RNode(Identifier) {
+        const ptr = try allocator.create(Ast.RNode(Identifier));
         ptr.* = Ast.RNode(Identifier){ .region = region, .node = node };
         return ptr;
     }
@@ -367,7 +343,7 @@ pub const Value = struct {
         };
     }
 
-    pub fn merge(ast: *Ast, a: Value.RNode, b: Value.RNode) error{ OutOfMemory, InvalidCharacter }!?Value.RNode {
+    pub fn merge(allocator: Allocator, a: Value.RNode, b: Value.RNode) error{ OutOfMemory, InvalidCharacter }!?Value.RNode {
         if (a.node == .null) return b;
         if (b.node == .null) return a;
 
@@ -385,7 +361,7 @@ pub const Value = struct {
             .string => |a_str| switch (b.node) {
                 .string => |b_str| {
                     const total_len = a_str.len + b_str.len;
-                    const buffer = try ast.arena.allocator().alloc(u8, total_len);
+                    const buffer = try allocator.alloc(u8, total_len);
                     @memcpy(buffer[0..a_str.len], a_str);
                     @memcpy(buffer[a_str.len..], b_str);
                     return Value.RNode{ .node = Node{ .string = buffer }, .region = merged_region };
@@ -427,7 +403,7 @@ pub const Value = struct {
             .array => |a_arr| switch (b.node) {
                 .array => |b_arr| {
                     var merged_array = a_arr;
-                    try merged_array.ensureTotalCapacity(ast.arena.allocator(), a_arr.items.len + b_arr.items.len);
+                    try merged_array.ensureTotalCapacity(allocator, a_arr.items.len + b_arr.items.len);
                     merged_array.appendSliceAssumeCapacity(b_arr.items);
                     return Value.RNode{
                         .node = .{ .array = merged_array },
@@ -517,13 +493,13 @@ pub const Pattern = struct {
         underscored: bool,
     };
 
-    pub fn create(ast: *Ast, node: Node, region: Region) !*Pattern.RNode {
-        const ptr = try ast.arena.allocator().create(Pattern.RNode);
+    pub fn create(allocator: Allocator, node: Node, region: Region) !*Pattern.RNode {
+        const ptr = try allocator.create(Pattern.RNode);
         ptr.* = Pattern.RNode{ .region = region, .node = node };
         return ptr;
     }
 
-    pub fn merge(ast: *Ast, a: Pattern.RNode, b: Pattern.RNode) error{ OutOfMemory, InvalidCharacter }!?Pattern.RNode {
+    pub fn merge(allocator: Allocator, a: Pattern.RNode, b: Pattern.RNode) error{ OutOfMemory, InvalidCharacter }!?Pattern.RNode {
         if (a.node == .null) return b;
         if (b.node == .null) return a;
 
@@ -541,7 +517,7 @@ pub const Pattern = struct {
             .string => |a_str| switch (b.node) {
                 .string => |b_str| {
                     const total_len = a_str.len + b_str.len;
-                    const buffer = try ast.arena.allocator().alloc(u8, total_len);
+                    const buffer = try allocator.alloc(u8, total_len);
                     @memcpy(buffer[0..a_str.len], a_str);
                     @memcpy(buffer[a_str.len..], b_str);
                     return Pattern.RNode{ .node = Node{ .string = buffer }, .region = merged_region };
@@ -573,7 +549,7 @@ pub const Pattern = struct {
 
                         const lower_val = a_lower_val + b_lower_val;
 
-                        lower = try create(ast, .{ .number_float = lower_val }, merged_region);
+                        lower = try create(allocator, .{ .number_float = lower_val }, merged_region);
                     } else if (b_range.lower) |b_lower| {
                         if (!b_lower.node.isNumberElem()) return null;
                         lower = b_lower;
@@ -601,7 +577,7 @@ pub const Pattern = struct {
 
                         const upper_val = a_upper_val + b_upper_val;
 
-                        upper = try create(ast, .{ .number_float = upper_val }, merged_region);
+                        upper = try create(allocator, .{ .number_float = upper_val }, merged_region);
                     } else if (b_range.upper) |b_upper| {
                         if (!b_upper.node.isNumberElem()) return null;
                         upper = b_upper;
@@ -617,7 +593,7 @@ pub const Pattern = struct {
                 .number_float,
                 .number_string,
                 => {
-                    return try mergeRangeAndNumberNodes(ast, a_range, b.node, merged_region);
+                    return try mergeRangeAndNumberNodes(allocator, a_range, b.node, merged_region);
                 },
                 else => null,
             },
@@ -634,7 +610,7 @@ pub const Pattern = struct {
                     };
                 },
                 .range => |b_range| {
-                    return try mergeRangeAndNumberNodes(ast, b_range, a.node, merged_region);
+                    return try mergeRangeAndNumberNodes(allocator, b_range, a.node, merged_region);
                 },
                 else => null,
             },
@@ -655,14 +631,14 @@ pub const Pattern = struct {
                     };
                 },
                 .range => |b_range| {
-                    return try mergeRangeAndNumberNodes(ast, b_range, a.node, merged_region);
+                    return try mergeRangeAndNumberNodes(allocator, b_range, a.node, merged_region);
                 },
                 else => null,
             },
             .array => |a_arr| switch (b.node) {
                 .array => |b_arr| {
                     var merged_array = a_arr;
-                    try merged_array.ensureTotalCapacity(ast.arena.allocator(), a_arr.items.len + b_arr.items.len);
+                    try merged_array.ensureTotalCapacity(allocator, a_arr.items.len + b_arr.items.len);
                     merged_array.appendSliceAssumeCapacity(b_arr.items);
                     return Pattern.RNode{
                         .node = .{ .array = merged_array },
@@ -675,7 +651,12 @@ pub const Pattern = struct {
         };
     }
 
-    fn mergeRangeAndNumberNodes(ast: *Ast, range: Range, number: Node, region: Region) error{ OutOfMemory, InvalidCharacter }!?Pattern.RNode {
+    fn mergeRangeAndNumberNodes(
+        allocator: Allocator,
+        range: Range,
+        number: Node,
+        region: Region,
+    ) error{ OutOfMemory, InvalidCharacter }!?Pattern.RNode {
         const float = if (number == .number_float)
             number.number_float
         else if (number == .number_string)
@@ -694,7 +675,7 @@ pub const Pattern = struct {
             else
                 return null;
 
-            new_lower = try create(ast, .{ .number_float = float + lower_val }, region);
+            new_lower = try create(allocator, .{ .number_float = float + lower_val }, region);
         }
 
         if (range.upper) |upper| {
@@ -705,7 +686,7 @@ pub const Pattern = struct {
             else
                 return null;
 
-            new_upper = try create(ast, .{ .number_float = float + upper_val }, region);
+            new_upper = try create(allocator, .{ .number_float = float + upper_val }, region);
         }
 
         return Pattern.RNode{
@@ -729,7 +710,7 @@ pub const Pattern = struct {
         };
     }
 
-    pub fn repeat(ast: *Ast, a: Pattern.RNode, b: Pattern.RNode) error{ OutOfMemory, InvalidCharacter }!?Pattern.RNode {
+    pub fn repeat(allocator: Allocator, a: Pattern.RNode, b: Pattern.RNode) error{ OutOfMemory, InvalidCharacter }!?Pattern.RNode {
         const merged_region = a.region.merge(b.region);
 
         return switch (a.node) {
@@ -755,7 +736,7 @@ pub const Pattern = struct {
                     } else 0;
 
                     const new_lower = a_lower_val * b_lower_val;
-                    const new_lower_node = try create(ast, .{ .number_float = new_lower }, merged_region);
+                    const new_lower_node = try create(allocator, .{ .number_float = new_lower }, merged_region);
 
                     // Handle upper bounds
                     if (a_range.upper) |a_upper| {
@@ -772,7 +753,7 @@ pub const Pattern = struct {
                             else
                                 try b_upper.node.number_string.toFloat();
                             const new_upper = a_upper_val * b_upper_val;
-                            const new_upper_node = try create(ast, .{ .number_float = new_upper }, merged_region);
+                            const new_upper_node = try create(allocator, .{ .number_float = new_upper }, merged_region);
                             return Pattern.RNode{
                                 .node = .{ .range = .{ .lower = new_lower_node, .upper = new_upper_node } },
                                 .region = merged_region,
@@ -798,10 +779,10 @@ pub const Pattern = struct {
                         };
                     }
                 },
-                .number_float => |b_float| repeatRangeAndNumber(ast, a_range, b_float, merged_region),
+                .number_float => |b_float| repeatRangeAndNumber(allocator, a_range, b_float, merged_region),
                 .number_string => |ns| blk: {
                     const b_float = try ns.toFloat();
-                    break :blk repeatRangeAndNumber(ast, a_range, b_float, merged_region);
+                    break :blk repeatRangeAndNumber(allocator, a_range, b_float, merged_region);
                 },
                 else => null,
             },
@@ -817,7 +798,7 @@ pub const Pattern = struct {
                         .region = merged_region,
                     };
                 },
-                .range => |b_range| repeatRangeAndNumber(ast, b_range, a_float, merged_region),
+                .range => |b_range| repeatRangeAndNumber(allocator, b_range, a_float, merged_region),
                 else => null,
             },
             .number_string => |nsa| switch (b.node) {
@@ -838,7 +819,7 @@ pub const Pattern = struct {
                 },
                 .range => |b_range| blk: {
                     const a_float = try nsa.toFloat();
-                    break :blk repeatRangeAndNumber(ast, b_range, a_float, merged_region);
+                    break :blk repeatRangeAndNumber(allocator, b_range, a_float, merged_region);
                 },
                 else => null,
             },
@@ -865,7 +846,7 @@ pub const Pattern = struct {
 
                 // Allocate buffer for repeated string
                 const total_len = str.len * count;
-                const buffer = try ast.arena.allocator().alloc(u8, total_len);
+                const buffer = try allocator.alloc(u8, total_len);
                 for (0..count) |i| {
                     const start = i * str.len;
                     @memcpy(buffer[start .. start + str.len], str);
@@ -890,7 +871,7 @@ pub const Pattern = struct {
 
                 // Create new array with repeated elements
                 var new_array = ArrayList(*Pattern.RNode){};
-                try new_array.ensureTotalCapacity(ast.arena.allocator(), arr.items.len * count);
+                try new_array.ensureTotalCapacity(allocator, arr.items.len * count);
                 for (0..count) |_| {
                     for (arr.items) |elem| {
                         new_array.appendAssumeCapacity(elem);
@@ -908,7 +889,12 @@ pub const Pattern = struct {
         };
     }
 
-    fn repeatRangeAndNumber(ast: *Ast, range: Range, multiplier: f64, region: Region) error{ OutOfMemory, InvalidCharacter }!?Pattern.RNode {
+    fn repeatRangeAndNumber(
+        allocator: Allocator,
+        range: Range,
+        multiplier: f64,
+        region: Region,
+    ) error{ OutOfMemory, InvalidCharacter }!?Pattern.RNode {
         // multiplier must be non-negative
         if (multiplier < 0) return null;
 
@@ -924,7 +910,7 @@ pub const Pattern = struct {
 
         // Multiply lower bound
         const new_lower = lower_val * multiplier;
-        const new_lower_node = try create(ast, .{ .number_float = new_lower }, region);
+        const new_lower_node = try create(allocator, .{ .number_float = new_lower }, region);
 
         // Handle upper bound if present
         if (range.upper) |upper| {
@@ -934,7 +920,7 @@ pub const Pattern = struct {
             else
                 try upper.node.number_string.toFloat();
             const new_upper = upper_val * multiplier;
-            const new_upper_node = try create(ast, .{ .number_float = new_upper }, region);
+            const new_upper_node = try create(allocator, .{ .number_float = new_upper }, region);
             return Pattern.RNode{
                 .node = .{ .range = .{ .lower = new_lower_node, .upper = new_upper_node } },
                 .region = region,

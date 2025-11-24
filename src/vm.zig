@@ -17,7 +17,6 @@ const StringTable = @import("string_table.zig").StringTable;
 const Pattern = @import("pattern.zig").Pattern;
 const PatternSolver = @import("pattern_solver.zig");
 const Can = @import("can.zig").Can;
-const CanAst = @import("can_ast.zig");
 const Writers = @import("writer.zig").Writers;
 const builtin = @import("builtin.zig");
 const parsing = @import("parsing.zig");
@@ -208,18 +207,11 @@ pub const VM = struct {
             defer stdlib_parser.deinit();
             try stdlib_parser.parse();
 
-            var stdlib_can_ast = CanAst.init(self.allocator);
-            defer stdlib_can_ast.deinit();
-            var stdlib_can = Can{
-                .vm = self,
-                .module = stdlib_module.*,
-                .ast = stdlib_parser.ast,
-                .can_ast = &stdlib_can_ast,
-                .writers = self.writers,
-            };
+            var stdlib_can = Can.init(self, stdlib_module.*, stdlib_parser.ast);
+            defer stdlib_can.deinit();
             _ = try stdlib_can.canonicalize();
 
-            var stdlib_compiler = try Compiler.init(self, stdlib_module, stdlib_can.can_ast.*, false);
+            var stdlib_compiler = try Compiler.init(self, stdlib_module, stdlib_can, false);
             defer stdlib_compiler.deinit();
             _ = try stdlib_compiler.compile();
         }
@@ -232,21 +224,14 @@ pub const VM = struct {
             try parser.ast.print(self.writers.debug, self.*, module.source);
         }
 
-        var can_ast = CanAst.init(self.allocator);
-        defer can_ast.deinit();
-        var can = Can{
-            .vm = self,
-            .module = module.*,
-            .ast = parser.ast,
-            .can_ast = &can_ast,
-            .writers = self.writers,
-        };
+        var can = Can.init(self, module.*, parser.ast);
+        defer can.deinit();
         _ = try can.canonicalize();
 
         var compiler = try Compiler.init(
             self,
             module,
-            can.can_ast.*,
+            can,
             self.config.printCompiledBytecode,
         );
         defer compiler.deinit();

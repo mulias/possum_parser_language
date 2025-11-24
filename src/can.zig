@@ -1,12 +1,15 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
+const HashMap = std.AutoArrayHashMapUnmanaged;
 const StringHashMap = std.StringArrayHashMapUnmanaged;
 const Writer = std.Io.Writer;
 const Ast = @import("ast.zig").Ast;
 const CanAst = @import("can_ast.zig");
 const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
+const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 const Writers = @import("writer.zig").Writers;
 
@@ -14,8 +17,32 @@ pub const Can = struct {
     vm: *VM,
     module: Module,
     ast: Ast,
-    can_ast: *CanAst.Ast,
+    arena: ArenaAllocator,
+    declarations: HashMap(StringTable.Id, CanAst.ParserOrValue.Declaration) = .{},
+    main: ?*CanAst.Parser.RNode = null,
     writers: Writers,
+
+    pub fn init(vm: *VM, module: Module, ast: Ast) Can {
+        return Can{
+            .vm = vm,
+            .module = module,
+            .ast = ast,
+            .arena = ArenaAllocator.init(vm.allocator),
+            .writers = vm.writers,
+        };
+    }
+
+    pub fn deinit(self: *Can) void {
+        self.arena.deinit();
+    }
+
+    pub fn addParserDeclaration(self: *Can, decl: *CanAst.RNode(CanAst.Parser.Declaration)) !void {
+        try self.declarations.put(self.arena.allocator(), decl.node.ident.node.name, .{ .parser = decl });
+    }
+
+    pub fn addValueDeclaration(self: *Can, decl: *CanAst.RNode(CanAst.Value.Declaration)) !void {
+        try self.declarations.put(self.arena.allocator(), decl.node.ident.node.name, .{ .value = decl });
+    }
 
     const Error = error{
         OutOfMemory,
@@ -71,20 +98,20 @@ pub const Can = struct {
 
                 if (name_ident.kind == .Parser) {
                     const parser_decl = try self.convertParserDecl(name_ident, func.name.region, func.paramsOrArgs, body, root.region);
-                    try self.can_ast.addParserDeclaration(parser_decl);
+                    try self.addParserDeclaration(parser_decl);
                 } else {
                     const value_decl = try self.convertValueDecl(name_ident, func.name.region, func.paramsOrArgs, body, root.region);
-                    try self.can_ast.addValueDeclaration(value_decl);
+                    try self.addValueDeclaration(value_decl);
                 }
             } else if (head.node == .Identifier) {
                 // Alias declaration
                 const name_ident = head.node.Identifier;
                 if (name_ident.kind == .Parser) {
                     const parser_decl = try self.convertParserDecl(name_ident, head.region, .{}, body, root.region);
-                    try self.can_ast.addParserDeclaration(parser_decl);
+                    try self.addParserDeclaration(parser_decl);
                 } else {
                     const value_decl = try self.convertValueDecl(name_ident, head.region, .{}, body, root.region);
-                    try self.can_ast.addValueDeclaration(value_decl);
+                    try self.addValueDeclaration(value_decl);
                 }
             } else {
                 try self.printError(head.region, "Invalid global declaration head", .{});
@@ -92,8 +119,8 @@ pub const Can = struct {
             }
         } else {
             const parser_node = try self.convertParser(root);
-            if (self.can_ast.main == null) {
-                self.can_ast.main = parser_node;
+            if (self.main == null) {
+                self.main = parser_node;
             } else {
                 try self.printError(root.region, "Only one main parser expression is allowed per module", .{});
                 return Error.MultipleMainParsers;
@@ -174,7 +201,7 @@ pub const Can = struct {
                 var converted_args = ArrayList(CanAst.ParserOrValue.RNode){};
                 for (args.items) |arg| {
                     const converted = try self.convertParserFunctionCallArg(arg);
-                    try converted_args.append(self.can_ast.arena.allocator(), converted);
+                    try converted_args.append(self.arena.allocator(), converted);
                 }
 
                 break :blk CanAst.Parser.Node{ .function_call = .{
@@ -202,7 +229,7 @@ pub const Can = struct {
                 .underscored = false,
             } },
             .NumberFloat => |f| CanAst.Parser.Node{ .number_string = .{
-                .number = try std.fmt.allocPrint(self.can_ast.arena.allocator(), "{d}", .{f}),
+                .number = try std.fmt.allocPrint(self.arena.allocator(), "{d}", .{f}),
                 .negated = f < 0,
             } },
             .NumberString => |ns| CanAst.Parser.Node{ .number_string = .{
@@ -223,7 +250,7 @@ pub const Can = struct {
             },
         };
 
-        return CanAst.Parser.create(self.can_ast, node, region);
+        return CanAst.Parser.create(self.arena.allocator(), node, region);
     }
 
     fn convertValue(self: *Can, rnode: *Ast.RNode) Error!*CanAst.Value.RNode {
@@ -264,7 +291,11 @@ pub const Can = struct {
                 } },
                 .NumberSubtract => CanAst.Value.Node{ .merge = .{
                     .left = try self.convertValue(infix.left),
-                    .right = try CanAst.Value.create(self.can_ast, .{ .negation = try self.convertValue(infix.right) }, infix.right.region),
+                    .right = try CanAst.Value.create(
+                        self.arena.allocator(),
+                        .{ .negation = try self.convertValue(infix.right) },
+                        infix.right.region,
+                    ),
                 } },
             },
             .Range => {
@@ -279,7 +310,7 @@ pub const Can = struct {
                 var converted = ArrayList(*CanAst.Value.RNode){};
                 for (elems.items) |elem| {
                     const converted_elem = try self.convertValue(elem);
-                    try converted.append(self.can_ast.arena.allocator(), converted_elem);
+                    try converted.append(self.arena.allocator(), converted_elem);
                 }
                 break :blk CanAst.Value.Node{ .array = converted };
             },
@@ -290,7 +321,7 @@ pub const Can = struct {
                         .key = try self.convertValue(pair.key),
                         .value = try self.convertValue(pair.value),
                     };
-                    try converted.append(self.can_ast.arena.allocator(), converted_pair);
+                    try converted.append(self.arena.allocator(), converted_pair);
                 }
                 break :blk CanAst.Value.Node{ .object = converted };
             },
@@ -334,7 +365,7 @@ pub const Can = struct {
             },
         };
 
-        return CanAst.Value.create(self.can_ast, node, region);
+        return CanAst.Value.create(self.arena.allocator(), node, region);
     }
 
     fn convertLabeledValue(self: *Can, rnode: *Ast.RNode) Error!*CanAst.Value.RNode {
@@ -392,7 +423,11 @@ pub const Can = struct {
                 } },
                 .NumberSubtract => CanAst.Pattern.Node{ .merge = .{
                     .left = try self.convertPattern(infix.left),
-                    .right = try CanAst.Pattern.create(self.can_ast, .{ .negation = try self.convertPattern(infix.right) }, infix.right.region),
+                    .right = try CanAst.Pattern.create(
+                        self.arena.allocator(),
+                        .{ .negation = try self.convertPattern(infix.right) },
+                        infix.right.region,
+                    ),
                 } },
                 else => {
                     try self.printError(region, "Invalid operation in pattern context", .{});
@@ -412,7 +447,7 @@ pub const Can = struct {
                 var converted = ArrayList(*CanAst.Pattern.RNode){};
                 for (elems.items) |elem| {
                     const converted_elem = try self.convertPattern(elem);
-                    try converted.append(self.can_ast.arena.allocator(), converted_elem);
+                    try converted.append(self.arena.allocator(), converted_elem);
                 }
                 break :blk CanAst.Pattern.Node{ .array = converted };
             },
@@ -423,7 +458,7 @@ pub const Can = struct {
                         .key = try self.convertPattern(pair.key),
                         .value = try self.convertPattern(pair.value),
                     };
-                    try converted.append(self.can_ast.arena.allocator(), converted_pair);
+                    try converted.append(self.arena.allocator(), converted_pair);
                 }
                 break :blk CanAst.Pattern.Node{ .object = converted };
             },
@@ -466,7 +501,7 @@ pub const Can = struct {
             },
         };
 
-        return CanAst.Pattern.create(self.can_ast, node, region);
+        return CanAst.Pattern.create(self.arena.allocator(), node, region);
     }
 
     fn convertParserFunctionCallArg(self: *Can, rnode: *Ast.RNode) !CanAst.ParserOrValue.RNode {
@@ -479,7 +514,7 @@ pub const Can = struct {
 
     fn convertParserStringTemplate(self: *Can, parts: ArrayList(*Ast.RNode)) !ArrayList(*CanAst.Parser.RNode) {
         var converted = ArrayList(*CanAst.Parser.RNode){};
-        try converted.ensureTotalCapacity(self.can_ast.arena.allocator(), parts.items.len);
+        try converted.ensureTotalCapacity(self.arena.allocator(), parts.items.len);
 
         for (parts.items) |part| {
             const converted_part = try self.convertParser(part);
@@ -491,7 +526,7 @@ pub const Can = struct {
 
     fn convertValueStringTemplate(self: *Can, parts: ArrayList(*Ast.RNode)) !ArrayList(*CanAst.Value.RNode) {
         var converted = ArrayList(*CanAst.Value.RNode){};
-        try converted.ensureTotalCapacity(self.can_ast.arena.allocator(), parts.items.len);
+        try converted.ensureTotalCapacity(self.arena.allocator(), parts.items.len);
 
         for (parts.items) |part| {
             const converted_part = try self.convertValue(part);
@@ -503,7 +538,7 @@ pub const Can = struct {
 
     fn convertPatternStringTemplate(self: *Can, parts: ArrayList(*Ast.RNode)) !ArrayList(*CanAst.Pattern.RNode) {
         var converted = ArrayList(*CanAst.Pattern.RNode){};
-        try converted.ensureTotalCapacity(self.can_ast.arena.allocator(), parts.items.len);
+        try converted.ensureTotalCapacity(self.arena.allocator(), parts.items.len);
 
         for (parts.items) |part| {
             const converted_part = try self.convertPattern(part);
@@ -522,7 +557,7 @@ pub const Can = struct {
         var converted_args = ArrayList(*CanAst.Value.RNode){};
         for (args.items) |arg| {
             const converted = try self.convertValue(arg);
-            try converted_args.append(self.can_ast.arena.allocator(), converted);
+            try converted_args.append(self.arena.allocator(), converted);
         }
 
         return CanAst.Value.FunctionCall{
@@ -556,7 +591,7 @@ pub const Can = struct {
 
             const pov_ident = if (param_ident.kind == .Parser)
                 CanAst.ParserOrValue.Identifier{ .parser = try CanAst.Parser.createIdent(
-                    self.can_ast,
+                    self.arena.allocator(),
                     .{
                         .name = try self.vm.strings.insert(param_ident.name),
                         .builtin = param_ident.builtin,
@@ -566,7 +601,7 @@ pub const Can = struct {
                 ) }
             else
                 CanAst.ParserOrValue.Identifier{ .value = try CanAst.Value.createIdent(
-                    self.can_ast,
+                    self.arena.allocator(),
                     .{
                         .name = try self.vm.strings.insert(param_ident.name),
                         .builtin = param_ident.builtin,
@@ -575,16 +610,16 @@ pub const Can = struct {
                     param.region,
                 ) };
 
-            try converted_params.append(self.can_ast.arena.allocator(), pov_ident);
+            try converted_params.append(self.arena.allocator(), pov_ident);
         }
 
         const decl_node = CanAst.Parser.Declaration{
-            .ident = try CanAst.Parser.createIdent(self.can_ast, can_name_ident, name_region),
+            .ident = try CanAst.Parser.createIdent(self.arena.allocator(), can_name_ident, name_region),
             .params = converted_params,
             .body = try self.convertParser(body),
         };
 
-        return CanAst.Parser.createDeclaration(self.can_ast, decl_node, region);
+        return CanAst.Parser.createDeclaration(self.arena.allocator(), decl_node, region);
     }
 
     fn convertValueDecl(
@@ -611,7 +646,7 @@ pub const Can = struct {
             const param_ident = param.node.Identifier;
 
             const value_ident = try CanAst.Value.createIdent(
-                self.can_ast,
+                self.arena.allocator(),
                 .{
                     .name = try self.vm.strings.insert(param_ident.name),
                     .builtin = param_ident.builtin,
@@ -620,16 +655,16 @@ pub const Can = struct {
                 param.region,
             );
 
-            try converted_params.append(self.can_ast.arena.allocator(), value_ident);
+            try converted_params.append(self.arena.allocator(), value_ident);
         }
 
         const decl_node = CanAst.Value.Declaration{
-            .ident = try CanAst.Value.createIdent(self.can_ast, can_name_ident, name_region),
+            .ident = try CanAst.Value.createIdent(self.arena.allocator(), can_name_ident, name_region),
             .params = converted_params,
             .body = try self.convertValue(body),
         };
 
-        return CanAst.Value.createDeclaration(self.can_ast, decl_node, region);
+        return CanAst.Value.createDeclaration(self.arena.allocator(), decl_node, region);
     }
 
     fn convertParserAliasDecl(self: *Can, name: *Ast.RNode, body: *Ast.RNode) !*CanAst.RNode(CanAst.Parser.Declaration) {
@@ -669,11 +704,11 @@ pub const Can = struct {
     }
 
     fn foldConstants(self: *Can) !void {
-        if (self.can_ast.main) |main| {
+        if (self.main) |main| {
             try self.foldParserConstants(main);
         }
 
-        var decl_iter = self.can_ast.declarations.iterator();
+        var decl_iter = self.declarations.iterator();
         while (decl_iter.next()) |entry| {
             switch (entry.value_ptr.*) {
                 .parser => |parser_decl| {
@@ -783,7 +818,7 @@ pub const Can = struct {
             .merge => |merge| {
                 try self.foldValueConstants(merge.left);
                 try self.foldValueConstants(merge.right);
-                if (try CanAst.Value.merge(self.can_ast, merge.left.*, merge.right.*)) |merged| {
+                if (try CanAst.Value.merge(self.arena.allocator(), merge.left.*, merge.right.*)) |merged| {
                     rnode.* = merged;
                 }
             },
@@ -830,14 +865,14 @@ pub const Can = struct {
             .merge => |merge| {
                 try self.foldPatternConstants(merge.left);
                 try self.foldPatternConstants(merge.right);
-                if (try CanAst.Pattern.merge(self.can_ast, merge.left.*, merge.right.*)) |merged| {
+                if (try CanAst.Pattern.merge(self.arena.allocator(), merge.left.*, merge.right.*)) |merged| {
                     rnode.* = merged;
                 }
             },
             .repeat => |repeat| {
                 try self.foldPatternConstants(repeat.left);
                 try self.foldPatternConstants(repeat.right);
-                if (try CanAst.Pattern.repeat(self.can_ast, repeat.left.*, repeat.right.*)) |repeated| {
+                if (try CanAst.Pattern.repeat(self.arena.allocator(), repeat.left.*, repeat.right.*)) |repeated| {
                     rnode.* = repeated;
                 }
             },
