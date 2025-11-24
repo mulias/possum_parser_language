@@ -1,6 +1,6 @@
   $ export PRINT_COMPILED_BYTECODE=true RUN_VM=false
 
-  $ possum $TESTDIR/../../stdlib/core.possum -i ''
+  $ possum $TESTDIR/../../stdlib/core.possum -i '' --no-stdlib
   
   ==================char==================
   char = "\u000000"..
@@ -132,7 +132,7 @@
   0006    | End
   ========================================
   
-  =================@fn684=================
+  =================@fn283=================
   unless(char, whitespace)
   ========================================
   0000    | GetConstant 7: unless
@@ -146,12 +146,12 @@
   token = many(unless(char, whitespace))
   ========================================
   0000    | GetConstant 0: many
-  0002    | GetConstant 6: @fn684
+  0002    | GetConstant 6: @fn283
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn685=================
+  =================@fn284=================
   alnum | "_" | "-"
   ========================================
   0000    | SetInputMark
@@ -168,12 +168,12 @@
   word = many(alnum | "_" | "-")
   ========================================
   0000    | GetConstant 0: many
-  0002    | GetConstant 10: @fn685
+  0002    | GetConstant 10: @fn284
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn686=================
+  =================@fn285=================
   newline | end_of_input
   ========================================
   0000    | SetInputMark
@@ -187,7 +187,7 @@
   line = chars_until(newline | end_of_input)
   ========================================
   0000    | GetConstant 11: chars_until
-  0002    | GetConstant 12: @fn686
+  0002    | GetConstant 12: @fn285
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -260,7 +260,7 @@
   0006    | End
   ========================================
   
-  =================@fn687=================
+  =================@fn286=================
   space | newline
   ========================================
   0000    | SetInputMark
@@ -274,7 +274,7 @@
   whitespace = many(space | newline)
   ========================================
   0000    | GetConstant 0: many
-  0002    | GetConstant 26: @fn687
+  0002    | GetConstant 26: @fn286
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -296,7 +296,7 @@
   0003    | End
   ========================================
   
-  =================@fn688=================
+  =================@fn287=================
   maybe("-") + _number_integer_part
   ========================================
   0000    | GetConstant 30: maybe
@@ -311,7 +311,7 @@
   integer = as_number(maybe("-") + _number_integer_part)
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 29: @fn688
+  0002    | GetConstant 29: @fn287
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -325,7 +325,7 @@
   0006    | End
   ========================================
   
-  =================@fn689=================
+  =================@fn288=================
   "-" + _number_integer_part
   ========================================
   0000    | ParseChar '-'
@@ -338,12 +338,12 @@
   negative_integer = as_number("-" + _number_integer_part)
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 32: @fn689
+  0002    | GetConstant 32: @fn288
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn690=================
+  =================@fn289=================
   maybe("-") + _number_integer_part + _number_fraction_part
   ========================================
   0000    | GetConstant 30: maybe
@@ -360,12 +360,12 @@
   float = as_number(maybe("-") + _number_integer_part + _number_fraction_part)
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 33: @fn690
+  0002    | GetConstant 33: @fn289
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn691=================
+  =================@fn290=================
   maybe("-") +
     _number_integer_part +
     _number_exponent_part
@@ -388,12 +388,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 35: @fn691
+  0002    | GetConstant 35: @fn290
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn692=================
+  =================@fn291=================
   maybe("-") +
     _number_integer_part +
     _number_fraction_part +
@@ -420,12 +420,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 37: @fn692
+  0002    | GetConstant 37: @fn291
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn693=================
+  =================@fn292=================
   maybe("-") +
     _number_integer_part +
     maybe(_number_fraction_part) +
@@ -456,12 +456,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 38: @fn693
+  0002    | GetConstant 38: @fn292
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn694=================
+  =================@fn293=================
   _number_integer_part +
     maybe(_number_fraction_part) +
     maybe(_number_exponent_part)
@@ -486,12 +486,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 39: @fn694
+  0002    | GetConstant 39: @fn293
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn695=================
+  =================@fn294=================
   "-" +
     _number_integer_part +
     maybe(_number_fraction_part) +
@@ -520,7 +520,7 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 40: @fn695
+  0002    | GetConstant 40: @fn294
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -546,7 +546,7 @@
   0005    | End
   ========================================
   
-  =================@fn696=================
+  =================@fn295=================
   "-" | "+"
   ========================================
   0000    | SetInputMark
@@ -564,7 +564,7 @@
   0003    | Or 3 -> 8
   0006    | ParseChar 'E'
   0008    | GetConstant 30: maybe
-  0010    | GetConstant 42: @fn696
+  0010    | GetConstant 42: @fn295
   0012    | CallFunction 1
   0014    | Merge
   0015    | CallFunctionConstant 41: numerals
@@ -767,7 +767,7 @@
   0045    | End
   ========================================
   
-  =================@fn697=================
+  =================@fn296=================
   sep > elem
   ========================================
   0000    | GetConstant 56: sep
@@ -779,7 +779,7 @@
   0012    | End
   ========================================
   
-  =================@fn698=================
+  =================@fn297=================
   sep > elem
   ========================================
   0000    | GetConstant 56: sep
@@ -803,7 +803,7 @@
   0009    | JumpIfZero 9 -> 37
   0012    | Swap
   0013    | GetConstant 54: tuple1
-  0015    | GetConstant 55: @fn697
+  0015    | GetConstant 55: @fn296
   0017    | CreateClosure 2
   0019    | CaptureLocal 1
   0021    | CaptureLocal 0
@@ -817,7 +817,7 @@
   0037    | Swap
   0038    | SetInputMark
   0039    | GetConstant 54: tuple1
-  0041    | GetConstant 58: @fn698
+  0041    | GetConstant 58: @fn297
   0043    | CreateClosure 2
   0045    | CaptureLocal 1
   0047    | CaptureLocal 0
@@ -834,7 +834,7 @@
   0064    | End
   ========================================
   
-  =================@fn699=================
+  =================@fn298=================
   tuple1(elem)
   ========================================
   0000    | GetConstant 57: elem
@@ -845,7 +845,7 @@
   0009    | End
   ========================================
   
-  =================@fn700=================
+  =================@fn299=================
   tuple1(elem)
   ========================================
   0000    | GetConstant 57: elem
@@ -865,7 +865,7 @@
   0003    | JumpIfZero 3 -> 31
   0006    | Swap
   0007    | GetConstant 7: unless
-  0009    | GetConstant 59: @fn699
+  0009    | GetConstant 59: @fn298
   0011    | CreateClosure 1
   0013    | CaptureLocal 0
   0015    | GetBoundLocal 1
@@ -879,7 +879,7 @@
   0031    | Swap
   0032    | SetInputMark
   0033    | GetConstant 7: unless
-  0035    | GetConstant 60: @fn700
+  0035    | GetConstant 60: @fn299
   0037    | CreateClosure 1
   0039    | CaptureLocal 0
   0041    | GetBoundLocal 1
@@ -900,7 +900,7 @@
   0067    | End
   ========================================
   
-  =================@fn701=================
+  =================@fn300=================
   array(elem)
   ========================================
   0000    | GetConstant 57: elem
@@ -915,7 +915,7 @@
   maybe_array(elem) = default(array(elem), [])
   ========================================
   0000    | GetConstant 62: default
-  0002    | GetConstant 63: @fn701
+  0002    | GetConstant 63: @fn300
   0004    | CreateClosure 1
   0006    | CaptureLocal 0
   0008    | PushEmptyArray
@@ -923,7 +923,7 @@
   0011    | End
   ========================================
   
-  =================@fn702=================
+  =================@fn301=================
   array_sep(elem, sep)
   ========================================
   0000    | GetConstant 57: elem
@@ -940,7 +940,7 @@
   maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
   ========================================
   0000    | GetConstant 62: default
-  0002    | GetConstant 64: @fn702
+  0002    | GetConstant 64: @fn301
   0004    | CreateClosure 2
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
@@ -1086,7 +1086,7 @@
   0028    | End
   ========================================
   
-  =================@fn708=================
+  =================@fn307=================
   sep > elem
   ========================================
   0000    | GetConstant 56: sep
@@ -1112,7 +1112,7 @@
   0012    | JumpIfZero 12 -> 41
   0015    | Swap
   0016    | GetConstant 54: tuple1
-  0018    | GetConstant 75: @fn708
+  0018    | GetConstant 75: @fn307
   0020    | CreateClosure 2
   0022    | CaptureLocal 1
   0024    | CaptureLocal 0
@@ -1129,7 +1129,7 @@
   0043    | End
   ========================================
   
-  =================@fn709=================
+  =================@fn308=================
   array_sep(elem, col_sep)
   ========================================
   0000    | GetConstant 57: elem
@@ -1142,7 +1142,7 @@
   0013    | End
   ========================================
   
-  =================@fn710=================
+  =================@fn309=================
   row_sep > array_sep(elem, col_sep)
   ========================================
   0000    | GetConstant 79: row_sep
@@ -1158,7 +1158,7 @@
   0020    | End
   ========================================
   
-  =================@fn711=================
+  =================@fn310=================
   row_sep > array_sep(elem, col_sep)
   ========================================
   0000    | GetConstant 79: row_sep
@@ -1180,7 +1180,7 @@
     (tuple1(row_sep > array_sep(elem, col_sep)) * 0..)
   ========================================
   0000    | GetConstant 54: tuple1
-  0002    | GetConstant 76: @fn709
+  0002    | GetConstant 76: @fn308
   0004    | CreateClosure 2
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
@@ -1191,7 +1191,7 @@
   0015    | JumpIfZero 15 -> 45
   0018    | Swap
   0019    | GetConstant 54: tuple1
-  0021    | GetConstant 78: @fn710
+  0021    | GetConstant 78: @fn309
   0023    | CreateClosure 3
   0025    | CaptureLocal 2
   0027    | CaptureLocal 0
@@ -1206,7 +1206,7 @@
   0045    | Swap
   0046    | SetInputMark
   0047    | GetConstant 54: tuple1
-  0049    | GetConstant 80: @fn711
+  0049    | GetConstant 80: @fn310
   0051    | CreateClosure 3
   0053    | CaptureLocal 2
   0055    | CaptureLocal 0
@@ -1224,7 +1224,7 @@
   0074    | End
   ========================================
   
-  =================@fn712=================
+  =================@fn311=================
   _dimensions(elem, col_sep, row_sep)
   ========================================
   0000    | GetConstant 57: elem
@@ -1248,7 +1248,7 @@
   0002    | PushUnderscoreVar
   0003    | GetConstant 82: First
   0005    | GetConstant 61: peek
-  0007    | GetConstant 83: @fn712
+  0007    | GetConstant 83: @fn311
   0009    | CreateClosure 3
   0011    | CaptureLocal 0
   0013    | CaptureLocal 1
@@ -1556,7 +1556,7 @@
   0074    | End
   ========================================
   
-  =================@fn719=================
+  =================@fn318=================
   pair(key, value)
   ========================================
   0000    | GetConstant 105: key
@@ -1569,7 +1569,7 @@
   0013    | End
   ========================================
   
-  =================@fn720=================
+  =================@fn319=================
   pair(key, value)
   ========================================
   0000    | GetConstant 105: key
@@ -1592,7 +1592,7 @@
   0003    | JumpIfZero 3 -> 33
   0006    | Swap
   0007    | GetConstant 7: unless
-  0009    | GetConstant 104: @fn719
+  0009    | GetConstant 104: @fn318
   0011    | CreateClosure 2
   0013    | CaptureLocal 0
   0015    | CaptureLocal 1
@@ -1607,7 +1607,7 @@
   0033    | Swap
   0034    | SetInputMark
   0035    | GetConstant 7: unless
-  0037    | GetConstant 107: @fn720
+  0037    | GetConstant 107: @fn319
   0039    | CreateClosure 2
   0041    | CaptureLocal 0
   0043    | CaptureLocal 1
@@ -1629,7 +1629,7 @@
   0071    | End
   ========================================
   
-  =================@fn721=================
+  =================@fn320=================
   object(key, value)
   ========================================
   0000    | GetConstant 105: key
@@ -1646,7 +1646,7 @@
   maybe_object(key, value) = default(object(key, value), {})
   ========================================
   0000    | GetConstant 62: default
-  0002    | GetConstant 108: @fn721
+  0002    | GetConstant 108: @fn320
   0004    | CreateClosure 2
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
@@ -1655,7 +1655,7 @@
   0013    | End
   ========================================
   
-  =================@fn722=================
+  =================@fn321=================
   object_sep(key, pair_sep, value, sep)
   ========================================
   0000    | GetConstant 105: key
@@ -1677,7 +1677,7 @@
     default(object_sep(key, pair_sep, value, sep), {})
   ========================================
   0000    | GetConstant 62: default
-  0002    | GetConstant 110: @fn722
+  0002    | GetConstant 110: @fn321
   0004    | CreateClosure 4
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
@@ -2063,7 +2063,7 @@
   0017    | End
   ========================================
   
-  =================@fn730=================
+  =================@fn329=================
   find(p)
   ========================================
   0000    | PushCharVar p
@@ -2074,7 +2074,7 @@
   0009    | End
   ========================================
   
-  =================@fn731=================
+  =================@fn330=================
   many(char)
   ========================================
   0000    | GetConstant 0: many
@@ -2087,13 +2087,13 @@
   find_all(p) = array(find(p)) < maybe(many(char))
   ========================================
   0000    | GetConstant 45: array
-  0002    | GetConstant 129: @fn730
+  0002    | GetConstant 129: @fn329
   0004    | CreateClosure 1
   0006    | CaptureLocal 0
   0008    | CallFunction 1
   0010    | JumpIfFailure 10 -> 20
   0013    | GetConstant 30: maybe
-  0015    | GetConstant 130: @fn731
+  0015    | GetConstant 130: @fn330
   0017    | CallFunction 1
   0019    | TakeLeft
   0020    | End
@@ -2119,7 +2119,7 @@
   0030    | End
   ========================================
   
-  =================@fn732=================
+  =================@fn331=================
   find_before(p, stop)
   ========================================
   0000    | PushCharVar p
@@ -2132,7 +2132,7 @@
   0013    | End
   ========================================
   
-  =================@fn733=================
+  =================@fn332=================
   chars_until(stop)
   ========================================
   0000    | GetConstant 133: stop
@@ -2147,14 +2147,14 @@
   find_all_before(p, stop) = array(find_before(p, stop)) < maybe(chars_until(stop))
   ========================================
   0000    | GetConstant 45: array
-  0002    | GetConstant 132: @fn732
+  0002    | GetConstant 132: @fn331
   0004    | CreateClosure 2
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
   0010    | CallFunction 1
   0012    | JumpIfFailure 12 -> 26
   0015    | GetConstant 30: maybe
-  0017    | GetConstant 134: @fn733
+  0017    | GetConstant 134: @fn332
   0019    | CreateClosure 1
   0021    | CaptureLocal 1
   0023    | CallFunction 1
@@ -2234,7 +2234,7 @@
   0013    | End
   ========================================
   
-  =================@fn734=================
+  =================@fn333=================
   maybe(whitespace)
   ========================================
   0000    | GetConstant 30: maybe
@@ -2248,7 +2248,7 @@
   ========================================
   0000    | GetConstant 135: surround
   0002    | GetBoundLocal 0
-  0004    | GetConstant 136: @fn734
+  0004    | GetConstant 136: @fn333
   0006    | CallFunction 2
   0008    | JumpIfFailure 8 -> 14
   0011    | CallFunctionConstant 14: end_of_input
@@ -2337,7 +2337,7 @@
   0013    | End
   ========================================
   
-  =================@fn736=================
+  =================@fn335=================
   _ctrl_char | `\` | '"'
   ========================================
   0000    | SetInputMark
@@ -2350,7 +2350,7 @@
   0014    | End
   ========================================
   
-  =================@fn735=================
+  =================@fn334=================
   _escaped_ctrl_char |
       _escaped_unicode |
       unless(char, _ctrl_char | `\` | '"')
@@ -2363,7 +2363,7 @@
   0009    | Or 9 -> 20
   0012    | GetConstant 7: unless
   0014    | GetConstant 8: char
-  0016    | GetConstant 152: @fn736
+  0016    | GetConstant 152: @fn335
   0018    | CallTailFunction 2
   0020    | End
   ========================================
@@ -2378,7 +2378,7 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many
-  0003    | GetConstant 149: @fn735
+  0003    | GetConstant 149: @fn334
   0005    | CallFunction 1
   0007    | Or 7 -> 15
   0010    | GetConstant 93: const
@@ -2583,7 +2583,7 @@
   0042    | End
   ========================================
   
-  =================@fn738=================
+  =================@fn337=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -2592,14 +2592,14 @@
   0006    | End
   ========================================
   
-  =================@fn737=================
+  =================@fn336=================
   surround(elem, maybe(ws))
   ========================================
   0000    | GetConstant 57: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 135: surround
   0005    | GetBoundLocal 0
-  0007    | GetConstant 175: @fn738
+  0007    | GetConstant 175: @fn337
   0009    | CallTailFunction 2
   0011    | End
   ========================================
@@ -2610,7 +2610,7 @@
   0000    | ParseChar '['
   0002    | TakeRight 2 -> 17
   0005    | GetConstant 173: maybe_array_sep
-  0007    | GetConstant 174: @fn737
+  0007    | GetConstant 174: @fn336
   0009    | CreateClosure 1
   0011    | CaptureLocal 0
   0013    | PushChar ','
@@ -2621,7 +2621,7 @@
   0023    | End
   ========================================
   
-  =================@fn740=================
+  =================@fn339=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -2630,17 +2630,17 @@
   0006    | End
   ========================================
   
-  =================@fn739=================
+  =================@fn338=================
   surround(json.string, maybe(ws))
   ========================================
   0000    | GetConstant 135: surround
   0002    | GetConstant 140: json.string
-  0004    | GetConstant 178: @fn740
+  0004    | GetConstant 178: @fn339
   0006    | CallTailFunction 2
   0008    | End
   ========================================
   
-  =================@fn742=================
+  =================@fn341=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -2649,14 +2649,14 @@
   0006    | End
   ========================================
   
-  =================@fn741=================
+  =================@fn340=================
   surround(value, maybe(ws))
   ========================================
   0000    | GetConstant 106: value
   0002    | SetClosureCaptures
   0003    | GetConstant 135: surround
   0005    | GetBoundLocal 0
-  0007    | GetConstant 180: @fn742
+  0007    | GetConstant 180: @fn341
   0009    | CallTailFunction 2
   0011    | End
   ========================================
@@ -2673,9 +2673,9 @@
   0000    | ParseChar '{'
   0002    | TakeRight 2 -> 21
   0005    | GetConstant 176: maybe_object_sep
-  0007    | GetConstant 177: @fn739
+  0007    | GetConstant 177: @fn338
   0009    | PushChar ':'
-  0011    | GetConstant 179: @fn741
+  0011    | GetConstant 179: @fn340
   0013    | CreateClosure 1
   0015    | CaptureLocal 0
   0017    | PushChar ','
@@ -2704,7 +2704,7 @@
   0006    | End
   ========================================
   
-  =================@fn743=================
+  =================@fn342=================
   _toml.comments + maybe(ws)
   ========================================
   0000    | CallFunctionConstant 186: _toml.comments
@@ -2715,7 +2715,7 @@
   0009    | End
   ========================================
   
-  =================@fn744=================
+  =================@fn343=================
   maybe(ws) + _toml.comments
   ========================================
   0000    | GetConstant 30: maybe
@@ -2735,7 +2735,7 @@
   ========================================
   0000    | GetConstant 184: Doc
   0002    | GetConstant 30: maybe
-  0004    | GetConstant 185: @fn743
+  0004    | GetConstant 185: @fn342
   0006    | CallFunction 1
   0008    | TakeRight 8 -> 29
   0011    | SetInputMark
@@ -2749,7 +2749,7 @@
   0027    | Destructure 40: Doc
   0029    | TakeRight 29 -> 47
   0032    | GetConstant 30: maybe
-  0034    | GetConstant 189: @fn744
+  0034    | GetConstant 189: @fn343
   0036    | CallFunction 1
   0038    | TakeRight 38 -> 47
   0041    | GetConstant 190: _Toml.Doc.Value
@@ -2884,7 +2884,7 @@
   0040    | End
   ========================================
   
-  =================@fn745=================
+  =================@fn344=================
   _toml.table_body(value, [], _Toml.Doc.Empty)
   ========================================
   0000    | GetConstant 106: value
@@ -2911,7 +2911,7 @@
   0011    | CallFunctionConstant 202: _toml.ws_newline
   0013    | TakeRight 13 -> 47
   0016    | GetConstant 62: default
-  0018    | GetConstant 206: @fn745
+  0018    | GetConstant 206: @fn344
   0020    | CreateClosure 1
   0022    | CaptureLocal 0
   0024    | CallFunctionConstant 193: _Toml.Doc.Empty
@@ -2928,7 +2928,7 @@
   0047    | End
   ========================================
   
-  =================@fn746=================
+  =================@fn345=================
   ws | _toml.comment
   ========================================
   0000    | SetInputMark
@@ -2942,12 +2942,12 @@
   _toml.ws = maybe_many(ws | _toml.comment)
   ========================================
   0000    | GetConstant 208: maybe_many
-  0002    | GetConstant 209: @fn746
+  0002    | GetConstant 209: @fn345
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn747=================
+  =================@fn346=================
   spaces | _toml.comment
   ========================================
   0000    | SetInputMark
@@ -2961,7 +2961,7 @@
   _toml.ws_line = maybe_many(spaces | _toml.comment)
   ========================================
   0000    | GetConstant 208: maybe_many
-  0002    | GetConstant 211: @fn747
+  0002    | GetConstant 211: @fn346
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -2990,7 +2990,7 @@
   0008    | End
   ========================================
   
-  =================@fn748=================
+  =================@fn347=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3006,7 +3006,7 @@
   0002    | TakeRight 2 -> 13
   0005    | GetConstant 135: surround
   0007    | GetConstant 214: _toml.path
-  0009    | GetConstant 215: @fn748
+  0009    | GetConstant 215: @fn347
   0011    | CallFunction 2
   0013    | JumpIfFailure 13 -> 19
   0016    | ParseChar ']'
@@ -3014,7 +3014,7 @@
   0019    | End
   ========================================
   
-  =================@fn749=================
+  =================@fn348=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3031,7 +3031,7 @@
   0002    | TakeRight 2 -> 13
   0005    | GetConstant 135: surround
   0007    | GetConstant 214: _toml.path
-  0009    | GetConstant 217: @fn749
+  0009    | GetConstant 217: @fn348
   0011    | CallFunction 2
   0013    | JumpIfFailure 13 -> 19
   0016    | CallFunctionConstant 218: "]]"
@@ -3079,7 +3079,7 @@
   0064    | End
   ========================================
   
-  =================@fn751=================
+  =================@fn350=================
   maybe(spaces)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3088,12 +3088,12 @@
   0006    | End
   ========================================
   
-  =================@fn750=================
+  =================@fn349=================
   surround("=", maybe(spaces))
   ========================================
   0000    | GetConstant 135: surround
   0002    | PushChar '='
-  0004    | GetConstant 225: @fn751
+  0004    | GetConstant 225: @fn350
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -3104,13 +3104,13 @@
   ========================================
   0000    | GetConstant 223: tuple2_sep
   0002    | GetConstant 214: _toml.path
-  0004    | GetConstant 224: @fn750
+  0004    | GetConstant 224: @fn349
   0006    | GetBoundLocal 0
   0008    | CallTailFunction 3
   0010    | End
   ========================================
   
-  =================@fn753=================
+  =================@fn352=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3119,12 +3119,12 @@
   0006    | End
   ========================================
   
-  =================@fn752=================
+  =================@fn351=================
   surround(".", maybe(ws))
   ========================================
   0000    | GetConstant 135: surround
   0002    | PushChar '.'
-  0004    | GetConstant 228: @fn753
+  0004    | GetConstant 228: @fn352
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -3134,12 +3134,12 @@
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | GetConstant 226: _toml.key
-  0004    | GetConstant 227: @fn752
+  0004    | GetConstant 227: @fn351
   0006    | CallTailFunction 2
   0008    | End
   ========================================
   
-  =================@fn754=================
+  =================@fn353=================
   alpha | numeral | "_" | "-"
   ========================================
   0000    | SetInputMark
@@ -3163,7 +3163,7 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many
-  0003    | GetConstant 229: @fn754
+  0003    | GetConstant 229: @fn353
   0005    | CallFunction 1
   0007    | Or 7 -> 18
   0010    | SetInputMark
@@ -3411,7 +3411,7 @@
   0008    | End
   ========================================
   
-  =================@fn757=================
+  =================@fn356=================
   surround(elem, _toml.ws)
   ========================================
   0000    | GetConstant 57: elem
@@ -3423,7 +3423,7 @@
   0011    | End
   ========================================
   
-  =================@fn758=================
+  =================@fn357=================
   surround(",", _toml.ws)
   ========================================
   0000    | GetConstant 135: surround
@@ -3433,20 +3433,20 @@
   0008    | End
   ========================================
   
-  =================@fn756=================
+  =================@fn355=================
   array_sep(surround(elem, _toml.ws), ",") < maybe(surround(",", _toml.ws))
   ========================================
   0000    | GetConstant 57: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 65: array_sep
-  0005    | GetConstant2 266: @fn757
+  0005    | GetConstant2 266: @fn356
   0008    | CreateClosure 1
   0010    | CaptureLocal 0
   0012    | PushChar ','
   0014    | CallFunction 2
   0016    | JumpIfFailure 16 -> 27
   0019    | GetConstant 30: maybe
-  0021    | GetConstant2 267: @fn758
+  0021    | GetConstant2 267: @fn357
   0024    | CallFunction 1
   0026    | TakeLeft
   0027    | End
@@ -3464,7 +3464,7 @@
   0005    | CallFunctionConstant 194: _toml.ws
   0007    | TakeRight 7 -> 22
   0010    | GetConstant 62: default
-  0012    | GetConstant2 265: @fn756
+  0012    | GetConstant2 265: @fn355
   0015    | CreateClosure 1
   0017    | CaptureLocal 0
   0019    | PushEmptyArray
@@ -3619,7 +3619,7 @@
   0070    | End
   ========================================
   
-  =================@fn759=================
+  =================@fn358=================
   maybe(nl)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3628,7 +3628,7 @@
   0006    | End
   ========================================
   
-  =================@fn762=================
+  =================@fn361=================
   _ctrl_char | `\`
   ========================================
   0000    | SetInputMark
@@ -3638,7 +3638,7 @@
   0008    | End
   ========================================
   
-  =================@fn761=================
+  =================@fn360=================
   _toml.escaped_ctrl_char | _toml.escaped_unicode |
         ws | (`\` + ws > "") | unless(char, _ctrl_char | `\`)
   ========================================
@@ -3660,12 +3660,12 @@
   0030    | Or 30 -> 42
   0033    | GetConstant 7: unless
   0035    | GetConstant 8: char
-  0037    | GetConstant2 282: @fn762
+  0037    | GetConstant2 282: @fn361
   0040    | CallTailFunction 2
   0042    | End
   ========================================
   
-  =================@fn760=================
+  =================@fn359=================
   many_until(
         _toml.escaped_ctrl_char | _toml.escaped_unicode |
         ws | (`\` + ws > "") | unless(char, _ctrl_char | `\`),
@@ -3673,7 +3673,7 @@
       )
   ========================================
   0000    | GetConstant 27: many_until
-  0002    | GetConstant2 279: @fn761
+  0002    | GetConstant2 279: @fn360
   0005    | GetConstant2 276: """""
   0008    | CallTailFunction 2
   0010    | End
@@ -3696,11 +3696,11 @@
   0003    | GetConstant2 276: """""
   0006    | CallFunction 1
   0008    | GetConstant2 275: skip
-  0011    | GetConstant2 277: @fn759
+  0011    | GetConstant2 277: @fn358
   0014    | CallFunction 1
   0016    | Merge
   0017    | GetConstant 62: default
-  0019    | GetConstant2 278: @fn760
+  0019    | GetConstant2 278: @fn359
   0022    | PushEmptyString
   0023    | CallFunction 2
   0025    | Merge
@@ -3745,7 +3745,7 @@
   0087    | End
   ========================================
   
-  =================@fn763=================
+  =================@fn362=================
   maybe(nl)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3754,7 +3754,7 @@
   0006    | End
   ========================================
   
-  =================@fn764=================
+  =================@fn363=================
   many_until(char, `'''`)
   ========================================
   0000    | GetConstant 27: many_until
@@ -3774,11 +3774,11 @@
   0003    | GetConstant2 283: "'''"
   0006    | CallFunction 1
   0008    | GetConstant2 275: skip
-  0011    | GetConstant2 284: @fn763
+  0011    | GetConstant2 284: @fn362
   0014    | CallFunction 1
   0016    | Merge
   0017    | GetConstant 62: default
-  0019    | GetConstant2 285: @fn764
+  0019    | GetConstant2 285: @fn363
   0022    | PushEmptyString
   0023    | CallFunction 2
   0025    | Merge
@@ -3835,7 +3835,7 @@
   0014    | End
   ========================================
   
-  =================@fn766=================
+  =================@fn365=================
   _ctrl_char | `\` | '"'
   ========================================
   0000    | SetInputMark
@@ -3848,7 +3848,7 @@
   0014    | End
   ========================================
   
-  =================@fn765=================
+  =================@fn364=================
   _toml.escaped_ctrl_char |
       _toml.escaped_unicode |
       unless(char, _ctrl_char | `\` | '"')
@@ -3861,7 +3861,7 @@
   0011    | Or 11 -> 23
   0014    | GetConstant 7: unless
   0016    | GetConstant 8: char
-  0018    | GetConstant2 288: @fn766
+  0018    | GetConstant2 288: @fn365
   0021    | CallTailFunction 2
   0023    | End
   ========================================
@@ -3876,7 +3876,7 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many
-  0003    | GetConstant2 287: @fn765
+  0003    | GetConstant2 287: @fn364
   0006    | CallFunction 1
   0008    | Or 8 -> 16
   0011    | GetConstant 93: const
@@ -3885,7 +3885,7 @@
   0016    | End
   ========================================
   
-  =================@fn767=================
+  =================@fn366=================
   chars_until("'")
   ========================================
   0000    | GetConstant 11: chars_until
@@ -3900,7 +3900,7 @@
   0000    | ParseChar '''
   0002    | TakeRight 2 -> 13
   0005    | GetConstant 62: default
-  0007    | GetConstant2 289: @fn767
+  0007    | GetConstant2 289: @fn366
   0010    | PushEmptyString
   0011    | CallFunction 2
   0013    | JumpIfFailure 13 -> 19
@@ -4110,7 +4110,7 @@
   0021    | End
   ========================================
   
-  =================@fn768=================
+  =================@fn367=================
   "." + (numeral * 1..9)
   ========================================
   0000    | ParseChar '.'
@@ -4168,7 +4168,7 @@
   0013    | CallFunctionConstant2 301: _toml.datetime.seconds
   0016    | Merge
   0017    | GetConstant 30: maybe
-  0019    | GetConstant2 302: @fn768
+  0019    | GetConstant2 302: @fn367
   0022    | CallFunction 1
   0024    | Merge
   0025    | End
@@ -4240,7 +4240,7 @@
   0014    | End
   ========================================
   
-  =================@fn769=================
+  =================@fn368=================
   _toml.number.sign +
     _toml.number.integer_part
   ========================================
@@ -4257,12 +4257,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant2 305: @fn769
+  0002    | GetConstant2 305: @fn368
   0005    | CallTailFunction 1
   0007    | End
   ========================================
   
-  =================@fn770=================
+  =================@fn369=================
   "-" | skip("+")
   ========================================
   0000    | SetInputMark
@@ -4278,12 +4278,12 @@
   _toml.number.sign = maybe("-" | skip("+"))
   ========================================
   0000    | GetConstant 30: maybe
-  0002    | GetConstant2 308: @fn770
+  0002    | GetConstant2 308: @fn369
   0005    | CallTailFunction 1
   0007    | End
   ========================================
   
-  =================@fn771=================
+  =================@fn370=================
   maybe("_") > numeral
   ========================================
   0000    | GetConstant 30: maybe
@@ -4301,7 +4301,7 @@
   0000    | SetInputMark
   0001    | ParseCodepointRange '1'..'9'
   0004    | GetConstant 0: many
-  0006    | GetConstant2 309: @fn771
+  0006    | GetConstant2 309: @fn370
   0009    | CallFunction 1
   0011    | Merge
   0012    | Or 12 -> 17
@@ -4309,7 +4309,7 @@
   0017    | End
   ========================================
   
-  =================@fn772=================
+  =================@fn371=================
   _toml.number.sign +
     _toml.number.integer_part + (
       (_toml.number.fraction_part + maybe(_toml.number.exponent_part)) |
@@ -4341,12 +4341,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant2 310: @fn772
+  0002    | GetConstant2 310: @fn371
   0005    | CallTailFunction 1
   0007    | End
   ========================================
   
-  =================@fn773=================
+  =================@fn372=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4361,13 +4361,13 @@
   0000    | ParseChar '.'
   0002    | GetConstant 124: many_sep
   0004    | GetConstant 41: numerals
-  0006    | GetConstant2 313: @fn773
+  0006    | GetConstant2 313: @fn372
   0009    | CallFunction 2
   0011    | Merge
   0012    | End
   ========================================
   
-  =================@fn774=================
+  =================@fn373=================
   "-" | "+"
   ========================================
   0000    | SetInputMark
@@ -4377,7 +4377,7 @@
   0008    | End
   ========================================
   
-  =================@fn775=================
+  =================@fn374=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4395,18 +4395,18 @@
   0003    | Or 3 -> 8
   0006    | ParseChar 'E'
   0008    | GetConstant 30: maybe
-  0010    | GetConstant2 314: @fn774
+  0010    | GetConstant2 314: @fn373
   0013    | CallFunction 1
   0015    | Merge
   0016    | GetConstant 124: many_sep
   0018    | GetConstant 41: numerals
-  0020    | GetConstant2 315: @fn775
+  0020    | GetConstant2 315: @fn374
   0023    | CallFunction 2
   0025    | Merge
   0026    | End
   ========================================
   
-  =================@fn776=================
+  =================@fn375=================
   "+" | "-"
   ========================================
   0000    | SetInputMark
@@ -4420,14 +4420,14 @@
   toml.number.infinity = maybe("+" | "-") + "inf"
   ========================================
   0000    | GetConstant 30: maybe
-  0002    | GetConstant2 316: @fn776
+  0002    | GetConstant2 316: @fn375
   0005    | CallFunction 1
   0007    | CallFunctionConstant2 317: "inf"
   0010    | Merge
   0011    | End
   ========================================
   
-  =================@fn777=================
+  =================@fn376=================
   "+" | "-"
   ========================================
   0000    | SetInputMark
@@ -4441,14 +4441,14 @@
   toml.number.not_a_number = maybe("+" | "-") + "nan"
   ========================================
   0000    | GetConstant 30: maybe
-  0002    | GetConstant2 318: @fn777
+  0002    | GetConstant2 318: @fn376
   0005    | CallFunction 1
   0007    | CallFunctionConstant2 319: "nan"
   0010    | Merge
   0011    | End
   ========================================
   
-  =================@fn779=================
+  =================@fn378=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4457,7 +4457,7 @@
   0006    | End
   ========================================
   
-  =================@fn780=================
+  =================@fn379=================
   skip("_") < peek(binary_numeral)
   ========================================
   0000    | GetConstant2 275: skip
@@ -4471,21 +4471,21 @@
   0018    | End
   ========================================
   
-  =================@fn778=================
+  =================@fn377=================
   array_sep(0, maybe("_")) + maybe(skip("_") < peek(binary_numeral))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | PushNumberStringZero
-  0003    | GetConstant2 323: @fn779
+  0003    | GetConstant2 323: @fn378
   0006    | CallFunction 2
   0008    | GetConstant 30: maybe
-  0010    | GetConstant2 324: @fn780
+  0010    | GetConstant2 324: @fn379
   0013    | CallFunction 1
   0015    | Merge
   0016    | End
   ========================================
   
-  =================@fn782=================
+  =================@fn381=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4494,12 +4494,12 @@
   0006    | End
   ========================================
   
-  =================@fn781=================
+  =================@fn380=================
   array_sep(binary_digit, maybe("_"))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | GetConstant 46: binary_digit
-  0004    | GetConstant2 327: @fn782
+  0004    | GetConstant2 327: @fn381
   0007    | CallTailFunction 2
   0009    | End
   ========================================
@@ -4516,8 +4516,8 @@
   0002    | CallFunctionConstant2 320: "0b"
   0005    | TakeRight 5 -> 30
   0008    | GetConstant2 321: one_or_both
-  0011    | GetConstant2 322: @fn778
-  0014    | GetConstant2 326: @fn781
+  0011    | GetConstant2 322: @fn377
+  0014    | GetConstant2 326: @fn380
   0017    | CallFunction 2
   0019    | Destructure 57: Digits
   0021    | TakeRight 21 -> 30
@@ -4527,7 +4527,7 @@
   0030    | End
   ========================================
   
-  =================@fn784=================
+  =================@fn383=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4536,7 +4536,7 @@
   0006    | End
   ========================================
   
-  =================@fn785=================
+  =================@fn384=================
   skip("_") < peek(octal_numeral)
   ========================================
   0000    | GetConstant2 275: skip
@@ -4550,21 +4550,21 @@
   0018    | End
   ========================================
   
-  =================@fn783=================
+  =================@fn382=================
   array_sep(0, maybe("_")) + maybe(skip("_") < peek(octal_numeral))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | PushNumberStringZero
-  0003    | GetConstant2 330: @fn784
+  0003    | GetConstant2 330: @fn383
   0006    | CallFunction 2
   0008    | GetConstant 30: maybe
-  0010    | GetConstant2 331: @fn785
+  0010    | GetConstant2 331: @fn384
   0013    | CallFunction 1
   0015    | Merge
   0016    | End
   ========================================
   
-  =================@fn787=================
+  =================@fn386=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4573,12 +4573,12 @@
   0006    | End
   ========================================
   
-  =================@fn786=================
+  =================@fn385=================
   array_sep(octal_digit, maybe("_"))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | GetConstant 48: octal_digit
-  0004    | GetConstant2 334: @fn787
+  0004    | GetConstant2 334: @fn386
   0007    | CallTailFunction 2
   0009    | End
   ========================================
@@ -4595,8 +4595,8 @@
   0002    | CallFunctionConstant2 328: "0o"
   0005    | TakeRight 5 -> 30
   0008    | GetConstant2 321: one_or_both
-  0011    | GetConstant2 329: @fn783
-  0014    | GetConstant2 333: @fn786
+  0011    | GetConstant2 329: @fn382
+  0014    | GetConstant2 333: @fn385
   0017    | CallFunction 2
   0019    | Destructure 58: Digits
   0021    | TakeRight 21 -> 30
@@ -4606,7 +4606,7 @@
   0030    | End
   ========================================
   
-  =================@fn789=================
+  =================@fn388=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4615,7 +4615,7 @@
   0006    | End
   ========================================
   
-  =================@fn790=================
+  =================@fn389=================
   skip("_") < peek(hex_numeral)
   ========================================
   0000    | GetConstant2 275: skip
@@ -4629,21 +4629,21 @@
   0017    | End
   ========================================
   
-  =================@fn788=================
+  =================@fn387=================
   array_sep(0, maybe("_")) + maybe(skip("_") < peek(hex_numeral))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | PushNumberStringZero
-  0003    | GetConstant2 337: @fn789
+  0003    | GetConstant2 337: @fn388
   0006    | CallFunction 2
   0008    | GetConstant 30: maybe
-  0010    | GetConstant2 338: @fn790
+  0010    | GetConstant2 338: @fn389
   0013    | CallFunction 1
   0015    | Merge
   0016    | End
   ========================================
   
-  =================@fn792=================
+  =================@fn391=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4652,12 +4652,12 @@
   0006    | End
   ========================================
   
-  =================@fn791=================
+  =================@fn390=================
   array_sep(hex_digit, maybe("_"))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | GetConstant 50: hex_digit
-  0004    | GetConstant2 340: @fn792
+  0004    | GetConstant2 340: @fn391
   0007    | CallTailFunction 2
   0009    | End
   ========================================
@@ -4674,8 +4674,8 @@
   0002    | CallFunctionConstant2 335: "0x"
   0005    | TakeRight 5 -> 30
   0008    | GetConstant2 321: one_or_both
-  0011    | GetConstant2 336: @fn788
-  0014    | GetConstant2 339: @fn791
+  0011    | GetConstant2 336: @fn387
+  0014    | GetConstant2 339: @fn390
   0017    | CallFunction 2
   0019    | Destructure 59: Digits
   0021    | TakeRight 21 -> 30

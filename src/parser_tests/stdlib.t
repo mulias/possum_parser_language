@@ -1,6 +1,6 @@
   $ export PRINT_AST=true RUN_VM=false
 
-  $ possum $TESTDIR/../../stdlib/core.possum -i ''
+  $ possum $TESTDIR/../../stdlib/core.possum -i '' --no-stdlib
   (DeclareGlobal 5:0-19
     (Identifier 5:0-4 char)
     (Range 5:7-19 (String 5:7-17 "\x00") ())) (esc)
