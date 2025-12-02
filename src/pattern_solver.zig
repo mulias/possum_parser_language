@@ -1662,6 +1662,70 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
             return false;
         } else {
             // Neither pattern nor count can be evaluated
+            // Special case: Range pattern with unbound count
+            if (repeat_pattern.pattern.* == .Range) {
+                const range = repeat_pattern.pattern.Range;
+
+                // This only works for string values
+                const value_str = value.stringBytes(self.vm.*) orelse return false;
+
+                // Evaluate range bounds to get codepoint limits
+                const lower_codepoint: ?u21 = if (range.lower) |lower_pattern| blk: {
+                    const lower_elem = try self.attemptEval(lower_pattern.*) orelse return Error.RuntimeError;
+                    if (lower_elem.stringBytes(self.vm.*)) |bytes| {
+                        break :blk parsing.utf8Decode(bytes);
+                    } else {
+                        return Error.RuntimeError;
+                    }
+                } else null;
+
+                const upper_codepoint: ?u21 = if (range.upper) |upper_pattern| blk: {
+                    const upper_elem = try self.attemptEval(upper_pattern.*) orelse return Error.RuntimeError;
+                    if (upper_elem.stringBytes(self.vm.*)) |bytes| {
+                        break :blk parsing.utf8Decode(bytes);
+                    } else {
+                        return Error.RuntimeError;
+                    }
+                } else null;
+
+                // Iterate through string by codepoint and validate each against range
+                var codepoint_count: usize = 0;
+                var byte_index: usize = 0;
+                while (byte_index < value_str.len) {
+                    const byte_len = unicode.utf8ByteSequenceLength(value_str[byte_index]) catch return false;
+                    if (byte_index + byte_len > value_str.len) return false;
+
+                    const codepoint = parsing.utf8Decode(value_str[byte_index .. byte_index + byte_len]) orelse return false;
+
+                    // Check if codepoint is within range bounds
+                    if (lower_codepoint) |lower| {
+                        if (codepoint < lower) return false;
+                    }
+                    if (upper_codepoint) |upper| {
+                        if (codepoint > upper) return false;
+                    }
+
+                    if (self.printSteps) {
+                        self.depth = self.depth +| 1;
+                        defer self.depth = self.depth -| 1;
+
+                        try self.printIndentation();
+                        try self.vm.writers.debug.print("\"", .{});
+                        try self.vm.writers.debug.writeAll(value_str[byte_index .. byte_index + byte_len]);
+                        try self.vm.writers.debug.print("\" -> ", .{});
+                        try repeat_pattern.pattern.print(self.vm.*, self.vm.writers.debug);
+                        try self.vm.writers.debug.print("\n", .{});
+                    }
+
+                    codepoint_count += 1;
+                    byte_index += byte_len;
+                }
+
+                // Match the count pattern with the calculated count
+                const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(codepoint_count)));
+                return self.matchPattern(count_elem, repeat_pattern.count.*);
+            }
+
             // Try to determine if pattern has fixed array length
             if (try self.getFixedArrayLength(repeat_pattern.pattern.*)) |pattern_len| {
                 // Handle array with fixed-length pattern but unbound elements/count

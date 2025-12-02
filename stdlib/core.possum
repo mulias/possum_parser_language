@@ -788,6 +788,10 @@ ast.with_line_pos(node) =
 
 # Values
 
+## Strings
+
+Str.Length(S) = S -> ("\u000000".. * L) $ L
+
 ## Numbers
 
 Num.Add = @Add

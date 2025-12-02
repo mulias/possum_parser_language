@@ -1172,6 +1172,7 @@
           {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
         ],
         "body": {
+          "type": "conditional",
           "middle": {
             "type": "call_function",
             "args": [
@@ -1186,7 +1187,6 @@
             ],
             "postfixed": {"type": "parser_variable", "name": "const", "is_meta": false, "is_underscored": false}
           },
-          "type": "conditional",
           "left": {
             "type": "call_function",
             "args": [
@@ -1195,6 +1195,7 @@
             "postfixed": {"type": "parser_variable", "name": "peek", "is_meta": false, "is_underscored": false}
           },
           "right": {
+            "type": "conditional",
             "middle": {
               "type": "call_function",
               "args": [
@@ -1204,7 +1205,6 @@
               ],
               "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
             },
-            "type": "conditional",
             "left": {
               "type": "take_left",
               "left": {
@@ -1215,6 +1215,7 @@
               "right": {"type": "string", "value": ")"}
             },
             "right": {
+              "type": "conditional",
               "middle": {
                 "type": "and",
                 "left": {
@@ -1261,7 +1262,6 @@
                   "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
                 }
               },
-              "type": "conditional",
               "left": {"type": "string", "value": "%("},
               "right": {
                 "type": "and",
@@ -1311,8 +1311,8 @@
           {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
         ],
         "body": {
-          "middle": {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
           "type": "conditional",
+          "middle": {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
           "left": {
             "type": "destructure",
             "left": {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false},
