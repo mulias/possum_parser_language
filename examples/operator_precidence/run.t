@@ -1,7 +1,7 @@
   $ possum $TESTDIR/arithmetic.possum -i '1 + 2'
   {
-    "endpos": 5,
     "type": "add",
+    "endpos": 5,
     "startpos": 0,
     "left": {"type": "num", "value": 1, "startpos": 0, "endpos": 1},
     "right": {"type": "num", "value": 2, "startpos": 4, "endpos": 5}
@@ -9,17 +9,17 @@
 
   $ possum $TESTDIR/arithmetic.possum -i '1 + 2 * 3 - 4'
   {
-    "endpos": 13,
     "type": "sub",
+    "endpos": 13,
     "startpos": 0,
     "left": {
-      "endpos": 9,
       "type": "add",
+      "endpos": 9,
       "startpos": 0,
       "left": {"type": "num", "value": 1, "startpos": 0, "endpos": 1},
       "right": {
-        "endpos": 9,
         "type": "mul",
+        "endpos": 9,
         "startpos": 4,
         "left": {"type": "num", "value": 2, "startpos": 4, "endpos": 5},
         "right": {"type": "num", "value": 3, "startpos": 8, "endpos": 9}
@@ -31,18 +31,18 @@
   $ possum $TESTDIR/arithmetic.possum -i 'a ? b : c == 0 ? d : e'
   {
     "endpos": 22,
-    "middle": {"type": "var", "value": "b", "startpos": 4, "endpos": 5},
     "type": "cond",
+    "middle": {"type": "var", "value": "b", "startpos": 4, "endpos": 5},
     "startpos": 0,
     "left": {"type": "var", "value": "a", "startpos": 0, "endpos": 1},
     "right": {
       "endpos": 22,
-      "middle": {"type": "var", "value": "d", "startpos": 17, "endpos": 18},
       "type": "cond",
+      "middle": {"type": "var", "value": "d", "startpos": 17, "endpos": 18},
       "startpos": 8,
       "left": {
-        "endpos": 14,
         "type": "eql",
+        "endpos": 14,
         "startpos": 8,
         "left": {"type": "var", "value": "c", "startpos": 8, "endpos": 9},
         "right": {"type": "num", "value": 0, "startpos": 13, "endpos": 14}
@@ -53,37 +53,37 @@
 
   $ possum $TESTDIR/arithmetic.possum -i '--a[1 + 4 / b]! * 4 ^ 2'
   {
-    "endpos": 23,
     "type": "mul",
+    "endpos": 23,
     "startpos": 0,
     "left": {
-      "endpos": 15,
       "type": "neg",
+      "endpos": 15,
       "startpos": 0,
       "prefixed": {
-        "endpos": 15,
         "type": "neg",
+        "endpos": 15,
         "startpos": 1,
         "prefixed": {
-          "endpos": 15,
           "type": "fac",
+          "endpos": 15,
           "startpos": 2,
           "postfixed": {
-            "endpos": 14,
             "index": {
-              "endpos": 13,
               "type": "add",
+              "endpos": 13,
               "startpos": 4,
               "left": {"type": "num", "value": 1, "startpos": 4, "endpos": 5},
               "right": {
-                "endpos": 13,
                 "type": "div",
+                "endpos": 13,
                 "startpos": 8,
                 "left": {"type": "num", "value": 4, "startpos": 8, "endpos": 9},
                 "right": {"type": "var", "value": "b", "startpos": 12, "endpos": 13}
               }
             },
             "type": "index",
+            "endpos": 14,
             "startpos": 2,
             "postfixed": {"type": "var", "value": "a", "startpos": 2, "endpos": 3}
           }
@@ -91,8 +91,8 @@
       }
     },
     "right": {
-      "endpos": 23,
       "type": "exp",
+      "endpos": 23,
       "startpos": 18,
       "left": {"type": "num", "value": 4, "startpos": 18, "endpos": 19},
       "right": {"type": "num", "value": 2, "startpos": 22, "endpos": 23}

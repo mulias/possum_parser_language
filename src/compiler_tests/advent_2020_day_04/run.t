@@ -2,7 +2,7 @@
 
   $ possum $TESTDIR/part_1.possum $TESTDIR/input.txt
   
-  =================@fn431=================
+  =================@fn437=================
   space | nl
   ========================================
   0000    | SetInputMark
@@ -19,7 +19,7 @@
   0002    | GetConstant 1: alphas
   0004    | PushChar ':'
   0006    | GetConstant 2: token
-  0008    | GetConstant 3: @fn431
+  0008    | GetConstant 3: @fn437
   0010    | CallTailFunction 4
   0012    | End
   ========================================
@@ -51,7 +51,7 @@
   0016    | End
   ========================================
   
-  =================@fn433=================
+  =================@fn439=================
   nl+nl
   ========================================
   0000    | CallFunctionConstant 5: newline
@@ -65,7 +65,7 @@
   ========================================
   0000    | GetConstant 8: many_sep
   0002    | GetConstant 9: count_valid_passport
-  0004    | GetConstant 10: @fn433
+  0004    | GetConstant 10: @fn439
   0006    | CallTailFunction 2
   0008    | End
   ========================================

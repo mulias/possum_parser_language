@@ -21,6 +21,9 @@ pub fn loadFunctions(vm: *VM, module: *Module) !void {
     try createMultiplyValue(vm, module);
     try createDivideValue(vm, module);
     try createPowerValue(vm, module);
+    try createModulusValue(vm, module);
+    try createFloorValue(vm, module);
+    try createCeilingValue(vm, module);
     try createInputOffset(vm, module);
     try createInputLine(vm, module);
     try createInputLineOffset(vm, module);
@@ -498,6 +501,141 @@ fn powerNative(vm: *VM) VM.Error!void {
         return vm.pushFailure();
     } else {
         return vm.runtimeError("@Power expected number or null arguments", .{});
+    }
+}
+
+fn createModulusValue(vm: *VM, module: *Module) !void {
+    const name = try vm.strings.insert("@Mod");
+    var fun = try Function.create(vm, .{
+        .module_id = module.id,
+        .name = name,
+        .arity = 2,
+        .region = Region.new(0, 0),
+    });
+
+    // Prevent GC
+    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+
+    const native_code = try NativeCode.create(vm, "modulusNative", modulusNative);
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
+    try fun.chunk.write(vm.allocator, 0, loc);
+    try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
+    try fun.chunk.write(vm.allocator, 1, loc);
+    try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
+    try fun.chunk.writeOp(vm.allocator, .End, loc);
+}
+
+fn modulusNative(vm: *VM) VM.Error!void {
+    var b = vm.pop();
+    var a = vm.pop();
+
+    a = if (a.isConst(.Null)) Elem.numberFloat(1) else a;
+    b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
+
+    if (a.isNumber() and b.isNumber()) {
+        a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
+        b = if (b.isType(.NumberString)) b.asNumberString().toNumberFloat(vm.strings) else b;
+
+        const res = std.math.mod(f64, a.asFloat(), b.asFloat()) catch |e| switch (e) {
+            error.DivisionByZero => return vm.runtimeError("@Mod denominator is 0", .{}),
+            error.NegativeDenominator => return vm.runtimeError("@Mod denominator is negative", .{}),
+        };
+
+        return vm.push(Elem.numberFloat(res));
+    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
+        return vm.pushFailure();
+    } else {
+        return vm.runtimeError("@Mod expected number or null arguments", .{});
+    }
+}
+
+fn createFloorValue(vm: *VM, module: *Module) !void {
+    const name = try vm.strings.insert("@Floor");
+    var fun = try Function.create(vm, .{
+        .module_id = module.id,
+        .name = name,
+        .arity = 1,
+        .region = Region.new(0, 0),
+    });
+
+    // Prevent GC
+    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+
+    const native_code = try NativeCode.create(vm, "floorNative", floorNative);
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
+    try fun.chunk.write(vm.allocator, 0, loc);
+    try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
+    try fun.chunk.writeOp(vm.allocator, .End, loc);
+}
+
+fn floorNative(vm: *VM) VM.Error!void {
+    var a = vm.pop();
+
+    a = if (a.isConst(.Null)) Elem.numberFloat(0) else a;
+
+    if (a.isNumber()) {
+        a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
+
+        const res = Elem.numberFloat(std.math.floor(a.asFloat()));
+        return vm.push(res);
+    } else if (a.isConst(.Failure)) {
+        return vm.pushFailure();
+    } else {
+        return vm.runtimeError("@Floor expected number or null arguments", .{});
+    }
+}
+
+fn createCeilingValue(vm: *VM, module: *Module) !void {
+    const name = try vm.strings.insert("@Ceiling");
+    var fun = try Function.create(vm, .{
+        .module_id = module.id,
+        .name = name,
+        .arity = 1,
+        .region = Region.new(0, 0),
+    });
+
+    // Prevent GC
+    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+
+    const native_code = try NativeCode.create(vm, "ceilingNative", ceilingNative);
+    const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
+    std.debug.assert(nc_id <= 255);
+
+    const loc = Region.new(0, 0);
+
+    try fun.chunk.writeOp(vm.allocator, .GetLocal, loc);
+    try fun.chunk.write(vm.allocator, 0, loc);
+    try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
+    try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
+    try fun.chunk.writeOp(vm.allocator, .End, loc);
+}
+
+fn ceilingNative(vm: *VM) VM.Error!void {
+    var a = vm.pop();
+
+    a = if (a.isConst(.Null)) Elem.numberFloat(0) else a;
+
+    if (a.isNumber()) {
+        a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
+
+        const res = Elem.numberFloat(std.math.ceil(a.asFloat()));
+        return vm.push(res);
+    } else if (a.isConst(.Failure)) {
+        return vm.pushFailure();
+    } else {
+        return vm.runtimeError("@Ceiling expected number or null arguments", .{});
     }
 }
 

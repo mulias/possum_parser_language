@@ -800,6 +800,12 @@ Num.Div = @Divide
 
 Num.Pow = @Power
 
+Num.Mod = @Mod
+
+Num.Floor = @Floor
+
+Num.Ceil = @Ceiling
+
 Num.Inc(N) = @Add(N, 1)
 
 Num.Dec(N) = @Subtract(N, 1)
