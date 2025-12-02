@@ -178,8 +178,9 @@ pub const GC = struct {
         }
 
         if (self.vm.compiler) |compiler| {
-            for (compiler.function_contexts.contexts.items) |fc| {
-                self.markDyn(&fc.function.dyn);
+            // DO we need to mark function_map?
+            for (compiler.functions.items) |f| {
+                self.markDyn(&f.dyn);
             }
         }
 
@@ -207,11 +208,6 @@ pub const GC = struct {
         }
 
         for (self.vm.modules.items) |module| {
-            var iter = module.globals.iterator();
-            while (iter.next()) |global| {
-                self.markElem(global.value_ptr.*);
-            }
-
             if (self.print_trace and module.constants.items.len > 0) {
                 self.vm.writers.debug.print("    module {s}: marking {} constants\n", .{ module.name, module.constants.items.len }) catch {};
             }

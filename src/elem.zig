@@ -1403,6 +1403,10 @@ pub const Elem = packed union {
                 const name = self.nameBytes(vm);
                 return name.len > 0 and name[0] == '@';
             }
+
+            pub fn hasEmptyBytecode(self: *Function) bool {
+                return self.chunk.code.items.len == 0;
+            }
         };
 
         pub const NativeCode = struct {

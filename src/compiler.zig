@@ -1,119 +1,37 @@
-const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
+const Ast = @import("frontend/can_ast.zig");
 const AutoHashMap = std.AutoHashMapUnmanaged;
-const Writer = std.Io.Writer;
-const Ast = @import("can_ast.zig");
-const Can = @import("can.zig").Can;
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
+const DependencyGraph = @import("frontend/dependency_graph.zig");
 const Elem = @import("elem.zig").Elem;
+const Frontend = @import("frontend.zig");
+const GlobalKey = @import("frontend.zig").GlobalKey;
+const Module = @import("module.zig").Module;
+const OpCode = @import("op_code.zig").OpCode;
 const Pattern = @import("pattern.zig").Pattern;
 const Region = @import("region.zig").Region;
-const OpCode = @import("op_code.zig").OpCode;
-const Scanner = @import("scanner.zig").Scanner;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
+const Writer = std.Io.Writer;
 const Writers = @import("writer.zig").Writers;
-const Module = @import("module.zig").Module;
 const parsing = @import("parsing.zig");
-const Parser = @import("parser.zig").Parser;
+const std = @import("std");
 
 pub const Compiler = struct {
     vm: *VM,
-    ast: []Can = &.{},
-    function_contexts: FunctionContexts = .{},
-    target_module_id: Module.Id,
+    frontend: *Frontend,
+    functions: ArrayList(*Elem.DynElem.Function) = .{},
     writers: Writers,
-    printBytecode: bool,
-    constant_map: AutoHashMap(ConstantMapKey, usize),
+    printBytecode: bool = false,
+    global_map: AutoHashMap(GlobalKey, Elem) = .{},
+    constant_map: AutoHashMap(ConstantMapKey, usize) = .{},
+    main: ?*Elem.DynElem.Function = null,
 
     const ConstantMapKey = struct {
         module_id: u32,
         elem_bits: u64,
-    };
-
-    const FunctionContexts = struct {
-        contexts: ArrayList(Context) = .{},
-
-        const Context = struct {
-            function: *Elem.DynElem.Function,
-            locals: ArrayList(StringTable.Id) = .{},
-
-            pub fn init(function: *Elem.DynElem.Function) Context {
-                return .{ .function = function };
-            }
-
-            pub fn deinit(self: *Context, allocator: Allocator) void {
-                self.locals.deinit(allocator);
-            }
-
-            pub fn addLocal(self: *Context, allocator: Allocator, sid: StringTable.Id) !void {
-                for (self.locals.items) |item| {
-                    if (item == sid) {
-                        return error.VariableNameUsedInScope;
-                    }
-                }
-                try self.locals.append(allocator, sid);
-            }
-
-            pub fn localSlot(self: *const Context, name: StringTable.Id) ?u8 {
-                var i = self.locals.items.len;
-                while (i > 0) {
-                    i -= 1;
-                    if (self.locals.items[i] == name) {
-                        return @intCast(i);
-                    }
-                }
-                return null;
-            }
-        };
-
-        pub fn deinit(self: *FunctionContexts, allocator: Allocator) void {
-            for (self.contexts.items) |*context| {
-                context.deinit(allocator);
-            }
-            self.contexts.deinit(allocator);
-        }
-
-        pub fn append(self: *FunctionContexts, allocator: Allocator, function: *Elem.DynElem.Function) !void {
-            try self.contexts.append(allocator, Context.init(function));
-        }
-
-        pub fn pop(self: *FunctionContexts, allocator: Allocator) *Elem.DynElem.Function {
-            var context = self.contexts.pop().?;
-            context.locals.deinit(allocator);
-            return context.function;
-        }
-
-        fn currentFunction(self: *const FunctionContexts) *Elem.DynElem.Function {
-            return self.current().function;
-        }
-
-        // Note: Returns a pointer into an ArrayList which will be invalidated if
-        // the list is reallocated on `append`. Don't use this pointer after
-        // pushing a new function onto the list.
-        fn current(self: *const FunctionContexts) *Context {
-            return &self.contexts.items[self.contexts.items.len - 1];
-        }
-
-        fn parentFunction(self: *const FunctionContexts) *Elem.DynElem.Function {
-            return self.parent().function;
-        }
-
-        // Note: Returns a pointer into an ArrayList which will be invalidated if
-        // the list is reallocated on `append`. Don't use this pointer after
-        // pushing a new function onto the list.
-        fn parent(self: *const FunctionContexts) *Context {
-            var parentIndex = self.contexts.items.len - 2;
-            while (true) {
-                if (self.contexts.items[parentIndex].function.is_anonymous) {
-                    parentIndex -= 1;
-                } else {
-                    return &self.contexts.items[parentIndex];
-                }
-            }
-        }
     };
 
     const Error = error{
@@ -137,141 +55,172 @@ pub const Compiler = struct {
         RangeInvalidNumberFormat,
     } || Writer.Error;
 
-    pub fn init(vm: *VM) Compiler {
+    pub fn init(vm: *VM) !Compiler {
         return Compiler{
             .vm = vm,
+            .frontend = try Frontend.init(vm.allocator, &vm.strings, vm.writers),
             .writers = vm.writers,
             .printBytecode = vm.config.printCompiledBytecode,
             .constant_map = .{},
-            .target_module_id = undefined,
         };
     }
 
     pub fn deinit(self: *Compiler) void {
-        for (self.ast) |*can| can.deinit();
-        if (self.ast.len > 0) self.vm.allocator.free(self.ast);
-
+        self.frontend.deinit();
         self.constant_map.deinit(self.vm.allocator);
-        self.function_contexts.deinit(self.vm.allocator);
+        self.global_map.deinit(self.vm.allocator);
+        self.functions.deinit(self.vm.allocator);
     }
 
-    pub fn compile(self: *Compiler, target_module_id: Module.Id) !?*Elem.DynElem.Function {
-        self.target_module_id = target_module_id;
+    pub fn addTargetModule(self: *Compiler, module: Module, opts: Frontend.AddModuleOpts) !void {
+        try self.frontend.addTargetModule(module, opts);
+    }
 
-        self.ast = try self.vm.allocator.alloc(Can, self.vm.modules.items.len);
-        for (self.ast, 0..) |*can, module_id| {
-            can.* = Can.init(self.vm, @intCast(module_id));
+    pub fn addModule(self: *Compiler, module: Module, opts: Frontend.AddModuleOpts) !void {
+        try self.frontend.addModule(module, opts);
+
+        // Add precompiled functions to function map so that they're
+        // discoverable during compilaiton
+        for (module.constants.items) |elem| {
+            if (elem.isDynType(.Function)) {
+                const func = elem.asDyn().asFunction();
+                try self.global_map.put(
+                    self.vm.allocator,
+                    .{ .module_id = module.id, .name = func.name },
+                    elem,
+                );
+            }
         }
+    }
 
-        // Ensure that the strings table includes the placeholder var, which
-        // might be used directly by the compiler.
-        _ = try self.vm.strings.insert("_");
+    pub fn addModuleDependency(self: *Compiler, module_id: Module.Id, dependendency_id: Module.Id) !void {
+        try self.frontend.addModuleDependency(module_id, dependendency_id);
+    }
 
-        var main_fn: ?*Elem.DynElem.Function = null;
+    pub fn compile(self: *Compiler) !void {
+        try self.frontend.finalize();
+        // try self.frontend.resolver.graph.print(self.vm.strings, self.writers.debug);
 
-        for (self.vm.modules.items) |module| {
-            try self.parse(module);
-            try self.declareGlobals(module);
-            try self.resolveAliaseChains(module);
-            try self.compileFunctions(module);
+        if (self.frontend.target_module_id) |target_module_id| {
+            try self.compileModule(target_module_id);
 
-            if (module.id == target_module_id) {
-                if (self.getAst(module.id).main) |main_ast| {
-                    main_fn = try self.compileMain(module.id, main_ast);
+            if (self.frontend.main) |main_ast| {
+                try self.compileMainParser(target_module_id, main_ast);
+            }
+        } else {
+            @panic("Internal Error: Can't compile without target module");
+        }
+    }
+
+    fn compileModule(self: *Compiler, module_id: Module.Id) !void {
+        var iter = self.frontend.declarationsIterator(module_id);
+
+        while (iter.next()) |decl_key| {
+            try self.compileDeclaration(decl_key);
+        }
+    }
+
+    fn compileMainParser(self: *Compiler, module_id: Module.Id, main_ast: *Ast.RNode(Ast.Parser.AnonymousFunction)) !void {
+        const function = try Elem.DynElem.Function.createAnonParser(
+            self.vm,
+            .{ .module_id = module_id, .arity = 0, .region = main_ast.region },
+        );
+
+        try self.functions.append(self.vm.allocator, function);
+
+        const graph_node = self.frontend.getGraphNode(module_id, main_ast.node.name);
+        if (graph_node) |node| {
+            if (node.* == .anonymous_function) {
+                const anon_node = node.anonymous_function;
+                if (anon_node.closure_captures.items.len > 0) {
+                    try self.emitOp(.SetClosureCaptures, main_ast.region);
                 }
             }
         }
 
-        return main_fn;
-    }
-
-    fn parse(self: *Compiler, module: *Module) !void {
-        if (module.source.len > 0) {
-            var parser = Parser.init(self.vm, module.id, module.source, .{
-                .printScanner = self.vm.config.printScanner,
-                .printParser = self.vm.config.printParser,
-            });
-            defer parser.deinit();
-            try parser.parse();
-
-            if (self.vm.config.printAst and module.id == self.target_module_id) {
-                try parser.ast.print(
-                    self.vm.writers.debug,
-                    self.vm.*,
-                    module.source,
-                );
-            }
-
-            const can = self.getAst(module.id);
-            _ = try can.canonicalize(parser.ast);
-        }
-    }
-
-    fn declareGlobals(self: *Compiler, module: *Module) !void {
-        const can = self.getAst(module.id);
-        var decl_iter = can.declarations.iterator();
-        while (decl_iter.next()) |entry| {
-            const decl = entry.value_ptr.*;
-            if (self.isAliasChain(decl)) {
-                // Wait to resolve until all globals are declared
-                continue;
-            } else if (try self.getAliasBody(decl)) |body_elem| {
-                const sid = decl.identName();
-                try module.addGlobal(self.vm.allocator, sid, body_elem);
-            } else {
-                try self.declareFunction(module.id, decl);
-            }
-        }
-    }
-
-    fn compileFunctions(self: *Compiler, module: *Module) !void {
-        const can = self.getAst(module.id);
-
-        var decl_iter = can.declarations.iterator();
-        while (decl_iter.next()) |entry| {
-            const decl = entry.value_ptr.*;
-            if (!self.isAlias(decl) and !self.isAliasChain(decl)) {
-                try self.compileFunction(module.id, decl);
-            }
-        }
-    }
-
-    fn resolveAliaseChains(self: *Compiler, module: *Module) !void {
-        const can = self.getAst(module.id);
-        var decl_iter = can.declarations.iterator();
-        while (decl_iter.next()) |entry| {
-            const decl = entry.value_ptr.*;
-
-            if (self.isAliasChain(decl)) {
-                try self.resolveAliasChain(module.id, decl);
-            }
-        }
-    }
-
-    fn compileMain(self: *Compiler, module_id: Module.Id, main_rnode: *Ast.Parser.RNode) !?*Elem.DynElem.Function {
-        const main = try Elem.DynElem.Function.create(self.vm, .{
-            .module_id = module_id,
-            .name = try self.vm.strings.insert("@main"),
-            .arity = 0,
-            .region = undefined,
-        });
-
-        try self.function_contexts.append(self.vm.allocator, main);
-
-        try self.addValueLocals(module_id, .{ .parser = main_rnode });
-        try self.writeParser(module_id, main_rnode, true);
+        try self.writeParser(module_id, main_ast.node.body, true);
         try self.emitEnd();
 
-        const main_fn = self.function_contexts.pop(self.vm.allocator);
-
-        // Update the main function's source region with the actual main parser region
-        main_fn.chunk.source_region = main_rnode.region;
-
-        if (self.printBytecode and module_id == self.target_module_id) {
-            try main_fn.disassemble(self.vm.*, self.writers.debug);
+        if (self.printBytecode) {
+            try function.disassemble(self.vm.*, self.writers.debug);
         }
 
-        return main_fn;
+        _ = self.functions.pop();
+
+        self.main = function;
+    }
+
+    fn compileDeclaration(self: *Compiler, decl_key: GlobalKey) !void {
+        // Check if already fully compiled
+        if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
+            if (!elem.isDynType(.Function) or !elem.asDyn().asFunction().hasEmptyBytecode()) {
+                return;
+            }
+        }
+
+        const node = self.frontend.getNode(decl_key);
+
+        // Get dependencies based on node type
+        const dependencies = switch (node.*) {
+            .precompiled => &[_]DependencyGraph.NodeKey{},
+            .declaration => |*n| n.dependencies.items,
+            .anonymous_function => |*n| n.dependencies.items,
+        };
+
+        // Make sure all dependencies are declared first
+        for (dependencies) |dep_key| {
+            if (self.findGlobal(dep_key.module_id, dep_key.name) == null) {
+                const dep_node = self.frontend.getNode(dep_key);
+
+                switch (dep_node.*) {
+                    .precompiled => {},
+                    .declaration => |*dep_n| {
+                        const dep_decl = dep_n.ast;
+                        if (try self.getAliasBody(dep_decl)) |alias_elem| {
+                            try self.addGlobal(dep_key.module_id, dep_key.name, alias_elem);
+                        } else {
+                            try self.declareFunction(dep_key.module_id, dep_decl);
+                        }
+                    },
+                    .anonymous_function => {
+                        // Anonymous functions are handled separately, skip for now
+                    },
+                }
+            }
+        }
+
+        // Only compile if this is actually a declaration
+        switch (node.*) {
+            .precompiled => {},
+            .declaration => |*n| {
+                const decl = n.ast;
+
+                if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
+                    // Declaration has been visited already. Fill in bytecode if needed.
+                    if (elem.isDynType(.Function) and elem.asDyn().asFunction().hasEmptyBytecode()) {
+                        try self.compileFunction(decl_key.module_id, decl);
+                    }
+                } else if (try self.getAliasBody(decl)) |alias_elem| {
+                    // Simple alias for a number/string elem.
+                    try self.addGlobal(decl_key.module_id, decl_key.name, alias_elem);
+                } else if (self.getAliasChainName(decl)) |_| {
+                    // Alias for another declaration.
+                    try self.denormalizeAlias(decl_key, decl);
+                } else {
+                    // Must be compiled as a function with bytecode.
+                    try self.declareFunction(decl_key.module_id, decl);
+                    try self.compileFunction(decl_key.module_id, decl);
+                }
+            },
+            .anonymous_function => {
+                // Anonymous functions should not be compiled through this path
+            },
+        }
+
+        // Now compile all dependencies
+        for (dependencies) |dep_key| {
+            try self.compileDeclaration(dep_key);
+        }
     }
 
     fn declareFunction(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
@@ -325,51 +274,77 @@ pub const Compiler = struct {
         }
     }
 
-    fn resolveAliasChain(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
-        const ast = self.getAst(module_id);
-
-        var path = AutoHashMap(StringTable.Id, void){};
+    fn denormalizeAlias(self: *Compiler, decl_key: GlobalKey, decl: Ast.ParserOrValue.Declaration) !void {
+        var path = AutoHashMap(GlobalKey, void){};
         defer path.deinit(self.vm.allocator);
 
-        var target_ident_name = decl.identName();
+        var target_key = decl_key;
+        var target_elem: ?Elem = null;
 
         while (true) {
-            if (path.contains(target_ident_name)) {
-                try self.printError(module_id, decl.region(), "Circular alias dependency detected for '{s}'", .{self.vm.strings.get(decl.identName())});
+            if (self.getGlobal(target_key)) |elem| {
+                target_elem = elem;
+                break;
+            }
+
+            if (path.contains(target_key)) {
+                try self.printError(decl_key.module_id, decl.region(), "Circular alias dependency detected for '{s}'", .{self.vm.strings.get(decl_key.name)});
                 return Error.AliasCycle;
-            } else {
-                try path.put(self.vm.allocator, target_ident_name, undefined);
+            }
+            try path.put(self.vm.allocator, target_key, undefined);
+
+            const target_decl = self.frontend.getDeclaration(target_key);
+
+            if (try self.getAliasDependency(target_key, target_decl)) |next_key| {
+                target_key = next_key;
+                continue;
             }
 
-            if (ast.declarations.get(target_ident_name)) |next_decl| {
-                if (self.getAliasChainName(next_decl)) |next_target_ident_name| {
-                    target_ident_name = next_target_ident_name;
-                    continue;
-                }
+            if (try self.getAliasBody(target_decl)) |elem| {
+                target_elem = elem;
+                break;
             }
 
-            break;
-        }
-
-        const alias_sid = decl.identName();
-        const terminal_sid = target_ident_name;
-
-        // Try to resolve to a direct alias
-        if (ast.declarations.get(target_ident_name)) |terminal_decl| {
-            if (try self.getAliasBody(terminal_decl)) |terminal_elem| {
-                try self.addGlobal(module_id, alias_sid, terminal_elem);
-                return;
-            }
-        }
-
-        // Try to resolve to a compiled function
-        if (self.findGlobal(module_id, terminal_sid)) |terminal_elem| {
-            try self.addGlobal(module_id, alias_sid, terminal_elem);
-            return;
-        } else {
-            try self.printError(module_id, decl.region(), "Could not resolve alias, unknown variable '{s}'", .{self.vm.strings.get(target_ident_name)});
+            try self.printError(decl_key.module_id, decl.region(), "Could not resolve alias, unknown variable '{s}'", .{self.vm.strings.get(target_key.name)});
             return Error.UnknownVariable;
         }
+
+        if (target_elem) |elem| {
+            var key_iter = path.keyIterator();
+            while (key_iter.next()) |key| {
+                try self.addGlobal(key.module_id, key.name, elem);
+            }
+            try self.addGlobal(decl_key.module_id, decl_key.name, elem);
+        } else {
+            unreachable;
+        }
+    }
+
+    fn getAliasDependency(self: *Compiler, decl_key: GlobalKey, decl: Ast.ParserOrValue.Declaration) !?GlobalKey {
+        if (!self.declHasNoParams(decl)) {
+            return null;
+        }
+
+        const ident_name = self.getAliasChainName(decl) orelse return null;
+
+        const node = self.frontend.getGraphNode(decl_key.module_id, decl.identName()) orelse return null;
+        const deps = switch (node.*) {
+            .precompiled => return null,
+            .declaration => |n| n.dependencies.items,
+            .anonymous_function => return null,
+        };
+
+        for (deps) |dep| {
+            if (dep.name == ident_name) {
+                return dep;
+            }
+        }
+
+        return null;
+    }
+
+    fn getGlobal(self: *Compiler, key: GlobalKey) ?Elem {
+        return self.global_map.get(key);
     }
 
     fn compileFunction(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
@@ -378,32 +353,24 @@ pub const Compiler = struct {
 
         const function = globalVal.asDyn().asFunction();
 
-        try self.function_contexts.append(self.vm.allocator, function);
+        try self.functions.append(self.vm.allocator, function);
 
         switch (decl) {
             .parser => |p| {
-                for (p.node.params.items) |param_ident| {
-                    try self.addLocal(module_id, param_ident);
-                }
-                try self.addValueLocals(module_id, .{ .parser = p.node.body });
                 try self.writeParser(module_id, p.node.body, true);
             },
             .value => |v| {
-                for (v.node.params.items) |param_ident| {
-                    try self.addLocal(module_id, .{ .value = param_ident });
-                }
-                try self.addValueLocals(module_id, .{ .value = v.node.body });
                 try self.writeValue(module_id, v.node.body, true);
             },
         }
 
         try self.emitEnd();
 
-        if (self.printBytecode and module_id == self.target_module_id) {
+        if (self.printBytecode and module_id == self.frontend.target_module_id) {
             try function.disassemble(self.vm.*, self.writers.debug);
         }
 
-        _ = self.function_contexts.pop(self.vm.allocator);
+        _ = self.functions.pop();
     }
 
     fn writeParser(self: *Compiler, module_id: Module.Id, rnode: *Ast.Parser.RNode, isTailPosition: bool) !void {
@@ -539,6 +506,9 @@ pub const Compiler = struct {
                 try self.patchJump(module_id, ifThenJumpIndex, region);
                 try self.writeParser(module_id, conditional.else_branch, isTailPosition);
                 try self.patchJump(module_id, thenElseJumpIndex, region);
+            },
+            .anonymous_function => {
+                try self.writeParserAnonymousFunction(module_id, rnode);
             },
         }
     }
@@ -936,7 +906,7 @@ pub const Compiler = struct {
                     try self.writeParserRepeatCount(module_id, parser, repeat, region);
                 } else {
                     const slot = self.localSlot(ident.name).?;
-                    if (self.function_contexts.currentFunction().arity > slot) {
+                    if (self.currentFunction().arity > slot) {
                         // The local var is a function arg, so we know it's bound
                         try self.writeParserRepeatCount(module_id, parser, repeat, region);
                     } else {
@@ -1255,7 +1225,7 @@ pub const Compiler = struct {
                     if (self.findGlobal(module_id, ident.name) != null) {
                         return true;
                     } else if (self.localSlot(ident.name)) |slot| {
-                        return self.function_contexts.currentFunction().arity > slot;
+                        return self.currentFunction().arity > slot;
                     } else {
                         return false;
                     }
@@ -1324,9 +1294,6 @@ pub const Compiler = struct {
     fn parserNodeToElem(self: *Compiler, node: Ast.Parser.Node) !?Elem {
         const result = switch (node) {
             .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
-            .identifier => {
-                return null;
-            },
             .string => |s| Elem.string(try self.vm.strings.insert(s)),
             else => null,
         };
@@ -1340,7 +1307,6 @@ pub const Compiler = struct {
             .null => Elem.nullConst,
             .number_float => |f| Elem.numberFloat(f),
             .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
-            .identifier => return null,
             .string => |s| Elem.string(try self.vm.strings.insert(s)),
             .true => Elem.boolean(true),
             else => null,
@@ -1366,9 +1332,10 @@ pub const Compiler = struct {
                 .identifier => |ident| {
                     try self.writeGetVar(module_id, ident.name, region);
                 },
-                else => {
+                .anonymous_function => {
                     try self.writeParserAnonymousFunction(module_id, p);
                 },
+                else => @panic("Internal Error: compound parser in function args must be wrapped in an anonymous function."),
             },
             .value => |v| try self.writeValue(module_id, v, false),
         }
@@ -1376,60 +1343,53 @@ pub const Compiler = struct {
 
     fn writeParserAnonymousFunction(self: *Compiler, module_id: Module.Id, rnode: *Ast.Parser.RNode) Error!void {
         const region = rnode.region;
+        const anon = rnode.node.anonymous_function;
 
         const function = try Elem.DynElem.Function.createAnonParser(
             self.vm,
             .{ .module_id = module_id, .arity = 0, .region = region },
         );
 
-        // Prevent GC
         const constId = try self.makeConstant(module_id, function.dyn.elem());
 
-        try self.function_contexts.append(self.vm.allocator, function);
+        try self.functions.append(self.vm.allocator, function);
 
-        try self.addClosureLocals(module_id, .{ .parser = rnode });
-
-        if (self.function_contexts.current().locals.items.len > 0) {
-            try self.emitOp(.SetClosureCaptures, region);
-        }
-
-        try self.writeParser(module_id, rnode, true);
-        try self.emitEnd();
-
-        if (self.printBytecode and module_id == self.target_module_id) {
-            try function.disassemble(self.vm.*, self.writers.debug);
-        }
-
-        // Save target locals before popping (need to copy since pop deallocates)
-        const targetContext = self.function_contexts.current();
-        const targetLocals = try self.vm.allocator.dupe(StringTable.Id, targetContext.locals.items);
-        defer self.vm.allocator.free(targetLocals);
-
-        _ = self.function_contexts.pop(self.vm.allocator);
-
-        // In the parent function: get the anon function and wrap it in a closure if necessary
-        try self.emitConstant(constId, region);
-        try self.writeCaptureLocals(targetLocals, region);
-    }
-
-    fn writeCaptureLocals(self: *Compiler, targetLocals: []const StringTable.Id, region: Region) !void {
-        var captureCount: u8 = 0;
-        for (self.function_contexts.current().locals.items) |local| {
-            for (targetLocals) |targetLocal| {
-                if (targetLocal == local) {
-                    captureCount += 1;
-                    break;
+        const graph_node = self.frontend.getGraphNode(module_id, anon.name);
+        if (graph_node) |node| {
+            if (node.* == .anonymous_function) {
+                const anon_node = node.anonymous_function;
+                if (anon_node.closure_captures.items.len > 0) {
+                    try self.emitOp(.SetClosureCaptures, region);
                 }
             }
         }
 
-        if (captureCount > 0) {
-            const localCount = @as(u8, @intCast(targetLocals.len));
-            try self.emitUnaryOp(.CreateClosure, localCount, region);
+        try self.writeParser(module_id, anon.body, true);
+        try self.emitEnd();
 
-            for (targetLocals) |targetLocal| {
-                if (self.localSlot(targetLocal)) |fromSlot| {
-                    try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
+        if (self.printBytecode and module_id == self.frontend.target_module_id) {
+            try function.disassemble(self.vm.*, self.writers.debug);
+        }
+
+        _ = self.functions.pop();
+
+        try self.emitConstant(constId, region);
+
+        if (graph_node) |node| {
+            if (node.* == .anonymous_function) {
+                const anon_node = node.anonymous_function;
+
+                if (anon_node.closure_captures.items.len == 0) {
+                    return;
+                }
+
+                const local_count = @as(u8, @intCast(anon_node.locals.items.len));
+                try self.emitUnaryOp(.CreateClosure, local_count, region);
+
+                for (anon_node.closure_captures.items) |capture| {
+                    if (self.localSlot(capture.local)) |fromSlot| {
+                        try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
+                    }
                 }
             }
         }
@@ -1715,438 +1675,6 @@ pub const Compiler = struct {
         }
     }
 
-    fn addValueLocals(self: *Compiler, module_id: Module.Id, rnode: Ast.ParserOrValueOrPattern.RNode) !void {
-        const region = rnode.region();
-
-        switch (rnode) {
-            .parser => |p| {
-                switch (p.node) {
-                    .@"return" => |ret| {
-                        try self.addValueLocals(module_id, .{ .parser = ret.left });
-                        try self.addValueLocals(module_id, .{ .value = ret.right });
-                    },
-                    .function_call => |func| {
-                        try self.addValueLocals(module_id, .{ .parser = func.function });
-                        for (func.args.items) |arg| {
-                            switch (arg) {
-                                .parser => |p_arg| try self.addValueLocals(module_id, .{ .parser = p_arg }),
-                                .value => |v_arg| try self.addValueLocals(module_id, .{ .value = v_arg }),
-                            }
-                        }
-                    },
-                    .@"or" => |or_node| {
-                        try self.addValueLocals(module_id, .{ .parser = or_node.left });
-                        try self.addValueLocals(module_id, .{ .parser = or_node.right });
-                    },
-                    .backtrack => |bt_node| {
-                        try self.addValueLocals(module_id, .{ .parser = bt_node.left });
-                        try self.addValueLocals(module_id, .{ .parser = bt_node.right });
-                    },
-                    .merge => |merge_node| {
-                        try self.addValueLocals(module_id, .{ .parser = merge_node.left });
-                        try self.addValueLocals(module_id, .{ .parser = merge_node.right });
-                    },
-                    .take_left => |take_node| {
-                        try self.addValueLocals(module_id, .{ .parser = take_node.left });
-                        try self.addValueLocals(module_id, .{ .parser = take_node.right });
-                    },
-                    .take_right => |take_node| {
-                        try self.addValueLocals(module_id, .{ .parser = take_node.left });
-                        try self.addValueLocals(module_id, .{ .parser = take_node.right });
-                    },
-                    .conditional => |cond| {
-                        try self.addValueLocals(module_id, .{ .parser = cond.condition });
-                        try self.addValueLocals(module_id, .{ .parser = cond.then_branch });
-                        try self.addValueLocals(module_id, .{ .parser = cond.else_branch });
-                    },
-                    .destructure => |dest| {
-                        try self.addValueLocals(module_id, .{ .parser = dest.left });
-                        try self.addValueLocals(module_id, .{ .pattern = dest.right });
-                    },
-                    .negation => |neg| {
-                        try self.addValueLocals(module_id, .{ .parser = neg });
-                    },
-                    .range => |range| {
-                        if (range.lower) |lower| try self.addValueLocals(module_id, .{ .parser = lower });
-                        if (range.upper) |upper| try self.addValueLocals(module_id, .{ .parser = upper });
-                    },
-                    .repeat => |rep| {
-                        try self.addValueLocals(module_id, .{ .parser = rep.left });
-                        try self.addValueLocals(module_id, .{ .pattern = rep.right });
-                    },
-                    .string_template => |tmpl| {
-                        for (tmpl.items) |item| {
-                            try self.addValueLocals(module_id, .{ .parser = item });
-                        }
-                    },
-                    .identifier, .number_string, .string => {},
-                }
-            },
-            .value => |v| {
-                switch (v.node) {
-                    .@"return" => |ret| {
-                        try self.addValueLocals(module_id, .{ .value = ret.left });
-                        try self.addValueLocals(module_id, .{ .value = ret.right });
-                    },
-                    .function_call => |func| {
-                        try self.addValueLocals(module_id, .{ .value = func.function });
-                        for (func.args.items) |arg| {
-                            try self.addValueLocals(module_id, .{ .value = arg });
-                        }
-                    },
-                    .@"or" => |or_node| {
-                        try self.addValueLocals(module_id, .{ .value = or_node.left });
-                        try self.addValueLocals(module_id, .{ .value = or_node.right });
-                    },
-                    .merge => |merge_node| {
-                        try self.addValueLocals(module_id, .{ .value = merge_node.left });
-                        try self.addValueLocals(module_id, .{ .value = merge_node.right });
-                    },
-                    .take_left => |take_node| {
-                        try self.addValueLocals(module_id, .{ .value = take_node.left });
-                        try self.addValueLocals(module_id, .{ .value = take_node.right });
-                    },
-                    .take_right => |take_node| {
-                        try self.addValueLocals(module_id, .{ .value = take_node.left });
-                        try self.addValueLocals(module_id, .{ .value = take_node.right });
-                    },
-                    .conditional => |cond| {
-                        try self.addValueLocals(module_id, .{ .value = cond.condition });
-                        try self.addValueLocals(module_id, .{ .value = cond.then_branch });
-                        try self.addValueLocals(module_id, .{ .value = cond.else_branch });
-                    },
-                    .destructure => |dest| {
-                        try self.addValueLocals(module_id, .{ .value = dest.left });
-                        try self.addValueLocals(module_id, .{ .pattern = dest.right });
-                    },
-                    .negation => |neg| {
-                        try self.addValueLocals(module_id, .{ .value = neg });
-                    },
-                    .array => |arr| {
-                        for (arr.items) |item| {
-                            try self.addValueLocals(module_id, .{ .value = item });
-                        }
-                    },
-                    .object => |obj| {
-                        for (obj.items) |pair| {
-                            try self.addValueLocals(module_id, .{ .value = pair.key });
-                            try self.addValueLocals(module_id, .{ .value = pair.value });
-                        }
-                    },
-                    .string_template => |tmpl| {
-                        for (tmpl.items) |item| {
-                            try self.addValueLocals(module_id, .{ .value = item });
-                        }
-                    },
-                    .repeat => |rep| {
-                        try self.addValueLocals(module_id, .{ .value = rep.left });
-                        try self.addValueLocals(module_id, .{ .value = rep.right });
-                    },
-                    .identifier => |ident| {
-                        if (self.findGlobal(module_id, ident.name) == null) {
-                            var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .value = &ident_rnode });
-                            if (newLocalId) {
-                                const elem = Elem.valueVar(ident.name, ident.underscored);
-                                try self.writeConstant(module_id, elem, region);
-                            }
-                        }
-                    },
-                    .false,
-                    .null,
-                    .number_float,
-                    .number_string,
-                    .string,
-                    .true,
-                    => {},
-                }
-            },
-            .pattern => |pat| {
-                switch (pat.node) {
-                    .merge => |merge_node| {
-                        try self.addValueLocals(module_id, .{ .pattern = merge_node.left });
-                        try self.addValueLocals(module_id, .{ .pattern = merge_node.right });
-                    },
-                    .function_call => |func| {
-                        try self.addValueLocals(module_id, .{ .value = func.function });
-                        for (func.args.items) |arg| {
-                            try self.addValueLocals(module_id, .{ .value = arg });
-                        }
-                    },
-                    .range => |range| {
-                        if (range.lower) |lower| try self.addValueLocals(module_id, .{ .pattern = lower });
-                        if (range.upper) |upper| try self.addValueLocals(module_id, .{ .pattern = upper });
-                    },
-                    .repeat => |rep| {
-                        try self.addValueLocals(module_id, .{ .pattern = rep.left });
-                        try self.addValueLocals(module_id, .{ .pattern = rep.right });
-                    },
-                    .negation => |neg| {
-                        try self.addValueLocals(module_id, .{ .pattern = neg });
-                    },
-                    .array => |arr| {
-                        for (arr.items) |item| {
-                            try self.addValueLocals(module_id, .{ .pattern = item });
-                        }
-                    },
-                    .object => |obj| {
-                        for (obj.items) |pair| {
-                            try self.addValueLocals(module_id, .{ .pattern = pair.key });
-                            try self.addValueLocals(module_id, .{ .pattern = pair.value });
-                        }
-                    },
-                    .string_template => |tmpl| {
-                        for (tmpl.items) |item| {
-                            try self.addValueLocals(module_id, .{ .pattern = item });
-                        }
-                    },
-                    .identifier => |ident| {
-                        if (self.findGlobal(module_id, ident.name) == null) {
-                            const value_ident = Ast.Value.Identifier{
-                                .name = ident.name,
-                                .builtin = ident.builtin,
-                                .underscored = ident.underscored,
-                            };
-                            var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = value_ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .value = &ident_rnode });
-                            if (newLocalId) {
-                                const elem = Elem.valueVar(ident.name, ident.underscored);
-                                try self.writeConstant(module_id, elem, region);
-                            }
-                        }
-                    },
-                    .false,
-                    .null,
-                    .number_float,
-                    .number_string,
-                    .string,
-                    .true,
-                    => {},
-                }
-            },
-        }
-    }
-
-    fn addClosureLocals(self: *Compiler, module_id: Module.Id, rnode: Ast.ParserOrValueOrPattern.RNode) !void {
-        const region = rnode.region();
-
-        switch (rnode) {
-            .parser => |p| {
-                switch (p.node) {
-                    .@"or" => |infix| {
-                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
-                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
-                    },
-                    .@"return" => |infix| {
-                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
-                        try self.addClosureLocals(module_id, .{ .value = infix.right });
-                    },
-                    .backtrack => |infix| {
-                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
-                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
-                    },
-                    .conditional => |conditional| {
-                        try self.addClosureLocals(module_id, .{ .parser = conditional.condition });
-                        try self.addClosureLocals(module_id, .{ .parser = conditional.then_branch });
-                        try self.addClosureLocals(module_id, .{ .parser = conditional.else_branch });
-                    },
-                    .destructure => |infix| {
-                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
-                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
-                    },
-                    .function_call => |fc| {
-                        for (fc.args.items) |arg| {
-                            switch (arg) {
-                                .parser => |parser_arg| try self.addClosureLocals(module_id, .{ .parser = parser_arg }),
-                                .value => |value_arg| try self.addClosureLocals(module_id, .{ .value = value_arg }),
-                            }
-                        }
-                    },
-                    .identifier => |ident| {
-                        const elem = Elem.valueVar(ident.name, ident.underscored);
-
-                        if (self.function_contexts.parent().localSlot(ident.name) != null) {
-                            var ident_rnode: Ast.RNode(Ast.Parser.Identifier) = .{ .node = ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .parser = &ident_rnode });
-                            if (newLocalId) {
-                                try self.writeConstant(module_id, elem, region);
-                            }
-                        }
-                    },
-                    .merge => |infix| {
-                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
-                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
-                    },
-                    .negation => |inner| try self.addClosureLocals(module_id, .{ .parser = inner }),
-                    .range => |bounds| {
-                        if (bounds.lower) |lower| try self.addClosureLocals(module_id, .{ .parser = lower });
-                        if (bounds.upper) |upper| try self.addClosureLocals(module_id, .{ .parser = upper });
-                    },
-                    .repeat => |infix| {
-                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
-                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
-                    },
-                    .string_template => |parts| {
-                        for (parts.items) |part| {
-                            try self.addClosureLocals(module_id, .{ .parser = part });
-                        }
-                    },
-                    .take_left => |infix| {
-                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
-                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
-                    },
-                    .take_right => |infix| {
-                        try self.addClosureLocals(module_id, .{ .parser = infix.left });
-                        try self.addClosureLocals(module_id, .{ .parser = infix.right });
-                    },
-                    .number_string,
-                    .string,
-                    => {},
-                }
-            },
-            .value => |v| {
-                switch (v.node) {
-                    .@"or" => |infix| {
-                        try self.addClosureLocals(module_id, .{ .value = infix.left });
-                        try self.addClosureLocals(module_id, .{ .value = infix.right });
-                    },
-                    .@"return" => |infix| {
-                        try self.addClosureLocals(module_id, .{ .value = infix.left });
-                        try self.addClosureLocals(module_id, .{ .value = infix.right });
-                    },
-                    .merge => |infix| {
-                        try self.addClosureLocals(module_id, .{ .value = infix.left });
-                        try self.addClosureLocals(module_id, .{ .value = infix.right });
-                    },
-                    .take_left => |infix| {
-                        try self.addClosureLocals(module_id, .{ .value = infix.left });
-                        try self.addClosureLocals(module_id, .{ .value = infix.right });
-                    },
-                    .take_right => |infix| {
-                        try self.addClosureLocals(module_id, .{ .value = infix.left });
-                        try self.addClosureLocals(module_id, .{ .value = infix.right });
-                    },
-                    .repeat => |infix| {
-                        try self.addClosureLocals(module_id, .{ .value = infix.left });
-                        try self.addClosureLocals(module_id, .{ .value = infix.right });
-                    },
-                    .destructure => |infix| {
-                        try self.addClosureLocals(module_id, .{ .value = infix.left });
-                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
-                    },
-                    .function_call => |fc| {
-                        try self.addClosureLocals(module_id, .{ .value = fc.function });
-                        for (fc.args.items) |arg| {
-                            try self.addClosureLocals(module_id, .{ .value = arg });
-                        }
-                    },
-                    .negation => |inner| try self.addClosureLocals(module_id, .{ .value = inner }),
-                    .array => |elements| {
-                        for (elements.items) |element| {
-                            try self.addClosureLocals(module_id, .{ .value = element });
-                        }
-                    },
-                    .object => |pairs| {
-                        for (pairs.items) |pair| {
-                            try self.addClosureLocals(module_id, .{ .value = pair.key });
-                            try self.addClosureLocals(module_id, .{ .value = pair.value });
-                        }
-                    },
-                    .string_template => |parts| {
-                        for (parts.items) |part| {
-                            try self.addClosureLocals(module_id, .{ .value = part });
-                        }
-                    },
-                    .conditional => |conditional| {
-                        try self.addClosureLocals(module_id, .{ .value = conditional.condition });
-                        try self.addClosureLocals(module_id, .{ .value = conditional.then_branch });
-                        try self.addClosureLocals(module_id, .{ .value = conditional.else_branch });
-                    },
-                    .identifier => |ident| {
-                        const elem = Elem.valueVar(ident.name, ident.underscored);
-
-                        if (self.function_contexts.parent().localSlot(ident.name) != null) {
-                            var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .value = &ident_rnode });
-                            if (newLocalId) {
-                                try self.writeConstant(module_id, elem, region);
-                            }
-                        }
-                    },
-                    .false,
-                    .null,
-                    .number_float,
-                    .number_string,
-                    .string,
-                    .true,
-                    => {},
-                }
-            },
-            .pattern => |pat| {
-                switch (pat.node) {
-                    .merge => |infix| {
-                        try self.addClosureLocals(module_id, .{ .pattern = infix.left });
-                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
-                    },
-                    .repeat => |infix| {
-                        try self.addClosureLocals(module_id, .{ .pattern = infix.left });
-                        try self.addClosureLocals(module_id, .{ .pattern = infix.right });
-                    },
-                    .function_call => |fc| {
-                        try self.addClosureLocals(module_id, .{ .value = fc.function });
-                        for (fc.args.items) |arg| {
-                            try self.addClosureLocals(module_id, .{ .value = arg });
-                        }
-                    },
-                    .range => |bounds| {
-                        if (bounds.lower) |lower| try self.addClosureLocals(module_id, .{ .pattern = lower });
-                        if (bounds.upper) |upper| try self.addClosureLocals(module_id, .{ .pattern = upper });
-                    },
-                    .negation => |inner| try self.addClosureLocals(module_id, .{ .pattern = inner }),
-                    .array => |elements| {
-                        for (elements.items) |element| {
-                            try self.addClosureLocals(module_id, .{ .pattern = element });
-                        }
-                    },
-                    .object => |pairs| {
-                        for (pairs.items) |pair| {
-                            try self.addClosureLocals(module_id, .{ .pattern = pair.key });
-                            try self.addClosureLocals(module_id, .{ .pattern = pair.value });
-                        }
-                    },
-                    .string_template => |parts| {
-                        for (parts.items) |part| {
-                            try self.addClosureLocals(module_id, .{ .pattern = part });
-                        }
-                    },
-                    .identifier => |ident| {
-                        const elem = Elem.valueVar(ident.name, ident.underscored);
-
-                        if (self.function_contexts.parent().localSlot(ident.name) != null) {
-                            const value_ident = Ast.Value.Identifier{
-                                .name = ident.name,
-                                .builtin = ident.builtin,
-                                .underscored = ident.underscored,
-                            };
-                            var ident_rnode: Ast.RNode(Ast.Value.Identifier) = .{ .node = value_ident, .region = region };
-                            const newLocalId = try self.addLocalIfUndefined(module_id, .{ .value = &ident_rnode });
-                            if (newLocalId) {
-                                try self.writeConstant(module_id, elem, region);
-                            }
-                        }
-                    },
-                    .false,
-                    .null,
-                    .number_float,
-                    .number_string,
-                    .string,
-                    .true,
-                    => {},
-                }
-            },
-        }
-    }
-
     fn writePatternAsBoundRepeatValue(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) !void {
         const node = rnode.node;
         const region = rnode.region;
@@ -2419,14 +1947,14 @@ pub const Compiler = struct {
     fn appendDynamicValue(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8) !void {
         try self.writeValue(module_id, rnode, false);
         try self.emitUnaryOp(.InsertAtIndex, index, rnode.region);
-        try array.append(self.vm, self.placeholderVar());
+        try array.append(self.vm, try self.placeholderVar());
     }
 
     fn negateAndAppendDynamicValue(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) !void {
         try self.writeValue(module_id, rnode, false);
         try self.emitOp(.NegateNumber, region);
         try self.emitUnaryOp(.InsertAtIndex, index, region);
-        try array.append(self.vm, self.placeholderVar());
+        try array.append(self.vm, try self.placeholderVar());
     }
 
     fn writeArrayElem(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) Error!void {
@@ -2534,7 +2062,7 @@ pub const Compiler = struct {
     fn writeInsertObjectPiar(self: *Compiler, module_id: Module.Id, pair: Ast.Value.ObjectPair, object: *Elem.DynElem.Object, index: usize) !void {
         std.debug.assert(index <= 255);
         const pos = @as(u8, @intCast(index));
-        try object.putReservedId(self.vm, pos, self.placeholderVar());
+        try object.putReservedId(self.vm, pos, try self.placeholderVar());
         try self.writeValue(module_id, pair.key, false);
         try self.writeValue(module_id, pair.value, false);
         try self.emitUnaryOp(.InsertKeyVal, pos, pair.key.region);
@@ -2707,10 +2235,6 @@ pub const Compiler = struct {
         };
     }
 
-    fn isAlias(self: *Compiler, decl: Ast.ParserOrValue.Declaration) bool {
-        return self.getAliasBody(decl) catch null != null;
-    }
-
     fn getAliasBody(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !?Elem {
         if (self.declHasNoParams(decl)) {
             return switch (decl) {
@@ -2720,10 +2244,6 @@ pub const Compiler = struct {
         } else {
             return null;
         }
-    }
-
-    fn isAliasChain(self: *Compiler, decl: Ast.ParserOrValue.Declaration) bool {
-        return self.getAliasChainName(decl) != null;
     }
 
     fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?StringTable.Id {
@@ -2743,50 +2263,68 @@ pub const Compiler = struct {
         }
     }
 
-    fn placeholderVar(self: *Compiler) Elem {
-        const sId = self.vm.strings.getId("_");
-        return Elem.valueVar(sId, true);
+    fn placeholderVar(self: *Compiler) !Elem {
+        const sid = try self.vm.strings.insert("_");
+        return Elem.valueVar(sid, true);
     }
 
     fn chunk(self: *Compiler) *Chunk {
-        return &self.function_contexts.currentFunction().chunk;
+        return &self.currentFunction().chunk;
     }
 
     fn findGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id) ?Elem {
-        return self.vm.findGlobal(module_id, sid);
+        if (self.global_map.get(.{ .module_id = module_id, .name = sid })) |elem| {
+            return elem;
+        }
+        return null;
     }
 
     fn addGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id, elem: Elem) !void {
-        return self.vm.getModule(module_id).addGlobal(self.vm.allocator, sid, elem);
-    }
-
-    fn getAst(self: *Compiler, module_id: Module.Id) *Can {
-        return &self.ast[module_id];
-    }
-
-    fn addLocal(self: *Compiler, module_id: Module.Id, ident: Ast.ParserOrValue.Identifier) !void {
-        if (ident.builtin()) {
-            try self.printError(module_id, ident.region(), "Invalid function param, '@' is reserved for builtins", .{});
-            return Error.InvalidAst;
-        }
-
-        try self.function_contexts.current().addLocal(self.vm.allocator, ident.name());
-    }
-
-    fn addLocalIfUndefined(self: *Compiler, module_id: Module.Id, ident: Ast.ParserOrValue.Identifier) !bool {
-        self.addLocal(module_id, ident) catch |err| switch (err) {
-            error.VariableNameUsedInScope => return false,
-            else => |other_error| return other_error,
-        };
-        return true;
+        try self.global_map.put(
+            self.vm.allocator,
+            .{ .module_id = module_id, .name = sid },
+            elem,
+        );
     }
 
     pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
-        return self.function_contexts.current().localSlot(name);
+        const func = self.currentFunction();
+        if (self.frontend.getGraphNode(func.mid, func.name)) |node| {
+            const locals = switch (node.*) {
+                .precompiled => &[_]StringTable.Id{},
+                .declaration => |n| n.locals.items,
+                .anonymous_function => |n| n.locals.items,
+            };
+            for (locals, 0..) |local, i| {
+                if (local == name) return @intCast(i);
+            }
+        }
+        return null;
     }
 
     fn getConstant(self: *Compiler, module_id: Module.Id, elem: Elem) ?usize {
         return self.constant_map.get(.{ .module_id = module_id, .elem_bits = elem.bits });
+    }
+
+    // Note: Returns a pointer into an ArrayList which will be invalidated if
+    // the list is reallocated on `append`. Don't use this pointer after
+    // pushing a new function onto the list.
+    fn currentFunction(self: *Compiler) *Elem.DynElem.Function {
+        return self.functions.items[self.functions.items.len - 1];
+    }
+
+    // Note: Returns a pointer into an ArrayList which will be invalidated if
+    // the list is reallocated on `append`. Don't use this pointer after
+    // pushing a new function onto the list.
+    fn parentFunction(self: *Compiler) *Elem.DynElem.Function {
+        var parentIndex = self.functions.items.len - 2;
+        while (true) {
+            if (self.functions.items[parentIndex].is_anonymous) {
+                parentIndex -= 1;
+            } else {
+                return self.functions.items[parentIndex];
+            }
+        }
     }
 
     fn putConstant(self: *Compiler, module_id: Module.Id, elem: Elem, const_id: usize) !void {

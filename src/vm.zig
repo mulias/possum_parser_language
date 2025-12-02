@@ -12,11 +12,10 @@ const Env = @import("env.zig").Env;
 const GC = @import("gc.zig").GC;
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
-const Parser = @import("parser.zig").Parser;
+const Parser = @import("frontend/parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
 const Pattern = @import("pattern.zig").Pattern;
 const PatternSolver = @import("pattern_solver.zig");
-const Can = @import("can.zig").Can;
 const Writers = @import("writer.zig").Writers;
 const builtin = @import("builtin.zig");
 const parsing = @import("parsing.zig");
@@ -196,28 +195,44 @@ pub const VM = struct {
         const builtin_module = try self.createModule("builtins", "");
         try builtin.loadFunctions(self, builtin_module);
 
-        var maybe_stdlib_id: ?Module.Id = null;
+        var maybe_stdlib_module: ?Module = null;
         if (self.config.includeStdlib) {
             const filename = "stdlib/core.possum";
-            const stdlib_module = try self.createModule(filename, @embedFile(filename));
-            try stdlib_module.addDependency(self.allocator, builtin_module.id);
-            maybe_stdlib_id = stdlib_module.id;
+            const stdlib_module = try self.createModule(
+                filename,
+                @embedFile(filename),
+            );
+            maybe_stdlib_module = stdlib_module.*;
         }
 
-        const module = try self.createModule(module_name, source);
-        try module.addDependency(self.allocator, builtin_module.id);
-        if (maybe_stdlib_id) |stdlib_id| {
-            try module.addDependency(self.allocator, stdlib_id);
-        }
+        const main_module = try self.createModule(module_name, source);
 
-        var compiler = Compiler.init(self);
-        self.compiler = &compiler;
-        defer self.compiler = null;
+        var compiler = try Compiler.init(self);
         defer compiler.deinit();
 
-        const function = try compiler.compile(module.id);
+        try compiler.addModule(builtin_module.*, .{});
+        if (maybe_stdlib_module) |stdlib_module| {
+            try compiler.addModule(stdlib_module, .{});
+        }
+        try compiler.addTargetModule(main_module.*, .{
+            .printScanner = self.config.printScanner,
+            .printParser = self.config.printParser,
+            .printAst = self.config.printAst,
+        });
 
-        if (function) |main| {
+        try compiler.addModuleDependency(main_module.id, builtin_module.id);
+        if (maybe_stdlib_module) |stdlib_module| {
+            try compiler.addModule(stdlib_module, .{});
+            try compiler.addModuleDependency(stdlib_module.id, builtin_module.id);
+            try compiler.addModuleDependency(main_module.id, stdlib_module.id);
+        }
+
+        self.compiler = &compiler;
+        defer self.compiler = null;
+
+        try compiler.compile();
+
+        if (compiler.main) |main| {
             try self.push(main.dyn.elem());
             try self.addFrame(main);
         }
@@ -241,28 +256,6 @@ pub const VM = struct {
 
     pub fn getModule(self: VM, mid: Module.Id) *Module {
         return self.modules.items[mid];
-    }
-
-    pub fn getGlobal(self: VM, mid: Module.Id, name: StringTable.Id) ?Elem {
-        return self.modules[mid].getGlobal(name);
-    }
-
-    pub fn findGlobal(self: VM, mid: Module.Id, sid: StringTable.Id) ?Elem {
-        const module = self.modules.items[mid];
-
-        if (module.getGlobal(sid)) |elem| {
-            return elem;
-        }
-
-        // Search backwards through imported modules
-        var i = module.dependencies.items.len;
-        while (i > 0) {
-            i -= 1;
-            if (self.findGlobal(module.dependencies.items[i], sid)) |elem| {
-                return elem;
-            }
-        }
-        return null;
     }
 
     pub fn currentFunctionModule(self: *VM) *Module {

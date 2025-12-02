@@ -1,7 +1,7 @@
 const std = @import("std");
 const unicode = std.unicode;
 const NumberStringElem = @import("elem.zig").Elem.NumberStringElem;
-const Scanner = @import("scanner.zig").Scanner;
+const Scanner = @import("frontend/scanner.zig").Scanner;
 
 pub fn parseCodepoint(bytes: []const u8) ?u21 {
     if (std.fmt.parseInt(u21, bytes, 16)) |value| {

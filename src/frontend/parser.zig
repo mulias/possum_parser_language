@@ -1,25 +1,24 @@
-const std = @import("std");
-const unicode = std.unicode;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
-const Writer = std.Io.Writer;
-const Ast = @import("ast.zig").Ast;
-const Elem = @import("elem.zig").Elem;
-const HighlightConfig = @import("highlight.zig").HighlightConfig;
-const Module = @import("module.zig").Module;
-const Region = @import("region.zig").Region;
+const Ast = @import("parsed_ast.zig").Ast;
+const Elem = @import("../elem.zig").Elem;
+const HighlightConfig = @import("../highlight.zig").HighlightConfig;
+const Module = @import("../module.zig").Module;
+const Region = @import("../region.zig").Region;
 const Scanner = @import("scanner.zig").Scanner;
-const StringTable = @import("string_table.zig").StringTable;
+const StringTable = @import("../string_table.zig").StringTable;
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
-const VM = @import("vm.zig").VM;
-const Writers = @import("writer.zig").Writers;
-const parsing = @import("parsing.zig");
+const VM = @import("../vm.zig").VM;
+const Writer = std.Io.Writer;
+const Writers = @import("../writer.zig").Writers;
+const parsing = @import("../parsing.zig");
+const std = @import("std");
+const unicode = std.unicode;
 
 pub const Parser = struct {
-    vm: *const VM,
+    module: Module,
     scanner: Scanner,
-    source: []const u8,
-    module_id: Module.Id,
     token: Token,
     tokenSkippedWhitespace: bool,
     tokenSkippedNewline: bool,
@@ -38,33 +37,27 @@ pub const Parser = struct {
     } || Writer.Error;
 
     pub fn init(
-        vm: *const VM,
-        module_id: Module.Id,
-        source: []const u8,
-        debug: struct { printScanner: bool, printParser: bool },
+        arena: *ArenaAllocator,
+        module: Module,
+        writers: Writers,
+        opts: struct { printScanner: bool, printParser: bool },
     ) Parser {
         return Parser{
-            .vm = vm,
+            .module = module,
             .scanner = undefined,
-            .source = source,
-            .module_id = module_id,
             .token = undefined,
             .tokenSkippedWhitespace = false,
             .tokenSkippedNewline = false,
-            .ast = Ast.init(vm.allocator),
-            .writers = vm.writers,
-            .printDebug = debug.printParser,
-            .printScanner = debug.printScanner,
+            .ast = Ast.init(arena),
+            .writers = writers,
+            .printDebug = opts.printParser,
+            .printScanner = opts.printScanner,
         };
-    }
-
-    pub fn deinit(self: *Parser) void {
-        self.ast.deinit();
     }
 
     pub fn parse(self: *Parser) !void {
         self.scanner = Scanner.init(
-            self.source,
+            self.module.source,
             self.writers,
             .{ .printTokens = self.printScanner },
         );
@@ -988,7 +981,6 @@ pub const Parser = struct {
     }
 
     fn errorAt(self: *Parser, token: Token, message: []const u8) Error {
-        const module = self.vm.getModule(self.module_id);
         try self.writers.err.print("\nSyntax Error: {s}, ", .{message});
         if (token.tokenType == .Eof) {
             try self.writers.err.print("found end of program\n\n", .{});
@@ -996,14 +988,14 @@ pub const Parser = struct {
             try self.writers.err.print("found '{s}'\n\n", .{token.lexeme});
         }
 
-        try self.writers.err.print("{s}:", .{module.name});
-        try token.region.printLineRelative(module.source, self.writers.err);
+        try self.writers.err.print("{s}:", .{self.module.name});
+        try token.region.printLineRelative(self.module.source, self.writers.err);
         try self.writers.err.print(":\n", .{});
 
         if (token.tokenType == .Eof) {
-            try module.highlightEnd(self.writers.err);
+            try self.module.highlightEnd(self.writers.err);
         } else {
-            try module.highlight(token.region, self.writers.err);
+            try self.module.highlight(token.region, self.writers.err);
         }
         try self.writers.err.print("\n", .{});
 

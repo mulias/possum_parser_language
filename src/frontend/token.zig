@@ -1,5 +1,5 @@
 const std = @import("std");
-const Region = @import("region.zig").Region;
+const Region = @import("../region.zig").Region;
 const Writer = std.Io.Writer;
 
 pub const TokenType = enum {
