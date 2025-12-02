@@ -39,8 +39,7 @@ fn createFailParser(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const loc = Region.new(0, 0);
 
@@ -57,8 +56,7 @@ fn createFailValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const loc = Region.new(0, 0);
 
@@ -75,8 +73,7 @@ fn createCrashValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const loc = Region.new(0, 0);
 
@@ -95,8 +92,7 @@ fn createCodepointValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(
         vm,
@@ -148,8 +144,7 @@ fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(
         vm,
@@ -208,8 +203,7 @@ fn createDbgParser(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -235,8 +229,7 @@ fn createDbgValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "dbgNative", dbgNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -269,8 +262,7 @@ fn createAddValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "addNative", addNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -322,8 +314,7 @@ fn createSubtractValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "subtractNative", subtractNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -369,8 +360,7 @@ fn createMultiplyValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "multiplyNative", multiplyNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -416,8 +406,7 @@ fn createDivideValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "divideNative", divideNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -467,8 +456,7 @@ fn createPowerValue(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "powerNative", powerNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -649,8 +637,7 @@ fn createInputOffset(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "inputOffsetNative", inputOffsetNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -678,8 +665,7 @@ fn createInputLine(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "inputLineNative", inputLineNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -707,8 +693,7 @@ fn createInputLineOffset(vm: *VM, module: *Module) !void {
         .region = Region.new(0, 0),
     });
 
-    // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "inputLineOffsetNative", inputLineOffsetNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());

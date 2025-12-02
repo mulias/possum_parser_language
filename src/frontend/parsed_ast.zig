@@ -3,14 +3,13 @@ const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
-const Elem = @import("elem.zig").Elem;
-const Region = @import("region.zig").Region;
-const LineRelativeRegion = @import("region.zig").LineRelativeRegion;
-const StringTable = @import("string_table.zig").StringTable;
-const VM = @import("vm.zig").VM;
+const Elem = @import("../elem.zig").Elem;
+const Region = @import("../region.zig").Region;
+const LineRelativeRegion = @import("../region.zig").LineRelativeRegion;
+const StringTable = @import("../string_table.zig").StringTable;
 
 pub const Ast = struct {
-    arena: ArenaAllocator,
+    arena: *ArenaAllocator,
     roots: ArrayList(*RNode),
 
     pub const RNode = struct {
@@ -148,15 +147,11 @@ pub const Ast = struct {
         right: *RNode,
     };
 
-    pub fn init(allocator: Allocator) Ast {
+    pub fn init(arena: *ArenaAllocator) Ast {
         return Ast{
-            .arena = ArenaAllocator.init(allocator),
+            .arena = arena,
             .roots = .{},
         };
-    }
-
-    pub fn deinit(self: *Ast) void {
-        self.arena.deinit();
     }
 
     pub fn pushRoot(self: *Ast, root: *RNode) !void {
@@ -592,14 +587,14 @@ pub const Ast = struct {
         }
     }
 
-    pub fn print(self: *Ast, writer: *Writer, vm: VM, source: []const u8) Writer.Error!void {
+    pub fn print(self: *Ast, writer: *Writer, source: []const u8) Writer.Error!void {
         var last_region: ?Region = null;
         var last_relative: ?LineRelativeRegion = null;
 
         const last_index = self.roots.items.len - 1;
 
         for (self.roots.items, 0..) |root, i| {
-            try self.printSexpr(root, writer, vm, source, 0, &last_region, &last_relative);
+            try self.printSexpr(root, writer, source, 0, &last_region, &last_relative);
 
             if (i == last_index) {
                 try writer.print("\n", .{});
@@ -667,7 +662,6 @@ pub const Ast = struct {
         self: *Ast,
         rnode: *RNode,
         writer: anytype,
-        vm: VM,
         source: []const u8,
         indent: u32,
         last_region: *?Region,
@@ -680,26 +674,26 @@ pub const Ast = struct {
             .InfixNode => |infix| {
                 try writer.print("({s} {}:{}-{}\n", .{ @tagName(infix.infixType), line_relative.line, line_relative.relative_start, line_relative.relative_end });
                 try self.printIndent(writer, indent + 1);
-                try self.printSexpr(infix.left, writer, vm, source, indent + 1, last_region, last_relative);
+                try self.printSexpr(infix.left, writer, source, indent + 1, last_region, last_relative);
                 try writer.print("\n", .{});
                 try self.printIndent(writer, indent + 1);
-                try self.printSexpr(infix.right, writer, vm, source, indent + 1, last_region, last_relative);
+                try self.printSexpr(infix.right, writer, source, indent + 1, last_region, last_relative);
                 try writer.print(")", .{});
             },
             .Range => |range| {
                 if (multiline) {
                     try writer.print("(Range {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                     try self.printIndent(writer, indent + 1);
-                    if (range.lower) |lower| try self.printSexpr(lower, writer, vm, source, indent + 1, last_region, last_relative) else try writer.print("()", .{});
+                    if (range.lower) |lower| try self.printSexpr(lower, writer, source, indent + 1, last_region, last_relative) else try writer.print("()", .{});
                     try writer.print("\n", .{});
                     try self.printIndent(writer, indent + 1);
-                    if (range.upper) |upper| try self.printSexpr(upper, writer, vm, source, indent + 1, last_region, last_relative) else try writer.print("()", .{});
+                    if (range.upper) |upper| try self.printSexpr(upper, writer, source, indent + 1, last_region, last_relative) else try writer.print("()", .{});
                     try writer.print(")", .{});
                 } else {
                     try writer.print("(Range {}:{}-{} ", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                    if (range.lower) |lower| try self.printSexpr(lower, writer, vm, source, indent + 1, last_region, last_relative) else try writer.print("()", .{});
+                    if (range.lower) |lower| try self.printSexpr(lower, writer, source, indent + 1, last_region, last_relative) else try writer.print("()", .{});
                     try writer.print(" ", .{});
-                    if (range.upper) |upper| try self.printSexpr(upper, writer, vm, source, indent + 1, last_region, last_relative) else try writer.print("()", .{});
+                    if (range.upper) |upper| try self.printSexpr(upper, writer, source, indent + 1, last_region, last_relative) else try writer.print("()", .{});
                     try writer.print(")", .{});
                 }
             },
@@ -707,11 +701,11 @@ pub const Ast = struct {
                 if (multiline) {
                     try writer.print("(Negation {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                     try self.printIndent(writer, indent + 1);
-                    try self.printSexpr(child, writer, vm, source, indent + 1, last_region, last_relative);
+                    try self.printSexpr(child, writer, source, indent + 1, last_region, last_relative);
                     try writer.print(")", .{});
                 } else {
                     try writer.print("(Negation {}:{}-{} ", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                    try self.printSexpr(child, writer, vm, source, indent, last_region, last_relative);
+                    try self.printSexpr(child, writer, source, indent, last_region, last_relative);
                     try writer.print(")", .{});
                 }
             },
@@ -719,11 +713,11 @@ pub const Ast = struct {
                 if (multiline) {
                     try writer.print("(ValueLabel {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                     try self.printIndent(writer, indent + 1);
-                    try self.printSexpr(child, writer, vm, source, indent + 1, last_region, last_relative);
+                    try self.printSexpr(child, writer, source, indent + 1, last_region, last_relative);
                     try writer.print(")", .{});
                 } else {
                     try writer.print("(ValueLabel {}:{}-{} ", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
-                    try self.printSexpr(child, writer, vm, source, indent, last_region, last_relative);
+                    try self.printSexpr(child, writer, source, indent, last_region, last_relative);
                     try writer.print(")", .{});
                 }
             },
@@ -732,7 +726,7 @@ pub const Ast = struct {
                     try writer.print("(Array {}:{}-{} [\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                     for (array.items, 0..) |item, i| {
                         try self.printIndent(writer, indent + 1);
-                        try self.printSexpr(item, writer, vm, source, indent + 1, last_region, last_relative);
+                        try self.printSexpr(item, writer, source, indent + 1, last_region, last_relative);
                         if (i < array.items.len - 1) try writer.print("\n", .{});
                     }
                     if (array.items.len > 0) {
@@ -744,7 +738,7 @@ pub const Ast = struct {
                     try writer.print("(Array {}:{}-{} [", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                     for (array.items, 0..) |item, i| {
                         if (i > 0) try writer.print(" ", .{});
-                        try self.printSexpr(item, writer, vm, source, indent, last_region, last_relative);
+                        try self.printSexpr(item, writer, source, indent, last_region, last_relative);
                     }
                     try writer.print("])", .{});
                 }
@@ -757,17 +751,17 @@ pub const Ast = struct {
                             try self.printIndent(writer, indent + 1);
                             try writer.print("(ObjectPair\n", .{});
                             try self.printIndent(writer, indent + 2);
-                            try self.printSexpr(pair.key, writer, vm, source, indent + 2, last_region, last_relative);
+                            try self.printSexpr(pair.key, writer, source, indent + 2, last_region, last_relative);
                             try writer.print("\n", .{});
                             try self.printIndent(writer, indent + 2);
-                            try self.printSexpr(pair.value, writer, vm, source, indent + 2, last_region, last_relative);
+                            try self.printSexpr(pair.value, writer, source, indent + 2, last_region, last_relative);
                             try writer.print(")", .{});
                         } else {
                             try self.printIndent(writer, indent + 1);
                             try writer.print("(ObjectPair ", .{});
-                            try self.printSexpr(pair.key, writer, vm, source, indent + 2, last_region, last_relative);
+                            try self.printSexpr(pair.key, writer, source, indent + 2, last_region, last_relative);
                             try writer.print(" ", .{});
-                            try self.printSexpr(pair.value, writer, vm, source, indent + 2, last_region, last_relative);
+                            try self.printSexpr(pair.value, writer, source, indent + 2, last_region, last_relative);
                             try writer.print(")", .{});
                         }
                         try writer.print("\n", .{});
@@ -782,7 +776,7 @@ pub const Ast = struct {
                 try writer.print("(StringTemplate {}:{}-{} [\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                 for (template.items) |part| {
                     try self.printIndent(writer, indent + 1);
-                    try self.printSexpr(part, writer, vm, source, indent + 1, last_region, last_relative);
+                    try self.printSexpr(part, writer, source, indent + 1, last_region, last_relative);
                     try writer.print("\n", .{});
                 }
                 try self.printIndent(writer, indent);
@@ -791,23 +785,23 @@ pub const Ast = struct {
             .Conditional => |cond| {
                 try writer.print("(Conditional {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                 try self.printIndent(writer, indent + 1);
-                try self.printSexpr(cond.condition, writer, vm, source, indent + 1, last_region, last_relative);
+                try self.printSexpr(cond.condition, writer, source, indent + 1, last_region, last_relative);
                 try writer.print("\n", .{});
                 try self.printIndent(writer, indent + 1);
-                try self.printSexpr(cond.then_branch, writer, vm, source, indent + 1, last_region, last_relative);
+                try self.printSexpr(cond.then_branch, writer, source, indent + 1, last_region, last_relative);
                 try writer.print("\n", .{});
                 try self.printIndent(writer, indent + 1);
-                try self.printSexpr(cond.else_branch, writer, vm, source, indent + 1, last_region, last_relative);
+                try self.printSexpr(cond.else_branch, writer, source, indent + 1, last_region, last_relative);
                 try writer.print(")", .{});
             },
             .Function => |function| {
                 try writer.print("(Function {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                 try self.printIndent(writer, indent + 1);
-                try self.printSexpr(function.name, writer, vm, source, indent + 1, last_region, last_relative);
+                try self.printSexpr(function.name, writer, source, indent + 1, last_region, last_relative);
                 try writer.print(" [\n", .{});
                 for (function.paramsOrArgs.items) |arg| {
                     try self.printIndent(writer, indent + 2);
-                    try self.printSexpr(arg, writer, vm, source, indent + 2, last_region, last_relative);
+                    try self.printSexpr(arg, writer, source, indent + 2, last_region, last_relative);
                     try writer.print("\n", .{});
                 }
                 try self.printIndent(writer, indent + 1);
@@ -816,10 +810,10 @@ pub const Ast = struct {
             .DeclareGlobal => |global| {
                 try writer.print("(DeclareGlobal {}:{}-{}\n", .{ line_relative.line, line_relative.relative_start, line_relative.relative_end });
                 try self.printIndent(writer, indent + 1);
-                try self.printSexpr(global.head, writer, vm, source, indent + 1, last_region, last_relative);
+                try self.printSexpr(global.head, writer, source, indent + 1, last_region, last_relative);
                 try writer.print("\n", .{});
                 try self.printIndent(writer, indent + 1);
-                try self.printSexpr(global.body, writer, vm, source, indent + 1, last_region, last_relative);
+                try self.printSexpr(global.body, writer, source, indent + 1, last_region, last_relative);
                 try writer.print(")", .{});
             },
             .False => {

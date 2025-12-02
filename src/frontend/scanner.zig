@@ -1,7 +1,7 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
-const Writers = @import("writer.zig").Writers;
+const Writers = @import("../writer.zig").Writers;
 
 pub const ScanMode = enum {
     Normal,

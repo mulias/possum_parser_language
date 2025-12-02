@@ -15,8 +15,6 @@ pub const Module = struct {
     source: []const u8,
     constants: ArrayList(Elem) = ArrayList(Elem){},
     patterns: ArrayList(Pattern) = ArrayList(Pattern){},
-    globals: AutoHashMap(StringTable.Id, Elem) = AutoHashMap(StringTable.Id, Elem){},
-    dependencies: ArrayList(Id) = .{},
 
     pub const Id = u16;
 
@@ -26,16 +24,6 @@ pub const Module = struct {
             pattern.deinit(allocator);
         }
         self.patterns.deinit(allocator);
-        self.globals.deinit(allocator);
-        self.dependencies.deinit(allocator);
-    }
-
-    pub fn addGlobal(self: *Module, allocator: Allocator, name: StringTable.Id, elem: Elem) !void {
-        try self.globals.put(allocator, name, elem);
-    }
-
-    pub fn getGlobal(self: *Module, name: StringTable.Id) ?Elem {
-        return self.globals.get(name);
     }
 
     pub fn addConstant(self: *Module, allocator: Allocator, elem: Elem) !usize {

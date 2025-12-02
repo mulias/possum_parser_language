@@ -1,7 +1,7 @@
 const std = @import("std");
 const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
-const Writers = @import("writer.zig").Writers;
+const Writers = @import("../writer.zig").Writers;
 
 var null_buffer: [256]u8 = undefined;
 var null_discarding = std.Io.Writer.Discarding.init(&null_buffer);

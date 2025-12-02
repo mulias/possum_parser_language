@@ -3,8 +3,13 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
 const AutoArrayHashMap = std.AutoArrayHashMapUnmanaged;
-const Region = @import("region.zig").Region;
-const StringTable = @import("string_table.zig").StringTable;
+const Module = @import("../module.zig").Module;
+const Region = @import("../region.zig").Region;
+const StringTable = @import("../string_table.zig").StringTable;
+
+declarations: ArrayList(Ast.ParserOrValue.Declaration) = .{},
+anonymous_functions: ArrayList(*Ast.RNode(Ast.Parser.AnonymousFunction)) = .{},
+main: ?*Ast.RNode(Ast.Parser.AnonymousFunction) = null,
 
 pub const Ast = @This();
 
@@ -124,6 +129,7 @@ pub const Parser = struct {
     pub const NodeType = enum {
         @"or",
         @"return",
+        anonymous_function,
         backtrack,
         conditional,
         destructure,
@@ -143,6 +149,7 @@ pub const Parser = struct {
     pub const Node = union(NodeType) {
         @"or": struct { left: *Parser.RNode, right: *Parser.RNode },
         @"return": struct { left: *Parser.RNode, right: *Value.RNode },
+        anonymous_function: AnonymousFunction,
         backtrack: struct { left: *Parser.RNode, right: *Parser.RNode },
         conditional: Conditional,
         destructure: struct { left: *Parser.RNode, right: *Pattern.RNode },
@@ -157,6 +164,12 @@ pub const Parser = struct {
         string_template: ArrayList(*Parser.RNode),
         take_left: struct { left: *Parser.RNode, right: *Parser.RNode },
         take_right: struct { left: *Parser.RNode, right: *Parser.RNode },
+    };
+
+    pub const AnonymousFunction = struct {
+        parent_name: ?StringTable.Id,
+        name: StringTable.Id,
+        body: *Parser.RNode,
     };
 
     pub const Declaration = struct {
@@ -199,19 +212,25 @@ pub const Parser = struct {
 
     pub fn create(allocator: Allocator, node: Node, region: Region) !*Parser.RNode {
         const ptr = try allocator.create(Parser.RNode);
-        ptr.* = Parser.RNode{ .region = region, .node = node };
+        ptr.* = .{ .node = node, .region = region };
         return ptr;
     }
 
     pub fn createDeclaration(allocator: Allocator, node: Declaration, region: Region) !*Ast.RNode(Declaration) {
         const ptr = try allocator.create(Ast.RNode(Declaration));
-        ptr.* = Ast.RNode(Declaration){ .region = region, .node = node };
+        ptr.* = .{ .node = node, .region = region };
         return ptr;
     }
 
     pub fn createIdent(allocator: Allocator, node: Identifier, region: Region) !*Ast.RNode(Identifier) {
         const ptr = try allocator.create(Ast.RNode(Identifier));
-        ptr.* = Ast.RNode(Identifier){ .region = region, .node = node };
+        ptr.* = .{ .node = node, .region = region };
+        return ptr;
+    }
+
+    pub fn createAnonymousFunction(allocator: Allocator, node: AnonymousFunction, region: Region) !*Ast.RNode(AnonymousFunction) {
+        const ptr = try allocator.create(Ast.RNode(AnonymousFunction));
+        ptr.* = .{ .node = node, .region = region };
         return ptr;
     }
 };
