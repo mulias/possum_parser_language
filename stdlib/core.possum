@@ -818,6 +818,8 @@ Num.Abs(N) = N -> 0.. | -N
 
 Num.Max(A, B) = A -> B.. ? A : B
 
+Num.Min(A, B) = A -> ..B ? A : B
+
 Num.FromBinaryDigits(Bs) =
   Array.Length(Bs) -> Len &
   _Num.FromBinaryDigits(Bs, Len - 1, 0)
