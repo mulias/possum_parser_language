@@ -804,7 +804,7 @@ Num.Div = @Divide
 
 Num.Pow = @Power
 
-Num.Mod = @Mod
+Num.Mod = @Modulus
 
 Num.Floor = @Floor
 

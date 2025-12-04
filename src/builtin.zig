@@ -505,7 +505,7 @@ fn powerNative(vm: *VM) VM.Error!void {
 }
 
 fn createModulusValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Mod");
+    const name = try vm.strings.insert("@Modulus");
     var fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
