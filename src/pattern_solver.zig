@@ -1812,7 +1812,18 @@ fn attemptEval(self: *PatternSolver, pattern: Pattern) Error!?Elem {
         .Constant => |c| try self.evalConstant(c),
         .FunctionCall => |fc| try self.evalFunctionCall(fc),
         .Local => |l| try self.evalLocal(l),
-        .Merge => null,
+        .Merge => |merge_parts| blk: {
+            var result: ?Elem = null;
+            for (merge_parts.items) |part| {
+                const part_value = try self.attemptEval(part) orelse break :blk null;
+                if (result) |current| {
+                    result = try current.merge(part_value, self.vm) orelse break :blk null;
+                } else {
+                    result = part_value;
+                }
+            }
+            break :blk result;
+        },
         .Null => Elem.nullConst,
         .Number => |f| Elem.numberFloat(f),
         .Object => null,
