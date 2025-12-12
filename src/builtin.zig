@@ -722,8 +722,6 @@ fn createInputLineOffset(vm: *VM, module: *Module) !void {
 
 fn inputLineOffsetNative(vm: *VM) VM.Error!void {
     return vm.push(Elem.numberFloat(
-        @as(f64, @floatFromInt(
-            @as(i64, @intCast(vm.inputPos.offset - vm.inputPos.line_start)),
-        )),
+        @as(f64, @floatFromInt(vm.inputPos.offset)) - @as(f64, @floatFromInt(vm.inputPos.line_start)),
     ));
 }
