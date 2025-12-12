@@ -227,8 +227,14 @@ See the `stdlib-ast` docs for detailed documentation.
 | `Num.Mul(A, B)`    | Multiply `A` and `B`, error if values are not numbers or null |
 | `Num.Div(A, B)`    | Divide `A` by `B`, error if values are not numbers or null, or if `B` is 0 |
 | `Num.Pow(A, B)`    | Raise `A` to the exponent `B`, error if values are not numbers or null |
+| `Num.Mod(A, B)`    | Calculate `A` modulus `B`, error if values are not numbers or null |
+| `Num.Max(A, B)`    | Return the larger value of `A` or `B`                   |
+| `Num.Min(A, B)`    | Return the smaller value of `A` or `B`                  |
+| `Num.Floor(N)`     | Round `N` down to the nearest integer                   |
+| `Num.Ceil(N)`      | Round `N` up to the nearest integer                     |
 | `Num.Inc(N)`       | Increment, return `N + 1`                               |
 | `Num.Dec(N)`       | Decrement, return `N - 1`                               |
+| `Num.Abs(N)`       | Absolute value of `N`                                   |
 | `Num.FromBinaryDigits(Bs)` | Convert an array of `0`s and `1`s to a base 10 integer |
 | `Num.FromOctalDigits(Os)` | Convert an array of numbers between 0 and 7 to a base 10 integer |
 | `Num.FromHexDigits(Hs)` | Convert an array of numbers between 0 and 15 to a base 10 integer |
@@ -244,6 +250,9 @@ See the `stdlib-ast` docs for detailed documentation.
 | `Array.Map(A, Fn)` | Apply the function `Fn` to each element in the array `A` |
 | `Array.Filter(A, Pred)` | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` fails |
 | `Array.Reject(A, Pred)` | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` succeeds |
+| `Array.Merge(A)` | Merge all the elements of the array `A` into one value    |
+| `Array.MapMerge(A, Fn)` | Apply the function `Fn` to each element in the array `A`, merge all results into one value |
+| `Array.Reduce(A, Fn, Init)` | Apply the binary reducer function `Fn` to each element in the array `A`, reducing all results into one value |
 | `Array.ZipObject(Ks, Vs)` | Pair together keys from `Ks` and values from `Vs` into an object |
 | `Array.ZipPairs(Ks, Vs)` | Pair together keys from `Ks` and values from `Vs` into an object |
 | `Table.Transpose(T)` | Swap an array of arrays over the diagonal so that rows become columns |
@@ -255,8 +264,12 @@ See the `stdlib-ast` docs for detailed documentation.
 
 | Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
-| `Obj.Get(O, K)`    | Retrieve the value associated with the key `K` in the object `O` |
+| `Obj.Has(O, K)`    | Return `O` if `K` is a key in the object, otherwise fails |
+| `Obj.Get(O, K)`    | Retrieve the value associated with the key `K` in the object `O`, otherwise fails |
 | `Obj.Put(O, K, V)` | Add the key `K` with value `V` to the object `O`        |
+| `Obj.Size(O)`      | Return the number of keys is `O`                        |
+| `Obj.Keys(O)`      | Return an array of all the keys in `O`                  |
+| `Obj.Values(O)`    | Return an array of all the values in `O`                |
 
 ### Predicates
 
@@ -268,15 +281,15 @@ See the `stdlib-ast` docs for detailed documentation.
 | `Is.Null(V)`       | Return `V` if the value is `null`, otherwise fail       |
 | `Is.Array(V)`      | Return `V` if the value is an array, otherwise fail     |
 | `Is.Object(V)`     | Return `V` if the value is an object, otherwise fail    |
-| `Is.Equal(A, B)`   | Return `A` if `A` and `B` are structurally equal values |
-| `Is.LessThan(A, B)` | Return `A` if `A` is strictly less than `B`            |
-| `Is.LessThanOrEqual(A, B)` | Return `A` if `A` is less than or equal to `B`  |
-| `Is.GreaterThan(A, B)` | Return `A` if `A` is strictly greater than `B`      |
-| `Is.GreaterThanOrEqual(A, B)` | Return `A` if `A` is greater than or equal to `B` |
+| `Is.Equal(A, B)`   | Return `A` if `A` and `B` are structurally equal values, otherwise fail |
+| `Is.LessThan(A, B)` | Return `A` if `A` is strictly less than `B`, otherwise fail |
+| `Is.LessThanOrEqual(A, B)` | Return `A` if `A` is less than or equal to `B`, otherwise fail |
+| `Is.GreaterThan(A, B)` | Return `A` if `A` is strictly greater than `B`, otherwise fail |
+| `Is.GreaterThanOrEqual(A, B)` | Return `A` if `A` is greater than or equal to `B`, otherwise fail |
 
 ### Conversion
 
 | Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
 | `As.Number(V)`     | Convert string encoding of number into a number         |
-| `As.String(V)`     | Convert any value into a string containing a compact JSON encoding of the value|
+| `As.String(V)`     | Convert any value into a string containing a compact JSON encoding of the value. If `V` is a string then it is left unchanged. |

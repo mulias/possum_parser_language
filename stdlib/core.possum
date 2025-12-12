@@ -876,16 +876,12 @@ Array.Length(A) = A -> ([_] * L) & L
 Array.Reverse(A) = _Array.Reverse(A, [])
 
 _Array.Reverse(A, Acc) =
-  A -> [First, ...Rest] ?
-  _Array.Reverse(Rest, [First, ...Acc]) :
-  Acc
+  A -> [First, ...Rest] ? _Array.Reverse(Rest, [First, ...Acc]) : Acc
 
 Array.Map(A, Fn) = _Array.Map(A, Fn, [])
 
 _Array.Map(A, Fn, Acc) =
-  A -> [First, ...Rest] ?
-  _Array.Map(Rest, Fn, [...Acc, Fn(First)]) :
-  Acc
+  A -> [First, ...Rest] ? _Array.Map(Rest, Fn, [...Acc, Fn(First)]) : Acc
 
 Array.Filter(A, Pred) = _Array.Filter(A, Pred, [])
 
@@ -900,6 +896,19 @@ _Array.Reject(A, Pred, Acc) =
   A -> [First, ...Rest] ?
   _Array.Reject(Rest, Pred, Pred(First) ? Acc : [...Acc, First]) :
   Acc
+
+Array.Merge(A) = _Array.Merge(A, null)
+
+_Array.Merge(A, Acc) =
+  A -> [First, ...Rest] ? _Array.Merge(Rest, Acc + First) : Acc
+
+Array.MapMerge(A, Fn) = _Array.MapMerge(A, Fn, null)
+
+_Array.MapMerge(A, Fn, Acc) =
+  A -> [First, ...Rest] ? _Array.MapMerge(Rest, Fn, Acc + Fn(First)) : Acc
+
+Array.Reduce(A, Fn, Acc) =
+  A -> [First, ...Rest] ? Array.Reduce(Rest, Fn, Fn(Acc, First)) : Acc
 
 Array.ZipObject(Ks, Vs) = _Array.ZipObject(Ks, Vs, {})
 
@@ -963,13 +972,24 @@ Obj.Get(O, K) = O -> {K: V, ..._} & V
 
 Obj.Put(O, K, V) = {...O, K: V}
 
+Obj.Size(O) = _Obj.Size(O, 0)
+
+_Obj.Size(O, Acc) = O -> {_: _, ...Rest} ? _Obj.Size(Rest, Acc + 1) : Acc
+
+Obj.Keys(O) = _Obj.Keys(O, [])
+
+_Obj.Keys(O, Acc) = O -> {K: _, ...Rest} ? _Obj.Keys(Rest, [...Acc, K]) : Acc
+
+Obj.Values(O) = _Obj.Values(O, [])
+
+_Obj.Values(O, Acc) = O -> {_: V, ...Rest} ? _Obj.Values(Rest, [...Acc, V]) : Acc
+
 ## Abstract Syntax Trees
 
 _Ast.MergePos(Left, Right) = {
   ...(Left -> {"startpos": StartPos, ..._} ? {"startpos": StartPos} : {}),
   ...(Right -> {"endpos": EndPos, ..._} ? {"endpos": EndPos} : {}),
 }
-
 
 ## Predicates
 
