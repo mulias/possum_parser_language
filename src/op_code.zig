@@ -97,6 +97,7 @@ pub const OpCode = enum(u8) {
 
     pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         return switch (self) {
+            .Backtrack,
             .Crash,
             .Decrement,
             .Drop,
@@ -190,7 +191,6 @@ pub const OpCode = enum(u8) {
             => self.codepointRangeInstruction(chunk, writer, offset),
             .ParseIntegerRange,
             => self.integerRangeInstruction(chunk, writer, offset),
-            .Backtrack,
             .ConditionalThen,
             .Jump,
             .JumpIfFailure,

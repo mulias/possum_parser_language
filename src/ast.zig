@@ -132,7 +132,6 @@ pub const Ast = struct {
     };
 
     pub const InfixType = enum {
-        Backtrack,
         Destructure,
         Merge,
         Or,

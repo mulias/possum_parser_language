@@ -347,17 +347,8 @@ pub const VM = struct {
                 }
             },
             .Backtrack => {
-                // Infix, lhs on stack.
-                // If lhs succeeded then pop, return to prev input position.
-                // If lhs failed then keep it and jump to skip rhs ops.
-                const offset = self.readShort();
                 const resetPos = self.popInputMark();
-                if (self.peekIsSuccess()) {
-                    self.drop(1);
-                    self.inputPos = resetPos;
-                } else {
-                    self.frame().ip += offset;
-                }
+                self.inputPos = resetPos;
             },
             .CallFunction => {
                 // Postfix, function and args on stack.

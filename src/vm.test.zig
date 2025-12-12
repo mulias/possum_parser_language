@@ -292,22 +292,6 @@ test "'foo' $ 'bar'" {
     }
 }
 
-test "1 ! 12 ! 123" {
-    const parser =
-        \\ 1 ! 12 ! 123
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, "123"),
-            try Elem.numberStringFromBytes("123", &vm),
-            vm,
-        );
-    }
-}
-
 test "'true' ? 'foo' + 'bar' : 'baz'" {
     const parser =
         \\ 'true' ? 'foo' + 'bar' : 'baz'
@@ -917,9 +901,9 @@ test "'foo' -> Foo $ Foo" {
     }
 }
 
-test "peek(p) = p -> V ! '' $ V ; peek(1) + peek(1) + peek(1)" {
+test "peek(p) = @input.offset -> Pos & @at(Pos, p) ; peek(1) + peek(1) + peek(1)" {
     const parser =
-        \\peek(p) = p -> V ! '' $ V
+        \\peek(p) = @input.offset -> Pos & @at(Pos, p)
         \\peek(1) + peek(1) + peek(1)
     ;
     {

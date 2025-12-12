@@ -168,7 +168,6 @@ pub const Parser = struct {
 
         return switch (tokenType) {
             .Ampersand,
-            .Bang,
             .Bar,
             .DashGreaterThan,
             .DollarSign,
@@ -458,7 +457,6 @@ pub const Parser = struct {
 
         const infixType: Ast.InfixType = switch (t.tokenType) {
             .Ampersand => .TakeRight,
-            .Bang => .Backtrack,
             .Bar => .Or,
             .DashGreaterThan => .Destructure,
             .DollarSign => .Return,
@@ -1024,7 +1022,6 @@ pub const Parser = struct {
             .Plus,
             .Star,
             => .StandardInfix,
-            .Bang,
             .Bar,
             => .Backtrack,
             .Ampersand => .Sequence,

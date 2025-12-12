@@ -272,7 +272,7 @@ maybe_many_sep(p, sep) = many_sep(p, sep) | succeed
 
 ## Utility
 
-peek(p) = p -> V ! const(V)
+peek(p) = @input.offset -> Pos & @at(Pos, p)
 
 maybe(p) = p | succeed
 
