@@ -2798,19 +2798,11 @@ pub const Compiler = struct {
     }
 
     fn emitJump(self: *Compiler, op: OpCode, region: Region) !usize {
-        try self.emitOp(op, region);
-        // Dummy operands that will be patched later
-        try self.emitShort(0xffff, region);
-        return self.chunk().nextByteIndex() - 2;
+        return try self.chunk().writeJump(self.vm.allocator, op, region);
     }
 
     fn patchJump(self: *Compiler, module_id: Module.Id, offset: usize, region: Region) !void {
-        const jump = self.chunk().nextByteIndex() - offset - 2;
-
-        std.debug.assert(self.chunk().read(offset) == 0xff);
-        std.debug.assert(self.chunk().read(offset + 1) == 0xff);
-
-        self.chunk().updateShortAt(offset, @as(u16, @intCast(jump))) catch |err| switch (err) {
+        self.chunk().patchJump(offset) catch |err| switch (err) {
             ChunkError.ShortOverflow => {
                 try self.printError(module_id, region, "Too much code to jump over.", .{});
                 return err;
@@ -2820,10 +2812,7 @@ pub const Compiler = struct {
     }
 
     fn emitJumpBack(self: *Compiler, op: OpCode, targetOffset: usize, region: Region) !void {
-        try self.emitOp(op, region);
-        const currentOffset = self.chunk().nextByteIndex();
-        const jump = (currentOffset + 2) - targetOffset;
-        try self.emitShort(@as(u16, @intCast(jump)), region);
+        return try self.chunk().writeJumpBack(self.vm.allocator, op, targetOffset, region);
     }
 
     fn emitByte(self: *Compiler, byte: u8, region: Region) !void {

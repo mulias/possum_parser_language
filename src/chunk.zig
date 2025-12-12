@@ -62,6 +62,29 @@ pub const Chunk = struct {
         try self.write(allocator, longByte0(long), loc);
     }
 
+    pub fn writeJump(self: *Chunk, allocator: Allocator, op: OpCode, loc: Region) !usize {
+        try self.writeOp(allocator, op, loc);
+        // Dummy operands that will be patched later
+        try self.writeShort(allocator, 0xffff, loc);
+        return self.nextByteIndex() - 2;
+    }
+
+    pub fn patchJump(self: *Chunk, offset: usize) !void {
+        const jump = self.nextByteIndex() - offset - 2;
+
+        std.debug.assert(self.read(offset) == 0xff);
+        std.debug.assert(self.read(offset + 1) == 0xff);
+
+        try self.updateShortAt(offset, @as(u16, @intCast(jump)));
+    }
+
+    pub fn writeJumpBack(self: *Chunk, allocator: Allocator, op: OpCode, targetOffset: usize, loc: Region) !void {
+        try self.writeOp(allocator, op, loc);
+        const currentOffset = self.nextByteIndex();
+        const jump = (currentOffset + 2) - targetOffset;
+        try self.writeShort(allocator, @as(u16, @intCast(jump)), loc);
+    }
+
     pub fn updateAt(self: *Chunk, index: usize, value: u8) void {
         self.code.items[index] = value;
     }
