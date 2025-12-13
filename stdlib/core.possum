@@ -576,7 +576,7 @@ toml.datetime.local_date =
 
 _toml.datetime.year = numeral * 4
 
-_toml.datetime.month = ("0" + "1".."9") | "11" | "12"
+_toml.datetime.month = ("0" + "1".."9") | ("1" + "0".."2")
 
 _toml.datetime.mday = ("0".."2" + "1".."9") | "30" | "31"
 
