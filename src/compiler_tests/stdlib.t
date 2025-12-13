@@ -132,7 +132,7 @@
   0006    | End
   ========================================
   
-  =================@fn290=================
+  =================@fn304=================
   unless(char, whitespace)
   ========================================
   0000    | GetConstant 7: unless
@@ -146,12 +146,12 @@
   token = many(unless(char, whitespace))
   ========================================
   0000    | GetConstant 0: many
-  0002    | GetConstant 6: @fn290
+  0002    | GetConstant 6: @fn304
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn291=================
+  =================@fn305=================
   alnum | "_" | "-"
   ========================================
   0000    | SetInputMark
@@ -168,12 +168,12 @@
   word = many(alnum | "_" | "-")
   ========================================
   0000    | GetConstant 0: many
-  0002    | GetConstant 10: @fn291
+  0002    | GetConstant 10: @fn305
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn292=================
+  =================@fn306=================
   newline | end_of_input
   ========================================
   0000    | SetInputMark
@@ -187,7 +187,7 @@
   line = chars_until(newline | end_of_input)
   ========================================
   0000    | GetConstant 11: chars_until
-  0002    | GetConstant 12: @fn292
+  0002    | GetConstant 12: @fn306
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -260,7 +260,7 @@
   0006    | End
   ========================================
   
-  =================@fn293=================
+  =================@fn307=================
   space | newline
   ========================================
   0000    | SetInputMark
@@ -274,7 +274,7 @@
   whitespace = many(space | newline)
   ========================================
   0000    | GetConstant 0: many
-  0002    | GetConstant 26: @fn293
+  0002    | GetConstant 26: @fn307
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -296,7 +296,7 @@
   0003    | End
   ========================================
   
-  =================@fn294=================
+  =================@fn308=================
   maybe("-") + _number_integer_part
   ========================================
   0000    | GetConstant 30: maybe
@@ -311,7 +311,7 @@
   integer = as_number(maybe("-") + _number_integer_part)
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 29: @fn294
+  0002    | GetConstant 29: @fn308
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -325,7 +325,7 @@
   0006    | End
   ========================================
   
-  =================@fn295=================
+  =================@fn309=================
   "-" + _number_integer_part
   ========================================
   0000    | ParseChar '-'
@@ -338,12 +338,12 @@
   negative_integer = as_number("-" + _number_integer_part)
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 32: @fn295
+  0002    | GetConstant 32: @fn309
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn296=================
+  =================@fn310=================
   maybe("-") + _number_integer_part + _number_fraction_part
   ========================================
   0000    | GetConstant 30: maybe
@@ -360,12 +360,12 @@
   float = as_number(maybe("-") + _number_integer_part + _number_fraction_part)
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 33: @fn296
+  0002    | GetConstant 33: @fn310
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn297=================
+  =================@fn311=================
   maybe("-") +
     _number_integer_part +
     _number_exponent_part
@@ -388,12 +388,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 35: @fn297
+  0002    | GetConstant 35: @fn311
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn298=================
+  =================@fn312=================
   maybe("-") +
     _number_integer_part +
     _number_fraction_part +
@@ -420,12 +420,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 37: @fn298
+  0002    | GetConstant 37: @fn312
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn299=================
+  =================@fn313=================
   maybe("-") +
     _number_integer_part +
     maybe(_number_fraction_part) +
@@ -456,12 +456,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 38: @fn299
+  0002    | GetConstant 38: @fn313
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn300=================
+  =================@fn314=================
   _number_integer_part +
     maybe(_number_fraction_part) +
     maybe(_number_exponent_part)
@@ -486,12 +486,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 39: @fn300
+  0002    | GetConstant 39: @fn314
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn301=================
+  =================@fn315=================
   "-" +
     _number_integer_part +
     maybe(_number_fraction_part) +
@@ -520,7 +520,7 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant 40: @fn301
+  0002    | GetConstant 40: @fn315
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -546,7 +546,7 @@
   0005    | End
   ========================================
   
-  =================@fn302=================
+  =================@fn316=================
   "-" | "+"
   ========================================
   0000    | SetInputMark
@@ -564,7 +564,7 @@
   0003    | Or 3 -> 8
   0006    | ParseChar 'E'
   0008    | GetConstant 30: maybe
-  0010    | GetConstant 42: @fn302
+  0010    | GetConstant 42: @fn316
   0012    | CallFunction 1
   0014    | Merge
   0015    | CallFunctionConstant 41: numerals
@@ -767,7 +767,7 @@
   0045    | End
   ========================================
   
-  =================@fn303=================
+  =================@fn317=================
   sep > elem
   ========================================
   0000    | GetConstant 56: sep
@@ -779,7 +779,7 @@
   0012    | End
   ========================================
   
-  =================@fn304=================
+  =================@fn318=================
   sep > elem
   ========================================
   0000    | GetConstant 56: sep
@@ -803,7 +803,7 @@
   0009    | JumpIfZero 9 -> 37
   0012    | Swap
   0013    | GetConstant 54: tuple1
-  0015    | GetConstant 55: @fn303
+  0015    | GetConstant 55: @fn317
   0017    | CreateClosure 2
   0019    | CaptureLocal 1
   0021    | CaptureLocal 0
@@ -817,7 +817,7 @@
   0037    | Swap
   0038    | SetInputMark
   0039    | GetConstant 54: tuple1
-  0041    | GetConstant 58: @fn304
+  0041    | GetConstant 58: @fn318
   0043    | CreateClosure 2
   0045    | CaptureLocal 1
   0047    | CaptureLocal 0
@@ -834,7 +834,7 @@
   0064    | End
   ========================================
   
-  =================@fn305=================
+  =================@fn319=================
   tuple1(elem)
   ========================================
   0000    | GetConstant 57: elem
@@ -845,7 +845,7 @@
   0009    | End
   ========================================
   
-  =================@fn306=================
+  =================@fn320=================
   tuple1(elem)
   ========================================
   0000    | GetConstant 57: elem
@@ -865,7 +865,7 @@
   0003    | JumpIfZero 3 -> 31
   0006    | Swap
   0007    | GetConstant 7: unless
-  0009    | GetConstant 59: @fn305
+  0009    | GetConstant 59: @fn319
   0011    | CreateClosure 1
   0013    | CaptureLocal 0
   0015    | GetBoundLocal 1
@@ -879,7 +879,7 @@
   0031    | Swap
   0032    | SetInputMark
   0033    | GetConstant 7: unless
-  0035    | GetConstant 60: @fn306
+  0035    | GetConstant 60: @fn320
   0037    | CreateClosure 1
   0039    | CaptureLocal 0
   0041    | GetBoundLocal 1
@@ -900,7 +900,7 @@
   0067    | End
   ========================================
   
-  =================@fn307=================
+  =================@fn321=================
   array(elem)
   ========================================
   0000    | GetConstant 57: elem
@@ -915,7 +915,7 @@
   maybe_array(elem) = default(array(elem), [])
   ========================================
   0000    | GetConstant 62: default
-  0002    | GetConstant 63: @fn307
+  0002    | GetConstant 63: @fn321
   0004    | CreateClosure 1
   0006    | CaptureLocal 0
   0008    | PushEmptyArray
@@ -923,7 +923,7 @@
   0011    | End
   ========================================
   
-  =================@fn308=================
+  =================@fn322=================
   array_sep(elem, sep)
   ========================================
   0000    | GetConstant 57: elem
@@ -940,7 +940,7 @@
   maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
   ========================================
   0000    | GetConstant 62: default
-  0002    | GetConstant 64: @fn308
+  0002    | GetConstant 64: @fn322
   0004    | CreateClosure 2
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
@@ -1086,7 +1086,7 @@
   0028    | End
   ========================================
   
-  =================@fn314=================
+  =================@fn328=================
   sep > elem
   ========================================
   0000    | GetConstant 56: sep
@@ -1112,7 +1112,7 @@
   0012    | JumpIfZero 12 -> 41
   0015    | Swap
   0016    | GetConstant 54: tuple1
-  0018    | GetConstant 75: @fn314
+  0018    | GetConstant 75: @fn328
   0020    | CreateClosure 2
   0022    | CaptureLocal 1
   0024    | CaptureLocal 0
@@ -1129,7 +1129,7 @@
   0043    | End
   ========================================
   
-  =================@fn315=================
+  =================@fn329=================
   array_sep(elem, col_sep)
   ========================================
   0000    | GetConstant 57: elem
@@ -1142,7 +1142,7 @@
   0013    | End
   ========================================
   
-  =================@fn316=================
+  =================@fn330=================
   row_sep > array_sep(elem, col_sep)
   ========================================
   0000    | GetConstant 79: row_sep
@@ -1158,7 +1158,7 @@
   0020    | End
   ========================================
   
-  =================@fn317=================
+  =================@fn331=================
   row_sep > array_sep(elem, col_sep)
   ========================================
   0000    | GetConstant 79: row_sep
@@ -1180,7 +1180,7 @@
     (tuple1(row_sep > array_sep(elem, col_sep)) * 0..)
   ========================================
   0000    | GetConstant 54: tuple1
-  0002    | GetConstant 76: @fn315
+  0002    | GetConstant 76: @fn329
   0004    | CreateClosure 2
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
@@ -1191,7 +1191,7 @@
   0015    | JumpIfZero 15 -> 45
   0018    | Swap
   0019    | GetConstant 54: tuple1
-  0021    | GetConstant 78: @fn316
+  0021    | GetConstant 78: @fn330
   0023    | CreateClosure 3
   0025    | CaptureLocal 2
   0027    | CaptureLocal 0
@@ -1206,7 +1206,7 @@
   0045    | Swap
   0046    | SetInputMark
   0047    | GetConstant 54: tuple1
-  0049    | GetConstant 80: @fn317
+  0049    | GetConstant 80: @fn331
   0051    | CreateClosure 3
   0053    | CaptureLocal 2
   0055    | CaptureLocal 0
@@ -1224,7 +1224,7 @@
   0074    | End
   ========================================
   
-  =================@fn318=================
+  =================@fn332=================
   _dimensions(elem, col_sep, row_sep)
   ========================================
   0000    | GetConstant 57: elem
@@ -1248,7 +1248,7 @@
   0002    | PushUnderscoreVar
   0003    | GetConstant 82: First
   0005    | GetConstant 61: peek
-  0007    | GetConstant 83: @fn318
+  0007    | GetConstant 83: @fn332
   0009    | CreateClosure 3
   0011    | CaptureLocal 0
   0013    | CaptureLocal 1
@@ -1556,7 +1556,7 @@
   0074    | End
   ========================================
   
-  =================@fn325=================
+  =================@fn339=================
   pair(key, value)
   ========================================
   0000    | GetConstant 105: key
@@ -1569,7 +1569,7 @@
   0013    | End
   ========================================
   
-  =================@fn326=================
+  =================@fn340=================
   pair(key, value)
   ========================================
   0000    | GetConstant 105: key
@@ -1592,7 +1592,7 @@
   0003    | JumpIfZero 3 -> 33
   0006    | Swap
   0007    | GetConstant 7: unless
-  0009    | GetConstant 104: @fn325
+  0009    | GetConstant 104: @fn339
   0011    | CreateClosure 2
   0013    | CaptureLocal 0
   0015    | CaptureLocal 1
@@ -1607,7 +1607,7 @@
   0033    | Swap
   0034    | SetInputMark
   0035    | GetConstant 7: unless
-  0037    | GetConstant 107: @fn326
+  0037    | GetConstant 107: @fn340
   0039    | CreateClosure 2
   0041    | CaptureLocal 0
   0043    | CaptureLocal 1
@@ -1629,7 +1629,7 @@
   0071    | End
   ========================================
   
-  =================@fn327=================
+  =================@fn341=================
   object(key, value)
   ========================================
   0000    | GetConstant 105: key
@@ -1646,7 +1646,7 @@
   maybe_object(key, value) = default(object(key, value), {})
   ========================================
   0000    | GetConstant 62: default
-  0002    | GetConstant 108: @fn327
+  0002    | GetConstant 108: @fn341
   0004    | CreateClosure 2
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
@@ -1655,7 +1655,7 @@
   0013    | End
   ========================================
   
-  =================@fn328=================
+  =================@fn342=================
   object_sep(key, pair_sep, value, sep)
   ========================================
   0000    | GetConstant 105: key
@@ -1677,7 +1677,7 @@
     default(object_sep(key, pair_sep, value, sep), {})
   ========================================
   0000    | GetConstant 62: default
-  0002    | GetConstant 110: @fn328
+  0002    | GetConstant 110: @fn342
   0004    | CreateClosure 4
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
@@ -2005,17 +2005,17 @@
   ========================================
   
   ==================peek==================
-  peek(p) = p -> V ! const(V)
+  peek(p) = @input.offset -> Pos & @at(Pos, p)
   ========================================
-  0000    | PushCharVar V
-  0002    | SetInputMark
-  0003    | CallFunctionLocal 0
-  0005    | Destructure 35: V
-  0007    | Backtrack 7 -> 16
-  0010    | GetConstant 93: const
-  0012    | GetBoundLocal 1
-  0014    | CallTailFunction 1
-  0016    | End
+  0000    | GetConstant 126: Pos
+  0002    | CallFunctionConstant 127: @input.offset
+  0004    | Destructure 35: Pos
+  0006    | TakeRight 6 -> 17
+  0009    | GetConstant 128: @at
+  0011    | GetBoundLocal 1
+  0013    | GetBoundLocal 0
+  0015    | CallTailFunction 2
+  0017    | End
   ========================================
   
   =================maybe==================
@@ -2034,7 +2034,7 @@
   0000    | SetInputMark
   0001    | CallFunctionLocal 1
   0003    | ConditionalThen 3 -> 11
-  0006    | CallTailFunctionConstant 126: @fail
+  0006    | CallTailFunctionConstant 129: @fail
   0008    | Jump 8 -> 13
   0011    | CallTailFunctionLocal 0
   0013    | End
@@ -2043,7 +2043,7 @@
   ==================skip==================
   skip(p) = null(p)
   ========================================
-  0000    | GetConstant 127: null
+  0000    | GetConstant 130: null
   0002    | GetBoundLocal 0
   0004    | CallTailFunction 1
   0006    | End
@@ -2057,24 +2057,24 @@
   0003    | Or 3 -> 17
   0006    | CallFunctionConstant 8: char
   0008    | TakeRight 8 -> 17
-  0011    | GetConstant 128: find
+  0011    | GetConstant 131: find
   0013    | GetBoundLocal 0
   0015    | CallTailFunction 1
   0017    | End
   ========================================
   
-  =================@fn336=================
+  =================@fn350=================
   find(p)
   ========================================
   0000    | PushCharVar p
   0002    | SetClosureCaptures
-  0003    | GetConstant 128: find
+  0003    | GetConstant 131: find
   0005    | GetBoundLocal 0
   0007    | CallTailFunction 1
   0009    | End
   ========================================
   
-  =================@fn337=================
+  =================@fn351=================
   many(char)
   ========================================
   0000    | GetConstant 0: many
@@ -2087,13 +2087,13 @@
   find_all(p) = array(find(p)) < maybe(many(char))
   ========================================
   0000    | GetConstant 45: array
-  0002    | GetConstant 129: @fn336
+  0002    | GetConstant 132: @fn350
   0004    | CreateClosure 1
   0006    | CaptureLocal 0
   0008    | CallFunction 1
   0010    | JumpIfFailure 10 -> 20
   0013    | GetConstant 30: maybe
-  0015    | GetConstant 130: @fn337
+  0015    | GetConstant 133: @fn351
   0017    | CallFunction 1
   0019    | TakeLeft
   0020    | End
@@ -2105,37 +2105,37 @@
   0000    | SetInputMark
   0001    | CallFunctionLocal 1
   0003    | ConditionalThen 3 -> 11
-  0006    | CallTailFunctionConstant 126: @fail
+  0006    | CallTailFunctionConstant 129: @fail
   0008    | Jump 8 -> 30
   0011    | SetInputMark
   0012    | CallFunctionLocal 0
   0014    | Or 14 -> 30
   0017    | CallFunctionConstant 8: char
   0019    | TakeRight 19 -> 30
-  0022    | GetConstant 131: find_before
+  0022    | GetConstant 134: find_before
   0024    | GetBoundLocal 0
   0026    | GetBoundLocal 1
   0028    | CallTailFunction 2
   0030    | End
   ========================================
   
-  =================@fn338=================
+  =================@fn352=================
   find_before(p, stop)
   ========================================
   0000    | PushCharVar p
-  0002    | GetConstant 133: stop
+  0002    | GetConstant 136: stop
   0004    | SetClosureCaptures
-  0005    | GetConstant 131: find_before
+  0005    | GetConstant 134: find_before
   0007    | GetBoundLocal 0
   0009    | GetBoundLocal 1
   0011    | CallTailFunction 2
   0013    | End
   ========================================
   
-  =================@fn339=================
+  =================@fn353=================
   chars_until(stop)
   ========================================
-  0000    | GetConstant 133: stop
+  0000    | GetConstant 136: stop
   0002    | SetClosureCaptures
   0003    | GetConstant 11: chars_until
   0005    | GetBoundLocal 0
@@ -2147,14 +2147,14 @@
   find_all_before(p, stop) = array(find_before(p, stop)) < maybe(chars_until(stop))
   ========================================
   0000    | GetConstant 45: array
-  0002    | GetConstant 132: @fn338
+  0002    | GetConstant 135: @fn352
   0004    | CreateClosure 2
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
   0010    | CallFunction 1
   0012    | JumpIfFailure 12 -> 26
   0015    | GetConstant 30: maybe
-  0017    | GetConstant 134: @fn339
+  0017    | GetConstant 137: @fn353
   0019    | CreateClosure 1
   0021    | CaptureLocal 1
   0023    | CallFunction 1
@@ -2228,13 +2228,13 @@
   0000    | SetInputMark
   0001    | CallFunctionConstant 8: char
   0003    | ConditionalThen 3 -> 11
-  0006    | CallTailFunctionConstant 126: @fail
+  0006    | CallTailFunctionConstant 129: @fail
   0008    | Jump 8 -> 13
   0011    | CallTailFunctionConstant 125: succeed
   0013    | End
   ========================================
   
-  =================@fn340=================
+  =================@fn354=================
   maybe(whitespace)
   ========================================
   0000    | GetConstant 30: maybe
@@ -2246,9 +2246,9 @@
   =================input==================
   input(p) = surround(p, maybe(whitespace)) < end_of_input
   ========================================
-  0000    | GetConstant 135: surround
+  0000    | GetConstant 138: surround
   0002    | GetBoundLocal 0
-  0004    | GetConstant 136: @fn340
+  0004    | GetConstant 139: @fn354
   0006    | CallFunction 2
   0008    | JumpIfFailure 8 -> 14
   0011    | CallFunctionConstant 14: end_of_input
@@ -2284,24 +2284,24 @@
     json.object(json)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 137: json.boolean
+  0001    | CallFunctionConstant 140: json.boolean
   0003    | Or 3 -> 40
   0006    | SetInputMark
-  0007    | CallFunctionConstant 138: json.null
+  0007    | CallFunctionConstant 141: json.null
   0009    | Or 9 -> 40
   0012    | SetInputMark
-  0013    | CallFunctionConstant 139: number
+  0013    | CallFunctionConstant 142: number
   0015    | Or 15 -> 40
   0018    | SetInputMark
-  0019    | CallFunctionConstant 140: json.string
+  0019    | CallFunctionConstant 143: json.string
   0021    | Or 21 -> 40
   0024    | SetInputMark
-  0025    | GetConstant 141: json.array
-  0027    | GetConstant 142: json
+  0025    | GetConstant 144: json.array
+  0027    | GetConstant 145: json
   0029    | CallFunction 1
   0031    | Or 31 -> 40
-  0034    | GetConstant 143: json.object
-  0036    | GetConstant 142: json
+  0034    | GetConstant 146: json.object
+  0036    | GetConstant 145: json
   0038    | CallTailFunction 1
   0040    | End
   ========================================
@@ -2309,9 +2309,9 @@
   ==============json.boolean==============
   json.boolean = boolean("true", "false")
   ========================================
-  0000    | GetConstant 144: boolean
-  0002    | GetConstant 145: "true"
-  0004    | GetConstant 146: "false"
+  0000    | GetConstant 147: boolean
+  0002    | GetConstant 148: "true"
+  0004    | GetConstant 149: "false"
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -2319,8 +2319,8 @@
   ===============json.null================
   json.null = null("null")
   ========================================
-  0000    | GetConstant 127: null
-  0002    | GetConstant 147: "null"
+  0000    | GetConstant 130: null
+  0002    | GetConstant 150: "null"
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -2330,18 +2330,18 @@
   ========================================
   0000    | ParseChar '"'
   0002    | TakeRight 2 -> 7
-  0005    | CallFunctionConstant 148: _json.string_body
+  0005    | CallFunctionConstant 151: _json.string_body
   0007    | JumpIfFailure 7 -> 13
   0010    | ParseChar '"'
   0012    | TakeLeft
   0013    | End
   ========================================
   
-  =================@fn342=================
+  =================@fn356=================
   _ctrl_char | `\` | '"'
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 153: _ctrl_char
+  0001    | CallFunctionConstant 156: _ctrl_char
   0003    | Or 3 -> 14
   0006    | SetInputMark
   0007    | ParseChar '\'
@@ -2350,20 +2350,20 @@
   0014    | End
   ========================================
   
-  =================@fn341=================
+  =================@fn355=================
   _escaped_ctrl_char |
       _escaped_unicode |
       unless(char, _ctrl_char | `\` | '"')
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 150: _escaped_ctrl_char
+  0001    | CallFunctionConstant 153: _escaped_ctrl_char
   0003    | Or 3 -> 20
   0006    | SetInputMark
-  0007    | CallFunctionConstant 151: _escaped_unicode
+  0007    | CallFunctionConstant 154: _escaped_unicode
   0009    | Or 9 -> 20
   0012    | GetConstant 7: unless
   0014    | GetConstant 8: char
-  0016    | GetConstant 152: @fn342
+  0016    | GetConstant 155: @fn356
   0018    | CallTailFunction 2
   0020    | End
   ========================================
@@ -2378,7 +2378,7 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many
-  0003    | GetConstant 149: @fn341
+  0003    | GetConstant 152: @fn355
   0005    | CallFunction 1
   0007    | Or 7 -> 15
   0010    | GetConstant 93: const
@@ -2406,43 +2406,43 @@
     (`\t` $ "\t")
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 154: "\""
+  0001    | CallFunctionConstant 157: "\""
   0003    | TakeRight 3 -> 8
   0006    | PushChar '"'
   0008    | Or 8 -> 84
   0011    | SetInputMark
-  0012    | CallFunctionConstant 155: "\\"
+  0012    | CallFunctionConstant 158: "\\"
   0014    | TakeRight 14 -> 19
   0017    | PushChar '\'
   0019    | Or 19 -> 84
   0022    | SetInputMark
-  0023    | CallFunctionConstant 156: "\/"
+  0023    | CallFunctionConstant 159: "\/"
   0025    | TakeRight 25 -> 30
   0028    | PushChar '/'
   0030    | Or 30 -> 84
   0033    | SetInputMark
-  0034    | CallFunctionConstant 157: "\b"
+  0034    | CallFunctionConstant 160: "\b"
   0036    | TakeRight 36 -> 41
   0039    | PushChar '\x08' (esc)
   0041    | Or 41 -> 84
   0044    | SetInputMark
-  0045    | CallFunctionConstant 158: "\f"
+  0045    | CallFunctionConstant 161: "\f"
   0047    | TakeRight 47 -> 52
   0050    | PushChar '\x0c' (esc)
   0052    | Or 52 -> 84
   0055    | SetInputMark
-  0056    | CallFunctionConstant 159: "\n"
+  0056    | CallFunctionConstant 162: "\n"
   0058    | TakeRight 58 -> 63
   0061    | PushChar '
   '
   0063    | Or 63 -> 84
   0066    | SetInputMark
-  0067    | CallFunctionConstant 160: "\r"
+  0067    | CallFunctionConstant 163: "\r"
   0069    | TakeRight 69 -> 74
   0072    | PushChar '\r (no-eol) (esc)
   '
   0074    | Or 74 -> 84
-  0077    | CallFunctionConstant 161: "\t"
+  0077    | CallFunctionConstant 164: "\t"
   0079    | TakeRight 79 -> 84
   0082    | PushChar '\t' (esc)
   0084    | End
@@ -2452,9 +2452,9 @@
   _escaped_unicode = _escaped_surrogate_pair | _escaped_codepoint
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 162: _escaped_surrogate_pair
+  0001    | CallFunctionConstant 165: _escaped_surrogate_pair
   0003    | Or 3 -> 8
-  0006    | CallTailFunctionConstant 163: _escaped_codepoint
+  0006    | CallTailFunctionConstant 166: _escaped_codepoint
   0008    | End
   ========================================
   
@@ -2462,9 +2462,9 @@
   _escaped_surrogate_pair = _valid_surrogate_pair | _invalid_surrogate_pair
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 164: _valid_surrogate_pair
+  0001    | CallFunctionConstant 167: _valid_surrogate_pair
   0003    | Or 3 -> 8
-  0006    | CallTailFunctionConstant 165: _invalid_surrogate_pair
+  0006    | CallTailFunctionConstant 168: _invalid_surrogate_pair
   0008    | End
   ========================================
   
@@ -2474,13 +2474,13 @@
   ========================================
   0000    | PushCharVar H
   0002    | PushCharVar L
-  0004    | CallFunctionConstant 166: _high_surrogate
+  0004    | CallFunctionConstant 169: _high_surrogate
   0006    | Destructure 37: H
   0008    | TakeRight 8 -> 26
-  0011    | CallFunctionConstant 167: _low_surrogate
+  0011    | CallFunctionConstant 170: _low_surrogate
   0013    | Destructure 38: L
   0015    | TakeRight 15 -> 26
-  0018    | GetConstant 168: @SurrogatePairCodepoint
+  0018    | GetConstant 171: @SurrogatePairCodepoint
   0020    | GetBoundLocal 0
   0022    | GetBoundLocal 1
   0024    | CallTailFunction 2
@@ -2491,11 +2491,11 @@
   _invalid_surrogate_pair = _low_surrogate | _high_surrogate $ "\u00FFFD"
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 167: _low_surrogate
+  0001    | CallFunctionConstant 170: _low_surrogate
   0003    | Or 3 -> 8
-  0006    | CallFunctionConstant 166: _high_surrogate
+  0006    | CallFunctionConstant 169: _high_surrogate
   0008    | TakeRight 8 -> 13
-  0011    | GetConstant 169: "\xef\xbf\xbd" (esc)
+  0011    | GetConstant 172: "\xef\xbf\xbd" (esc)
   0013    | End
   ========================================
   
@@ -2503,7 +2503,7 @@
   _high_surrogate =
     `\u` > ("D" | "d") + ("8" | "9" | "A" | "B" | "a" | "b") + hex_numeral + hex_numeral
   ========================================
-  0000    | CallFunctionConstant 170: "\u"
+  0000    | CallFunctionConstant 173: "\u"
   0002    | TakeRight 2 -> 13
   0005    | SetInputMark
   0006    | ParseChar 'D'
@@ -2526,9 +2526,9 @@
   0040    | Or 40 -> 45
   0043    | ParseChar 'b'
   0045    | Merge
-  0046    | CallFunctionConstant 171: hex_numeral
+  0046    | CallFunctionConstant 174: hex_numeral
   0048    | Merge
-  0049    | CallFunctionConstant 171: hex_numeral
+  0049    | CallFunctionConstant 174: hex_numeral
   0051    | Merge
   0052    | End
   ========================================
@@ -2537,7 +2537,7 @@
   _low_surrogate =
     `\u` > ("D" | "d") + ("C".."F" | "c".."f") + hex_numeral + hex_numeral
   ========================================
-  0000    | CallFunctionConstant 170: "\u"
+  0000    | CallFunctionConstant 173: "\u"
   0002    | TakeRight 2 -> 13
   0005    | SetInputMark
   0006    | ParseChar 'D'
@@ -2548,9 +2548,9 @@
   0017    | Or 17 -> 23
   0020    | ParseCodepointRange 'c'..'f'
   0023    | Merge
-  0024    | CallFunctionConstant 171: hex_numeral
+  0024    | CallFunctionConstant 174: hex_numeral
   0026    | Merge
-  0027    | CallFunctionConstant 171: hex_numeral
+  0027    | CallFunctionConstant 174: hex_numeral
   0029    | Merge
   0030    | End
   ========================================
@@ -2559,14 +2559,14 @@
   _escaped_codepoint = `\u` > (hex_numeral * 4) -> U $ @Codepoint(U)
   ========================================
   0000    | PushCharVar U
-  0002    | CallFunctionConstant 170: "\u"
+  0002    | CallFunctionConstant 173: "\u"
   0004    | TakeRight 4 -> 31
   0007    | PushNull
   0008    | PushNumber 4
   0010    | ValidateRepeatPattern
   0011    | JumpIfZero 11 -> 30
   0014    | Swap
-  0015    | CallFunctionConstant 171: hex_numeral
+  0015    | CallFunctionConstant 174: hex_numeral
   0017    | Merge
   0018    | JumpIfFailure 18 -> 29
   0021    | Swap
@@ -2577,13 +2577,13 @@
   0030    | Drop
   0031    | Destructure 39: U
   0033    | TakeRight 33 -> 42
-  0036    | GetConstant 172: @Codepoint
+  0036    | GetConstant 175: @Codepoint
   0038    | GetBoundLocal 0
   0040    | CallTailFunction 1
   0042    | End
   ========================================
   
-  =================@fn344=================
+  =================@fn358=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -2592,14 +2592,14 @@
   0006    | End
   ========================================
   
-  =================@fn343=================
+  =================@fn357=================
   surround(elem, maybe(ws))
   ========================================
   0000    | GetConstant 57: elem
   0002    | SetClosureCaptures
-  0003    | GetConstant 135: surround
+  0003    | GetConstant 138: surround
   0005    | GetBoundLocal 0
-  0007    | GetConstant 175: @fn344
+  0007    | GetConstant 178: @fn358
   0009    | CallTailFunction 2
   0011    | End
   ========================================
@@ -2609,8 +2609,8 @@
   ========================================
   0000    | ParseChar '['
   0002    | TakeRight 2 -> 17
-  0005    | GetConstant 173: maybe_array_sep
-  0007    | GetConstant 174: @fn343
+  0005    | GetConstant 176: maybe_array_sep
+  0007    | GetConstant 177: @fn357
   0009    | CreateClosure 1
   0011    | CaptureLocal 0
   0013    | PushChar ','
@@ -2621,7 +2621,7 @@
   0023    | End
   ========================================
   
-  =================@fn346=================
+  =================@fn360=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -2630,17 +2630,17 @@
   0006    | End
   ========================================
   
-  =================@fn345=================
+  =================@fn359=================
   surround(json.string, maybe(ws))
   ========================================
-  0000    | GetConstant 135: surround
-  0002    | GetConstant 140: json.string
-  0004    | GetConstant 178: @fn346
+  0000    | GetConstant 138: surround
+  0002    | GetConstant 143: json.string
+  0004    | GetConstant 181: @fn360
   0006    | CallTailFunction 2
   0008    | End
   ========================================
   
-  =================@fn348=================
+  =================@fn362=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -2649,14 +2649,14 @@
   0006    | End
   ========================================
   
-  =================@fn347=================
+  =================@fn361=================
   surround(value, maybe(ws))
   ========================================
   0000    | GetConstant 106: value
   0002    | SetClosureCaptures
-  0003    | GetConstant 135: surround
+  0003    | GetConstant 138: surround
   0005    | GetBoundLocal 0
-  0007    | GetConstant 180: @fn348
+  0007    | GetConstant 183: @fn362
   0009    | CallTailFunction 2
   0011    | End
   ========================================
@@ -2672,10 +2672,10 @@
   ========================================
   0000    | ParseChar '{'
   0002    | TakeRight 2 -> 21
-  0005    | GetConstant 176: maybe_object_sep
-  0007    | GetConstant 177: @fn345
+  0005    | GetConstant 179: maybe_object_sep
+  0007    | GetConstant 180: @fn359
   0009    | PushChar ':'
-  0011    | GetConstant 179: @fn347
+  0011    | GetConstant 182: @fn361
   0013    | CreateClosure 1
   0015    | CaptureLocal 0
   0017    | PushChar ','
@@ -2689,8 +2689,8 @@
   ==============toml.simple===============
   toml.simple = toml.custom(toml.simple_value)
   ========================================
-  0000    | GetConstant 181: toml.custom
-  0002    | GetConstant 182: toml.simple_value
+  0000    | GetConstant 184: toml.custom
+  0002    | GetConstant 185: toml.simple_value
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -2698,16 +2698,16 @@
   ==============toml.tagged===============
   toml.tagged = toml.custom(toml.tagged_value)
   ========================================
-  0000    | GetConstant 181: toml.custom
-  0002    | GetConstant 183: toml.tagged_value
+  0000    | GetConstant 184: toml.custom
+  0002    | GetConstant 186: toml.tagged_value
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn349=================
+  =================@fn363=================
   _toml.comments + maybe(ws)
   ========================================
-  0000    | CallFunctionConstant 186: _toml.comments
+  0000    | CallFunctionConstant 189: _toml.comments
   0002    | GetConstant 30: maybe
   0004    | GetConstant 9: whitespace
   0006    | CallFunction 1
@@ -2715,13 +2715,13 @@
   0009    | End
   ========================================
   
-  =================@fn350=================
+  =================@fn364=================
   maybe(ws) + _toml.comments
   ========================================
   0000    | GetConstant 30: maybe
   0002    | GetConstant 9: whitespace
   0004    | CallFunction 1
-  0006    | CallFunctionConstant 186: _toml.comments
+  0006    | CallFunctionConstant 189: _toml.comments
   0008    | Merge
   0009    | End
   ========================================
@@ -2733,26 +2733,26 @@
     maybe(maybe(ws) + _toml.comments) $
     _Toml.Doc.Value(Doc)
   ========================================
-  0000    | GetConstant 184: Doc
+  0000    | GetConstant 187: Doc
   0002    | GetConstant 30: maybe
-  0004    | GetConstant 185: @fn349
+  0004    | GetConstant 188: @fn363
   0006    | CallFunction 1
   0008    | TakeRight 8 -> 29
   0011    | SetInputMark
-  0012    | GetConstant 187: _toml.with_root_table
+  0012    | GetConstant 190: _toml.with_root_table
   0014    | GetBoundLocal 0
   0016    | CallFunction 1
   0018    | Or 18 -> 27
-  0021    | GetConstant 188: _toml.no_root_table
+  0021    | GetConstant 191: _toml.no_root_table
   0023    | GetBoundLocal 0
   0025    | CallFunction 1
   0027    | Destructure 40: Doc
   0029    | TakeRight 29 -> 47
   0032    | GetConstant 30: maybe
-  0034    | GetConstant 189: @fn350
+  0034    | GetConstant 192: @fn364
   0036    | CallFunction 1
   0038    | TakeRight 38 -> 47
-  0041    | GetConstant 190: _Toml.Doc.Value
+  0041    | GetConstant 193: _Toml.Doc.Value
   0043    | GetBoundLocal 1
   0045    | CallTailFunction 1
   0047    | End
@@ -2763,17 +2763,17 @@
     _toml.root_table(value, _Toml.Doc.Empty) -> RootDoc &
     (_toml.ws > _toml.tables(value, RootDoc)) | const(RootDoc)
   ========================================
-  0000    | GetConstant 191: RootDoc
-  0002    | GetConstant 192: _toml.root_table
+  0000    | GetConstant 194: RootDoc
+  0002    | GetConstant 195: _toml.root_table
   0004    | GetBoundLocal 0
-  0006    | CallFunctionConstant 193: _Toml.Doc.Empty
+  0006    | CallFunctionConstant 196: _Toml.Doc.Empty
   0008    | CallFunction 2
   0010    | Destructure 41: RootDoc
   0012    | TakeRight 12 -> 38
   0015    | SetInputMark
-  0016    | CallFunctionConstant 194: _toml.ws
+  0016    | CallFunctionConstant 197: _toml.ws
   0018    | TakeRight 18 -> 29
-  0021    | GetConstant 195: _toml.tables
+  0021    | GetConstant 198: _toml.tables
   0023    | GetBoundLocal 0
   0025    | GetBoundLocal 1
   0027    | CallFunction 2
@@ -2788,7 +2788,7 @@
   _toml.root_table(value, Doc) =
     _toml.table_body(value, [], Doc)
   ========================================
-  0000    | GetConstant 196: _toml.table_body
+  0000    | GetConstant 199: _toml.table_body
   0002    | GetBoundLocal 0
   0004    | PushEmptyArray
   0005    | GetBoundLocal 1
@@ -2801,20 +2801,20 @@
     _toml.table(value, _Toml.Doc.Empty) | _toml.array_of_tables(value, _Toml.Doc.Empty) -> NewDoc &
     _toml.tables(value, NewDoc)
   ========================================
-  0000    | GetConstant 197: NewDoc
+  0000    | GetConstant 200: NewDoc
   0002    | SetInputMark
-  0003    | GetConstant 198: _toml.table
+  0003    | GetConstant 201: _toml.table
   0005    | GetBoundLocal 0
-  0007    | CallFunctionConstant 193: _Toml.Doc.Empty
+  0007    | CallFunctionConstant 196: _Toml.Doc.Empty
   0009    | CallFunction 2
   0011    | Or 11 -> 22
-  0014    | GetConstant 199: _toml.array_of_tables
+  0014    | GetConstant 202: _toml.array_of_tables
   0016    | GetBoundLocal 0
-  0018    | CallFunctionConstant 193: _Toml.Doc.Empty
+  0018    | CallFunctionConstant 196: _Toml.Doc.Empty
   0020    | CallFunction 2
   0022    | Destructure 42: NewDoc
   0024    | TakeRight 24 -> 35
-  0027    | GetConstant 195: _toml.tables
+  0027    | GetConstant 198: _toml.tables
   0029    | GetBoundLocal 0
   0031    | GetBoundLocal 1
   0033    | CallTailFunction 2
@@ -2828,23 +2828,23 @@
     _toml.tables(value, NewDoc) :
     const(Doc)
   ========================================
-  0000    | GetConstant 197: NewDoc
+  0000    | GetConstant 200: NewDoc
   0002    | SetInputMark
   0003    | SetInputMark
-  0004    | CallFunctionConstant 194: _toml.ws
+  0004    | CallFunctionConstant 197: _toml.ws
   0006    | TakeRight 6 -> 17
-  0009    | GetConstant 198: _toml.table
+  0009    | GetConstant 201: _toml.table
   0011    | GetBoundLocal 0
   0013    | GetBoundLocal 1
   0015    | CallFunction 2
   0017    | Or 17 -> 28
-  0020    | GetConstant 199: _toml.array_of_tables
+  0020    | GetConstant 202: _toml.array_of_tables
   0022    | GetBoundLocal 0
   0024    | GetBoundLocal 1
   0026    | CallFunction 2
   0028    | Destructure 43: NewDoc
   0030    | ConditionalThen 30 -> 44
-  0033    | GetConstant 195: _toml.tables
+  0033    | GetConstant 198: _toml.tables
   0035    | GetBoundLocal 0
   0037    | GetBoundLocal 2
   0039    | CallTailFunction 2
@@ -2862,21 +2862,21 @@
       const(_Toml.Doc.EnsureTableAtPath(Doc, HeaderPath))
     )
   ========================================
-  0000    | GetConstant 200: HeaderPath
-  0002    | CallFunctionConstant 201: _toml.table_header
+  0000    | GetConstant 203: HeaderPath
+  0002    | CallFunctionConstant 204: _toml.table_header
   0004    | Destructure 44: HeaderPath
   0006    | TakeRight 6 -> 11
-  0009    | CallFunctionConstant 202: _toml.ws_newline
+  0009    | CallFunctionConstant 205: _toml.ws_newline
   0011    | TakeRight 11 -> 40
   0014    | SetInputMark
-  0015    | GetConstant 196: _toml.table_body
+  0015    | GetConstant 199: _toml.table_body
   0017    | GetBoundLocal 0
   0019    | GetBoundLocal 2
   0021    | GetBoundLocal 1
   0023    | CallFunction 3
   0025    | Or 25 -> 40
   0028    | GetConstant 93: const
-  0030    | GetConstant 203: _Toml.Doc.EnsureTableAtPath
+  0030    | GetConstant 206: _Toml.Doc.EnsureTableAtPath
   0032    | GetBoundLocal 1
   0034    | GetBoundLocal 2
   0036    | CallFunction 2
@@ -2884,15 +2884,15 @@
   0040    | End
   ========================================
   
-  =================@fn351=================
+  =================@fn365=================
   _toml.table_body(value, [], _Toml.Doc.Empty)
   ========================================
   0000    | GetConstant 106: value
   0002    | SetClosureCaptures
-  0003    | GetConstant 196: _toml.table_body
+  0003    | GetConstant 199: _toml.table_body
   0005    | GetBoundLocal 0
   0007    | PushEmptyArray
-  0008    | CallFunctionConstant 193: _Toml.Doc.Empty
+  0008    | CallFunctionConstant 196: _Toml.Doc.Empty
   0010    | CallTailFunction 3
   0012    | End
   ========================================
@@ -2903,65 +2903,65 @@
     default(_toml.table_body(value, [], _Toml.Doc.Empty), _Toml.Doc.Empty) -> InnerDoc $
     _Toml.Doc.AppendAtPath(Doc, HeaderPath, _Toml.Doc.Value(InnerDoc))
   ========================================
-  0000    | GetConstant 200: HeaderPath
-  0002    | GetConstant 204: InnerDoc
-  0004    | CallFunctionConstant 205: _toml.array_of_tables_header
+  0000    | GetConstant 203: HeaderPath
+  0002    | GetConstant 207: InnerDoc
+  0004    | CallFunctionConstant 208: _toml.array_of_tables_header
   0006    | Destructure 45: HeaderPath
   0008    | TakeRight 8 -> 13
-  0011    | CallFunctionConstant 202: _toml.ws_newline
+  0011    | CallFunctionConstant 205: _toml.ws_newline
   0013    | TakeRight 13 -> 47
   0016    | GetConstant 62: default
-  0018    | GetConstant 206: @fn351
+  0018    | GetConstant 209: @fn365
   0020    | CreateClosure 1
   0022    | CaptureLocal 0
-  0024    | CallFunctionConstant 193: _Toml.Doc.Empty
+  0024    | CallFunctionConstant 196: _Toml.Doc.Empty
   0026    | CallFunction 2
   0028    | Destructure 46: InnerDoc
   0030    | TakeRight 30 -> 47
-  0033    | GetConstant 207: _Toml.Doc.AppendAtPath
+  0033    | GetConstant 210: _Toml.Doc.AppendAtPath
   0035    | GetBoundLocal 1
   0037    | GetBoundLocal 2
-  0039    | GetConstant 190: _Toml.Doc.Value
+  0039    | GetConstant 193: _Toml.Doc.Value
   0041    | GetBoundLocal 3
   0043    | CallFunction 1
   0045    | CallTailFunction 3
   0047    | End
   ========================================
   
-  =================@fn352=================
+  =================@fn366=================
   ws | _toml.comment
   ========================================
   0000    | SetInputMark
   0001    | CallFunctionConstant 9: whitespace
   0003    | Or 3 -> 8
-  0006    | CallTailFunctionConstant 210: _toml.comment
+  0006    | CallTailFunctionConstant 213: _toml.comment
   0008    | End
   ========================================
   
   ================_toml.ws================
   _toml.ws = maybe_many(ws | _toml.comment)
   ========================================
-  0000    | GetConstant 208: maybe_many
-  0002    | GetConstant 209: @fn352
+  0000    | GetConstant 211: maybe_many
+  0002    | GetConstant 212: @fn366
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn353=================
+  =================@fn367=================
   spaces | _toml.comment
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 212: spaces
+  0001    | CallFunctionConstant 215: spaces
   0003    | Or 3 -> 8
-  0006    | CallTailFunctionConstant 210: _toml.comment
+  0006    | CallTailFunctionConstant 213: _toml.comment
   0008    | End
   ========================================
   
   =============_toml.ws_line==============
   _toml.ws_line = maybe_many(spaces | _toml.comment)
   ========================================
-  0000    | GetConstant 208: maybe_many
-  0002    | GetConstant 211: @fn353
+  0000    | GetConstant 211: maybe_many
+  0002    | GetConstant 214: @fn367
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -2969,13 +2969,13 @@
   ============_toml.ws_newline============
   _toml.ws_newline = _toml.ws_line + (nl | end) + _toml.ws
   ========================================
-  0000    | CallFunctionConstant 213: _toml.ws_line
+  0000    | CallFunctionConstant 216: _toml.ws_line
   0002    | SetInputMark
   0003    | CallFunctionConstant 13: newline
   0005    | Or 5 -> 10
   0008    | CallFunctionConstant 14: end_of_input
   0010    | Merge
-  0011    | CallFunctionConstant 194: _toml.ws
+  0011    | CallFunctionConstant 197: _toml.ws
   0013    | Merge
   0014    | End
   ========================================
@@ -2984,13 +2984,13 @@
   _toml.comments = many_sep(_toml.comment, ws)
   ========================================
   0000    | GetConstant 124: many_sep
-  0002    | GetConstant 210: _toml.comment
+  0002    | GetConstant 213: _toml.comment
   0004    | GetConstant 9: whitespace
   0006    | CallTailFunction 2
   0008    | End
   ========================================
   
-  =================@fn354=================
+  =================@fn368=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3004,9 +3004,9 @@
   ========================================
   0000    | ParseChar '['
   0002    | TakeRight 2 -> 13
-  0005    | GetConstant 135: surround
-  0007    | GetConstant 214: _toml.path
-  0009    | GetConstant 215: @fn354
+  0005    | GetConstant 138: surround
+  0007    | GetConstant 217: _toml.path
+  0009    | GetConstant 218: @fn368
   0011    | CallFunction 2
   0013    | JumpIfFailure 13 -> 19
   0016    | ParseChar ']'
@@ -3014,7 +3014,7 @@
   0019    | End
   ========================================
   
-  =================@fn355=================
+  =================@fn369=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3027,14 +3027,14 @@
   _toml.array_of_tables_header =
     "[[" > surround(_toml.path, maybe(ws)) < "]]"
   ========================================
-  0000    | CallFunctionConstant 216: "[["
+  0000    | CallFunctionConstant 219: "[["
   0002    | TakeRight 2 -> 13
-  0005    | GetConstant 135: surround
-  0007    | GetConstant 214: _toml.path
-  0009    | GetConstant 217: @fn355
+  0005    | GetConstant 138: surround
+  0007    | GetConstant 217: _toml.path
+  0009    | GetConstant 220: @fn369
   0011    | CallFunction 2
   0013    | JumpIfFailure 13 -> 19
-  0016    | CallFunctionConstant 218: "]]"
+  0016    | CallFunctionConstant 221: "]]"
   0018    | TakeLeft
   0019    | End
   ========================================
@@ -3045,18 +3045,18 @@
     const(_Toml.Doc.InsertAtPath(Doc, HeaderPath + KeyPath, Val)) -> NewDoc &
     _toml.table_body(value, HeaderPath, NewDoc) | const(NewDoc)
   ========================================
-  0000    | GetConstant 219: KeyPath
-  0002    | GetConstant 220: Val
-  0004    | GetConstant 197: NewDoc
-  0006    | GetConstant 221: _toml.table_pair
+  0000    | GetConstant 222: KeyPath
+  0002    | GetConstant 223: Val
+  0004    | GetConstant 200: NewDoc
+  0006    | GetConstant 224: _toml.table_pair
   0008    | GetBoundLocal 0
   0010    | CallFunction 1
   0012    | Destructure 47: [KeyPath, Val]
   0014    | TakeRight 14 -> 19
-  0017    | CallFunctionConstant 202: _toml.ws_newline
+  0017    | CallFunctionConstant 205: _toml.ws_newline
   0019    | TakeRight 19 -> 41
   0022    | GetConstant 93: const
-  0024    | GetConstant 222: _Toml.Doc.InsertAtPath
+  0024    | GetConstant 225: _Toml.Doc.InsertAtPath
   0026    | GetBoundLocal 2
   0028    | GetBoundLocal 1
   0030    | GetBoundLocal 3
@@ -3067,7 +3067,7 @@
   0039    | Destructure 48: NewDoc
   0041    | TakeRight 41 -> 64
   0044    | SetInputMark
-  0045    | GetConstant 196: _toml.table_body
+  0045    | GetConstant 199: _toml.table_body
   0047    | GetBoundLocal 0
   0049    | GetBoundLocal 1
   0051    | GetBoundLocal 5
@@ -3079,21 +3079,21 @@
   0064    | End
   ========================================
   
-  =================@fn357=================
+  =================@fn371=================
   maybe(spaces)
   ========================================
   0000    | GetConstant 30: maybe
-  0002    | GetConstant 212: spaces
+  0002    | GetConstant 215: spaces
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  =================@fn356=================
+  =================@fn370=================
   surround("=", maybe(spaces))
   ========================================
-  0000    | GetConstant 135: surround
+  0000    | GetConstant 138: surround
   0002    | PushChar '='
-  0004    | GetConstant 225: @fn357
+  0004    | GetConstant 228: @fn371
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -3102,15 +3102,15 @@
   _toml.table_pair(value) =
     tuple2_sep(_toml.path, surround("=", maybe(spaces)), value)
   ========================================
-  0000    | GetConstant 223: tuple2_sep
-  0002    | GetConstant 214: _toml.path
-  0004    | GetConstant 224: @fn356
+  0000    | GetConstant 226: tuple2_sep
+  0002    | GetConstant 217: _toml.path
+  0004    | GetConstant 227: @fn370
   0006    | GetBoundLocal 0
   0008    | CallTailFunction 3
   0010    | End
   ========================================
   
-  =================@fn359=================
+  =================@fn373=================
   maybe(ws)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3119,12 +3119,12 @@
   0006    | End
   ========================================
   
-  =================@fn358=================
+  =================@fn372=================
   surround(".", maybe(ws))
   ========================================
-  0000    | GetConstant 135: surround
+  0000    | GetConstant 138: surround
   0002    | PushChar '.'
-  0004    | GetConstant 228: @fn359
+  0004    | GetConstant 231: @fn373
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -3133,13 +3133,13 @@
   _toml.path = array_sep(_toml.key, surround(".", maybe(ws)))
   ========================================
   0000    | GetConstant 65: array_sep
-  0002    | GetConstant 226: _toml.key
-  0004    | GetConstant 227: @fn358
+  0002    | GetConstant 229: _toml.key
+  0004    | GetConstant 230: @fn372
   0006    | CallTailFunction 2
   0008    | End
   ========================================
   
-  =================@fn360=================
+  =================@fn374=================
   alpha | numeral | "_" | "-"
   ========================================
   0000    | SetInputMark
@@ -3163,13 +3163,13 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many
-  0003    | GetConstant 229: @fn360
+  0003    | GetConstant 232: @fn374
   0005    | CallFunction 1
   0007    | Or 7 -> 18
   0010    | SetInputMark
-  0011    | CallFunctionConstant 230: toml.string.basic
+  0011    | CallFunctionConstant 233: toml.string.basic
   0013    | Or 13 -> 18
-  0016    | CallTailFunctionConstant 231: toml.string.literal
+  0016    | CallTailFunctionConstant 234: toml.string.literal
   0018    | End
   ========================================
   
@@ -3179,7 +3179,7 @@
   0000    | ParseChar '#'
   0002    | TakeRight 2 -> 11
   0005    | GetConstant 30: maybe
-  0007    | GetConstant 232: line
+  0007    | GetConstant 235: line
   0009    | CallTailFunction 1
   0011    | End
   ========================================
@@ -3194,24 +3194,24 @@
     toml.inline_table(toml.simple_value)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 233: toml.string
+  0001    | CallFunctionConstant 236: toml.string
   0003    | Or 3 -> 40
   0006    | SetInputMark
-  0007    | CallFunctionConstant 234: toml.datetime
+  0007    | CallFunctionConstant 237: toml.datetime
   0009    | Or 9 -> 40
   0012    | SetInputMark
-  0013    | CallFunctionConstant 235: toml.number
+  0013    | CallFunctionConstant 238: toml.number
   0015    | Or 15 -> 40
   0018    | SetInputMark
-  0019    | CallFunctionConstant 236: toml.boolean
+  0019    | CallFunctionConstant 239: toml.boolean
   0021    | Or 21 -> 40
   0024    | SetInputMark
-  0025    | GetConstant 237: toml.array
-  0027    | GetConstant 182: toml.simple_value
+  0025    | GetConstant 240: toml.array
+  0027    | GetConstant 185: toml.simple_value
   0029    | CallFunction 1
   0031    | Or 31 -> 40
-  0034    | GetConstant 238: toml.inline_table
-  0036    | GetConstant 182: toml.simple_value
+  0034    | GetConstant 241: toml.inline_table
+  0036    | GetConstant 185: toml.simple_value
   0038    | CallTailFunction 1
   0040    | End
   ========================================
@@ -3235,77 +3235,77 @@
     toml.inline_table(toml.tagged_value)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 233: toml.string
-  0003    | Or 3 -> 145
+  0001    | CallFunctionConstant 236: toml.string
+  0003    | Or 3 -> 148
   0006    | SetInputMark
-  0007    | GetConstant 239: _toml.tag
-  0009    | GetConstant 240: "datetime"
-  0011    | GetConstant 241: "offset"
-  0013    | GetConstant 242: toml.datetime.offset
+  0007    | GetConstant 242: _toml.tag
+  0009    | GetConstant 243: "datetime"
+  0011    | GetConstant 244: "offset"
+  0013    | GetConstant 245: toml.datetime.offset
   0015    | CallFunction 3
-  0017    | Or 17 -> 145
+  0017    | Or 17 -> 148
   0020    | SetInputMark
-  0021    | GetConstant 239: _toml.tag
-  0023    | GetConstant 240: "datetime"
-  0025    | GetConstant 243: "local"
-  0027    | GetConstant 244: toml.datetime.local
+  0021    | GetConstant 242: _toml.tag
+  0023    | GetConstant 243: "datetime"
+  0025    | GetConstant 246: "local"
+  0027    | GetConstant 247: toml.datetime.local
   0029    | CallFunction 3
-  0031    | Or 31 -> 145
+  0031    | Or 31 -> 148
   0034    | SetInputMark
-  0035    | GetConstant 239: _toml.tag
-  0037    | GetConstant 240: "datetime"
-  0039    | GetConstant 245: "date-local"
-  0041    | GetConstant 246: toml.datetime.local_date
+  0035    | GetConstant 242: _toml.tag
+  0037    | GetConstant 243: "datetime"
+  0039    | GetConstant 248: "date-local"
+  0041    | GetConstant 249: toml.datetime.local_date
   0043    | CallFunction 3
-  0045    | Or 45 -> 145
+  0045    | Or 45 -> 148
   0048    | SetInputMark
-  0049    | GetConstant 239: _toml.tag
-  0051    | GetConstant 240: "datetime"
-  0053    | GetConstant 247: "time-local"
-  0055    | GetConstant 248: toml.datetime.local_time
+  0049    | GetConstant 242: _toml.tag
+  0051    | GetConstant 243: "datetime"
+  0053    | GetConstant 250: "time-local"
+  0055    | GetConstant 251: toml.datetime.local_time
   0057    | CallFunction 3
-  0059    | Or 59 -> 145
+  0059    | Or 59 -> 148
   0062    | SetInputMark
-  0063    | CallFunctionConstant 249: toml.number.binary_integer
-  0065    | Or 65 -> 145
+  0063    | CallFunctionConstant 252: toml.number.binary_integer
+  0065    | Or 65 -> 148
   0068    | SetInputMark
-  0069    | CallFunctionConstant 250: toml.number.octal_integer
-  0071    | Or 71 -> 145
+  0069    | CallFunctionConstant 253: toml.number.octal_integer
+  0071    | Or 71 -> 148
   0074    | SetInputMark
-  0075    | CallFunctionConstant 251: toml.number.hex_integer
-  0077    | Or 77 -> 145
+  0075    | CallFunctionConstant 254: toml.number.hex_integer
+  0077    | Or 77 -> 148
   0080    | SetInputMark
-  0081    | GetConstant 239: _toml.tag
-  0083    | GetConstant 252: "float"
-  0085    | GetConstant 253: "infinity"
-  0087    | GetConstant 254: toml.number.infinity
-  0089    | CallFunction 3
-  0091    | Or 91 -> 145
-  0094    | SetInputMark
-  0095    | GetConstant 239: _toml.tag
-  0097    | GetConstant 252: "float"
-  0099    | GetConstant 255: "not-a-number"
-  0101    | GetConstant2 256: toml.number.not_a_number
-  0104    | CallFunction 3
-  0106    | Or 106 -> 145
-  0109    | SetInputMark
-  0110    | CallFunctionConstant2 257: toml.number.float
-  0113    | Or 113 -> 145
-  0116    | SetInputMark
-  0117    | CallFunctionConstant2 258: toml.number.integer
-  0120    | Or 120 -> 145
-  0123    | SetInputMark
-  0124    | CallFunctionConstant 236: toml.boolean
-  0126    | Or 126 -> 145
-  0129    | SetInputMark
-  0130    | GetConstant 237: toml.array
-  0132    | GetConstant 183: toml.tagged_value
-  0134    | CallFunction 1
-  0136    | Or 136 -> 145
-  0139    | GetConstant 238: toml.inline_table
-  0141    | GetConstant 183: toml.tagged_value
-  0143    | CallTailFunction 1
-  0145    | End
+  0081    | GetConstant 242: _toml.tag
+  0083    | GetConstant 255: "float"
+  0085    | GetConstant2 256: "infinity"
+  0088    | GetConstant2 257: toml.number.infinity
+  0091    | CallFunction 3
+  0093    | Or 93 -> 148
+  0096    | SetInputMark
+  0097    | GetConstant 242: _toml.tag
+  0099    | GetConstant 255: "float"
+  0101    | GetConstant2 258: "not-a-number"
+  0104    | GetConstant2 259: toml.number.not_a_number
+  0107    | CallFunction 3
+  0109    | Or 109 -> 148
+  0112    | SetInputMark
+  0113    | CallFunctionConstant2 260: toml.number.float
+  0116    | Or 116 -> 148
+  0119    | SetInputMark
+  0120    | CallFunctionConstant2 261: toml.number.integer
+  0123    | Or 123 -> 148
+  0126    | SetInputMark
+  0127    | CallFunctionConstant 239: toml.boolean
+  0129    | Or 129 -> 148
+  0132    | SetInputMark
+  0133    | GetConstant 240: toml.array
+  0135    | GetConstant 186: toml.tagged_value
+  0137    | CallFunction 1
+  0139    | Or 139 -> 148
+  0142    | GetConstant 241: toml.inline_table
+  0144    | GetConstant 186: toml.tagged_value
+  0146    | CallTailFunction 1
+  0148    | End
   ========================================
   
   ===============_toml.tag================
@@ -3316,14 +3316,14 @@
   0002    | CallFunctionLocal 2
   0004    | Destructure 49: Value
   0006    | TakeRight 6 -> 33
-  0009    | GetConstant2 259: {_0_, _1_, _2_}
-  0012    | GetConstant2 260: "type"
+  0009    | GetConstant2 262: {_0_, _1_, _2_}
+  0012    | GetConstant2 263: "type"
   0015    | GetBoundLocal 0
   0017    | InsertKeyVal 0
-  0019    | GetConstant2 261: "subtype"
+  0019    | GetConstant2 264: "subtype"
   0022    | GetBoundLocal 1
   0024    | InsertKeyVal 1
-  0026    | GetConstant2 262: "value"
+  0026    | GetConstant2 265: "value"
   0029    | GetBoundLocal 3
   0031    | InsertKeyVal 2
   0033    | End
@@ -3337,15 +3337,15 @@
     toml.string.literal
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant2 263: toml.string.multi_line_basic
+  0001    | CallFunctionConstant2 266: toml.string.multi_line_basic
   0004    | Or 4 -> 22
   0007    | SetInputMark
-  0008    | CallFunctionConstant2 264: toml.string.multi_line_literal
+  0008    | CallFunctionConstant2 267: toml.string.multi_line_literal
   0011    | Or 11 -> 22
   0014    | SetInputMark
-  0015    | CallFunctionConstant 230: toml.string.basic
+  0015    | CallFunctionConstant 233: toml.string.basic
   0017    | Or 17 -> 22
-  0020    | CallTailFunctionConstant 231: toml.string.literal
+  0020    | CallTailFunctionConstant 234: toml.string.literal
   0022    | End
   ========================================
   
@@ -3357,15 +3357,15 @@
     toml.datetime.local_time
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 242: toml.datetime.offset
+  0001    | CallFunctionConstant 245: toml.datetime.offset
   0003    | Or 3 -> 20
   0006    | SetInputMark
-  0007    | CallFunctionConstant 244: toml.datetime.local
+  0007    | CallFunctionConstant 247: toml.datetime.local
   0009    | Or 9 -> 20
   0012    | SetInputMark
-  0013    | CallFunctionConstant 246: toml.datetime.local_date
+  0013    | CallFunctionConstant 249: toml.datetime.local_date
   0015    | Or 15 -> 20
-  0018    | CallTailFunctionConstant 248: toml.datetime.local_time
+  0018    | CallTailFunctionConstant 251: toml.datetime.local_time
   0020    | End
   ========================================
   
@@ -3380,73 +3380,73 @@
     toml.number.integer
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 249: toml.number.binary_integer
-  0003    | Or 3 -> 41
+  0001    | CallFunctionConstant 252: toml.number.binary_integer
+  0003    | Or 3 -> 42
   0006    | SetInputMark
-  0007    | CallFunctionConstant 250: toml.number.octal_integer
-  0009    | Or 9 -> 41
+  0007    | CallFunctionConstant 253: toml.number.octal_integer
+  0009    | Or 9 -> 42
   0012    | SetInputMark
-  0013    | CallFunctionConstant 251: toml.number.hex_integer
-  0015    | Or 15 -> 41
+  0013    | CallFunctionConstant 254: toml.number.hex_integer
+  0015    | Or 15 -> 42
   0018    | SetInputMark
-  0019    | CallFunctionConstant 254: toml.number.infinity
-  0021    | Or 21 -> 41
-  0024    | SetInputMark
-  0025    | CallFunctionConstant2 256: toml.number.not_a_number
-  0028    | Or 28 -> 41
-  0031    | SetInputMark
-  0032    | CallFunctionConstant2 257: toml.number.float
-  0035    | Or 35 -> 41
-  0038    | CallTailFunctionConstant2 258: toml.number.integer
-  0041    | End
+  0019    | CallFunctionConstant2 257: toml.number.infinity
+  0022    | Or 22 -> 42
+  0025    | SetInputMark
+  0026    | CallFunctionConstant2 259: toml.number.not_a_number
+  0029    | Or 29 -> 42
+  0032    | SetInputMark
+  0033    | CallFunctionConstant2 260: toml.number.float
+  0036    | Or 36 -> 42
+  0039    | CallTailFunctionConstant2 261: toml.number.integer
+  0042    | End
   ========================================
   
   ==============toml.boolean==============
   toml.boolean = boolean("true", "false")
   ========================================
-  0000    | GetConstant 144: boolean
-  0002    | GetConstant 145: "true"
-  0004    | GetConstant 146: "false"
+  0000    | GetConstant 147: boolean
+  0002    | GetConstant 148: "true"
+  0004    | GetConstant 149: "false"
   0006    | CallTailFunction 2
   0008    | End
   ========================================
   
-  =================@fn363=================
+  =================@fn377=================
   surround(elem, _toml.ws)
   ========================================
   0000    | GetConstant 57: elem
   0002    | SetClosureCaptures
-  0003    | GetConstant 135: surround
+  0003    | GetConstant 138: surround
   0005    | GetBoundLocal 0
-  0007    | GetConstant 194: _toml.ws
+  0007    | GetConstant 197: _toml.ws
   0009    | CallTailFunction 2
   0011    | End
   ========================================
   
-  =================@fn364=================
+  =================@fn378=================
   surround(",", _toml.ws)
   ========================================
-  0000    | GetConstant 135: surround
+  0000    | GetConstant 138: surround
   0002    | PushChar ','
-  0004    | GetConstant 194: _toml.ws
+  0004    | GetConstant 197: _toml.ws
   0006    | CallTailFunction 2
   0008    | End
   ========================================
   
-  =================@fn362=================
+  =================@fn376=================
   array_sep(surround(elem, _toml.ws), ",") < maybe(surround(",", _toml.ws))
   ========================================
   0000    | GetConstant 57: elem
   0002    | SetClosureCaptures
   0003    | GetConstant 65: array_sep
-  0005    | GetConstant2 266: @fn363
+  0005    | GetConstant2 269: @fn377
   0008    | CreateClosure 1
   0010    | CaptureLocal 0
   0012    | PushChar ','
   0014    | CallFunction 2
   0016    | JumpIfFailure 16 -> 27
   0019    | GetConstant 30: maybe
-  0021    | GetConstant2 267: @fn364
+  0021    | GetConstant2 270: @fn378
   0024    | CallFunction 1
   0026    | TakeLeft
   0027    | End
@@ -3461,16 +3461,16 @@
   ========================================
   0000    | ParseChar '['
   0002    | TakeRight 2 -> 7
-  0005    | CallFunctionConstant 194: _toml.ws
+  0005    | CallFunctionConstant 197: _toml.ws
   0007    | TakeRight 7 -> 22
   0010    | GetConstant 62: default
-  0012    | GetConstant2 265: @fn362
+  0012    | GetConstant2 268: @fn376
   0015    | CreateClosure 1
   0017    | CaptureLocal 0
   0019    | PushEmptyArray
   0020    | CallFunction 2
   0022    | JumpIfFailure 22 -> 28
-  0025    | CallFunctionConstant 194: _toml.ws
+  0025    | CallFunctionConstant 197: _toml.ws
   0027    | TakeLeft
   0028    | JumpIfFailure 28 -> 34
   0031    | ParseChar ']'
@@ -3483,16 +3483,16 @@
     _toml.empty_inline_table | _toml.nonempty_inline_table(value) -> InlineDoc $
     _Toml.Doc.Value(InlineDoc)
   ========================================
-  0000    | GetConstant2 268: InlineDoc
+  0000    | GetConstant2 271: InlineDoc
   0003    | SetInputMark
-  0004    | CallFunctionConstant2 269: _toml.empty_inline_table
+  0004    | CallFunctionConstant2 272: _toml.empty_inline_table
   0007    | Or 7 -> 17
-  0010    | GetConstant2 270: _toml.nonempty_inline_table
+  0010    | GetConstant2 273: _toml.nonempty_inline_table
   0013    | GetBoundLocal 0
   0015    | CallFunction 1
   0017    | Destructure 50: InlineDoc
   0019    | TakeRight 19 -> 28
-  0022    | GetConstant 190: _Toml.Doc.Value
+  0022    | GetConstant 193: _Toml.Doc.Value
   0024    | GetBoundLocal 1
   0026    | CallTailFunction 1
   0028    | End
@@ -3504,13 +3504,13 @@
   0000    | ParseChar '{'
   0002    | TakeRight 2 -> 11
   0005    | GetConstant 30: maybe
-  0007    | GetConstant 212: spaces
+  0007    | GetConstant 215: spaces
   0009    | CallFunction 1
   0011    | JumpIfFailure 11 -> 17
   0014    | ParseChar '}'
   0016    | TakeLeft
   0017    | TakeRight 17 -> 22
-  0020    | CallTailFunctionConstant 193: _Toml.Doc.Empty
+  0020    | CallTailFunctionConstant 196: _Toml.Doc.Empty
   0022    | End
   ========================================
   
@@ -3521,26 +3521,26 @@
     _toml.inline_table_body(value, DocWithFirstPair)
     < maybe(spaces) < "}"
   ========================================
-  0000    | GetConstant2 271: DocWithFirstPair
+  0000    | GetConstant2 274: DocWithFirstPair
   0003    | ParseChar '{'
   0005    | TakeRight 5 -> 14
   0008    | GetConstant 30: maybe
-  0010    | GetConstant 212: spaces
+  0010    | GetConstant 215: spaces
   0012    | CallFunction 1
   0014    | TakeRight 14 -> 26
-  0017    | GetConstant2 272: _toml.inline_table_pair
+  0017    | GetConstant2 275: _toml.inline_table_pair
   0020    | GetBoundLocal 0
-  0022    | CallFunctionConstant 193: _Toml.Doc.Empty
+  0022    | CallFunctionConstant 196: _Toml.Doc.Empty
   0024    | CallFunction 2
   0026    | Destructure 51: DocWithFirstPair
   0028    | TakeRight 28 -> 56
-  0031    | GetConstant2 273: _toml.inline_table_body
+  0031    | GetConstant2 276: _toml.inline_table_body
   0034    | GetBoundLocal 0
   0036    | GetBoundLocal 1
   0038    | CallFunction 2
   0040    | JumpIfFailure 40 -> 50
   0043    | GetConstant 30: maybe
-  0045    | GetConstant 212: spaces
+  0045    | GetConstant 215: spaces
   0047    | CallFunction 1
   0049    | TakeLeft
   0050    | JumpIfFailure 50 -> 56
@@ -3555,17 +3555,17 @@
     _toml.inline_table_body(value, NewDoc) :
     const(Doc)
   ========================================
-  0000    | GetConstant 197: NewDoc
+  0000    | GetConstant 200: NewDoc
   0002    | SetInputMark
   0003    | ParseChar ','
   0005    | TakeRight 5 -> 17
-  0008    | GetConstant2 272: _toml.inline_table_pair
+  0008    | GetConstant2 275: _toml.inline_table_pair
   0011    | GetBoundLocal 0
   0013    | GetBoundLocal 1
   0015    | CallFunction 2
   0017    | Destructure 52: NewDoc
   0019    | ConditionalThen 19 -> 34
-  0022    | GetConstant2 273: _toml.inline_table_body
+  0022    | GetConstant2 276: _toml.inline_table_body
   0025    | GetBoundLocal 0
   0027    | GetBoundLocal 2
   0029    | CallTailFunction 2
@@ -3585,33 +3585,33 @@
     maybe(spaces) $
     _Toml.Doc.InsertAtPath(Doc, Key, Val)
   ========================================
-  0000    | GetConstant2 274: Key
-  0003    | GetConstant 220: Val
+  0000    | GetConstant2 277: Key
+  0003    | GetConstant 223: Val
   0005    | GetConstant 30: maybe
-  0007    | GetConstant 212: spaces
+  0007    | GetConstant 215: spaces
   0009    | CallFunction 1
   0011    | TakeRight 11 -> 18
-  0014    | CallFunctionConstant 214: _toml.path
+  0014    | CallFunctionConstant 217: _toml.path
   0016    | Destructure 53: Key
   0018    | TakeRight 18 -> 27
   0021    | GetConstant 30: maybe
-  0023    | GetConstant 212: spaces
+  0023    | GetConstant 215: spaces
   0025    | CallFunction 1
   0027    | TakeRight 27 -> 32
   0030    | ParseChar '='
   0032    | TakeRight 32 -> 41
   0035    | GetConstant 30: maybe
-  0037    | GetConstant 212: spaces
+  0037    | GetConstant 215: spaces
   0039    | CallFunction 1
   0041    | TakeRight 41 -> 48
   0044    | CallFunctionLocal 0
   0046    | Destructure 54: Val
   0048    | TakeRight 48 -> 70
   0051    | GetConstant 30: maybe
-  0053    | GetConstant 212: spaces
+  0053    | GetConstant 215: spaces
   0055    | CallFunction 1
   0057    | TakeRight 57 -> 70
-  0060    | GetConstant 222: _Toml.Doc.InsertAtPath
+  0060    | GetConstant 225: _Toml.Doc.InsertAtPath
   0062    | GetBoundLocal 1
   0064    | GetBoundLocal 2
   0066    | GetBoundLocal 3
@@ -3619,7 +3619,7 @@
   0070    | End
   ========================================
   
-  =================@fn365=================
+  =================@fn379=================
   maybe(nl)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3628,25 +3628,25 @@
   0006    | End
   ========================================
   
-  =================@fn368=================
+  =================@fn382=================
   _ctrl_char | `\`
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 153: _ctrl_char
+  0001    | CallFunctionConstant 156: _ctrl_char
   0003    | Or 3 -> 8
   0006    | ParseChar '\'
   0008    | End
   ========================================
   
-  =================@fn367=================
+  =================@fn381=================
   _toml.escaped_ctrl_char | _toml.escaped_unicode |
         ws | (`\` + ws > "") | unless(char, _ctrl_char | `\`)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant2 280: _toml.escaped_ctrl_char
+  0001    | CallFunctionConstant2 283: _toml.escaped_ctrl_char
   0004    | Or 4 -> 42
   0007    | SetInputMark
-  0008    | CallFunctionConstant2 281: _toml.escaped_unicode
+  0008    | CallFunctionConstant2 284: _toml.escaped_unicode
   0011    | Or 11 -> 42
   0014    | SetInputMark
   0015    | CallFunctionConstant 9: whitespace
@@ -3660,12 +3660,12 @@
   0030    | Or 30 -> 42
   0033    | GetConstant 7: unless
   0035    | GetConstant 8: char
-  0037    | GetConstant2 282: @fn368
+  0037    | GetConstant2 285: @fn382
   0040    | CallTailFunction 2
   0042    | End
   ========================================
   
-  =================@fn366=================
+  =================@fn380=================
   many_until(
         _toml.escaped_ctrl_char | _toml.escaped_unicode |
         ws | (`\` + ws > "") | unless(char, _ctrl_char | `\`),
@@ -3673,8 +3673,8 @@
       )
   ========================================
   0000    | GetConstant 27: many_until
-  0002    | GetConstant2 279: @fn367
-  0005    | GetConstant2 276: """""
+  0002    | GetConstant2 282: @fn381
+  0005    | GetConstant2 279: """""
   0008    | CallTailFunction 2
   0010    | End
   ========================================
@@ -3692,20 +3692,20 @@
     )
     + skip(`"""`) + (`"` * 0..2)
   ========================================
-  0000    | GetConstant2 275: skip
-  0003    | GetConstant2 276: """""
+  0000    | GetConstant2 278: skip
+  0003    | GetConstant2 279: """""
   0006    | CallFunction 1
-  0008    | GetConstant2 275: skip
-  0011    | GetConstant2 277: @fn365
+  0008    | GetConstant2 278: skip
+  0011    | GetConstant2 280: @fn379
   0014    | CallFunction 1
   0016    | Merge
   0017    | GetConstant 62: default
-  0019    | GetConstant2 278: @fn366
+  0019    | GetConstant2 281: @fn380
   0022    | PushEmptyString
   0023    | CallFunction 2
   0025    | Merge
-  0026    | GetConstant2 275: skip
-  0029    | GetConstant2 276: """""
+  0026    | GetConstant2 278: skip
+  0029    | GetConstant2 279: """""
   0032    | CallFunction 1
   0034    | Merge
   0035    | PushNull
@@ -3745,7 +3745,7 @@
   0087    | End
   ========================================
   
-  =================@fn369=================
+  =================@fn383=================
   maybe(nl)
   ========================================
   0000    | GetConstant 30: maybe
@@ -3754,12 +3754,12 @@
   0006    | End
   ========================================
   
-  =================@fn370=================
+  =================@fn384=================
   many_until(char, `'''`)
   ========================================
   0000    | GetConstant 27: many_until
   0002    | GetConstant 8: char
-  0004    | GetConstant2 283: "'''"
+  0004    | GetConstant2 286: "'''"
   0007    | CallTailFunction 2
   0009    | End
   ========================================
@@ -3770,20 +3770,20 @@
     default(many_until(char, `'''`), $"")
     + skip(`'''`) + (`'` * 0..2)
   ========================================
-  0000    | GetConstant2 275: skip
-  0003    | GetConstant2 283: "'''"
+  0000    | GetConstant2 278: skip
+  0003    | GetConstant2 286: "'''"
   0006    | CallFunction 1
-  0008    | GetConstant2 275: skip
-  0011    | GetConstant2 284: @fn369
+  0008    | GetConstant2 278: skip
+  0011    | GetConstant2 287: @fn383
   0014    | CallFunction 1
   0016    | Merge
   0017    | GetConstant 62: default
-  0019    | GetConstant2 285: @fn370
+  0019    | GetConstant2 288: @fn384
   0022    | PushEmptyString
   0023    | CallFunction 2
   0025    | Merge
-  0026    | GetConstant2 275: skip
-  0029    | GetConstant2 283: "'''"
+  0026    | GetConstant2 278: skip
+  0029    | GetConstant2 286: "'''"
   0032    | CallFunction 1
   0034    | Merge
   0035    | PushNull
@@ -3828,18 +3828,18 @@
   ========================================
   0000    | ParseChar '"'
   0002    | TakeRight 2 -> 8
-  0005    | CallFunctionConstant2 286: _toml.string.basic_body
+  0005    | CallFunctionConstant2 289: _toml.string.basic_body
   0008    | JumpIfFailure 8 -> 14
   0011    | ParseChar '"'
   0013    | TakeLeft
   0014    | End
   ========================================
   
-  =================@fn372=================
+  =================@fn386=================
   _ctrl_char | `\` | '"'
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 153: _ctrl_char
+  0001    | CallFunctionConstant 156: _ctrl_char
   0003    | Or 3 -> 14
   0006    | SetInputMark
   0007    | ParseChar '\'
@@ -3848,20 +3848,20 @@
   0014    | End
   ========================================
   
-  =================@fn371=================
+  =================@fn385=================
   _toml.escaped_ctrl_char |
       _toml.escaped_unicode |
       unless(char, _ctrl_char | `\` | '"')
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant2 280: _toml.escaped_ctrl_char
+  0001    | CallFunctionConstant2 283: _toml.escaped_ctrl_char
   0004    | Or 4 -> 23
   0007    | SetInputMark
-  0008    | CallFunctionConstant2 281: _toml.escaped_unicode
+  0008    | CallFunctionConstant2 284: _toml.escaped_unicode
   0011    | Or 11 -> 23
   0014    | GetConstant 7: unless
   0016    | GetConstant 8: char
-  0018    | GetConstant2 288: @fn372
+  0018    | GetConstant2 291: @fn386
   0021    | CallTailFunction 2
   0023    | End
   ========================================
@@ -3876,7 +3876,7 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: many
-  0003    | GetConstant2 287: @fn371
+  0003    | GetConstant2 290: @fn385
   0006    | CallFunction 1
   0008    | Or 8 -> 16
   0011    | GetConstant 93: const
@@ -3885,7 +3885,7 @@
   0016    | End
   ========================================
   
-  =================@fn373=================
+  =================@fn387=================
   chars_until("'")
   ========================================
   0000    | GetConstant 11: chars_until
@@ -3900,7 +3900,7 @@
   0000    | ParseChar '''
   0002    | TakeRight 2 -> 13
   0005    | GetConstant 62: default
-  0007    | GetConstant2 289: @fn373
+  0007    | GetConstant2 292: @fn387
   0010    | PushEmptyString
   0011    | CallFunction 2
   0013    | JumpIfFailure 13 -> 19
@@ -3920,38 +3920,38 @@
     (`\t` $ "\t")
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 154: "\""
+  0001    | CallFunctionConstant 157: "\""
   0003    | TakeRight 3 -> 8
   0006    | PushChar '"'
   0008    | Or 8 -> 73
   0011    | SetInputMark
-  0012    | CallFunctionConstant 155: "\\"
+  0012    | CallFunctionConstant 158: "\\"
   0014    | TakeRight 14 -> 19
   0017    | PushChar '\'
   0019    | Or 19 -> 73
   0022    | SetInputMark
-  0023    | CallFunctionConstant 157: "\b"
+  0023    | CallFunctionConstant 160: "\b"
   0025    | TakeRight 25 -> 30
   0028    | PushChar '\x08' (esc)
   0030    | Or 30 -> 73
   0033    | SetInputMark
-  0034    | CallFunctionConstant 158: "\f"
+  0034    | CallFunctionConstant 161: "\f"
   0036    | TakeRight 36 -> 41
   0039    | PushChar '\x0c' (esc)
   0041    | Or 41 -> 73
   0044    | SetInputMark
-  0045    | CallFunctionConstant 159: "\n"
+  0045    | CallFunctionConstant 162: "\n"
   0047    | TakeRight 47 -> 52
   0050    | PushChar '
   '
   0052    | Or 52 -> 73
   0055    | SetInputMark
-  0056    | CallFunctionConstant 160: "\r"
+  0056    | CallFunctionConstant 163: "\r"
   0058    | TakeRight 58 -> 63
   0061    | PushChar '\r (no-eol) (esc)
   '
   0063    | Or 63 -> 73
-  0066    | CallFunctionConstant 161: "\t"
+  0066    | CallFunctionConstant 164: "\t"
   0068    | TakeRight 68 -> 73
   0071    | PushChar '\t' (esc)
   0073    | End
@@ -3964,14 +3964,14 @@
   ========================================
   0000    | PushCharVar U
   0002    | SetInputMark
-  0003    | CallFunctionConstant 170: "\u"
+  0003    | CallFunctionConstant 173: "\u"
   0005    | TakeRight 5 -> 32
   0008    | PushNull
   0009    | PushNumber 4
   0011    | ValidateRepeatPattern
   0012    | JumpIfZero 12 -> 31
   0015    | Swap
-  0016    | CallFunctionConstant 171: hex_numeral
+  0016    | CallFunctionConstant 174: hex_numeral
   0018    | Merge
   0019    | JumpIfFailure 19 -> 30
   0022    | Swap
@@ -3982,18 +3982,18 @@
   0031    | Drop
   0032    | Destructure 55: U
   0034    | TakeRight 34 -> 43
-  0037    | GetConstant 172: @Codepoint
+  0037    | GetConstant 175: @Codepoint
   0039    | GetBoundLocal 0
   0041    | CallFunction 1
   0043    | Or 43 -> 87
-  0046    | CallFunctionConstant2 290: "\U"
+  0046    | CallFunctionConstant2 293: "\U"
   0049    | TakeRight 49 -> 76
   0052    | PushNull
   0053    | PushNumber 8
   0055    | ValidateRepeatPattern
   0056    | JumpIfZero 56 -> 75
   0059    | Swap
-  0060    | CallFunctionConstant 171: hex_numeral
+  0060    | CallFunctionConstant 174: hex_numeral
   0062    | Merge
   0063    | JumpIfFailure 63 -> 74
   0066    | Swap
@@ -4004,7 +4004,7 @@
   0075    | Drop
   0076    | Destructure 56: U
   0078    | TakeRight 78 -> 87
-  0081    | GetConstant 172: @Codepoint
+  0081    | GetConstant 175: @Codepoint
   0083    | GetBoundLocal 0
   0085    | CallTailFunction 1
   0087    | End
@@ -4013,7 +4013,7 @@
   ==========toml.datetime.offset==========
   toml.datetime.offset = toml.datetime.local_date + ("T" | "t" | " ") + _toml.datetime.time_offset
   ========================================
-  0000    | CallFunctionConstant 246: toml.datetime.local_date
+  0000    | CallFunctionConstant 249: toml.datetime.local_date
   0002    | SetInputMark
   0003    | ParseChar 'T'
   0005    | Or 5 -> 16
@@ -4022,7 +4022,7 @@
   0011    | Or 11 -> 16
   0014    | ParseChar ' '
   0016    | Merge
-  0017    | CallFunctionConstant2 291: _toml.datetime.time_offset
+  0017    | CallFunctionConstant2 294: _toml.datetime.time_offset
   0020    | Merge
   0021    | End
   ========================================
@@ -4030,7 +4030,7 @@
   ==========toml.datetime.local===========
   toml.datetime.local = toml.datetime.local_date + ("T" | "t" | " ") + toml.datetime.local_time
   ========================================
-  0000    | CallFunctionConstant 246: toml.datetime.local_date
+  0000    | CallFunctionConstant 249: toml.datetime.local_date
   0002    | SetInputMark
   0003    | ParseChar 'T'
   0005    | Or 5 -> 16
@@ -4039,7 +4039,7 @@
   0011    | Or 11 -> 16
   0014    | ParseChar ' '
   0016    | Merge
-  0017    | CallFunctionConstant 248: toml.datetime.local_time
+  0017    | CallFunctionConstant 251: toml.datetime.local_time
   0019    | Merge
   0020    | End
   ========================================
@@ -4048,14 +4048,14 @@
   toml.datetime.local_date =
     _toml.datetime.year + "-" + _toml.datetime.month + "-" + _toml.datetime.mday
   ========================================
-  0000    | CallFunctionConstant2 292: _toml.datetime.year
+  0000    | CallFunctionConstant2 295: _toml.datetime.year
   0003    | ParseChar '-'
   0005    | Merge
-  0006    | CallFunctionConstant2 293: _toml.datetime.month
+  0006    | CallFunctionConstant2 296: _toml.datetime.month
   0009    | Merge
   0010    | ParseChar '-'
   0012    | Merge
-  0013    | CallFunctionConstant2 294: _toml.datetime.mday
+  0013    | CallFunctionConstant2 297: _toml.datetime.mday
   0016    | Merge
   0017    | End
   ========================================
@@ -4089,9 +4089,9 @@
   0006    | Merge
   0007    | Or 7 -> 20
   0010    | SetInputMark
-  0011    | CallFunctionConstant2 295: "11"
+  0011    | CallFunctionConstant2 298: "11"
   0014    | Or 14 -> 20
-  0017    | CallTailFunctionConstant2 296: "12"
+  0017    | CallTailFunctionConstant2 299: "12"
   0020    | End
   ========================================
   
@@ -4104,13 +4104,13 @@
   0007    | Merge
   0008    | Or 8 -> 21
   0011    | SetInputMark
-  0012    | CallFunctionConstant2 297: "30"
+  0012    | CallFunctionConstant2 300: "30"
   0015    | Or 15 -> 21
-  0018    | CallTailFunctionConstant2 298: "31"
+  0018    | CallTailFunctionConstant2 301: "31"
   0021    | End
   ========================================
   
-  =================@fn374=================
+  =================@fn388=================
   "." + (numeral * 1..9)
   ========================================
   0000    | ParseChar '.'
@@ -4158,17 +4158,17 @@
     _toml.datetime.seconds +
     maybe("." + (numeral * 1..9))
   ========================================
-  0000    | CallFunctionConstant2 299: _toml.datetime.hours
+  0000    | CallFunctionConstant2 302: _toml.datetime.hours
   0003    | ParseChar ':'
   0005    | Merge
-  0006    | CallFunctionConstant2 300: _toml.datetime.minutes
+  0006    | CallFunctionConstant2 303: _toml.datetime.minutes
   0009    | Merge
   0010    | ParseChar ':'
   0012    | Merge
-  0013    | CallFunctionConstant2 301: _toml.datetime.seconds
+  0013    | CallFunctionConstant2 304: _toml.datetime.seconds
   0016    | Merge
   0017    | GetConstant 30: maybe
-  0019    | GetConstant2 302: @fn374
+  0019    | GetConstant2 305: @fn388
   0022    | CallFunction 1
   0024    | Merge
   0025    | End
@@ -4177,14 +4177,14 @@
   =======_toml.datetime.time_offset=======
   _toml.datetime.time_offset = toml.datetime.local_time + ("Z" | "z" | _toml.datetime.time_numoffset)
   ========================================
-  0000    | CallFunctionConstant 248: toml.datetime.local_time
+  0000    | CallFunctionConstant 251: toml.datetime.local_time
   0002    | SetInputMark
   0003    | ParseChar 'Z'
   0005    | Or 5 -> 17
   0008    | SetInputMark
   0009    | ParseChar 'z'
   0011    | Or 11 -> 17
-  0014    | CallFunctionConstant2 303: _toml.datetime.time_numoffset
+  0014    | CallFunctionConstant2 306: _toml.datetime.time_numoffset
   0017    | Merge
   0018    | End
   ========================================
@@ -4196,11 +4196,11 @@
   0001    | ParseChar '+'
   0003    | Or 3 -> 8
   0006    | ParseChar '-'
-  0008    | CallFunctionConstant2 299: _toml.datetime.hours
+  0008    | CallFunctionConstant2 302: _toml.datetime.hours
   0011    | Merge
   0012    | ParseChar ':'
   0014    | Merge
-  0015    | CallFunctionConstant2 300: _toml.datetime.minutes
+  0015    | CallFunctionConstant2 303: _toml.datetime.minutes
   0018    | Merge
   0019    | End
   ========================================
@@ -4236,16 +4236,16 @@
   0004    | ParseCodepointRange '0'..'9'
   0007    | Merge
   0008    | Or 8 -> 14
-  0011    | CallTailFunctionConstant2 304: "60"
+  0011    | CallTailFunctionConstant2 307: "60"
   0014    | End
   ========================================
   
-  =================@fn375=================
+  =================@fn389=================
   _toml.number.sign +
     _toml.number.integer_part
   ========================================
-  0000    | CallFunctionConstant2 306: _toml.number.sign
-  0003    | CallFunctionConstant2 307: _toml.number.integer_part
+  0000    | CallFunctionConstant2 309: _toml.number.sign
+  0003    | CallFunctionConstant2 310: _toml.number.integer_part
   0006    | Merge
   0007    | End
   ========================================
@@ -4257,18 +4257,18 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant2 305: @fn375
+  0002    | GetConstant2 308: @fn389
   0005    | CallTailFunction 1
   0007    | End
   ========================================
   
-  =================@fn376=================
+  =================@fn390=================
   "-" | skip("+")
   ========================================
   0000    | SetInputMark
   0001    | ParseChar '-'
   0003    | Or 3 -> 13
-  0006    | GetConstant2 275: skip
+  0006    | GetConstant2 278: skip
   0009    | PushChar '+'
   0011    | CallTailFunction 1
   0013    | End
@@ -4278,12 +4278,12 @@
   _toml.number.sign = maybe("-" | skip("+"))
   ========================================
   0000    | GetConstant 30: maybe
-  0002    | GetConstant2 308: @fn376
+  0002    | GetConstant2 311: @fn390
   0005    | CallTailFunction 1
   0007    | End
   ========================================
   
-  =================@fn377=================
+  =================@fn391=================
   maybe("_") > numeral
   ========================================
   0000    | GetConstant 30: maybe
@@ -4301,7 +4301,7 @@
   0000    | SetInputMark
   0001    | ParseCodepointRange '1'..'9'
   0004    | GetConstant 0: many
-  0006    | GetConstant2 309: @fn377
+  0006    | GetConstant2 312: @fn391
   0009    | CallFunction 1
   0011    | Merge
   0012    | Or 12 -> 17
@@ -4309,24 +4309,24 @@
   0017    | End
   ========================================
   
-  =================@fn378=================
+  =================@fn392=================
   _toml.number.sign +
     _toml.number.integer_part + (
       (_toml.number.fraction_part + maybe(_toml.number.exponent_part)) |
       _toml.number.exponent_part
     )
   ========================================
-  0000    | CallFunctionConstant2 306: _toml.number.sign
-  0003    | CallFunctionConstant2 307: _toml.number.integer_part
+  0000    | CallFunctionConstant2 309: _toml.number.sign
+  0003    | CallFunctionConstant2 310: _toml.number.integer_part
   0006    | Merge
   0007    | SetInputMark
-  0008    | CallFunctionConstant2 311: _toml.number.fraction_part
+  0008    | CallFunctionConstant2 314: _toml.number.fraction_part
   0011    | GetConstant 30: maybe
-  0013    | GetConstant2 312: _toml.number.exponent_part
+  0013    | GetConstant2 315: _toml.number.exponent_part
   0016    | CallFunction 1
   0018    | Merge
   0019    | Or 19 -> 25
-  0022    | CallFunctionConstant2 312: _toml.number.exponent_part
+  0022    | CallFunctionConstant2 315: _toml.number.exponent_part
   0025    | Merge
   0026    | End
   ========================================
@@ -4341,12 +4341,12 @@
   )
   ========================================
   0000    | GetConstant 28: as_number
-  0002    | GetConstant2 310: @fn378
+  0002    | GetConstant2 313: @fn392
   0005    | CallTailFunction 1
   0007    | End
   ========================================
   
-  =================@fn379=================
+  =================@fn393=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4361,13 +4361,13 @@
   0000    | ParseChar '.'
   0002    | GetConstant 124: many_sep
   0004    | GetConstant 41: numerals
-  0006    | GetConstant2 313: @fn379
+  0006    | GetConstant2 316: @fn393
   0009    | CallFunction 2
   0011    | Merge
   0012    | End
   ========================================
   
-  =================@fn380=================
+  =================@fn394=================
   "-" | "+"
   ========================================
   0000    | SetInputMark
@@ -4377,7 +4377,7 @@
   0008    | End
   ========================================
   
-  =================@fn381=================
+  =================@fn395=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4395,18 +4395,18 @@
   0003    | Or 3 -> 8
   0006    | ParseChar 'E'
   0008    | GetConstant 30: maybe
-  0010    | GetConstant2 314: @fn380
+  0010    | GetConstant2 317: @fn394
   0013    | CallFunction 1
   0015    | Merge
   0016    | GetConstant 124: many_sep
   0018    | GetConstant 41: numerals
-  0020    | GetConstant2 315: @fn381
+  0020    | GetConstant2 318: @fn395
   0023    | CallFunction 2
   0025    | Merge
   0026    | End
   ========================================
   
-  =================@fn382=================
+  =================@fn396=================
   "+" | "-"
   ========================================
   0000    | SetInputMark
@@ -4420,14 +4420,14 @@
   toml.number.infinity = maybe("+" | "-") + "inf"
   ========================================
   0000    | GetConstant 30: maybe
-  0002    | GetConstant2 316: @fn382
+  0002    | GetConstant2 319: @fn396
   0005    | CallFunction 1
-  0007    | CallFunctionConstant2 317: "inf"
+  0007    | CallFunctionConstant2 320: "inf"
   0010    | Merge
   0011    | End
   ========================================
   
-  =================@fn383=================
+  =================@fn397=================
   "+" | "-"
   ========================================
   0000    | SetInputMark
@@ -4441,14 +4441,14 @@
   toml.number.not_a_number = maybe("+" | "-") + "nan"
   ========================================
   0000    | GetConstant 30: maybe
-  0002    | GetConstant2 318: @fn383
+  0002    | GetConstant2 321: @fn397
   0005    | CallFunction 1
-  0007    | CallFunctionConstant2 319: "nan"
+  0007    | CallFunctionConstant2 322: "nan"
   0010    | Merge
   0011    | End
   ========================================
   
-  =================@fn385=================
+  =================@fn399=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4457,35 +4457,35 @@
   0006    | End
   ========================================
   
-  =================@fn386=================
+  =================@fn400=================
   skip("_") < peek(binary_numeral)
   ========================================
-  0000    | GetConstant2 275: skip
+  0000    | GetConstant2 278: skip
   0003    | PushChar '_'
   0005    | CallFunction 1
   0007    | JumpIfFailure 7 -> 18
   0010    | GetConstant 61: peek
-  0012    | GetConstant2 325: binary_numeral
+  0012    | GetConstant2 328: binary_numeral
   0015    | CallFunction 1
   0017    | TakeLeft
   0018    | End
   ========================================
   
-  =================@fn384=================
+  =================@fn398=================
   array_sep(0, maybe("_")) + maybe(skip("_") < peek(binary_numeral))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | PushNumberStringZero
-  0003    | GetConstant2 323: @fn385
+  0003    | GetConstant2 326: @fn399
   0006    | CallFunction 2
   0008    | GetConstant 30: maybe
-  0010    | GetConstant2 324: @fn386
+  0010    | GetConstant2 327: @fn400
   0013    | CallFunction 1
   0015    | Merge
   0016    | End
   ========================================
   
-  =================@fn388=================
+  =================@fn402=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4494,12 +4494,12 @@
   0006    | End
   ========================================
   
-  =================@fn387=================
+  =================@fn401=================
   array_sep(binary_digit, maybe("_"))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | GetConstant 46: binary_digit
-  0004    | GetConstant2 327: @fn388
+  0004    | GetConstant2 330: @fn402
   0007    | CallTailFunction 2
   0009    | End
   ========================================
@@ -4513,11 +4513,11 @@
     Num.FromBinaryDigits(Digits)
   ========================================
   0000    | GetConstant 44: Digits
-  0002    | CallFunctionConstant2 320: "0b"
+  0002    | CallFunctionConstant2 323: "0b"
   0005    | TakeRight 5 -> 30
-  0008    | GetConstant2 321: one_or_both
-  0011    | GetConstant2 322: @fn384
-  0014    | GetConstant2 326: @fn387
+  0008    | GetConstant2 324: one_or_both
+  0011    | GetConstant2 325: @fn398
+  0014    | GetConstant2 329: @fn401
   0017    | CallFunction 2
   0019    | Destructure 57: Digits
   0021    | TakeRight 21 -> 30
@@ -4527,7 +4527,7 @@
   0030    | End
   ========================================
   
-  =================@fn390=================
+  =================@fn404=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4536,35 +4536,35 @@
   0006    | End
   ========================================
   
-  =================@fn391=================
+  =================@fn405=================
   skip("_") < peek(octal_numeral)
   ========================================
-  0000    | GetConstant2 275: skip
+  0000    | GetConstant2 278: skip
   0003    | PushChar '_'
   0005    | CallFunction 1
   0007    | JumpIfFailure 7 -> 18
   0010    | GetConstant 61: peek
-  0012    | GetConstant2 332: octal_numeral
+  0012    | GetConstant2 335: octal_numeral
   0015    | CallFunction 1
   0017    | TakeLeft
   0018    | End
   ========================================
   
-  =================@fn389=================
+  =================@fn403=================
   array_sep(0, maybe("_")) + maybe(skip("_") < peek(octal_numeral))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | PushNumberStringZero
-  0003    | GetConstant2 330: @fn390
+  0003    | GetConstant2 333: @fn404
   0006    | CallFunction 2
   0008    | GetConstant 30: maybe
-  0010    | GetConstant2 331: @fn391
+  0010    | GetConstant2 334: @fn405
   0013    | CallFunction 1
   0015    | Merge
   0016    | End
   ========================================
   
-  =================@fn393=================
+  =================@fn407=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4573,12 +4573,12 @@
   0006    | End
   ========================================
   
-  =================@fn392=================
+  =================@fn406=================
   array_sep(octal_digit, maybe("_"))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | GetConstant 48: octal_digit
-  0004    | GetConstant2 334: @fn393
+  0004    | GetConstant2 337: @fn407
   0007    | CallTailFunction 2
   0009    | End
   ========================================
@@ -4592,11 +4592,11 @@
     Num.FromOctalDigits(Digits)
   ========================================
   0000    | GetConstant 44: Digits
-  0002    | CallFunctionConstant2 328: "0o"
+  0002    | CallFunctionConstant2 331: "0o"
   0005    | TakeRight 5 -> 30
-  0008    | GetConstant2 321: one_or_both
-  0011    | GetConstant2 329: @fn389
-  0014    | GetConstant2 333: @fn392
+  0008    | GetConstant2 324: one_or_both
+  0011    | GetConstant2 332: @fn403
+  0014    | GetConstant2 336: @fn406
   0017    | CallFunction 2
   0019    | Destructure 58: Digits
   0021    | TakeRight 21 -> 30
@@ -4606,7 +4606,7 @@
   0030    | End
   ========================================
   
-  =================@fn395=================
+  =================@fn409=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4615,35 +4615,35 @@
   0006    | End
   ========================================
   
-  =================@fn396=================
+  =================@fn410=================
   skip("_") < peek(hex_numeral)
   ========================================
-  0000    | GetConstant2 275: skip
+  0000    | GetConstant2 278: skip
   0003    | PushChar '_'
   0005    | CallFunction 1
   0007    | JumpIfFailure 7 -> 17
   0010    | GetConstant 61: peek
-  0012    | GetConstant 171: hex_numeral
+  0012    | GetConstant 174: hex_numeral
   0014    | CallFunction 1
   0016    | TakeLeft
   0017    | End
   ========================================
   
-  =================@fn394=================
+  =================@fn408=================
   array_sep(0, maybe("_")) + maybe(skip("_") < peek(hex_numeral))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | PushNumberStringZero
-  0003    | GetConstant2 337: @fn395
+  0003    | GetConstant2 340: @fn409
   0006    | CallFunction 2
   0008    | GetConstant 30: maybe
-  0010    | GetConstant2 338: @fn396
+  0010    | GetConstant2 341: @fn410
   0013    | CallFunction 1
   0015    | Merge
   0016    | End
   ========================================
   
-  =================@fn398=================
+  =================@fn412=================
   maybe("_")
   ========================================
   0000    | GetConstant 30: maybe
@@ -4652,12 +4652,12 @@
   0006    | End
   ========================================
   
-  =================@fn397=================
+  =================@fn411=================
   array_sep(hex_digit, maybe("_"))
   ========================================
   0000    | GetConstant 65: array_sep
   0002    | GetConstant 50: hex_digit
-  0004    | GetConstant2 340: @fn398
+  0004    | GetConstant2 343: @fn412
   0007    | CallTailFunction 2
   0009    | End
   ========================================
@@ -4671,11 +4671,11 @@
     Num.FromHexDigits(Digits)
   ========================================
   0000    | GetConstant 44: Digits
-  0002    | CallFunctionConstant2 335: "0x"
+  0002    | CallFunctionConstant2 338: "0x"
   0005    | TakeRight 5 -> 30
-  0008    | GetConstant2 321: one_or_both
-  0011    | GetConstant2 336: @fn394
-  0014    | GetConstant2 339: @fn397
+  0008    | GetConstant2 324: one_or_both
+  0011    | GetConstant2 339: @fn408
+  0014    | GetConstant2 342: @fn411
   0017    | CallFunction 2
   0019    | Destructure 59: Digits
   0021    | TakeRight 21 -> 30
@@ -4688,16 +4688,16 @@
   ============_Toml.Doc.Empty=============
   _Toml.Doc.Empty = {"value": {}, "type": {}}
   ========================================
-  0000    | GetConstant2 341: {"value": {}, "type": {}}
+  0000    | GetConstant2 344: {"value": {}, "type": {}}
   0003    | End
   ========================================
   
   ============_Toml.Doc.Value=============
   _Toml.Doc.Value(Doc) = Obj.Get(Doc, "value")
   ========================================
-  0000    | GetConstant2 342: Obj.Get
+  0000    | GetConstant2 345: Obj.Get
   0003    | GetBoundLocal 0
-  0005    | GetConstant2 262: "value"
+  0005    | GetConstant2 265: "value"
   0008    | CallTailFunction 2
   0010    | End
   ========================================
@@ -4705,9 +4705,9 @@
   =============_Toml.Doc.Type=============
   _Toml.Doc.Type(Doc) = Obj.Get(Doc, "type")
   ========================================
-  0000    | GetConstant2 342: Obj.Get
+  0000    | GetConstant2 345: Obj.Get
   0003    | GetBoundLocal 0
-  0005    | GetConstant2 260: "type"
+  0005    | GetConstant2 263: "type"
   0008    | CallTailFunction 2
   0010    | End
   ========================================
@@ -4715,8 +4715,8 @@
   =============_Toml.Doc.Has==============
   _Toml.Doc.Has(Doc, Key) = Obj.Has(_Toml.Doc.Type(Doc), Key)
   ========================================
-  0000    | GetConstant2 343: Obj.Has
-  0003    | GetConstant2 344: _Toml.Doc.Type
+  0000    | GetConstant2 346: Obj.Has
+  0003    | GetConstant2 347: _Toml.Doc.Type
   0006    | GetBoundLocal 0
   0008    | CallFunction 1
   0010    | GetBoundLocal 1
@@ -4730,18 +4730,18 @@
     "type": Obj.Get(_Toml.Doc.Type(Doc), Key),
   }
   ========================================
-  0000    | GetConstant2 345: {_0_, _1_}
-  0003    | GetConstant2 262: "value"
-  0006    | GetConstant2 342: Obj.Get
-  0009    | GetConstant 190: _Toml.Doc.Value
+  0000    | GetConstant2 348: {_0_, _1_}
+  0003    | GetConstant2 265: "value"
+  0006    | GetConstant2 345: Obj.Get
+  0009    | GetConstant 193: _Toml.Doc.Value
   0011    | GetBoundLocal 0
   0013    | CallFunction 1
   0015    | GetBoundLocal 1
   0017    | CallFunction 2
   0019    | InsertKeyVal 0
-  0021    | GetConstant2 260: "type"
-  0024    | GetConstant2 342: Obj.Get
-  0027    | GetConstant2 344: _Toml.Doc.Type
+  0021    | GetConstant2 263: "type"
+  0024    | GetConstant2 345: Obj.Get
+  0027    | GetConstant2 347: _Toml.Doc.Type
   0030    | GetBoundLocal 0
   0032    | CallFunction 1
   0034    | GetBoundLocal 1
@@ -4753,8 +4753,8 @@
   ===========_Toml.Doc.IsTable============
   _Toml.Doc.IsTable(Doc) = Is.Object(_Toml.Doc.Type(Doc))
   ========================================
-  0000    | GetConstant2 346: Is.Object
-  0003    | GetConstant2 344: _Toml.Doc.Type
+  0000    | GetConstant2 349: Is.Object
+  0003    | GetConstant2 347: _Toml.Doc.Type
   0006    | GetBoundLocal 0
   0008    | CallFunction 1
   0010    | CallTailFunction 1
@@ -4769,23 +4769,23 @@
       "type": Obj.Put(_Toml.Doc.Type(Doc), Key, Type),
     }
   ========================================
-  0000    | GetConstant2 347: _Toml.Doc.IsTable
+  0000    | GetConstant2 350: _Toml.Doc.IsTable
   0003    | GetBoundLocal 0
   0005    | CallFunction 1
   0007    | TakeRight 7 -> 54
-  0010    | GetConstant2 348: {_0_, _1_}
-  0013    | GetConstant2 262: "value"
-  0016    | GetConstant2 349: Obj.Put
-  0019    | GetConstant 190: _Toml.Doc.Value
+  0010    | GetConstant2 351: {_0_, _1_}
+  0013    | GetConstant2 265: "value"
+  0016    | GetConstant2 352: Obj.Put
+  0019    | GetConstant 193: _Toml.Doc.Value
   0021    | GetBoundLocal 0
   0023    | CallFunction 1
   0025    | GetBoundLocal 1
   0027    | GetBoundLocal 2
   0029    | CallFunction 3
   0031    | InsertKeyVal 0
-  0033    | GetConstant2 260: "type"
-  0036    | GetConstant2 349: Obj.Put
-  0039    | GetConstant2 344: _Toml.Doc.Type
+  0033    | GetConstant2 263: "type"
+  0036    | GetConstant2 352: Obj.Put
+  0039    | GetConstant2 347: _Toml.Doc.Type
   0042    | GetBoundLocal 0
   0044    | CallFunction 1
   0046    | GetBoundLocal 1
@@ -4800,24 +4800,24 @@
     _Toml.Doc.Get(Doc, Key) -> {"value": AoT, "type": "array_of_tables"} &
     _Toml.Doc.Insert(Doc, Key, [...AoT, Val], "array_of_tables")
   ========================================
-  0000    | GetConstant2 350: AoT
-  0003    | GetConstant2 351: _Toml.Doc.Get
+  0000    | GetConstant2 353: AoT
+  0003    | GetConstant2 354: _Toml.Doc.Get
   0006    | GetBoundLocal 0
   0008    | GetBoundLocal 1
   0010    | CallFunction 2
   0012    | Destructure 60: {"value": AoT, "type": "array_of_tables"}
   0014    | TakeRight 14 -> 41
-  0017    | GetConstant2 352: _Toml.Doc.Insert
+  0017    | GetConstant2 355: _Toml.Doc.Insert
   0020    | GetBoundLocal 0
   0022    | GetBoundLocal 1
   0024    | PushEmptyArray
   0025    | GetBoundLocal 3
   0027    | Merge
-  0028    | GetConstant2 353: [_]
+  0028    | GetConstant2 356: [_]
   0031    | GetBoundLocal 2
   0033    | InsertAtIndex 0
   0035    | Merge
-  0036    | GetConstant2 354: "array_of_tables"
+  0036    | GetConstant2 357: "array_of_tables"
   0039    | CallTailFunction 4
   0041    | End
   ========================================
@@ -4826,11 +4826,11 @@
   _Toml.Doc.InsertAtPath(Doc, Path, Val) =
     _Toml.Doc.UpdateAtPath(Doc, Path, Val, _Toml.Doc.ValueUpdater)
   ========================================
-  0000    | GetConstant2 355: _Toml.Doc.UpdateAtPath
+  0000    | GetConstant2 358: _Toml.Doc.UpdateAtPath
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | GetBoundLocal 2
-  0009    | GetConstant2 356: _Toml.Doc.ValueUpdater
+  0009    | GetConstant2 359: _Toml.Doc.ValueUpdater
   0012    | CallTailFunction 4
   0014    | End
   ========================================
@@ -4839,11 +4839,11 @@
   _Toml.Doc.EnsureTableAtPath(Doc, Path) =
     _Toml.Doc.UpdateAtPath(Doc, Path, {}, _Toml.Doc.MissingTableUpdater)
   ========================================
-  0000    | GetConstant2 355: _Toml.Doc.UpdateAtPath
+  0000    | GetConstant2 358: _Toml.Doc.UpdateAtPath
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | PushEmptyObject
-  0008    | GetConstant2 357: _Toml.Doc.MissingTableUpdater
+  0008    | GetConstant2 360: _Toml.Doc.MissingTableUpdater
   0011    | CallTailFunction 4
   0013    | End
   ========================================
@@ -4852,11 +4852,11 @@
   _Toml.Doc.AppendAtPath(Doc, Path, Val) =
     _Toml.Doc.UpdateAtPath(Doc, Path, Val, _Toml.Doc.AppendUpdater)
   ========================================
-  0000    | GetConstant2 355: _Toml.Doc.UpdateAtPath
+  0000    | GetConstant2 358: _Toml.Doc.UpdateAtPath
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | GetBoundLocal 2
-  0009    | GetConstant2 358: _Toml.Doc.AppendUpdater
+  0009    | GetConstant2 361: _Toml.Doc.AppendUpdater
   0012    | CallTailFunction 4
   0014    | End
   ========================================
@@ -4876,9 +4876,9 @@
     ) :
     Doc
   ========================================
-  0000    | GetConstant2 274: Key
-  0003    | GetConstant2 359: PathRest
-  0006    | GetConstant 204: InnerDoc
+  0000    | GetConstant2 277: Key
+  0003    | GetConstant2 362: PathRest
+  0006    | GetConstant 207: InnerDoc
   0008    | SetInputMark
   0009    | GetBoundLocal 1
   0011    | Destructure 61: [Key]
@@ -4894,20 +4894,20 @@
   0032    | Destructure 62: ([Key] + PathRest)
   0034    | ConditionalThen 34 -> 133
   0037    | SetInputMark
-  0038    | GetConstant2 360: _Toml.Doc.Has
+  0038    | GetConstant2 363: _Toml.Doc.Has
   0041    | GetBoundLocal 0
   0043    | GetBoundLocal 4
   0045    | CallFunction 2
   0047    | ConditionalThen 47 -> 90
-  0050    | GetConstant2 347: _Toml.Doc.IsTable
-  0053    | GetConstant2 351: _Toml.Doc.Get
+  0050    | GetConstant2 350: _Toml.Doc.IsTable
+  0053    | GetConstant2 354: _Toml.Doc.Get
   0056    | GetBoundLocal 0
   0058    | GetBoundLocal 4
   0060    | CallFunction 2
   0062    | CallFunction 1
   0064    | TakeRight 64 -> 87
-  0067    | GetConstant2 355: _Toml.Doc.UpdateAtPath
-  0070    | GetConstant2 351: _Toml.Doc.Get
+  0067    | GetConstant2 358: _Toml.Doc.UpdateAtPath
+  0070    | GetConstant2 354: _Toml.Doc.Get
   0073    | GetBoundLocal 0
   0075    | GetBoundLocal 4
   0077    | CallFunction 2
@@ -4916,21 +4916,21 @@
   0083    | GetBoundLocal 3
   0085    | CallFunction 4
   0087    | Jump 87 -> 103
-  0090    | GetConstant2 355: _Toml.Doc.UpdateAtPath
-  0093    | CallFunctionConstant 193: _Toml.Doc.Empty
+  0090    | GetConstant2 358: _Toml.Doc.UpdateAtPath
+  0093    | CallFunctionConstant 196: _Toml.Doc.Empty
   0095    | GetBoundLocal 5
   0097    | GetBoundLocal 2
   0099    | GetBoundLocal 3
   0101    | CallFunction 4
   0103    | Destructure 63: InnerDoc
   0105    | TakeRight 105 -> 130
-  0108    | GetConstant2 352: _Toml.Doc.Insert
+  0108    | GetConstant2 355: _Toml.Doc.Insert
   0111    | GetBoundLocal 0
   0113    | GetBoundLocal 4
-  0115    | GetConstant 190: _Toml.Doc.Value
+  0115    | GetConstant 193: _Toml.Doc.Value
   0117    | GetBoundLocal 6
   0119    | CallFunction 1
-  0121    | GetConstant2 344: _Toml.Doc.Type
+  0121    | GetConstant2 347: _Toml.Doc.Type
   0124    | GetBoundLocal 6
   0126    | CallFunction 1
   0128    | CallTailFunction 4
@@ -4944,18 +4944,18 @@
     _Toml.Doc.Has(Doc, Key) ? @Fail : _Toml.Doc.Insert(Doc, Key, Val, "value")
   ========================================
   0000    | SetInputMark
-  0001    | GetConstant2 360: _Toml.Doc.Has
+  0001    | GetConstant2 363: _Toml.Doc.Has
   0004    | GetBoundLocal 0
   0006    | GetBoundLocal 1
   0008    | CallFunction 2
   0010    | ConditionalThen 10 -> 19
-  0013    | CallTailFunctionConstant2 361: @Fail
+  0013    | CallTailFunctionConstant2 364: @Fail
   0016    | Jump 16 -> 33
-  0019    | GetConstant2 352: _Toml.Doc.Insert
+  0019    | GetConstant2 355: _Toml.Doc.Insert
   0022    | GetBoundLocal 0
   0024    | GetBoundLocal 1
   0026    | GetBoundLocal 2
-  0028    | GetConstant2 262: "value"
+  0028    | GetConstant2 265: "value"
   0031    | CallTailFunction 4
   0033    | End
   ========================================
@@ -4966,8 +4966,8 @@
     _Toml.Doc.Insert(Doc, Key, {}, {})
   ========================================
   0000    | SetInputMark
-  0001    | GetConstant2 347: _Toml.Doc.IsTable
-  0004    | GetConstant2 351: _Toml.Doc.Get
+  0001    | GetConstant2 350: _Toml.Doc.IsTable
+  0004    | GetConstant2 354: _Toml.Doc.Get
   0007    | GetBoundLocal 0
   0009    | GetBoundLocal 1
   0011    | CallFunction 2
@@ -4975,7 +4975,7 @@
   0015    | ConditionalThen 15 -> 23
   0018    | GetBoundLocal 0
   0020    | Jump 20 -> 34
-  0023    | GetConstant2 352: _Toml.Doc.Insert
+  0023    | GetConstant2 355: _Toml.Doc.Insert
   0026    | GetBoundLocal 0
   0028    | GetBoundLocal 1
   0030    | PushEmptyObject
@@ -4992,24 +4992,24 @@
     ) -> DocWithKey &
     _Toml.Doc.AppendToArrayOfTables(DocWithKey, Key, Val)
   ========================================
-  0000    | GetConstant2 362: DocWithKey
+  0000    | GetConstant2 365: DocWithKey
   0003    | SetInputMark
-  0004    | GetConstant2 360: _Toml.Doc.Has
+  0004    | GetConstant2 363: _Toml.Doc.Has
   0007    | GetBoundLocal 0
   0009    | GetBoundLocal 1
   0011    | CallFunction 2
   0013    | ConditionalThen 13 -> 21
   0016    | GetBoundLocal 0
   0018    | Jump 18 -> 34
-  0021    | GetConstant2 352: _Toml.Doc.Insert
+  0021    | GetConstant2 355: _Toml.Doc.Insert
   0024    | GetBoundLocal 0
   0026    | GetBoundLocal 1
   0028    | PushEmptyArray
-  0029    | GetConstant2 354: "array_of_tables"
+  0029    | GetConstant2 357: "array_of_tables"
   0032    | CallFunction 4
   0034    | Destructure 64: DocWithKey
   0036    | TakeRight 36 -> 50
-  0039    | GetConstant2 363: _Toml.Doc.AppendToArrayOfTables
+  0039    | GetConstant2 366: _Toml.Doc.AppendToArrayOfTables
   0042    | GetBoundLocal 3
   0044    | GetBoundLocal 1
   0046    | GetBoundLocal 2
@@ -5021,7 +5021,7 @@
   ast.with_operator_precedence(operand, prefix, infix, postfix) =
     _ast.with_precedence_start(operand, prefix, infix, postfix, $0)
   ========================================
-  0000    | GetConstant2 364: _ast.with_precedence_start
+  0000    | GetConstant2 367: _ast.with_precedence_start
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | GetBoundLocal 2
@@ -5052,14 +5052,14 @@
       )
     )
   ========================================
-  0000    | GetConstant2 365: PrefixBindingPower
-  0003    | GetConstant2 366: PrefixNode
-  0006    | GetConstant2 367: Node
+  0000    | GetConstant2 368: PrefixBindingPower
+  0003    | GetConstant2 369: PrefixNode
+  0006    | GetConstant2 370: Node
   0009    | SetInputMark
   0010    | CallFunctionLocal 1
   0012    | Destructure 65: ({"power": PrefixBindingPower} + PrefixNode)
   0014    | ConditionalThen 14 -> 80
-  0017    | GetConstant2 364: _ast.with_precedence_start
+  0017    | GetConstant2 367: _ast.with_precedence_start
   0020    | GetBoundLocal 0
   0022    | GetBoundLocal 1
   0024    | GetBoundLocal 2
@@ -5068,7 +5068,7 @@
   0030    | CallFunction 5
   0032    | Destructure 66: Node
   0034    | TakeRight 34 -> 77
-  0037    | GetConstant2 368: _ast.with_precedence_rest
+  0037    | GetConstant2 371: _ast.with_precedence_rest
   0040    | GetBoundLocal 0
   0042    | GetBoundLocal 1
   0044    | GetBoundLocal 2
@@ -5077,11 +5077,11 @@
   0050    | PushEmptyObject
   0051    | GetBoundLocal 6
   0053    | Merge
-  0054    | GetConstant2 369: {_0_}
-  0057    | GetConstant2 370: "prefixed"
+  0054    | GetConstant2 372: {_0_}
+  0057    | GetConstant2 373: "prefixed"
   0060    | GetBoundLocal 7
   0062    | InsertKeyVal 0
-  0064    | GetConstant2 371: _Ast.MergePos
+  0064    | GetConstant2 374: _Ast.MergePos
   0067    | GetBoundLocal 6
   0069    | GetBoundLocal 7
   0071    | CallFunction 2
@@ -5092,7 +5092,7 @@
   0080    | CallFunctionLocal 0
   0082    | Destructure 67: Node
   0084    | TakeRight 84 -> 104
-  0087    | GetConstant2 368: _ast.with_precedence_rest
+  0087    | GetConstant2 371: _ast.with_precedence_rest
   0090    | GetBoundLocal 0
   0092    | GetBoundLocal 1
   0094    | GetBoundLocal 2
@@ -5127,23 +5127,23 @@
     ) :
     const(Node)
   ========================================
-  0000    | GetConstant2 372: RightBindingPower
-  0003    | GetConstant2 373: PostfixNode
-  0006    | GetConstant2 374: NextLeftBindingPower
-  0009    | GetConstant2 375: InfixNode
-  0012    | GetConstant2 376: RightNode
+  0000    | GetConstant2 375: RightBindingPower
+  0003    | GetConstant2 376: PostfixNode
+  0006    | GetConstant2 377: NextLeftBindingPower
+  0009    | GetConstant2 378: InfixNode
+  0012    | GetConstant2 379: RightNode
   0015    | SetInputMark
   0016    | CallFunctionLocal 3
   0018    | Destructure 68: ({"power": RightBindingPower} + PostfixNode)
   0020    | TakeRight 20 -> 36
   0023    | GetConstant 93: const
-  0025    | GetConstant2 377: Is.LessThan
+  0025    | GetConstant2 380: Is.LessThan
   0028    | GetBoundLocal 4
   0030    | GetBoundLocal 6
   0032    | CallFunction 2
   0034    | CallFunction 1
   0036    | ConditionalThen 36 -> 82
-  0039    | GetConstant2 368: _ast.with_precedence_rest
+  0039    | GetConstant2 371: _ast.with_precedence_rest
   0042    | GetBoundLocal 0
   0044    | GetBoundLocal 1
   0046    | GetBoundLocal 2
@@ -5152,11 +5152,11 @@
   0052    | PushEmptyObject
   0053    | GetBoundLocal 7
   0055    | Merge
-  0056    | GetConstant2 378: {_0_}
-  0059    | GetConstant2 379: "postfixed"
+  0056    | GetConstant2 381: {_0_}
+  0059    | GetConstant2 382: "postfixed"
   0062    | GetBoundLocal 5
   0064    | InsertKeyVal 0
-  0066    | GetConstant2 371: _Ast.MergePos
+  0066    | GetConstant2 374: _Ast.MergePos
   0069    | GetBoundLocal 5
   0071    | GetBoundLocal 7
   0073    | CallFunction 2
@@ -5169,13 +5169,13 @@
   0085    | Destructure 69: ({"power": [RightBindingPower, NextLeftBindingPower]} + InfixNode)
   0087    | TakeRight 87 -> 103
   0090    | GetConstant 93: const
-  0092    | GetConstant2 377: Is.LessThan
+  0092    | GetConstant2 380: Is.LessThan
   0095    | GetBoundLocal 4
   0097    | GetBoundLocal 6
   0099    | CallFunction 2
   0101    | CallFunction 1
   0103    | ConditionalThen 103 -> 176
-  0106    | GetConstant2 364: _ast.with_precedence_start
+  0106    | GetConstant2 367: _ast.with_precedence_start
   0109    | GetBoundLocal 0
   0111    | GetBoundLocal 1
   0113    | GetBoundLocal 2
@@ -5184,7 +5184,7 @@
   0119    | CallFunction 5
   0121    | Destructure 70: RightNode
   0123    | TakeRight 123 -> 173
-  0126    | GetConstant2 368: _ast.with_precedence_rest
+  0126    | GetConstant2 371: _ast.with_precedence_rest
   0129    | GetBoundLocal 0
   0131    | GetBoundLocal 1
   0133    | GetBoundLocal 2
@@ -5193,14 +5193,14 @@
   0139    | PushEmptyObject
   0140    | GetBoundLocal 9
   0142    | Merge
-  0143    | GetConstant2 380: {_0_, _1_}
-  0146    | GetConstant2 381: "left"
+  0143    | GetConstant2 383: {_0_, _1_}
+  0146    | GetConstant2 384: "left"
   0149    | GetBoundLocal 5
   0151    | InsertKeyVal 0
-  0153    | GetConstant2 382: "right"
+  0153    | GetConstant2 385: "right"
   0156    | GetBoundLocal 10
   0158    | InsertKeyVal 1
-  0160    | GetConstant2 371: _Ast.MergePos
+  0160    | GetConstant2 374: _Ast.MergePos
   0163    | GetBoundLocal 5
   0165    | GetBoundLocal 10
   0167    | CallFunction 2
@@ -5222,11 +5222,11 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 71: Value
   0006    | TakeRight 6 -> 26
-  0009    | GetConstant2 383: {_0_, _1_}
-  0012    | GetConstant2 260: "type"
+  0009    | GetConstant2 386: {_0_, _1_}
+  0012    | GetConstant2 263: "type"
   0015    | GetBoundLocal 1
   0017    | InsertKeyVal 0
-  0019    | GetConstant2 262: "value"
+  0019    | GetConstant2 265: "value"
   0022    | GetBoundLocal 2
   0024    | InsertKeyVal 1
   0026    | End
@@ -5238,11 +5238,11 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 22
-  0005    | GetConstant2 384: {_0_, _1_}
-  0008    | GetConstant2 260: "type"
+  0005    | GetConstant2 387: {_0_, _1_}
+  0008    | GetConstant2 263: "type"
   0011    | GetBoundLocal 1
   0013    | InsertKeyVal 0
-  0015    | GetConstant2 385: "power"
+  0015    | GetConstant2 388: "power"
   0018    | GetBoundLocal 2
   0020    | InsertKeyVal 1
   0022    | End
@@ -5254,12 +5254,12 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 31
-  0005    | GetConstant2 386: {_0_, _1_}
-  0008    | GetConstant2 260: "type"
+  0005    | GetConstant2 389: {_0_, _1_}
+  0008    | GetConstant2 263: "type"
   0011    | GetBoundLocal 1
   0013    | InsertKeyVal 0
-  0015    | GetConstant2 385: "power"
-  0018    | GetConstant2 387: [_, _]
+  0015    | GetConstant2 388: "power"
+  0018    | GetConstant2 390: [_, _]
   0021    | GetBoundLocal 2
   0023    | InsertAtIndex 0
   0025    | GetBoundLocal 3
@@ -5274,11 +5274,11 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 22
-  0005    | GetConstant2 388: {_0_, _1_}
-  0008    | GetConstant2 260: "type"
+  0005    | GetConstant2 391: {_0_, _1_}
+  0008    | GetConstant2 263: "type"
   0011    | GetBoundLocal 1
   0013    | InsertKeyVal 0
-  0015    | GetConstant2 385: "power"
+  0015    | GetConstant2 388: "power"
   0018    | GetBoundLocal 2
   0020    | InsertKeyVal 1
   0022    | End
@@ -5291,30 +5291,30 @@
     @input.offset -> EndOffset $
     {...Node, "startpos": StartOffset, "endpos": EndOffset}
   ========================================
-  0000    | GetConstant2 389: StartOffset
-  0003    | GetConstant2 367: Node
-  0006    | GetConstant2 390: EndOffset
-  0009    | CallFunctionConstant2 391: @input.offset
-  0012    | Destructure 72: StartOffset
-  0014    | TakeRight 14 -> 21
-  0017    | CallFunctionLocal 0
-  0019    | Destructure 73: Node
-  0021    | TakeRight 21 -> 54
-  0024    | CallFunctionConstant2 391: @input.offset
-  0027    | Destructure 74: EndOffset
-  0029    | TakeRight 29 -> 54
-  0032    | PushEmptyObject
-  0033    | GetBoundLocal 2
-  0035    | Merge
-  0036    | GetConstant2 392: {_0_, _1_}
-  0039    | GetConstant2 393: "startpos"
-  0042    | GetBoundLocal 1
-  0044    | InsertKeyVal 0
-  0046    | GetConstant2 394: "endpos"
-  0049    | GetBoundLocal 3
-  0051    | InsertKeyVal 1
-  0053    | Merge
-  0054    | End
+  0000    | GetConstant2 392: StartOffset
+  0003    | GetConstant2 370: Node
+  0006    | GetConstant2 393: EndOffset
+  0009    | CallFunctionConstant 127: @input.offset
+  0011    | Destructure 72: StartOffset
+  0013    | TakeRight 13 -> 20
+  0016    | CallFunctionLocal 0
+  0018    | Destructure 73: Node
+  0020    | TakeRight 20 -> 52
+  0023    | CallFunctionConstant 127: @input.offset
+  0025    | Destructure 74: EndOffset
+  0027    | TakeRight 27 -> 52
+  0030    | PushEmptyObject
+  0031    | GetBoundLocal 2
+  0033    | Merge
+  0034    | GetConstant2 394: {_0_, _1_}
+  0037    | GetConstant2 395: "startpos"
+  0040    | GetBoundLocal 1
+  0042    | InsertKeyVal 0
+  0044    | GetConstant2 396: "endpos"
+  0047    | GetBoundLocal 3
+  0049    | InsertKeyVal 1
+  0051    | Merge
+  0052    | End
   ========================================
   
   ===========ast.with_line_pos============
@@ -5330,45 +5330,45 @@
       "endpos": {"line": EndLine, "offset": EndLineOffset},
     }
   ========================================
-  0000    | GetConstant2 395: StartLine
-  0003    | GetConstant2 396: StartLineOffset
-  0006    | GetConstant2 367: Node
-  0009    | GetConstant2 397: EndLine
-  0012    | GetConstant2 398: EndLineOffset
-  0015    | CallFunctionConstant2 399: @input.line
+  0000    | GetConstant2 397: StartLine
+  0003    | GetConstant2 398: StartLineOffset
+  0006    | GetConstant2 370: Node
+  0009    | GetConstant2 399: EndLine
+  0012    | GetConstant2 400: EndLineOffset
+  0015    | CallFunctionConstant2 401: @input.line
   0018    | Destructure 75: StartLine
   0020    | TakeRight 20 -> 28
-  0023    | CallFunctionConstant2 400: @input.line_offset
+  0023    | CallFunctionConstant2 402: @input.line_offset
   0026    | Destructure 76: StartLineOffset
   0028    | TakeRight 28 -> 35
   0031    | CallFunctionLocal 0
   0033    | Destructure 77: Node
   0035    | TakeRight 35 -> 43
-  0038    | CallFunctionConstant2 399: @input.line
+  0038    | CallFunctionConstant2 401: @input.line
   0041    | Destructure 78: EndLine
   0043    | TakeRight 43 -> 104
-  0046    | CallFunctionConstant2 400: @input.line_offset
+  0046    | CallFunctionConstant2 402: @input.line_offset
   0049    | Destructure 79: EndLineOffset
   0051    | TakeRight 51 -> 104
   0054    | PushEmptyObject
   0055    | GetBoundLocal 3
   0057    | Merge
-  0058    | GetConstant2 401: {_0_, _1_}
-  0061    | GetConstant2 393: "startpos"
-  0064    | GetConstant2 402: {_0_, _1_}
-  0067    | GetConstant2 403: "line"
+  0058    | GetConstant2 403: {_0_, _1_}
+  0061    | GetConstant2 395: "startpos"
+  0064    | GetConstant2 404: {_0_, _1_}
+  0067    | GetConstant2 405: "line"
   0070    | GetBoundLocal 1
   0072    | InsertKeyVal 0
-  0074    | GetConstant 241: "offset"
+  0074    | GetConstant 244: "offset"
   0076    | GetBoundLocal 2
   0078    | InsertKeyVal 1
   0080    | InsertKeyVal 0
-  0082    | GetConstant2 394: "endpos"
-  0085    | GetConstant2 404: {_0_, _1_}
-  0088    | GetConstant2 403: "line"
+  0082    | GetConstant2 396: "endpos"
+  0085    | GetConstant2 406: {_0_, _1_}
+  0088    | GetConstant2 405: "line"
   0091    | GetBoundLocal 4
   0093    | InsertKeyVal 0
-  0095    | GetConstant 241: "offset"
+  0095    | GetConstant 244: "offset"
   0097    | GetBoundLocal 5
   0099    | InsertKeyVal 1
   0101    | InsertKeyVal 1
@@ -5390,7 +5390,7 @@
   ================Num.Inc=================
   Num.Inc(N) = @Add(N, 1)
   ========================================
-  0000    | GetConstant2 405: @Add
+  0000    | GetConstant2 407: @Add
   0003    | GetBoundLocal 0
   0005    | PushNumberOne
   0006    | CallTailFunction 2
@@ -5400,7 +5400,7 @@
   ================Num.Dec=================
   Num.Dec(N) = @Subtract(N, 1)
   ========================================
-  0000    | GetConstant2 406: @Subtract
+  0000    | GetConstant2 408: @Subtract
   0003    | GetBoundLocal 0
   0005    | PushNumberOne
   0006    | CallTailFunction 2
@@ -5432,18 +5432,31 @@
   0015    | End
   ========================================
   
+  ================Num.Min=================
+  Num.Min(A, B) = A -> ..B ? A : B
+  ========================================
+  0000    | SetInputMark
+  0001    | GetBoundLocal 0
+  0003    | Destructure 83: ..B
+  0005    | ConditionalThen 5 -> 13
+  0008    | GetBoundLocal 0
+  0010    | Jump 10 -> 15
+  0013    | GetBoundLocal 1
+  0015    | End
+  ========================================
+  
   ==========Num.FromBinaryDigits==========
   Num.FromBinaryDigits(Bs) =
     Array.Length(Bs) -> Len &
     _Num.FromBinaryDigits(Bs, Len - 1, 0)
   ========================================
-  0000    | GetConstant2 407: Len
-  0003    | GetConstant2 408: Array.Length
+  0000    | GetConstant2 409: Len
+  0003    | GetConstant2 410: Array.Length
   0006    | GetBoundLocal 0
   0008    | CallFunction 1
-  0010    | Destructure 83: Len
+  0010    | Destructure 84: Len
   0012    | TakeRight 12 -> 27
-  0015    | GetConstant2 409: _Num.FromBinaryDigits
+  0015    | GetConstant2 411: _Num.FromBinaryDigits
   0018    | GetBoundLocal 0
   0020    | GetBoundLocal 1
   0022    | PushNumberNegOne
@@ -5466,23 +5479,23 @@
     Acc
   ========================================
   0000    | PushCharVar B
-  0002    | GetConstant2 410: Rest
+  0002    | GetConstant2 412: Rest
   0005    | SetInputMark
   0006    | GetBoundLocal 0
-  0008    | Destructure 84: ([B] + Rest)
+  0008    | Destructure 85: ([B] + Rest)
   0010    | ConditionalThen 10 -> 52
   0013    | GetBoundLocal 3
-  0015    | Destructure 85: 0..1
+  0015    | Destructure 86: 0..1
   0017    | TakeRight 17 -> 49
-  0020    | GetConstant2 409: _Num.FromBinaryDigits
+  0020    | GetConstant2 411: _Num.FromBinaryDigits
   0023    | GetBoundLocal 4
   0025    | GetBoundLocal 1
   0027    | PushNumberNegOne
   0028    | Merge
   0029    | GetBoundLocal 2
-  0031    | GetConstant2 411: @Multiply
+  0031    | GetConstant2 413: @Multiply
   0034    | GetBoundLocal 3
-  0036    | GetConstant2 412: @Power
+  0036    | GetConstant2 414: @Power
   0039    | PushNumberTwo
   0040    | GetBoundLocal 1
   0042    | CallFunction 2
@@ -5499,13 +5512,13 @@
     Array.Length(Os) -> Len &
     _Num.FromOctalDigits(Os, Len - 1, 0)
   ========================================
-  0000    | GetConstant2 407: Len
-  0003    | GetConstant2 408: Array.Length
+  0000    | GetConstant2 409: Len
+  0003    | GetConstant2 410: Array.Length
   0006    | GetBoundLocal 0
   0008    | CallFunction 1
-  0010    | Destructure 86: Len
+  0010    | Destructure 87: Len
   0012    | TakeRight 12 -> 27
-  0015    | GetConstant2 413: _Num.FromOctalDigits
+  0015    | GetConstant2 415: _Num.FromOctalDigits
   0018    | GetBoundLocal 0
   0020    | GetBoundLocal 1
   0022    | PushNumberNegOne
@@ -5528,23 +5541,23 @@
     Acc
   ========================================
   0000    | PushCharVar O
-  0002    | GetConstant2 410: Rest
+  0002    | GetConstant2 412: Rest
   0005    | SetInputMark
   0006    | GetBoundLocal 0
-  0008    | Destructure 87: ([O] + Rest)
+  0008    | Destructure 88: ([O] + Rest)
   0010    | ConditionalThen 10 -> 53
   0013    | GetBoundLocal 3
-  0015    | Destructure 88: 0..7
+  0015    | Destructure 89: 0..7
   0017    | TakeRight 17 -> 50
-  0020    | GetConstant2 413: _Num.FromOctalDigits
+  0020    | GetConstant2 415: _Num.FromOctalDigits
   0023    | GetBoundLocal 4
   0025    | GetBoundLocal 1
   0027    | PushNumberNegOne
   0028    | Merge
   0029    | GetBoundLocal 2
-  0031    | GetConstant2 411: @Multiply
+  0031    | GetConstant2 413: @Multiply
   0034    | GetBoundLocal 3
-  0036    | GetConstant2 412: @Power
+  0036    | GetConstant2 414: @Power
   0039    | PushNumber 8
   0041    | GetBoundLocal 1
   0043    | CallFunction 2
@@ -5561,13 +5574,13 @@
     Array.Length(Hs) -> Len &
     _Num.FromHexDigits(Hs, Len - 1, 0)
   ========================================
-  0000    | GetConstant2 407: Len
-  0003    | GetConstant2 408: Array.Length
+  0000    | GetConstant2 409: Len
+  0003    | GetConstant2 410: Array.Length
   0006    | GetBoundLocal 0
   0008    | CallFunction 1
-  0010    | Destructure 89: Len
+  0010    | Destructure 90: Len
   0012    | TakeRight 12 -> 27
-  0015    | GetConstant2 414: _Num.FromHexDigits
+  0015    | GetConstant2 416: _Num.FromHexDigits
   0018    | GetBoundLocal 0
   0020    | GetBoundLocal 1
   0022    | PushNumberNegOne
@@ -5590,23 +5603,23 @@
     Acc
   ========================================
   0000    | PushCharVar H
-  0002    | GetConstant2 410: Rest
+  0002    | GetConstant2 412: Rest
   0005    | SetInputMark
   0006    | GetBoundLocal 0
-  0008    | Destructure 90: ([H] + Rest)
+  0008    | Destructure 91: ([H] + Rest)
   0010    | ConditionalThen 10 -> 53
   0013    | GetBoundLocal 3
-  0015    | Destructure 91: 0..15
+  0015    | Destructure 92: 0..15
   0017    | TakeRight 17 -> 50
-  0020    | GetConstant2 414: _Num.FromHexDigits
+  0020    | GetConstant2 416: _Num.FromHexDigits
   0023    | GetBoundLocal 4
   0025    | GetBoundLocal 1
   0027    | PushNumberNegOne
   0028    | Merge
   0029    | GetBoundLocal 2
-  0031    | GetConstant2 411: @Multiply
+  0031    | GetConstant2 413: @Multiply
   0034    | GetBoundLocal 3
-  0036    | GetConstant2 412: @Power
+  0036    | GetConstant2 414: @Power
   0039    | PushNumber 16
   0041    | GetBoundLocal 1
   0043    | CallFunction 2
@@ -5624,7 +5637,7 @@
   0000    | PushCharVar F
   0002    | PushUnderscoreVar
   0003    | GetBoundLocal 0
-  0005    | Destructure 92: ([F] + _)
+  0005    | Destructure 93: ([F] + _)
   0007    | TakeRight 7 -> 12
   0010    | GetBoundLocal 1
   0012    | End
@@ -5636,7 +5649,7 @@
   0000    | PushUnderscoreVar
   0001    | PushCharVar R
   0003    | GetBoundLocal 0
-  0005    | Destructure 93: ([_] + R)
+  0005    | Destructure 94: ([_] + R)
   0007    | TakeRight 7 -> 12
   0010    | GetBoundLocal 2
   0012    | End
@@ -5648,7 +5661,7 @@
   0000    | PushUnderscoreVar
   0001    | PushCharVar L
   0003    | GetBoundLocal 0
-  0005    | Destructure 94: ([_] * L)
+  0005    | Destructure 95: ([_] * L)
   0007    | TakeRight 7 -> 12
   0010    | GetBoundLocal 2
   0012    | End
@@ -5657,7 +5670,7 @@
   =============Array.Reverse==============
   Array.Reverse(A) = _Array.Reverse(A, [])
   ========================================
-  0000    | GetConstant2 415: _Array.Reverse
+  0000    | GetConstant2 417: _Array.Reverse
   0003    | GetBoundLocal 0
   0005    | PushEmptyArray
   0006    | CallTailFunction 2
@@ -5666,19 +5679,17 @@
   
   =============_Array.Reverse=============
   _Array.Reverse(A, Acc) =
-    A -> [First, ...Rest] ?
-    _Array.Reverse(Rest, [First, ...Acc]) :
-    Acc
+    A -> [First, ...Rest] ? _Array.Reverse(Rest, [First, ...Acc]) : Acc
   ========================================
   0000    | GetConstant 82: First
-  0002    | GetConstant2 410: Rest
+  0002    | GetConstant2 412: Rest
   0005    | SetInputMark
   0006    | GetBoundLocal 0
-  0008    | Destructure 95: ([First] + Rest)
+  0008    | Destructure 96: ([First] + Rest)
   0010    | ConditionalThen 10 -> 33
-  0013    | GetConstant2 415: _Array.Reverse
+  0013    | GetConstant2 417: _Array.Reverse
   0016    | GetBoundLocal 3
-  0018    | GetConstant2 416: [_]
+  0018    | GetConstant2 418: [_]
   0021    | GetBoundLocal 2
   0023    | InsertAtIndex 0
   0025    | GetBoundLocal 1
@@ -5692,7 +5703,7 @@
   ===============Array.Map================
   Array.Map(A, Fn) = _Array.Map(A, Fn, [])
   ========================================
-  0000    | GetConstant2 417: _Array.Map
+  0000    | GetConstant2 419: _Array.Map
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | PushEmptyArray
@@ -5702,23 +5713,21 @@
   
   ===============_Array.Map===============
   _Array.Map(A, Fn, Acc) =
-    A -> [First, ...Rest] ?
-    _Array.Map(Rest, Fn, [...Acc, Fn(First)]) :
-    Acc
+    A -> [First, ...Rest] ? _Array.Map(Rest, Fn, [...Acc, Fn(First)]) : Acc
   ========================================
   0000    | GetConstant 82: First
-  0002    | GetConstant2 410: Rest
+  0002    | GetConstant2 412: Rest
   0005    | SetInputMark
   0006    | GetBoundLocal 0
-  0008    | Destructure 96: ([First] + Rest)
+  0008    | Destructure 97: ([First] + Rest)
   0010    | ConditionalThen 10 -> 41
-  0013    | GetConstant2 417: _Array.Map
+  0013    | GetConstant2 419: _Array.Map
   0016    | GetBoundLocal 4
   0018    | GetBoundLocal 1
   0020    | PushEmptyArray
   0021    | GetBoundLocal 2
   0023    | Merge
-  0024    | GetConstant2 418: [_]
+  0024    | GetConstant2 420: [_]
   0027    | GetBoundLocal 1
   0029    | GetBoundLocal 3
   0031    | CallFunction 1
@@ -5733,7 +5742,7 @@
   ==============Array.Filter==============
   Array.Filter(A, Pred) = _Array.Filter(A, Pred, [])
   ========================================
-  0000    | GetConstant2 419: _Array.Filter
+  0000    | GetConstant2 421: _Array.Filter
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | PushEmptyArray
@@ -5748,12 +5757,12 @@
     Acc
   ========================================
   0000    | GetConstant 82: First
-  0002    | GetConstant2 410: Rest
+  0002    | GetConstant2 412: Rest
   0005    | SetInputMark
   0006    | GetBoundLocal 0
-  0008    | Destructure 97: ([First] + Rest)
+  0008    | Destructure 98: ([First] + Rest)
   0010    | ConditionalThen 10 -> 52
-  0013    | GetConstant2 419: _Array.Filter
+  0013    | GetConstant2 421: _Array.Filter
   0016    | GetBoundLocal 4
   0018    | GetBoundLocal 1
   0020    | SetInputMark
@@ -5764,7 +5773,7 @@
   0030    | PushEmptyArray
   0031    | GetBoundLocal 2
   0033    | Merge
-  0034    | GetConstant2 420: [_]
+  0034    | GetConstant2 422: [_]
   0037    | GetBoundLocal 3
   0039    | InsertAtIndex 0
   0041    | Merge
@@ -5779,7 +5788,7 @@
   ==============Array.Reject==============
   Array.Reject(A, Pred) = _Array.Reject(A, Pred, [])
   ========================================
-  0000    | GetConstant2 421: _Array.Reject
+  0000    | GetConstant2 423: _Array.Reject
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | PushEmptyArray
@@ -5794,12 +5803,12 @@
     Acc
   ========================================
   0000    | GetConstant 82: First
-  0002    | GetConstant2 410: Rest
+  0002    | GetConstant2 412: Rest
   0005    | SetInputMark
   0006    | GetBoundLocal 0
-  0008    | Destructure 98: ([First] + Rest)
+  0008    | Destructure 99: ([First] + Rest)
   0010    | ConditionalThen 10 -> 52
-  0013    | GetConstant2 421: _Array.Reject
+  0013    | GetConstant2 423: _Array.Reject
   0016    | GetBoundLocal 4
   0018    | GetBoundLocal 1
   0020    | SetInputMark
@@ -5812,7 +5821,7 @@
   0035    | PushEmptyArray
   0036    | GetBoundLocal 2
   0038    | Merge
-  0039    | GetConstant2 422: [_]
+  0039    | GetConstant2 424: [_]
   0042    | GetBoundLocal 3
   0044    | InsertAtIndex 0
   0046    | Merge
@@ -5822,10 +5831,99 @@
   0054    | End
   ========================================
   
+  ==============Array.Merge===============
+  Array.Merge(A) = _Array.Merge(A, null)
+  ========================================
+  0000    | GetConstant2 425: _Array.Merge
+  0003    | GetBoundLocal 0
+  0005    | PushNull
+  0006    | CallTailFunction 2
+  0008    | End
+  ========================================
+  
+  ==============_Array.Merge==============
+  _Array.Merge(A, Acc) =
+    A -> [First, ...Rest] ? _Array.Merge(Rest, Acc + First) : Acc
+  ========================================
+  0000    | GetConstant 82: First
+  0002    | GetConstant2 412: Rest
+  0005    | SetInputMark
+  0006    | GetBoundLocal 0
+  0008    | Destructure 100: ([First] + Rest)
+  0010    | ConditionalThen 10 -> 28
+  0013    | GetConstant2 425: _Array.Merge
+  0016    | GetBoundLocal 3
+  0018    | GetBoundLocal 1
+  0020    | GetBoundLocal 2
+  0022    | Merge
+  0023    | CallTailFunction 2
+  0025    | Jump 25 -> 30
+  0028    | GetBoundLocal 1
+  0030    | End
+  ========================================
+  
+  =============Array.MapMerge=============
+  Array.MapMerge(A, Fn) = _Array.MapMerge(A, Fn, null)
+  ========================================
+  0000    | GetConstant2 426: _Array.MapMerge
+  0003    | GetBoundLocal 0
+  0005    | GetBoundLocal 1
+  0007    | PushNull
+  0008    | CallTailFunction 3
+  0010    | End
+  ========================================
+  
+  ============_Array.MapMerge=============
+  _Array.MapMerge(A, Fn, Acc) =
+    A -> [First, ...Rest] ? _Array.MapMerge(Rest, Fn, Acc + Fn(First)) : Acc
+  ========================================
+  0000    | GetConstant 82: First
+  0002    | GetConstant2 412: Rest
+  0005    | SetInputMark
+  0006    | GetBoundLocal 0
+  0008    | Destructure 101: ([First] + Rest)
+  0010    | ConditionalThen 10 -> 34
+  0013    | GetConstant2 426: _Array.MapMerge
+  0016    | GetBoundLocal 4
+  0018    | GetBoundLocal 1
+  0020    | GetBoundLocal 2
+  0022    | GetBoundLocal 1
+  0024    | GetBoundLocal 3
+  0026    | CallFunction 1
+  0028    | Merge
+  0029    | CallTailFunction 3
+  0031    | Jump 31 -> 36
+  0034    | GetBoundLocal 2
+  0036    | End
+  ========================================
+  
+  ==============Array.Reduce==============
+  Array.Reduce(A, Fn, Acc) =
+    A -> [First, ...Rest] ? Array.Reduce(Rest, Fn, Fn(Acc, First)) : Acc
+  ========================================
+  0000    | GetConstant 82: First
+  0002    | GetConstant2 412: Rest
+  0005    | SetInputMark
+  0006    | GetBoundLocal 0
+  0008    | Destructure 102: ([First] + Rest)
+  0010    | ConditionalThen 10 -> 33
+  0013    | GetConstant2 427: Array.Reduce
+  0016    | GetBoundLocal 4
+  0018    | GetBoundLocal 1
+  0020    | GetBoundLocal 1
+  0022    | GetBoundLocal 2
+  0024    | GetBoundLocal 3
+  0026    | CallFunction 2
+  0028    | CallTailFunction 3
+  0030    | Jump 30 -> 35
+  0033    | GetBoundLocal 2
+  0035    | End
+  ========================================
+  
   ============Array.ZipObject=============
   Array.ZipObject(Ks, Vs) = _Array.ZipObject(Ks, Vs, {})
   ========================================
-  0000    | GetConstant2 423: _Array.ZipObject
+  0000    | GetConstant2 428: _Array.ZipObject
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | PushEmptyObject
@@ -5840,23 +5938,23 @@
     Acc
   ========================================
   0000    | PushCharVar K
-  0002    | GetConstant2 424: KsRest
+  0002    | GetConstant2 429: KsRest
   0005    | PushCharVar V
-  0007    | GetConstant2 425: VsRest
+  0007    | GetConstant2 430: VsRest
   0010    | SetInputMark
   0011    | GetBoundLocal 0
-  0013    | Destructure 99: ([K] + KsRest)
+  0013    | Destructure 103: ([K] + KsRest)
   0015    | TakeRight 15 -> 22
   0018    | GetBoundLocal 1
-  0020    | Destructure 100: ([V] + VsRest)
+  0020    | Destructure 104: ([V] + VsRest)
   0022    | ConditionalThen 22 -> 51
-  0025    | GetConstant2 423: _Array.ZipObject
+  0025    | GetConstant2 428: _Array.ZipObject
   0028    | GetBoundLocal 4
   0030    | GetBoundLocal 6
   0032    | PushEmptyObject
   0033    | GetBoundLocal 2
   0035    | Merge
-  0036    | GetConstant2 426: {_0_}
+  0036    | GetConstant2 431: {_0_}
   0039    | GetBoundLocal 3
   0041    | GetBoundLocal 5
   0043    | InsertKeyVal 0
@@ -5870,7 +5968,7 @@
   =============Array.ZipPairs=============
   Array.ZipPairs(A1, A2) = _Array.ZipPairs(A1, A2, [])
   ========================================
-  0000    | GetConstant2 427: _Array.ZipPairs
+  0000    | GetConstant2 432: _Array.ZipPairs
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | PushEmptyArray
@@ -5884,25 +5982,25 @@
     _Array.ZipPairs(Rest1, Rest2, [...Acc, [First1, First2]]) :
     Acc
   ========================================
-  0000    | GetConstant2 428: First1
-  0003    | GetConstant2 429: Rest1
-  0006    | GetConstant2 430: First2
-  0009    | GetConstant2 431: Rest2
+  0000    | GetConstant2 433: First1
+  0003    | GetConstant2 434: Rest1
+  0006    | GetConstant2 435: First2
+  0009    | GetConstant2 436: Rest2
   0012    | SetInputMark
   0013    | GetBoundLocal 0
-  0015    | Destructure 101: ([First1] + Rest1)
+  0015    | Destructure 105: ([First1] + Rest1)
   0017    | TakeRight 17 -> 24
   0020    | GetBoundLocal 1
-  0022    | Destructure 102: ([First2] + Rest2)
+  0022    | Destructure 106: ([First2] + Rest2)
   0024    | ConditionalThen 24 -> 60
-  0027    | GetConstant2 427: _Array.ZipPairs
+  0027    | GetConstant2 432: _Array.ZipPairs
   0030    | GetBoundLocal 4
   0032    | GetBoundLocal 6
   0034    | PushEmptyArray
   0035    | GetBoundLocal 2
   0037    | Merge
-  0038    | GetConstant2 432: [_]
-  0041    | GetConstant2 433: [_, _]
+  0038    | GetConstant2 437: [_]
+  0041    | GetConstant2 438: [_, _]
   0044    | GetBoundLocal 3
   0046    | InsertAtIndex 0
   0048    | GetBoundLocal 5
@@ -5919,7 +6017,7 @@
   Array.AppendN(A, Val, N) = A + ([Val] * N)
   ========================================
   0000    | GetBoundLocal 0
-  0002    | GetConstant2 434: [_]
+  0002    | GetConstant2 439: [_]
   0005    | GetBoundLocal 1
   0007    | InsertAtIndex 0
   0009    | GetBoundLocal 2
@@ -5931,7 +6029,7 @@
   ============Table.Transpose=============
   Table.Transpose(T) = _Table.Transpose(T, [])
   ========================================
-  0000    | GetConstant2 435: _Table.Transpose
+  0000    | GetConstant2 440: _Table.Transpose
   0003    | GetBoundLocal 0
   0005    | PushEmptyArray
   0006    | CallTailFunction 2
@@ -5945,25 +6043,25 @@
     _Table.Transpose(RestPerRow, [...Acc, FirstPerRow]) :
     Acc
   ========================================
-  0000    | GetConstant2 436: FirstPerRow
-  0003    | GetConstant2 437: RestPerRow
+  0000    | GetConstant2 441: FirstPerRow
+  0003    | GetConstant2 442: RestPerRow
   0006    | SetInputMark
-  0007    | GetConstant2 438: _Table.FirstPerRow
+  0007    | GetConstant2 443: _Table.FirstPerRow
   0010    | GetBoundLocal 0
   0012    | CallFunction 1
-  0014    | Destructure 103: FirstPerRow
+  0014    | Destructure 107: FirstPerRow
   0016    | TakeRight 16 -> 28
-  0019    | GetConstant2 439: _Table.RestPerRow
+  0019    | GetConstant2 444: _Table.RestPerRow
   0022    | GetBoundLocal 0
   0024    | CallFunction 1
-  0026    | Destructure 104: RestPerRow
+  0026    | Destructure 108: RestPerRow
   0028    | ConditionalThen 28 -> 53
-  0031    | GetConstant2 435: _Table.Transpose
+  0031    | GetConstant2 440: _Table.Transpose
   0034    | GetBoundLocal 3
   0036    | PushEmptyArray
   0037    | GetBoundLocal 1
   0039    | Merge
-  0040    | GetConstant2 440: [_]
+  0040    | GetConstant2 445: [_]
   0043    | GetBoundLocal 2
   0045    | InsertAtIndex 0
   0047    | Merge
@@ -5978,19 +6076,19 @@
     T -> [Row, ...Rest] & Row -> [VeryFirst, ..._] &
     __Table.FirstPerRow(Rest, [VeryFirst])
   ========================================
-  0000    | GetConstant2 441: Row
-  0003    | GetConstant2 410: Rest
-  0006    | GetConstant2 442: VeryFirst
+  0000    | GetConstant2 446: Row
+  0003    | GetConstant2 412: Rest
+  0006    | GetConstant2 447: VeryFirst
   0009    | PushUnderscoreVar
   0010    | GetBoundLocal 0
-  0012    | Destructure 105: ([Row] + Rest)
+  0012    | Destructure 109: ([Row] + Rest)
   0014    | TakeRight 14 -> 21
   0017    | GetBoundLocal 1
-  0019    | Destructure 106: ([VeryFirst] + _)
+  0019    | Destructure 110: ([VeryFirst] + _)
   0021    | TakeRight 21 -> 38
-  0024    | GetConstant2 443: __Table.FirstPerRow
+  0024    | GetConstant2 448: __Table.FirstPerRow
   0027    | GetBoundLocal 2
-  0029    | GetConstant2 444: [_]
+  0029    | GetConstant2 449: [_]
   0032    | GetBoundLocal 3
   0034    | InsertAtIndex 0
   0036    | CallTailFunction 2
@@ -6003,23 +6101,23 @@
     __Table.FirstPerRow(Rest, [...Acc, First]) :
     Acc
   ========================================
-  0000    | GetConstant2 441: Row
-  0003    | GetConstant2 410: Rest
+  0000    | GetConstant2 446: Row
+  0003    | GetConstant2 412: Rest
   0006    | GetConstant 82: First
   0008    | PushUnderscoreVar
   0009    | SetInputMark
   0010    | GetBoundLocal 0
-  0012    | Destructure 107: ([Row] + Rest)
+  0012    | Destructure 111: ([Row] + Rest)
   0014    | TakeRight 14 -> 21
   0017    | GetBoundLocal 2
-  0019    | Destructure 108: ([First] + _)
+  0019    | Destructure 112: ([First] + _)
   0021    | ConditionalThen 21 -> 46
-  0024    | GetConstant2 443: __Table.FirstPerRow
+  0024    | GetConstant2 448: __Table.FirstPerRow
   0027    | GetBoundLocal 3
   0029    | PushEmptyArray
   0030    | GetBoundLocal 1
   0032    | Merge
-  0033    | GetConstant2 445: [_]
+  0033    | GetConstant2 450: [_]
   0036    | GetBoundLocal 4
   0038    | InsertAtIndex 0
   0040    | Merge
@@ -6032,7 +6130,7 @@
   ===========_Table.RestPerRow============
   _Table.RestPerRow(T) = __Table.RestPerRow(T, [])
   ========================================
-  0000    | GetConstant2 446: __Table.RestPerRow
+  0000    | GetConstant2 451: __Table.RestPerRow
   0003    | GetBoundLocal 0
   0005    | PushEmptyArray
   0006    | CallTailFunction 2
@@ -6048,35 +6146,35 @@
     ) :
     Acc
   ========================================
-  0000    | GetConstant2 441: Row
-  0003    | GetConstant2 410: Rest
+  0000    | GetConstant2 446: Row
+  0003    | GetConstant2 412: Rest
   0006    | PushUnderscoreVar
-  0007    | GetConstant2 447: RowRest
+  0007    | GetConstant2 452: RowRest
   0010    | SetInputMark
   0011    | GetBoundLocal 0
-  0013    | Destructure 109: ([Row] + Rest)
+  0013    | Destructure 113: ([Row] + Rest)
   0015    | ConditionalThen 15 -> 66
   0018    | SetInputMark
   0019    | GetBoundLocal 2
-  0021    | Destructure 110: ([_] + RowRest)
+  0021    | Destructure 114: ([_] + RowRest)
   0023    | ConditionalThen 23 -> 48
-  0026    | GetConstant2 446: __Table.RestPerRow
+  0026    | GetConstant2 451: __Table.RestPerRow
   0029    | GetBoundLocal 3
   0031    | PushEmptyArray
   0032    | GetBoundLocal 1
   0034    | Merge
-  0035    | GetConstant2 448: [_]
+  0035    | GetConstant2 453: [_]
   0038    | GetBoundLocal 5
   0040    | InsertAtIndex 0
   0042    | Merge
   0043    | CallTailFunction 2
   0045    | Jump 45 -> 63
-  0048    | GetConstant2 446: __Table.RestPerRow
+  0048    | GetConstant2 451: __Table.RestPerRow
   0051    | GetBoundLocal 3
   0053    | PushEmptyArray
   0054    | GetBoundLocal 1
   0056    | Merge
-  0057    | GetConstant2 449: [[]]
+  0057    | GetConstant2 454: [[]]
   0060    | Merge
   0061    | CallTailFunction 2
   0063    | Jump 63 -> 68
@@ -6087,11 +6185,11 @@
   =========Table.RotateClockwise==========
   Table.RotateClockwise(T) = Array.Map(Table.Transpose(T), Array.Reverse)
   ========================================
-  0000    | GetConstant2 450: Array.Map
+  0000    | GetConstant2 455: Array.Map
   0003    | GetConstant 100: Table.Transpose
   0005    | GetBoundLocal 0
   0007    | CallFunction 1
-  0009    | GetConstant2 451: Array.Reverse
+  0009    | GetConstant2 456: Array.Reverse
   0012    | CallTailFunction 2
   0014    | End
   ========================================
@@ -6099,7 +6197,7 @@
   ======Table.RotateCounterClockwise======
   Table.RotateCounterClockwise(T) = Array.Reverse(Table.Transpose(T))
   ========================================
-  0000    | GetConstant2 451: Array.Reverse
+  0000    | GetConstant2 456: Array.Reverse
   0003    | GetConstant 100: Table.Transpose
   0005    | GetBoundLocal 0
   0007    | CallFunction 1
@@ -6110,7 +6208,7 @@
   ============Table.ZipObjects============
   Table.ZipObjects(Ks, Rows) = _Table.ZipObjects(Ks, Rows, [])
   ========================================
-  0000    | GetConstant2 452: _Table.ZipObjects
+  0000    | GetConstant2 457: _Table.ZipObjects
   0003    | GetBoundLocal 0
   0005    | GetBoundLocal 1
   0007    | PushEmptyArray
@@ -6124,20 +6222,20 @@
     _Table.ZipObjects(Ks, Rest, [...Acc, Array.ZipObject(Ks, Row)]) :
     Acc
   ========================================
-  0000    | GetConstant2 441: Row
-  0003    | GetConstant2 410: Rest
+  0000    | GetConstant2 446: Row
+  0003    | GetConstant2 412: Rest
   0006    | SetInputMark
   0007    | GetBoundLocal 1
-  0009    | Destructure 111: ([Row] + Rest)
+  0009    | Destructure 115: ([Row] + Rest)
   0011    | ConditionalThen 11 -> 45
-  0014    | GetConstant2 452: _Table.ZipObjects
+  0014    | GetConstant2 457: _Table.ZipObjects
   0017    | GetBoundLocal 0
   0019    | GetBoundLocal 4
   0021    | PushEmptyArray
   0022    | GetBoundLocal 2
   0024    | Merge
-  0025    | GetConstant2 453: [_]
-  0028    | GetConstant2 454: Array.ZipObject
+  0025    | GetConstant2 458: [_]
+  0028    | GetConstant2 459: Array.ZipObject
   0031    | GetBoundLocal 0
   0033    | GetBoundLocal 3
   0035    | CallFunction 2
@@ -6154,7 +6252,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocal 0
-  0003    | Destructure 112: ({K: _} + _)
+  0003    | Destructure 116: ({K: _} + _)
   0005    | End
   ========================================
   
@@ -6164,7 +6262,7 @@
   0000    | PushCharVar V
   0002    | PushUnderscoreVar
   0003    | GetBoundLocal 0
-  0005    | Destructure 113: ({K: V} + _)
+  0005    | Destructure 117: ({K: V} + _)
   0007    | TakeRight 7 -> 12
   0010    | GetBoundLocal 2
   0012    | End
@@ -6176,12 +6274,112 @@
   0000    | PushEmptyObject
   0001    | GetBoundLocal 0
   0003    | Merge
-  0004    | GetConstant2 455: {_0_}
+  0004    | GetConstant2 460: {_0_}
   0007    | GetBoundLocal 1
   0009    | GetBoundLocal 2
   0011    | InsertKeyVal 0
   0013    | Merge
   0014    | End
+  ========================================
+  
+  ================Obj.Size================
+  Obj.Size(O) = _Obj.Size(O, 0)
+  ========================================
+  0000    | GetConstant2 461: _Obj.Size
+  0003    | GetBoundLocal 0
+  0005    | PushNumberZero
+  0006    | CallTailFunction 2
+  0008    | End
+  ========================================
+  
+  ===============_Obj.Size================
+  _Obj.Size(O, Acc) = O -> {_: _, ...Rest} ? _Obj.Size(Rest, Acc + 1) : Acc
+  ========================================
+  0000    | PushUnderscoreVar
+  0001    | GetConstant2 412: Rest
+  0004    | SetInputMark
+  0005    | GetBoundLocal 0
+  0007    | Destructure 118: ({_: _} + Rest)
+  0009    | ConditionalThen 9 -> 26
+  0012    | GetConstant2 461: _Obj.Size
+  0015    | GetBoundLocal 3
+  0017    | GetBoundLocal 1
+  0019    | PushNumberOne
+  0020    | Merge
+  0021    | CallTailFunction 2
+  0023    | Jump 23 -> 28
+  0026    | GetBoundLocal 1
+  0028    | End
+  ========================================
+  
+  ================Obj.Keys================
+  Obj.Keys(O) = _Obj.Keys(O, [])
+  ========================================
+  0000    | GetConstant2 462: _Obj.Keys
+  0003    | GetBoundLocal 0
+  0005    | PushEmptyArray
+  0006    | CallTailFunction 2
+  0008    | End
+  ========================================
+  
+  ===============_Obj.Keys================
+  _Obj.Keys(O, Acc) = O -> {K: _, ...Rest} ? _Obj.Keys(Rest, [...Acc, K]) : Acc
+  ========================================
+  0000    | PushCharVar K
+  0002    | PushUnderscoreVar
+  0003    | GetConstant2 412: Rest
+  0006    | SetInputMark
+  0007    | GetBoundLocal 0
+  0009    | Destructure 119: ({K: _} + Rest)
+  0011    | ConditionalThen 11 -> 36
+  0014    | GetConstant2 462: _Obj.Keys
+  0017    | GetBoundLocal 4
+  0019    | PushEmptyArray
+  0020    | GetBoundLocal 1
+  0022    | Merge
+  0023    | GetConstant2 463: [_]
+  0026    | GetBoundLocal 2
+  0028    | InsertAtIndex 0
+  0030    | Merge
+  0031    | CallTailFunction 2
+  0033    | Jump 33 -> 38
+  0036    | GetBoundLocal 1
+  0038    | End
+  ========================================
+  
+  ===============Obj.Values===============
+  Obj.Values(O) = _Obj.Values(O, [])
+  ========================================
+  0000    | GetConstant2 464: _Obj.Values
+  0003    | GetBoundLocal 0
+  0005    | PushEmptyArray
+  0006    | CallTailFunction 2
+  0008    | End
+  ========================================
+  
+  ==============_Obj.Values===============
+  _Obj.Values(O, Acc) = O -> {_: V, ...Rest} ? _Obj.Values(Rest, [...Acc, V]) : Acc
+  ========================================
+  0000    | PushUnderscoreVar
+  0001    | PushCharVar V
+  0003    | GetConstant2 412: Rest
+  0006    | SetInputMark
+  0007    | GetBoundLocal 0
+  0009    | Destructure 120: ({_: V} + Rest)
+  0011    | ConditionalThen 11 -> 36
+  0014    | GetConstant2 464: _Obj.Values
+  0017    | GetBoundLocal 4
+  0019    | PushEmptyArray
+  0020    | GetBoundLocal 1
+  0022    | Merge
+  0023    | GetConstant2 465: [_]
+  0026    | GetBoundLocal 3
+  0028    | InsertAtIndex 0
+  0030    | Merge
+  0031    | CallTailFunction 2
+  0033    | Jump 33 -> 38
+  0036    | GetBoundLocal 1
+  0038    | End
   ========================================
   
   =============_Ast.MergePos==============
@@ -6190,16 +6388,16 @@
     ...(Right -> {"endpos": EndPos, ..._} ? {"endpos": EndPos} : {}),
   }
   ========================================
-  0000    | GetConstant2 456: StartPos
+  0000    | GetConstant2 466: StartPos
   0003    | PushUnderscoreVar
-  0004    | GetConstant2 457: EndPos
+  0004    | GetConstant2 467: EndPos
   0007    | PushEmptyObject
   0008    | SetInputMark
   0009    | GetBoundLocal 0
-  0011    | Destructure 114: ({"startpos": StartPos} + _)
+  0011    | Destructure 121: ({"startpos": StartPos} + _)
   0013    | ConditionalThen 13 -> 29
-  0016    | GetConstant2 458: {_0_}
-  0019    | GetConstant2 393: "startpos"
+  0016    | GetConstant2 468: {_0_}
+  0019    | GetConstant2 395: "startpos"
   0022    | GetBoundLocal 2
   0024    | InsertKeyVal 0
   0026    | Jump 26 -> 30
@@ -6207,10 +6405,10 @@
   0030    | Merge
   0031    | SetInputMark
   0032    | GetBoundLocal 1
-  0034    | Destructure 115: ({"endpos": EndPos} + _)
+  0034    | Destructure 122: ({"endpos": EndPos} + _)
   0036    | ConditionalThen 36 -> 52
-  0039    | GetConstant2 459: {_0_}
-  0042    | GetConstant2 394: "endpos"
+  0039    | GetConstant2 469: {_0_}
+  0042    | GetConstant2 396: "endpos"
   0045    | GetBoundLocal 4
   0047    | InsertKeyVal 0
   0049    | Jump 49 -> 53
@@ -6224,7 +6422,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocal 0
-  0003    | Destructure 116: ("" + _)
+  0003    | Destructure 123: ("" + _)
   0005    | End
   ========================================
   
@@ -6233,7 +6431,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocal 0
-  0003    | Destructure 117: (0 + _)
+  0003    | Destructure 124: (0 + _)
   0005    | End
   ========================================
   
@@ -6242,7 +6440,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocal 0
-  0003    | Destructure 118: (false + _)
+  0003    | Destructure 125: (false + _)
   0005    | End
   ========================================
   
@@ -6250,7 +6448,7 @@
   Is.Null(V) = V -> null
   ========================================
   0000    | GetBoundLocal 0
-  0002    | Destructure 119: null
+  0002    | Destructure 126: null
   0004    | End
   ========================================
   
@@ -6259,7 +6457,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocal 0
-  0003    | Destructure 120: ([] + _)
+  0003    | Destructure 127: ([] + _)
   0005    | End
   ========================================
   
@@ -6268,7 +6466,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocal 0
-  0003    | Destructure 121: ({} + _)
+  0003    | Destructure 128: ({} + _)
   0005    | End
   ========================================
   
@@ -6276,7 +6474,7 @@
   Is.Equal(A, B) = A -> B
   ========================================
   0000    | GetBoundLocal 0
-  0002    | Destructure 122: B
+  0002    | Destructure 129: B
   0004    | End
   ========================================
   
@@ -6285,12 +6483,12 @@
   ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
-  0003    | Destructure 123: B
+  0003    | Destructure 130: B
   0005    | ConditionalThen 5 -> 14
-  0008    | CallTailFunctionConstant2 361: @Fail
+  0008    | CallTailFunctionConstant2 364: @Fail
   0011    | Jump 11 -> 18
   0014    | GetBoundLocal 0
-  0016    | Destructure 124: ..B
+  0016    | Destructure 131: ..B
   0018    | End
   ========================================
   
@@ -6298,7 +6496,7 @@
   Is.LessThanOrEqual(A, B) = A -> ..B
   ========================================
   0000    | GetBoundLocal 0
-  0002    | Destructure 125: ..B
+  0002    | Destructure 132: ..B
   0004    | End
   ========================================
   
@@ -6307,12 +6505,12 @@
   ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
-  0003    | Destructure 126: B
+  0003    | Destructure 133: B
   0005    | ConditionalThen 5 -> 14
-  0008    | CallTailFunctionConstant2 361: @Fail
+  0008    | CallTailFunctionConstant2 364: @Fail
   0011    | Jump 11 -> 18
   0014    | GetBoundLocal 0
-  0016    | Destructure 127: B..
+  0016    | Destructure 134: B..
   0018    | End
   ========================================
   
@@ -6320,7 +6518,7 @@
   Is.GreaterThanOrEqual(A, B) = A -> B..
   ========================================
   0000    | GetBoundLocal 0
-  0002    | Destructure 128: B..
+  0002    | Destructure 135: B..
   0004    | End
   ========================================
   
@@ -6329,12 +6527,12 @@
   ========================================
   0000    | PushCharVar N
   0002    | SetInputMark
-  0003    | GetConstant2 460: Is.Number
+  0003    | GetConstant2 470: Is.Number
   0006    | GetBoundLocal 0
   0008    | CallFunction 1
   0010    | Or 10 -> 22
   0013    | GetBoundLocal 0
-  0015    | Destructure 129: "%(0 + N)"
+  0015    | Destructure 136: "%(0 + N)"
   0017    | TakeRight 17 -> 22
   0020    | GetBoundLocal 1
   0022    | End

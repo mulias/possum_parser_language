@@ -1,0 +1,25 @@
+fresh_range = tuple2_sep(int, "-", int)
+
+merged_ranges(DB) =
+  fresh_range < maybe(nl) -> [Low, High] ?
+  merged_ranges(AddRange(DB, Low, High)) :
+  const(DB)
+
+AddRange(DB, Low, High) =
+  ExtendLowerBound(DB, Low, High) |
+  ExtendUpperBound(DB, Low, High) |
+  Obj.Put(DB, "%([Low, High])", [Low, High])
+
+ExtendLowerBound(DB, Low, High) =
+  DB -> {_: [Low..(High + 1), CurrentHigh], ...Rest} &
+  AddRange(Rest, Low, Num.Max(High, CurrentHigh))
+
+ExtendUpperBound(DB, Low, High) =
+  DB -> {_: [CurrentLow, (Low - 1)..High], ...Rest} &
+  AddRange(Rest, Num.Min(Low, CurrentLow), High)
+
+Range.Size(R) = R -> [Low, High] & High - Low + 1
+
+CountRanges(DB) = Array.MapMerge(Obj.Values(DB), Range.Size)
+
+merged_ranges({}) -> DB $ CountRanges(DB)
