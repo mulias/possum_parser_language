@@ -6,17 +6,12 @@ merged_ranges(DB) =
   const(DB)
 
 AddRange(DB, Low, High) =
-  ExtendLowerBound(DB, Low, High) |
-  ExtendUpperBound(DB, Low, High) |
+  MergeWithExisting(DB, Low, High) |
   Obj.Put(DB, "%([Low, High])", [Low, High])
 
-ExtendLowerBound(DB, Low, High) =
-  DB -> {_: [Low..(High + 1), CurrentHigh], ...Rest} &
-  AddRange(Rest, Low, Num.Max(High, CurrentHigh))
-
-ExtendUpperBound(DB, Low, High) =
-  DB -> {_: [CurrentLow, (Low - 1)..High], ...Rest} &
-  AddRange(Rest, Num.Min(Low, CurrentLow), High)
+MergeWithExisting(DB, Low, High) =
+  DB -> {_: [ExistingLow..(High + 1), (Low - 1)..ExistingHigh], ...Rest} &
+  AddRange(Rest, Num.Min(ExistingLow, Low), Num.Max(ExistingHigh, High))
 
 Range.Size(R) = R -> [Low, High] & High - Low + 1
 

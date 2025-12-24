@@ -34,8 +34,9 @@ String literals using single and double quotes support the following escape char
 | `\\`             | Backslash                  |
 | `\u000000` to `\u10FFFF` | unicode code-point |
 
-## Infix Operators
+## Operators
 
+Possum does not use keywords for control flow
 Infix operators compose parsers to create more complex parsers.
 
 | Operator       | Name        | Precedence | Associativity | Description      |
@@ -43,7 +44,6 @@ Infix operators compose parsers to create more complex parsers.
 | `p1 > p2`      | Take Right  | 3          | Left          | Match `p1` and then `p2`, return the result of `p2` |
 | `p1 < p2`      | Take Left   | 3          | Left          | Match `p1` and then `p2`, return the result of `p1` |
 | `p1 \| p2`     | Or          | 3          | Right         | Match `p1`, if no match is found try `p2` instead |
-| `p1 ! p2`      | Backtrack   | 3          | Right         | Match `p1` and then go back in the input and match `p2` instead, return the result of `p2` |
 | `p1 + p2`      | Merge       | 3          | Left          | Match `p1` and then `p2`, return a merged result |
 | `p $ V`        | Return      | 3          | Left          | Match `p` and then return the value `V` |
 | `p -> P`       | Destructure | 3          | Left          | Match `p`, compare the resulting value against the pattern `P` |
@@ -52,6 +52,11 @@ Infix operators compose parsers to create more complex parsers.
 | `p1 ? p2 : p3` | Conditional | 1          | Right         | Match `p1`, if successful then match `p2` next. If `p1` fails then try `p3` instead |
 
 Operators with a higher precedence are evaluated first, and parsers with the same precedence are generally evaluated left to right.
+
+| Prefix Operator | Name        |
+| `!p`            | Negate      |
+| `$"abc"`        | Value Label |
+
 
 ### Merge
 
