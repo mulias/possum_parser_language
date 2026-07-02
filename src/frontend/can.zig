@@ -153,10 +153,6 @@ fn convertParser(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Parser.RNode {
     const region = rnode.region;
     const node = switch (rnode.node) {
         .InfixNode => |infix| switch (infix.infixType) {
-            .Backtrack => Ast.Parser.Node{ .backtrack = .{
-                .left = try self.convertParser(infix.left),
-                .right = try self.convertParser(infix.right),
-            } },
             .Destructure => Ast.Parser.Node{ .destructure = .{
                 .left = try self.convertParser(infix.left),
                 .right = try self.convertPattern(infix.right),
@@ -278,10 +274,6 @@ fn convertValue(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Value.RNode {
     const region = rnode.region;
     const node = switch (rnode.node) {
         .InfixNode => |infix| switch (infix.infixType) {
-            .Backtrack => {
-                try self.printError(region, "Backtrack ('<') is not valid in value context", .{});
-                return Error.InvalidAst;
-            },
             .Destructure => Ast.Value.Node{ .destructure = .{
                 .left = try self.convertValue(infix.left),
                 .right = try self.convertPattern(infix.right),
