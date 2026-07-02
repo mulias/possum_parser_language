@@ -642,16 +642,19 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
                                 return false;
                             }
                         } else {
-                            // Unbound key case - search linearly through remaining unmatched keys
+                            // Unbound key case - search linearly through
+                            // remaining unmatched keys, in value object member
+                            // order so that matching is deterministic
                             var found_match = false;
-                            var key_iterator = unmatched_keys.iterator();
+                            var key_iterator = value_object.members.iterator();
                             var matched_key: ?StringTable.Id = null;
 
                             const bound_locals_reset_point = self.bound_locals.items.len;
 
                             while (key_iterator.next()) |entry| {
                                 const obj_key_sid = entry.key_ptr.*;
-                                const obj_value = value_object.members.get(obj_key_sid).?;
+                                if (!unmatched_keys.contains(obj_key_sid)) continue;
+                                const obj_value = entry.value_ptr.*;
 
                                 // Try to match the key pattern
                                 const key_elem = Elem.string(obj_key_sid);
@@ -694,15 +697,16 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
 
     // Handle the unbound pattern if it exists
     if (unbound_part) |pattern| {
-        // Create an object with only the unmatched keys
+        // Create an object with only the unmatched keys, preserving the
+        // value object's member order
         const unbound_object = try Elem.DynElem.Object.create(self.vm, unmatched_keys.count());
         try self.vm.pushTempDyn(&unbound_object.dyn);
 
-        var key_iterator = unmatched_keys.iterator();
-        while (key_iterator.next()) |entry| {
+        var member_iterator = value_object.members.iterator();
+        while (member_iterator.next()) |entry| {
             const key_sid = entry.key_ptr.*;
-            const value_elem = value_object.members.get(key_sid).?;
-            try unbound_object.put(self.vm, key_sid, value_elem);
+            if (!unmatched_keys.contains(key_sid)) continue;
+            try unbound_object.put(self.vm, key_sid, entry.value_ptr.*);
         }
 
         const unbound_elem = unbound_object.dyn.elem();
