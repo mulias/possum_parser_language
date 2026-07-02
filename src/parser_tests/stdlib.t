@@ -2777,15 +2777,15 @@
       (Identifier 577:22-29 numeral)
       (NumberString 577:32-33 4)))
   
-  (DeclareGlobal 579:0-53
+  (DeclareGlobal 579:0-58
     (Identifier 579:0-20 _toml.datetime.month)
-    (Or 579:23-53
+    (Or 579:23-58
       (Merge 579:23-39
         (String 579:24-27 "0")
         (Range 579:30-38 (String 579:30-33 "1") (String 579:35-38 "9")))
-      (Or 579:42-53
-        (String 579:42-46 "11")
-        (String 579:49-53 "12"))))
+      (Merge 579:42-58
+        (String 579:43-46 "1")
+        (Range 579:49-57 (String 579:49-52 "0") (String 579:54-57 "2")))))
   
   (DeclareGlobal 581:0-57
     (Identifier 581:0-19 _toml.datetime.mday)
