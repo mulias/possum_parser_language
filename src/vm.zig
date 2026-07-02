@@ -1,7 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
-const AutoHashMap = std.AutoHashMapUnmanaged;
 const assert = std.debug.assert;
 const unicode = std.unicode;
 const Writer = std.Io.Writer;
@@ -12,7 +11,6 @@ const Env = @import("env.zig").Env;
 const GC = @import("gc.zig").GC;
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
-const Parser = @import("frontend/parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
 const Pattern = @import("pattern.zig").Pattern;
 const PatternSolver = @import("pattern_solver.zig");

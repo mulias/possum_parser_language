@@ -191,14 +191,6 @@ fn writeUnderline(
     try writer.print("\n", .{});
 }
 
-/// Check if source is single line (no newlines)
-fn isSingleLine(source: []const u8) bool {
-    for (source) |char| {
-        if (char == '\n') return false;
-    }
-    return true;
-}
-
 /// Highlight the EOF position (one character after the end of source)
 pub fn highlightEndPosition(source: []const u8, writer: anytype, config: HighlightConfig) !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

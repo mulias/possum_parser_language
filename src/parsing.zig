@@ -1,6 +1,5 @@
 const std = @import("std");
 const unicode = std.unicode;
-const NumberStringElem = @import("elem.zig").Elem.NumberStringElem;
 const Scanner = @import("frontend/scanner.zig").Scanner;
 
 pub fn parseCodepoint(bytes: []const u8) ?u21 {

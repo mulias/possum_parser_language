@@ -1,7 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const VM = @import("vm.zig").VM;
-const Compiler = @import("./compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 
 pub const GC = struct {

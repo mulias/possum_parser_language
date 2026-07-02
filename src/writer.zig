@@ -1,7 +1,5 @@
 const std = @import("std");
-const File = std.fs.File;
 const Writer = std.Io.Writer;
-const env = @import("env.zig");
 
 pub const Writers = struct {
     out: *Writer,

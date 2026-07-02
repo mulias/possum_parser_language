@@ -2,11 +2,9 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Writer = std.Io.Writer;
-const Elem = @import("elem.zig").Elem;
 const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
 const OpCode = @import("op_code.zig").OpCode;
-const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 
 pub const ChunkError = error{

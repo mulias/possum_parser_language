@@ -2,7 +2,6 @@ const std = @import("std");
 const allocator = std.testing.allocator;
 const Elem = @import("elem.zig").Elem;
 const VM = @import("vm.zig").VM;
-const Module = @import("module.zig").Module;
 const VMConfig = @import("vm.zig").Config;
 const Writers = @import("writer.zig").Writers;
 const testing = @import("testing.zig");

@@ -1,6 +1,5 @@
 const std = @import("std");
 const mem = std.mem;
-const log = std.log;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.HashMapUnmanaged;

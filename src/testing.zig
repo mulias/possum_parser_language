@@ -1,10 +1,6 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
-const Tuple = std.meta.Tuple;
-const Chunk = @import("chunk.zig").Chunk;
 const Elem = @import("elem.zig").Elem;
-const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 
 pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {

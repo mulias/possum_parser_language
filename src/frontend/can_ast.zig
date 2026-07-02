@@ -1,9 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
-const AutoArrayHashMap = std.AutoArrayHashMapUnmanaged;
-const Module = @import("../module.zig").Module;
 const Region = @import("../region.zig").Region;
 const StringTable = @import("../string_table.zig").StringTable;
 
