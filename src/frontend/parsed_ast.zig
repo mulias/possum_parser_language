@@ -1,12 +1,9 @@
 const std = @import("std");
 const Writer = std.Io.Writer;
-const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
-const Elem = @import("../elem.zig").Elem;
 const Region = @import("../region.zig").Region;
 const LineRelativeRegion = @import("../region.zig").LineRelativeRegion;
-const StringTable = @import("../string_table.zig").StringTable;
 
 pub const Ast = struct {
     arena: *ArenaAllocator,

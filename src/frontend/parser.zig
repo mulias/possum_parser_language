@@ -1,15 +1,11 @@
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Ast = @import("parsed_ast.zig").Ast;
-const Elem = @import("../elem.zig").Elem;
-const HighlightConfig = @import("../highlight.zig").HighlightConfig;
 const Module = @import("../module.zig").Module;
 const Region = @import("../region.zig").Region;
 const Scanner = @import("scanner.zig").Scanner;
-const StringTable = @import("../string_table.zig").StringTable;
 const Token = @import("token.zig").Token;
 const TokenType = @import("token.zig").TokenType;
-const VM = @import("../vm.zig").VM;
 const Writer = std.Io.Writer;
 const Writers = @import("../writer.zig").Writers;
 const parsing = @import("../parsing.zig");
@@ -69,13 +65,6 @@ pub const Parser = struct {
         }
 
         try self.consume(.Eof, "Expect end of program.");
-    }
-
-    fn parseExpression(self: *Parser, source: []const u8) !*Ast.RNode {
-        self.scanner = Scanner.init(source, self.writers, self.vm.config.printScanner);
-        self.source = source;
-        try self.advance();
-        return self.expression();
     }
 
     fn statement(self: *Parser) !*Ast.RNode {

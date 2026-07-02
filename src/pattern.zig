@@ -2,8 +2,6 @@ const std = @import("std");
 const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
-const Elem = @import("elem.zig").Elem;
-const NumberStringElem = Elem.NumberStringElem;
 const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 

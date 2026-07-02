@@ -2,8 +2,6 @@ const std = @import("std");
 const Writer = std.Io.Writer;
 const Tuple = std.meta.Tuple;
 
-const highlightRegion = @import("highlight.zig").highlightRegion;
-const Module = @import("module.zig").Module;
 
 pub const Region = struct {
     start: usize,

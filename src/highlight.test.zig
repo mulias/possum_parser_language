@@ -38,10 +38,6 @@ fn deinitTestBuffer() void {
     test_buffer.deinit(testing.allocator);
 }
 
-fn clearTestBuffer() void {
-    test_buffer.clearRetainingCapacity();
-}
-
 fn getTestOutput() []const u8 {
     return test_buffer.items;
 }

@@ -467,11 +467,6 @@ pub const StringBuffer = struct {
         return false;
     }
 
-    /// Checks if byte is part of UTF-8 character
-    inline fn isUTF8Byte(byte: u8) bool {
-        return ((byte & 0x80) > 0) and (((byte << 1) & 0x80) == 0);
-    }
-
     /// Returns the real index of a unicode string literal
     fn getIndex(unicode: []const u8, index: usize, real: bool) ?usize {
         var i: usize = 0;

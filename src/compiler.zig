@@ -1,4 +1,3 @@
-const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Ast = @import("frontend/can_ast.zig");
 const AutoHashMap = std.AutoHashMapUnmanaged;
@@ -2393,20 +2392,6 @@ pub const Compiler = struct {
     // pushing a new function onto the list.
     fn currentFunction(self: *Compiler) *Elem.DynElem.Function {
         return self.functions.items[self.functions.items.len - 1];
-    }
-
-    // Note: Returns a pointer into an ArrayList which will be invalidated if
-    // the list is reallocated on `append`. Don't use this pointer after
-    // pushing a new function onto the list.
-    fn parentFunction(self: *Compiler) *Elem.DynElem.Function {
-        var parentIndex = self.functions.items.len - 2;
-        while (true) {
-            if (self.functions.items[parentIndex].is_anonymous) {
-                parentIndex -= 1;
-            } else {
-                return self.functions.items[parentIndex];
-            }
-        }
     }
 
     fn putConstant(self: *Compiler, module_id: Module.Id, elem: Elem, const_id: usize) !void {

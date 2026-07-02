@@ -1,4 +1,3 @@
-const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Ast = @import("can_ast.zig");
@@ -723,42 +722,6 @@ fn convertValueDecl(
     };
 
     return Ast.Value.createDeclaration(self.arena.allocator(), decl_node, region);
-}
-
-fn convertParserAliasDecl(self: *Can, name: *ParsedAst.RNode, body: *ParsedAst.RNode) !*Ast.RNode(Ast.Parser.Declaration) {
-    const name_ident = name.node.Identifier;
-    const name_id = Ast.Parser.Identifier{
-        .name = name_ident.name,
-        .builtin = name_ident.builtin,
-        .underscored = name_ident.underscored,
-    };
-
-    const decl_node = Ast.Parser.Node{ .declaration = .{
-        .name = name_id,
-        .name_region = name.region,
-        .params = ArrayList(Ast.ParserOrValue.Identifier){},
-        .body = try self.convertParser(body),
-    } };
-
-    return Ast.Parser.create(self.can_ast, decl_node, name.region);
-}
-
-fn convertValueAliasDecl(self: *Can, name: *ParsedAst.RNode, body: *ParsedAst.RNode) !*Ast.Value.RNode {
-    const name_ident = name.node.Identifier;
-    const name_id = Ast.Value.Identifier{
-        .name = name_ident.name,
-        .builtin = name_ident.builtin,
-        .underscored = name_ident.underscored,
-    };
-
-    const decl_node = Ast.Value.Node{ .declaration = .{
-        .name = name_id,
-        .name_region = name.region,
-        .params = ArrayList(Ast.Value.Identifier){},
-        .body = try self.convertValue(body),
-    } };
-
-    return Ast.Value.create(self.can_ast, decl_node, name.region);
 }
 
 fn foldConstants(self: *Can) !void {

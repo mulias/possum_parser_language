@@ -1,6 +1,5 @@
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const ArrayList = std.ArrayListUnmanaged;
 const Can = @import("frontend/can.zig");
 const Ast = @import("frontend/can_ast.zig");
 const DependencyGraph = @import("frontend/dependency_graph.zig");

@@ -1,11 +1,8 @@
 const std = @import("std");
-const process = std.process;
 const builtin = @import("builtin");
-const Allocator = std.mem.Allocator;
 const ExternalWriter = @import("writer.zig").ExternalWriter;
 const VM = @import("vm.zig").VM;
 const VMConfig = @import("vm.zig").Config;
-const Module = @import("module.zig").Module;
 const Writers = @import("writer.zig").Writers;
 
 const allocator = switch (builtin.mode) {
