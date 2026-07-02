@@ -503,7 +503,7 @@ fn createModulusValue(vm: *VM, module: *Module) !void {
     });
 
     // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "modulusNative", modulusNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -554,7 +554,7 @@ fn createFloorValue(vm: *VM, module: *Module) !void {
     });
 
     // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "floorNative", floorNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -596,7 +596,7 @@ fn createCeilingValue(vm: *VM, module: *Module) !void {
     });
 
     // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "ceilingNative", ceilingNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
@@ -725,7 +725,7 @@ fn createAt(vm: *VM, module: *Module) !void {
     fun.param_types.set(1, .Parser);
 
     // Prevent GC
-    try module.addGlobal(vm.allocator, fun.name, fun.dyn.elem());
+    _ = try module.addConstant(vm.allocator, fun.dyn.elem());
 
     const native_code = try NativeCode.create(vm, "setInputPositionNative", setInputPositionNative);
     const nc_id = try module.addConstant(vm.allocator, native_code.dyn.elem());
