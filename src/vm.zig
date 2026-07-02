@@ -222,7 +222,6 @@ pub const VM = struct {
 
         try compiler.addModuleDependency(main_module.id, builtin_module.id);
         if (maybe_stdlib_module) |stdlib_module| {
-            try compiler.addModule(stdlib_module, .{});
             try compiler.addModuleDependency(stdlib_module.id, builtin_module.id);
             try compiler.addModuleDependency(main_module.id, stdlib_module.id);
         }
