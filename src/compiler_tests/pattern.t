@@ -2,6 +2,13 @@
 
   $ possum -p 'const([1,2,3]) -> [1,2,3]' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const([1,2,3]) -> [1,2,3]
   ========================================
@@ -13,6 +20,13 @@
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [A,B,C]' -i ''
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
   
   =================@main==================
   const([1,2,3]) -> [A,B,C]
@@ -29,6 +43,13 @@
 
   $ possum -p 'A = 1 ; const([1,2,3]) -> [A,B,C]' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const([1,2,3]) -> [A,B,C]
   ========================================
@@ -43,6 +64,13 @@
 
   $ possum -p 'const([1,2,3]) -> [A, 2, 3]' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const([1,2,3]) -> [A, 2, 3]
   ========================================
@@ -55,6 +83,13 @@
   ========================================
 
   $ possum -p 'const([1,[[2],3]]) -> [A, [[B], 3]] $ B' -i ''
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
   
   =================@main==================
   const([1,[[2],3]]) -> [A, [[B], 3]] $ B
@@ -87,6 +122,13 @@
 
   $ possum -p 'const([1,2,3]) -> [A, 1 + 1, 3]' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const([1,2,3]) -> [A, 1 + 1, 3]
   ========================================
@@ -99,6 +141,13 @@
   ========================================
 
   $ possum -p 'const([1, @Add(1, 2), 3]) -> [A, @Add(1, 1), 3]' -i ''
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
   
   =================@main==================
   const([1, @Add(1, 2), 3]) -> [A, @Add(1, 1), 3]
@@ -118,6 +167,13 @@
 
   $ possum -p 'const([1,2]) -> ([1] + [2])' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const([1,2]) -> ([1] + [2])
   ========================================
@@ -129,6 +185,13 @@
   ========================================
 
   $ possum -p 'const([1,2,3]) -> ([1] + B + [3])' -i ''
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
   
   =================@main==================
   const([1,2,3]) -> ([1] + B + [3])
@@ -142,6 +205,13 @@
   ========================================
 
   $ possum -p 'const([1,[2],2,3]) -> ([1,A] + A + [3])' -i ''
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
   
   =================@main==================
   const([1,[2],2,3]) -> ([1,A] + A + [3])
@@ -171,6 +241,13 @@
 
   $ possum -p 'const([1,2,3]) -> [1, ...Rest] $ Rest' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const([1,2,3]) -> [1, ...Rest] $ Rest
   ========================================
@@ -186,6 +263,13 @@
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, "b": 2}' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const({"a": 1, "b": 2}) -> {"a": 1, "b": 2}
   ========================================
@@ -197,6 +281,13 @@
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": A, "b": B}' -i ''
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
   
   =================@main==================
   const({"a": 1, "b": 2}) -> {"a": A, "b": B}
@@ -212,6 +303,13 @@
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": _, "b": _}' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const({"a": 1, "b": 2}) -> {"a": _, "b": _}
   ========================================
@@ -224,6 +322,13 @@
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> ({"a": 1} + B)' -i ''
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
   
   =================@main==================
   const({"a": 1, "b": 2}) -> ({"a": 1} + B)
@@ -238,6 +343,13 @@
 
   $ possum -p 'const({"a": 1, "b": 2}) -> ({"b": 2} + A)' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const({"a": 1, "b": 2}) -> ({"b": 2} + A)
   ========================================
@@ -251,6 +363,13 @@
 
   $ possum -p 'const({"a": 1, "b": 2}) -> (A + {"b": 2})' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const({"a": 1, "b": 2}) -> (A + {"b": 2})
   ========================================
@@ -263,6 +382,13 @@
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, ...B}' -i ''
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
   
   =================@main==================
   const({"a": 1, "b": 2}) -> {"a": 1, ...B}
@@ -287,6 +413,13 @@
 
   $ possum -p 'char -> "a".."z"' -i 'q'
   
+  ==================char==================
+  char = "\u000000"..
+  ========================================
+  0000    | ParseCodepoint
+  0001    | End
+  ========================================
+  
   =================@main==================
   char -> "a".."z"
   ========================================
@@ -296,6 +429,13 @@
   ========================================
 
   $ possum -p 'char -> .."z"' -i '!'
+  
+  ==================char==================
+  char = "\u000000"..
+  ========================================
+  0000    | ParseCodepoint
+  0001    | End
+  ========================================
   
   =================@main==================
   char -> .."z"
@@ -314,6 +454,13 @@
   0001    | GetBoundLocal 0
   0003    | Destructure 0: ([] + _)
   0005    | End
+  ========================================
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
   ========================================
   
   =================@main==================
@@ -536,6 +683,13 @@
 
   $ possum -p 'const([1, 5, 2]) -> [1, -(X + 1), 2] $ X' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const([1, 5, 2]) -> [1, -(X + 1), 2] $ X
   ========================================
@@ -671,6 +825,42 @@
 
   $ possum -p 'many(char) -> `\nfoo`' -i '\nfoo'
   
+  ==================many==================
+  many(p) = p * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 21
+  0006    | Swap
+  0007    | CallFunctionLocal 0
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 35
+  0013    | Swap
+  0014    | Decrement
+  0015    | JumpIfZero 15 -> 21
+  0018    | JumpBack 18 -> 6
+  0021    | Swap
+  0022    | SetInputMark
+  0023    | CallFunctionLocal 0
+  0025    | JumpIfFailure 25 -> 33
+  0028    | PopInputMark
+  0029    | Merge
+  0030    | JumpBack 30 -> 22
+  0033    | ResetInput
+  0034    | Drop
+  0035    | Swap
+  0036    | Drop
+  0037    | End
+  ========================================
+  
+  ==================char==================
+  char = "\u000000"..
+  ========================================
+  0000    | ParseCodepoint
+  0001    | End
+  ========================================
+  
   =================@main==================
   many(char) -> `\nfoo`
   ========================================
@@ -682,6 +872,42 @@
   ========================================
 
   $ possum -p 'many(char) -> "%(`a`..`z`)%(_)"' -i 'abcd'
+  
+  ==================many==================
+  many(p) = p * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 21
+  0006    | Swap
+  0007    | CallFunctionLocal 0
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 35
+  0013    | Swap
+  0014    | Decrement
+  0015    | JumpIfZero 15 -> 21
+  0018    | JumpBack 18 -> 6
+  0021    | Swap
+  0022    | SetInputMark
+  0023    | CallFunctionLocal 0
+  0025    | JumpIfFailure 25 -> 33
+  0028    | PopInputMark
+  0029    | Merge
+  0030    | JumpBack 30 -> 22
+  0033    | ResetInput
+  0034    | Drop
+  0035    | Swap
+  0036    | Drop
+  0037    | End
+  ========================================
+  
+  ==================char==================
+  char = "\u000000"..
+  ========================================
+  0000    | ParseCodepoint
+  0001    | End
+  ========================================
   
   =================@main==================
   many(char) -> "%(`a`..`z`)%(_)"
@@ -696,6 +922,51 @@
 
   $ possum -p 'numerals -> ("3" * 10)' -i '3333333333'
   
+  ================numerals================
+  numerals = many(numeral)
+  ========================================
+  0000    | GetConstant 0: many
+  0002    | GetConstant 1: numeral
+  0004    | CallTailFunction 1
+  0006    | End
+  ========================================
+  
+  ==================many==================
+  many(p) = p * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 21
+  0006    | Swap
+  0007    | CallFunctionLocal 0
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 35
+  0013    | Swap
+  0014    | Decrement
+  0015    | JumpIfZero 15 -> 21
+  0018    | JumpBack 18 -> 6
+  0021    | Swap
+  0022    | SetInputMark
+  0023    | CallFunctionLocal 0
+  0025    | JumpIfFailure 25 -> 33
+  0028    | PopInputMark
+  0029    | Merge
+  0030    | JumpBack 30 -> 22
+  0033    | ResetInput
+  0034    | Drop
+  0035    | Swap
+  0036    | Drop
+  0037    | End
+  ========================================
+  
+  ================numeral=================
+  numeral = "0".."9"
+  ========================================
+  0000    | ParseCodepointRange '0'..'9'
+  0003    | End
+  ========================================
+  
   =================@main==================
   numerals -> ("3" * 10)
   ========================================
@@ -705,6 +976,42 @@
   ========================================
 
   $ possum -p 'many(char) -> ("\u000000".. * 10)' -i '12345678901234567890'
+  
+  ==================many==================
+  many(p) = p * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 21
+  0006    | Swap
+  0007    | CallFunctionLocal 0
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 35
+  0013    | Swap
+  0014    | Decrement
+  0015    | JumpIfZero 15 -> 21
+  0018    | JumpBack 18 -> 6
+  0021    | Swap
+  0022    | SetInputMark
+  0023    | CallFunctionLocal 0
+  0025    | JumpIfFailure 25 -> 33
+  0028    | PopInputMark
+  0029    | Merge
+  0030    | JumpBack 30 -> 22
+  0033    | ResetInput
+  0034    | Drop
+  0035    | Swap
+  0036    | Drop
+  0037    | End
+  ========================================
+  
+  ==================char==================
+  char = "\u000000"..
+  ========================================
+  0000    | ParseCodepoint
+  0001    | End
+  ========================================
   
   =================@main==================
   many(char) -> ("\u000000".. * 10)
@@ -718,6 +1025,38 @@
 
   $ possum -p 'bool(1, 0) -> true' -i '1'
   
+  ================boolean=================
+  boolean(t, f) = true(t) | false(f)
+  ========================================
+  0000    | SetInputMark
+  0001    | GetConstant 0: true
+  0003    | GetBoundLocal 0
+  0005    | CallFunction 1
+  0007    | Or 7 -> 16
+  0010    | GetConstant 1: false
+  0012    | GetBoundLocal 1
+  0014    | CallTailFunction 1
+  0016    | End
+  ========================================
+  
+  ==================true==================
+  true(t) = t $ true
+  ========================================
+  0000    | CallFunctionLocal 0
+  0002    | TakeRight 2 -> 6
+  0005    | PushTrue
+  0006    | End
+  ========================================
+  
+  =================false==================
+  false(f) = f $ false
+  ========================================
+  0000    | CallFunctionLocal 0
+  0002    | TakeRight 2 -> 6
+  0005    | PushFalse
+  0006    | End
+  ========================================
+  
   =================@main==================
   bool(1, 0) -> true
   ========================================
@@ -730,6 +1069,120 @@
   ========================================
 
   $ possum -p 'int -> 5' -i '5'
+  
+  =================@fn37==================
+  maybe("-") + _number_integer_part
+  ========================================
+  0000    | GetConstant 2: maybe
+  0002    | PushChar '-'
+  0004    | CallFunction 1
+  0006    | CallFunctionConstant 3: _number_integer_part
+  0008    | Merge
+  0009    | End
+  ========================================
+  
+  ================integer=================
+  integer = as_number(maybe("-") + _number_integer_part)
+  ========================================
+  0000    | GetConstant 0: as_number
+  0002    | GetConstant 1: @fn37
+  0004    | CallTailFunction 1
+  0006    | End
+  ========================================
+  
+  ===============as_number================
+  as_number(p) = p -> "%(0 + N)" $ N
+  ========================================
+  0000    | PushCharVar N
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: "%(0 + N)"
+  0006    | TakeRight 6 -> 11
+  0009    | GetBoundLocal 1
+  0011    | End
+  ========================================
+  
+  =================maybe==================
+  maybe(p) = p | succeed
+  ========================================
+  0000    | SetInputMark
+  0001    | CallFunctionLocal 0
+  0003    | Or 3 -> 8
+  0006    | CallTailFunctionConstant 4: succeed
+  0008    | End
+  ========================================
+  
+  ================succeed=================
+  succeed = const($null)
+  ========================================
+  0000    | GetConstant 5: const
+  0002    | PushNull
+  0003    | CallTailFunction 1
+  0005    | End
+  ========================================
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
+  ==========_number_integer_part==========
+  _number_integer_part = ("1".."9" + numerals) | numeral
+  ========================================
+  0000    | SetInputMark
+  0001    | ParseCodepointRange '1'..'9'
+  0004    | CallFunctionConstant 6: numerals
+  0006    | Merge
+  0007    | Or 7 -> 12
+  0010    | CallTailFunctionConstant 7: numeral
+  0012    | End
+  ========================================
+  
+  ================numerals================
+  numerals = many(numeral)
+  ========================================
+  0000    | GetConstant 8: many
+  0002    | GetConstant 7: numeral
+  0004    | CallTailFunction 1
+  0006    | End
+  ========================================
+  
+  ==================many==================
+  many(p) = p * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 21
+  0006    | Swap
+  0007    | CallFunctionLocal 0
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 35
+  0013    | Swap
+  0014    | Decrement
+  0015    | JumpIfZero 15 -> 21
+  0018    | JumpBack 18 -> 6
+  0021    | Swap
+  0022    | SetInputMark
+  0023    | CallFunctionLocal 0
+  0025    | JumpIfFailure 25 -> 33
+  0028    | PopInputMark
+  0029    | Merge
+  0030    | JumpBack 30 -> 22
+  0033    | ResetInput
+  0034    | Drop
+  0035    | Swap
+  0036    | Drop
+  0037    | End
+  ========================================
+  
+  ================numeral=================
+  numeral = "0".."9"
+  ========================================
+  0000    | ParseCodepointRange '0'..'9'
+  0003    | End
+  ========================================
   
   =================@main==================
   int -> 5
@@ -773,6 +1226,59 @@
 
   $ possum -p 'array(digit) -> [1, 2, 3]' -i '123'
   
+  =================array==================
+  array(elem) = tuple1(elem) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 25
+  0006    | Swap
+  0007    | GetConstant 0: tuple1
+  0009    | GetBoundLocal 0
+  0011    | CallFunction 1
+  0013    | Merge
+  0014    | JumpIfFailure 14 -> 43
+  0017    | Swap
+  0018    | Decrement
+  0019    | JumpIfZero 19 -> 25
+  0022    | JumpBack 22 -> 6
+  0025    | Swap
+  0026    | SetInputMark
+  0027    | GetConstant 0: tuple1
+  0029    | GetBoundLocal 0
+  0031    | CallFunction 1
+  0033    | JumpIfFailure 33 -> 41
+  0036    | PopInputMark
+  0037    | Merge
+  0038    | JumpBack 38 -> 26
+  0041    | ResetInput
+  0042    | Drop
+  0043    | Swap
+  0044    | Drop
+  0045    | End
+  ========================================
+  
+  =================tuple1=================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | GetConstant 1: Elem
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: Elem
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstant 2: [_]
+  0011    | GetBoundLocal 1
+  0013    | InsertAtIndex 0
+  0015    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
+  
   =================@main==================
   array(digit) -> [1, 2, 3]
   ========================================
@@ -784,6 +1290,59 @@
   ========================================
 
   $ possum -p 'array(digit) -> [A, ..._]' -i '123'
+  
+  =================array==================
+  array(elem) = tuple1(elem) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 25
+  0006    | Swap
+  0007    | GetConstant 0: tuple1
+  0009    | GetBoundLocal 0
+  0011    | CallFunction 1
+  0013    | Merge
+  0014    | JumpIfFailure 14 -> 43
+  0017    | Swap
+  0018    | Decrement
+  0019    | JumpIfZero 19 -> 25
+  0022    | JumpBack 22 -> 6
+  0025    | Swap
+  0026    | SetInputMark
+  0027    | GetConstant 0: tuple1
+  0029    | GetBoundLocal 0
+  0031    | CallFunction 1
+  0033    | JumpIfFailure 33 -> 41
+  0036    | PopInputMark
+  0037    | Merge
+  0038    | JumpBack 38 -> 26
+  0041    | ResetInput
+  0042    | Drop
+  0043    | Swap
+  0044    | Drop
+  0045    | End
+  ========================================
+  
+  =================tuple1=================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | GetConstant 1: Elem
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: Elem
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstant 2: [_]
+  0011    | GetBoundLocal 1
+  0013    | InsertAtIndex 0
+  0015    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
   
   =================@main==================
   array(digit) -> [A, ..._]
@@ -799,6 +1358,59 @@
 
   $ possum -p 'array(digit) -> ([1] * 5)' -i '11111'
   
+  =================array==================
+  array(elem) = tuple1(elem) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 25
+  0006    | Swap
+  0007    | GetConstant 0: tuple1
+  0009    | GetBoundLocal 0
+  0011    | CallFunction 1
+  0013    | Merge
+  0014    | JumpIfFailure 14 -> 43
+  0017    | Swap
+  0018    | Decrement
+  0019    | JumpIfZero 19 -> 25
+  0022    | JumpBack 22 -> 6
+  0025    | Swap
+  0026    | SetInputMark
+  0027    | GetConstant 0: tuple1
+  0029    | GetBoundLocal 0
+  0031    | CallFunction 1
+  0033    | JumpIfFailure 33 -> 41
+  0036    | PopInputMark
+  0037    | Merge
+  0038    | JumpBack 38 -> 26
+  0041    | ResetInput
+  0042    | Drop
+  0043    | Swap
+  0044    | Drop
+  0045    | End
+  ========================================
+  
+  =================tuple1=================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | GetConstant 1: Elem
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: Elem
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstant 2: [_]
+  0011    | GetBoundLocal 1
+  0013    | InsertAtIndex 0
+  0015    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
+  
   =================@main==================
   array(digit) -> ([1] * 5)
   ========================================
@@ -810,6 +1422,59 @@
   ========================================
 
   $ possum -p 'array(digit) -> ([A] * 5)' -i '11111'
+  
+  =================array==================
+  array(elem) = tuple1(elem) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 25
+  0006    | Swap
+  0007    | GetConstant 0: tuple1
+  0009    | GetBoundLocal 0
+  0011    | CallFunction 1
+  0013    | Merge
+  0014    | JumpIfFailure 14 -> 43
+  0017    | Swap
+  0018    | Decrement
+  0019    | JumpIfZero 19 -> 25
+  0022    | JumpBack 22 -> 6
+  0025    | Swap
+  0026    | SetInputMark
+  0027    | GetConstant 0: tuple1
+  0029    | GetBoundLocal 0
+  0031    | CallFunction 1
+  0033    | JumpIfFailure 33 -> 41
+  0036    | PopInputMark
+  0037    | Merge
+  0038    | JumpBack 38 -> 26
+  0041    | ResetInput
+  0042    | Drop
+  0043    | Swap
+  0044    | Drop
+  0045    | End
+  ========================================
+  
+  =================tuple1=================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | GetConstant 1: Elem
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: Elem
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstant 2: [_]
+  0011    | GetBoundLocal 1
+  0013    | InsertAtIndex 0
+  0015    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
   
   =================@main==================
   array(digit) -> ([A] * 5)
@@ -823,6 +1488,59 @@
   ========================================
 
   $ possum -p 'array(digit) -> ([1] * N) $ N' -i '11111111'
+  
+  =================array==================
+  array(elem) = tuple1(elem) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 25
+  0006    | Swap
+  0007    | GetConstant 0: tuple1
+  0009    | GetBoundLocal 0
+  0011    | CallFunction 1
+  0013    | Merge
+  0014    | JumpIfFailure 14 -> 43
+  0017    | Swap
+  0018    | Decrement
+  0019    | JumpIfZero 19 -> 25
+  0022    | JumpBack 22 -> 6
+  0025    | Swap
+  0026    | SetInputMark
+  0027    | GetConstant 0: tuple1
+  0029    | GetBoundLocal 0
+  0031    | CallFunction 1
+  0033    | JumpIfFailure 33 -> 41
+  0036    | PopInputMark
+  0037    | Merge
+  0038    | JumpBack 38 -> 26
+  0041    | ResetInput
+  0042    | Drop
+  0043    | Swap
+  0044    | Drop
+  0045    | End
+  ========================================
+  
+  =================tuple1=================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | GetConstant 1: Elem
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: Elem
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstant 2: [_]
+  0011    | GetBoundLocal 1
+  0013    | InsertAtIndex 0
+  0015    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
   
   =================@main==================
   array(digit) -> ([1] * N) $ N
@@ -839,6 +1557,59 @@
 
   $ possum -p 'array(digit) -> [A, ..._, Z]' -i '12345678'
   
+  =================array==================
+  array(elem) = tuple1(elem) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 25
+  0006    | Swap
+  0007    | GetConstant 0: tuple1
+  0009    | GetBoundLocal 0
+  0011    | CallFunction 1
+  0013    | Merge
+  0014    | JumpIfFailure 14 -> 43
+  0017    | Swap
+  0018    | Decrement
+  0019    | JumpIfZero 19 -> 25
+  0022    | JumpBack 22 -> 6
+  0025    | Swap
+  0026    | SetInputMark
+  0027    | GetConstant 0: tuple1
+  0029    | GetBoundLocal 0
+  0031    | CallFunction 1
+  0033    | JumpIfFailure 33 -> 41
+  0036    | PopInputMark
+  0037    | Merge
+  0038    | JumpBack 38 -> 26
+  0041    | ResetInput
+  0042    | Drop
+  0043    | Swap
+  0044    | Drop
+  0045    | End
+  ========================================
+  
+  =================tuple1=================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | GetConstant 1: Elem
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: Elem
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstant 2: [_]
+  0011    | GetBoundLocal 1
+  0013    | InsertAtIndex 0
+  0015    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
+  
   =================@main==================
   array(digit) -> [A, ..._, Z]
   ========================================
@@ -854,6 +1625,59 @@
 
   $ possum -p 'array(digit) -> [1, B, _]' -i '123'
   
+  =================array==================
+  array(elem) = tuple1(elem) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 25
+  0006    | Swap
+  0007    | GetConstant 0: tuple1
+  0009    | GetBoundLocal 0
+  0011    | CallFunction 1
+  0013    | Merge
+  0014    | JumpIfFailure 14 -> 43
+  0017    | Swap
+  0018    | Decrement
+  0019    | JumpIfZero 19 -> 25
+  0022    | JumpBack 22 -> 6
+  0025    | Swap
+  0026    | SetInputMark
+  0027    | GetConstant 0: tuple1
+  0029    | GetBoundLocal 0
+  0031    | CallFunction 1
+  0033    | JumpIfFailure 33 -> 41
+  0036    | PopInputMark
+  0037    | Merge
+  0038    | JumpBack 38 -> 26
+  0041    | ResetInput
+  0042    | Drop
+  0043    | Swap
+  0044    | Drop
+  0045    | End
+  ========================================
+  
+  =================tuple1=================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | GetConstant 1: Elem
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: Elem
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstant 2: [_]
+  0011    | GetBoundLocal 1
+  0013    | InsertAtIndex 0
+  0015    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
+  
   =================@main==================
   array(digit) -> [1, B, _]
   ========================================
@@ -868,6 +1692,76 @@
 
   $ possum -p 'object(alpha, digit) -> {"a": 1, "b": 2}' -i 'a1b2'
   
+  =================object=================
+  object(key, value) = pair(key, value) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 27
+  0006    | Swap
+  0007    | GetConstant 0: pair
+  0009    | GetBoundLocal 0
+  0011    | GetBoundLocal 1
+  0013    | CallFunction 2
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 47
+  0019    | Swap
+  0020    | Decrement
+  0021    | JumpIfZero 21 -> 27
+  0024    | JumpBack 24 -> 6
+  0027    | Swap
+  0028    | SetInputMark
+  0029    | GetConstant 0: pair
+  0031    | GetBoundLocal 0
+  0033    | GetBoundLocal 1
+  0035    | CallFunction 2
+  0037    | JumpIfFailure 37 -> 45
+  0040    | PopInputMark
+  0041    | Merge
+  0042    | JumpBack 42 -> 28
+  0045    | ResetInput
+  0046    | Drop
+  0047    | Swap
+  0048    | Drop
+  0049    | End
+  ========================================
+  
+  ==================pair==================
+  pair(key, value) = key -> K & value -> V $ {K: V}
+  ========================================
+  0000    | PushCharVar K
+  0002    | PushCharVar V
+  0004    | CallFunctionLocal 0
+  0006    | Destructure 0: K
+  0008    | TakeRight 8 -> 26
+  0011    | CallFunctionLocal 1
+  0013    | Destructure 1: V
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 1: {_0_}
+  0020    | GetBoundLocal 2
+  0022    | GetBoundLocal 3
+  0024    | InsertKeyVal 0
+  0026    | End
+  ========================================
+  
+  =================alpha==================
+  alpha = "a".."z" | "A".."Z"
+  ========================================
+  0000    | SetInputMark
+  0001    | ParseCodepointRange 'a'..'z'
+  0004    | Or 4 -> 10
+  0007    | ParseCodepointRange 'A'..'Z'
+  0010    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
+  
   =================@main==================
   object(alpha, digit) -> {"a": 1, "b": 2}
   ========================================
@@ -880,6 +1774,76 @@
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": 1, ..._}' -i 'a1b2'
+  
+  =================object=================
+  object(key, value) = pair(key, value) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 27
+  0006    | Swap
+  0007    | GetConstant 0: pair
+  0009    | GetBoundLocal 0
+  0011    | GetBoundLocal 1
+  0013    | CallFunction 2
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 47
+  0019    | Swap
+  0020    | Decrement
+  0021    | JumpIfZero 21 -> 27
+  0024    | JumpBack 24 -> 6
+  0027    | Swap
+  0028    | SetInputMark
+  0029    | GetConstant 0: pair
+  0031    | GetBoundLocal 0
+  0033    | GetBoundLocal 1
+  0035    | CallFunction 2
+  0037    | JumpIfFailure 37 -> 45
+  0040    | PopInputMark
+  0041    | Merge
+  0042    | JumpBack 42 -> 28
+  0045    | ResetInput
+  0046    | Drop
+  0047    | Swap
+  0048    | Drop
+  0049    | End
+  ========================================
+  
+  ==================pair==================
+  pair(key, value) = key -> K & value -> V $ {K: V}
+  ========================================
+  0000    | PushCharVar K
+  0002    | PushCharVar V
+  0004    | CallFunctionLocal 0
+  0006    | Destructure 0: K
+  0008    | TakeRight 8 -> 26
+  0011    | CallFunctionLocal 1
+  0013    | Destructure 1: V
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 1: {_0_}
+  0020    | GetBoundLocal 2
+  0022    | GetBoundLocal 3
+  0024    | InsertKeyVal 0
+  0026    | End
+  ========================================
+  
+  =================alpha==================
+  alpha = "a".."z" | "A".."Z"
+  ========================================
+  0000    | SetInputMark
+  0001    | ParseCodepointRange 'a'..'z'
+  0004    | Or 4 -> 10
+  0007    | ParseCodepointRange 'A'..'Z'
+  0010    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
   
   =================@main==================
   object(alpha, digit) -> {"a": 1, ..._}
@@ -895,6 +1859,76 @@
 
   $ possum -p 'object(alpha, digit) -> {_: 1, ..._}' -i 'a1b2'
   
+  =================object=================
+  object(key, value) = pair(key, value) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 27
+  0006    | Swap
+  0007    | GetConstant 0: pair
+  0009    | GetBoundLocal 0
+  0011    | GetBoundLocal 1
+  0013    | CallFunction 2
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 47
+  0019    | Swap
+  0020    | Decrement
+  0021    | JumpIfZero 21 -> 27
+  0024    | JumpBack 24 -> 6
+  0027    | Swap
+  0028    | SetInputMark
+  0029    | GetConstant 0: pair
+  0031    | GetBoundLocal 0
+  0033    | GetBoundLocal 1
+  0035    | CallFunction 2
+  0037    | JumpIfFailure 37 -> 45
+  0040    | PopInputMark
+  0041    | Merge
+  0042    | JumpBack 42 -> 28
+  0045    | ResetInput
+  0046    | Drop
+  0047    | Swap
+  0048    | Drop
+  0049    | End
+  ========================================
+  
+  ==================pair==================
+  pair(key, value) = key -> K & value -> V $ {K: V}
+  ========================================
+  0000    | PushCharVar K
+  0002    | PushCharVar V
+  0004    | CallFunctionLocal 0
+  0006    | Destructure 0: K
+  0008    | TakeRight 8 -> 26
+  0011    | CallFunctionLocal 1
+  0013    | Destructure 1: V
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 1: {_0_}
+  0020    | GetBoundLocal 2
+  0022    | GetBoundLocal 3
+  0024    | InsertKeyVal 0
+  0026    | End
+  ========================================
+  
+  =================alpha==================
+  alpha = "a".."z" | "A".."Z"
+  ========================================
+  0000    | SetInputMark
+  0001    | ParseCodepointRange 'a'..'z'
+  0004    | Or 4 -> 10
+  0007    | ParseCodepointRange 'A'..'Z'
+  0010    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
+  
   =================@main==================
   object(alpha, digit) -> {_: 1, ..._}
   ========================================
@@ -908,6 +1942,76 @@
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": A, ..._}' -i 'a1b2'
+  
+  =================object=================
+  object(key, value) = pair(key, value) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 27
+  0006    | Swap
+  0007    | GetConstant 0: pair
+  0009    | GetBoundLocal 0
+  0011    | GetBoundLocal 1
+  0013    | CallFunction 2
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 47
+  0019    | Swap
+  0020    | Decrement
+  0021    | JumpIfZero 21 -> 27
+  0024    | JumpBack 24 -> 6
+  0027    | Swap
+  0028    | SetInputMark
+  0029    | GetConstant 0: pair
+  0031    | GetBoundLocal 0
+  0033    | GetBoundLocal 1
+  0035    | CallFunction 2
+  0037    | JumpIfFailure 37 -> 45
+  0040    | PopInputMark
+  0041    | Merge
+  0042    | JumpBack 42 -> 28
+  0045    | ResetInput
+  0046    | Drop
+  0047    | Swap
+  0048    | Drop
+  0049    | End
+  ========================================
+  
+  ==================pair==================
+  pair(key, value) = key -> K & value -> V $ {K: V}
+  ========================================
+  0000    | PushCharVar K
+  0002    | PushCharVar V
+  0004    | CallFunctionLocal 0
+  0006    | Destructure 0: K
+  0008    | TakeRight 8 -> 26
+  0011    | CallFunctionLocal 1
+  0013    | Destructure 1: V
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 1: {_0_}
+  0020    | GetBoundLocal 2
+  0022    | GetBoundLocal 3
+  0024    | InsertKeyVal 0
+  0026    | End
+  ========================================
+  
+  =================alpha==================
+  alpha = "a".."z" | "A".."Z"
+  ========================================
+  0000    | SetInputMark
+  0001    | ParseCodepointRange 'a'..'z'
+  0004    | Or 4 -> 10
+  0007    | ParseCodepointRange 'A'..'Z'
+  0010    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
   
   =================@main==================
   object(alpha, digit) -> {"a": A, ..._}
@@ -924,6 +2028,76 @@
 
   $ possum -p 'object(alpha, digit) -> {..._, "a": A}' -i 'a1b2'
   
+  =================object=================
+  object(key, value) = pair(key, value) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 27
+  0006    | Swap
+  0007    | GetConstant 0: pair
+  0009    | GetBoundLocal 0
+  0011    | GetBoundLocal 1
+  0013    | CallFunction 2
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 47
+  0019    | Swap
+  0020    | Decrement
+  0021    | JumpIfZero 21 -> 27
+  0024    | JumpBack 24 -> 6
+  0027    | Swap
+  0028    | SetInputMark
+  0029    | GetConstant 0: pair
+  0031    | GetBoundLocal 0
+  0033    | GetBoundLocal 1
+  0035    | CallFunction 2
+  0037    | JumpIfFailure 37 -> 45
+  0040    | PopInputMark
+  0041    | Merge
+  0042    | JumpBack 42 -> 28
+  0045    | ResetInput
+  0046    | Drop
+  0047    | Swap
+  0048    | Drop
+  0049    | End
+  ========================================
+  
+  ==================pair==================
+  pair(key, value) = key -> K & value -> V $ {K: V}
+  ========================================
+  0000    | PushCharVar K
+  0002    | PushCharVar V
+  0004    | CallFunctionLocal 0
+  0006    | Destructure 0: K
+  0008    | TakeRight 8 -> 26
+  0011    | CallFunctionLocal 1
+  0013    | Destructure 1: V
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 1: {_0_}
+  0020    | GetBoundLocal 2
+  0022    | GetBoundLocal 3
+  0024    | InsertKeyVal 0
+  0026    | End
+  ========================================
+  
+  =================alpha==================
+  alpha = "a".."z" | "A".."Z"
+  ========================================
+  0000    | SetInputMark
+  0001    | ParseCodepointRange 'a'..'z'
+  0004    | Or 4 -> 10
+  0007    | ParseCodepointRange 'A'..'Z'
+  0010    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
+  
   =================@main==================
   object(alpha, digit) -> {..._, "a": A}
   ========================================
@@ -938,6 +2112,76 @@
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": _, "b": B}' -i 'a1b2'
+  
+  =================object=================
+  object(key, value) = pair(key, value) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 27
+  0006    | Swap
+  0007    | GetConstant 0: pair
+  0009    | GetBoundLocal 0
+  0011    | GetBoundLocal 1
+  0013    | CallFunction 2
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 47
+  0019    | Swap
+  0020    | Decrement
+  0021    | JumpIfZero 21 -> 27
+  0024    | JumpBack 24 -> 6
+  0027    | Swap
+  0028    | SetInputMark
+  0029    | GetConstant 0: pair
+  0031    | GetBoundLocal 0
+  0033    | GetBoundLocal 1
+  0035    | CallFunction 2
+  0037    | JumpIfFailure 37 -> 45
+  0040    | PopInputMark
+  0041    | Merge
+  0042    | JumpBack 42 -> 28
+  0045    | ResetInput
+  0046    | Drop
+  0047    | Swap
+  0048    | Drop
+  0049    | End
+  ========================================
+  
+  ==================pair==================
+  pair(key, value) = key -> K & value -> V $ {K: V}
+  ========================================
+  0000    | PushCharVar K
+  0002    | PushCharVar V
+  0004    | CallFunctionLocal 0
+  0006    | Destructure 0: K
+  0008    | TakeRight 8 -> 26
+  0011    | CallFunctionLocal 1
+  0013    | Destructure 1: V
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 1: {_0_}
+  0020    | GetBoundLocal 2
+  0022    | GetBoundLocal 3
+  0024    | InsertKeyVal 0
+  0026    | End
+  ========================================
+  
+  =================alpha==================
+  alpha = "a".."z" | "A".."Z"
+  ========================================
+  0000    | SetInputMark
+  0001    | ParseCodepointRange 'a'..'z'
+  0004    | Or 4 -> 10
+  0007    | ParseCodepointRange 'A'..'Z'
+  0010    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
   
   =================@main==================
   object(alpha, digit) -> {"a": _, "b": B}
@@ -954,6 +2198,59 @@
 
   $ possum -p 'array(digit) -> [...A]' -i '123'
   
+  =================array==================
+  array(elem) = tuple1(elem) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 25
+  0006    | Swap
+  0007    | GetConstant 0: tuple1
+  0009    | GetBoundLocal 0
+  0011    | CallFunction 1
+  0013    | Merge
+  0014    | JumpIfFailure 14 -> 43
+  0017    | Swap
+  0018    | Decrement
+  0019    | JumpIfZero 19 -> 25
+  0022    | JumpBack 22 -> 6
+  0025    | Swap
+  0026    | SetInputMark
+  0027    | GetConstant 0: tuple1
+  0029    | GetBoundLocal 0
+  0031    | CallFunction 1
+  0033    | JumpIfFailure 33 -> 41
+  0036    | PopInputMark
+  0037    | Merge
+  0038    | JumpBack 38 -> 26
+  0041    | ResetInput
+  0042    | Drop
+  0043    | Swap
+  0044    | Drop
+  0045    | End
+  ========================================
+  
+  =================tuple1=================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | GetConstant 1: Elem
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: Elem
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstant 2: [_]
+  0011    | GetBoundLocal 1
+  0013    | InsertAtIndex 0
+  0015    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
+  
   =================@main==================
   array(digit) -> [...A]
   ========================================
@@ -966,6 +2263,76 @@
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {...O}' -i 'a1b2'
+  
+  =================object=================
+  object(key, value) = pair(key, value) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushNumberOne
+  0002    | ValidateRepeatPattern
+  0003    | JumpIfZero 3 -> 27
+  0006    | Swap
+  0007    | GetConstant 0: pair
+  0009    | GetBoundLocal 0
+  0011    | GetBoundLocal 1
+  0013    | CallFunction 2
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 47
+  0019    | Swap
+  0020    | Decrement
+  0021    | JumpIfZero 21 -> 27
+  0024    | JumpBack 24 -> 6
+  0027    | Swap
+  0028    | SetInputMark
+  0029    | GetConstant 0: pair
+  0031    | GetBoundLocal 0
+  0033    | GetBoundLocal 1
+  0035    | CallFunction 2
+  0037    | JumpIfFailure 37 -> 45
+  0040    | PopInputMark
+  0041    | Merge
+  0042    | JumpBack 42 -> 28
+  0045    | ResetInput
+  0046    | Drop
+  0047    | Swap
+  0048    | Drop
+  0049    | End
+  ========================================
+  
+  ==================pair==================
+  pair(key, value) = key -> K & value -> V $ {K: V}
+  ========================================
+  0000    | PushCharVar K
+  0002    | PushCharVar V
+  0004    | CallFunctionLocal 0
+  0006    | Destructure 0: K
+  0008    | TakeRight 8 -> 26
+  0011    | CallFunctionLocal 1
+  0013    | Destructure 1: V
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 1: {_0_}
+  0020    | GetBoundLocal 2
+  0022    | GetBoundLocal 3
+  0024    | InsertKeyVal 0
+  0026    | End
+  ========================================
+  
+  =================alpha==================
+  alpha = "a".."z" | "A".."Z"
+  ========================================
+  0000    | SetInputMark
+  0001    | ParseCodepointRange 'a'..'z'
+  0004    | Or 4 -> 10
+  0007    | ParseCodepointRange 'A'..'Z'
+  0010    | End
+  ========================================
+  
+  =================digit==================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
   
   =================@main==================
   object(alpha, digit) -> {...O}
@@ -1131,6 +2498,13 @@
 
   $ possum -p 'const($true) -> (true * N)' -i ''
   
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
+  
   =================@main==================
   const($true) -> (true * N)
   ========================================
@@ -1143,6 +2517,13 @@
   ========================================
 
   $ possum -p 'const($false) -> (false * N)' -i ''
+  
+  =================const==================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetBoundLocal 0
+  0002    | End
+  ========================================
   
   =================@main==================
   const($false) -> (false * N)

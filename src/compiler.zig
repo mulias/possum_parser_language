@@ -389,7 +389,7 @@ pub const Compiler = struct {
 
         try self.emitEnd();
 
-        if (self.printBytecode and module_id == self.frontend.target_module_id) {
+        if (self.printBytecode) {
             try function.disassemble(self.vm.*, self.writers.debug);
         }
 
@@ -1421,7 +1421,7 @@ pub const Compiler = struct {
         try self.writeParser(module_id, anon.body, true);
         try self.emitEnd();
 
-        if (self.printBytecode and module_id == self.frontend.target_module_id) {
+        if (self.printBytecode) {
             try function.disassemble(self.vm.*, self.writers.debug);
         }
 
