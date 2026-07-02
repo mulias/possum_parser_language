@@ -35,17 +35,75 @@ pub fn addModuleDependency(self: *Resolver, module_id: Module.Id, dependency_id:
 }
 
 pub fn resolve(self: *Resolver) !void {
+    // Declarations are resolved first so that their locals are known, then
+    // anonymous functions from the outside in, so that each can find the
+    // locals and closure captures of its parent chain.
     var iter = self.graph.nodes.iterator();
     while (iter.next()) |entry| {
         const key = entry.key_ptr.*;
         const node = entry.value_ptr.*;
 
-        switch (node.*) {
-            .precompiled => {},
-            .declaration => try self.resolveDeclaration(key, node),
-            .anonymous_function => try self.resolveAnonymousFunction(key, node),
+        if (node.* == .declaration) {
+            try self.resolveDeclaration(key, node);
         }
     }
+
+    const AnonEntry = struct {
+        key: DependencyGraph.NodeKey,
+        node: *DependencyGraph.Node,
+        depth: usize,
+
+        fn lessThan(_: void, a: @This(), b: @This()) bool {
+            return a.depth < b.depth;
+        }
+    };
+
+    var anons = ArrayList(AnonEntry){};
+    iter = self.graph.nodes.iterator();
+    while (iter.next()) |entry| {
+        const key = entry.key_ptr.*;
+        const node = entry.value_ptr.*;
+
+        if (node.* == .anonymous_function) {
+            try anons.append(self.arena.allocator(), .{
+                .key = key,
+                .node = node,
+                .depth = self.parentDepth(key, node),
+            });
+        }
+    }
+
+    std.mem.sort(AnonEntry, anons.items, {}, AnonEntry.lessThan);
+
+    for (anons.items) |entry| {
+        try self.resolveAnonymousFunction(entry.key, entry.node);
+    }
+
+    // Ordering happens after all anonymous functions are resolved because
+    // resolving an inner function can add captures to its parents.
+    for (anons.items) |entry| {
+        try self.orderCapturedLocals(entry.node);
+    }
+}
+
+fn parentDepth(self: *Resolver, key: DependencyGraph.NodeKey, node: *DependencyGraph.Node) usize {
+    var depth: usize = 0;
+    var current = node.anonymous_function.parent;
+
+    while (current) |parent_name| {
+        depth += 1;
+        const parent_node = self.graph.nodes.get(.{
+            .module_id = key.module_id,
+            .name = parent_name,
+        }) orelse break;
+
+        current = switch (parent_node.*) {
+            .anonymous_function => |*n| n.parent,
+            else => null,
+        };
+    }
+
+    return depth;
 }
 
 fn resolveDeclaration(
@@ -85,6 +143,39 @@ fn resolveAnonymousFunction(
     node: *DependencyGraph.Node,
 ) !void {
     try self.walkParser(key, node, node.anonymous_function.ast.node.body);
+}
+
+// At runtime `SetClosureCaptures` copies closure capture slot N into local
+// slot N, so captured names must occupy the anonymous function's first local
+// slots, in capture order.
+fn orderCapturedLocals(self: *Resolver, node: *DependencyGraph.Node) !void {
+    const allocator = self.arena.allocator();
+    const anon = &node.anonymous_function;
+
+    if (anon.closure_captures.items.len == 0) {
+        return;
+    }
+
+    var ordered = ArrayList(StringTable.Id){};
+
+    for (anon.closure_captures.items) |capture| {
+        try ordered.append(allocator, capture.local);
+    }
+
+    for (anon.locals.items) |local| {
+        var captured = false;
+        for (anon.closure_captures.items) |capture| {
+            if (capture.local == local) {
+                captured = true;
+                break;
+            }
+        }
+        if (!captured) {
+            try ordered.append(allocator, local);
+        }
+    }
+
+    anon.locals = ordered;
 }
 
 fn walkParser(
@@ -306,13 +397,25 @@ fn walkPattern(
     }
 }
 
-fn resolveParserIdentifier(
+fn addCapture(self: *Resolver, anon: *DependencyGraph.AnonymousFunctionNode, capture: DependencyGraph.ClosureCapture) !void {
+    for (anon.closure_captures.items) |existing| {
+        if (existing.parent_name == capture.parent_name and existing.local == capture.local) {
+            return;
+        }
+    }
+    try anon.closure_captures.append(self.arena.allocator(), capture);
+}
+
+// Resolve a name against the node's locals and the locals of its parent
+// chain. A name found in the parent chain is recorded as a closure capture on
+// every anonymous function between the local's owner and this node, so that
+// each closure captures the value from its immediate parent's frame.
+fn resolveScopedName(
     self: *Resolver,
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
     name: StringTable.Id,
-) error{OutOfMemory}!void {
-    const allocator = self.arena.allocator();
+) error{OutOfMemory}!bool {
     const locals = switch (node.*) {
         .precompiled => &[_]StringTable.Id{},
         .declaration => |*n| n.locals.items,
@@ -320,83 +423,78 @@ fn resolveParserIdentifier(
     };
 
     for (locals) |local| {
-        if (local == name) return;
+        if (local == name) return true;
     }
 
-    if (node.* == .anonymous_function) {
-        var current_key = key;
-        var current_parent = node.anonymous_function.parent;
+    if (node.* != .anonymous_function) {
+        return false;
+    }
 
-        while (current_parent) |parent_name| {
-            const parent_key = DependencyGraph.NodeKey{
-                .module_id = current_key.module_id,
-                .name = parent_name,
-            };
+    var chain = ArrayList(*DependencyGraph.Node){};
+    try chain.append(self.arena.allocator(), node);
 
-            if (self.graph.nodes.get(parent_key)) |parent_node| {
-                const parent_locals = switch (parent_node.*) {
-                    .precompiled => &[_]StringTable.Id{},
-                    .declaration => |*n| n.locals.items,
-                    .anonymous_function => |*n| n.locals.items,
-                };
+    var current_parent = node.anonymous_function.parent;
+    while (current_parent) |parent_name| {
+        const parent_node = self.graph.nodes.get(.{
+            .module_id = key.module_id,
+            .name = parent_name,
+        }) orelse return false;
 
-                for (parent_locals) |local| {
-                    if (local == name) {
-                        const anon_node = &node.anonymous_function;
+        const parent_locals = switch (parent_node.*) {
+            .precompiled => &[_]StringTable.Id{},
+            .declaration => |*n| n.locals.items,
+            .anonymous_function => |*n| n.locals.items,
+        };
 
-                        // Check if already captured
-                        var already_captured = false;
-                        for (anon_node.closure_captures.items) |capture| {
-                            if (capture.parent_name == parent_name and capture.local == name) {
-                                already_captured = true;
-                                break;
-                            }
-                        }
-
-                        if (!already_captured) {
-                            try anon_node.closure_captures.append(allocator, .{
-                                .parent_name = parent_name,
-                                .local = name,
-                            });
-                        }
-                        return;
-                    }
-                }
-
-                // Check if parent captures this variable
-                if (parent_node.* == .anonymous_function) {
-                    const parent_anon = parent_node.anonymous_function;
-                    for (parent_anon.closure_captures.items) |capture| {
-                        if (capture.local == name) {
-                            const anon_node = &node.anonymous_function;
-
-                            // Check if already captured
-                            var already_captured = false;
-                            for (anon_node.closure_captures.items) |existing_capture| {
-                                if (existing_capture.parent_name == capture.parent_name and existing_capture.local == name) {
-                                    already_captured = true;
-                                    break;
-                                }
-                            }
-
-                            if (!already_captured) {
-                                try anon_node.closure_captures.append(allocator, capture);
-                            }
-                            return;
-                        }
-                    }
-                }
-
-                current_key = parent_key;
-                current_parent = switch (parent_node.*) {
-                    .anonymous_function => |*n| n.parent,
-                    else => null,
-                };
-            } else {
+        var found = false;
+        for (parent_locals) |local| {
+            if (local == name) {
+                found = true;
                 break;
             }
         }
+
+        if (!found and parent_node.* == .anonymous_function) {
+            for (parent_node.anonymous_function.closure_captures.items) |capture| {
+                if (capture.local == name) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (found) {
+            for (chain.items) |chain_node| {
+                const anon = &chain_node.anonymous_function;
+                try self.addCapture(anon, .{
+                    .parent_name = anon.parent.?,
+                    .local = name,
+                });
+            }
+            return true;
+        }
+
+        switch (parent_node.*) {
+            .anonymous_function => |*parent_anon| {
+                try chain.append(self.arena.allocator(), parent_node);
+                current_parent = parent_anon.parent;
+            },
+            else => return false,
+        }
     }
+
+    return false;
+}
+
+fn resolveParserIdentifier(
+    self: *Resolver,
+    key: DependencyGraph.NodeKey,
+    node: *DependencyGraph.Node,
+    name: StringTable.Id,
+) error{OutOfMemory}!void {
+    const allocator = self.arena.allocator();
+
+    if (try self.resolveScopedName(key, node, name)) return;
 
     var search_key = DependencyGraph.NodeKey{
         .module_id = key.module_id,
@@ -460,90 +558,8 @@ fn resolveValueIdentifier(
     name: StringTable.Id,
 ) error{OutOfMemory}!void {
     const allocator = self.arena.allocator();
-    const locals = switch (node.*) {
-        .precompiled => &[_]StringTable.Id{},
-        .declaration => |*n| n.locals.items,
-        .anonymous_function => |*n| n.locals.items,
-    };
 
-    for (locals) |local| {
-        if (local == name) return;
-    }
-
-    if (node.* == .anonymous_function) {
-        var current_key = key;
-        var current_parent = node.anonymous_function.parent;
-
-        while (current_parent) |parent_name| {
-            const parent_key = DependencyGraph.NodeKey{
-                .module_id = current_key.module_id,
-                .name = parent_name,
-            };
-
-            if (self.graph.nodes.get(parent_key)) |parent_node| {
-                const parent_locals = switch (parent_node.*) {
-                    .precompiled => &[_]StringTable.Id{},
-                    .declaration => |*n| n.locals.items,
-                    .anonymous_function => |*n| n.locals.items,
-                };
-
-                for (parent_locals) |local| {
-                    if (local == name) {
-                        const anon_node = &node.anonymous_function;
-
-                        // Check if already captured
-                        var already_captured = false;
-                        for (anon_node.closure_captures.items) |capture| {
-                            if (capture.parent_name == parent_name and capture.local == name) {
-                                already_captured = true;
-                                break;
-                            }
-                        }
-
-                        if (!already_captured) {
-                            try anon_node.closure_captures.append(allocator, .{
-                                .parent_name = parent_name,
-                                .local = name,
-                            });
-                        }
-                        return;
-                    }
-                }
-
-                // Check if parent captures this variable
-                if (parent_node.* == .anonymous_function) {
-                    const parent_anon = parent_node.anonymous_function;
-                    for (parent_anon.closure_captures.items) |capture| {
-                        if (capture.local == name) {
-                            const anon_node = &node.anonymous_function;
-
-                            // Check if already captured
-                            var already_captured = false;
-                            for (anon_node.closure_captures.items) |existing_capture| {
-                                if (existing_capture.parent_name == capture.parent_name and existing_capture.local == name) {
-                                    already_captured = true;
-                                    break;
-                                }
-                            }
-
-                            if (!already_captured) {
-                                try anon_node.closure_captures.append(allocator, capture);
-                            }
-                            return;
-                        }
-                    }
-                }
-
-                current_key = parent_key;
-                current_parent = switch (parent_node.*) {
-                    .anonymous_function => |*n| n.parent,
-                    else => null,
-                };
-            } else {
-                break;
-            }
-        }
-    }
+    if (try self.resolveScopedName(key, node, name)) return;
 
     var search_key = DependencyGraph.NodeKey{
         .module_id = key.module_id,

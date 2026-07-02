@@ -23,6 +23,7 @@ pub const Compiler = struct {
     vm: *VM,
     frontend: *Frontend,
     functions: ArrayList(*Elem.DynElem.Function) = .{},
+    graph_keys: ArrayList(GlobalKey) = .{},
     writers: Writers,
     printBytecode: bool = false,
     global_map: AutoHashMap(GlobalKey, Elem) = .{},
@@ -70,6 +71,7 @@ pub const Compiler = struct {
         self.constant_map.deinit(self.vm.allocator);
         self.global_map.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
+        self.graph_keys.deinit(self.vm.allocator);
     }
 
     pub fn addTargetModule(self: *Compiler, module: Module, opts: Frontend.AddModuleOpts) !void {
@@ -121,12 +123,20 @@ pub const Compiler = struct {
     }
 
     fn compileMainParser(self: *Compiler, module_id: Module.Id, main_ast: *Ast.RNode(Ast.Parser.AnonymousFunction)) !void {
+        for (self.frontend.getDependencyKeys(module_id, main_ast.node.name)) |dep_key| {
+            try self.compileDeclaration(dep_key);
+        }
+
         const function = try Elem.DynElem.Function.createAnonParser(
             self.vm,
             .{ .module_id = module_id, .arity = 0, .region = main_ast.region },
         );
+        function.name = main_ast.node.name;
 
         try self.functions.append(self.vm.allocator, function);
+        try self.graph_keys.append(self.vm.allocator, .{ .module_id = module_id, .name = main_ast.node.name });
+
+        try self.pushLocalPlaceholders(module_id, 0, main_ast.region);
 
         const graph_node = self.frontend.getGraphNode(module_id, main_ast.node.name);
         if (graph_node) |node| {
@@ -146,6 +156,7 @@ pub const Compiler = struct {
         }
 
         _ = self.functions.pop();
+        _ = self.graph_keys.pop();
 
         self.main = function;
     }
@@ -169,24 +180,7 @@ pub const Compiler = struct {
 
         // Make sure all dependencies are declared first
         for (dependencies) |dep_key| {
-            if (self.findGlobal(dep_key.module_id, dep_key.name) == null) {
-                const dep_node = self.frontend.getNode(dep_key);
-
-                switch (dep_node.*) {
-                    .precompiled => {},
-                    .declaration => |*dep_n| {
-                        const dep_decl = dep_n.ast;
-                        if (try self.getAliasBody(dep_decl)) |alias_elem| {
-                            try self.addGlobal(dep_key.module_id, dep_key.name, alias_elem);
-                        } else {
-                            try self.declareFunction(dep_key.module_id, dep_decl);
-                        }
-                    },
-                    .anonymous_function => {
-                        // Anonymous functions are handled separately, skip for now
-                    },
-                }
-            }
+            try self.ensureDeclared(dep_key);
         }
 
         // Only compile if this is actually a declaration
@@ -195,21 +189,20 @@ pub const Compiler = struct {
             .declaration => |*n| {
                 const decl = n.ast;
 
-                if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
-                    // Declaration has been visited already. Fill in bytecode if needed.
-                    if (elem.isDynType(.Function) and elem.asDyn().asFunction().hasEmptyBytecode()) {
-                        try self.compileFunction(decl_key.module_id, decl);
+                try self.ensureDeclared(decl_key);
+
+                // Aliases share their target's function elem, and the
+                // bytecode is filled in when the target's own declaration is
+                // compiled.
+                const is_alias = (try self.getAliasBody(decl)) != null or
+                    self.getAliasChainName(decl) != null;
+
+                if (!is_alias) {
+                    if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
+                        if (elem.isDynType(.Function) and elem.asDyn().asFunction().hasEmptyBytecode()) {
+                            try self.compileFunction(decl_key.module_id, decl);
+                        }
                     }
-                } else if (try self.getAliasBody(decl)) |alias_elem| {
-                    // Simple alias for a number/string elem.
-                    try self.addGlobal(decl_key.module_id, decl_key.name, alias_elem);
-                } else if (self.getAliasChainName(decl)) |_| {
-                    // Alias for another declaration.
-                    try self.denormalizeAlias(decl_key, decl);
-                } else {
-                    // Must be compiled as a function with bytecode.
-                    try self.declareFunction(decl_key.module_id, decl);
-                    try self.compileFunction(decl_key.module_id, decl);
                 }
             },
             .anonymous_function => {
@@ -220,6 +213,29 @@ pub const Compiler = struct {
         // Now compile all dependencies
         for (dependencies) |dep_key| {
             try self.compileDeclaration(dep_key);
+        }
+    }
+
+    fn ensureDeclared(self: *Compiler, dep_key: GlobalKey) !void {
+        if (self.findGlobal(dep_key.module_id, dep_key.name) != null) {
+            return;
+        }
+
+        switch (self.frontend.getNode(dep_key).*) {
+            .precompiled => {},
+            .declaration => |*n| {
+                const decl = n.ast;
+                if (try self.getAliasBody(decl)) |alias_elem| {
+                    try self.addGlobal(dep_key.module_id, dep_key.name, alias_elem);
+                } else if (self.getAliasChainName(decl) != null) {
+                    try self.denormalizeAlias(dep_key, decl);
+                } else {
+                    try self.declareFunction(dep_key.module_id, decl);
+                }
+            },
+            .anonymous_function => {
+                // Anonymous functions are compiled inline where they appear.
+            },
         }
     }
 
@@ -305,8 +321,12 @@ pub const Compiler = struct {
                 break;
             }
 
-            try self.printError(decl_key.module_id, decl.region(), "Could not resolve alias, unknown variable '{s}'", .{self.vm.strings.get(target_key.name)});
-            return Error.UnknownVariable;
+            // The chain ends at a function declaration that hasn't been
+            // declared yet. Its bytecode is filled in when the target's own
+            // declaration is compiled.
+            try self.declareFunction(target_key.module_id, target_decl);
+            target_elem = self.getGlobal(target_key);
+            break;
         }
 
         if (target_elem) |elem| {
@@ -349,11 +369,14 @@ pub const Compiler = struct {
 
     fn compileFunction(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
         const global_sid = decl.identName();
-        const globalVal = (self.findGlobal(module_id, global_sid)).?;
+        const globalVal = self.getGlobal(.{ .module_id = module_id, .name = global_sid }).?;
 
         const function = globalVal.asDyn().asFunction();
 
         try self.functions.append(self.vm.allocator, function);
+        try self.graph_keys.append(self.vm.allocator, .{ .module_id = module_id, .name = global_sid });
+
+        try self.pushLocalPlaceholders(module_id, function.arity, decl.region());
 
         switch (decl) {
             .parser => |p| {
@@ -371,6 +394,30 @@ pub const Compiler = struct {
         }
 
         _ = self.functions.pop();
+        _ = self.graph_keys.pop();
+    }
+
+    // Function params get stack slots from the arguments pushed by the
+    // caller. All other locals need a placeholder pushed at function entry so
+    // that pattern bindings and closure captures can assign into their slots.
+    fn pushLocalPlaceholders(self: *Compiler, module_id: Module.Id, param_count: usize, region: Region) !void {
+        const key = self.currentGraphKey() orelse return;
+        const node = self.frontend.getGraphNode(key.module_id, key.name) orelse return;
+        const locals = switch (node.*) {
+            .precompiled => return,
+            .declaration => |n| n.locals.items,
+            .anonymous_function => |n| n.locals.items,
+        };
+
+        if (locals.len <= param_count) {
+            return;
+        }
+
+        for (locals[param_count..]) |sid| {
+            const bytes = self.vm.strings.get(sid);
+            const underscored = bytes.len > 0 and bytes[0] == '_';
+            try self.writeConstant(module_id, Elem.valueVar(sid, underscored), region);
+        }
     }
 
     fn writeParser(self: *Compiler, module_id: Module.Id, rnode: *Ast.Parser.RNode, isTailPosition: bool) !void {
@@ -454,7 +501,7 @@ pub const Compiler = struct {
                         try self.emitUnaryOp(.CallFunctionLocal, slot, region);
                     }
                 } else {
-                    if (self.findGlobal(module_id, ident.name)) |globalElem| {
+                    if (self.resolveGlobal(module_id, ident.name)) |globalElem| {
                         try self.writeCallFunctionConstant(module_id, globalElem, region, isTailPosition);
                     } else {
                         try self.printError(module_id, region, "undefined variable '{s}'", .{self.vm.strings.get(ident.name)});
@@ -535,7 +582,7 @@ pub const Compiler = struct {
         // elem at runtime.
         if (self.localSlot(function_id)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function.region);
-        } else if (self.findGlobal(module_id, function_id)) |global| {
+        } else if (self.resolveGlobal(module_id, function_id)) |global| {
             function_elem = global.asDyn().asFunction();
             try self.writeConstant(module_id, global, function.region);
         } else {
@@ -901,7 +948,7 @@ pub const Compiler = struct {
                 }
             },
             .identifier => |ident| {
-                if (self.findGlobal(module_id, ident.name) != null) {
+                if (self.resolveGlobal(module_id, ident.name) != null) {
                     // Globals are always bound to a concrete value
                     try self.writeParserRepeatCount(module_id, parser, repeat, region);
                 } else {
@@ -1222,7 +1269,7 @@ pub const Compiler = struct {
                 if (ident.builtin) {
                     return true;
                 } else {
-                    if (self.findGlobal(module_id, ident.name) != null) {
+                    if (self.resolveGlobal(module_id, ident.name) != null) {
                         return true;
                     } else if (self.localSlot(ident.name)) |slot| {
                         return self.currentFunction().arity > slot;
@@ -1282,7 +1329,7 @@ pub const Compiler = struct {
         if (self.localSlot(name)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, region);
         } else {
-            if (self.findGlobal(module_id, name)) |globalElem| {
+            if (self.resolveGlobal(module_id, name)) |globalElem| {
                 try self.writeConstant(module_id, globalElem, region);
             } else {
                 try self.printError(module_id, region, "undefined variable '{s}'", .{self.vm.strings.get(name)});
@@ -1353,6 +1400,13 @@ pub const Compiler = struct {
         const constId = try self.makeConstant(module_id, function.dyn.elem());
 
         try self.functions.append(self.vm.allocator, function);
+        try self.graph_keys.append(self.vm.allocator, .{ .module_id = module_id, .name = anon.name });
+
+        for (self.frontend.getDependencyKeys(module_id, anon.name)) |dep_key| {
+            try self.ensureDeclared(dep_key);
+        }
+
+        try self.pushLocalPlaceholders(module_id, 0, region);
 
         const graph_node = self.frontend.getGraphNode(module_id, anon.name);
         if (graph_node) |node| {
@@ -1372,6 +1426,7 @@ pub const Compiler = struct {
         }
 
         _ = self.functions.pop();
+        _ = self.graph_keys.pop();
 
         try self.emitConstant(constId, region);
 
@@ -1450,7 +1505,7 @@ pub const Compiler = struct {
             },
             .identifier => |ident| {
                 const sid = ident.name;
-                if (self.findGlobal(module_id, sid)) |globalElem| {
+                if (self.resolveGlobal(module_id, sid)) |globalElem| {
                     const constId = try self.makeConstant(module_id, globalElem);
                     return Pattern{ .Constant = .{
                         .sid = sid,
@@ -1549,7 +1604,7 @@ pub const Compiler = struct {
                     return Error.InvalidAst;
                 };
 
-                const globalFunctionElem = self.findGlobal(module_id, function_ident.name);
+                const globalFunctionElem = self.resolveGlobal(module_id, function_ident.name);
 
                 const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
                     .{
@@ -1653,7 +1708,7 @@ pub const Compiler = struct {
                 return self.astToValueInPattern(module_id, inner, new_negation_count);
             },
             .identifier => |ident| {
-                if (self.findGlobal(module_id, ident.name)) |elem| {
+                if (self.resolveGlobal(module_id, ident.name)) |elem| {
                     return Pattern{ .Constant = .{
                         .sid = ident.name,
                         .idx = try self.makeConstant(module_id, elem),
@@ -1692,7 +1747,7 @@ pub const Compiler = struct {
                 if (self.localSlot(ident.name)) |slot| {
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const global = self.findGlobal(module_id, ident.name).?;
+                    const global = self.resolveGlobal(module_id, ident.name).?;
                     try self.writeConstant(module_id, global, region);
                 }
             },
@@ -1810,7 +1865,7 @@ pub const Compiler = struct {
                     // the outer function will be concrete.
                     try self.emitUnaryOp(.GetBoundLocal, slot, region);
                 } else {
-                    const globalElem = self.findGlobal(module_id, ident.name).?;
+                    const globalElem = self.resolveGlobal(module_id, ident.name).?;
                     if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
                         try self.writeCallFunctionConstant(module_id, globalElem, region, isTailPosition);
                     } else {
@@ -1860,7 +1915,7 @@ pub const Compiler = struct {
         if (self.localSlot(functionName)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
         } else {
-            if (self.findGlobal(module_id, functionName)) |global| {
+            if (self.resolveGlobal(module_id, functionName)) |global| {
                 function = global.asDyn().asFunction();
                 try self.writeConstant(module_id, global, function_region);
             } else {
@@ -1981,7 +2036,7 @@ pub const Compiler = struct {
             .identifier => |ident| {
                 // Try to resolve as a global constant
                 if (self.localSlot(ident.name) == null) {
-                    if (self.findGlobal(module_id, ident.name)) |globalElem| {
+                    if (self.resolveGlobal(module_id, ident.name)) |globalElem| {
                         // If it's not a function, we can inline the constant value
                         if (!globalElem.isDynType(.Function)) {
                             try array.append(self.vm, globalElem);
@@ -2279,6 +2334,33 @@ pub const Compiler = struct {
         return null;
     }
 
+    // Resolve an identifier in the body of the function currently being
+    // compiled. Names that refer to declarations in other modules are found
+    // through the function's dependency graph node, where the resolver
+    // recorded the target module.
+    fn resolveGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id) ?Elem {
+        if (self.findGlobal(module_id, sid)) |elem| {
+            return elem;
+        }
+
+        if (self.currentGraphKey()) |key| {
+            for (self.frontend.getDependencyKeys(key.module_id, key.name)) |dep_key| {
+                if (dep_key.name == sid) {
+                    return self.findGlobal(dep_key.module_id, dep_key.name);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    fn currentGraphKey(self: *Compiler) ?GlobalKey {
+        if (self.graph_keys.items.len == 0) {
+            return null;
+        }
+        return self.graph_keys.items[self.graph_keys.items.len - 1];
+    }
+
     fn addGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id, elem: Elem) !void {
         try self.global_map.put(
             self.vm.allocator,
@@ -2288,8 +2370,8 @@ pub const Compiler = struct {
     }
 
     pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
-        const func = self.currentFunction();
-        if (self.frontend.getGraphNode(func.mid, func.name)) |node| {
+        const key = self.currentGraphKey() orelse return null;
+        if (self.frontend.getGraphNode(key.module_id, key.name)) |node| {
             const locals = switch (node.*) {
                 .precompiled => &[_]StringTable.Id{},
                 .declaration => |n| n.locals.items,

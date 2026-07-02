@@ -178,9 +178,20 @@ pub const GC = struct {
         }
 
         if (self.vm.compiler) |compiler| {
-            // DO we need to mark function_map?
             for (compiler.functions.items) |f| {
                 self.markDyn(&f.dyn);
+            }
+
+            // Declared globals are only referenced by the global_map until
+            // the first use in another function's bytecode adds them to a
+            // module's constants.
+            var globals = compiler.global_map.valueIterator();
+            while (globals.next()) |elem| {
+                self.markElem(elem.*);
+            }
+
+            if (compiler.main) |main| {
+                self.markDyn(&main.dyn);
             }
         }
 
