@@ -44,10 +44,6 @@ pub const Module = struct {
         return self.patterns.items[idx];
     }
 
-    pub fn addDependency(self: *Module, allocator: Allocator, module_id: Id) !void {
-        try self.dependencies.append(allocator, module_id);
-    }
-
     /// Highlight this region in the module source code with context lines and underlines
     pub fn highlight(module: Module, region: Region, writer: *Writer) !void {
         return hl.highlightRegion(module.source, region, writer, .{ .show_line_numbers = true });
