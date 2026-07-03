@@ -87,7 +87,12 @@ fn addNode(self: *Graph, allocator: Allocator, module_id: Module.Id, name: Strin
     const node = try allocator.create(Node);
     node.* = fields;
 
-    try self.nodes.put(allocator, key, node);
+    const entry = try self.nodes.getOrPut(allocator, key);
+    // The canonicalizer rejects duplicate declarations and user-written
+    // @-names, and generated anonymous function names are unique, so a
+    // key can never be added twice.
+    std.debug.assert(!entry.found_existing);
+    entry.value_ptr.* = node;
 }
 
 pub fn print(self: *const Graph, strings: StringTable, writer: *Writer) !void {

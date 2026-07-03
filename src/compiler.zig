@@ -42,9 +42,7 @@ pub const Compiler = struct {
         TooManyConstants,
         TooManyPatterns,
         ShortOverflow,
-        VariableNameUsedInScope,
         AliasCycle,
-        UnknownVariable,
         UndefinedVariable,
         FunctionCallTooManyArgs,
         FunctionCallTooFewArgs,
@@ -1444,9 +1442,11 @@ pub const Compiler = struct {
                 try self.emitUnaryOp(.CreateClosure, local_count, region);
 
                 for (anon_node.closure_captures.items) |capture| {
-                    if (self.localSlot(capture.local)) |fromSlot| {
-                        try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
-                    }
+                    // The resolver guarantees the enclosing scope holds every
+                    // captured local. A miss here would misalign later
+                    // captures with SetClosureCaptures slots.
+                    const fromSlot = self.localSlot(capture.local) orelse unreachable;
+                    try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
                 }
             }
         }
