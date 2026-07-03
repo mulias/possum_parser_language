@@ -76,13 +76,6 @@ pub const ParserOrValue = struct {
             };
         }
 
-        pub fn identBuiltin(self: ParserOrValue.Declaration) bool {
-            return switch (self) {
-                .parser => |p| p.node.ident.node.builtin,
-                .value => |v| v.node.ident.node.builtin,
-            };
-        }
-
         pub fn identRegion(self: ParserOrValue.Declaration) Region {
             return switch (self) {
                 .parser => |p| p.node.ident.region,
