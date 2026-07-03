@@ -77,7 +77,10 @@ pub const AnonymousFunctionNode = struct {
     dependencies: ArrayList(NodeKey) = .{},
     locals: ArrayList(StringTable.Id) = .{},
     closure_captures: ArrayList(ClosureCapture) = .{},
-    parent: ?StringTable.Id = null,
+
+    pub fn parent(self: *const AnonymousFunctionNode) ?StringTable.Id {
+        return self.ast.node.parent_name;
+    }
 };
 
 pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: Ast) !void {
@@ -114,7 +117,6 @@ pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: Ast) !
             anon.node.name,
             .{ .anonymous_function = .{
                 .ast = anon,
-                .parent = anon.node.parent_name,
             } },
         );
     }
@@ -174,7 +176,7 @@ pub fn print(self: *const Graph, strings: StringTable, writer: *Writer) !void {
             try writer.print("]", .{});
 
             try writer.print(" parent=", .{});
-            if (anon.parent) |parent_name| {
+            if (anon.parent()) |parent_name| {
                 const parent_name_str = strings.get(parent_name);
                 try writer.print("{}:{s}", .{ key.module_id, parent_name_str });
             } else {

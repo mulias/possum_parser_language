@@ -87,7 +87,7 @@ pub fn resolve(self: *Resolver) !void {
 
 fn parentDepth(self: *Resolver, key: DependencyGraph.NodeKey, node: *DependencyGraph.Node) usize {
     var depth: usize = 0;
-    var current = node.anonymous_function.parent;
+    var current = node.anonymous_function.parent();
 
     while (current) |parent_name| {
         depth += 1;
@@ -97,7 +97,7 @@ fn parentDepth(self: *Resolver, key: DependencyGraph.NodeKey, node: *DependencyG
         }) orelse break;
 
         current = switch (parent_node.*) {
-            .anonymous_function => |*n| n.parent,
+            .anonymous_function => |*n| n.parent(),
             else => null,
         };
     }
@@ -409,7 +409,7 @@ fn resolveScopedName(
     var chain = ArrayList(*DependencyGraph.Node){};
     try chain.append(self.arena.allocator(), node);
 
-    var current_parent = node.anonymous_function.parent;
+    var current_parent = node.anonymous_function.parent();
     while (current_parent) |parent_name| {
         const parent_node = self.graph.nodes.get(.{
             .module_id = key.module_id,
@@ -437,7 +437,7 @@ fn resolveScopedName(
             for (chain.items) |chain_node| {
                 const anon = &chain_node.anonymous_function;
                 try self.addCapture(anon, .{
-                    .parent_name = anon.parent.?,
+                    .parent_name = anon.parent().?,
                     .local = name,
                 });
             }
@@ -447,7 +447,7 @@ fn resolveScopedName(
         switch (parent_node.*) {
             .anonymous_function => |*parent_anon| {
                 try chain.append(self.arena.allocator(), parent_node);
-                current_parent = parent_anon.parent;
+                current_parent = parent_anon.parent();
             },
             else => return false,
         }
