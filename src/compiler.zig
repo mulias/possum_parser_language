@@ -81,7 +81,7 @@ pub const Compiler = struct {
         try self.frontend.addModule(module, opts);
 
         // Add precompiled functions to function map so that they're
-        // discoverable during compilaiton
+        // discoverable during compilation
         for (module.constants.items) |elem| {
             if (elem.isDynType(.Function)) {
                 const func = elem.asDyn().asFunction();
@@ -2105,15 +2105,15 @@ pub const Compiler = struct {
                     const key_sid = key_elem.asString();
                     try object.put(self.vm, key_sid, val_elem);
                 } else {
-                    try self.writeInsertObjectPiar(module_id, pair, object, index);
+                    try self.writeInsertObjectPair(module_id, pair, object, index);
                 }
             } else {
-                try self.writeInsertObjectPiar(module_id, pair, object, index);
+                try self.writeInsertObjectPair(module_id, pair, object, index);
             }
         }
     }
 
-    fn writeInsertObjectPiar(self: *Compiler, module_id: Module.Id, pair: Ast.Value.ObjectPair, object: *Elem.DynElem.Object, index: usize) !void {
+    fn writeInsertObjectPair(self: *Compiler, module_id: Module.Id, pair: Ast.Value.ObjectPair, object: *Elem.DynElem.Object, index: usize) !void {
         std.debug.assert(index <= 255);
         const pos = @as(u8, @intCast(index));
         try object.putReservedId(self.vm, pos, try self.placeholderVar());
@@ -2387,9 +2387,6 @@ pub const Compiler = struct {
         return self.constant_map.get(.{ .module_id = module_id, .elem_bits = elem.bits });
     }
 
-    // Note: Returns a pointer into an ArrayList which will be invalidated if
-    // the list is reallocated on `append`. Don't use this pointer after
-    // pushing a new function onto the list.
     fn currentFunction(self: *Compiler) *Elem.DynElem.Function {
         return self.functions.items[self.functions.items.len - 1];
     }
