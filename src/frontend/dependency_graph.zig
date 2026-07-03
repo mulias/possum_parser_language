@@ -25,6 +25,38 @@ pub const Node = union(enum) {
     precompiled,
     declaration: DeclarationNode,
     anonymous_function: AnonymousFunctionNode,
+
+    pub fn locals(self: *const Node) []const StringTable.Id {
+        return switch (self.*) {
+            .precompiled => &.{},
+            .declaration => |*n| n.locals.items,
+            .anonymous_function => |*n| n.locals.items,
+        };
+    }
+
+    pub fn dependencies(self: *const Node) []const NodeKey {
+        return switch (self.*) {
+            .precompiled => &.{},
+            .declaration => |*n| n.dependencies.items,
+            .anonymous_function => |*n| n.dependencies.items,
+        };
+    }
+
+    pub fn localsList(self: *Node) *ArrayList(StringTable.Id) {
+        return switch (self.*) {
+            .precompiled => unreachable,
+            .declaration => |*n| &n.locals,
+            .anonymous_function => |*n| &n.locals,
+        };
+    }
+
+    pub fn dependenciesList(self: *Node) *ArrayList(NodeKey) {
+        return switch (self.*) {
+            .precompiled => unreachable,
+            .declaration => |*n| &n.dependencies,
+            .anonymous_function => |*n| &n.dependencies,
+        };
+    }
 };
 
 pub const DeclarationNode = struct {
@@ -106,19 +138,8 @@ pub fn print(self: *const Graph, strings: StringTable, writer: *Writer) !void {
         const name_str = strings.get(key.name);
         try writer.print("{}:{s}", .{ key.module_id, name_str });
 
-        const locals = switch (node.*) {
-            .precompiled => &[_]StringTable.Id{},
-            .declaration => |n| n.locals.items,
-            .anonymous_function => |n| n.locals.items,
-        };
-        const dependencies = switch (node.*) {
-            .precompiled => &[_]NodeKey{},
-            .declaration => |n| n.dependencies.items,
-            .anonymous_function => |n| n.dependencies.items,
-        };
-
         try writer.print(" locals=[", .{});
-        for (locals, 0..) |local, i| {
+        for (node.locals(), 0..) |local, i| {
             const local_name = strings.get(local);
             if (i > 0) try writer.print(", ", .{});
             try writer.print("{s}", .{local_name});
@@ -126,7 +147,7 @@ pub fn print(self: *const Graph, strings: StringTable, writer: *Writer) !void {
         try writer.print("]", .{});
 
         try writer.print(" deps=[", .{});
-        for (dependencies, 0..) |dep, i| {
+        for (node.dependencies(), 0..) |dep, i| {
             const dep_name = strings.get(dep.name);
             if (i > 0) try writer.print(", ", .{});
             try writer.print("{}:{s}", .{ dep.module_id, dep_name });

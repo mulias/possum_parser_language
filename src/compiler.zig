@@ -167,13 +167,7 @@ pub const Compiler = struct {
         }
 
         const node = self.frontend.getNode(decl_key);
-
-        // Get dependencies based on node type
-        const dependencies = switch (node.*) {
-            .precompiled => &[_]DependencyGraph.NodeKey{},
-            .declaration => |*n| n.dependencies.items,
-            .anonymous_function => |*n| n.dependencies.items,
-        };
+        const dependencies = node.dependencies();
 
         // Make sure all dependencies are declared first
         for (dependencies) |dep_key| {
@@ -2377,12 +2371,7 @@ pub const Compiler = struct {
     pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
         const key = self.currentGraphKey() orelse return null;
         if (self.frontend.getGraphNode(key.module_id, key.name)) |node| {
-            const locals = switch (node.*) {
-                .precompiled => &[_]StringTable.Id{},
-                .declaration => |n| n.locals.items,
-                .anonymous_function => |n| n.locals.items,
-            };
-            for (locals, 0..) |local, i| {
+            for (node.locals(), 0..) |local, i| {
                 if (local == name) return @intCast(i);
             }
         }

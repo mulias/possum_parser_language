@@ -415,13 +415,7 @@ fn resolveScopedName(
     node: *DependencyGraph.Node,
     name: StringTable.Id,
 ) error{OutOfMemory}!bool {
-    const locals = switch (node.*) {
-        .precompiled => &[_]StringTable.Id{},
-        .declaration => |*n| n.locals.items,
-        .anonymous_function => |*n| n.locals.items,
-    };
-
-    for (locals) |local| {
+    for (node.locals()) |local| {
         if (local == name) return true;
     }
 
@@ -439,14 +433,8 @@ fn resolveScopedName(
             .name = parent_name,
         }) orelse return false;
 
-        const parent_locals = switch (parent_node.*) {
-            .precompiled => &[_]StringTable.Id{},
-            .declaration => |*n| n.locals.items,
-            .anonymous_function => |*n| n.locals.items,
-        };
-
         var found = false;
-        for (parent_locals) |local| {
+        for (parent_node.locals()) |local| {
             if (local == name) {
                 found = true;
                 break;

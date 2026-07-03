@@ -116,13 +116,9 @@ pub fn getDependencyKeys(self: *Frontend, module_id: Module.Id, name: StringTabl
         .name = name,
     };
     if (self.resolver.graph.nodes.get(key)) |node| {
-        return switch (node.*) {
-            .precompiled => &[_]DependencyGraph.NodeKey{},
-            .declaration => |n| n.dependencies.items,
-            .anonymous_function => |n| n.dependencies.items,
-        };
+        return node.dependencies();
     }
-    return &[_]DependencyGraph.NodeKey{};
+    return &.{};
 }
 
 pub fn getGraphNode(self: *Frontend, module_id: Module.Id, name: StringTable.Id) ?*DependencyGraph.Node {
