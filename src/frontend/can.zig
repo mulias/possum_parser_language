@@ -29,6 +29,7 @@ const Error = error{
     InvalidPatternNode,
     MultipleMainParsers,
     DuplicateParameterName,
+    DuplicateDeclaration,
 } || Writer.Error;
 
 pub fn init(
@@ -51,6 +52,7 @@ pub fn canonicalize(self: *Can, ast: ParsedAst) !void {
 }
 
 fn addParserDeclaration(self: *Can, decl: *Ast.RNode(Ast.Parser.Declaration)) !void {
+    try self.checkDuplicateDeclaration(decl.node.ident.node.name, decl.node.ident.region);
     try self.ast.declarations.append(self.arena.allocator(), .{ .parser = decl });
 }
 
@@ -59,7 +61,17 @@ fn addAnonymousFunction(self: *Can, anon: *Ast.RNode(Ast.Parser.AnonymousFunctio
 }
 
 fn addValueDeclaration(self: *Can, decl: *Ast.RNode(Ast.Value.Declaration)) !void {
+    try self.checkDuplicateDeclaration(decl.node.ident.node.name, decl.node.ident.region);
     try self.ast.declarations.append(self.arena.allocator(), .{ .value = decl });
+}
+
+fn checkDuplicateDeclaration(self: *Can, name: StringTable.Id, region: Region) !void {
+    for (self.ast.declarations.items) |existing| {
+        if (existing.identName() == name) {
+            try self.printError(region, "'{s}' is already declared in this module", .{self.strings.get(name)});
+            return Error.DuplicateDeclaration;
+        }
+    }
 }
 
 fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
