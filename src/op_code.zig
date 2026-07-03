@@ -95,6 +95,169 @@ pub const OpCode = enum(u8) {
     PushTrue,
     ValidateRepeatPattern,
 
+    // How executing an op changes the VM value stack. `pops` counts the
+    // values an op requires on the stack, `pushes` the values it leaves;
+    // ops that only inspect the stack count the inspected values in both.
+    pub const StackEffect = union(enum) {
+        // Same effect on every path.
+        fixed: PopPush,
+        // Pops the callee plus its byte-operand argument count, pushes the
+        // call result. Tail calls included: when the callee is a builtin or
+        // a string parser the call returns and execution falls through.
+        call,
+        // Ops with a jump operand. `fallthrough` is null when the jump is
+        // unconditional.
+        branch: struct { fallthrough: ?PopPush, jump: PopPush },
+        // Ends the frame (End) or aborts with a runtime error (Crash).
+        // Requires one value on the stack; nothing after it on this path
+        // runs.
+        terminal,
+        // Effect depends on runtime values (GetAtIndex pushes only when the
+        // array is not a failure) or on an opaque handler (NativeCode).
+        // These are hand-written into builtin chunks and must never be
+        // emitted through the IR.
+        unknown,
+
+        pub const PopPush = struct { pops: u32, pushes: u32 };
+    };
+
+    pub fn stackEffect(self: OpCode) StackEffect {
+        return switch (self) {
+            .Backtrack,
+            .PopInputMark,
+            .ResetInput,
+            .SetClosureCaptures,
+            .SetInputMark,
+            => .{ .fixed = .{ .pops = 0, .pushes = 0 } },
+
+            .CallFunctionConstant,
+            .CallFunctionConstant2,
+            .CallFunctionConstant3,
+            .CallFunctionLocal,
+            .CallTailFunctionConstant,
+            .CallTailFunctionConstant2,
+            .CallTailFunctionConstant3,
+            .CallTailFunctionLocal,
+            .GetBoundLocal,
+            .GetConstant,
+            .GetConstant2,
+            .GetConstant3,
+            .GetLocal,
+            .ParseChar,
+            .ParseCodepoint,
+            .ParseCodepointRange,
+            .ParseIntegerRange,
+            .ParseNegOne,
+            .ParseNumberStringChar,
+            .ParseOne,
+            .ParseThree,
+            .ParseTwo,
+            .ParseZero,
+            .PushChar,
+            .PushCharVar,
+            .PushEmptyArray,
+            .PushEmptyObject,
+            .PushEmptyString,
+            .PushFail,
+            .PushFalse,
+            .PushNegNumber,
+            .PushNull,
+            .PushNumber,
+            .PushNumberNegOne,
+            .PushNumberOne,
+            .PushNumberStringChar,
+            .PushNumberStringNegOne,
+            .PushNumberStringOne,
+            .PushNumberStringThree,
+            .PushNumberStringTwo,
+            .PushNumberStringZero,
+            .PushNumberThree,
+            .PushNumberTwo,
+            .PushNumberZero,
+            .PushTrue,
+            .PushUnderscoreVar,
+            => .{ .fixed = .{ .pops = 0, .pushes = 1 } },
+
+            .AssertFunctionArity,
+            .AssertParamTypes,
+            .AssertParamTypes4,
+            .CaptureLocal,
+            .CreateClosure,
+            .Decrement,
+            .Destructure,
+            .Destructure2,
+            .Destructure3,
+            .Increment,
+            .NegateNumber,
+            .NegateParser,
+            .ParseLowerBoundedRange,
+            .ParseUpperBoundedRange,
+            .ValidateRepeatPattern,
+            => .{ .fixed = .{ .pops = 1, .pushes = 1 } },
+
+            .Drop => .{ .fixed = .{ .pops = 1, .pushes = 0 } },
+
+            .InsertAtIndex,
+            .Merge,
+            .MergeAsString,
+            .ParseRange,
+            .RepeatValue,
+            .TakeLeft,
+            => .{ .fixed = .{ .pops = 2, .pushes = 1 } },
+
+            .InsertKeyVal => .{ .fixed = .{ .pops = 3, .pushes = 1 } },
+
+            .Swap => .{ .fixed = .{ .pops = 2, .pushes = 2 } },
+
+            .CallFunction,
+            .CallTailFunction,
+            => .call,
+
+            .Jump,
+            .JumpBack,
+            => .{ .branch = .{
+                .fallthrough = null,
+                .jump = .{ .pops = 0, .pushes = 0 },
+            } },
+
+            .JumpIfBound,
+            .JumpIfFailure,
+            .JumpIfZero,
+            => .{ .branch = .{
+                .fallthrough = .{ .pops = 1, .pushes = 1 },
+                .jump = .{ .pops = 1, .pushes = 1 },
+            } },
+
+            // Keeps the successful lhs and jumps, or drops the failure and
+            // falls through into the rhs.
+            .Or => .{ .branch = .{
+                .fallthrough = .{ .pops = 1, .pushes = 0 },
+                .jump = .{ .pops = 1, .pushes = 1 },
+            } },
+
+            // Drops the condition on both paths.
+            .ConditionalThen => .{ .branch = .{
+                .fallthrough = .{ .pops = 1, .pushes = 0 },
+                .jump = .{ .pops = 1, .pushes = 0 },
+            } },
+
+            // Drops the successful lhs and falls through into the rhs, or
+            // keeps the failure and jumps.
+            .TakeRight => .{ .branch = .{
+                .fallthrough = .{ .pops = 1, .pushes = 0 },
+                .jump = .{ .pops = 1, .pushes = 1 },
+            } },
+
+            .Crash,
+            .End,
+            => .terminal,
+
+            .GetAtIndex,
+            .NativeCode,
+            => .unknown,
+        };
+    }
+
     pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         return switch (self) {
             .Backtrack,

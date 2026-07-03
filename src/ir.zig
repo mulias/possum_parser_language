@@ -15,6 +15,9 @@ pub const Ir = struct {
     // Set when writeTo fails with ShortOverflow, so the caller can report
     // where the oversized jump is.
     overflow_region: ?Region = null,
+    // Set when verify fails, so the caller can report which instruction
+    // failed.
+    verify_failure: ?Index = null,
 
     pub const Index = u32;
 
@@ -158,6 +161,139 @@ pub const Ir = struct {
         if (idx <= 0xFFFF) return 3;
         return 4;
     }
+
+    pub const VerifyError = error{
+        StackUnderflow,
+        StackDepthMismatch,
+        UnreachableInstruction,
+        UnpatchedJumpTarget,
+        InvalidJumpTarget,
+        OperandKindMismatch,
+        UnverifiableOp,
+        LocalSlotOutOfRange,
+        MissingEnd,
+    };
+
+    // Check that the instruction list is well formed before serializing it:
+    // every instruction is reachable, jumps are patched and land in bounds,
+    // no op pops more than the stack holds, stack depth agrees wherever two
+    // paths join, local slot reads stay inside the frame, and no path falls
+    // off the end of the function. `entry_depth` is the number of stack
+    // values in the frame at entry: the function itself plus its arguments.
+    // On failure `verify_failure` holds the offending instruction index.
+    pub fn verify(self: *Ir, allocator: Allocator, entry_depth: u32) (Allocator.Error || VerifyError)!void {
+        const insns = self.instructions.items;
+
+        if (insns.len == 0) return self.verifyFail(0, VerifyError.MissingEnd);
+
+        const depths = try allocator.alloc(?u32, insns.len);
+        defer allocator.free(depths);
+        @memset(depths, null);
+        depths[0] = entry_depth;
+
+        for (insns, 0..) |insn, i| {
+            const index: Index = @intCast(i);
+            const depth = depths[i] orelse return self.verifyFail(index, VerifyError.UnreachableInstruction);
+            const op = operandOp(insn.operand);
+
+            if (localSlotOperand(op, insn.operand)) |slot| {
+                // The value for slot N sits N + 1 above the function elem.
+                if (slot + 2 > depth) return self.verifyFail(index, VerifyError.LocalSlotOutOfRange);
+            }
+
+            switch (op.stackEffect()) {
+                .fixed => |effect| {
+                    switch (insn.operand) {
+                        .jump, .jump_back => return self.verifyFail(index, VerifyError.OperandKindMismatch),
+                        else => {},
+                    }
+                    const next = try self.applyEffect(index, depth, effect);
+                    try self.flowTo(depths, index, i + 1, next);
+                },
+                .call => {
+                    const arg_count: u32 = switch (insn.operand) {
+                        .byte => |b| b.byte,
+                        else => return self.verifyFail(index, VerifyError.OperandKindMismatch),
+                    };
+                    const next = try self.applyEffect(index, depth, .{ .pops = arg_count + 1, .pushes = 1 });
+                    try self.flowTo(depths, index, i + 1, next);
+                },
+                .branch => |branch| {
+                    const target: Index = switch (insn.operand) {
+                        .jump => |j| target: {
+                            if (j.target == unpatched_jump) return self.verifyFail(index, VerifyError.UnpatchedJumpTarget);
+                            if (j.target <= index or j.target >= insns.len) return self.verifyFail(index, VerifyError.InvalidJumpTarget);
+                            break :target j.target;
+                        },
+                        .jump_back => |j| target: {
+                            if (j.target > index) return self.verifyFail(index, VerifyError.InvalidJumpTarget);
+                            break :target j.target;
+                        },
+                        else => return self.verifyFail(index, VerifyError.OperandKindMismatch),
+                    };
+                    const jump_depth = try self.applyEffect(index, depth, branch.jump);
+                    try self.flowTo(depths, index, target, jump_depth);
+                    if (branch.fallthrough) |effect| {
+                        const next = try self.applyEffect(index, depth, effect);
+                        try self.flowTo(depths, index, i + 1, next);
+                    }
+                },
+                .terminal => {
+                    if (depth < 1) return self.verifyFail(index, VerifyError.StackUnderflow);
+                },
+                .unknown => return self.verifyFail(index, VerifyError.UnverifiableOp),
+            }
+        }
+    }
+
+    fn applyEffect(self: *Ir, index: Index, depth: u32, effect: OpCode.StackEffect.PopPush) VerifyError!u32 {
+        if (depth < effect.pops) return self.verifyFail(index, VerifyError.StackUnderflow);
+        return depth - effect.pops + effect.pushes;
+    }
+
+    fn flowTo(self: *Ir, depths: []?u32, from: Index, to: usize, depth: u32) VerifyError!void {
+        if (to >= depths.len) return self.verifyFail(from, VerifyError.MissingEnd);
+        if (depths[to]) |existing| {
+            if (existing != depth) return self.verifyFail(from, VerifyError.StackDepthMismatch);
+        } else {
+            depths[to] = depth;
+        }
+    }
+
+    fn verifyFail(self: *Ir, index: Index, err: VerifyError) VerifyError {
+        self.verify_failure = index;
+        return err;
+    }
+
+    fn operandOp(operand: Operand) OpCode {
+        return switch (operand) {
+            .none => |op| op,
+            .byte => |b| b.op,
+            .byte_pair => |b| b.op,
+            .long => |l| l.op,
+            .get_constant => .GetConstant,
+            .call_function_constant => .CallFunctionConstant,
+            .call_tail_function_constant => .CallTailFunctionConstant,
+            .destructure => .Destructure,
+            .jump => |j| j.op,
+            .jump_back => |j| j.op,
+        };
+    }
+
+    fn localSlotOperand(op: OpCode, operand: Operand) ?u32 {
+        return switch (op) {
+            .CallFunctionLocal,
+            .CallTailFunctionLocal,
+            .CaptureLocal,
+            .GetBoundLocal,
+            .GetLocal,
+            => switch (operand) {
+                .byte => |b| b.byte,
+                else => null,
+            },
+            else => null,
+        };
+    }
 };
 
 const testing = std.testing;
@@ -285,6 +421,169 @@ test "jump distances are resolved from instruction indices" {
         0x0A,
         @intFromEnum(OpCode.End),
     }, chunk.code.items);
+}
+
+test "verify accepts a balanced function" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    // Mirror of the `or` emission pattern for a zero-arity function:
+    //   SetInputMark; <left>; Or -> after; <right>; after: End
+    _ = try ir.push(allocator, .{ .none = .SetInputMark }, testRegion(0));
+    _ = try ir.push(allocator, .{ .get_constant = 0 }, testRegion(1));
+    const jump = try ir.push(allocator, .{ .jump = .{ .op = .Or, .target = Ir.unpatched_jump } }, testRegion(2));
+    _ = try ir.push(allocator, .{ .none = .ParseCodepoint }, testRegion(3));
+    ir.patchJumpTarget(jump);
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(4));
+
+    try ir.verify(allocator, 1);
+}
+
+test "verify accepts a loop with a balanced body" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    // Repeat shape: accumulator on the stack, then loop parsing and merging
+    // until the parser fails, dropping the failure on the way out.
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .GetLocal, .byte = 0 } }, testRegion(0));
+    const loop_start = ir.nextIndex();
+    _ = try ir.push(allocator, .{ .none = .ParseCodepoint }, testRegion(1));
+    const done = try ir.push(allocator, .{ .jump = .{ .op = .JumpIfFailure, .target = Ir.unpatched_jump } }, testRegion(2));
+    _ = try ir.push(allocator, .{ .none = .Merge }, testRegion(3));
+    _ = try ir.push(allocator, .{ .jump_back = .{ .op = .JumpBack, .target = loop_start } }, testRegion(4));
+    ir.patchJumpTarget(done);
+    _ = try ir.push(allocator, .{ .none = .Drop }, testRegion(5));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(6));
+
+    // Entry: function + one arg holding the accumulator.
+    try ir.verify(allocator, 2);
+}
+
+test "verify rejects popping past the frame" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    _ = try ir.push(allocator, .{ .none = .Merge }, testRegion(0));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(1));
+
+    try testing.expectError(Ir.VerifyError.StackUnderflow, ir.verify(allocator, 1));
+    try testing.expectEqual(@as(Ir.Index, 0), ir.verify_failure.?);
+}
+
+test "verify rejects join points with mismatched depths" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    // The fallthrough path pushes one more value than the jump path.
+    _ = try ir.push(allocator, .{ .get_constant = 0 }, testRegion(0));
+    const jump = try ir.push(allocator, .{ .jump = .{ .op = .JumpIfFailure, .target = Ir.unpatched_jump } }, testRegion(1));
+    _ = try ir.push(allocator, .{ .get_constant = 1 }, testRegion(2));
+    ir.patchJumpTarget(jump);
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(3));
+
+    try testing.expectError(Ir.VerifyError.StackDepthMismatch, ir.verify(allocator, 1));
+    try testing.expectEqual(@as(Ir.Index, 2), ir.verify_failure.?);
+}
+
+test "verify rejects a loop that grows the stack" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    const loop_start = ir.nextIndex();
+    _ = try ir.push(allocator, .{ .get_constant = 0 }, testRegion(0));
+    _ = try ir.push(allocator, .{ .jump_back = .{ .op = .JumpBack, .target = loop_start } }, testRegion(1));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(2));
+
+    try testing.expectError(Ir.VerifyError.StackDepthMismatch, ir.verify(allocator, 1));
+    try testing.expectEqual(@as(Ir.Index, 1), ir.verify_failure.?);
+}
+
+test "verify rejects an unpatched jump" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    _ = try ir.push(allocator, .{ .jump = .{ .op = .Jump, .target = Ir.unpatched_jump } }, testRegion(0));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(1));
+
+    try testing.expectError(Ir.VerifyError.UnpatchedJumpTarget, ir.verify(allocator, 1));
+}
+
+test "verify rejects unreachable instructions" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    const jump = try ir.push(allocator, .{ .jump = .{ .op = .Jump, .target = Ir.unpatched_jump } }, testRegion(0));
+    _ = try ir.push(allocator, .{ .get_constant = 0 }, testRegion(1));
+    ir.patchJumpTarget(jump);
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(2));
+
+    try testing.expectError(Ir.VerifyError.UnreachableInstruction, ir.verify(allocator, 1));
+    try testing.expectEqual(@as(Ir.Index, 1), ir.verify_failure.?);
+}
+
+test "verify rejects falling off the end of the function" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    _ = try ir.push(allocator, .{ .get_constant = 0 }, testRegion(0));
+
+    try testing.expectError(Ir.VerifyError.MissingEnd, ir.verify(allocator, 1));
+}
+
+test "verify rejects local slots outside the frame" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .GetLocal, .byte = 3 } }, testRegion(0));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(1));
+
+    // Frame holds the function plus two args: slots 0 and 1 only.
+    try testing.expectError(Ir.VerifyError.LocalSlotOutOfRange, ir.verify(allocator, 3));
+}
+
+test "verify rejects call args exceeding stack depth" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    _ = try ir.push(allocator, .{ .get_constant = 0 }, testRegion(0));
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .CallFunction, .byte = 3 } }, testRegion(1));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(2));
+
+    try testing.expectError(Ir.VerifyError.StackUnderflow, ir.verify(allocator, 1));
+    try testing.expectEqual(@as(Ir.Index, 1), ir.verify_failure.?);
+}
+
+test "verify rejects ops whose effect can't be modeled" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .NativeCode, .byte = 0 } }, testRegion(0));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(1));
+
+    try testing.expectError(Ir.VerifyError.UnverifiableOp, ir.verify(allocator, 1));
+}
+
+test "verify rejects a branch op emitted without a jump operand" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    _ = try ir.push(allocator, .{ .get_constant = 0 }, testRegion(0));
+    _ = try ir.push(allocator, .{ .none = .Or }, testRegion(1));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(2));
+
+    try testing.expectError(Ir.VerifyError.OperandKindMismatch, ir.verify(allocator, 1));
 }
 
 test "oversized jump reports overflow with the jump region" {
