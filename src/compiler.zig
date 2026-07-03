@@ -39,6 +39,15 @@ pub const Compiler = struct {
     // than a hash lookup on every identifier emitted.
     const Scope = *Frontend.DependencyGraphNode;
 
+    // How a parameterless declaration resolves: to an inlined value, to
+    // another named declaration (an alias chain), or to a function with its
+    // own bytecode. Computed once by classifyDecl and reused.
+    const DeclKind = union(enum) {
+        alias_value: Elem,
+        alias_ident: StringTable.Id,
+        function,
+    };
+
     const Error = error{
         InvalidAst,
         MaxFunctionArgs,
@@ -188,21 +197,24 @@ pub const Compiler = struct {
             .precompiled => {},
             .declaration => |*n| {
                 const decl = n.ast;
+                const kind = try self.classifyDecl(decl);
 
-                try self.ensureDeclared(decl_key);
+                if (self.findGlobal(decl_key.module_id, decl_key.name) == null) {
+                    try self.declareFromKind(decl_key, decl, kind);
+                }
 
-                // Aliases share their target's function elem, and the
-                // bytecode is filled in when the target's own declaration is
-                // compiled.
-                const is_alias = (try self.getAliasBody(decl)) != null or
-                    self.getAliasChainName(decl) != null;
-
-                if (!is_alias) {
-                    if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
-                        if (elem.isDynType(.Function) and elem.asDyn().asFunction().hasEmptyBytecode()) {
-                            try self.compileFunction(node, decl_key.module_id, decl);
+                // Aliases share their target's function elem, whose bytecode is
+                // filled in when the target's own declaration is compiled; only
+                // a function declaration is compiled here.
+                switch (kind) {
+                    .function => {
+                        if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
+                            if (elem.isDynType(.Function) and elem.asDyn().asFunction().hasEmptyBytecode()) {
+                                try self.compileFunction(node, decl_key.module_id, decl);
+                            }
                         }
-                    }
+                    },
+                    .alias_value, .alias_ident => {},
                 }
             },
             .anonymous_function => {
@@ -224,18 +236,31 @@ pub const Compiler = struct {
         switch (self.frontend.getNode(dep_key).*) {
             .precompiled => {},
             .declaration => |*n| {
-                const decl = n.ast;
-                if (try self.getAliasBody(decl)) |alias_elem| {
-                    try self.addGlobal(dep_key.module_id, dep_key.name, alias_elem);
-                } else if (self.getAliasChainName(decl) != null) {
-                    try self.denormalizeAlias(dep_key, decl);
-                } else {
-                    try self.declareFunction(dep_key.module_id, decl);
-                }
+                try self.declareFromKind(dep_key, n.ast, try self.classifyDecl(n.ast));
             },
             .anonymous_function => {
                 // Anonymous functions are compiled inline where they appear.
             },
+        }
+    }
+
+    // A parameterless alias body inlines to a value elem; a bare-identifier
+    // body is an alias to another declaration; everything else is a function.
+    fn classifyDecl(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !DeclKind {
+        if (try self.getAliasBody(decl)) |elem| {
+            return .{ .alias_value = elem };
+        }
+        if (self.getAliasChainName(decl)) |name| {
+            return .{ .alias_ident = name };
+        }
+        return .function;
+    }
+
+    fn declareFromKind(self: *Compiler, key: GlobalKey, decl: Ast.ParserOrValue.Declaration, kind: DeclKind) !void {
+        switch (kind) {
+            .alias_value => |alias_elem| try self.addGlobal(key.module_id, key.name, alias_elem),
+            .alias_ident => try self.denormalizeAlias(key, decl),
+            .function => try self.declareFunction(key.module_id, decl),
         }
     }
 
