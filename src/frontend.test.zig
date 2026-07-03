@@ -24,14 +24,15 @@ fn key(module_id: Module.Id, name: StringTable.Id) NodeKey {
 }
 
 fn dependsOn(frontend: *Frontend, from: NodeKey, to: NodeKey) bool {
-    for (frontend.getDependencyKeys(from.module_id, from.name)) |dep| {
+    const node = frontend.findNode(from.module_id, from.name) orelse return false;
+    for (node.dependencies()) |dep| {
         if (dep.module_id == to.module_id and dep.name == to.name) return true;
     }
     return false;
 }
 
 fn captures(frontend: *Frontend, anon: NodeKey, parent_name: StringTable.Id, local: StringTable.Id) bool {
-    const node = frontend.getGraphNode(anon.module_id, anon.name) orelse return false;
+    const node = frontend.findNode(anon.module_id, anon.name) orelse return false;
     if (node.* != .anonymous_function) return false;
     for (node.anonymous_function.closure_captures.items) |capture| {
         if (capture.parent_name == parent_name and capture.local == local) return true;
@@ -253,7 +254,7 @@ test "dependency graph population" {
     // foo() -> bar() -> baz() -> (leaf)
     try expect(dependsOn(frontend, key(0, foo), key(0, bar)));
     try expect(dependsOn(frontend, key(0, bar), key(0, baz)));
-    try expectEqual(@as(usize, 0), frontend.getDependencyKeys(0, baz).len);
+    try expectEqual(@as(usize, 0), frontend.getNode(key(0, baz)).dependencies().len);
 }
 
 test "anonymous functions" {
@@ -357,7 +358,7 @@ test "nested anonymous functions with multiple captures" {
 
     // orderCapturedLocals places captured names first, in capture order, so
     // runtime SetClosureCaptures can copy capture slot N into local slot N.
-    const fn1_node = frontend.getGraphNode(0, fn1).?;
+    const fn1_node = frontend.getNode(key(0, fn1));
     const locals = fn1_node.anonymous_function.locals.items;
     try expectEqual(@as(usize, 2), locals.len);
     try expectEqual(a, locals[0]);
