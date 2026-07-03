@@ -2,6 +2,16 @@ const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const VM = @import("vm.zig").VM;
+const Writers = @import("writer.zig").Writers;
+
+var null_buffer: [256]u8 = undefined;
+var null_discarding = std.Io.Writer.Discarding.init(&null_buffer);
+
+pub const writers = Writers{
+    .out = &null_discarding.writer,
+    .err = &null_discarding.writer,
+    .debug = &null_discarding.writer,
+};
 
 pub fn expectJson(expected: []const u8, actual: std.json.Value) !void {
     var str = ArrayList(u8){};
