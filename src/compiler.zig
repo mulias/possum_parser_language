@@ -569,7 +569,10 @@ pub const Compiler = struct {
     ) !void {
         const function_ident = switch (function.node) {
             .identifier => |ident| ident,
-            else => @panic("todo"),
+            else => {
+                try self.printError(module_id, function.region, "Only named functions can be called", .{});
+                return Error.InvalidAst;
+            },
         };
         const function_id = function_ident.name;
         const arg_count = arguments.items.len;
@@ -1901,10 +1904,13 @@ pub const Compiler = struct {
     ) !void {
         // TODO: handle curried function calls like `Foo(A)(B)`
         // TODO: handle non-function with parens like `X = 1 ; "" $ X()`
-        const function_ident = if (function_rnode.node == .identifier)
-            function_rnode.node.identifier
-        else
-            @panic("todo");
+        const function_ident = switch (function_rnode.node) {
+            .identifier => |ident| ident,
+            else => {
+                try self.printError(module_id, function_rnode.region, "Only named functions can be called", .{});
+                return Error.InvalidAst;
+            },
+        };
         const function_region = function_rnode.region;
 
         const functionName = function_ident.name;

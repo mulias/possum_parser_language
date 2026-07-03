@@ -97,3 +97,24 @@
   [UndefinedVariable]
   [1]
 
+  $ possum -p 'foo(a) = a ; foo("x")("y")' -i 'xy'
+  
+  Program Error: Only named functions can be called
+  
+  program:1:13-21:
+  1 \xe2\x96\x8f foo(a) = a ; foo("x")("y") (esc)
+    \xe2\x96\x8f              ^^^^^^^^ (esc)
+  
+  [InvalidAst]
+  [1]
+
+  $ possum -p 'Foo(A) = A ; "" $ Foo(1)(2)' -i ''
+  
+  Program Error: Only named functions can be called
+  
+  program:1:18-24:
+  1 \xe2\x96\x8f Foo(A) = A ; "" $ Foo(1)(2) (esc)
+    \xe2\x96\x8f                   ^^^^^^ (esc)
+  
+  [InvalidAst]
+  [1]
