@@ -24,13 +24,11 @@ pub fn addModule(self: *Resolver, module: Module, ast: Ast) !void {
 }
 
 pub fn addModuleDependency(self: *Resolver, module_id: Module.Id, dependency_id: Module.Id) !void {
-    if (self.module_dependencies.getPtr(module_id)) |module_deps| {
-        try module_deps.append(self.arena.allocator(), dependency_id);
-    } else {
-        var new_deps = ArrayList(Module.Id){};
-        try new_deps.append(self.arena.allocator(), dependency_id);
-        try self.module_dependencies.put(self.arena.allocator(), module_id, new_deps);
+    const gop = try self.module_dependencies.getOrPut(self.arena.allocator(), module_id);
+    if (!gop.found_existing) {
+        gop.value_ptr.* = .{};
     }
+    try gop.value_ptr.append(self.arena.allocator(), dependency_id);
 }
 
 pub fn resolve(self: *Resolver) !void {
