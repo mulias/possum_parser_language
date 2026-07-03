@@ -1,4 +1,3 @@
-const std = @import("std");
 const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
 const writers = @import("../testing.zig").writers;
