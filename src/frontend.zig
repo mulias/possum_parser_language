@@ -4,7 +4,6 @@ const Can = @import("frontend/can.zig");
 const Ast = @import("frontend/can_ast.zig");
 const DependencyGraph = @import("frontend/dependency_graph.zig");
 const DependencyResolver = @import("frontend/dependency_resolver.zig");
-const HashMap = std.AutoHashMapUnmanaged;
 const Module = @import("module.zig").Module;
 const Parser = @import("frontend/parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable;
@@ -79,27 +78,30 @@ pub fn finalize(self: *Frontend) !void {
     try self.resolver.resolve();
 }
 
-pub const DeclarationsIterator = struct {
-    module_id: Module.Id,
-    iter: HashMap(DependencyGraph.NodeKey, *DependencyGraph.Node).Iterator,
+// Declaration keys for a module, in source order.
+pub fn declarationKeys(self: *Frontend, module_id: Module.Id) ![]const GlobalKey {
+    var keys = std.ArrayListUnmanaged(GlobalKey){};
 
-    pub fn next(self: *DeclarationsIterator) ?GlobalKey {
-        while (self.iter.next()) |entry| {
-            const key = entry.key_ptr.*;
-            const node = entry.value_ptr.*;
-            if (key.module_id == self.module_id and node.* == .declaration) {
-                return key;
-            }
+    var iter = self.resolver.graph.nodes.iterator();
+    while (iter.next()) |entry| {
+        const key = entry.key_ptr.*;
+        const node = entry.value_ptr.*;
+        if (key.module_id == module_id and node.* == .declaration) {
+            try keys.append(self.arena.allocator(), key);
         }
-        return null;
     }
-};
 
-pub fn declarationsIterator(self: *Frontend, module_id: Module.Id) DeclarationsIterator {
-    return DeclarationsIterator{
-        .module_id = module_id,
-        .iter = self.resolver.graph.nodes.iterator(),
+    const SortContext = struct {
+        frontend: *Frontend,
+
+        fn lessThan(ctx: @This(), a: GlobalKey, b: GlobalKey) bool {
+            return ctx.frontend.getDeclaration(a).region().start <
+                ctx.frontend.getDeclaration(b).region().start;
+        }
     };
+    std.mem.sort(GlobalKey, keys.items, SortContext{ .frontend = self }, SortContext.lessThan);
+
+    return keys.items;
 }
 
 pub fn getNode(self: *Frontend, key: GlobalKey) *DependencyGraph.Node {
