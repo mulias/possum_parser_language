@@ -59,7 +59,6 @@ test "single module with main parser" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    // Check that main parser was found
     try std.testing.expect(frontend.main != null);
 }
 
@@ -95,7 +94,6 @@ test "module with declarations" {
     try std.testing.expect(frontend.resolver.graph.nodes.contains(foo_key));
     try std.testing.expect(frontend.resolver.graph.nodes.contains(bar_key));
 
-    // Check that main parser was found
     try std.testing.expect(frontend.main != null);
 }
 

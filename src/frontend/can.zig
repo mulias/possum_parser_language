@@ -84,7 +84,6 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
         const body = global.body;
 
         if (head.node == .Function) {
-            // Function declaration
             const func = head.node.Function;
 
             const name_ident = switch (func.name.node) {
@@ -126,7 +125,7 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
                 try self.addValueDeclaration(value_decl);
             }
         } else if (head.node == .Identifier) {
-            // Alias declaration
+            // Alias, like a function but with no params
             const name_ident = head.node.Identifier;
 
             if (name_ident.builtin) {
