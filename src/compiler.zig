@@ -3,6 +3,7 @@ const Ast = @import("frontend/can_ast.zig");
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
+const DependencyGraph = @import("frontend/dependency_graph.zig");
 const Elem = @import("elem.zig").Elem;
 const Frontend = @import("frontend.zig");
 const GlobalKey = @import("frontend.zig").GlobalKey;
@@ -21,7 +22,7 @@ pub const Compiler = struct {
     vm: *VM,
     frontend: *Frontend,
     functions: ArrayList(*Elem.DynElem.Function) = .{},
-    scope_keys: ArrayList(GlobalKey) = .{},
+    scopes: ArrayList(Scope) = .{},
     writers: Writers,
     printBytecode: bool = false,
     global_map: AutoHashMap(GlobalKey, Elem) = .{},
@@ -31,6 +32,14 @@ pub const Compiler = struct {
     const ConstantMapKey = struct {
         module_id: u32,
         elem_bits: u64,
+    };
+
+    // The graph node is cached alongside the key so that identifier
+    // resolution reads locals and dependencies through a field access rather
+    // than a hash lookup on every identifier emitted.
+    const Scope = struct {
+        key: GlobalKey,
+        node: ?*DependencyGraph.Node,
     };
 
     const Error = error{
@@ -67,7 +76,7 @@ pub const Compiler = struct {
         self.constant_map.deinit(self.vm.allocator);
         self.global_map.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
-        self.scope_keys.deinit(self.vm.allocator);
+        self.scopes.deinit(self.vm.allocator);
     }
 
     pub fn addTargetModule(self: *Compiler, module: Module, opts: Frontend.AddModuleOpts) !void {
@@ -128,11 +137,11 @@ pub const Compiler = struct {
         function.name = main_ast.node.name;
 
         try self.functions.append(self.vm.allocator, function);
-        try self.scope_keys.append(self.vm.allocator, .{ .module_id = module_id, .name = main_ast.node.name });
+        try self.pushScope(.{ .module_id = module_id, .name = main_ast.node.name });
 
         try self.pushLocalPlaceholders(module_id, 0, main_ast.region);
 
-        const graph_node = self.frontend.getGraphNode(module_id, main_ast.node.name);
+        const graph_node = self.currentScope().?.node;
         if (graph_node) |node| {
             if (node.* == .anonymous_function) {
                 const anon_node = node.anonymous_function;
@@ -150,7 +159,7 @@ pub const Compiler = struct {
         }
 
         _ = self.functions.pop();
-        _ = self.scope_keys.pop();
+        _ = self.scopes.pop();
 
         self.main = function;
     }
@@ -360,7 +369,7 @@ pub const Compiler = struct {
         const function = globalVal.asDyn().asFunction();
 
         try self.functions.append(self.vm.allocator, function);
-        try self.scope_keys.append(self.vm.allocator, .{ .module_id = module_id, .name = global_sid });
+        try self.pushScope(.{ .module_id = module_id, .name = global_sid });
 
         try self.pushLocalPlaceholders(module_id, function.arity, decl.region());
 
@@ -380,15 +389,15 @@ pub const Compiler = struct {
         }
 
         _ = self.functions.pop();
-        _ = self.scope_keys.pop();
+        _ = self.scopes.pop();
     }
 
     // Function params get stack slots from the arguments pushed by the
     // caller. All other locals need a placeholder pushed at function entry so
     // that pattern bindings and closure captures can assign into their slots.
     fn pushLocalPlaceholders(self: *Compiler, module_id: Module.Id, param_count: usize, region: Region) !void {
-        const key = self.currentScopeKey() orelse return;
-        const node = self.frontend.getGraphNode(key.module_id, key.name) orelse return;
+        const scope = self.currentScope() orelse return;
+        const node = scope.node orelse return;
         const locals = node.locals();
 
         if (locals.len <= param_count) {
@@ -1385,7 +1394,7 @@ pub const Compiler = struct {
         const constId = try self.makeConstant(module_id, function.dyn.elem());
 
         try self.functions.append(self.vm.allocator, function);
-        try self.scope_keys.append(self.vm.allocator, .{ .module_id = module_id, .name = anon.name });
+        try self.pushScope(.{ .module_id = module_id, .name = anon.name });
 
         for (self.frontend.getDependencyKeys(module_id, anon.name)) |dep_key| {
             try self.ensureDeclared(dep_key);
@@ -1393,7 +1402,7 @@ pub const Compiler = struct {
 
         try self.pushLocalPlaceholders(module_id, 0, region);
 
-        const graph_node = self.frontend.getGraphNode(module_id, anon.name);
+        const graph_node = self.currentScope().?.node;
         if (graph_node) |node| {
             if (node.* == .anonymous_function) {
                 const anon_node = node.anonymous_function;
@@ -1411,7 +1420,7 @@ pub const Compiler = struct {
         }
 
         _ = self.functions.pop();
-        _ = self.scope_keys.pop();
+        _ = self.scopes.pop();
 
         try self.emitConstant(constId, region);
 
@@ -2333,8 +2342,10 @@ pub const Compiler = struct {
             return elem;
         }
 
-        if (self.currentScopeKey()) |key| {
-            for (self.frontend.getDependencyKeys(key.module_id, key.name)) |dep_key| {
+        if (self.currentScope()) |scope| {
+            const deps: []const GlobalKey =
+                if (scope.node) |node| node.dependencies() else &.{};
+            for (deps) |dep_key| {
                 if (dep_key.name == sid) {
                     return self.findGlobal(dep_key.module_id, dep_key.name);
                 }
@@ -2344,11 +2355,18 @@ pub const Compiler = struct {
         return null;
     }
 
-    fn currentScopeKey(self: *Compiler) ?GlobalKey {
-        if (self.scope_keys.items.len == 0) {
+    fn currentScope(self: *Compiler) ?Scope {
+        if (self.scopes.items.len == 0) {
             return null;
         }
-        return self.scope_keys.items[self.scope_keys.items.len - 1];
+        return self.scopes.items[self.scopes.items.len - 1];
+    }
+
+    fn pushScope(self: *Compiler, key: GlobalKey) !void {
+        try self.scopes.append(self.vm.allocator, .{
+            .key = key,
+            .node = self.frontend.getGraphNode(key.module_id, key.name),
+        });
     }
 
     fn addGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id, elem: Elem) !void {
@@ -2360,8 +2378,8 @@ pub const Compiler = struct {
     }
 
     pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
-        const key = self.currentScopeKey() orelse return null;
-        if (self.frontend.getGraphNode(key.module_id, key.name)) |node| {
+        const scope = self.currentScope() orelse return null;
+        if (scope.node) |node| {
             for (node.locals(), 0..) |local, i| {
                 if (local == name) return @intCast(i);
             }
