@@ -65,6 +65,9 @@ pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: Ast) !
         );
     }
 
+    // `main` is included here too: the canonicalizer appends it to
+    // anonymous_functions, so it is added as a regular anonymous function
+    // node (with a null parent).
     for (ast.anonymous_functions.items) |anon| {
         try self.addNode(
             allocator,
@@ -73,17 +76,6 @@ pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: Ast) !
             .{ .anonymous_function = .{
                 .ast = anon,
                 .parent = anon.node.parent_name,
-            } },
-        );
-    }
-
-    if (ast.main) |main| {
-        try self.addNode(
-            allocator,
-            module.id,
-            main.node.name,
-            .{ .anonymous_function = .{
-                .ast = main,
             } },
         );
     }
