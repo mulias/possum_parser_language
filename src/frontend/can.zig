@@ -14,6 +14,7 @@ writers: Writers,
 module: Module,
 strings: *StringTable,
 ast: Ast = .{},
+declared_names: std.AutoHashMapUnmanaged(StringTable.Id, void) = .{},
 anonymous_function_count: u64 = 0,
 current_parent_function_name: ?StringTable.Id = null,
 
@@ -67,11 +68,10 @@ fn addValueDeclaration(self: *Can, decl: *Ast.RNode(Ast.Value.Declaration)) !voi
 }
 
 fn checkDuplicateDeclaration(self: *Can, name: StringTable.Id, region: Region) !void {
-    for (self.ast.declarations.items) |existing| {
-        if (existing.identName() == name) {
-            try self.printError(region, "'{s}' is already declared in this module", .{self.strings.get(name)});
-            return Error.DuplicateDeclaration;
-        }
+    const gop = try self.declared_names.getOrPut(self.arena.allocator(), name);
+    if (gop.found_existing) {
+        try self.printError(region, "'{s}' is already declared in this module", .{self.strings.get(name)});
+        return Error.DuplicateDeclaration;
     }
 }
 
