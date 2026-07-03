@@ -30,3 +30,14 @@
   
   [DuplicateParameterName]
   [1]
+
+  $ possum -p 'foo = "a" ; foo = "b" ; foo' -i 'b'
+  
+  Validation Error: 'foo' is already declared in this module
+  
+  program:1:12-15:
+  1 \xe2\x96\x8f foo = "a" ; foo = "b" ; foo (esc)
+    \xe2\x96\x8f             ^^^ (esc)
+  
+  [DuplicateDeclaration]
+  [1]
