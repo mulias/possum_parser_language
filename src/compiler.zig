@@ -339,13 +339,8 @@ pub const Compiler = struct {
         const ident_name = self.getAliasChainName(decl) orelse return null;
 
         const node = self.frontend.getGraphNode(decl_key.module_id, decl.identName()) orelse return null;
-        const deps = switch (node.*) {
-            .precompiled => return null,
-            .declaration => |n| n.dependencies.items,
-            .anonymous_function => return null,
-        };
 
-        for (deps) |dep| {
+        for (node.dependencies()) |dep| {
             if (dep.name == ident_name) {
                 return dep;
             }
@@ -394,11 +389,7 @@ pub const Compiler = struct {
     fn pushLocalPlaceholders(self: *Compiler, module_id: Module.Id, param_count: usize, region: Region) !void {
         const key = self.currentScopeKey() orelse return;
         const node = self.frontend.getGraphNode(key.module_id, key.name) orelse return;
-        const locals = switch (node.*) {
-            .precompiled => return,
-            .declaration => |n| n.locals.items,
-            .anonymous_function => |n| n.locals.items,
-        };
+        const locals = node.locals();
 
         if (locals.len <= param_count) {
             return;
