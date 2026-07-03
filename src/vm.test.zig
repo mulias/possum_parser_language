@@ -1,5 +1,6 @@
 const std = @import("std");
 const allocator = std.testing.allocator;
+const Compiler = @import("compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 const VM = @import("vm.zig").VM;
 const VMConfig = @import("vm.zig").Config;
@@ -19,6 +20,34 @@ const config = VMConfig{
     .includeStdlib = false,
     .gc_mode = .StressTest,
 };
+
+// Compile and run a program split across a `util` module and a `main` module.
+fn runWithUtilModule(vm: *VM, util_source: []const u8, main_source: []const u8, input: []const u8) !Elem {
+    vm.input = input;
+
+    const util_module = try vm.createModule("util", util_source);
+    const main_module = try vm.createModule("main", main_source);
+
+    var compiler = try Compiler.init(vm);
+    defer compiler.deinit();
+
+    try compiler.addModule(util_module.*, .{});
+    try compiler.addTargetModule(main_module.*, .{});
+
+    try compiler.addModuleDependency(main_module.id, util_module.id);
+
+    vm.compiler = &compiler;
+    defer vm.compiler = null;
+
+    try compiler.compile();
+
+    const main = compiler.main.?;
+    try vm.push(main.dyn.elem());
+    try vm.addFrame(main);
+    try vm.run();
+
+    return vm.peek(0);
+}
 
 test "empty program" {
     const parser = "";
@@ -1364,6 +1393,59 @@ test "foo = bar ; bar = baz ; baz = bar ; foo" {
         try vm.init(allocator, writers, config);
         defer vm.deinit();
         try std.testing.expectError(error.AliasCycle, vm.interpret("test", parser, ""));
+    }
+}
+
+test "foo = bar ; foo # alias to undefined name, called" {
+    const parser =
+        \\foo = bar ; foo
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try std.testing.expectError(error.UndefinedVariable, vm.interpret("test", parser, "x"));
+    }
+}
+
+test "foo = bar ; 'x' # alias to undefined name, never called" {
+    const parser =
+        \\foo = bar ; "x"
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try std.testing.expectError(error.UndefinedVariable, vm.interpret("test", parser, "x"));
+    }
+}
+
+test "cross-module call into an undefined alias errors" {
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try std.testing.expectError(
+            error.UndefinedVariable,
+            runWithUtilModule(&vm, "foo = bar", "foo", "x"),
+        );
+    }
+}
+
+test "undefined alias in another module is fine when never compiled" {
+    const util_source =
+        \\foo = bar
+        \\greet = "hi"
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try runWithUtilModule(&vm, util_source, "greet", "hi"),
+            Elem.inputSubstring(0, 2),
+            vm,
+        );
     }
 }
 
