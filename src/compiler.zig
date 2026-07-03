@@ -309,6 +309,14 @@ pub const Compiler = struct {
                 break;
             }
 
+            // The target is itself an alias to a bare identifier, but the
+            // resolver recorded no dependency edge for it, so that identifier
+            // names nothing.
+            if (self.getAliasChainName(target_decl)) |unresolved_name| {
+                try self.printError(target_key.module_id, target_decl.region(), "undefined variable '{s}'", .{self.vm.strings.get(unresolved_name)});
+                return Error.UndefinedVariable;
+            }
+
             // The chain ends at a function declaration that hasn't been
             // declared yet. Its bytecode is filled in when the target's own
             // declaration is compiled.

@@ -235,7 +235,7 @@ pub const VM = struct {
         }
     }
 
-    fn createModule(self: *VM, name: []const u8, source: []const u8) !*Module {
+    pub fn createModule(self: *VM, name: []const u8, source: []const u8) !*Module {
         const new_id = self.modules.items.len;
         if (new_id > std.math.maxInt(u16)) {
             @panic("todo");
@@ -1410,7 +1410,7 @@ pub const VM = struct {
         return self.currentFunctionModule().getPattern(idx);
     }
 
-    fn addFrame(self: *VM, function: *Elem.DynElem.Function) !void {
+    pub fn addFrame(self: *VM, function: *Elem.DynElem.Function) !void {
         try self.frames.append(self.allocator, CallFrame{
             .function = function,
             .ip = 0,
