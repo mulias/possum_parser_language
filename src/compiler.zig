@@ -15,6 +15,7 @@ const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 const Writer = std.Io.Writer;
 const Writers = @import("writer.zig").Writers;
+const builtin = @import("builtin");
 const parsing = @import("parsing.zig");
 const std = @import("std");
 
@@ -2336,6 +2337,23 @@ pub const Compiler = struct {
 
         var function_ir = self.irs.pop().?;
         defer function_ir.deinit(self.vm.allocator);
+
+        // A verification failure is a compiler bug, not a user error. Gated
+        // to debug builds, which is what `zig build` and the test suites use.
+        if (comptime builtin.mode == .Debug) {
+            const entry_depth = @as(u32, self.currentFunction().arity) + 1;
+            function_ir.verify(self.vm.allocator, entry_depth) catch |err| switch (err) {
+                error.OutOfMemory => return error.OutOfMemory,
+                else => std.debug.panic(
+                    "IR verification of function '{s}' failed: {s} at instruction {d}",
+                    .{
+                        self.vm.strings.get(self.currentFunction().name),
+                        @errorName(err),
+                        function_ir.verify_failure.?,
+                    },
+                ),
+            };
+        }
 
         const chunk = &self.currentFunction().chunk;
         function_ir.writeTo(self.vm.allocator, chunk) catch |err| switch (err) {
