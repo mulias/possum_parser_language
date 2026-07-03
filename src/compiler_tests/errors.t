@@ -41,3 +41,48 @@
   
   [DuplicateDeclaration]
   [1]
+
+  $ possum -p '@main = 3 ; @main' -i ''
+  
+  Validation Error: Unable to declare '@main', '@' is reserved for builtins
+  
+  program:1:0-5:
+  1 \xe2\x96\x8f @main = 3 ; @main (esc)
+    \xe2\x96\x8f ^^^^^ (esc)
+  
+  [ReservedBuiltinName]
+  [1]
+
+  $ possum -p '@my_parser = 99 ; @my_parser' -i '99'
+  
+  Validation Error: Unable to declare '@my_parser', '@' is reserved for builtins
+  
+  program:1:0-10:
+  1 \xe2\x96\x8f @my_parser = 99 ; @my_parser (esc)
+    \xe2\x96\x8f ^^^^^^^^^^ (esc)
+  
+  [ReservedBuiltinName]
+  [1]
+
+  $ possum -p 'foo(@a) = @a ; foo' -i ''
+  
+  Validation Error: Invalid function param, '@' is reserved for builtins
+  
+  program:1:4-6:
+  1 \xe2\x96\x8f foo(@a) = @a ; foo (esc)
+    \xe2\x96\x8f     ^^ (esc)
+  
+  [ReservedBuiltinName]
+  [1]
+
+  $ possum -p '@my_parser' -i ''
+  
+  Program Error: undefined variable '@my_parser'
+  
+  program:1:0-10:
+  1 \xe2\x96\x8f @my_parser (esc)
+    \xe2\x96\x8f ^^^^^^^^^^ (esc)
+  
+  [UndefinedVariable]
+  [1]
+

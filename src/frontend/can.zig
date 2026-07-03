@@ -30,6 +30,7 @@ const Error = error{
     MultipleMainParsers,
     DuplicateParameterName,
     DuplicateDeclaration,
+    ReservedBuiltinName,
 } || Writer.Error;
 
 pub fn init(
@@ -112,6 +113,11 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
                 },
             };
 
+            if (name_ident.builtin) {
+                try self.printError(func.name.region, "Unable to declare '{s}', '@' is reserved for builtins", .{name_ident.name});
+                return Error.ReservedBuiltinName;
+            }
+
             if (name_ident.kind == .Parser) {
                 const parser_decl = try self.convertParserDecl(name_ident, func.name.region, func.paramsOrArgs, body, root.region);
                 try self.addParserDeclaration(parser_decl);
@@ -122,6 +128,12 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
         } else if (head.node == .Identifier) {
             // Alias declaration
             const name_ident = head.node.Identifier;
+
+            if (name_ident.builtin) {
+                try self.printError(head.region, "Unable to declare '{s}', '@' is reserved for builtins", .{name_ident.name});
+                return Error.ReservedBuiltinName;
+            }
+
             if (name_ident.kind == .Parser) {
                 const parser_decl = try self.convertParserDecl(name_ident, head.region, .{}, body, root.region);
                 try self.addParserDeclaration(parser_decl);
@@ -655,6 +667,11 @@ fn convertParserDecl(
 
         const param_ident = param.node.Identifier;
 
+        if (param_ident.builtin) {
+            try self.printError(param.region, "Invalid function param, '@' is reserved for builtins", .{});
+            return Error.ReservedBuiltinName;
+        }
+
         const pov_ident = if (param_ident.kind == .Parser)
             Ast.ParserOrValue.Identifier{ .parser = try Ast.Parser.createIdent(
                 self.arena.allocator(),
@@ -719,6 +736,11 @@ fn convertValueDecl(
         }
 
         const param_ident = param.node.Identifier;
+
+        if (param_ident.builtin) {
+            try self.printError(param.region, "Invalid function param, '@' is reserved for builtins", .{});
+            return Error.ReservedBuiltinName;
+        }
 
         const value_ident = try Ast.Value.createIdent(
             self.arena.allocator(),
