@@ -1,7 +1,7 @@
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Can = @import("frontend/can.zig");
-const Ast = @import("frontend/can_ast.zig");
+const CanAst = @import("frontend/can_ast.zig");
 const DependencyGraph = @import("frontend/dependency_graph.zig");
 const DependencyResolver = @import("frontend/dependency_resolver.zig");
 const Module = @import("module.zig").Module;
@@ -26,7 +26,11 @@ pub const AddModuleOpts = struct {
 
 pub const Frontend = @This();
 
+pub const Ast = CanAst;
+
 pub const GlobalKey = DependencyGraph.NodeKey;
+
+pub const DependencyGraphNode = DependencyGraph.Node;
 
 pub fn init(allocator: Allocator, strings: *StringTable, writers: Writers) !*Frontend {
     const frontend = try allocator.create(Frontend);
@@ -112,18 +116,7 @@ pub fn getDeclaration(self: *Frontend, key: GlobalKey) Ast.ParserOrValue.Declara
     return self.getNode(key).declaration.ast;
 }
 
-pub fn getDependencyKeys(self: *Frontend, module_id: Module.Id, name: StringTable.Id) []const DependencyGraph.NodeKey {
-    const key = DependencyGraph.NodeKey{
-        .module_id = module_id,
-        .name = name,
-    };
-    if (self.resolver.graph.nodes.get(key)) |node| {
-        return node.dependencies();
-    }
-    return &.{};
-}
-
-pub fn getGraphNode(self: *Frontend, module_id: Module.Id, name: StringTable.Id) ?*DependencyGraph.Node {
+pub fn findNode(self: *Frontend, module_id: Module.Id, name: StringTable.Id) ?*DependencyGraph.Node {
     const key = DependencyGraph.NodeKey{
         .module_id = module_id,
         .name = name,

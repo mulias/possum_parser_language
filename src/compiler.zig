@@ -1,12 +1,12 @@
 const ArrayList = std.ArrayListUnmanaged;
-const Ast = @import("frontend/can_ast.zig");
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
-const DependencyGraph = @import("frontend/dependency_graph.zig");
 const Elem = @import("elem.zig").Elem;
 const Frontend = @import("frontend.zig");
-const GlobalKey = @import("frontend.zig").GlobalKey;
+const Ast = Frontend.Ast;
+const GlobalKey = Frontend.GlobalKey;
+const DependencyGraphNode = Frontend.DependencyGraphNode;
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Pattern = @import("pattern.zig").Pattern;
@@ -37,10 +37,7 @@ pub const Compiler = struct {
     // The graph node is cached alongside the key so that identifier
     // resolution reads locals and dependencies through a field access rather
     // than a hash lookup on every identifier emitted.
-    const Scope = struct {
-        key: GlobalKey,
-        node: ?*DependencyGraph.Node,
-    };
+    const Scope = *Frontend.DependencyGraphNode;
 
     const Error = error{
         InvalidAst,
@@ -125,7 +122,9 @@ pub const Compiler = struct {
     }
 
     fn compileMainParser(self: *Compiler, module_id: Module.Id, main_ast: *Ast.RNode(Ast.Parser.AnonymousFunction)) !void {
-        for (self.frontend.getDependencyKeys(module_id, main_ast.node.name)) |dep_key| {
+        const main_node = self.frontend.getNode(.{ .module_id = module_id, .name = main_ast.node.name });
+
+        for (main_node.dependencies()) |dep_key| {
             try self.compileDeclaration(dep_key);
         }
 
@@ -136,18 +135,13 @@ pub const Compiler = struct {
         function.name = main_ast.node.name;
 
         try self.functions.append(self.vm.allocator, function);
-        try self.pushScope(.{ .module_id = module_id, .name = main_ast.node.name });
+        try self.pushScope(main_node);
 
         try self.pushLocalPlaceholders(module_id, 0, main_ast.region);
 
-        const graph_node = self.currentScope().?.node;
-        if (graph_node) |node| {
-            if (node.* == .anonymous_function) {
-                const anon_node = node.anonymous_function;
-                if (anon_node.closure_captures.items.len > 0) {
-                    try self.emitOp(.SetClosureCaptures, main_ast.region);
-                }
-            }
+        const anon_node = main_node.anonymous_function;
+        if (anon_node.closure_captures.items.len > 0) {
+            try self.emitOp(.SetClosureCaptures, main_ast.region);
         }
 
         try self.writeParser(module_id, main_ast.node.body, true);
@@ -195,7 +189,7 @@ pub const Compiler = struct {
                 if (!is_alias) {
                     if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
                         if (elem.isDynType(.Function) and elem.asDyn().asFunction().hasEmptyBytecode()) {
-                            try self.compileFunction(decl_key.module_id, decl);
+                            try self.compileFunction(node, decl_key.module_id, decl);
                         }
                     }
                 }
@@ -288,7 +282,7 @@ pub const Compiler = struct {
         var target_elem: ?Elem = null;
 
         while (true) {
-            if (self.getGlobal(target_key)) |elem| {
+            if (self.findGlobal(target_key.module_id, target_key.name)) |elem| {
                 target_elem = elem;
                 break;
             }
@@ -345,29 +339,19 @@ pub const Compiler = struct {
 
         const ident_name = self.getAliasChainName(decl) orelse return null;
 
-        const node = self.frontend.getGraphNode(decl_key.module_id, decl.identName()) orelse return null;
+        const node = self.frontend.findNode(decl_key.module_id, decl.identName()) orelse return null;
 
-        for (node.dependencies()) |dep| {
-            if (dep.name == ident_name) {
-                return dep;
-            }
-        }
-
-        return null;
+        return node.dependencyNamed(ident_name);
     }
 
-    fn getGlobal(self: *Compiler, key: GlobalKey) ?Elem {
-        return self.global_map.get(key);
-    }
-
-    fn compileFunction(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
+    fn compileFunction(self: *Compiler, node: *DependencyGraphNode, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
         const global_sid = decl.identName();
-        const globalVal = self.getGlobal(.{ .module_id = module_id, .name = global_sid }).?;
+        const globalVal = self.getGlobal(.{ .module_id = module_id, .name = global_sid });
 
         const function = globalVal.asDyn().asFunction();
 
         try self.functions.append(self.vm.allocator, function);
-        try self.pushScope(.{ .module_id = module_id, .name = global_sid });
+        try self.pushScope(node);
 
         try self.pushLocalPlaceholders(module_id, function.arity, decl.region());
 
@@ -394,9 +378,8 @@ pub const Compiler = struct {
     // caller. All other locals need a placeholder pushed at function entry so
     // that pattern bindings and closure captures can assign into their slots.
     fn pushLocalPlaceholders(self: *Compiler, module_id: Module.Id, param_count: usize, region: Region) !void {
-        const scope = self.currentScope() orelse return;
-        const node = scope.node orelse return;
-        const locals = node.locals();
+        const scope = self.currentScope();
+        const locals = scope.locals();
 
         if (locals.len <= param_count) {
             return;
@@ -1392,22 +1375,20 @@ pub const Compiler = struct {
         const constId = try self.makeConstant(module_id, function.dyn.elem());
 
         try self.functions.append(self.vm.allocator, function);
-        try self.pushScope(.{ .module_id = module_id, .name = anon.name });
 
-        for (self.frontend.getDependencyKeys(module_id, anon.name)) |dep_key| {
+        const graph_node = self.frontend.getNode(.{ .module_id = module_id, .name = anon.name });
+        try self.pushScope(graph_node);
+
+        const anon_node = graph_node.anonymous_function;
+
+        for (anon_node.dependencies.items) |dep_key| {
             try self.ensureDeclared(dep_key);
         }
 
         try self.pushLocalPlaceholders(module_id, 0, region);
 
-        const graph_node = self.currentScope().?.node;
-        if (graph_node) |node| {
-            if (node.* == .anonymous_function) {
-                const anon_node = node.anonymous_function;
-                if (anon_node.closure_captures.items.len > 0) {
-                    try self.emitOp(.SetClosureCaptures, region);
-                }
-            }
+        if (anon_node.closure_captures.items.len > 0) {
+            try self.emitOp(.SetClosureCaptures, region);
         }
 
         try self.writeParser(module_id, anon.body, true);
@@ -1422,25 +1403,19 @@ pub const Compiler = struct {
 
         try self.emitConstant(constId, region);
 
-        if (graph_node) |node| {
-            if (node.* == .anonymous_function) {
-                const anon_node = node.anonymous_function;
+        if (anon_node.closure_captures.items.len == 0) {
+            return;
+        }
 
-                if (anon_node.closure_captures.items.len == 0) {
-                    return;
-                }
+        const local_count = @as(u8, @intCast(anon_node.locals.items.len));
+        try self.emitUnaryOp(.CreateClosure, local_count, region);
 
-                const local_count = @as(u8, @intCast(anon_node.locals.items.len));
-                try self.emitUnaryOp(.CreateClosure, local_count, region);
-
-                for (anon_node.closure_captures.items) |capture| {
-                    // The resolver guarantees the enclosing scope holds every
-                    // captured local. A miss here would misalign later
-                    // captures with SetClosureCaptures slots.
-                    const fromSlot = self.localSlot(capture.local) orelse unreachable;
-                    try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
-                }
-            }
+        for (anon_node.closure_captures.items) |capture| {
+            // The resolver guarantees the enclosing scope holds every
+            // captured local. A miss here would misalign later
+            // captures with SetClosureCaptures slots.
+            const fromSlot = self.localSlot(capture.local) orelse unreachable;
+            try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
         }
     }
 
@@ -2331,6 +2306,10 @@ pub const Compiler = struct {
         return null;
     }
 
+    fn getGlobal(self: *Compiler, key: GlobalKey) Elem {
+        return self.global_map.get(key).?;
+    }
+
     // Resolve an identifier in the body of the function currently being
     // compiled. Names that refer to declarations in other modules are found
     // through the function's dependency graph node, where the resolver
@@ -2340,31 +2319,22 @@ pub const Compiler = struct {
             return elem;
         }
 
-        if (self.currentScope()) |scope| {
-            const deps: []const GlobalKey =
-                if (scope.node) |node| node.dependencies() else &.{};
-            for (deps) |dep_key| {
-                if (dep_key.name == sid) {
-                    return self.findGlobal(dep_key.module_id, dep_key.name);
-                }
+        const node = self.currentScope();
+        for (node.dependencies()) |dep_key| {
+            if (dep_key.name == sid) {
+                return self.findGlobal(dep_key.module_id, dep_key.name);
             }
         }
 
         return null;
     }
 
-    fn currentScope(self: *Compiler) ?Scope {
-        if (self.scopes.items.len == 0) {
-            return null;
-        }
+    fn currentScope(self: *Compiler) Scope {
         return self.scopes.items[self.scopes.items.len - 1];
     }
 
-    fn pushScope(self: *Compiler, key: GlobalKey) !void {
-        try self.scopes.append(self.vm.allocator, .{
-            .key = key,
-            .node = self.frontend.getGraphNode(key.module_id, key.name),
-        });
+    fn pushScope(self: *Compiler, node: *DependencyGraphNode) !void {
+        try self.scopes.append(self.vm.allocator, node);
     }
 
     fn addGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id, elem: Elem) !void {
@@ -2376,11 +2346,9 @@ pub const Compiler = struct {
     }
 
     pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
-        const scope = self.currentScope() orelse return null;
-        if (scope.node) |node| {
-            for (node.locals(), 0..) |local, i| {
-                if (local == name) return @intCast(i);
-            }
+        const scope = self.currentScope();
+        for (scope.locals(), 0..) |local, i| {
+            if (local == name) return @intCast(i);
         }
         return null;
     }

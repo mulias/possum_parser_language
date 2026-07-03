@@ -42,6 +42,13 @@ pub const Node = union(enum) {
         };
     }
 
+    pub fn dependencyNamed(self: *const Node, name: StringTable.Id) ?NodeKey {
+        for (self.dependencies()) |dep| {
+            if (dep.name == name) return dep;
+        }
+        return null;
+    }
+
     pub fn localsList(self: *Node) *ArrayList(StringTable.Id) {
         return switch (self.*) {
             .precompiled => unreachable,
