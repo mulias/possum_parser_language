@@ -76,17 +76,6 @@ pub const Chunk = struct {
         try self.updateShortAt(offset, @as(u16, @intCast(jump)));
     }
 
-    pub fn writeJumpBack(self: *Chunk, allocator: Allocator, op: OpCode, targetOffset: usize, loc: Region) !void {
-        try self.writeOp(allocator, op, loc);
-        const currentOffset = self.nextByteIndex();
-        const jump = (currentOffset + 2) - targetOffset;
-        try self.writeShort(allocator, @as(u16, @intCast(jump)), loc);
-    }
-
-    pub fn updateAt(self: *Chunk, index: usize, value: u8) void {
-        self.code.items[index] = value;
-    }
-
     pub fn updateShortAt(self: *Chunk, index: usize, value: usize) !void {
         if (value > std.math.maxInt(u16)) {
             return ChunkError.ShortOverflow;
@@ -96,10 +85,6 @@ pub const Chunk = struct {
 
         self.code.items[index] = shortUpperBytes(short);
         self.code.items[index + 1] = shortLowerBytes(short);
-    }
-
-    pub fn updateOpAt(self: *Chunk, opIndex: usize, op: OpCode) void {
-        self.updateAt(opIndex, @intFromEnum(op));
     }
 
     pub fn disassemble(self: *Chunk, vm: VM, module: Module, writer: *Writer, name: []const u8) !void {

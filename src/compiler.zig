@@ -1,12 +1,12 @@
 const ArrayList = std.ArrayListUnmanaged;
 const AutoHashMap = std.AutoHashMapUnmanaged;
-const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
 const Elem = @import("elem.zig").Elem;
 const Frontend = @import("frontend.zig");
 const Ast = Frontend.Ast;
 const GlobalKey = Frontend.GlobalKey;
 const DependencyGraphNode = Frontend.DependencyGraphNode;
+const Ir = @import("ir.zig").Ir;
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Pattern = @import("pattern.zig").Pattern;
@@ -23,6 +23,7 @@ pub const Compiler = struct {
     frontend: *Frontend,
     functions: ArrayList(*Elem.DynElem.Function) = .{},
     scopes: ArrayList(Scope) = .{},
+    irs: ArrayList(Ir) = .{},
     writers: Writers,
     printBytecode: bool = false,
     global_map: AutoHashMap(GlobalKey, Elem) = .{},
@@ -83,6 +84,8 @@ pub const Compiler = struct {
         self.global_map.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
         self.scopes.deinit(self.vm.allocator);
+        for (self.irs.items) |*function_ir| function_ir.deinit(self.vm.allocator);
+        self.irs.deinit(self.vm.allocator);
     }
 
     pub fn addTargetModule(self: *Compiler, module: Module, opts: Frontend.AddModuleOpts) !void {
@@ -159,6 +162,7 @@ pub const Compiler = struct {
     ) !void {
         try self.functions.append(self.vm.allocator, function);
         try self.pushScope(node);
+        try self.irs.append(self.vm.allocator, Ir{});
 
         try self.pushLocalPlaceholders(module_id, 0, region);
 
@@ -167,7 +171,7 @@ pub const Compiler = struct {
         }
 
         try self.writeParser(module_id, body, true);
-        try self.emitEnd();
+        try self.finishFunctionIr(module_id);
 
         if (self.printBytecode) {
             try function.disassemble(self.vm.*, self.writers.debug);
@@ -388,6 +392,7 @@ pub const Compiler = struct {
 
         try self.functions.append(self.vm.allocator, function);
         try self.pushScope(node);
+        try self.irs.append(self.vm.allocator, Ir{});
 
         try self.pushLocalPlaceholders(module_id, function.arity, decl.region());
 
@@ -400,7 +405,7 @@ pub const Compiler = struct {
             },
         }
 
-        try self.emitEnd();
+        try self.finishFunctionIr(module_id);
 
         if (self.printBytecode) {
             try function.disassemble(self.vm.*, self.writers.debug);
@@ -438,7 +443,7 @@ pub const Compiler = struct {
                 try self.writeParser(module_id, backtrack.left, false);
                 const jumpIndex = try self.emitJump(.Backtrack, region);
                 try self.writeParser(module_id, backtrack.right, isTailPosition);
-                try self.patchJump(module_id, jumpIndex, region);
+                self.patchJump(jumpIndex);
             },
             .merge => |merge| {
                 try self.writeParser(module_id, merge.left, false);
@@ -450,13 +455,13 @@ pub const Compiler = struct {
                 const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                 try self.writeParser(module_id, take_left.right, false);
                 try self.emitOp(.TakeLeft, region);
-                try self.patchJump(module_id, jumpIndex, region);
+                self.patchJump(jumpIndex);
             },
             .take_right => |take_right| {
                 try self.writeParser(module_id, take_right.left, false);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
                 try self.writeParser(module_id, take_right.right, isTailPosition);
-                try self.patchJump(module_id, jumpIndex, region);
+                self.patchJump(jumpIndex);
             },
             .destructure => |destructure| {
                 try self.writeParser(module_id, destructure.left, false);
@@ -468,7 +473,7 @@ pub const Compiler = struct {
                 try self.writeParser(module_id, or_node.left, false);
                 const jumpIndex = try self.emitJump(.Or, region);
                 try self.writeParser(module_id, or_node.right, isTailPosition);
-                try self.patchJump(module_id, jumpIndex, region);
+                self.patchJump(jumpIndex);
             },
             .@"return" => |return_node| {
                 // Special case: `"" $ Foo` will always succeed and push `Foo` on the stack
@@ -478,7 +483,7 @@ pub const Compiler = struct {
                     try self.writeParser(module_id, return_node.left, false);
                     const jumpIndex = try self.emitJump(.TakeRight, region);
                     try self.writeValue(module_id, return_node.right, isTailPosition);
-                    try self.patchJump(module_id, jumpIndex, region);
+                    self.patchJump(jumpIndex);
                 }
             },
             .repeat => |repeat| {
@@ -558,9 +563,9 @@ pub const Compiler = struct {
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
                 try self.writeParser(module_id, conditional.then_branch, isTailPosition);
                 const thenElseJumpIndex = try self.emitJump(.Jump, region);
-                try self.patchJump(module_id, ifThenJumpIndex, region);
+                self.patchJump(ifThenJumpIndex);
                 try self.writeParser(module_id, conditional.else_branch, isTailPosition);
-                try self.patchJump(module_id, thenElseJumpIndex, region);
+                self.patchJump(thenElseJumpIndex);
             },
             .anonymous_function => {
                 try self.writeParserAnonymousFunction(module_id, rnode);
@@ -674,8 +679,7 @@ pub const Compiler = struct {
                 // We can fit the expected params in a single byte
                 try self.emitUnaryOp(.AssertParamTypes, @intCast(expected_param_types.bitset & 0x7F), call_region);
             } else {
-                try self.emitOp(.AssertParamTypes4, call_region);
-                try self.emitLong(expected_param_types.bitset, call_region);
+                try self.emitLongOp(.AssertParamTypes4, expected_param_types.bitset, call_region);
             }
         }
 
@@ -714,9 +718,14 @@ pub const Compiler = struct {
             } else if (low_codepoint == 0 and high_codepoint == 0x10ffff) {
                 try self.emitOp(.ParseCodepoint, region);
             } else if (low_codepoint <= 255 and high_codepoint <= 255) {
-                try self.emitOp(.ParseCodepointRange, region);
-                try self.emitByte(@as(u8, @intCast(low_codepoint)), low.region);
-                try self.emitByte(@as(u8, @intCast(high_codepoint)), high.region);
+                try self.emitBytePair(
+                    .ParseCodepointRange,
+                    @as(u8, @intCast(low_codepoint)),
+                    low.region,
+                    @as(u8, @intCast(high_codepoint)),
+                    high.region,
+                    region,
+                );
             } else {
                 try self.writeConstant(module_id, low_elem.?, low.region);
                 try self.writeConstant(module_id, high_elem.?, high.region);
@@ -745,9 +754,14 @@ pub const Compiler = struct {
                 try self.printError(module_id, low.region.merge(high.region), "Range upper bound is less than the lower bound", .{});
                 return Error.RangeIntegersUnordered;
             } else if (0 <= low_int and low_int <= 255 and 0 <= high_int and high_int <= 255) {
-                try self.emitOp(.ParseIntegerRange, region);
-                try self.emitByte(@as(u8, @intCast(low_int)), low.region);
-                try self.emitByte(@as(u8, @intCast(high_int)), high.region);
+                try self.emitBytePair(
+                    .ParseIntegerRange,
+                    @as(u8, @intCast(low_int)),
+                    low.region,
+                    @as(u8, @intCast(high_int)),
+                    high.region,
+                    region,
+                );
             } else {
                 try self.writeConstant(module_id, low_elem.?, low.region);
                 try self.writeConstant(module_id, high_elem.?, high.region);
@@ -974,9 +988,9 @@ pub const Compiler = struct {
                         const knownCountJump = try self.emitJump(.JumpIfBound, repeat.region);
                         try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
                         const endJump = try self.emitJump(.Jump, repeat.region);
-                        try self.patchJump(module_id, knownCountJump, region);
+                        self.patchJump(knownCountJump);
                         try self.writeParserRepeatCount(module_id, parser, repeat, region);
-                        try self.patchJump(module_id, endJump, region);
+                        self.patchJump(endJump);
                         try self.emitOp(.Swap, region);
                         try self.emitOp(.Drop, region);
                     }
@@ -1004,7 +1018,7 @@ pub const Compiler = struct {
 
         // At the start of each loop swap the accumulator back to
         // the top of the stack
-        const loopStart = self.chunk().code.items.len;
+        const loopStart = self.ir().nextIndex();
         try self.emitOp(.Swap, repeat_region);
 
         // Run parser, accumulate, end loop if failure
@@ -1022,12 +1036,12 @@ pub const Compiler = struct {
 
         // For the failure case swap up the counter. The
         // non-failure case already has the counter on top.
-        try self.patchJump(module_id, failureJump, parser.region);
+        self.patchJump(failureJump);
         try self.emitOp(.Swap, repeat_region);
 
         // Cleanup: drop the counter
-        try self.patchJump(module_id, nullJump, count.region);
-        try self.patchJump(module_id, doneJump, repeat_region);
+        self.patchJump(nullJump);
+        self.patchJump(doneJump);
         try self.emitOp(.Drop, count.region);
     }
 
@@ -1039,7 +1053,7 @@ pub const Compiler = struct {
         try self.writeConstant(module_id, Elem.nullConst, parser.region);
 
         // Start of the parse loop
-        const loopStart = self.chunk().code.items.len;
+        const loopStart = self.ir().nextIndex();
 
         // Run parser, end loop if failure, otherwise accumulate
         try self.emitOp(.SetInputMark, parser.region);
@@ -1058,7 +1072,7 @@ pub const Compiler = struct {
 
         // When we fail the stack has [..., count, acc, failure]
         // Drop the failure, destructure the count, return acc
-        try self.patchJump(module_id, failureJump, parser.region);
+        self.patchJump(failureJump);
         try self.emitOp(.ResetInput, parser.region);
         try self.emitOp(.Drop, parser.region);
         try self.emitOp(.Swap, count.region);
@@ -1081,7 +1095,7 @@ pub const Compiler = struct {
 
         // At the start of each loop swap the accumulator back to
         // the top of the stack
-        const loopStartRequired = self.chunk().code.items.len;
+        const loopStartRequired = self.ir().nextIndex();
         try self.emitOp(.Swap, region);
 
         // Run parser, accumulate, end loop if failure
@@ -1097,8 +1111,8 @@ pub const Compiler = struct {
         // Otherwise return to loop start
         try self.emitJumpBack(.JumpBack, loopStartRequired, region);
 
-        try self.patchJump(module_id, skipLowerBoundJump, region);
-        try self.patchJump(module_id, doneLowerBoundJump, region);
+        self.patchJump(skipLowerBoundJump);
+        self.patchJump(doneLowerBoundJump);
 
         // Drop the old counter (it's 0), create a new counter to parse up to
         // to `upper - lower` more times (optional)
@@ -1111,7 +1125,7 @@ pub const Compiler = struct {
         const skipUpperBoundJump = try self.emitJump(.JumpIfZero, region);
 
         // Optional iterations
-        const loopStart = self.chunk().code.items.len;
+        const loopStart = self.ir().nextIndex();
         try self.emitOp(.Swap, region);
         try self.emitOp(.SetInputMark, parser.region);
         try self.writeParser(module_id, parser, false);
@@ -1124,20 +1138,20 @@ pub const Compiler = struct {
         try self.emitJumpBack(.JumpBack, loopStart, region);
 
         // Parser failed, stack is [..., count, acc, failure]
-        try self.patchJump(module_id, failureUpperBoundJump, parser.region);
+        self.patchJump(failureUpperBoundJump);
         try self.emitOp(.ResetInput, parser.region);
         try self.emitOp(.Drop, parser.region);
 
         // Got here by failing before reaching the minimum number of iters. The
         // stack is [..., count, failure] and we want to return failure
-        try self.patchJump(module_id, failureLowerBoundJump, region);
+        self.patchJump(failureLowerBoundJump);
 
         // Swap up the count
         try self.emitOp(.Swap, region);
 
         // Got here by matching against a zero count, stack is [..., acc, count]
-        try self.patchJump(module_id, skipUpperBoundJump, region);
-        try self.patchJump(module_id, doneJump, region);
+        self.patchJump(skipUpperBoundJump);
+        self.patchJump(doneJump);
 
         try self.emitOp(.Drop, region);
     }
@@ -1154,7 +1168,7 @@ pub const Compiler = struct {
 
         // At the start of each loop swap the accumulator back to
         // the top of the stack
-        const loopStartRequired = self.chunk().code.items.len;
+        const loopStartRequired = self.ir().nextIndex();
         try self.emitOp(.Swap, region);
 
         // Run parser, accumulate, end loop if failure
@@ -1171,14 +1185,14 @@ pub const Compiler = struct {
         try self.emitJumpBack(.JumpBack, loopStartRequired, region);
 
         // Now continue parsing indefinitely (optional iterations)
-        try self.patchJump(module_id, skipLowerBoundJump, region);
-        try self.patchJump(module_id, doneLowerBoundJump, region);
+        self.patchJump(skipLowerBoundJump);
+        self.patchJump(doneLowerBoundJump);
 
         // Count under acc
         try self.emitOp(.Swap, region);
 
         // Unbounded loop
-        const loopStartOptional = self.chunk().code.items.len;
+        const loopStartOptional = self.ir().nextIndex();
 
         // Run parser, end loop if failure, otherwise accumulate
         try self.emitOp(.SetInputMark, parser.region);
@@ -1199,7 +1213,7 @@ pub const Compiler = struct {
 
         // When we fail the stack has [..., count, acc, failure]
         // Drop the failure, maybe destructure the count, return acc
-        try self.patchJump(module_id, failureJumpOptional, parser.region);
+        self.patchJump(failureJumpOptional);
         try self.emitOp(.ResetInput, parser.region);
         try self.emitOp(.Drop, parser.region);
 
@@ -1213,7 +1227,7 @@ pub const Compiler = struct {
             try self.emitOp(.Swap, region);
         }
 
-        try self.patchJump(module_id, failureLowerBoundJump, region);
+        self.patchJump(failureLowerBoundJump);
         try self.emitOp(.Swap, region);
         try self.emitOp(.Drop, region);
     }
@@ -1229,7 +1243,7 @@ pub const Compiler = struct {
         const nullJump = try self.emitJump(.JumpIfZero, region);
 
         // Loop for up to `upper` iterations (all optional)
-        const loopStart = self.chunk().code.items.len;
+        const loopStart = self.ir().nextIndex();
         try self.emitOp(.Swap, region);
         try self.emitOp(.SetInputMark, parser.region);
         try self.writeParser(module_id, parser, false);
@@ -1243,13 +1257,13 @@ pub const Compiler = struct {
 
         // Parser failed, stack is [..., count, acc, failure]
         // Drop the failure and swap up the count so we can pattern match/cleanup
-        try self.patchJump(module_id, failureJump, parser.region);
+        self.patchJump(failureJump);
         try self.emitOp(.ResetInput, parser.region);
         try self.emitOp(.Drop, parser.region);
         try self.emitOp(.Swap, region);
 
-        try self.patchJump(module_id, nullJump, region);
-        try self.patchJump(module_id, doneJump, region);
+        self.patchJump(nullJump);
+        self.patchJump(doneJump);
 
         if (lower_pattern) |lower| {
             // Use the remaining count to figure out the number of successful iters
@@ -1784,13 +1798,13 @@ pub const Compiler = struct {
                 const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                 try self.writeValue(module_id, take_left.right, false);
                 try self.emitOp(.TakeLeft, region);
-                try self.patchJump(module_id, jumpIndex, region);
+                self.patchJump(jumpIndex);
             },
             .take_right => |take_right| {
                 try self.writeValue(module_id, take_right.left, false);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
                 try self.writeValue(module_id, take_right.right, isTailPosition);
-                try self.patchJump(module_id, jumpIndex, region);
+                self.patchJump(jumpIndex);
             },
             .destructure => |destructure| {
                 try self.writeValue(module_id, destructure.left, false);
@@ -1802,13 +1816,13 @@ pub const Compiler = struct {
                 try self.writeValue(module_id, or_node.left, false);
                 const jumpIndex = try self.emitJump(.Or, region);
                 try self.writeValue(module_id, or_node.right, isTailPosition);
-                try self.patchJump(module_id, jumpIndex, region);
+                self.patchJump(jumpIndex);
             },
             .@"return" => |return_node| {
                 try self.writeValue(module_id, return_node.left, false);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
                 try self.writeValue(module_id, return_node.right, isTailPosition);
-                try self.patchJump(module_id, jumpIndex, region);
+                self.patchJump(jumpIndex);
             },
             .repeat => |repeat| {
                 try self.writeValue(module_id, repeat.left, false);
@@ -1834,9 +1848,9 @@ pub const Compiler = struct {
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
                 try self.writeValue(module_id, conditional.then_branch, isTailPosition);
                 const thenElseJumpIndex = try self.emitJump(.Jump, region);
-                try self.patchJump(module_id, ifThenJumpIndex, region);
+                self.patchJump(ifThenJumpIndex);
                 try self.writeValue(module_id, conditional.else_branch, isTailPosition);
-                try self.patchJump(module_id, thenElseJumpIndex, region);
+                self.patchJump(thenElseJumpIndex);
             },
             .function_call => |function_call| {
                 try self.writeValueFunctionCall(module_id, function_call.function, function_call.args, region, isTailPosition);
@@ -2313,8 +2327,25 @@ pub const Compiler = struct {
         return Elem.valueVar(sid, true);
     }
 
-    fn chunk(self: *Compiler) *Chunk {
-        return &self.currentFunction().chunk;
+    fn ir(self: *Compiler) *Ir {
+        return &self.irs.items[self.irs.items.len - 1];
+    }
+
+    fn finishFunctionIr(self: *Compiler, module_id: Module.Id) !void {
+        try self.emitEnd();
+
+        var function_ir = self.irs.pop().?;
+        defer function_ir.deinit(self.vm.allocator);
+
+        const chunk = &self.currentFunction().chunk;
+        function_ir.writeTo(self.vm.allocator, chunk) catch |err| switch (err) {
+            ChunkError.ShortOverflow => {
+                const region = function_ir.overflow_region orelse chunk.source_region;
+                try self.printError(module_id, region, "Too much code to jump over.", .{});
+                return err;
+            },
+            else => |other_error| return other_error,
+        };
     }
 
     fn findGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id) ?Elem {
@@ -2387,52 +2418,43 @@ pub const Compiler = struct {
         );
     }
 
-    fn emitJump(self: *Compiler, op: OpCode, region: Region) !usize {
-        return try self.chunk().writeJump(self.vm.allocator, op, region);
+    fn emitJump(self: *Compiler, op: OpCode, region: Region) !Ir.Index {
+        return self.ir().push(self.vm.allocator, .{ .jump = .{ .op = op, .target = Ir.unpatched_jump } }, region);
     }
 
-    fn patchJump(self: *Compiler, module_id: Module.Id, offset: usize, region: Region) !void {
-        self.chunk().patchJump(offset) catch |err| switch (err) {
-            ChunkError.ShortOverflow => {
-                try self.printError(module_id, region, "Too much code to jump over.", .{});
-                return err;
-            },
-            else => return err,
-        };
+    fn patchJump(self: *Compiler, index: Ir.Index) void {
+        self.ir().patchJumpTarget(index);
     }
 
-    fn emitJumpBack(self: *Compiler, op: OpCode, targetOffset: usize, region: Region) !void {
-        return try self.chunk().writeJumpBack(self.vm.allocator, op, targetOffset, region);
-    }
-
-    fn emitByte(self: *Compiler, byte: u8, region: Region) !void {
-        try self.chunk().write(self.vm.allocator, byte, region);
+    fn emitJumpBack(self: *Compiler, op: OpCode, target: Ir.Index, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .jump_back = .{ .op = op, .target = target } }, region);
     }
 
     fn emitOp(self: *Compiler, op: OpCode, region: Region) !void {
-        try self.chunk().writeOp(self.vm.allocator, op, region);
+        _ = try self.ir().push(self.vm.allocator, .{ .none = op }, region);
     }
 
     fn emitEnd(self: *Compiler) !void {
-        const r = self.chunk().regions.getLast();
-        try self.chunk().writeOp(self.vm.allocator, .End, Region.new(r.end, r.end));
+        const r = self.ir().lastByteRegion();
+        try self.emitOp(.End, Region.new(r.end, r.end));
     }
 
     fn emitUnaryOp(self: *Compiler, op: OpCode, byte: u8, region: Region) !void {
-        try self.emitOp(op, region);
-        try self.emitByte(byte, region);
+        _ = try self.ir().push(self.vm.allocator, .{ .byte = .{ .op = op, .byte = byte } }, region);
     }
 
-    fn emitShort(self: *Compiler, short: u16, region: Region) !void {
-        try self.chunk().writeShort(self.vm.allocator, short, region);
+    fn emitBytePair(self: *Compiler, op: OpCode, byte1: u8, region1: Region, byte2: u8, region2: Region, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .byte_pair = .{
+            .op = op,
+            .byte1 = byte1,
+            .region1 = region1,
+            .byte2 = byte2,
+            .region2 = region2,
+        } }, region);
     }
 
-    fn emitMedium(self: *Compiler, medium: u24, region: Region) !void {
-        try self.chunk().writeMedium(self.vm.allocator, medium, region);
-    }
-
-    fn emitLong(self: *Compiler, long: u32, region: Region) !void {
-        try self.chunk().writeLong(self.vm.allocator, long, region);
+    fn emitLongOp(self: *Compiler, op: OpCode, value: u32, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .long = .{ .op = op, .value = value } }, region);
     }
 
     fn makeConstant(self: *Compiler, module_id: Module.Id, elem: Elem) !u24 {
@@ -2449,52 +2471,20 @@ pub const Compiler = struct {
         return @as(u24, @intCast(idx));
     }
 
-    fn emitConstant(self: *Compiler, idx: usize, region: Region) !void {
-        if (idx <= 0xFF) {
-            try self.emitUnaryOp(.GetConstant, @intCast(idx), region);
-        } else if (idx <= 0xFFFF) {
-            try self.emitOp(.GetConstant2, region);
-            try self.emitShort(@intCast(idx), region);
-        } else {
-            try self.emitOp(.GetConstant3, region);
-            try self.emitMedium(@intCast(idx), region);
-        }
+    fn emitConstant(self: *Compiler, idx: u24, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .get_constant = idx }, region);
     }
 
-    fn emitCallFunctionConstant(self: *Compiler, idx: usize, region: Region) !void {
-        if (idx <= 0xFF) {
-            try self.emitUnaryOp(.CallFunctionConstant, @intCast(idx), region);
-        } else if (idx <= 0xFFFF) {
-            try self.emitOp(.CallFunctionConstant2, region);
-            try self.emitShort(@intCast(idx), region);
-        } else {
-            try self.emitOp(.CallFunctionConstant3, region);
-            try self.emitMedium(@intCast(idx), region);
-        }
+    fn emitCallFunctionConstant(self: *Compiler, idx: u24, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .call_function_constant = idx }, region);
     }
 
-    fn emitCallTailFunctionConstant(self: *Compiler, idx: usize, region: Region) !void {
-        if (idx <= 0xFF) {
-            try self.emitUnaryOp(.CallTailFunctionConstant, @intCast(idx), region);
-        } else if (idx <= 0xFFFF) {
-            try self.emitOp(.CallTailFunctionConstant2, region);
-            try self.emitShort(@intCast(idx), region);
-        } else {
-            try self.emitOp(.CallTailFunctionConstant3, region);
-            try self.emitMedium(@intCast(idx), region);
-        }
+    fn emitCallTailFunctionConstant(self: *Compiler, idx: u24, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .call_tail_function_constant = idx }, region);
     }
 
-    fn emitPattern(self: *Compiler, idx: usize, region: Region) !void {
-        if (idx <= 0xFF) {
-            try self.emitUnaryOp(.Destructure, @intCast(idx), region);
-        } else if (idx <= 0xFFFF) {
-            try self.emitOp(.Destructure2, region);
-            try self.emitShort(@intCast(idx), region);
-        } else {
-            try self.emitOp(.Destructure3, region);
-            try self.emitMedium(@intCast(idx), region);
-        }
+    fn emitPattern(self: *Compiler, idx: u24, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .destructure = idx }, region);
     }
 
     fn printError(self: *Compiler, module_id: Module.Id, region: Region, comptime message: []const u8, args: anytype) !void {
