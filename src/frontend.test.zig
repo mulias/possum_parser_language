@@ -9,21 +9,35 @@ const Writers = @import("writer.zig").Writers;
 var null_buffer: [256]u8 = undefined;
 var null_discarding = std.Io.Writer.Discarding.init(&null_buffer);
 
-fn printGraph(frontend: *Frontend) !void {
-    _ = frontend;
-    // Disabled to avoid hanging in build system
-    // const stdout = std.fs.File.stdout();
-    // var out_buffer: [4096]u8 = undefined;
-    // var stdout_writer = stdout.writer(&out_buffer);
-    // defer stdout_writer.interface.flush() catch {};
-    // try frontend.resolver.graph.print(frontend.strings.*, &stdout_writer.interface);
-}
-
 const writers = Writers{
     .out = &null_discarding.writer,
     .err = &null_discarding.writer,
     .debug = &null_discarding.writer,
 };
+
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+const NodeKey = DependencyGraph.NodeKey;
+
+fn key(module_id: Module.Id, name: StringTable.Id) NodeKey {
+    return .{ .module_id = module_id, .name = name };
+}
+
+fn dependsOn(frontend: *Frontend, from: NodeKey, to: NodeKey) bool {
+    for (frontend.getDependencyKeys(from.module_id, from.name)) |dep| {
+        if (dep.module_id == to.module_id and dep.name == to.name) return true;
+    }
+    return false;
+}
+
+fn captures(frontend: *Frontend, anon: NodeKey, parent_name: StringTable.Id, local: StringTable.Id) bool {
+    const node = frontend.getGraphNode(anon.module_id, anon.name) orelse return false;
+    if (node.* != .anonymous_function) return false;
+    for (node.anonymous_function.closure_captures.items) |capture| {
+        if (capture.parent_name == parent_name and capture.local == local) return true;
+    }
+    return false;
+}
 
 test "single module with main parser" {
     var strings = StringTable.init(allocator);
@@ -44,8 +58,6 @@ test "single module with main parser" {
 
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
-
-    try printGraph(frontend);
 
     // Check that main parser was found
     try std.testing.expect(frontend.main != null);
@@ -72,8 +84,6 @@ test "module with declarations" {
 
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
-
-    try printGraph(frontend);
 
     // Check that declarations were found
     const foo_id = try strings.insert("foo");
@@ -132,8 +142,6 @@ test "multiple modules with dependencies" {
 
     try frontend.finalize();
 
-    try printGraph(frontend);
-
     // Check that declarations exist in both modules
     const digit_id = try strings.insert("digit");
     const letter_id = try strings.insert("letter");
@@ -149,6 +157,10 @@ test "multiple modules with dependencies" {
     try std.testing.expect(frontend.resolver.graph.nodes.contains(letter_key));
     try std.testing.expect(frontend.resolver.graph.nodes.contains(number_key));
     try std.testing.expect(frontend.resolver.graph.nodes.contains(word_key));
+
+    // Names in module 1 resolve to declarations in the depended-on module 0
+    try expect(dependsOn(frontend, number_key, digit_key));
+    try expect(dependsOn(frontend, word_key, letter_key));
 
     // Check that main parser exists
     try std.testing.expect(frontend.main != null);
@@ -176,8 +188,6 @@ test "empty module" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    try printGraph(frontend);
-
     // Empty module should have no main parser
     try std.testing.expect(frontend.main == null);
 }
@@ -203,8 +213,6 @@ test "declaration with value function" {
 
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
-
-    try printGraph(frontend);
 
     // Check that value declarations were found
     const add_id = try strings.insert("add");
@@ -240,11 +248,14 @@ test "dependency graph population" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    try printGraph(frontend);
+    const foo = try strings.insert("foo");
+    const bar = try strings.insert("bar");
+    const baz = try strings.insert("baz");
 
-    // After finalize, dependency graph should be populated
-    // This will help track which functions depend on which other functions
-    // The exact structure to test will depend on the DependencyGraph implementation
+    // foo() -> bar() -> baz() -> (leaf)
+    try expect(dependsOn(frontend, key(0, foo), key(0, bar)));
+    try expect(dependsOn(frontend, key(0, bar), key(0, baz)));
+    try expectEqual(@as(usize, 0), frontend.getDependencyKeys(0, baz).len);
 }
 
 test "anonymous functions" {
@@ -269,11 +280,17 @@ test "anonymous functions" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    try printGraph(frontend);
+    const foo = try strings.insert("foo");
+    const bar = try strings.insert("bar");
+    const a = try strings.insert("a");
+    // The parser argument `a + a` is lifted into an anonymous function.
+    const fn0 = try strings.insert("@fn0");
 
-    // After finalize, dependency graph should be populated
-    // This will help track which functions depend on which other functions
-    // The exact structure to test will depend on the DependencyGraph implementation
+    try expect(dependsOn(frontend, key(0, foo), key(0, bar)));
+    try expect(dependsOn(frontend, key(0, foo), key(0, fn0)));
+
+    // The lifted function closes over `a` from its parent foo
+    try expect(captures(frontend, key(0, fn0), foo, a));
 }
 
 test "nested anonymous functions" {
@@ -298,11 +315,15 @@ test "nested anonymous functions" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    try printGraph(frontend);
+    const foo = try strings.insert("foo");
+    const a = try strings.insert("a");
+    const fn0 = try strings.insert("@fn0");
+    const fn1 = try strings.insert("@fn1");
 
-    // After finalize, dependency graph should be populated
-    // This will help track which functions depend on which other functions
-    // The exact structure to test will depend on the DependencyGraph implementation
+    // @fn1 is nested inside @fn0, which is nested inside foo. Each level
+    // captures `a` from its immediate parent's frame.
+    try expect(captures(frontend, key(0, fn0), foo, a));
+    try expect(captures(frontend, key(0, fn1), fn0, a));
 }
 
 test "nested anonymous functions with multiple captures" {
@@ -327,11 +348,22 @@ test "nested anonymous functions with multiple captures" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    try printGraph(frontend);
+    const a = try strings.insert("a");
+    const n = try strings.insert("N");
+    const fn0 = try strings.insert("@fn0");
+    const fn1 = try strings.insert("@fn1");
 
-    // After finalize, dependency graph should be populated
-    // This will help track which functions depend on which other functions
-    // The exact structure to test will depend on the DependencyGraph implementation
+    // The innermost function `foo(a * N)` captures both `a` and `N` from @fn0
+    try expect(captures(frontend, key(0, fn1), fn0, a));
+    try expect(captures(frontend, key(0, fn1), fn0, n));
+
+    // orderCapturedLocals places captured names first, in capture order, so
+    // runtime SetClosureCaptures can copy capture slot N into local slot N.
+    const fn1_node = frontend.getGraphNode(0, fn1).?;
+    const locals = fn1_node.anonymous_function.locals.items;
+    try expectEqual(@as(usize, 2), locals.len);
+    try expectEqual(a, locals[0]);
+    try expectEqual(n, locals[1]);
 }
 
 test "circular deps" {
@@ -356,9 +388,11 @@ test "circular deps" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    try printGraph(frontend);
+    const foo = try strings.insert("foo");
+    const bar = try strings.insert("bar");
 
-    // After finalize, dependency graph should be populated
-    // This will help track which functions depend on which other functions
-    // The exact structure to test will depend on the DependencyGraph implementation
+    // The resolver records edges without rejecting cycles: foo and bar depend
+    // on each other. Breaking the cycle is left to the compiler.
+    try expect(dependsOn(frontend, key(0, foo), key(0, bar)));
+    try expect(dependsOn(frontend, key(0, bar), key(0, foo)));
 }
