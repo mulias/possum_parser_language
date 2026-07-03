@@ -1,5 +1,3 @@
-  $ export RUN_VM=false
-
   $ possum -p 'foo(A) = "" $ A ; foo("a")' -i ''
   
   Program Error: Expected value but got parser
@@ -20,4 +18,15 @@
     \xe2\x96\x8f                  ^^^ (esc)
   
   [FunctionCallTypeMismatch]
+  [1]
+
+  $ possum -p 'foo(a, a) = a ; foo("x", "y")' -i 'x'
+  
+  Validation Error: Duplicate parameter 'a'
+  
+  program:1:7-8:
+  1 \xe2\x96\x8f foo(a, a) = a ; foo("x", "y") (esc)
+    \xe2\x96\x8f        ^ (esc)
+  
+  [DuplicateParameterName]
   [1]

@@ -28,6 +28,7 @@ const Error = error{
     InvalidFunctionArgument,
     InvalidPatternNode,
     MultipleMainParsers,
+    DuplicateParameterName,
 } || Writer.Error;
 
 pub fn init(
@@ -663,6 +664,13 @@ fn convertParserDecl(
                 param.region,
             ) };
 
+        for (converted_params.items) |existing| {
+            if (existing.name() == pov_ident.name()) {
+                try self.printError(param.region, "Duplicate parameter '{s}'", .{param_ident.name});
+                return Error.DuplicateParameterName;
+            }
+        }
+
         try converted_params.append(self.arena.allocator(), pov_ident);
     }
 
@@ -709,6 +717,13 @@ fn convertValueDecl(
             },
             param.region,
         );
+
+        for (converted_params.items) |existing| {
+            if (existing.node.name == value_ident.node.name) {
+                try self.printError(param.region, "Duplicate parameter '{s}'", .{param_ident.name});
+                return Error.DuplicateParameterName;
+            }
+        }
 
         try converted_params.append(self.arena.allocator(), value_ident);
     }
