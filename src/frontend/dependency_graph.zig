@@ -41,10 +41,6 @@ pub const AnonymousFunctionNode = struct {
     parent: ?StringTable.Id = null,
 };
 
-pub fn get(self: *Graph, key: NodeKey) Node {
-    return self.nodes.get(key).?;
-}
-
 pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: Ast) !void {
     // Include precompiled functions
     for (module.constants.items) |compiled_elem| {

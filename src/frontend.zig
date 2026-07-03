@@ -110,28 +110,6 @@ pub fn getDeclaration(self: *Frontend, key: GlobalKey) Ast.ParserOrValue.Declara
     return self.getNode(key).declaration.ast;
 }
 
-pub fn getDependency(self: *Frontend, key: GlobalKey, dep_name: StringTable.Id) DependencyGraph.Node {
-    switch (self.resolver.graph.get(key)) {
-        .precompiled => unreachable,
-        .declaration => |decl_node| {
-            for (decl_node.dependencies) |dep| {
-                if (dep.name == dep_name) {
-                    return self.resolver.graph.get(dep);
-                }
-            }
-            unreachable;
-        },
-        .anonymous_function => |anon_node| {
-            for (anon_node.dependencies) |dep| {
-                if (dep.name == dep_name) {
-                    return self.resolver.graph.get(dep);
-                }
-            }
-            unreachable;
-        },
-    }
-}
-
 pub fn getDependencyKeys(self: *Frontend, module_id: Module.Id, name: StringTable.Id) []const DependencyGraph.NodeKey {
     const key = DependencyGraph.NodeKey{
         .module_id = module_id,
