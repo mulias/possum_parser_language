@@ -517,15 +517,6 @@ pub const VM = struct {
                 // Push singleton false value.
                 try self.push(Elem.boolean(false));
             },
-            .GetAtIndex => {
-                const index = self.readByte();
-                const elem = self.peek(0);
-
-                if (elem.isSuccess()) {
-                    const array = elem.asDyn().asArray();
-                    try self.push(array.elems.items[index]);
-                }
-            },
             .GetLocal => {
                 const slot = self.readByte();
                 try self.push(self.getLocal(slot));

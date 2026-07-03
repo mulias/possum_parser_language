@@ -798,10 +798,6 @@ fn foldParserConstants(self: *Can, node: *Ast.Parser.RNode) error{ OutOfMemory, 
         .anonymous_function => |anon| {
             try self.foldParserConstants(anon.body);
         },
-        .backtrack => |bt_node| {
-            try self.foldParserConstants(bt_node.left);
-            try self.foldParserConstants(bt_node.right);
-        },
         .conditional => |cond| {
             try self.foldParserConstants(cond.condition);
             try self.foldParserConstants(cond.then_branch);
