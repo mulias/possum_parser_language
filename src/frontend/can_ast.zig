@@ -57,20 +57,6 @@ pub const ParserOrValue = struct {
             };
         }
 
-        pub fn builtin(self: ParserOrValue.Identifier) bool {
-            return switch (self) {
-                .parser => |p| p.node.builtin,
-                .value => |v| v.node.builtin,
-            };
-        }
-
-        pub fn underscored(self: ParserOrValue.Identifier) bool {
-            return switch (self) {
-                .parser => |p| p.node.underscored,
-                .value => |v| v.node.underscored,
-            };
-        }
-
         pub fn region(self: ParserOrValue.Identifier) Region {
             return switch (self) {
                 .parser => |p| p.region,
