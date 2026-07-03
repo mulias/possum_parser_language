@@ -1,16 +1,7 @@
 const std = @import("std");
 const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
-const Writers = @import("../writer.zig").Writers;
-
-var null_buffer: [256]u8 = undefined;
-var null_discarding = std.Io.Writer.Discarding.init(&null_buffer);
-
-const writers = Writers{
-    .out = &null_discarding.writer,
-    .err = &null_discarding.writer,
-    .debug = &null_discarding.writer,
-};
+const writers = @import("../testing.zig").writers;
 
 fn init(source: []const u8) Scanner {
     return Scanner.init(source, writers, .{ .printTokens = false });

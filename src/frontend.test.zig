@@ -4,16 +4,7 @@ const Frontend = @import("frontend.zig").Frontend;
 const DependencyGraph = @import("frontend/dependency_graph.zig");
 const Module = @import("module.zig").Module;
 const StringTable = @import("string_table.zig").StringTable;
-const Writers = @import("writer.zig").Writers;
-
-var null_buffer: [256]u8 = undefined;
-var null_discarding = std.Io.Writer.Discarding.init(&null_buffer);
-
-const writers = Writers{
-    .out = &null_discarding.writer,
-    .err = &null_discarding.writer,
-    .debug = &null_discarding.writer,
-};
+const writers = @import("testing.zig").writers;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
