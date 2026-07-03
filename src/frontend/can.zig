@@ -726,8 +726,6 @@ fn convertValueDecl(
         .underscored = name_ident.underscored,
     };
 
-    self.current_parent_function_name = can_name_ident.name;
-
     var converted_params = ArrayList(*Ast.RNode(Ast.Value.Identifier)){};
     for (params.items) |param| {
         if (param.node != .Identifier) {
