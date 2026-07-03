@@ -123,11 +123,9 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
     } else {
         if (self.ast.main == null) {
             const name = try self.strings.insert("@main");
-            const parent_name = self.current_parent_function_name;
 
             self.current_parent_function_name = name;
             const function_body = try self.convertParser(root);
-            self.current_parent_function_name = parent_name;
 
             const main = try Ast.Parser.createAnonymousFunction(
                 self.arena.allocator(),
