@@ -234,11 +234,6 @@ pub const Compiler = struct {
 
         const function_name = decl.identName();
 
-        if (decl.identBuiltin()) {
-            try self.printError(module_id, decl.identRegion(), "unable to define builtin function", .{});
-            return Error.InvalidAst;
-        }
-
         var function = try Elem.DynElem.Function.create(self.vm, .{
             .module_id = module_id,
             .name = function_name,
