@@ -10,6 +10,10 @@ const DependencyGraph = @import("dependency_graph.zig");
 arena: *ArenaAllocator,
 module_dependencies: HashMap(Module.Id, ArrayList(Module.Id)) = .{},
 graph: DependencyGraph = .{},
+// Scratch space reused by every resolveScopedName call. The function runs to
+// completion before the next identifier is resolved and never re-enters
+// itself, so a single buffer is safe and avoids a per-identifier allocation.
+scoped_name_chain: ArrayList(*DependencyGraph.Node) = .{},
 
 pub const Resolver = @This();
 
@@ -404,7 +408,8 @@ fn resolveScopedName(
         return false;
     }
 
-    var chain = ArrayList(*DependencyGraph.Node){};
+    const chain = &self.scoped_name_chain;
+    chain.clearRetainingCapacity();
     try chain.append(self.arena.allocator(), node);
 
     var current_parent = node.anonymous_function.parent();
