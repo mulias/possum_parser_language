@@ -112,9 +112,7 @@ pub const Compiler = struct {
     }
 
     fn compileModule(self: *Compiler, module_id: Module.Id) !void {
-        var iter = self.frontend.declarationsIterator(module_id);
-
-        while (iter.next()) |decl_key| {
+        for (try self.frontend.declarationKeys(module_id)) |decl_key| {
             try self.compileDeclaration(decl_key);
         }
     }
