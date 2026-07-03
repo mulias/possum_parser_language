@@ -53,6 +53,17 @@
   [ReservedBuiltinName]
   [1]
 
+  $ possum -p '@main' -i ''
+  
+  Program Error: undefined variable '@main'
+  
+  program:1:0-5:
+  1 \xe2\x96\x8f @main (esc)
+    \xe2\x96\x8f ^^^^^ (esc)
+  
+  [UndefinedVariable]
+  [1]
+
   $ possum -p '@my_parser = 99 ; @my_parser' -i '99'
   
   Validation Error: Unable to declare '@my_parser', '@' is reserved for builtins

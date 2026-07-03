@@ -500,32 +500,38 @@ fn resolveParserIdentifier(
         .name = name,
     };
 
-    if (self.graph.nodes.get(search_key)) |_| {
-        const deps = switch (node.*) {
-            .precompiled => unreachable,
-            .declaration => |*n| &n.dependencies,
-            .anonymous_function => |*n| &n.dependencies,
-        };
+    // Anonymous function names (`@main`, `@fn0`, ...) are internal and can't
+    // be referenced by identifier.
+    if (self.graph.nodes.get(search_key)) |found| {
+        if (found.* != .anonymous_function) {
+            const deps = switch (node.*) {
+                .precompiled => unreachable,
+                .declaration => |*n| &n.dependencies,
+                .anonymous_function => |*n| &n.dependencies,
+            };
 
-        // Check if already present
-        var already_present = false;
-        for (deps.items) |dep| {
-            if (dep.module_id == search_key.module_id and dep.name == search_key.name) {
-                already_present = true;
-                break;
+            // Check if already present
+            var already_present = false;
+            for (deps.items) |dep| {
+                if (dep.module_id == search_key.module_id and dep.name == search_key.name) {
+                    already_present = true;
+                    break;
+                }
             }
-        }
 
-        if (!already_present) {
-            try deps.append(allocator, search_key);
+            if (!already_present) {
+                try deps.append(allocator, search_key);
+            }
+            return;
         }
-        return;
     }
 
     if (self.module_dependencies.get(key.module_id)) |dependencies| {
         for (dependencies.items) |module_id| {
             search_key.module_id = module_id;
-            if (self.graph.nodes.get(search_key)) |_| {
+            if (self.graph.nodes.get(search_key)) |found| {
+                if (found.* == .anonymous_function) continue;
+
                 const deps = switch (node.*) {
                     .precompiled => unreachable,
                     .declaration => |*n| &n.dependencies,
@@ -565,32 +571,38 @@ fn resolveValueIdentifier(
         .name = name,
     };
 
-    if (self.graph.nodes.get(search_key)) |_| {
-        const deps = switch (node.*) {
-            .precompiled => unreachable,
-            .declaration => |*n| &n.dependencies,
-            .anonymous_function => |*n| &n.dependencies,
-        };
+    // Anonymous function names (`@main`, `@fn0`, ...) are internal and can't
+    // be referenced by identifier.
+    if (self.graph.nodes.get(search_key)) |found| {
+        if (found.* != .anonymous_function) {
+            const deps = switch (node.*) {
+                .precompiled => unreachable,
+                .declaration => |*n| &n.dependencies,
+                .anonymous_function => |*n| &n.dependencies,
+            };
 
-        // Check if already present
-        var already_present = false;
-        for (deps.items) |dep| {
-            if (dep.module_id == search_key.module_id and dep.name == search_key.name) {
-                already_present = true;
-                break;
+            // Check if already present
+            var already_present = false;
+            for (deps.items) |dep| {
+                if (dep.module_id == search_key.module_id and dep.name == search_key.name) {
+                    already_present = true;
+                    break;
+                }
             }
-        }
 
-        if (!already_present) {
-            try deps.append(allocator, search_key);
+            if (!already_present) {
+                try deps.append(allocator, search_key);
+            }
+            return;
         }
-        return;
     }
 
     if (self.module_dependencies.get(key.module_id)) |dependencies| {
         for (dependencies.items) |module_id| {
             search_key.module_id = module_id;
-            if (self.graph.nodes.get(search_key)) |_| {
+            if (self.graph.nodes.get(search_key)) |found| {
+                if (found.* == .anonymous_function) continue;
+
                 const deps = switch (node.*) {
                     .precompiled => unreachable,
                     .declaration => |*n| &n.dependencies,
