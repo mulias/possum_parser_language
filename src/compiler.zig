@@ -134,17 +134,30 @@ pub const Compiler = struct {
         );
         function.name = main_ast.node.name;
 
+        try self.emitAnonFunctionBody(module_id, main_node, function, main_ast.node.body, main_ast.region);
+
+        self.main = function;
+    }
+
+    // Shared bytecode shape for an anonymous function, including `main`.
+    fn emitAnonFunctionBody(
+        self: *Compiler,
+        module_id: Module.Id,
+        node: *DependencyGraphNode,
+        function: *Elem.DynElem.Function,
+        body: *Ast.Parser.RNode,
+        region: Region,
+    ) !void {
         try self.functions.append(self.vm.allocator, function);
-        try self.pushScope(main_node);
+        try self.pushScope(node);
 
-        try self.pushLocalPlaceholders(module_id, 0, main_ast.region);
+        try self.pushLocalPlaceholders(module_id, 0, region);
 
-        const anon_node = main_node.anonymous_function;
-        if (anon_node.closure_captures.items.len > 0) {
-            try self.emitOp(.SetClosureCaptures, main_ast.region);
+        if (node.anonymous_function.closure_captures.items.len > 0) {
+            try self.emitOp(.SetClosureCaptures, region);
         }
 
-        try self.writeParser(module_id, main_ast.node.body, true);
+        try self.writeParser(module_id, body, true);
         try self.emitEnd();
 
         if (self.printBytecode) {
@@ -153,8 +166,6 @@ pub const Compiler = struct {
 
         _ = self.functions.pop();
         _ = self.scopes.pop();
-
-        self.main = function;
     }
 
     fn isFullyCompiled(self: *Compiler, decl_key: GlobalKey) bool {
@@ -1374,32 +1385,14 @@ pub const Compiler = struct {
 
         const constId = try self.makeConstant(module_id, function.dyn.elem());
 
-        try self.functions.append(self.vm.allocator, function);
-
         const graph_node = self.frontend.getNode(.{ .module_id = module_id, .name = anon.name });
-        try self.pushScope(graph_node);
-
         const anon_node = graph_node.anonymous_function;
 
         for (anon_node.dependencies.items) |dep_key| {
             try self.ensureDeclared(dep_key);
         }
 
-        try self.pushLocalPlaceholders(module_id, 0, region);
-
-        if (anon_node.closure_captures.items.len > 0) {
-            try self.emitOp(.SetClosureCaptures, region);
-        }
-
-        try self.writeParser(module_id, anon.body, true);
-        try self.emitEnd();
-
-        if (self.printBytecode) {
-            try function.disassemble(self.vm.*, self.writers.debug);
-        }
-
-        _ = self.functions.pop();
-        _ = self.scopes.pop();
+        try self.emitAnonFunctionBody(module_id, graph_node, function, anon.body, region);
 
         try self.emitConstant(constId, region);
 
