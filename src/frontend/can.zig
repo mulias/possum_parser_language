@@ -786,7 +786,7 @@ fn foldConstants(self: *Can) !void {
     }
 }
 
-fn foldParserConstants(self: *Can, node: *Ast.Parser.RNode) !void {
+fn foldParserConstants(self: *Can, node: *Ast.Parser.RNode) error{ OutOfMemory, InvalidCharacter }!void {
     switch (node.node) {
         .@"or" => |or_node| {
             try self.foldParserConstants(or_node.left);
@@ -853,7 +853,7 @@ fn foldParserConstants(self: *Can, node: *Ast.Parser.RNode) !void {
     }
 }
 
-fn foldValueConstants(self: *Can, rnode: *Ast.Value.RNode) !void {
+fn foldValueConstants(self: *Can, rnode: *Ast.Value.RNode) error{ OutOfMemory, InvalidCharacter }!void {
     switch (rnode.node) {
         .@"or" => |or_node| {
             try self.foldValueConstants(or_node.left);
@@ -965,8 +965,12 @@ fn foldPatternConstants(self: *Can, rnode: *Ast.Pattern.RNode) !void {
                 try self.foldPatternConstants(part);
             }
         },
+        .function_call => |func| {
+            for (func.args.items) |arg| {
+                try self.foldValueConstants(arg);
+            }
+        },
         .false,
-        .function_call,
         .identifier,
         .null,
         .number_float,
