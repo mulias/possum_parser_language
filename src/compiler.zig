@@ -106,7 +106,6 @@ pub const Compiler = struct {
 
     pub fn compile(self: *Compiler) !void {
         try self.frontend.finalize();
-        // try self.frontend.resolver.graph.print(self.vm.strings, self.writers.debug);
 
         if (self.frontend.target_module_id) |target_module_id| {
             try self.compileModule(target_module_id);
@@ -164,18 +163,17 @@ pub const Compiler = struct {
         self.main = function;
     }
 
+    fn isFullyCompiled(self: *Compiler, decl_key: GlobalKey) bool {
+        const elem = self.findGlobal(decl_key.module_id, decl_key.name) orelse return false;
+        return !elem.isDynType(.Function) or !elem.asDyn().asFunction().hasEmptyBytecode();
+    }
+
     fn compileDeclaration(self: *Compiler, decl_key: GlobalKey) !void {
-        // Check if already fully compiled
-        if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
-            if (!elem.isDynType(.Function) or !elem.asDyn().asFunction().hasEmptyBytecode()) {
-                return;
-            }
-        }
+        if (self.isFullyCompiled(decl_key)) return;
 
         const node = self.frontend.getNode(decl_key);
         const dependencies = node.dependencies();
 
-        // Make sure all dependencies are declared first
         for (dependencies) |dep_key| {
             try self.ensureDeclared(dep_key);
         }
