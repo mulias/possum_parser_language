@@ -3,7 +3,6 @@ const Ast = @import("frontend/can_ast.zig");
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
-const DependencyGraph = @import("frontend/dependency_graph.zig");
 const Elem = @import("elem.zig").Elem;
 const Frontend = @import("frontend.zig");
 const GlobalKey = @import("frontend.zig").GlobalKey;
