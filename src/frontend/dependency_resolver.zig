@@ -197,27 +197,10 @@ fn walkParser(
         },
         .anonymous_function => |anon| {
             // Add dependency on the anonymous function itself
-            const anon_key = DependencyGraph.NodeKey{
+            try self.addDependency(node, .{
                 .module_id = key.module_id,
                 .name = anon.name,
-            };
-            const deps = switch (node.*) {
-                .precompiled => unreachable,
-                .declaration => |*n| &n.dependencies,
-                .anonymous_function => |*n| &n.dependencies,
-            };
-
-            // Only add if not already present
-            var already_present = false;
-            for (deps.items) |dep| {
-                if (dep.module_id == anon_key.module_id and dep.name == anon_key.name) {
-                    already_present = true;
-                    break;
-                }
-            }
-            if (!already_present) {
-                try deps.append(self.arena.allocator(), anon_key);
-            }
+            });
         },
         .backtrack => |infix| {
             try self.walkParser(key, node, infix.left);
@@ -473,74 +456,52 @@ fn resolveScopedName(
     return false;
 }
 
+fn addDependency(self: *Resolver, node: *DependencyGraph.Node, dep: DependencyGraph.NodeKey) !void {
+    const deps = node.dependenciesList();
+    for (deps.items) |existing| {
+        if (existing.module_id == dep.module_id and existing.name == dep.name) {
+            return;
+        }
+    }
+    try deps.append(self.arena.allocator(), dep);
+}
+
+// Find the declaration or precompiled function an identifier refers to, first
+// in its own module and then in the modules it depends on. Anonymous function
+// names (`@main`, `@fn0`, ...) are internal and can't be referenced by
+// identifier.
+fn findDeclaration(self: *Resolver, module_id: Module.Id, name: StringTable.Id) ?DependencyGraph.NodeKey {
+    var search_key = DependencyGraph.NodeKey{
+        .module_id = module_id,
+        .name = name,
+    };
+
+    if (self.graph.nodes.get(search_key)) |found| {
+        if (found.* != .anonymous_function) return search_key;
+    }
+
+    if (self.module_dependencies.get(module_id)) |dependencies| {
+        for (dependencies.items) |dep_module_id| {
+            search_key.module_id = dep_module_id;
+            if (self.graph.nodes.get(search_key)) |found| {
+                if (found.* != .anonymous_function) return search_key;
+            }
+        }
+    }
+
+    return null;
+}
+
 fn resolveParserIdentifier(
     self: *Resolver,
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
     name: StringTable.Id,
 ) error{OutOfMemory}!void {
-    const allocator = self.arena.allocator();
-
     if (try self.resolveScopedName(key, node, name)) return;
 
-    var search_key = DependencyGraph.NodeKey{
-        .module_id = key.module_id,
-        .name = name,
-    };
-
-    // Anonymous function names (`@main`, `@fn0`, ...) are internal and can't
-    // be referenced by identifier.
-    if (self.graph.nodes.get(search_key)) |found| {
-        if (found.* != .anonymous_function) {
-            const deps = switch (node.*) {
-                .precompiled => unreachable,
-                .declaration => |*n| &n.dependencies,
-                .anonymous_function => |*n| &n.dependencies,
-            };
-
-            // Check if already present
-            var already_present = false;
-            for (deps.items) |dep| {
-                if (dep.module_id == search_key.module_id and dep.name == search_key.name) {
-                    already_present = true;
-                    break;
-                }
-            }
-
-            if (!already_present) {
-                try deps.append(allocator, search_key);
-            }
-            return;
-        }
-    }
-
-    if (self.module_dependencies.get(key.module_id)) |dependencies| {
-        for (dependencies.items) |module_id| {
-            search_key.module_id = module_id;
-            if (self.graph.nodes.get(search_key)) |found| {
-                if (found.* == .anonymous_function) continue;
-
-                const deps = switch (node.*) {
-                    .precompiled => unreachable,
-                    .declaration => |*n| &n.dependencies,
-                    .anonymous_function => |*n| &n.dependencies,
-                };
-
-                // Check if already present
-                var already_present = false;
-                for (deps.items) |dep| {
-                    if (dep.module_id == search_key.module_id and dep.name == search_key.name) {
-                        already_present = true;
-                        break;
-                    }
-                }
-
-                if (!already_present) {
-                    try deps.append(allocator, search_key);
-                }
-                return;
-            }
-        }
+    if (self.findDeclaration(key.module_id, name)) |dep_key| {
+        try self.addDependency(node, dep_key);
     }
 }
 
@@ -550,86 +511,16 @@ fn resolveValueIdentifier(
     node: *DependencyGraph.Node,
     name: StringTable.Id,
 ) error{OutOfMemory}!void {
-    const allocator = self.arena.allocator();
-
     if (try self.resolveScopedName(key, node, name)) return;
 
-    var search_key = DependencyGraph.NodeKey{
-        .module_id = key.module_id,
-        .name = name,
-    };
-
-    // Anonymous function names (`@main`, `@fn0`, ...) are internal and can't
-    // be referenced by identifier.
-    if (self.graph.nodes.get(search_key)) |found| {
-        if (found.* != .anonymous_function) {
-            const deps = switch (node.*) {
-                .precompiled => unreachable,
-                .declaration => |*n| &n.dependencies,
-                .anonymous_function => |*n| &n.dependencies,
-            };
-
-            // Check if already present
-            var already_present = false;
-            for (deps.items) |dep| {
-                if (dep.module_id == search_key.module_id and dep.name == search_key.name) {
-                    already_present = true;
-                    break;
-                }
-            }
-
-            if (!already_present) {
-                try deps.append(allocator, search_key);
-            }
-            return;
-        }
+    if (self.findDeclaration(key.module_id, name)) |dep_key| {
+        try self.addDependency(node, dep_key);
+        return;
     }
 
-    if (self.module_dependencies.get(key.module_id)) |dependencies| {
-        for (dependencies.items) |module_id| {
-            search_key.module_id = module_id;
-            if (self.graph.nodes.get(search_key)) |found| {
-                if (found.* == .anonymous_function) continue;
-
-                const deps = switch (node.*) {
-                    .precompiled => unreachable,
-                    .declaration => |*n| &n.dependencies,
-                    .anonymous_function => |*n| &n.dependencies,
-                };
-
-                // Check if already present
-                var already_present = false;
-                for (deps.items) |dep| {
-                    if (dep.module_id == search_key.module_id and dep.name == search_key.name) {
-                        already_present = true;
-                        break;
-                    }
-                }
-
-                if (!already_present) {
-                    try deps.append(allocator, search_key);
-                }
-                return;
-            }
-        }
-    }
-
-    const unbound_locals = switch (node.*) {
-        .precompiled => unreachable,
-        .declaration => |*n| &n.locals,
-        .anonymous_function => |*n| &n.locals,
-    };
-
-    // Check if already present
-    var already_present = false;
+    const unbound_locals = node.localsList();
     for (unbound_locals.items) |local| {
-        if (local == name) {
-            already_present = true;
-            break;
-        }
+        if (local == name) return;
     }
-
-    if (!already_present) {
-        try unbound_locals.append(allocator, name);
-    }
+    try unbound_locals.append(self.arena.allocator(), name);
 }
