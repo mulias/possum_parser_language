@@ -17,4 +17,5 @@ jobs:
       - uses: nicknovitski/nix-develop@v1
         with:
           arguments: ".#ci"
+      - run: ./bin/tidy
       - run: ./bin/test-all
