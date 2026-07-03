@@ -204,10 +204,6 @@ fn walkParser(
                 .name = anon.name,
             });
         },
-        .backtrack => |infix| {
-            try self.walkParser(key, node, infix.left);
-            try self.walkParser(key, node, infix.right);
-        },
         .conditional => |cond| {
             try self.walkParser(key, node, cond.condition);
             try self.walkParser(key, node, cond.then_branch);

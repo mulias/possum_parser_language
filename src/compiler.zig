@@ -439,13 +439,6 @@ pub const Compiler = struct {
         const region = rnode.region;
 
         switch (node) {
-            .backtrack => |backtrack| {
-                try self.emitOp(.SetInputMark, region);
-                try self.writeParser(module_id, backtrack.left, false);
-                const jumpIndex = try self.emitJump(.Backtrack, region);
-                try self.writeParser(module_id, backtrack.right, isTailPosition);
-                self.patchJump(jumpIndex);
-            },
             .merge => |merge| {
                 try self.writeParser(module_id, merge.left, false);
                 try self.writeParser(module_id, merge.right, false);

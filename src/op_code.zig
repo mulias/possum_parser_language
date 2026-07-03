@@ -29,7 +29,6 @@ pub const OpCode = enum(u8) {
     Destructure3,
     Drop,
     End,
-    GetAtIndex,
     GetBoundLocal,
     GetConstant,
     GetConstant2,
@@ -112,10 +111,9 @@ pub const OpCode = enum(u8) {
         // Requires one value on the stack; nothing after it on this path
         // runs.
         terminal,
-        // Effect depends on runtime values (GetAtIndex pushes only when the
-        // array is not a failure) or on an opaque handler (NativeCode).
-        // These are hand-written into builtin chunks and must never be
-        // emitted through the IR.
+        // Effect depends on an opaque handler (NativeCode), which is
+        // hand-written into builtin chunks and must never be emitted
+        // through the IR.
         unknown,
 
         pub const PopPush = struct { pops: u32, pushes: u32 };
@@ -252,9 +250,7 @@ pub const OpCode = enum(u8) {
             .End,
             => .terminal,
 
-            .GetAtIndex,
-            .NativeCode,
-            => .unknown,
+            .NativeCode => .unknown,
         };
     }
 
@@ -332,7 +328,6 @@ pub const OpCode = enum(u8) {
             .CallTailFunctionLocal,
             .CaptureLocal,
             .CreateClosure,
-            .GetAtIndex,
             .GetBoundLocal,
             .GetLocal,
             .InsertAtIndex,
