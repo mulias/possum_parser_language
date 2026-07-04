@@ -286,7 +286,9 @@ pub const Ir = struct {
             .CallTailFunctionLocal,
             .CaptureLocal,
             .GetBoundLocal,
+            .GetBoundLocalMove,
             .GetLocal,
+            .GetLocalMove,
             => switch (operand) {
                 .byte => |b| b.byte,
                 else => null,

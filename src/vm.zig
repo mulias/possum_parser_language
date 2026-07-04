@@ -429,6 +429,7 @@ pub const VM = struct {
                 // If `condition` failed then jump to the start of `else` branch.
                 const offset = self.readShort();
                 const resetPos = self.popInputMark();
+                self.peek(0).release();
                 if (self.peekIsSuccess()) {
                     self.drop(1);
                 } else {
@@ -447,7 +448,9 @@ pub const VM = struct {
                 const function = elem.asDyn().asFunction();
                 const closure = try Elem.DynElem.Closure.create(self, function, localCount);
 
-                _ = self.pop();
+                // The closure retained the function; the function's stack
+                // handle dies here.
+                self.pop().release();
                 try self.push(closure.dyn.elem());
             },
             .Crash => {
@@ -478,6 +481,7 @@ pub const VM = struct {
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
                     // value is already on the stack
                 } else {
+                    value.release();
                     self.drop(1);
                     try self.pushFailure();
                 }
@@ -490,6 +494,7 @@ pub const VM = struct {
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
                     // value is already on the stack
                 } else {
+                    value.release();
                     self.drop(1);
                     try self.pushFailure();
                 }
@@ -502,11 +507,13 @@ pub const VM = struct {
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
                     // value is already on the stack
                 } else {
+                    value.release();
                     self.drop(1);
                     try self.pushFailure();
                 }
             },
             .Drop => {
+                self.peek(0).release();
                 self.drop(1);
             },
             .End => {
@@ -514,6 +521,14 @@ pub const VM = struct {
                 // frame except the final function result.
                 const prevFrame = self.frames.pop().?;
                 const result = self.pop();
+
+                // Every truncated handle dies: the function elem, locals
+                // (already nulled where a move transferred them out), and
+                // any operand leftovers. The result handle transfers to
+                // the caller's stack.
+                for (self.stack.items[prevFrame.elemsOffset..]) |item| {
+                    item.release();
+                }
 
                 try self.stack.resize(self.allocator, prevFrame.elemsOffset);
                 try self.push(result);
@@ -532,10 +547,26 @@ pub const VM = struct {
                 local.retain();
                 try self.push(local);
             },
+            .GetLocalMove => {
+                // Emitted at the slot's last read on every path: the
+                // slot's handle transfers to the stack without an
+                // increment. The slot is nulled so End's frame release
+                // doesn't count the stale handle a second time.
+                const slot = self.readByte();
+                const local = self.getLocal(slot);
+                self.setLocal(slot, Elem.nullConst);
+                try self.push(local);
+            },
             .GetBoundLocal => {
                 const slot = self.readByte();
                 const local = try self.getBoundLocal(slot);
                 local.retain();
+                try self.push(local);
+            },
+            .GetBoundLocalMove => {
+                const slot = self.readByte();
+                const local = try self.getBoundLocal(slot);
+                self.setLocal(slot, Elem.nullConst);
                 try self.push(local);
             },
             .Increment => {
@@ -553,6 +584,8 @@ pub const VM = struct {
                 const array_elem = self.peek(1);
 
                 if (elem.isFailure() or array_elem.isFailure()) {
+                    elem.release();
+                    array_elem.release();
                     self.drop(2);
                     try self.pushFailure();
                 } else {
@@ -561,6 +594,7 @@ pub const VM = struct {
                     if (self.config.rc_fast_paths and array.dyn.isUnique()) {
                         elem.retain();
                         array.elems.items[index] = elem;
+                        releaseConsumed(elem, array_elem);
                         self.drop(2);
                         try self.push(array_elem);
                     } else {
@@ -568,8 +602,11 @@ pub const VM = struct {
                         elem.retain();
                         copy.elems.items[index] = elem;
 
+                        const result = copy.dyn.elem();
+                        releaseConsumed(elem, result);
+                        releaseConsumed(array_elem, result);
                         self.drop(2);
-                        try self.push(copy.dyn.elem());
+                        try self.push(result);
                     }
                 }
             },
@@ -582,6 +619,9 @@ pub const VM = struct {
                 const placeholder_key_sid = StringTable.reservedSid(placeholder_key);
 
                 if (val.isFailure() or key_elem.isFailure() or object_elem.isFailure()) {
+                    val.release();
+                    key_elem.release();
+                    object_elem.release();
                     self.drop(3);
                     try self.pushFailure();
                 } else {
@@ -627,8 +667,12 @@ pub const VM = struct {
                         _ = target.members.swapRemove(placeholder_key_sid);
                     }
 
+                    const result = target.dyn.elem();
+                    releaseConsumed(val, result);
+                    releaseConsumed(key_elem, result);
+                    releaseConsumed(object_elem, result);
                     self.drop(3);
-                    try self.push(target.dyn.elem());
+                    try self.push(result);
                 }
             },
             .Jump => {
@@ -714,6 +758,8 @@ pub const VM = struct {
                 const lhs = self.peek(1);
 
                 if (try Elem.merge(lhs, rhs, self)) |value| {
+                    releaseConsumed(lhs, value);
+                    releaseConsumed(rhs, value);
                     self.drop(2);
                     try self.push(value);
                 } else {
@@ -737,9 +783,13 @@ pub const VM = struct {
 
                     const merged = (try lstr.merge(rstr, self)).?;
 
+                    releaseConsumed(lhs, merged);
+                    releaseConsumed(rhs, merged);
                     self.drop(2);
                     try self.push(merged);
                 } else {
+                    releaseConsumed(lhs, Elem.failureConst);
+                    releaseConsumed(rhs, Elem.failureConst);
                     self.drop(2);
                     try self.push(Elem.failureConst);
                 }
@@ -952,6 +1002,8 @@ pub const VM = struct {
                 const rhs = self.peek(0);
 
                 if (try Elem.repeat(lhs, rhs, self)) |result| {
+                    releaseConsumed(lhs, result);
+                    releaseConsumed(rhs, result);
                     self.drop(2);
                     try self.push(result);
                 } else {
@@ -967,8 +1019,11 @@ pub const VM = struct {
                 // If rhs succeeded then discard rhs, keep lhs.
                 // If rhs failed then drop both and push failure.
                 if (self.peekIsSuccess()) {
+                    self.peek(0).release();
                     self.drop(1);
                 } else {
+                    self.peek(0).release();
+                    self.peek(1).release();
                     self.drop(2);
                     try self.pushFailure();
                 }
@@ -979,6 +1034,7 @@ pub const VM = struct {
                 // If lhs failed then keep it and jump to skip rhs ops.
                 const offset = self.readShort();
                 if (self.peekIsSuccess()) {
+                    self.peek(0).release();
                     self.drop(1);
                 } else {
                     self.frame().ip += offset;
@@ -1120,6 +1176,9 @@ pub const VM = struct {
                                 const frameStart = self.frame().elemsOffset;
                                 const frameEnd = self.stack.items.len - function.arity - 1;
                                 const length = frameEnd - frameStart;
+                                for (self.stack.items[frameStart..frameEnd]) |item| {
+                                    item.release();
+                                }
                                 try self.stack.replaceRange(self.allocator, frameStart, length, &[0]Elem{});
                                 _ = self.frames.pop();
                             }
@@ -1499,6 +1558,14 @@ pub const VM = struct {
             (@as(u32, @intCast(items[self.frame().ip - 3])) << 16) |
             (@as(u32, @intCast(items[self.frame().ip - 2])) << 8) |
             items[self.frame().ip - 1];
+    }
+
+    // Release a consumed operand's stack handle, unless the result is the
+    // same value: then the handle transferred into the result push.
+    fn releaseConsumed(operand: Elem, result: Elem) void {
+        if (!operand.isType(.Dyn)) return;
+        if (result.isType(.Dyn) and result.asDyn() == operand.asDyn()) return;
+        operand.asDyn().release();
     }
 
     pub fn push(self: *VM, elem: Elem) !void {

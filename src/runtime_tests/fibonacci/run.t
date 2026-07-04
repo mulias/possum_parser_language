@@ -39,11 +39,11 @@
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4, Fib
-  0011    | GetBoundLocal 0
+  0011    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
-  Stack   | @main, 4, Fib, 4
+  Stack   | @main, null, Fib, 4
   0013    | CallTailFunction 1
   
   input   | 4 @ Line 1 byte 1
@@ -230,36 +230,36 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib
-  0018    | GetBoundLocal 0
+  0018    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 2
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 2
   0020    | PushNegNumber -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 2, -2
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 2, -2
   0022    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 0
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0
   0023    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 0
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0
   0000    | SetInputMark
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 0
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0
   0001    | GetBoundLocal 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 0, 0
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0, 0
   0003    | Destructure 0: ..1
   
   Destructure:
@@ -268,22 +268,22 @@
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 0, 0
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0, 0
   0005    | Or 5 -> 26
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib, 0, 0
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0, 0
   0026    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1, 0
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1, 0
   0025    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, Fib, 2, 1
+  Stack   | Fib, 4, Fib, 3, Fib, null, 1
   0026    | End
   
   input   | 4 @ Line 1 byte 1
@@ -294,36 +294,36 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, 1, Fib
-  0018    | GetBoundLocal 0
+  0018    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 1, Fib, 3
+  Stack   | Fib, 4, Fib, null, 1, Fib, 3
   0020    | PushNegNumber -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 1, Fib, 3, -2
+  Stack   | Fib, 4, Fib, null, 1, Fib, 3, -2
   0022    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 1, Fib, 1
+  Stack   | Fib, 4, Fib, null, 1, Fib, 1
   0023    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 1, Fib, 1
+  Stack   | Fib, 4, Fib, null, 1, Fib, 1
   0000    | SetInputMark
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 1, Fib, 1
+  Stack   | Fib, 4, Fib, null, 1, Fib, 1
   0001    | GetBoundLocal 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 1, Fib, 1, 1
+  Stack   | Fib, 4, Fib, null, 1, Fib, 1, 1
   0003    | Destructure 0: ..1
   
   Destructure:
@@ -332,22 +332,22 @@
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 1, Fib, 1, 1
+  Stack   | Fib, 4, Fib, null, 1, Fib, 1, 1
   0005    | Or 5 -> 26
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 1, Fib, 1, 1
+  Stack   | Fib, 4, Fib, null, 1, Fib, 1, 1
   0026    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 1, 1
+  Stack   | Fib, 4, Fib, null, 1, 1
   0025    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, Fib, 3, 2
+  Stack   | Fib, 4, Fib, null, 2
   0026    | End
   
   input   | 4 @ Line 1 byte 1
@@ -358,36 +358,36 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, 2, Fib
-  0018    | GetBoundLocal 0
+  0018    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
-  Stack   | Fib, 4, 2, Fib, 4
+  Stack   | Fib, null, 2, Fib, 4
   0020    | PushNegNumber -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
-  Stack   | Fib, 4, 2, Fib, 4, -2
+  Stack   | Fib, null, 2, Fib, 4, -2
   0022    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
-  Stack   | Fib, 4, 2, Fib, 2
+  Stack   | Fib, null, 2, Fib, 2
   0023    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2
+  Stack   | Fib, null, 2, Fib, 2
   0000    | SetInputMark
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2
+  Stack   | Fib, null, 2, Fib, 2
   0001    | GetBoundLocal 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 2
+  Stack   | Fib, null, 2, Fib, 2, 2
   0003    | Destructure 0: ..1
   
   Destructure:
@@ -396,47 +396,47 @@
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, @Failure
+  Stack   | Fib, null, 2, Fib, 2, @Failure
   0005    | Or 5 -> 26
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2
+  Stack   | Fib, null, 2, Fib, 2
   0008    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, Fib
+  Stack   | Fib, null, 2, Fib, 2, Fib
   0010    | GetBoundLocal 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, Fib, 2
+  Stack   | Fib, null, 2, Fib, 2, Fib, 2
   0012    | PushNumberNegOne
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, Fib, 2, -1
+  Stack   | Fib, null, 2, Fib, 2, Fib, 2, -1
   0013    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, Fib, 1
+  Stack   | Fib, null, 2, Fib, 2, Fib, 1
   0014    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, Fib, 1
+  Stack   | Fib, null, 2, Fib, 2, Fib, 1
   0000    | SetInputMark
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, Fib, 1
+  Stack   | Fib, null, 2, Fib, 2, Fib, 1
   0001    | GetBoundLocal 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, Fib, 1, 1
+  Stack   | Fib, null, 2, Fib, 2, Fib, 1, 1
   0003    | Destructure 0: ..1
   
   Destructure:
@@ -445,52 +445,52 @@
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, Fib, 1, 1
+  Stack   | Fib, null, 2, Fib, 2, Fib, 1, 1
   0005    | Or 5 -> 26
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, Fib, 1, 1
+  Stack   | Fib, null, 2, Fib, 2, Fib, 1, 1
   0026    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1
+  Stack   | Fib, null, 2, Fib, 2, 1
   0016    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, Fib
-  0018    | GetBoundLocal 0
+  Stack   | Fib, null, 2, Fib, 2, 1, Fib
+  0018    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 2
+  Stack   | Fib, null, 2, Fib, null, 1, Fib, 2
   0020    | PushNegNumber -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 2, -2
+  Stack   | Fib, null, 2, Fib, null, 1, Fib, 2, -2
   0022    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 0
+  Stack   | Fib, null, 2, Fib, null, 1, Fib, 0
   0023    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 0
+  Stack   | Fib, null, 2, Fib, null, 1, Fib, 0
   0000    | SetInputMark
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 0
+  Stack   | Fib, null, 2, Fib, null, 1, Fib, 0
   0001    | GetBoundLocal 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 0, 0
+  Stack   | Fib, null, 2, Fib, null, 1, Fib, 0, 0
   0003    | Destructure 0: ..1
   
   Destructure:
@@ -499,32 +499,32 @@
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 0, 0
+  Stack   | Fib, null, 2, Fib, null, 1, Fib, 0, 0
   0005    | Or 5 -> 26
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, Fib, 0, 0
+  Stack   | Fib, null, 2, Fib, null, 1, Fib, 0, 0
   0026    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1, 0
+  Stack   | Fib, null, 2, Fib, null, 1, 0
   0025    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
-  Stack   | Fib, 4, 2, Fib, 2, 1
+  Stack   | Fib, null, 2, Fib, null, 1
   0026    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
-  Stack   | Fib, 4, 2, 1
+  Stack   | Fib, null, 2, 1
   0025    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
-  Stack   | Fib, 4, 3
+  Stack   | Fib, null, 3
   0026    | End
   
   input   | 4 @ Line 1 byte 1

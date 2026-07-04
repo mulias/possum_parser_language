@@ -440,7 +440,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: "%(0 + N)"
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 1
+  0009    | GetBoundLocalMove 1
   0011    | End
   ========================================
   
@@ -466,7 +466,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   

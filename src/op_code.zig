@@ -30,10 +30,12 @@ pub const OpCode = enum(u8) {
     Drop,
     End,
     GetBoundLocal,
+    GetBoundLocalMove,
     GetConstant,
     GetConstant2,
     GetConstant3,
     GetLocal,
+    GetLocalMove,
     Increment,
     InsertAtIndex,
     InsertKeyVal,
@@ -137,10 +139,12 @@ pub const OpCode = enum(u8) {
             .CallTailFunctionConstant3,
             .CallTailFunctionLocal,
             .GetBoundLocal,
+            .GetBoundLocalMove,
             .GetConstant,
             .GetConstant2,
             .GetConstant3,
             .GetLocal,
+            .GetLocalMove,
             .ParseChar,
             .ParseCodepoint,
             .ParseCodepointRange,
@@ -311,6 +315,13 @@ pub const OpCode = enum(u8) {
             .GetBoundLocal,
             .GetLocal,
             => .{ .operands = .none, .result = .derived },
+
+            // Push a local slot's value at its last read: the slot's
+            // handle transfers to the stack (no increment) and the slot
+            // is nulled so End's frame release can't count it again.
+            .GetBoundLocalMove,
+            .GetLocalMove,
+            => .{ .operands = .none, .result = .transferred },
 
             // Push a handle to a module constant (immortal) or a shared
             // singleton container (immortal).
@@ -518,7 +529,9 @@ pub const OpCode = enum(u8) {
             .CaptureLocal,
             .CreateClosure,
             .GetBoundLocal,
+            .GetBoundLocalMove,
             .GetLocal,
+            .GetLocalMove,
             .InsertAtIndex,
             .InsertKeyVal,
             => self.byteInstruciton(chunk, writer, offset),
