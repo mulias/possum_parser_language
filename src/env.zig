@@ -15,6 +15,7 @@ pub const Env = struct {
     runVM: bool,
     printGC: bool,
     stressTestGC: bool,
+    disableRcFastPaths: bool,
 
     pub fn init() Env {
         return Env{
@@ -27,6 +28,7 @@ pub const Env = struct {
             .printDestructure = false,
             .printGC = false,
             .stressTestGC = false,
+            .disableRcFastPaths = false,
             .runVM = true,
         };
     }
@@ -42,6 +44,7 @@ pub const Env = struct {
             .printDestructure = try getFlag(allocator, "PRINT_DESTRUCTURE", false),
             .printGC = try getFlag(allocator, "PRINT_GC", false),
             .stressTestGC = try getFlag(allocator, "STRESS_TEST_GC", false),
+            .disableRcFastPaths = try getFlag(allocator, "DISABLE_RC_FAST_PATHS", false),
             .runVM = try getFlag(allocator, "RUN_VM", true),
         };
     }

@@ -361,6 +361,16 @@ pub const Elem = packed union {
         return @ptrFromInt(@as(usize, @intCast(self.bits & mask_payload)));
     }
 
+    // Refcount helpers that no-op for value-type Elems, which have no
+    // identity and are never mutated in place.
+    pub fn retain(self: Elem) void {
+        if (self.isType(.Dyn)) self.asDyn().retain();
+    }
+
+    pub fn release(self: Elem) void {
+        if (self.isType(.Dyn)) self.asDyn().release();
+    }
+
     pub fn print(self: Elem, vm: VM, writer: *Writer) Writer.Error!void {
         switch (self.getType()) {
             .ValueVar => {
@@ -655,6 +665,25 @@ pub const Elem = packed union {
             .Dyn => switch (elemA.asDyn().dynType) {
                 .String => {
                     const ds1 = elemA.asDyn().asString();
+                    // A unique lhs has no other owner: append instead of
+                    // copying. A shared rhs is only read.
+                    if (vm.config.rc_fast_paths and ds1.dyn.isUnique()) {
+                        switch (elemB.getType()) {
+                            .String => {
+                                try ds1.concatBytes(vm.strings.get(elemB.asString()));
+                                return elemA;
+                            },
+                            .InputSubstring => {
+                                try ds1.concatBytes(elemB.asInputSubstring().bytes(vm.*));
+                                return elemA;
+                            },
+                            .Dyn => if (elemB.asDyn().isType(.String)) {
+                                try ds1.concat(elemB.asDyn().asString());
+                                return elemA;
+                            },
+                            else => {},
+                        }
+                    }
                     return switch (elemB.getType()) {
                         .String => {
                             const s2 = vm.strings.get(elemB.asString());
@@ -685,6 +714,10 @@ pub const Elem = packed union {
                 },
                 .Array => {
                     const a1 = elemA.asDyn().asArray();
+                    if (vm.config.rc_fast_paths and a1.dyn.isUnique() and elemB.isDynType(.Array)) {
+                        try a1.concat(vm, elemB.asDyn().asArray());
+                        return elemA;
+                    }
                     return switch (elemB.getType()) {
                         .Dyn => switch (elemB.asDyn().dynType) {
                             .Array => {
@@ -701,6 +734,10 @@ pub const Elem = packed union {
                 },
                 .Object => {
                     const o1 = elemA.asDyn().asObject();
+                    if (vm.config.rc_fast_paths and o1.dyn.isUnique() and elemB.isDynType(.Object)) {
+                        try o1.concat(vm, elemB.asDyn().asObject());
+                        return elemA;
+                    }
                     return switch (elemB.getType()) {
                         .Dyn => switch (elemB.asDyn().dynType) {
                             .Object => {
@@ -769,10 +806,24 @@ pub const Elem = packed union {
 
         // Repeatedly merge the element with itself. When the count is 0 the
         // result is Null.
+        //
+        // The extra handle on `elem` keeps it from ever looking unique:
+        // the first merge returns `elem` itself (null identity), and the
+        // in-place merge path must not consume the value being repeated.
+        elem.retain();
+        defer elem.release();
+
+        // Root the intermediate result: it lives only in this frame while
+        // the next iteration's merge allocates.
+        const temp_dyns_start = vm.temp_dyns.items.len;
+        defer vm.clearTempDyns(temp_dyns_start);
+
         var result = Elem.nullConst;
         var i: i64 = 0;
         while (i < repeat_count) : (i += 1) {
             if (try merge(result, elem, vm)) |merged| {
+                vm.clearTempDyns(temp_dyns_start);
+                if (merged.isType(.Dyn)) try vm.pushTempDyn(merged.asDyn());
                 result = merged;
             } else {
                 return null;
@@ -995,6 +1046,39 @@ pub const Elem = packed union {
         next: ?*DynElem,
         isMarked: bool = false,
         nextGray: ?*DynElem = null,
+        // Number of owning handles to this value: operand-stack entries,
+        // frame local slots, container elements, closure captures, and
+        // module constant table entries. A uniqueness oracle for in-place
+        // mutation, not a collector: counts may drift high (stale-high is
+        // a copy, stale-low is a soundness bug), and only the mark-sweep
+        // GC frees memory. Born at 1: the creator's handle.
+        ref_count: u32 = 1,
+
+        // Values shared by construction (module constants, the empty
+        // container singletons) are pinned at the saturating count and
+        // never look unique.
+        pub const immortal_ref_count = std.math.maxInt(u32);
+
+        pub fn retain(self: *DynElem) void {
+            std.debug.assert(self.ref_count >= 1);
+            if (self.ref_count == immortal_ref_count) return;
+            self.ref_count +|= 1;
+        }
+
+        pub fn release(self: *DynElem) void {
+            std.debug.assert(self.ref_count >= 1);
+            if (self.ref_count == immortal_ref_count) return;
+            self.ref_count -= 1;
+        }
+
+        pub fn isUnique(self: *DynElem) bool {
+            std.debug.assert(self.ref_count >= 1);
+            return self.ref_count == 1;
+        }
+
+        pub fn makeImmortal(self: *DynElem) void {
+            self.ref_count = immortal_ref_count;
+        }
 
         pub fn destroy(self: *DynElem, vm: *VM) void {
             switch (self.dynType) {
@@ -1136,6 +1220,7 @@ pub const Elem = packed union {
 
             pub fn copy(vm: *VM, elems: []const Elem) !*Array {
                 const a = try create(vm, elems.len);
+                for (elems) |item| item.retain();
                 try a.elems.appendSlice(vm.gc.allocator(), elems);
                 return a;
             }
@@ -1192,10 +1277,12 @@ pub const Elem = packed union {
             }
 
             pub fn append(self: *Array, vm: *VM, item: Elem) !void {
+                item.retain();
                 try self.elems.append(vm.gc.allocator(), item);
             }
 
             pub fn concat(self: *Array, vm: *VM, other: *Array) !void {
+                for (other.elems.items) |item| item.retain();
                 try self.elems.appendSlice(vm.gc.allocator(), other.elems.items);
             }
 
@@ -1288,15 +1375,18 @@ pub const Elem = packed union {
             pub fn concat(self: *Object, vm: *VM, other: *Object) !void {
                 var iterator = other.members.iterator();
                 while (iterator.next()) |entry| {
+                    entry.value_ptr.*.retain();
                     try self.members.put(vm.gc.allocator(), entry.key_ptr.*, entry.value_ptr.*);
                 }
             }
 
             pub fn put(self: *Object, vm: *VM, sid: StringTable.Id, value: Elem) !void {
+                value.retain();
                 try self.members.put(vm.gc.allocator(), sid, value);
             }
 
             pub fn putReservedId(self: *Object, vm: *VM, reservedId: u8, value: Elem) !void {
+                value.retain();
                 return self.members.put(vm.gc.allocator(), std.math.maxInt(u32) - @as(u32, @intCast(reservedId)), value);
             }
         };
@@ -1449,6 +1539,7 @@ pub const Elem = packed union {
             pub fn create(vm: *VM, function: *Function, localCount: u8) !*Closure {
                 const captures = try vm.gc.allocator().alloc(?Elem, localCount);
                 @memset(captures, null);
+                function.dyn.retain();
 
                 const dyn = try vm.gc.createDynElem(Closure, .Closure);
                 const closure = dyn.asClosure();
@@ -1497,6 +1588,7 @@ pub const Elem = packed union {
             }
 
             pub fn capture(self: *Closure, index: usize, local: Elem) void {
+                local.retain();
                 self.captures[index] = local;
             }
 

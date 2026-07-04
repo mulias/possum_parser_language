@@ -442,6 +442,7 @@ fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool
         const unbound_array = try Elem.DynElem.Array.create(self.vm, unbound_elems.len);
         try self.vm.pushTempDyn(&unbound_array.dyn);
 
+        for (unbound_elems) |unbound_item| unbound_item.retain();
         try unbound_array.elems.appendSlice(self.vm.allocator, unbound_elems);
         const unbound_elem = unbound_array.dyn.elem();
 
@@ -1750,6 +1751,7 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
                     // Create array element for this chunk
                     const chunk_array = try Elem.DynElem.Array.create(self.vm, pattern_len);
                     try self.vm.pushTempDyn(&chunk_array.dyn);
+                    for (value_array.elems.items[start..end]) |chunk_item| chunk_item.retain();
                     try chunk_array.elems.appendSlice(self.vm.allocator, value_array.elems.items[start..end]);
 
                     if (!(try self.matchPattern(chunk_array.dyn.elem(), repeat_pattern.pattern.*))) {
@@ -1939,6 +1941,8 @@ fn checkEquality(self: *PatternSolver, value: Elem, pattern: Elem) !bool {
 }
 
 fn setLocal(self: *PatternSolver, local: Pattern.PatternVar, value: Elem) !void {
+    // The slot takes a second handle; the value also stays on the stack.
+    value.retain();
     self.vm.setLocal(local.idx, value);
     try self.bound_locals.append(self.vm.allocator, local);
 }
@@ -1958,6 +1962,7 @@ fn resetLocals(self: *PatternSolver, index: usize) !void {
     }
 
     for (locals) |local| {
+        self.vm.getLocal(local.idx).release();
         self.vm.setLocal(local.idx, Elem.valueVar(local.sid, false));
     }
     self.bound_locals.shrinkRetainingCapacity(index);

@@ -25,6 +25,9 @@ pub const Module = struct {
     }
 
     pub fn addConstant(self: *Module, allocator: Allocator, elem: Elem) !usize {
+        // Constant-table entries are pushed by GetConstant on every
+        // execution: shared by construction, never unique.
+        if (elem.isType(.Dyn)) elem.asDyn().makeImmortal();
         const idx = self.constants.items.len;
         try self.constants.append(allocator, elem);
         return idx;
