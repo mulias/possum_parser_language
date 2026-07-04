@@ -783,7 +783,7 @@ fn setInputPositionNative(vm: *VM) VM.Error!void {
                 return vm.pushFailure();
             }
         } else {
-            return vm.runtimeError("@at expected integet position value", .{});
+            return vm.runtimeError("@at expected integer position value", .{});
         }
     } else if (pos.isConst(.Failure)) {
         return vm.pushFailure();
