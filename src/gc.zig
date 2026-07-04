@@ -237,10 +237,10 @@ pub const GC = struct {
     // swept this cycle. The emptied husk stays parked for reuse.
     fn clearConsumedMutableConstants(self: *GC) void {
         for (self.vm.modules.items) |module| {
-            for (module.mutable_constants.items) |maybe_cached| {
-                const cached = maybe_cached orelse continue;
-                if (!cached.isUnique()) continue;
-                cached.clearChildren();
+            var iter = module.mutable_constants.valueIterator();
+            while (iter.next()) |cached| {
+                if (!cached.*.isUnique()) continue;
+                cached.*.clearChildren();
             }
         }
     }
@@ -299,8 +299,9 @@ pub const GC = struct {
             for (module.constants.items) |elem| {
                 self.markElem(elem);
             }
-            for (module.mutable_constants.items) |maybe_cached| {
-                if (maybe_cached) |cached| self.markDyn(cached);
+            var mutable_constants = module.mutable_constants.valueIterator();
+            while (mutable_constants.next()) |cached| {
+                self.markDyn(cached.*);
             }
         }
 
