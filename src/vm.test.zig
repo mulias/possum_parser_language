@@ -2482,3 +2482,140 @@ test "0..999 -> N $ 'Your number was %(N).'" {
         );
     }
 }
+
+const rc_config = VMConfig{
+    .includeStdlib = false,
+    .gc_mode = .NoGC,
+};
+
+test "merge appends to a unique array in place" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const a = try Elem.DynElem.Array.create(&vm, 1);
+    try a.append(&vm, Elem.numberFloat(1));
+    const b = try Elem.DynElem.Array.create(&vm, 1);
+    try b.append(&vm, Elem.numberFloat(2));
+
+    const merged = (try Elem.merge(a.dyn.elem(), b.dyn.elem(), &vm)).?;
+
+    try std.testing.expectEqual(a.dyn.id, merged.asDyn().id);
+    try std.testing.expectEqual(@as(usize, 2), merged.asDyn().asArray().len());
+}
+
+test "merge copies a shared array" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const a = try Elem.DynElem.Array.create(&vm, 1);
+    try a.append(&vm, Elem.numberFloat(1));
+    a.dyn.retain();
+    const b = try Elem.DynElem.Array.create(&vm, 1);
+    try b.append(&vm, Elem.numberFloat(2));
+
+    const merged = (try Elem.merge(a.dyn.elem(), b.dyn.elem(), &vm)).?;
+
+    try std.testing.expect(a.dyn.id != merged.asDyn().id);
+    try std.testing.expectEqual(@as(usize, 1), a.len());
+    try std.testing.expectEqual(@as(usize, 2), merged.asDyn().asArray().len());
+}
+
+test "merge appends to a unique object in place" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const o1 = try Elem.DynElem.Object.create(&vm, 1);
+    try o1.put(&vm, try vm.strings.insert("a"), Elem.numberFloat(1));
+    const o2 = try Elem.DynElem.Object.create(&vm, 1);
+    try o2.put(&vm, try vm.strings.insert("b"), Elem.numberFloat(2));
+
+    const merged = (try Elem.merge(o1.dyn.elem(), o2.dyn.elem(), &vm)).?;
+
+    try std.testing.expectEqual(o1.dyn.id, merged.asDyn().id);
+    try std.testing.expectEqual(@as(usize, 2), merged.asDyn().asObject().members.count());
+}
+
+test "merge copies a shared object" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const o1 = try Elem.DynElem.Object.create(&vm, 1);
+    try o1.put(&vm, try vm.strings.insert("a"), Elem.numberFloat(1));
+    o1.dyn.retain();
+    const o2 = try Elem.DynElem.Object.create(&vm, 1);
+    try o2.put(&vm, try vm.strings.insert("b"), Elem.numberFloat(2));
+
+    const merged = (try Elem.merge(o1.dyn.elem(), o2.dyn.elem(), &vm)).?;
+
+    try std.testing.expect(o1.dyn.id != merged.asDyn().id);
+    try std.testing.expectEqual(@as(usize, 1), o1.members.count());
+    try std.testing.expectEqual(@as(usize, 2), merged.asDyn().asObject().members.count());
+}
+
+test "merge appends to a unique dyn string in place" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const s = try Elem.DynElem.String.copy(&vm, "ab");
+    const interned = Elem.string(try vm.strings.insert("cd"));
+
+    const merged = (try Elem.merge(s.dyn.elem(), interned, &vm)).?;
+
+    try std.testing.expectEqual(s.dyn.id, merged.asDyn().id);
+    try std.testing.expectEqualStrings("abcd", merged.asDyn().asString().bytes());
+}
+
+test "merge copies a shared dyn string" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const s = try Elem.DynElem.String.copy(&vm, "ab");
+    s.dyn.retain();
+    const interned = Elem.string(try vm.strings.insert("cd"));
+
+    const merged = (try Elem.merge(s.dyn.elem(), interned, &vm)).?;
+
+    try std.testing.expect(s.dyn.id != merged.asDyn().id);
+    try std.testing.expectEqualStrings("ab", s.bytes());
+    try std.testing.expectEqualStrings("abcd", merged.asDyn().asString().bytes());
+}
+
+test "merge copies a unique array when fast paths are disabled" {
+    var vm = VM.create();
+    var no_fast_paths = rc_config;
+    no_fast_paths.rc_fast_paths = false;
+    try vm.init(allocator, writers, no_fast_paths);
+    defer vm.deinit();
+
+    const a = try Elem.DynElem.Array.create(&vm, 1);
+    try a.append(&vm, Elem.numberFloat(1));
+    const b = try Elem.DynElem.Array.create(&vm, 1);
+    try b.append(&vm, Elem.numberFloat(2));
+
+    const merged = (try Elem.merge(a.dyn.elem(), b.dyn.elem(), &vm)).?;
+
+    try std.testing.expect(a.dyn.id != merged.asDyn().id);
+    try std.testing.expectEqual(@as(usize, 1), a.len());
+}
+
+test "repeat leaves the repeated value untouched" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const a = try Elem.DynElem.Array.create(&vm, 1);
+    try a.append(&vm, Elem.numberFloat(1));
+
+    const repeated = (try Elem.repeat(a.dyn.elem(), Elem.numberFloat(3), &vm)).?;
+
+    try std.testing.expect(a.dyn.id != repeated.asDyn().id);
+    try std.testing.expectEqual(@as(usize, 1), a.len());
+    try std.testing.expectEqual(@as(usize, 3), repeated.asDyn().asArray().len());
+    try std.testing.expectEqual(@as(u32, 1), a.dyn.ref_count);
+}

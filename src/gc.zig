@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const VM = @import("vm.zig").VM;
 const Elem = @import("elem.zig").Elem;
@@ -147,6 +148,7 @@ pub const GC = struct {
         const before_count = self.countDynElems();
 
         self.running_gc = true;
+        if (comptime builtin.mode == .Debug) self.auditRefCounts();
         self.markRoots();
         self.traceReferences();
         self.sweep();
@@ -157,6 +159,68 @@ pub const GC = struct {
 
         if (self.print_gc) {
             self.vm.writers.debug.print("-- gc end (freed {} objects, {} remain)\n\n", .{ before_count - after_count, after_count }) catch {};
+        }
+    }
+
+    // Recount the owning handles the refcount scheme tracks (value-stack
+    // entries and frame locals, container children, closure captures and
+    // functions) and assert no value's true handle count exceeds its
+    // ref_count. Undercounts license in-place mutation of shared values;
+    // this turns them into an assertion failure at the next collection.
+    // Overcounts are expected: decrements are deferred or skipped, and
+    // handles held only by Zig temporaries or the constant table are not
+    // recounted here.
+    fn auditRefCounts(self: *GC) void {
+        var counts = std.AutoHashMap(*Elem.DynElem, u32).init(self.parent_allocator);
+        defer counts.deinit();
+
+        for (self.vm.stack.items) |value| {
+            auditHandle(&counts, value);
+        }
+
+        var dyn = self.nextDyn;
+        while (dyn) |d| : (dyn = d.next) {
+            switch (d.dynType) {
+                .Array => {
+                    for (d.asArray().elems.items) |item| auditHandle(&counts, item);
+                },
+                .Object => {
+                    var iter = d.asObject().members.iterator();
+                    while (iter.next()) |entry| auditHandle(&counts, entry.value_ptr.*);
+                },
+                .Closure => {
+                    const closure = d.asClosure();
+                    auditHandle(&counts, closure.function.dyn.elem());
+                    for (closure.captures) |maybe_elem| {
+                        if (maybe_elem) |item| auditHandle(&counts, item);
+                    }
+                },
+                .String, .Function, .NativeCode => {},
+            }
+        }
+
+        var iter = counts.iterator();
+        while (iter.next()) |entry| {
+            const d = entry.key_ptr.*;
+            const true_count = entry.value_ptr.*;
+            if (true_count > d.ref_count) {
+                std.debug.panic(
+                    "refcount audit: {s}(id={d}) has {d} live handles but ref_count {d}",
+                    .{ @tagName(d.dynType), d.id, true_count, d.ref_count },
+                );
+            }
+        }
+    }
+
+    fn auditHandle(counts: *std.AutoHashMap(*Elem.DynElem, u32), value: Elem) void {
+        if (!value.isType(.Dyn)) return;
+        const d = value.asDyn();
+        if (d.ref_count == Elem.DynElem.immortal_ref_count) return;
+        const entry = counts.getOrPut(d) catch return;
+        if (entry.found_existing) {
+            entry.value_ptr.* += 1;
+        } else {
+            entry.value_ptr.* = 1;
         }
     }
 

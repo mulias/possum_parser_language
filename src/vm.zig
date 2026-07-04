@@ -30,6 +30,10 @@ pub const Config = struct {
     runVM: bool = true,
     includeStdlib: bool = true,
     gc_mode: GC.Mode = .GC,
+    // Uniqueness fast paths mutate unique values in place at Merge and
+    // Insert sites. Disabling forces the copy paths everywhere, so any
+    // behavioral diff can be bisected to refcounting in one run.
+    rc_fast_paths: bool = true,
 
     pub fn setEnv(self: *Config, env: Env) void {
         self.printScanner = env.printScanner;
@@ -42,6 +46,7 @@ pub const Config = struct {
         self.print_gc = env.printGC;
         self.runVM = env.runVM;
         self.gc_mode = if (env.stressTestGC) .StressTest else .GC;
+        self.rc_fast_paths = !env.disableRcFastPaths;
     }
 };
 
@@ -384,12 +389,16 @@ pub const VM = struct {
             },
             .CallFunctionLocal => {
                 const slot = self.readByte();
-                try self.push(try self.getBoundLocal(slot));
+                const local = try self.getBoundLocal(slot);
+                local.retain();
+                try self.push(local);
                 try self.callFunction(self.peek(0), 0, false);
             },
             .CallTailFunctionLocal => {
                 const slot = self.readByte();
-                try self.push(try self.getBoundLocal(slot));
+                const local = try self.getBoundLocal(slot);
+                local.retain();
+                try self.push(local);
                 try self.callFunction(self.peek(0), 0, true);
             },
             .CaptureLocal => {
@@ -519,11 +528,15 @@ pub const VM = struct {
             },
             .GetLocal => {
                 const slot = self.readByte();
-                try self.push(self.getLocal(slot));
+                const local = self.getLocal(slot);
+                local.retain();
+                try self.push(local);
             },
             .GetBoundLocal => {
                 const slot = self.readByte();
-                try self.push(try self.getBoundLocal(slot));
+                const local = try self.getBoundLocal(slot);
+                local.retain();
+                try self.push(local);
             },
             .Increment => {
                 const elem = self.peek(0);
@@ -544,11 +557,20 @@ pub const VM = struct {
                     try self.pushFailure();
                 } else {
                     const array = array_elem.asDyn().asArray();
-                    var copy = try Elem.DynElem.Array.copy(self, array.elems.items);
-                    copy.elems.items[index] = elem;
 
-                    self.drop(2);
-                    try self.push(copy.dyn.elem());
+                    if (self.config.rc_fast_paths and array.dyn.isUnique()) {
+                        elem.retain();
+                        array.elems.items[index] = elem;
+                        self.drop(2);
+                        try self.push(array_elem);
+                    } else {
+                        var copy = try Elem.DynElem.Array.copy(self, array.elems.items);
+                        elem.retain();
+                        copy.elems.items[index] = elem;
+
+                        self.drop(2);
+                        try self.push(copy.dyn.elem());
+                    }
                 }
             },
             .InsertKeyVal => {
@@ -575,11 +597,15 @@ pub const VM = struct {
                     const placeholder_index = object.members.getIndex(placeholder_key_sid).?;
                     const calculated_index = object.members.getIndex(key_sid);
 
-                    var copy = try Elem.DynElem.Object.create(self, object.members.count());
-                    try self.pushTempDyn(&copy.dyn);
-                    defer self.dropTempDyn();
-
-                    try copy.concat(self, object);
+                    const target = if (self.config.rc_fast_paths and object.dyn.isUnique())
+                        object
+                    else copy: {
+                        const copy = try Elem.DynElem.Object.create(self, object.members.count());
+                        try self.pushTempDyn(&copy.dyn);
+                        try copy.concat(self, object);
+                        break :copy copy;
+                    };
+                    defer if (target != object) self.dropTempDyn();
 
                     if (calculated_index) |existing_key_index| {
                         if (existing_key_index < placeholder_index) {
@@ -587,22 +613,22 @@ pub const VM = struct {
                             // insertion. Replace both the placeholder and
                             // existing with the new pair, leaving the new pair
                             // in the placeholder position.
-                            _ = copy.members.orderedRemove(key_sid);
-                            try copy.put(self, key_sid, val);
-                            _ = copy.members.swapRemove(placeholder_key_sid);
+                            _ = target.members.orderedRemove(key_sid);
+                            try target.put(self, key_sid, val);
+                            _ = target.members.swapRemove(placeholder_key_sid);
                         } else {
                             // This key was inserted after the placeholder.
                             // Delete the placeholder and keep the existing
                             // key.
-                            _ = copy.members.orderedRemove(placeholder_key_sid);
+                            _ = target.members.orderedRemove(placeholder_key_sid);
                         }
                     } else {
-                        try copy.put(self, key_sid, val);
-                        _ = copy.members.swapRemove(placeholder_key_sid);
+                        try target.put(self, key_sid, val);
+                        _ = target.members.swapRemove(placeholder_key_sid);
                     }
 
                     self.drop(3);
-                    try self.push(copy.dyn.elem());
+                    try self.push(target.dyn.elem());
                 }
             },
             .Jump => {
@@ -650,6 +676,7 @@ pub const VM = struct {
                     const closure = function.asClosure();
                     for (closure.captures, 0..) |capture, slot| {
                         if (capture) |elem| {
+                            elem.retain();
                             self.setLocal(slot, elem);
                         }
                     }
@@ -974,6 +1001,7 @@ pub const VM = struct {
                     try self.push(empty_array);
                 } else {
                     const empty_array = (try Elem.DynElem.Array.create(self, 0)).dyn.elem();
+                    empty_array.asDyn().makeImmortal();
                     self.singleton_empty_array = empty_array;
                     try self.push(empty_array);
                 }
@@ -983,6 +1011,7 @@ pub const VM = struct {
                     try self.push(empty_object);
                 } else {
                     const empty_object = (try Elem.DynElem.Object.create(self, 0)).dyn.elem();
+                    empty_object.asDyn().makeImmortal();
                     self.singleton_empty_object = empty_object;
                     try self.push(empty_object);
                 }
