@@ -1733,6 +1733,16 @@ pub const VM = struct {
         return self.stack.pop().?;
     }
 
+    // Pop a stack argument that a native builtin consumes. The native owns
+    // the handle retained for it by the argument-loading op and must
+    // release it. Release with `defer` so every read of the value happens
+    // while it is still rooted: releasing before the reads would leave the
+    // value unrooted at ref_count 0, and any allocation through
+    // gc.allocator() in that window could collect it mid-read.
+    pub fn popArg(self: *VM) Elem {
+        return self.pop();
+    }
+
     pub fn drop(self: *VM, n: usize) void {
         for (0..n) |_| _ = self.pop();
     }
