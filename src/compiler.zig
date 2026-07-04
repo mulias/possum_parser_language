@@ -30,6 +30,11 @@ pub const Compiler = struct {
     printBytecode: bool = false,
     global_map: AutoHashMap(GlobalKey, Elem) = .{},
     constant_map: AutoHashMap(ConstantMapKey, usize) = .{},
+    // The slots each module pattern references, computed once when the
+    // pattern is created and indexed to match the module's `patterns`.
+    // Compile-time only (feeds liveness), so it lives here rather than on
+    // the runtime Module.
+    pattern_reads: AutoHashMap(Module.Id, ArrayList(liveness.SlotSet)) = .{},
     main: ?*Elem.DynElem.Function = null,
 
     const ConstantMapKey = struct {
@@ -84,6 +89,9 @@ pub const Compiler = struct {
         self.frontend.deinit();
         self.constant_map.deinit(self.vm.allocator);
         self.global_map.deinit(self.vm.allocator);
+        var pattern_reads = self.pattern_reads.valueIterator();
+        while (pattern_reads.next()) |list| list.deinit(self.vm.allocator);
+        self.pattern_reads.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
         self.scopes.deinit(self.vm.allocator);
         for (self.irs.items) |*function_ir| function_ir.deinit(self.vm.allocator);
@@ -1449,7 +1457,13 @@ pub const Compiler = struct {
     fn createPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) Error!u24 {
         const patternElem = try self.astToPattern(module_id, rnode, 0);
         const module = self.vm.getModule(module_id);
-        return @intCast(try module.addPattern(self.vm.allocator, patternElem));
+        const idx = try module.addPattern(self.vm.allocator, patternElem);
+
+        const gop = try self.pattern_reads.getOrPut(self.vm.allocator, module_id);
+        if (!gop.found_existing) gop.value_ptr.* = .{};
+        try gop.value_ptr.append(self.vm.allocator, liveness.patternReads(patternElem));
+
+        return @intCast(idx);
     }
 
     fn astToPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode, negation_count: u2) Error!Pattern {
@@ -2397,13 +2411,8 @@ pub const Compiler = struct {
     // case for params and pattern bindings) stay unique and eligible for
     // in-place mutation.
     fn rewriteLastReadsAsMoves(self: *Compiler, module_id: Module.Id, function_ir: *Ir) !void {
-        const module = self.vm.getModule(module_id);
-
-        const pattern_reads = try self.vm.allocator.alloc(liveness.SlotSet, module.patterns.items.len);
-        defer self.vm.allocator.free(pattern_reads);
-        for (module.patterns.items, 0..) |pattern, i| {
-            pattern_reads[i] = liveness.patternReads(pattern);
-        }
+        const pattern_reads: []const liveness.SlotSet =
+            if (self.pattern_reads.get(module_id)) |list| list.items else &.{};
 
         const local_count: u16 = @intCast(self.currentScope().locals().len);
         var last_reads = try liveness.Liveness.analyze(
