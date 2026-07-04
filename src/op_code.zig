@@ -254,6 +254,195 @@ pub const OpCode = enum(u8) {
         };
     }
 
+    // How executing an op changes reference counts, refining StackEffect's
+    // pop/push counts. `operands` covers the values StackEffect counts as
+    // popped; `result` covers the pushed value. Ops that also duplicate
+    // handles outside the operand stack (into frame slots, closure captures,
+    // or container children) note it in the dispatch: SetClosureCaptures,
+    // CaptureLocal, Destructure bindings, and container construction inside
+    // Merge/Insert/Repeat handlers.
+    pub const RcEffect = struct {
+        operands: Operands,
+        result: Result,
+
+        pub const Operands = enum {
+            // Nothing popped, or popped values never carry a Dyn handle.
+            none,
+            // Popped handles leave the stack for good: moved into the
+            // result, moved into the frame, or destroyed. Decrement
+            // candidates, except when re-pushed as a `transferred` result.
+            consumed,
+            // Values are only inspected: they stay on the stack (peeks) or
+            // are re-pushed unchanged (Swap). No handle count change.
+            borrowed,
+        };
+
+        pub const Result = enum {
+            // No push, or the pushed value is never a Dyn handle.
+            none,
+            // Pushes a newly allocated value; the pushed handle is the
+            // value's first reference. Born at ref_count 1.
+            fresh,
+            // Pushes an additional handle to a value that keeps its
+            // existing handles (locals, constants, singletons). The push
+            // increments.
+            derived,
+            // Re-pushes a handle the op consumed (Merge in-place lhs,
+            // TakeLeft's kept lhs, End's function result). No count change.
+            transferred,
+        };
+    };
+
+    // Returns null for NativeCode, whose effect is opaque to the tables.
+    pub fn rcEffect(self: OpCode) ?RcEffect {
+        return switch (self) {
+            // No stack traffic. SetClosureCaptures copies captures into
+            // frame slots: +1 per capture in the dispatch.
+            .Backtrack,
+            .PopInputMark,
+            .ResetInput,
+            .SetClosureCaptures,
+            .SetInputMark,
+            => .{ .operands = .none, .result = .none },
+
+            // Push a second handle to a local slot's value.
+            .CallFunctionLocal,
+            .CallTailFunctionLocal,
+            .GetBoundLocal,
+            .GetLocal,
+            => .{ .operands = .none, .result = .derived },
+
+            // Push a handle to a module constant (immortal) or a shared
+            // singleton container (immortal).
+            .CallFunctionConstant,
+            .CallFunctionConstant2,
+            .CallFunctionConstant3,
+            .CallTailFunctionConstant,
+            .CallTailFunctionConstant2,
+            .CallTailFunctionConstant3,
+            .GetConstant,
+            .GetConstant2,
+            .GetConstant3,
+            .PushEmptyArray,
+            .PushEmptyObject,
+            => .{ .operands = .none, .result = .derived },
+
+            // Parse results and pushed literals: value types or new Dyns
+            // whose pushed handle is their first reference.
+            .ParseChar,
+            .ParseCodepoint,
+            .ParseCodepointRange,
+            .ParseIntegerRange,
+            .ParseNegOne,
+            .ParseNumberStringChar,
+            .ParseOne,
+            .ParseThree,
+            .ParseTwo,
+            .ParseZero,
+            .PushChar,
+            .PushCharVar,
+            .PushEmptyString,
+            .PushFail,
+            .PushFalse,
+            .PushNegNumber,
+            .PushNull,
+            .PushNumber,
+            .PushNumberNegOne,
+            .PushNumberOne,
+            .PushNumberStringChar,
+            .PushNumberStringNegOne,
+            .PushNumberStringOne,
+            .PushNumberStringThree,
+            .PushNumberStringTwo,
+            .PushNumberStringZero,
+            .PushNumberThree,
+            .PushNumberTwo,
+            .PushNumberZero,
+            .PushTrue,
+            .PushUnderscoreVar,
+            => .{ .operands = .none, .result = .fresh },
+
+            // Peeks: inspect and leave in place. Destructure additionally
+            // binds pattern vars into frame slots: +1 per binding in the
+            // pattern solver. CaptureLocal copies a local into a closure:
+            // +1 in the dispatch.
+            .AssertFunctionArity,
+            .AssertParamTypes,
+            .AssertParamTypes4,
+            .CaptureLocal,
+            .Destructure,
+            .Destructure2,
+            .Destructure3,
+            .JumpIfBound,
+            .JumpIfFailure,
+            .JumpIfZero,
+            .ValidateRepeatPattern,
+            => .{ .operands = .borrowed, .result = .none },
+
+            // Pure reorder of two handles already on the stack.
+            .Swap => .{ .operands = .borrowed, .result = .none },
+
+            // Args stay on the stack and become callee frame locals; the
+            // call result is pushed later by the callee's End.
+            .CallFunction,
+            .CallTailFunction,
+            => .{ .operands = .borrowed, .result = .none },
+
+            // Number ops: operands and results are never Dyn handles.
+            .Decrement,
+            .Increment,
+            .NegateNumber,
+            .NegateParser,
+            .ParseLowerBoundedRange,
+            .ParseRange,
+            .ParseUpperBoundedRange,
+            => .{ .operands = .consumed, .result = .fresh },
+
+            // Pops the function elem, pushes a new closure holding it.
+            .CreateClosure => .{ .operands = .consumed, .result = .fresh },
+
+            // The dropped handle dies.
+            .Drop => .{ .operands = .consumed, .result = .none },
+
+            // Operand handles move into the result (or die when the copy
+            // path duplicates children instead). The in-place fast paths
+            // re-push the lhs handle: transferred, detected by pointer
+            // equality in the dispatch.
+            .InsertAtIndex,
+            .InsertKeyVal,
+            .Merge,
+            .MergeAsString,
+            .RepeatValue,
+            => .{ .operands = .consumed, .result = .fresh },
+
+            // Keeps lhs (re-pushed), drops rhs; or drops both on failure.
+            .TakeLeft => .{ .operands = .consumed, .result = .transferred },
+
+            // Unconditional jumps: no stack traffic.
+            .Jump,
+            .JumpBack,
+            => .{ .operands = .none, .result = .none },
+
+            // Or drops the lhs failure const on the fallthrough path only;
+            // failures are never Dyn.
+            .Or => .{ .operands = .borrowed, .result = .none },
+
+            // Drops the condition (ConditionalThen) or the successful lhs
+            // (TakeRight); keeps the value on the other path.
+            .ConditionalThen,
+            .TakeRight,
+            => .{ .operands = .consumed, .result = .none },
+
+            .Crash => .{ .operands = .consumed, .result = .none },
+
+            // Pops the whole frame: the result handle transfers to the
+            // caller's stack, every other truncated handle dies.
+            .End => .{ .operands = .consumed, .result = .transferred },
+
+            .NativeCode => null,
+        };
+    }
+
     pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         return switch (self) {
             .Backtrack,
