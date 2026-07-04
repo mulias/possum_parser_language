@@ -1,0 +1,31 @@
+Sharing forces a copy exactly where needed. A is a runtime-built array
+also read by the second Or alternative, so the first alternative's merge
+must copy; after the first alternative fails at "x", the second returns
+the unmutated A.
+
+  $ PRINT_MEMORY_REPORT=true possum -p '(("a" $ [1]) * 2) -> A & ((("" $ (A + [2])) -> B & "x") | ("" $ A))' -i 'aa'
+  [1, 1]
+  ===== memory report =====
+  dyns created:      40
+  dyns live:         38 (string 0, array 3, object 0, function 19, native 16, closure 0)
+  live ref counts:   unique 1, shared 0, immortal 37
+  merges:            0 in place, 2 copied
+  inserts:           0 in place, 0 copied
+  gc runs:           0
+  strings interned:  528
+  bytes in use:      3576
+
+When the first alternative succeeds, the copy is the fresh result and A
+dies unread in its slot.
+
+  $ PRINT_MEMORY_REPORT=true possum -p '(("a" $ [1]) * 2) -> A & (("" $ (A + [2])) | ("" $ A))' -i 'aa'
+  [1, 1, 2]
+  ===== memory report =====
+  dyns created:      40
+  dyns live:         38 (string 0, array 3, object 0, function 19, native 16, closure 0)
+  live ref counts:   unique 1, shared 0, immortal 37
+  merges:            0 in place, 2 copied
+  inserts:           0 in place, 0 copied
+  gc runs:           0
+  strings interned:  528
+  bytes in use:      3576

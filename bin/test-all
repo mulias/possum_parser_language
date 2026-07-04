@@ -9,3 +9,4 @@ zig build test
 ./bin/test-snapshot ./src/compiler_tests/
 ./bin/test-snapshot ./src/runtime_tests/
 ./bin/test-snapshot ./src/stdlib_tests/
+./bin/test-snapshot ./src/rc_tests/

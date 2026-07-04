@@ -34,6 +34,7 @@ pub const Config = struct {
     // Insert sites. Disabling forces the copy paths everywhere, so any
     // behavioral diff can be bisected to refcounting in one run.
     rc_fast_paths: bool = true,
+    print_memory_report: bool = false,
 
     pub fn setEnv(self: *Config, env: Env) void {
         self.printScanner = env.printScanner;
@@ -47,6 +48,7 @@ pub const Config = struct {
         self.runVM = env.runVM;
         self.gc_mode = if (env.stressTestGC) .StressTest else .GC;
         self.rc_fast_paths = !env.disableRcFastPaths;
+        self.print_memory_report = env.printMemoryReport;
     }
 };
 
@@ -58,6 +60,16 @@ pub const Pos = struct {
     fn lineOffset(self: Pos) usize {
         return self.offset - self.line_start;
     }
+};
+
+// How often the uniqueness fast paths fired. Counted only at the decision
+// points: container/string merges with a Dyn lhs, and the Insert opcodes.
+// Value-type merges never copy containers and are not counted.
+pub const RcStats = struct {
+    merge_in_place: u64 = 0,
+    merge_copy: u64 = 0,
+    insert_in_place: u64 = 0,
+    insert_copy: u64 = 0,
 };
 
 pub const VM = struct {
@@ -73,6 +85,7 @@ pub const VM = struct {
     inputMarks: ArrayList(Pos),
     inputPos: Pos,
     uniqueIdCount: u64,
+    rc_stats: RcStats,
     pattern_solver: PatternSolver,
     writers: Writers,
     config: Config,
@@ -122,6 +135,7 @@ pub const VM = struct {
             .inputMarks = undefined,
             .inputPos = undefined,
             .uniqueIdCount = undefined,
+            .rc_stats = undefined,
             .pattern_solver = undefined,
             .writers = undefined,
             .config = undefined,
@@ -154,6 +168,7 @@ pub const VM = struct {
         self.inputMarks = ArrayList(Pos){};
         self.inputPos = Pos{};
         self.uniqueIdCount = 0;
+        self.rc_stats = RcStats{};
         self.pattern_solver = PatternSolver.init(self);
         self.singleton_empty_array = null;
         self.singleton_empty_object = null;
@@ -592,12 +607,14 @@ pub const VM = struct {
                     const array = array_elem.asDyn().asArray();
 
                     if (self.config.rc_fast_paths and array.dyn.isUnique()) {
+                        self.rc_stats.insert_in_place += 1;
                         elem.retain();
                         array.elems.items[index] = elem;
                         releaseConsumed(elem, array_elem);
                         self.drop(2);
                         try self.push(array_elem);
                     } else {
+                        self.rc_stats.insert_copy += 1;
                         var copy = try Elem.DynElem.Array.copy(self, array.elems.items);
                         elem.retain();
                         copy.elems.items[index] = elem;
@@ -637,6 +654,11 @@ pub const VM = struct {
                     const placeholder_index = object.members.getIndex(placeholder_key_sid).?;
                     const calculated_index = object.members.getIndex(key_sid);
 
+                    if (self.config.rc_fast_paths and object.dyn.isUnique()) {
+                        self.rc_stats.insert_in_place += 1;
+                    } else {
+                        self.rc_stats.insert_copy += 1;
+                    }
                     const target = if (self.config.rc_fast_paths and object.dyn.isUnique())
                         object
                     else copy: {
@@ -1122,6 +1144,59 @@ pub const VM = struct {
                 try self.push(self.singleton_underscore_var);
             },
         }
+    }
+
+    // Post-run memory report. Forces a collection first so the dyn chain
+    // holds only reachable values; "gc runs" counts the collections before
+    // that forced one. In Debug builds the collection also runs the
+    // refcount audit, so every reported run is audited.
+    pub fn writeMemoryReport(self: *VM, writer: *Writer) !void {
+        const gc_runs = self.gc.collections;
+        self.gc.collect();
+
+        var live: u64 = 0;
+        var strings: u64 = 0;
+        var arrays: u64 = 0;
+        var objects: u64 = 0;
+        var functions: u64 = 0;
+        var natives: u64 = 0;
+        var closures: u64 = 0;
+        var unique: u64 = 0;
+        var shared: u64 = 0;
+        var immortal: u64 = 0;
+
+        var dyn = self.gc.nextDyn;
+        while (dyn) |d| : (dyn = d.next) {
+            live += 1;
+            switch (d.dynType) {
+                .String => strings += 1,
+                .Array => arrays += 1,
+                .Object => objects += 1,
+                .Function => functions += 1,
+                .NativeCode => natives += 1,
+                .Closure => closures += 1,
+            }
+            if (d.ref_count == Elem.DynElem.immortal_ref_count) {
+                immortal += 1;
+            } else if (d.ref_count == 1) {
+                unique += 1;
+            } else {
+                shared += 1;
+            }
+        }
+
+        try writer.print("===== memory report =====\n", .{});
+        try writer.print("dyns created:      {d}\n", .{self.uniqueIdCount});
+        try writer.print(
+            "dyns live:         {d} (string {d}, array {d}, object {d}, function {d}, native {d}, closure {d})\n",
+            .{ live, strings, arrays, objects, functions, natives, closures },
+        );
+        try writer.print("live ref counts:   unique {d}, shared {d}, immortal {d}\n", .{ unique, shared, immortal });
+        try writer.print("merges:            {d} in place, {d} copied\n", .{ self.rc_stats.merge_in_place, self.rc_stats.merge_copy });
+        try writer.print("inserts:           {d} in place, {d} copied\n", .{ self.rc_stats.insert_in_place, self.rc_stats.insert_copy });
+        try writer.print("gc runs:           {d}\n", .{gc_runs});
+        try writer.print("strings interned:  {d}\n", .{self.strings.count});
+        try writer.print("bytes in use:      {d}\n", .{self.gc.bytesAllocated});
     }
 
     pub fn nextUniqueId(self: *VM) u64 {
