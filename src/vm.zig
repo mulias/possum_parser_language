@@ -609,6 +609,7 @@ pub const VM = struct {
                     if (self.config.rc_fast_paths and array.dyn.isUnique()) {
                         self.rc_stats.insert_in_place += 1;
                         elem.retain();
+                        array.elems.items[index].release();
                         array.elems.items[index] = elem;
                         releaseConsumed(elem, array_elem);
                         self.drop(2);
@@ -617,6 +618,7 @@ pub const VM = struct {
                         self.rc_stats.insert_copy += 1;
                         var copy = try Elem.DynElem.Array.copy(self, array.elems.items);
                         elem.retain();
+                        copy.elems.items[index].release();
                         copy.elems.items[index] = elem;
 
                         const result = copy.dyn.elem();
@@ -675,18 +677,18 @@ pub const VM = struct {
                             // insertion. Replace both the placeholder and
                             // existing with the new pair, leaving the new pair
                             // in the placeholder position.
-                            _ = target.members.orderedRemove(key_sid);
+                            if (target.members.fetchOrderedRemove(key_sid)) |kv| kv.value.release();
                             try target.put(self, key_sid, val);
-                            _ = target.members.swapRemove(placeholder_key_sid);
+                            if (target.members.fetchSwapRemove(placeholder_key_sid)) |kv| kv.value.release();
                         } else {
                             // This key was inserted after the placeholder.
                             // Delete the placeholder and keep the existing
                             // key.
-                            _ = target.members.orderedRemove(placeholder_key_sid);
+                            if (target.members.fetchOrderedRemove(placeholder_key_sid)) |kv| kv.value.release();
                         }
                     } else {
                         try target.put(self, key_sid, val);
-                        _ = target.members.swapRemove(placeholder_key_sid);
+                        if (target.members.fetchSwapRemove(placeholder_key_sid)) |kv| kv.value.release();
                     }
 
                     const result = target.dyn.elem();
