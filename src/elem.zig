@@ -723,11 +723,7 @@ pub const Elem = packed union {
                     if (vm.config.rc_fast_paths and a1.dyn.isUniqueBesidesCache() and elemB.isDynType(.Array)) {
                         vm.rc_stats.merge_in_place += 1;
                         const a2 = elemB.asDyn().asArray();
-                        if (a2.dyn.isUniqueBesidesCache()) {
-                            try a1.concatSteal(vm, a2);
-                        } else {
-                            try a1.concat(vm, a2);
-                        }
+                        try a1.concatStealing(vm, a2);
                         return elemA;
                     }
                     return switch (elemB.getType()) {
@@ -737,11 +733,7 @@ pub const Elem = packed union {
                                 const a2 = elemB.asDyn().asArray();
                                 const a = try Elem.DynElem.Array.create(vm, a1.elems.items.len + a2.elems.items.len);
                                 try a.concat(vm, a1);
-                                if (vm.config.rc_fast_paths and a2.dyn.isUniqueBesidesCache()) {
-                                    try a.concatSteal(vm, a2);
-                                } else {
-                                    try a.concat(vm, a2);
-                                }
+                                try a.concatStealing(vm, a2);
                                 return a.dyn.elem();
                             },
                             else => null,
@@ -754,11 +746,7 @@ pub const Elem = packed union {
                     if (vm.config.rc_fast_paths and o1.dyn.isUniqueBesidesCache() and elemB.isDynType(.Object)) {
                         vm.rc_stats.merge_in_place += 1;
                         const o2 = elemB.asDyn().asObject();
-                        if (o2.dyn.isUniqueBesidesCache()) {
-                            try o1.concatSteal(vm, o2);
-                        } else {
-                            try o1.concat(vm, o2);
-                        }
+                        try o1.concatStealing(vm, o2);
                         return elemA;
                     }
                     return switch (elemB.getType()) {
@@ -768,11 +756,7 @@ pub const Elem = packed union {
                                 const o2 = elemB.asDyn().asObject();
                                 const o = try Elem.DynElem.Object.create(vm, o1.members.count() + o2.members.count());
                                 try o.concat(vm, o1);
-                                if (vm.config.rc_fast_paths and o2.dyn.isUniqueBesidesCache()) {
-                                    try o.concatSteal(vm, o2);
-                                } else {
-                                    try o.concat(vm, o2);
-                                }
+                                try o.concatStealing(vm, o2);
                                 return o.dyn.elem();
                             },
                             else => null,
@@ -1390,6 +1374,16 @@ pub const Elem = packed union {
                 other.elems.clearRetainingCapacity();
             }
 
+            // Steal `other`'s children when it is a consumable unique
+            // operand, otherwise copy them.
+            pub fn concatStealing(self: *Array, vm: *VM, other: *Array) !void {
+                if (vm.config.rc_fast_paths and other.dyn.isUniqueBesidesCache()) {
+                    try self.concatSteal(vm, other);
+                } else {
+                    try self.concat(vm, other);
+                }
+            }
+
             // Reset a mutable-constant cache copy to match its template.
             // Only valid while the cache slot holds the sole handle, so
             // the current children are unobservable: release them and
@@ -1415,6 +1409,12 @@ pub const Elem = packed union {
         pub const Object = struct {
             dyn: DynElem,
             members: AutoArrayHashMap(StringTable.Id, Elem),
+
+            pub fn copy(vm: *VM, source: *Object) !*Object {
+                const o = try create(vm, source.members.count());
+                try o.concat(vm, source);
+                return o;
+            }
 
             pub fn create(vm: *VM, capacity: usize) !*Object {
                 // Allocate members before object is added to GC
@@ -1503,6 +1503,16 @@ pub const Elem = packed union {
                     gop.value_ptr.* = entry.value_ptr.*;
                 }
                 other.members.clearRetainingCapacity();
+            }
+
+            // Steal `other`'s members when it is a consumable unique
+            // operand, otherwise copy them. See Array.concatStealing.
+            pub fn concatStealing(self: *Object, vm: *VM, other: *Object) !void {
+                if (vm.config.rc_fast_paths and other.dyn.isUniqueBesidesCache()) {
+                    try self.concatSteal(vm, other);
+                } else {
+                    try self.concat(vm, other);
+                }
             }
 
             // See Array.refreshFrom.
