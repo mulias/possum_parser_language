@@ -12,11 +12,20 @@ pub const Module = struct {
     name: []const u8,
     source: []const u8,
     constants: ArrayList(Elem) = ArrayList(Elem){},
+    // Cached mutable copies of container constants, indexed to match
+    // `constants`. A slot owns one handle to the last copy made by
+    // GetConstantMutable for that constant; the copy is reusable again
+    // once that handle is the only one left.
+    mutable_constants: ArrayList(?*Elem.DynElem) = ArrayList(?*Elem.DynElem){},
     patterns: ArrayList(Pattern) = ArrayList(Pattern){},
 
     pub const Id = u16;
 
     pub fn deinit(self: *Module, allocator: Allocator) void {
+        // Cached mutable copies are not released here: the GC destroys
+        // every dyn before modules deinit, so the slots may already
+        // dangle. The slot handles only matter while the VM is running.
+        self.mutable_constants.deinit(allocator);
         self.constants.deinit(allocator);
         for (self.patterns.items) |*pattern| {
             pattern.deinit(allocator);
@@ -30,6 +39,7 @@ pub const Module = struct {
         if (elem.isType(.Dyn)) elem.asDyn().makeImmortal();
         const idx = self.constants.items.len;
         try self.constants.append(allocator, elem);
+        try self.mutable_constants.append(allocator, null);
         return idx;
     }
 

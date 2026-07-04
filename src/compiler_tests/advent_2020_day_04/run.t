@@ -86,7 +86,7 @@
   0016    | CallFunctionLocal 2
   0018    | Destructure 1: V
   0020    | TakeRight 20 -> 31
-  0023    | GetConstant 1: {_0_}
+  0023    | GetConstantMutable 1: {_0_}
   0025    | GetBoundLocalMove 3
   0027    | GetBoundLocalMove 4
   0029    | InsertKeyVal 0

@@ -70,6 +70,8 @@ pub const RcStats = struct {
     merge_copy: u64 = 0,
     insert_in_place: u64 = 0,
     insert_copy: u64 = 0,
+    mutable_constant_reused: u64 = 0,
+    mutable_constant_copied: u64 = 0,
 };
 
 pub const VM = struct {
@@ -606,7 +608,7 @@ pub const VM = struct {
                 } else {
                     const array = array_elem.asDyn().asArray();
 
-                    if (self.config.rc_fast_paths and array.dyn.isUnique()) {
+                    if (self.config.rc_fast_paths and array.dyn.isUniqueBesidesCache()) {
                         self.rc_stats.insert_in_place += 1;
                         elem.retain();
                         array.elems.items[index].release();
@@ -656,12 +658,12 @@ pub const VM = struct {
                     const placeholder_index = object.members.getIndex(placeholder_key_sid).?;
                     const calculated_index = object.members.getIndex(key_sid);
 
-                    if (self.config.rc_fast_paths and object.dyn.isUnique()) {
+                    if (self.config.rc_fast_paths and object.dyn.isUniqueBesidesCache()) {
                         self.rc_stats.insert_in_place += 1;
                     } else {
                         self.rc_stats.insert_copy += 1;
                     }
-                    const target = if (self.config.rc_fast_paths and object.dyn.isUnique())
+                    const target = if (self.config.rc_fast_paths and object.dyn.isUniqueBesidesCache())
                         object
                     else copy: {
                         const copy = try Elem.DynElem.Object.create(self, object.members.count());
@@ -736,6 +738,18 @@ pub const VM = struct {
             .GetConstant3 => {
                 const idx = self.readMedium();
                 try self.push(self.getConstant(idx));
+            },
+            .GetConstantMutable => {
+                const idx = self.readByte();
+                try self.pushMutableConstant(idx);
+            },
+            .GetConstantMutable2 => {
+                const idx = self.readShort();
+                try self.pushMutableConstant(idx);
+            },
+            .GetConstantMutable3 => {
+                const idx = self.readMedium();
+                try self.pushMutableConstant(idx);
             },
             .SetClosureCaptures => {
                 var function = self.getFunctionElem().asDyn();
@@ -1196,6 +1210,7 @@ pub const VM = struct {
         try writer.print("live ref counts:   unique {d}, shared {d}, immortal {d}\n", .{ unique, shared, immortal });
         try writer.print("merges:            {d} in place, {d} copied\n", .{ self.rc_stats.merge_in_place, self.rc_stats.merge_copy });
         try writer.print("inserts:           {d} in place, {d} copied\n", .{ self.rc_stats.insert_in_place, self.rc_stats.insert_copy });
+        try writer.print("mutable constants: {d} reused, {d} copied\n", .{ self.rc_stats.mutable_constant_reused, self.rc_stats.mutable_constant_copied });
         try writer.print("gc runs:           {d}\n", .{gc_runs});
         try writer.print("strings interned:  {d}\n", .{self.strings.count});
         try writer.print("bytes in use:      {d}\n", .{self.gc.bytesAllocated});
@@ -1560,6 +1575,62 @@ pub const VM = struct {
 
     pub fn getConstant(self: *VM, idx: usize) Elem {
         return self.currentFunctionModule().getConstant(idx);
+    }
+
+    // Push a mutable copy of a container constant that later Insert ops
+    // fill in. When the module's cache slot for this constant holds the
+    // only remaining handle, the previous incarnation was fully consumed:
+    // refresh it from the template and reuse the allocation. Otherwise
+    // copy the template and cache the copy, replacing whatever the slot
+    // held. The cache-slot handle is marked on the value so mutating ops
+    // can treat ref_count 2 as unique; see DynElem.cache_held.
+    fn pushMutableConstant(self: *VM, idx: usize) !void {
+        const constant = self.getConstant(idx);
+
+        if (!self.config.rc_fast_paths) {
+            // Baseline: push the immortal constant and let the mutating
+            // op copy it, exactly as GetConstant behaves.
+            return self.push(constant);
+        }
+
+        const template = constant.asDyn();
+        const module = self.currentFunctionModule();
+        const slot = &module.mutable_constants.items[idx];
+
+        if (slot.*) |cached| {
+            if (cached.isUnique()) {
+                switch (template.dynType) {
+                    .Array => try cached.asArray().refreshFrom(self, template.asArray()),
+                    .Object => try cached.asObject().refreshFrom(self, template.asObject()),
+                    else => unreachable,
+                }
+                cached.retain();
+                self.rc_stats.mutable_constant_reused += 1;
+                return self.push(cached.elem());
+            }
+        }
+
+        const copy: *Elem.DynElem = switch (template.dynType) {
+            .Array => &(try Elem.DynElem.Array.copy(self, template.asArray().elems.items)).dyn,
+            .Object => copy: {
+                const object = try Elem.DynElem.Object.create(self, template.asObject().members.count());
+                try self.pushTempDyn(&object.dyn);
+                defer self.dropTempDyn();
+                try object.concat(self, template.asObject());
+                break :copy &object.dyn;
+            },
+            else => unreachable,
+        };
+
+        if (slot.*) |old| {
+            old.cache_held = false;
+            old.release();
+        }
+        copy.retain();
+        copy.cache_held = true;
+        slot.* = copy;
+        self.rc_stats.mutable_constant_copied += 1;
+        try self.push(copy.elem());
     }
 
     pub fn getPattern(self: *VM, idx: usize) Pattern {

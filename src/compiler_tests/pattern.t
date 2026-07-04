@@ -97,8 +97,8 @@
   0000    | PushCharVar A
   0002    | PushCharVar B
   0004    | GetConstant 0: const
-  0006    | GetConstant 1: [1, _]
-  0008    | GetConstant 2: [_, 3]
+  0006    | GetConstantMutable 1: [1, _]
+  0008    | GetConstantMutable 2: [_, 3]
   0010    | GetConstant 3: [2]
   0012    | InsertAtIndex 0
   0014    | InsertAtIndex 1
@@ -154,7 +154,7 @@
   ========================================
   0000    | PushCharVar A
   0002    | GetConstant 0: const
-  0004    | GetConstant 1: [1, _, 3]
+  0004    | GetConstantMutable 1: [1, _, 3]
   0006    | GetConstant 2: @Add
   0008    | PushNumberOne
   0009    | PushNumberTwo
@@ -218,7 +218,7 @@
   ========================================
   0000    | PushCharVar A
   0002    | GetConstant 0: const
-  0004    | GetConstant 1: [1, _, 2, 3]
+  0004    | GetConstantMutable 1: [1, _, 2, 3]
   0006    | GetConstant 2: [2]
   0008    | InsertAtIndex 1
   0010    | CallFunction 1
@@ -511,7 +511,7 @@
   0027    | PushEmptyArray
   0028    | GetBoundLocalMove 1
   0030    | Merge
-  0031    | GetConstant 4: [_]
+  0031    | GetConstantMutable 4: [_]
   0033    | GetBoundLocalMove 5
   0035    | InsertAtIndex 0
   0037    | Merge
@@ -1266,7 +1266,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
-  0009    | GetConstant 2: [_]
+  0009    | GetConstantMutable 2: [_]
   0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
@@ -1331,7 +1331,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
-  0009    | GetConstant 2: [_]
+  0009    | GetConstantMutable 2: [_]
   0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
@@ -1398,7 +1398,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
-  0009    | GetConstant 2: [_]
+  0009    | GetConstantMutable 2: [_]
   0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
@@ -1463,7 +1463,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
-  0009    | GetConstant 2: [_]
+  0009    | GetConstantMutable 2: [_]
   0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
@@ -1529,7 +1529,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
-  0009    | GetConstant 2: [_]
+  0009    | GetConstantMutable 2: [_]
   0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
@@ -1597,7 +1597,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
-  0009    | GetConstant 2: [_]
+  0009    | GetConstantMutable 2: [_]
   0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
@@ -1665,7 +1665,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
-  0009    | GetConstant 2: [_]
+  0009    | GetConstantMutable 2: [_]
   0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
@@ -1738,7 +1738,7 @@
   0011    | CallFunctionLocal 1
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
-  0018    | GetConstant 1: {_0_}
+  0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
   0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
@@ -1821,7 +1821,7 @@
   0011    | CallFunctionLocal 1
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
-  0018    | GetConstant 1: {_0_}
+  0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
   0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
@@ -1905,7 +1905,7 @@
   0011    | CallFunctionLocal 1
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
-  0018    | GetConstant 1: {_0_}
+  0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
   0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
@@ -1989,7 +1989,7 @@
   0011    | CallFunctionLocal 1
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
-  0018    | GetConstant 1: {_0_}
+  0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
   0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
@@ -2074,7 +2074,7 @@
   0011    | CallFunctionLocal 1
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
-  0018    | GetConstant 1: {_0_}
+  0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
   0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
@@ -2159,7 +2159,7 @@
   0011    | CallFunctionLocal 1
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
-  0018    | GetConstant 1: {_0_}
+  0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
   0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
@@ -2238,7 +2238,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
-  0009    | GetConstant 2: [_]
+  0009    | GetConstantMutable 2: [_]
   0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
@@ -2310,7 +2310,7 @@
   0011    | CallFunctionLocal 1
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
-  0018    | GetConstant 1: {_0_}
+  0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
   0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0

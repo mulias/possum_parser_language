@@ -1991,11 +1991,16 @@ pub const Compiler = struct {
         }
 
         var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
+        const constant_index = self.ir().nextIndex();
         try self.writeConstant(module_id, array.dyn.elem(), region);
 
+        var mutated = false;
         for (elements.items, 0..) |element, index| {
-            try self.writeArrayElem(module_id, array, element, @intCast(index), region);
+            if (try self.writeArrayElem(module_id, array, element, @intCast(index), region)) {
+                mutated = true;
+            }
         }
+        if (mutated) self.ir().patchConstantMutable(constant_index);
     }
 
     fn appendDynamicValue(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8) !void {
@@ -2011,26 +2016,34 @@ pub const Compiler = struct {
         try array.append(self.vm, try self.placeholderVar());
     }
 
-    fn writeArrayElem(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) Error!void {
+    // Returns true when the element is dynamic: an InsertAtIndex was
+    // emitted for it, so the constant array will be mutated at runtime.
+    fn writeArrayElem(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) Error!bool {
         switch (rnode.node) {
             .false => {
                 try array.append(self.vm, Elem.boolean(false));
+                return false;
             },
             .true => {
                 try array.append(self.vm, Elem.boolean(true));
+                return false;
             },
             .null => {
                 try array.append(self.vm, Elem.nullConst);
+                return false;
             },
             .number_float => |f| {
                 try array.append(self.vm, Elem.numberFloat(f));
+                return false;
             },
             .number_string => |ns| {
                 try array.append(self.vm, try self.numberStringNodeToElem(ns.number, ns.negated));
+                return false;
             },
             .string => |s| {
                 const sid = try self.vm.strings.insert(s);
                 try array.append(self.vm, Elem.string(sid));
+                return false;
             },
             .identifier => |ident| {
                 // Try to resolve as a global constant
@@ -2039,12 +2052,13 @@ pub const Compiler = struct {
                         // If it's not a function, we can inline the constant value
                         if (!globalElem.isDynType(.Function)) {
                             try array.append(self.vm, globalElem);
-                            return;
+                            return false;
                         }
                     }
                 }
                 // Fall back to dynamic value for locals and functions
                 try self.appendDynamicValue(module_id, array, rnode, index);
+                return true;
             },
             .function_call,
             .merge,
@@ -2054,14 +2068,19 @@ pub const Compiler = struct {
             .take_right,
             .repeat,
             .destructure,
-            => try self.appendDynamicValue(module_id, array, rnode, index),
+            => {
+                try self.appendDynamicValue(module_id, array, rnode, index);
+                return true;
+            },
             .array => |elements| {
                 // Special case: empty arrays should be treated as literals
                 if (elements.items.len == 0) {
                     var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
                     try array.append(self.vm, emptyArray.dyn.elem());
+                    return false;
                 } else {
                     try self.appendDynamicValue(module_id, array, rnode, index);
+                    return true;
                 }
             },
             .object => |pairs| {
@@ -2069,14 +2088,19 @@ pub const Compiler = struct {
                 if (pairs.items.len == 0) {
                     var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
                     try array.append(self.vm, emptyObject.dyn.elem());
+                    return false;
                 } else {
                     try self.appendDynamicValue(module_id, array, rnode, index);
+                    return true;
                 }
             },
-            .string_template => try self.appendDynamicValue(module_id, array, rnode, index),
-            .conditional => try self.appendDynamicValue(module_id, array, rnode, index),
+            .string_template, .conditional => {
+                try self.appendDynamicValue(module_id, array, rnode, index);
+                return true;
+            },
             .negation => |inner| {
                 try self.negateAndAppendDynamicValue(module_id, array, inner, index, region);
+                return true;
             },
         }
     }
@@ -2087,8 +2111,10 @@ pub const Compiler = struct {
         }
 
         var object = try Elem.DynElem.Object.create(self.vm, 0);
+        const constant_index = self.ir().nextIndex();
         try self.writeConstant(module_id, object.dyn.elem(), region);
 
+        var mutated = false;
         for (pairs.items, 0..) |pair, index| {
             if (try self.literalPatternToElem(pair.key)) |key_elem| {
                 // Prevent GC before pair is inserted into object. The key
@@ -2106,11 +2132,14 @@ pub const Compiler = struct {
                     try object.put(self.vm, key_sid, val_elem);
                 } else {
                     try self.writeInsertObjectPair(module_id, pair, object, index);
+                    mutated = true;
                 }
             } else {
                 try self.writeInsertObjectPair(module_id, pair, object, index);
+                mutated = true;
             }
         }
+        if (mutated) self.ir().patchConstantMutable(constant_index);
     }
 
     fn writeInsertObjectPair(self: *Compiler, module_id: Module.Id, pair: Ast.Value.ObjectPair, object: *Elem.DynElem.Object, index: usize) !void {
