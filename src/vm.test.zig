@@ -2619,3 +2619,122 @@ test "repeat leaves the repeated value untouched" {
     try std.testing.expectEqual(@as(usize, 3), repeated.asDyn().asArray().len());
     try std.testing.expectEqual(@as(u32, 1), a.dyn.ref_count);
 }
+
+// Every DynElem allocation takes an id from vm.nextUniqueId, so the
+// uniqueIdCount delta across an operation is its heap allocation count.
+
+test "in-place array merge allocates nothing, copy merge allocates once" {
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, rc_config);
+        defer vm.deinit();
+
+        const a = try Elem.DynElem.Array.create(&vm, 1);
+        try a.append(&vm, Elem.numberFloat(1));
+        const b = try Elem.DynElem.Array.create(&vm, 1);
+        try b.append(&vm, Elem.numberFloat(2));
+
+        const before = vm.uniqueIdCount;
+        _ = (try Elem.merge(a.dyn.elem(), b.dyn.elem(), &vm)).?;
+        try std.testing.expectEqual(before, vm.uniqueIdCount);
+    }
+    {
+        var vm = VM.create();
+        var no_fast_paths = rc_config;
+        no_fast_paths.rc_fast_paths = false;
+        try vm.init(allocator, writers, no_fast_paths);
+        defer vm.deinit();
+
+        const a = try Elem.DynElem.Array.create(&vm, 1);
+        try a.append(&vm, Elem.numberFloat(1));
+        const b = try Elem.DynElem.Array.create(&vm, 1);
+        try b.append(&vm, Elem.numberFloat(2));
+
+        const before = vm.uniqueIdCount;
+        _ = (try Elem.merge(a.dyn.elem(), b.dyn.elem(), &vm)).?;
+        try std.testing.expectEqual(before + 1, vm.uniqueIdCount);
+    }
+}
+
+test "array repeat allocates one accumulator with fast paths, one per merge without" {
+    // Iteration 1 is the null-identity merge (no allocation). With fast
+    // paths, iteration 2 copies into a fresh accumulator and every later
+    // iteration appends in place. Without, every iteration from 2 on
+    // copies.
+    const count = 50;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, rc_config);
+        defer vm.deinit();
+
+        const a = try Elem.DynElem.Array.create(&vm, 1);
+        try a.append(&vm, Elem.numberFloat(1));
+
+        const before = vm.uniqueIdCount;
+        _ = (try Elem.repeat(a.dyn.elem(), Elem.numberFloat(count), &vm)).?;
+        try std.testing.expectEqual(before + 1, vm.uniqueIdCount);
+    }
+    {
+        var vm = VM.create();
+        var no_fast_paths = rc_config;
+        no_fast_paths.rc_fast_paths = false;
+        try vm.init(allocator, writers, no_fast_paths);
+        defer vm.deinit();
+
+        const a = try Elem.DynElem.Array.create(&vm, 1);
+        try a.append(&vm, Elem.numberFloat(1));
+
+        const before = vm.uniqueIdCount;
+        _ = (try Elem.repeat(a.dyn.elem(), Elem.numberFloat(count), &vm)).?;
+        try std.testing.expectEqual(before + count - 1, vm.uniqueIdCount);
+    }
+}
+
+test "string repeat allocates one buffer with fast paths, one per merge without" {
+    const count = 50;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, rc_config);
+        defer vm.deinit();
+
+        const ab = Elem.string(try vm.strings.insert("ab"));
+        const before = vm.uniqueIdCount;
+        _ = (try Elem.repeat(ab, Elem.numberFloat(count), &vm)).?;
+        try std.testing.expectEqual(before + 1, vm.uniqueIdCount);
+    }
+    {
+        var vm = VM.create();
+        var no_fast_paths = rc_config;
+        no_fast_paths.rc_fast_paths = false;
+        try vm.init(allocator, writers, no_fast_paths);
+        defer vm.deinit();
+
+        const ab = Elem.string(try vm.strings.insert("ab"));
+        const before = vm.uniqueIdCount;
+        _ = (try Elem.repeat(ab, Elem.numberFloat(count), &vm)).?;
+        try std.testing.expectEqual(before + count - 1, vm.uniqueIdCount);
+    }
+}
+
+test "a full program allocates fewer dyns with fast paths than without" {
+    // Identical source and input, so compile-time allocations match and
+    // the difference is runtime merge copies.
+    const parser =
+        \\("a" $ [1]) * 20 $ "ok"
+    ;
+    const input = "aaaaaaaaaaaaaaaaaaaa";
+
+    var vm_fast = VM.create();
+    try vm_fast.init(allocator, writers, rc_config);
+    defer vm_fast.deinit();
+    _ = try vm_fast.interpret("test", parser, input);
+
+    var vm_copy = VM.create();
+    var no_fast_paths = rc_config;
+    no_fast_paths.rc_fast_paths = false;
+    try vm_copy.init(allocator, writers, no_fast_paths);
+    defer vm_copy.deinit();
+    _ = try vm_copy.interpret("test", parser, input);
+
+    try std.testing.expect(vm_fast.uniqueIdCount < vm_copy.uniqueIdCount);
+}
