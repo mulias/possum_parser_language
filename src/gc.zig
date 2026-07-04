@@ -318,6 +318,15 @@ pub const GC = struct {
     }
 
     fn sweep(self: *GC) void {
+        // A dead holder's child handles die with it. Releasing them before
+        // any destruction (children may themselves be dead and about to be
+        // freed) restores precision for the survivors: a value whose only
+        // extra holder was garbage becomes unique again.
+        var unmarked = self.nextDyn;
+        while (unmarked) |d| : (unmarked = d.next) {
+            if (!d.isMarked) releaseChildren(d);
+        }
+
         var previous: ?*Elem.DynElem = null;
         var maybeObject = self.nextDyn;
         while (maybeObject) |object| {
@@ -345,6 +354,26 @@ pub const GC = struct {
 
                 unreached.destroy(self.vm);
             }
+        }
+    }
+
+    fn releaseChildren(dyn: *Elem.DynElem) void {
+        switch (dyn.dynType) {
+            .Array => {
+                for (dyn.asArray().elems.items) |item| item.release();
+            },
+            .Object => {
+                var iter = dyn.asObject().members.iterator();
+                while (iter.next()) |entry| entry.value_ptr.*.release();
+            },
+            .Closure => {
+                const closure = dyn.asClosure();
+                closure.function.dyn.release();
+                for (closure.captures) |maybe_elem| {
+                    if (maybe_elem) |item| item.release();
+                }
+            },
+            .String, .Function, .NativeCode => {},
         }
     }
 

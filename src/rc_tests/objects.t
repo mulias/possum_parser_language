@@ -26,7 +26,7 @@ these counts.
   ===== memory report =====
   dyns created:      49
   dyns live:         39 (string 0, array 2, object 2, function 19, native 16, closure 0)
-  live ref counts:   unique 1, shared 1, immortal 37
+  live ref counts:   unique 2, shared 0, immortal 37
   merges:            0 in place, 2 copied
   inserts:           0 in place, 9 copied
   gc runs:           0
