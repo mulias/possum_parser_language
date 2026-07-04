@@ -265,7 +265,7 @@ pub const Ir = struct {
         return err;
     }
 
-    fn operandOp(operand: Operand) OpCode {
+    pub fn operandOp(operand: Operand) OpCode {
         return switch (operand) {
             .none => |op| op,
             .byte => |b| b.op,
@@ -280,7 +280,7 @@ pub const Ir = struct {
         };
     }
 
-    fn localSlotOperand(op: OpCode, operand: Operand) ?u32 {
+    pub fn localSlotOperand(op: OpCode, operand: Operand) ?u32 {
         return switch (op) {
             .CallFunctionLocal,
             .CallTailFunctionLocal,
