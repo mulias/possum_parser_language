@@ -104,22 +104,36 @@ fn instructionReads(operand: Ir.Operand, pattern_reads: []const SlotSet) SlotSet
     }
 }
 
+// The four invariants relied on here are enforced by Ir.verify, which is
+// gated to Debug builds. In Release a compiler emission bug bypasses that
+// clean panic: without the guarantees this would index past the end, read
+// an unpatched target, or hit an unreachable below, producing garbage death
+// sets instead.
 fn liveOut(insns: []const Ir.Insn, live_in: []const SlotSet, i: usize) SlotSet {
     const operand = insns[i].operand;
     switch (Ir.operandOp(operand).stackEffect()) {
+        // Invariant: a fixed/call op is never the last instruction — a
+        // terminal always follows on this path — so `i + 1` is in bounds.
         .fixed, .call => return live_in[i + 1],
         .branch => |branch| {
+            // Invariant: only jump/jump_back operands carry a .branch stack
+            // effect, so no other operand reaches this switch.
             const target = switch (operand) {
                 .jump => |j| j.target,
                 .jump_back => |j| j.target,
                 else => unreachable,
             };
+            // Invariant: every jump is patched before liveness runs, so its
+            // target is a valid in-bounds instruction index.
             std.debug.assert(target != Ir.unpatched_jump);
             var out = live_in[target];
             if (branch.fallthrough != null) out.setUnion(live_in[i + 1]);
             return out;
         },
         .terminal => return SlotSet.initEmpty(),
+        // Invariant: .unknown belongs only to NativeCode, which is
+        // hand-written into builtin chunks and never emitted through the IR
+        // this analysis walks.
         .unknown => unreachable,
     }
 }
