@@ -847,7 +847,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 3: Elem
   0006    | TakeRight 6 -> 15
-  0009    | GetConstant 57: [_]
+  0009    | GetConstantMutable 57: [_]
   0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
@@ -1327,7 +1327,7 @@
   0011    | CallFunctionLocal 1
   0013    | Destructure 17: E2
   0015    | TakeRight 15 -> 28
-  0018    | GetConstant 84: [_, _]
+  0018    | GetConstantMutable 84: [_, _]
   0020    | GetBoundLocalMove 2
   0022    | InsertAtIndex 0
   0024    | GetBoundLocalMove 3
@@ -1348,7 +1348,7 @@
   0016    | CallFunctionLocal 2
   0018    | Destructure 19: E2
   0020    | TakeRight 20 -> 33
-  0023    | GetConstant 85: [_, _]
+  0023    | GetConstantMutable 85: [_, _]
   0025    | GetBoundLocalMove 3
   0027    | InsertAtIndex 0
   0029    | GetBoundLocalMove 4
@@ -1375,7 +1375,7 @@
   0020    | CallFunctionLocal 2
   0022    | Destructure 22: E3
   0024    | TakeRight 24 -> 41
-  0027    | GetConstant 87: [_, _, _]
+  0027    | GetConstantMutable 87: [_, _, _]
   0029    | GetBoundLocalMove 3
   0031    | InsertAtIndex 0
   0033    | GetBoundLocalMove 4
@@ -1408,7 +1408,7 @@
   0030    | CallFunctionLocal 4
   0032    | Destructure 25: E3
   0034    | TakeRight 34 -> 51
-  0037    | GetConstant 88: [_, _, _]
+  0037    | GetConstantMutable 88: [_, _, _]
   0039    | GetBoundLocalMove 5
   0041    | InsertAtIndex 0
   0043    | GetBoundLocalMove 6
@@ -1620,7 +1620,7 @@
   0039    | GetBoundLocalMove 3
   0041    | PushNumberOne
   0042    | GetBoundLocalMove 4
-  0044    | GetConstant 100: [_]
+  0044    | GetConstantMutable 100: [_]
   0046    | GetBoundLocalMove 6
   0048    | InsertAtIndex 0
   0050    | PushEmptyArray
@@ -1689,7 +1689,7 @@
   0068    | CallTailFunction 6
   0070    | Jump 70 -> 93
   0073    | GetConstant 34: const
-  0075    | GetConstant 104: [_, _]
+  0075    | GetConstantMutable 104: [_, _]
   0077    | GetConstant 103: Num.Max
   0079    | GetBoundLocalMove 3
   0081    | GetBoundLocalMove 5
@@ -1752,7 +1752,7 @@
   0035    | PushEmptyArray
   0036    | GetBoundLocalMove 6
   0038    | Merge
-  0039    | GetConstant 107: [_]
+  0039    | GetConstantMutable 107: [_]
   0041    | GetBoundLocalMove 8
   0043    | InsertAtIndex 0
   0045    | Merge
@@ -1772,13 +1772,13 @@
   0074    | GetBoundLocal 3
   0076    | PushNumberOne
   0077    | GetBoundLocal 5
-  0079    | GetConstant 108: [_]
+  0079    | GetConstantMutable 108: [_]
   0081    | GetBoundLocalMove 9
   0083    | InsertAtIndex 0
   0085    | PushEmptyArray
   0086    | GetBoundLocalMove 7
   0088    | Merge
-  0089    | GetConstant 109: [_]
+  0089    | GetConstantMutable 109: [_]
   0091    | GetConstant 110: Array.AppendN
   0093    | GetBoundLocalMove 6
   0095    | GetBoundLocalMove 3
@@ -1795,7 +1795,7 @@
   0115    | PushEmptyArray
   0116    | GetBoundLocalMove 7
   0118    | Merge
-  0119    | GetConstant 111: [_]
+  0119    | GetConstantMutable 111: [_]
   0121    | GetConstant 110: Array.AppendN
   0123    | GetBoundLocalMove 6
   0125    | GetBoundLocalMove 3
@@ -1814,7 +1814,7 @@
   Array.AppendN(A, Val, N) = A + ([Val] * N)
   ========================================
   0000    | GetBoundLocalMove 0
-  0002    | GetConstant 112: [_]
+  0002    | GetConstantMutable 112: [_]
   0004    | GetBoundLocalMove 1
   0006    | InsertAtIndex 0
   0008    | GetBoundLocalMove 2
@@ -1877,7 +1877,7 @@
   0031    | PushEmptyArray
   0032    | GetBoundLocalMove 1
   0034    | Merge
-  0035    | GetConstant 121: [_]
+  0035    | GetConstantMutable 121: [_]
   0037    | GetBoundLocalMove 2
   0039    | InsertAtIndex 0
   0041    | Merge
@@ -1904,7 +1904,7 @@
   0018    | TakeRight 18 -> 33
   0021    | GetConstant 124: __Table.FirstPerRow
   0023    | GetBoundLocalMove 2
-  0025    | GetConstant 125: [_]
+  0025    | GetConstantMutable 125: [_]
   0027    | GetBoundLocalMove 3
   0029    | InsertAtIndex 0
   0031    | CallTailFunction 2
@@ -1933,7 +1933,7 @@
   0026    | PushEmptyArray
   0027    | GetBoundLocalMove 1
   0029    | Merge
-  0030    | GetConstant 126: [_]
+  0030    | GetConstantMutable 126: [_]
   0032    | GetBoundLocalMove 4
   0034    | InsertAtIndex 0
   0036    | Merge
@@ -1979,7 +1979,7 @@
   0027    | PushEmptyArray
   0028    | GetBoundLocalMove 1
   0030    | Merge
-  0031    | GetConstant 129: [_]
+  0031    | GetConstantMutable 129: [_]
   0033    | GetBoundLocalMove 5
   0035    | InsertAtIndex 0
   0037    | Merge
@@ -2064,7 +2064,7 @@
   0011    | CallFunctionLocal 1
   0013    | Destructure 42: V
   0015    | TakeRight 15 -> 26
-  0018    | GetConstant 133: {_0_}
+  0018    | GetConstantMutable 133: {_0_}
   0020    | GetBoundLocalMove 2
   0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
@@ -2133,7 +2133,7 @@
   0016    | CallFunctionLocal 2
   0018    | Destructure 44: V
   0020    | TakeRight 20 -> 31
-  0023    | GetConstant 135: {_0_}
+  0023    | GetConstantMutable 135: {_0_}
   0025    | GetBoundLocalMove 3
   0027    | GetBoundLocalMove 4
   0029    | InsertKeyVal 0
@@ -2279,7 +2279,7 @@
   0002    | CallFunctionLocal 1
   0004    | Destructure 45: Value
   0006    | TakeRight 6 -> 17
-  0009    | GetConstant 146: {_0_}
+  0009    | GetConstantMutable 146: {_0_}
   0011    | GetBoundLocalMove 0
   0013    | GetBoundLocalMove 2
   0015    | InsertKeyVal 0
@@ -2300,7 +2300,7 @@
   0011    | CallFunctionLocal 3
   0013    | Destructure 47: V2
   0015    | TakeRight 15 -> 32
-  0018    | GetConstant 149: {_0_, _1_}
+  0018    | GetConstantMutable 149: {_0_, _1_}
   0020    | GetBoundLocalMove 0
   0022    | GetBoundLocalMove 4
   0024    | InsertKeyVal 0
@@ -2326,7 +2326,7 @@
   0016    | CallFunctionLocal 4
   0018    | Destructure 49: V2
   0020    | TakeRight 20 -> 37
-  0023    | GetConstant 150: {_0_, _1_}
+  0023    | GetConstantMutable 150: {_0_, _1_}
   0025    | GetBoundLocalMove 0
   0027    | GetBoundLocalMove 5
   0029    | InsertKeyVal 0
@@ -2355,7 +2355,7 @@
   0020    | CallFunctionLocal 5
   0022    | Destructure 52: V3
   0024    | TakeRight 24 -> 47
-  0027    | GetConstant 152: {_0_, _1_, _2_}
+  0027    | GetConstantMutable 152: {_0_, _1_, _2_}
   0029    | GetBoundLocalMove 0
   0031    | GetBoundLocalMove 6
   0033    | InsertKeyVal 0
@@ -2391,7 +2391,7 @@
   0030    | CallFunctionLocal 7
   0032    | Destructure 55: V3
   0034    | TakeRight 34 -> 57
-  0037    | GetConstant 153: {_0_, _1_, _2_}
+  0037    | GetConstantMutable 153: {_0_, _1_, _2_}
   0039    | GetBoundLocalMove 0
   0041    | GetBoundLocalMove 8
   0043    | InsertKeyVal 0
@@ -3731,7 +3731,7 @@
     "type": Obj.Get(_Toml.Doc.Type(Doc), Key),
   }
   ========================================
-  0000    | GetConstant2 268: {_0_, _1_}
+  0000    | GetConstantMutable2 268: {_0_, _1_}
   0003    | GetConstant2 269: "value"
   0006    | GetConstant2 265: Obj.Get
   0009    | GetConstant 217: _Toml.Doc.Value
@@ -3780,7 +3780,7 @@
   0003    | GetBoundLocal 0
   0005    | CallFunction 1
   0007    | TakeRight 7 -> 54
-  0010    | GetConstant2 271: {_0_, _1_}
+  0010    | GetConstantMutable2 271: {_0_, _1_}
   0013    | GetConstant2 269: "value"
   0016    | GetConstant2 272: Obj.Put
   0019    | GetConstant 217: _Toml.Doc.Value
@@ -3808,7 +3808,7 @@
   0000    | PushEmptyObject
   0001    | GetBoundLocalMove 0
   0003    | Merge
-  0004    | GetConstant2 273: {_0_}
+  0004    | GetConstantMutable2 273: {_0_}
   0007    | GetBoundLocalMove 1
   0009    | GetBoundLocalMove 2
   0011    | InsertKeyVal 0
@@ -4094,7 +4094,7 @@
   0024    | PushEmptyArray
   0025    | GetBoundLocalMove 3
   0027    | Merge
-  0028    | GetConstant2 293: [_]
+  0028    | GetConstantMutable2 293: [_]
   0031    | GetBoundLocalMove 2
   0033    | InsertAtIndex 0
   0035    | Merge
@@ -5437,7 +5437,7 @@
   0002    | CallFunctionLocal 2
   0004    | Destructure 86: Value
   0006    | TakeRight 6 -> 33
-  0009    | GetConstant2 389: {_0_, _1_, _2_}
+  0009    | GetConstantMutable2 389: {_0_, _1_, _2_}
   0012    | GetConstant2 266: "type"
   0015    | GetBoundLocalMove 0
   0017    | InsertKeyVal 0
@@ -5510,7 +5510,7 @@
   0050    | PushEmptyObject
   0051    | GetBoundLocal 6
   0053    | Merge
-  0054    | GetConstant2 396: {_0_}
+  0054    | GetConstantMutable2 396: {_0_}
   0057    | GetConstant2 397: "prefixed"
   0060    | GetBoundLocal 7
   0062    | InsertKeyVal 0
@@ -5585,7 +5585,7 @@
   0052    | PushEmptyObject
   0053    | GetBoundLocal 7
   0055    | Merge
-  0056    | GetConstant2 405: {_0_}
+  0056    | GetConstantMutable2 405: {_0_}
   0059    | GetConstant2 406: "postfixed"
   0062    | GetBoundLocal 5
   0064    | InsertKeyVal 0
@@ -5626,7 +5626,7 @@
   0139    | PushEmptyObject
   0140    | GetBoundLocalMove 9
   0142    | Merge
-  0143    | GetConstant2 407: {_0_, _1_}
+  0143    | GetConstantMutable2 407: {_0_, _1_}
   0146    | GetConstant2 408: "left"
   0149    | GetBoundLocal 5
   0151    | InsertKeyVal 0
@@ -5675,7 +5675,7 @@
   0009    | GetBoundLocalMove 0
   0011    | Destructure 95: ({"startpos": StartPos} + _)
   0013    | ConditionalThen 13 -> 29
-  0016    | GetConstant2 412: {_0_}
+  0016    | GetConstantMutable2 412: {_0_}
   0019    | GetConstant2 413: "startpos"
   0022    | GetBoundLocalMove 2
   0024    | InsertKeyVal 0
@@ -5686,7 +5686,7 @@
   0032    | GetBoundLocalMove 1
   0034    | Destructure 96: ({"endpos": EndPos} + _)
   0036    | ConditionalThen 36 -> 52
-  0039    | GetConstant2 414: {_0_}
+  0039    | GetConstantMutable2 414: {_0_}
   0042    | GetConstant2 415: "endpos"
   0045    | GetBoundLocalMove 4
   0047    | InsertKeyVal 0
@@ -5704,7 +5704,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 97: Value
   0006    | TakeRight 6 -> 26
-  0009    | GetConstant2 416: {_0_, _1_}
+  0009    | GetConstantMutable2 416: {_0_, _1_}
   0012    | GetConstant2 266: "type"
   0015    | GetBoundLocalMove 1
   0017    | InsertKeyVal 0
@@ -5720,7 +5720,7 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 22
-  0005    | GetConstant2 417: {_0_, _1_}
+  0005    | GetConstantMutable2 417: {_0_, _1_}
   0008    | GetConstant2 266: "type"
   0011    | GetBoundLocalMove 1
   0013    | InsertKeyVal 0
@@ -5736,12 +5736,12 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 31
-  0005    | GetConstant2 419: {_0_, _1_}
+  0005    | GetConstantMutable2 419: {_0_, _1_}
   0008    | GetConstant2 266: "type"
   0011    | GetBoundLocalMove 1
   0013    | InsertKeyVal 0
   0015    | GetConstant2 418: "power"
-  0018    | GetConstant2 420: [_, _]
+  0018    | GetConstantMutable2 420: [_, _]
   0021    | GetBoundLocalMove 2
   0023    | InsertAtIndex 0
   0025    | GetBoundLocalMove 3
@@ -5756,7 +5756,7 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 22
-  0005    | GetConstant2 421: {_0_, _1_}
+  0005    | GetConstantMutable2 421: {_0_, _1_}
   0008    | GetConstant2 266: "type"
   0011    | GetBoundLocalMove 1
   0013    | InsertKeyVal 0
@@ -5788,7 +5788,7 @@
   0030    | PushEmptyObject
   0031    | GetBoundLocalMove 2
   0033    | Merge
-  0034    | GetConstant2 424: {_0_, _1_}
+  0034    | GetConstantMutable2 424: {_0_, _1_}
   0037    | GetConstant2 413: "startpos"
   0040    | GetBoundLocalMove 1
   0042    | InsertKeyVal 0
@@ -5835,9 +5835,9 @@
   0054    | PushEmptyObject
   0055    | GetBoundLocalMove 3
   0057    | Merge
-  0058    | GetConstant2 431: {_0_, _1_}
+  0058    | GetConstantMutable2 431: {_0_, _1_}
   0061    | GetConstant2 413: "startpos"
-  0064    | GetConstant2 432: {_0_, _1_}
+  0064    | GetConstantMutable2 432: {_0_, _1_}
   0067    | GetConstant2 433: "line"
   0070    | GetBoundLocalMove 1
   0072    | InsertKeyVal 0
@@ -5846,7 +5846,7 @@
   0079    | InsertKeyVal 1
   0081    | InsertKeyVal 0
   0083    | GetConstant2 415: "endpos"
-  0086    | GetConstant2 434: {_0_, _1_}
+  0086    | GetConstantMutable2 434: {_0_, _1_}
   0089    | GetConstant2 433: "line"
   0092    | GetBoundLocalMove 4
   0094    | InsertKeyVal 0
@@ -5950,7 +5950,7 @@
   0009    | ConditionalThen 9 -> 32
   0012    | GetConstant2 436: _Array.Reverse
   0015    | GetBoundLocalMove 3
-  0017    | GetConstant2 437: [_]
+  0017    | GetConstantMutable2 437: [_]
   0020    | GetBoundLocalMove 2
   0022    | InsertAtIndex 0
   0024    | GetBoundLocalMove 1
@@ -5988,7 +5988,7 @@
   0019    | PushEmptyArray
   0020    | GetBoundLocalMove 2
   0022    | Merge
-  0023    | GetConstant2 439: [_]
+  0023    | GetConstantMutable2 439: [_]
   0026    | GetBoundLocalMove 1
   0028    | GetBoundLocalMove 3
   0030    | CallFunction 1
@@ -6034,7 +6034,7 @@
   0029    | PushEmptyArray
   0030    | GetBoundLocalMove 2
   0032    | Merge
-  0033    | GetConstant2 441: [_]
+  0033    | GetConstantMutable2 441: [_]
   0036    | GetBoundLocalMove 3
   0038    | InsertAtIndex 0
   0040    | Merge
@@ -6082,7 +6082,7 @@
   0034    | PushEmptyArray
   0035    | GetBoundLocalMove 2
   0037    | Merge
-  0038    | GetConstant2 443: [_]
+  0038    | GetConstantMutable2 443: [_]
   0041    | GetBoundLocalMove 3
   0043    | InsertAtIndex 0
   0045    | Merge
@@ -6215,7 +6215,7 @@
   0032    | PushEmptyObject
   0033    | GetBoundLocalMove 2
   0035    | Merge
-  0036    | GetConstant2 450: {_0_}
+  0036    | GetConstantMutable2 450: {_0_}
   0039    | GetBoundLocalMove 3
   0041    | GetBoundLocalMove 5
   0043    | InsertKeyVal 0
@@ -6260,8 +6260,8 @@
   0034    | PushEmptyArray
   0035    | GetBoundLocalMove 2
   0037    | Merge
-  0038    | GetConstant2 456: [_]
-  0041    | GetConstant2 457: [_, _]
+  0038    | GetConstantMutable2 456: [_]
+  0041    | GetConstantMutable2 457: [_, _]
   0044    | GetBoundLocalMove 3
   0046    | InsertAtIndex 0
   0048    | GetBoundLocalMove 5
@@ -6326,7 +6326,7 @@
   0019    | PushEmptyArray
   0020    | GetBoundLocalMove 2
   0022    | Merge
-  0023    | GetConstant2 461: [_]
+  0023    | GetConstantMutable2 461: [_]
   0026    | GetConstant2 462: Array.ZipObject
   0029    | GetBoundLocalMove 0
   0031    | GetBoundLocalMove 3
@@ -6394,7 +6394,7 @@
   0018    | PushEmptyArray
   0019    | GetBoundLocalMove 1
   0021    | Merge
-  0022    | GetConstant2 465: [_]
+  0022    | GetConstantMutable2 465: [_]
   0025    | GetBoundLocalMove 2
   0027    | InsertAtIndex 0
   0029    | Merge
@@ -6429,7 +6429,7 @@
   0018    | PushEmptyArray
   0019    | GetBoundLocalMove 1
   0021    | Merge
-  0022    | GetConstant2 467: [_]
+  0022    | GetConstantMutable2 467: [_]
   0025    | GetBoundLocalMove 3
   0027    | InsertAtIndex 0
   0029    | Merge

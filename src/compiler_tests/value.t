@@ -5,7 +5,7 @@
   =================@main==================
   "" $ [1, 2, [1+1+1]]
   ========================================
-  0000    | GetConstant 0: [1, 2, _]
+  0000    | GetConstantMutable 0: [1, 2, _]
   0002    | GetConstant 1: [3]
   0004    | InsertAtIndex 2
   0006    | End
@@ -33,7 +33,7 @@
   0002    | ParseOne
   0003    | Destructure 0: A
   0005    | TakeRight 5 -> 14
-  0008    | GetConstant 0: [_]
+  0008    | GetConstantMutable 0: [_]
   0010    | GetBoundLocalMove 0
   0012    | InsertAtIndex 0
   0014    | End
@@ -48,7 +48,7 @@
   0002    | ParseTwo
   0003    | Destructure 0: A
   0005    | TakeRight 5 -> 14
-  0008    | GetConstant 0: [1, _]
+  0008    | GetConstantMutable 0: [1, _]
   0010    | GetConstant 1: [2]
   0012    | InsertAtIndex 1
   0014    | End
@@ -72,8 +72,8 @@
   0002    | ParseOne
   0003    | Destructure 0: A
   0005    | TakeRight 5 -> 18
-  0008    | GetConstant 0: [_]
-  0010    | GetConstant 1: [_]
+  0008    | GetConstantMutable 0: [_]
+  0010    | GetConstantMutable 1: [_]
   0012    | GetBoundLocalMove 0
   0014    | InsertAtIndex 0
   0016    | InsertAtIndex 0
@@ -98,7 +98,7 @@
   =================@main==================
   "" $ [Foo]
   ========================================
-  0000    | GetConstant 0: [_]
+  0000    | GetConstantMutable 0: [_]
   0002    | CallFunctionConstant 1: Foo
   0004    | InsertAtIndex 0
   0006    | End
@@ -146,7 +146,7 @@
   0010    | ParseTwo
   0011    | Destructure 1: B
   0013    | TakeRight 13 -> 30
-  0016    | GetConstant 0: {_0_, _1_}
+  0016    | GetConstantMutable 0: {_0_, _1_}
   0018    | PushChar 'a'
   0020    | GetBoundLocalMove 0
   0022    | InsertKeyVal 0
@@ -187,9 +187,9 @@
   const({"a": [{"b": "foo"}]})
   ========================================
   0000    | GetConstant 0: const
-  0002    | GetConstant 1: {_0_}
+  0002    | GetConstantMutable 1: {_0_}
   0004    | PushChar 'a'
-  0006    | GetConstant 2: [_]
+  0006    | GetConstantMutable 2: [_]
   0008    | GetConstant 3: {"b": "foo"}
   0010    | InsertAtIndex 0
   0012    | InsertKeyVal 0
@@ -216,7 +216,7 @@
   0000    | PushEmptyObject
   0001    | GetBoundLocalMove 0
   0003    | Merge
-  0004    | GetConstant 0: {_0_}
+  0004    | GetConstantMutable 0: {_0_}
   0006    | GetBoundLocalMove 1
   0008    | GetBoundLocalMove 2
   0010    | InsertKeyVal 0
@@ -266,7 +266,7 @@
   =================@main==================
   "" $ [1 ? 2 : 3]
   ========================================
-  0000    | GetConstant 0: [_]
+  0000    | GetConstantMutable 0: [_]
   0002    | SetInputMark
   0003    | PushNumberOne
   0004    | ConditionalThen 4 -> 11
@@ -282,7 +282,7 @@
   =================@main==================
   "" $ [1, -X, 3]
   ========================================
-  0000    | GetConstant 0: [1, _, 3]
+  0000    | GetConstantMutable 0: [1, _, 3]
   0002    | PushNumberOne
   0003    | NegateNumber
   0004    | InsertAtIndex 1
@@ -363,7 +363,7 @@
   ===================A====================
   A = [Foo]
   ========================================
-  0000    | GetConstant 0: [_]
+  0000    | GetConstantMutable 0: [_]
   0002    | GetConstant 1: Foo
   0004    | InsertAtIndex 0
   0006    | End
@@ -372,7 +372,7 @@
   =================@main==================
   "" $ [A]
   ========================================
-  0000    | GetConstant 2: [_]
+  0000    | GetConstantMutable 2: [_]
   0002    | CallFunctionConstant 3: A
   0004    | InsertAtIndex 0
   0006    | End

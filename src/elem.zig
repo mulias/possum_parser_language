@@ -720,10 +720,10 @@ pub const Elem = packed union {
                 },
                 .Array => {
                     const a1 = elemA.asDyn().asArray();
-                    if (vm.config.rc_fast_paths and a1.dyn.isUnique() and elemB.isDynType(.Array)) {
+                    if (vm.config.rc_fast_paths and a1.dyn.isUniqueBesidesCache() and elemB.isDynType(.Array)) {
                         vm.rc_stats.merge_in_place += 1;
                         const a2 = elemB.asDyn().asArray();
-                        if (a2.dyn.isUnique()) {
+                        if (a2.dyn.isUniqueBesidesCache()) {
                             try a1.concatSteal(vm, a2);
                         } else {
                             try a1.concat(vm, a2);
@@ -737,7 +737,7 @@ pub const Elem = packed union {
                                 const a2 = elemB.asDyn().asArray();
                                 const a = try Elem.DynElem.Array.create(vm, a1.elems.items.len + a2.elems.items.len);
                                 try a.concat(vm, a1);
-                                if (vm.config.rc_fast_paths and a2.dyn.isUnique()) {
+                                if (vm.config.rc_fast_paths and a2.dyn.isUniqueBesidesCache()) {
                                     try a.concatSteal(vm, a2);
                                 } else {
                                     try a.concat(vm, a2);
@@ -751,10 +751,10 @@ pub const Elem = packed union {
                 },
                 .Object => {
                     const o1 = elemA.asDyn().asObject();
-                    if (vm.config.rc_fast_paths and o1.dyn.isUnique() and elemB.isDynType(.Object)) {
+                    if (vm.config.rc_fast_paths and o1.dyn.isUniqueBesidesCache() and elemB.isDynType(.Object)) {
                         vm.rc_stats.merge_in_place += 1;
                         const o2 = elemB.asDyn().asObject();
-                        if (o2.dyn.isUnique()) {
+                        if (o2.dyn.isUniqueBesidesCache()) {
                             try o1.concatSteal(vm, o2);
                         } else {
                             try o1.concat(vm, o2);
@@ -768,7 +768,7 @@ pub const Elem = packed union {
                                 const o2 = elemB.asDyn().asObject();
                                 const o = try Elem.DynElem.Object.create(vm, o1.members.count() + o2.members.count());
                                 try o.concat(vm, o1);
-                                if (vm.config.rc_fast_paths and o2.dyn.isUnique()) {
+                                if (vm.config.rc_fast_paths and o2.dyn.isUniqueBesidesCache()) {
                                     try o.concatSteal(vm, o2);
                                 } else {
                                     try o.concat(vm, o2);
@@ -1082,6 +1082,13 @@ pub const Elem = packed union {
         // GC frees memory. Born at 1: the creator's handle.
         ref_count: u32 = 1,
 
+        // Set while exactly one module mutable-constant slot holds a
+        // handle to this value. That slot is only read by
+        // GetConstantMutable, which re-checks the count, so an op
+        // holding this value as a stack operand at ref_count 2 owns the
+        // only other handle and may mutate in place.
+        cache_held: bool = false,
+
         // Values shared by construction (module constants, the empty
         // container singletons) are pinned at the saturating count and
         // never look unique.
@@ -1102,6 +1109,15 @@ pub const Elem = packed union {
         pub fn isUnique(self: *DynElem) bool {
             std.debug.assert(self.ref_count >= 1);
             return self.ref_count == 1;
+        }
+
+        // True when the caller's stack operand is the only handle apart
+        // from a mutable-constant cache slot. Only valid to call while
+        // holding the value as an operand: that handle plus the cache
+        // slot account for both counts, so no third holder exists.
+        pub fn isUniqueBesidesCache(self: *DynElem) bool {
+            std.debug.assert(self.ref_count >= 1);
+            return self.ref_count == 1 or (self.cache_held and self.ref_count == 2);
         }
 
         pub fn makeImmortal(self: *DynElem) void {
@@ -1320,9 +1336,22 @@ pub const Elem = packed union {
             // husk is emptied so its stale child handles can't be seen
             // by the audit or a later walk.
             pub fn concatSteal(self: *Array, vm: *VM, other: *Array) !void {
-                std.debug.assert(other.dyn.isUnique());
+                std.debug.assert(other.dyn.isUniqueBesidesCache());
                 try self.elems.appendSlice(vm.gc.allocator(), other.elems.items);
                 other.elems.clearRetainingCapacity();
+            }
+
+            // Reset a mutable-constant cache copy to match its template.
+            // Only valid while the cache slot holds the sole handle, so
+            // the current children are unobservable: release them and
+            // rebuild from the template. Handles every leftover state — a
+            // consumed copy emptied by concatSteal, a partial fill
+            // abandoned on failure, or a fully populated copy.
+            pub fn refreshFrom(self: *Array, vm: *VM, template: *Array) !void {
+                for (self.elems.items) |item| item.release();
+                self.elems.clearRetainingCapacity();
+                for (template.elems.items) |item| item.retain();
+                try self.elems.appendSlice(vm.gc.allocator(), template.elems.items);
             }
 
             pub fn len(self: *Array) usize {
@@ -1352,12 +1381,6 @@ pub const Elem = packed union {
                     .members = members,
                 };
 
-                return obj;
-            }
-
-            pub fn copy(vm: *VM, other: *Object) !*Object {
-                const obj = try create(vm, other.members.count());
-                try obj.concat(vm.gc.allocator(), other);
                 return obj;
             }
 
@@ -1423,7 +1446,7 @@ pub const Elem = packed union {
             // allocation (and thus no GC audit) can observe a value in
             // both containers mid-move.
             pub fn concatSteal(self: *Object, vm: *VM, other: *Object) !void {
-                std.debug.assert(other.dyn.isUnique());
+                std.debug.assert(other.dyn.isUniqueBesidesCache());
                 try self.members.ensureUnusedCapacity(vm.gc.allocator(), other.members.count());
                 var iterator = other.members.iterator();
                 while (iterator.next()) |entry| {
@@ -1432,6 +1455,14 @@ pub const Elem = packed union {
                     gop.value_ptr.* = entry.value_ptr.*;
                 }
                 other.members.clearRetainingCapacity();
+            }
+
+            // See Array.refreshFrom.
+            pub fn refreshFrom(self: *Object, vm: *VM, template: *Object) !void {
+                var iter = self.members.iterator();
+                while (iter.next()) |entry| entry.value_ptr.*.release();
+                self.members.clearRetainingCapacity();
+                try self.concat(vm, template);
             }
 
             pub fn put(self: *Object, vm: *VM, sid: StringTable.Id, value: Elem) !void {

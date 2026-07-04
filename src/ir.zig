@@ -34,6 +34,7 @@ pub const Ir = struct {
         byte_pair: struct { op: OpCode, byte1: u8, region1: Region, byte2: u8, region2: Region },
         long: struct { op: OpCode, value: u32 },
         get_constant: u24,
+        get_constant_mutable: u24,
         call_function_constant: u24,
         call_tail_function_constant: u24,
         destructure: u24,
@@ -53,6 +54,15 @@ pub const Ir = struct {
         const index = self.nextIndex();
         try self.instructions.append(allocator, .{ .operand = operand, .region = region });
         return index;
+    }
+
+    // Rewrite the constant push at `index` to push a mutable copy. The
+    // compiler only knows a container constant will be mutated by inserts
+    // after the push is emitted.
+    pub fn patchConstantMutable(self: *Ir, index: Index) void {
+        const insn = &self.instructions.items[index];
+        const idx = insn.operand.get_constant;
+        insn.operand = .{ .get_constant_mutable = idx };
     }
 
     // Point the jump at `index` to the next instruction to be emitted.
@@ -101,6 +111,7 @@ pub const Ir = struct {
                     try chunk.writeLong(allocator, l.value, region);
                 },
                 .get_constant => |idx| try writeIndexed(chunk, allocator, idx, .GetConstant, .GetConstant2, .GetConstant3, region),
+                .get_constant_mutable => |idx| try writeIndexed(chunk, allocator, idx, .GetConstantMutable, .GetConstantMutable2, .GetConstantMutable3, region),
                 .call_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallFunctionConstant, .CallFunctionConstant2, .CallFunctionConstant3, region),
                 .call_tail_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallTailFunctionConstant, .CallTailFunctionConstant2, .CallTailFunctionConstant3, region),
                 .destructure => |idx| try writeIndexed(chunk, allocator, idx, .Destructure, .Destructure2, .Destructure3, region),
@@ -148,6 +159,7 @@ pub const Ir = struct {
             .byte_pair => 3,
             .long => 5,
             .get_constant,
+            .get_constant_mutable,
             .call_function_constant,
             .call_tail_function_constant,
             .destructure,
@@ -272,6 +284,7 @@ pub const Ir = struct {
             .byte_pair => |b| b.op,
             .long => |l| l.op,
             .get_constant => .GetConstant,
+            .get_constant_mutable => .GetConstantMutable,
             .call_function_constant => .CallFunctionConstant,
             .call_tail_function_constant => .CallTailFunctionConstant,
             .destructure => .Destructure,

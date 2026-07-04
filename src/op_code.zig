@@ -34,6 +34,9 @@ pub const OpCode = enum(u8) {
     GetConstant,
     GetConstant2,
     GetConstant3,
+    GetConstantMutable,
+    GetConstantMutable2,
+    GetConstantMutable3,
     GetLocal,
     GetLocalMove,
     Increment,
@@ -143,6 +146,9 @@ pub const OpCode = enum(u8) {
             .GetConstant,
             .GetConstant2,
             .GetConstant3,
+            .GetConstantMutable,
+            .GetConstantMutable2,
+            .GetConstantMutable3,
             .GetLocal,
             .GetLocalMove,
             .ParseChar,
@@ -338,6 +344,15 @@ pub const OpCode = enum(u8) {
             .PushEmptyObject,
             => .{ .operands = .none, .result = .derived },
 
+            // Push a mutable copy of a container constant: a second
+            // handle to the reused cache entry, or a fresh copy whose
+            // extra cache-slot handle is added in the dispatch. With
+            // fast paths off, behaves exactly like GetConstant.
+            .GetConstantMutable,
+            .GetConstantMutable2,
+            .GetConstantMutable3,
+            => .{ .operands = .none, .result = .derived },
+
             // Parse results and pushed literals: value types or new Dyns
             // whose pushed handle is their first reference.
             .ParseChar,
@@ -505,15 +520,18 @@ pub const OpCode = enum(u8) {
             .CallFunctionConstant,
             .CallTailFunctionConstant,
             .GetConstant,
+            .GetConstantMutable,
             .NativeCode,
             => self.constantInstruction(chunk, vm, module, writer, offset),
             .CallFunctionConstant2,
             .CallTailFunctionConstant2,
             .GetConstant2,
+            .GetConstantMutable2,
             => self.constant2Instruction(chunk, vm, module, writer, offset),
             .CallFunctionConstant3,
             .CallTailFunctionConstant3,
             .GetConstant3,
+            .GetConstantMutable3,
             => self.constant3Instruction(chunk, vm, module, writer, offset),
             .Destructure,
             => self.patternInstruction(chunk, vm, module, writer, offset),

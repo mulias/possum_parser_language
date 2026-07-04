@@ -6,14 +6,15 @@ from a consumed unique rhs would flip that split.
   $ PRINT_MEMORY_REPORT=true possum -p '("a" -> C $ [[C, C]]) * 3 $ "ok"' -i 'aaa'
   "ok"
   ===== memory report =====
-  dyns created:      44
-  dyns live:         37 (string 0, array 2, object 0, function 19, native 16, closure 0)
-  live ref counts:   unique 0, shared 0, immortal 37
+  dyns created:      43
+  dyns live:         39 (string 0, array 4, object 0, function 19, native 16, closure 0)
+  live ref counts:   unique 2, shared 0, immortal 37
   merges:            2 in place, 0 copied
-  inserts:           3 in place, 6 copied
+  inserts:           9 in place, 0 copied
+  mutable constants: 1 reused, 5 copied
   gc runs:           0
   strings interned:  529
-  bytes in use:      3392
+  bytes in use:      3760
 
 Same build with the small result kept live, to pin the unique/shared split
 of the survivors.
@@ -25,11 +26,12 @@ of the survivors.
     ["a", "a"]
   ]
   ===== memory report =====
-  dyns created:      44
-  dyns live:         41 (string 0, array 6, object 0, function 19, native 16, closure 0)
-  live ref counts:   unique 4, shared 0, immortal 37
+  dyns created:      43
+  dyns live:         42 (string 0, array 7, object 0, function 19, native 16, closure 0)
+  live ref counts:   unique 4, shared 1, immortal 37
   merges:            2 in place, 0 copied
-  inserts:           3 in place, 6 copied
+  inserts:           9 in place, 0 copied
+  mutable constants: 1 reused, 5 copied
   gc runs:           0
   strings interned:  528
-  bytes in use:      4128
+  bytes in use:      4312

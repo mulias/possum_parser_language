@@ -158,6 +158,7 @@ pub const GC = struct {
         const before_count = self.countDynElems();
 
         self.running_gc = true;
+        self.clearConsumedMutableConstants();
         if (comptime builtin.mode == .Debug) self.auditRefCounts();
         self.markRoots();
         self.traceReferences();
@@ -244,6 +245,35 @@ pub const GC = struct {
         return count;
     }
 
+    // A mutable-constant cache entry whose slot holds the only handle was
+    // fully consumed: its children are unobservable until the next reuse
+    // refreshes them from the template. Releasing them here mirrors
+    // sweep's dead-holder release — a value whose only extra holder is a
+    // parked cache copy becomes unique again — and lets the children be
+    // swept this cycle. The emptied husk stays parked for reuse.
+    fn clearConsumedMutableConstants(self: *GC) void {
+        for (self.vm.modules.items) |module| {
+            for (module.mutable_constants.items) |maybe_cached| {
+                const cached = maybe_cached orelse continue;
+                if (!cached.isUnique()) continue;
+                switch (cached.dynType) {
+                    .Array => {
+                        const array = cached.asArray();
+                        for (array.elems.items) |item| item.release();
+                        array.elems.clearRetainingCapacity();
+                    },
+                    .Object => {
+                        const object = cached.asObject();
+                        var iter = object.members.iterator();
+                        while (iter.next()) |entry| entry.value_ptr.*.release();
+                        object.members.clearRetainingCapacity();
+                    },
+                    else => unreachable,
+                }
+            }
+        }
+    }
+
     fn markRoots(self: *GC) void {
         if (self.print_trace) {
             self.vm.writers.debug.print("  marking roots:\n", .{}) catch {};
@@ -297,6 +327,9 @@ pub const GC = struct {
             }
             for (module.constants.items) |elem| {
                 self.markElem(elem);
+            }
+            for (module.mutable_constants.items) |maybe_cached| {
+                if (maybe_cached) |cached| self.markDyn(cached);
             }
         }
 
