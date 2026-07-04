@@ -1595,9 +1595,9 @@ pub const VM = struct {
 
         const template = constant.asDyn();
         const module = self.currentFunctionModule();
-        const slot = &module.mutable_constants.items[idx];
+        const existing = module.mutable_constants.get(idx);
 
-        if (slot.*) |cached| {
+        if (existing) |cached| {
             if (cached.isUnique()) {
                 // Retain before refreshing so the husk is never unique
                 // mid-refill: a collection triggered by refreshFrom would
@@ -1627,13 +1627,13 @@ pub const VM = struct {
             else => unreachable,
         };
 
-        if (slot.*) |old| {
+        if (existing) |old| {
             old.cache_held = false;
             old.release();
         }
         copy.retain();
         copy.cache_held = true;
-        slot.* = copy;
+        try module.mutable_constants.put(self.allocator, idx, copy);
         self.rc_stats.mutable_constant_copied += 1;
         try self.push(copy.elem());
     }

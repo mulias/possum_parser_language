@@ -2,6 +2,7 @@ const std = @import("std");
 const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
+const AutoHashMap = std.AutoHashMapUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const Pattern = @import("pattern.zig").Pattern;
 const hl = @import("highlight.zig");
@@ -12,11 +13,12 @@ pub const Module = struct {
     name: []const u8,
     source: []const u8,
     constants: ArrayList(Elem) = ArrayList(Elem){},
-    // Cached mutable copies of container constants, indexed to match
-    // `constants`. A slot owns one handle to the last copy made by
-    // GetConstantMutable for that constant; the copy is reusable again
-    // once that handle is the only one left.
-    mutable_constants: ArrayList(?*Elem.DynElem) = ArrayList(?*Elem.DynElem){},
+    // Cached mutable copies of container constants, keyed by constant
+    // index. Only container constants that GetConstantMutable has copied
+    // get an entry, so the map stays sparse where `constants` is dense.
+    // Each entry owns one handle to the last copy made for that constant;
+    // the copy is reusable again once that handle is the only one left.
+    mutable_constants: AutoHashMap(usize, *Elem.DynElem) = .{},
     patterns: ArrayList(Pattern) = ArrayList(Pattern){},
 
     pub const Id = u16;
@@ -39,7 +41,6 @@ pub const Module = struct {
         if (elem.isType(.Dyn)) elem.asDyn().makeImmortal();
         const idx = self.constants.items.len;
         try self.constants.append(allocator, elem);
-        try self.mutable_constants.append(allocator, null);
         return idx;
     }
 
