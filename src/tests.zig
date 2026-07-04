@@ -6,6 +6,7 @@ comptime {
     _ = @import("string_table.zig");
     _ = @import("elem.zig");
     _ = @import("ir.zig");
+    _ = @import("liveness.zig");
     _ = @import("highlight.test.zig");
     _ = @import("frontend.test.zig");
 }
