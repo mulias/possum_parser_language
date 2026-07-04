@@ -1,6 +1,5 @@
 Builtin- and stdlib-heavy run: the json parser exercises native code,
-string templates, and container construction. Builtins skip decrements, so
-this pins the overcounts that builtin decrements would later remove.
+string templates, and container construction.
 
   $ PRINT_MEMORY_REPORT=true possum -p 'input(json)' -i '{"a": [1, 2], "b": "xy"}'
   {
@@ -16,3 +15,19 @@ this pins the overcounts that builtin decrements would later remove.
   gc runs:           0
   strings interned:  572
   bytes in use:      11104
+
+A dyn string passed to a native builtin and kept live: the native
+releases the popped argument handle, so U reports unique in the result
+instead of carrying the popped copy's count forever.
+
+  $ PRINT_MEMORY_REPORT=true possum -p '("" $ ("00" + "41")) -> U & ("" $ @Codepoint(U)) -> C & ("" $ [U, C])' -i ''
+  ["0041", "A"]
+  ===== memory report =====
+  dyns created:      39
+  dyns live:         38 (string 1, array 2, object 0, function 19, native 16, closure 0)
+  live ref counts:   unique 2, shared 0, immortal 36
+  merges:            0 in place, 0 copied
+  inserts:           1 in place, 1 copied
+  gc runs:           0
+  strings interned:  529
+  bytes in use:      3465

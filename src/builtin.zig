@@ -113,7 +113,10 @@ fn createCodepointValue(vm: *VM, module: *Module) !void {
 }
 
 fn stringToCodepoint(vm: *VM) VM.Error!void {
+    // Popped argument handles die here; natives only push fresh values
+    // or non-Dyn numbers, never the popped Dyns.
     const value = vm.pop();
+    value.release();
 
     if (value.isSuccess()) {
         if (value.stringBytes(vm.*)) |bytes| {
@@ -169,6 +172,8 @@ fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
 fn stringsToSurrogateCodepoint(vm: *VM) VM.Error!void {
     const lowSurrogate = vm.pop();
     const highSurrogate = vm.pop();
+    lowSurrogate.release();
+    highSurrogate.release();
 
     if (highSurrogate.isSuccess() and lowSurrogate.isSuccess()) {
         if (highSurrogate.stringBytes(vm.*)) |high| {
@@ -282,6 +287,8 @@ fn createAddValue(vm: *VM, module: *Module) !void {
 fn addNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
+    b.release();
+    a.release();
 
     a = if (a.isConst(.Null)) Elem.numberFloat(0) else a;
     b = if (b.isConst(.Null)) Elem.numberFloat(0) else b;
@@ -334,6 +341,8 @@ fn createSubtractValue(vm: *VM, module: *Module) !void {
 fn subtractNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
+    b.release();
+    a.release();
 
     a = if (a.isConst(.Null)) Elem.numberFloat(0) else a;
     b = if (b.isConst(.Null)) Elem.numberFloat(0) else b;
@@ -380,6 +389,8 @@ fn createMultiplyValue(vm: *VM, module: *Module) !void {
 fn multiplyNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
+    b.release();
+    a.release();
 
     a = if (a.isConst(.Null)) Elem.numberFloat(1) else a;
     b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
@@ -426,6 +437,8 @@ fn createDivideValue(vm: *VM, module: *Module) !void {
 fn divideNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
+    b.release();
+    a.release();
 
     a = if (a.isConst(.Null)) Elem.numberFloat(1) else a;
     b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
@@ -476,6 +489,8 @@ fn createPowerValue(vm: *VM, module: *Module) !void {
 fn powerNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
+    b.release();
+    a.release();
 
     a = if (a.isConst(.Null)) Elem.numberFloat(1) else a;
     b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
@@ -523,6 +538,8 @@ fn createModulusValue(vm: *VM, module: *Module) !void {
 fn modulusNative(vm: *VM) VM.Error!void {
     var b = vm.pop();
     var a = vm.pop();
+    b.release();
+    a.release();
 
     a = if (a.isConst(.Null)) Elem.numberFloat(1) else a;
     b = if (b.isConst(.Null)) Elem.numberFloat(1) else b;
@@ -571,6 +588,7 @@ fn createFloorValue(vm: *VM, module: *Module) !void {
 
 fn floorNative(vm: *VM) VM.Error!void {
     var a = vm.pop();
+    a.release();
 
     a = if (a.isConst(.Null)) Elem.numberFloat(0) else a;
 
@@ -613,6 +631,7 @@ fn createCeilingValue(vm: *VM, module: *Module) !void {
 
 fn ceilingNative(vm: *VM) VM.Error!void {
     var a = vm.pop();
+    a.release();
 
     a = if (a.isConst(.Null)) Elem.numberFloat(0) else a;
 
@@ -750,6 +769,7 @@ fn createAt(vm: *VM, module: *Module) !void {
 
 fn setInputPositionNative(vm: *VM) VM.Error!void {
     var pos = vm.pop();
+    pos.release();
 
     if (pos.isNumber()) {
         pos = if (pos.isType(.NumberString)) pos.asNumberString().toNumberFloat(vm.strings) else pos;
