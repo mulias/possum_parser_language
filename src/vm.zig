@@ -658,17 +658,17 @@ pub const VM = struct {
                     const placeholder_index = object.members.getIndex(placeholder_key_sid).?;
                     const calculated_index = object.members.getIndex(key_sid);
 
-                    if (self.config.rc_fast_paths and object.dyn.isUniqueBesidesCache()) {
+                    const in_place = self.config.rc_fast_paths and object.dyn.isUniqueBesidesCache();
+                    if (in_place) {
                         self.rc_stats.insert_in_place += 1;
                     } else {
                         self.rc_stats.insert_copy += 1;
                     }
-                    const target = if (self.config.rc_fast_paths and object.dyn.isUniqueBesidesCache())
+                    const target = if (in_place)
                         object
                     else copy: {
-                        const copy = try Elem.DynElem.Object.create(self, object.members.count());
+                        const copy = try Elem.DynElem.Object.copy(self, object);
                         try self.pushTempDyn(&copy.dyn);
-                        try copy.concat(self, object);
                         break :copy copy;
                     };
                     defer if (target != object) self.dropTempDyn();
@@ -1585,7 +1585,8 @@ pub const VM = struct {
     // held. The cache-slot handle is marked on the value so mutating ops
     // can treat ref_count 2 as unique; see DynElem.cache_held.
     fn pushMutableConstant(self: *VM, idx: usize) !void {
-        const constant = self.getConstant(idx);
+        const module = self.currentFunctionModule();
+        const constant = module.getConstant(idx);
 
         if (!self.config.rc_fast_paths) {
             // Baseline: push the immortal constant and let the mutating
@@ -1594,7 +1595,6 @@ pub const VM = struct {
         }
 
         const template = constant.asDyn();
-        const module = self.currentFunctionModule();
         const existing = module.mutable_constants.get(idx);
 
         if (existing) |cached| {
@@ -1617,13 +1617,7 @@ pub const VM = struct {
 
         const copy: *Elem.DynElem = switch (template.dynType) {
             .Array => &(try Elem.DynElem.Array.copy(self, template.asArray().elems.items)).dyn,
-            .Object => copy: {
-                const object = try Elem.DynElem.Object.create(self, template.asObject().members.count());
-                try self.pushTempDyn(&object.dyn);
-                defer self.dropTempDyn();
-                try object.concat(self, template.asObject());
-                break :copy &object.dyn;
-            },
+            .Object => &(try Elem.DynElem.Object.copy(self, template.asObject())).dyn,
             else => unreachable,
         };
 
