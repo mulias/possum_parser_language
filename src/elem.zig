@@ -670,14 +670,17 @@ pub const Elem = packed union {
                     if (vm.config.rc_fast_paths and ds1.dyn.isUnique()) {
                         switch (elemB.getType()) {
                             .String => {
+                                vm.rc_stats.merge_in_place += 1;
                                 try ds1.concatBytes(vm.strings.get(elemB.asString()));
                                 return elemA;
                             },
                             .InputSubstring => {
+                                vm.rc_stats.merge_in_place += 1;
                                 try ds1.concatBytes(elemB.asInputSubstring().bytes(vm.*));
                                 return elemA;
                             },
                             .Dyn => if (elemB.asDyn().isType(.String)) {
+                                vm.rc_stats.merge_in_place += 1;
                                 try ds1.concat(elemB.asDyn().asString());
                                 return elemA;
                             },
@@ -686,6 +689,7 @@ pub const Elem = packed union {
                     }
                     return switch (elemB.getType()) {
                         .String => {
+                            vm.rc_stats.merge_copy += 1;
                             const s2 = vm.strings.get(elemB.asString());
                             const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + s2.len);
                             try s.concat(ds1);
@@ -693,6 +697,7 @@ pub const Elem = packed union {
                             return s.dyn.elem();
                         },
                         .InputSubstring => {
+                            vm.rc_stats.merge_copy += 1;
                             const s2 = elemB.asInputSubstring().bytes(vm.*);
                             const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + s2.len);
                             try s.concat(ds1);
@@ -701,6 +706,7 @@ pub const Elem = packed union {
                         },
                         .Dyn => switch (elemB.asDyn().dynType) {
                             .String => {
+                                vm.rc_stats.merge_copy += 1;
                                 const ds2 = elemB.asDyn().asString();
                                 const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + ds2.buffer.size);
                                 try s.concat(ds1);
@@ -715,12 +721,14 @@ pub const Elem = packed union {
                 .Array => {
                     const a1 = elemA.asDyn().asArray();
                     if (vm.config.rc_fast_paths and a1.dyn.isUnique() and elemB.isDynType(.Array)) {
+                        vm.rc_stats.merge_in_place += 1;
                         try a1.concat(vm, elemB.asDyn().asArray());
                         return elemA;
                     }
                     return switch (elemB.getType()) {
                         .Dyn => switch (elemB.asDyn().dynType) {
                             .Array => {
+                                vm.rc_stats.merge_copy += 1;
                                 const a2 = elemB.asDyn().asArray();
                                 const a = try Elem.DynElem.Array.create(vm, a1.elems.items.len + a2.elems.items.len);
                                 try a.concat(vm, a1);
@@ -735,12 +743,14 @@ pub const Elem = packed union {
                 .Object => {
                     const o1 = elemA.asDyn().asObject();
                     if (vm.config.rc_fast_paths and o1.dyn.isUnique() and elemB.isDynType(.Object)) {
+                        vm.rc_stats.merge_in_place += 1;
                         try o1.concat(vm, elemB.asDyn().asObject());
                         return elemA;
                     }
                     return switch (elemB.getType()) {
                         .Dyn => switch (elemB.asDyn().dynType) {
                             .Object => {
+                                vm.rc_stats.merge_copy += 1;
                                 const o2 = elemB.asDyn().asObject();
                                 const o = try Elem.DynElem.Object.create(vm, o1.members.count() + o2.members.count());
                                 try o.concat(vm, o1);

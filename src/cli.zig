@@ -106,6 +106,14 @@ pub const CLI = struct {
                 try parsed.writeJson(.Pretty, vm, self.writers.out);
                 try self.writers.out.print("\n", .{});
             }
+
+            if (config.print_memory_report) {
+                // Flush the result first so the report always follows it
+                // when both streams are captured together.
+                try self.writers.out.flush();
+                try vm.writeMemoryReport(self.writers.err);
+                try self.writers.err.flush();
+            }
         } else {
             try vm.compile(module_name, source);
         }

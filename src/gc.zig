@@ -11,6 +11,7 @@ pub const GC = struct {
     nextGC: usize,
     nextDyn: ?*Elem.DynElem,
     nextGray: ?*Elem.DynElem,
+    collections: u64,
     mode: Mode,
     print_gc: bool,
     print_trace: bool,
@@ -28,6 +29,7 @@ pub const GC = struct {
             .nextGC = 1024 * 1024,
             .nextDyn = null,
             .nextGray = null,
+            .collections = 0,
             .mode = vm.config.gc_mode,
             .print_gc = vm.config.print_gc,
             .print_trace = false,
@@ -140,7 +142,15 @@ pub const GC = struct {
         }
     }
 
+    // Force a collection regardless of mode, for the post-run memory
+    // report: afterward the dyn chain holds only reachable values.
+    pub fn collect(self: *GC) void {
+        self.collectGarbage();
+    }
+
     fn collectGarbage(self: *GC) void {
+        self.collections += 1;
+
         if (self.print_gc) {
             self.vm.writers.debug.print("-- gc begin (allocated: {} bytes, threshold: {} bytes)\n", .{ self.bytesAllocated, self.nextGC }) catch {};
         }
