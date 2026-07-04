@@ -1414,8 +1414,7 @@ pub const Elem = packed union {
             pub fn concat(self: *Object, vm: *VM, other: *Object) !void {
                 var iterator = other.members.iterator();
                 while (iterator.next()) |entry| {
-                    entry.value_ptr.*.retain();
-                    try self.members.put(vm.gc.allocator(), entry.key_ptr.*, entry.value_ptr.*);
+                    try self.put(vm, entry.key_ptr.*, entry.value_ptr.*);
                 }
             }
 
@@ -1428,19 +1427,22 @@ pub const Elem = packed union {
                 try self.members.ensureUnusedCapacity(vm.gc.allocator(), other.members.count());
                 var iterator = other.members.iterator();
                 while (iterator.next()) |entry| {
-                    self.members.putAssumeCapacity(entry.key_ptr.*, entry.value_ptr.*);
+                    const gop = self.members.getOrPutAssumeCapacity(entry.key_ptr.*);
+                    if (gop.found_existing) gop.value_ptr.*.release();
+                    gop.value_ptr.* = entry.value_ptr.*;
                 }
                 other.members.clearRetainingCapacity();
             }
 
             pub fn put(self: *Object, vm: *VM, sid: StringTable.Id, value: Elem) !void {
                 value.retain();
-                try self.members.put(vm.gc.allocator(), sid, value);
+                const gop = try self.members.getOrPut(vm.gc.allocator(), sid);
+                if (gop.found_existing) gop.value_ptr.*.release();
+                gop.value_ptr.* = value;
             }
 
             pub fn putReservedId(self: *Object, vm: *VM, reservedId: u8, value: Elem) !void {
-                value.retain();
-                return self.members.put(vm.gc.allocator(), std.math.maxInt(u32) - @as(u32, @intCast(reservedId)), value);
+                return self.put(vm, std.math.maxInt(u32) - @as(u32, @intCast(reservedId)), value);
             }
         };
 
