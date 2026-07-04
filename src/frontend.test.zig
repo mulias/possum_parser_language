@@ -162,6 +162,79 @@ test "multiple modules with dependencies" {
     try std.testing.expectEqual(@as(Module.Id, 0), main_deps.?.items[0]);
 }
 
+test "later import shadows earlier import" {
+    var strings = StringTable.init(allocator);
+    defer strings.deinit();
+
+    var frontend = try Frontend.init(allocator, &strings, writers);
+    defer frontend.deinit();
+
+    const util_a_module = Module{ .id = 0, .name = "util_a", .source = "shared = \"a\"" };
+    const util_b_module = Module{ .id = 1, .name = "util_b", .source = "shared = \"b\"" };
+    const main_module = Module{
+        .id = 2,
+        .name = "main",
+        .source =
+        \\ use_it = shared
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(util_a_module, .{});
+    try frontend.addModule(util_b_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+
+    // main imports util_a first, then util_b
+    try frontend.addModuleDependency(2, 0);
+    try frontend.addModuleDependency(2, 1);
+
+    try frontend.finalize();
+
+    const shared_id = try strings.insert("shared");
+    const use_it_id = try strings.insert("use_it");
+    const use_it_key = key(2, use_it_id);
+
+    // The later import (util_b, module 1) shadows the earlier (util_a, module 0).
+    try expect(dependsOn(frontend, use_it_key, key(1, shared_id)));
+    try expect(!dependsOn(frontend, use_it_key, key(0, shared_id)));
+}
+
+test "identifier resolves through transitive dependency" {
+    var strings = StringTable.init(allocator);
+    defer strings.deinit();
+
+    var frontend = try Frontend.init(allocator, &strings, writers);
+    defer frontend.deinit();
+
+    const base_module = Module{ .id = 0, .name = "base", .source = "base_val = \"x\"" };
+    const mid_module = Module{ .id = 1, .name = "mid", .source = "mid_val = \"y\"" };
+    const main_module = Module{
+        .id = 2,
+        .name = "main",
+        .source =
+        \\ use_it = base_val
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(base_module, .{});
+    try frontend.addModule(mid_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+
+    // main depends on mid, mid depends on base; main does not depend on base directly.
+    try frontend.addModuleDependency(1, 0);
+    try frontend.addModuleDependency(2, 1);
+
+    try frontend.finalize();
+
+    const base_val_id = try strings.insert("base_val");
+    const use_it_id = try strings.insert("use_it");
+    const use_it_key = key(2, use_it_id);
+
+    // base_val is reachable only through the transitive dependency mid -> base.
+    try expect(dependsOn(frontend, use_it_key, key(0, base_val_id)));
+}
+
 test "empty module" {
     var strings = StringTable.init(allocator);
     defer strings.deinit();

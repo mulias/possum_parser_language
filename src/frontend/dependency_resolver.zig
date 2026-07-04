@@ -469,21 +469,27 @@ fn addDependency(self: *Resolver, node: *DependencyGraph.Node, dep: DependencyGr
 // in its own module and then in the modules it depends on. Anonymous function
 // names (`@main`, `@fn0`, ...) are internal and can't be referenced by
 // identifier.
+//
+// When two dependencies declare the same name, the later import shadows the
+// earlier one, so dependencies are searched in reverse insertion order. The
+// search recurses into transitive dependencies, so callers only need to
+// record each module's direct dependencies rather than a flattened closure.
 fn findDeclaration(self: *Resolver, module_id: Module.Id, name: StringTable.Id) ?DependencyGraph.NodeKey {
-    var search_key = DependencyGraph.NodeKey{
+    const own_key = DependencyGraph.NodeKey{
         .module_id = module_id,
         .name = name,
     };
 
-    if (self.graph.nodes.get(search_key)) |found| {
-        if (found.* != .anonymous_function) return search_key;
+    if (self.graph.nodes.get(own_key)) |found| {
+        if (found.* != .anonymous_function) return own_key;
     }
 
     if (self.module_dependencies.get(module_id)) |dependencies| {
-        for (dependencies.items) |dep_module_id| {
-            search_key.module_id = dep_module_id;
-            if (self.graph.nodes.get(search_key)) |found| {
-                if (found.* != .anonymous_function) return search_key;
+        var i = dependencies.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.findDeclaration(dependencies.items[i], name)) |dep_key| {
+                return dep_key;
             }
         }
     }
