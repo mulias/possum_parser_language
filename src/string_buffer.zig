@@ -89,7 +89,19 @@ pub const StringBuffer = struct {
 
     /// Appends bytes onto the end of the StringBuffer
     pub fn concat(self: *StringBuffer, bytes: []const u8) Error!void {
-        try self.insert(bytes, self.len());
+        // Appends go straight to the byte end: routing through insert would
+        // walk the buffer twice to count codepoints, making repeated
+        // appends quadratic.
+        if (self.buffer) |buffer| {
+            if (self.size + bytes.len > buffer.len) {
+                try self.allocate((self.size + bytes.len) * 2);
+            }
+        } else {
+            try self.allocate(bytes.len * 2);
+        }
+
+        std.mem.copyForwards(u8, self.buffer.?[self.size..(self.size + bytes.len)], bytes);
+        self.size += bytes.len;
     }
 
     /// Inserts a string literal into the StringBuffer at an index
