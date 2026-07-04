@@ -443,7 +443,7 @@ fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool
         try self.vm.pushTempDyn(&unbound_array.dyn);
 
         for (unbound_elems) |unbound_item| unbound_item.retain();
-        try unbound_array.elems.appendSlice(self.vm.allocator, unbound_elems);
+        try unbound_array.elems.appendSlice(self.vm.gc.allocator(), unbound_elems);
         const unbound_elem = unbound_array.dyn.elem();
 
         if (!(try self.matchPattern(unbound_elem, pattern))) {
@@ -1752,7 +1752,7 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
                     const chunk_array = try Elem.DynElem.Array.create(self.vm, pattern_len);
                     try self.vm.pushTempDyn(&chunk_array.dyn);
                     for (value_array.elems.items[start..end]) |chunk_item| chunk_item.retain();
-                    try chunk_array.elems.appendSlice(self.vm.allocator, value_array.elems.items[start..end]);
+                    try chunk_array.elems.appendSlice(self.vm.gc.allocator(), value_array.elems.items[start..end]);
 
                     if (!(try self.matchPattern(chunk_array.dyn.elem(), repeat_pattern.pattern.*))) {
                         return false;
