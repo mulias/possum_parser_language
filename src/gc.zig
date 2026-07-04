@@ -191,23 +191,7 @@ pub const GC = struct {
 
         var dyn = self.nextDyn;
         while (dyn) |d| : (dyn = d.next) {
-            switch (d.dynType) {
-                .Array => {
-                    for (d.asArray().elems.items) |item| auditHandle(&counts, item);
-                },
-                .Object => {
-                    var iter = d.asObject().members.iterator();
-                    while (iter.next()) |entry| auditHandle(&counts, entry.value_ptr.*);
-                },
-                .Closure => {
-                    const closure = d.asClosure();
-                    auditHandle(&counts, closure.function.dyn.elem());
-                    for (closure.captures) |maybe_elem| {
-                        if (maybe_elem) |item| auditHandle(&counts, item);
-                    }
-                },
-                .String, .Function, .NativeCode => {},
-            }
+            d.forEachChild(&counts, auditHandle);
         }
 
         var iter = counts.iterator();
@@ -256,20 +240,7 @@ pub const GC = struct {
             for (module.mutable_constants.items) |maybe_cached| {
                 const cached = maybe_cached orelse continue;
                 if (!cached.isUnique()) continue;
-                switch (cached.dynType) {
-                    .Array => {
-                        const array = cached.asArray();
-                        for (array.elems.items) |item| item.release();
-                        array.elems.clearRetainingCapacity();
-                    },
-                    .Object => {
-                        const object = cached.asObject();
-                        var iter = object.members.iterator();
-                        while (iter.next()) |entry| entry.value_ptr.*.release();
-                        object.members.clearRetainingCapacity();
-                    },
-                    else => unreachable,
-                }
+                cached.clearChildren();
             }
         }
     }
@@ -357,7 +328,7 @@ pub const GC = struct {
         // extra holder was garbage becomes unique again.
         var unmarked = self.nextDyn;
         while (unmarked) |d| : (unmarked = d.next) {
-            if (!d.isMarked) releaseChildren(d);
+            if (!d.isMarked) d.releaseChildren();
         }
 
         var previous: ?*Elem.DynElem = null;
@@ -390,53 +361,12 @@ pub const GC = struct {
         }
     }
 
-    fn releaseChildren(dyn: *Elem.DynElem) void {
-        switch (dyn.dynType) {
-            .Array => {
-                for (dyn.asArray().elems.items) |item| item.release();
-            },
-            .Object => {
-                var iter = dyn.asObject().members.iterator();
-                while (iter.next()) |entry| entry.value_ptr.*.release();
-            },
-            .Closure => {
-                const closure = dyn.asClosure();
-                closure.function.dyn.release();
-                for (closure.captures) |maybe_elem| {
-                    if (maybe_elem) |item| item.release();
-                }
-            },
-            .String, .Function, .NativeCode => {},
-        }
-    }
-
     fn blackenDyn(self: *GC, dyn: *Elem.DynElem) void {
         if (self.print_trace) {
             self.vm.writers.debug.print("  blacken {} (type: {s}, id: {})\n", .{ @intFromPtr(dyn), @tagName(dyn.dynType), dyn.id }) catch {};
         }
 
-        switch (dyn.dynType) {
-            .Array => {
-                const array = dyn.asArray();
-                for (array.elems.items) |elem| self.markElem(elem);
-            },
-            .Object => {
-                const object = dyn.asObject();
-                var iter = object.members.iterator();
-                while (iter.next()) |entry| self.markElem(entry.value_ptr.*);
-            },
-            .Function => {},
-            .Closure => {
-                const closure = dyn.asClosure();
-                self.markDyn(&closure.function.dyn);
-                for (closure.captures) |maybe_elem| {
-                    if (maybe_elem) |elem| self.markElem(elem);
-                }
-            },
-            .String,
-            .NativeCode,
-            => {},
-        }
+        dyn.forEachChild(self, markElem);
     }
 
     fn markElem(self: *GC, elem: Elem) void {

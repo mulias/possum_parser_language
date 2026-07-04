@@ -1135,6 +1135,55 @@ pub const Elem = packed union {
             }
         }
 
+        // Visit each child handle this value holds. The only place that
+        // enumerates which dyn types bear children: GC marking, refcount
+        // auditing, and child release all route through here so adding a
+        // child-bearing type is a single edit.
+        pub fn forEachChild(
+            self: *DynElem,
+            context: anytype,
+            comptime visit: fn (@TypeOf(context), Elem) void,
+        ) void {
+            switch (self.dynType) {
+                .Array => {
+                    for (self.asArray().elems.items) |item| visit(context, item);
+                },
+                .Object => {
+                    var iter = self.asObject().members.iterator();
+                    while (iter.next()) |entry| visit(context, entry.value_ptr.*);
+                },
+                .Closure => {
+                    const closure = self.asClosure();
+                    visit(context, closure.function.dyn.elem());
+                    for (closure.captures) |maybe_elem| {
+                        if (maybe_elem) |item| visit(context, item);
+                    }
+                },
+                .String, .Function, .NativeCode => {},
+            }
+        }
+
+        fn releaseChildElem(_: void, child: Elem) void {
+            child.release();
+        }
+
+        // Release every child handle a dead or consumed value holds.
+        pub fn releaseChildren(self: *DynElem) void {
+            self.forEachChild({}, releaseChildElem);
+        }
+
+        // Release all children and empty the backing collection, leaving a
+        // husk ready to refill. Only Array and Object hold clearable child
+        // collections.
+        pub fn clearChildren(self: *DynElem) void {
+            self.releaseChildren();
+            switch (self.dynType) {
+                .Array => self.asArray().elems.clearRetainingCapacity(),
+                .Object => self.asObject().members.clearRetainingCapacity(),
+                else => {},
+            }
+        }
+
         pub fn elem(self: *DynElem) Elem {
             const addr = @intFromPtr(self);
             std.debug.assert(addr & mask_signature == 0);
@@ -1348,8 +1397,7 @@ pub const Elem = packed union {
             // consumed copy emptied by concatSteal, a partial fill
             // abandoned on failure, or a fully populated copy.
             pub fn refreshFrom(self: *Array, vm: *VM, template: *Array) !void {
-                for (self.elems.items) |item| item.release();
-                self.elems.clearRetainingCapacity();
+                self.dyn.clearChildren();
                 for (template.elems.items) |item| item.retain();
                 try self.elems.appendSlice(vm.gc.allocator(), template.elems.items);
             }
@@ -1459,9 +1507,7 @@ pub const Elem = packed union {
 
             // See Array.refreshFrom.
             pub fn refreshFrom(self: *Object, vm: *VM, template: *Object) !void {
-                var iter = self.members.iterator();
-                while (iter.next()) |entry| entry.value_ptr.*.release();
-                self.members.clearRetainingCapacity();
+                self.dyn.clearChildren();
                 try self.concat(vm, template);
             }
 
