@@ -722,7 +722,12 @@ pub const Elem = packed union {
                     const a1 = elemA.asDyn().asArray();
                     if (vm.config.rc_fast_paths and a1.dyn.isUnique() and elemB.isDynType(.Array)) {
                         vm.rc_stats.merge_in_place += 1;
-                        try a1.concat(vm, elemB.asDyn().asArray());
+                        const a2 = elemB.asDyn().asArray();
+                        if (a2.dyn.isUnique()) {
+                            try a1.concatSteal(vm, a2);
+                        } else {
+                            try a1.concat(vm, a2);
+                        }
                         return elemA;
                     }
                     return switch (elemB.getType()) {
@@ -732,7 +737,11 @@ pub const Elem = packed union {
                                 const a2 = elemB.asDyn().asArray();
                                 const a = try Elem.DynElem.Array.create(vm, a1.elems.items.len + a2.elems.items.len);
                                 try a.concat(vm, a1);
-                                try a.concat(vm, a2);
+                                if (vm.config.rc_fast_paths and a2.dyn.isUnique()) {
+                                    try a.concatSteal(vm, a2);
+                                } else {
+                                    try a.concat(vm, a2);
+                                }
                                 return a.dyn.elem();
                             },
                             else => null,
@@ -744,7 +753,12 @@ pub const Elem = packed union {
                     const o1 = elemA.asDyn().asObject();
                     if (vm.config.rc_fast_paths and o1.dyn.isUnique() and elemB.isDynType(.Object)) {
                         vm.rc_stats.merge_in_place += 1;
-                        try o1.concat(vm, elemB.asDyn().asObject());
+                        const o2 = elemB.asDyn().asObject();
+                        if (o2.dyn.isUnique()) {
+                            try o1.concatSteal(vm, o2);
+                        } else {
+                            try o1.concat(vm, o2);
+                        }
                         return elemA;
                     }
                     return switch (elemB.getType()) {
@@ -754,7 +768,11 @@ pub const Elem = packed union {
                                 const o2 = elemB.asDyn().asObject();
                                 const o = try Elem.DynElem.Object.create(vm, o1.members.count() + o2.members.count());
                                 try o.concat(vm, o1);
-                                try o.concat(vm, o2);
+                                if (vm.config.rc_fast_paths and o2.dyn.isUnique()) {
+                                    try o.concatSteal(vm, o2);
+                                } else {
+                                    try o.concat(vm, o2);
+                                }
                                 return o.dyn.elem();
                             },
                             else => null,
@@ -1296,6 +1314,17 @@ pub const Elem = packed union {
                 try self.elems.appendSlice(vm.gc.allocator(), other.elems.items);
             }
 
+            // Move `other`'s children into self without retaining: the
+            // caller owns `other`'s only handle and is consuming it, so
+            // each child's handle transfers from `other` to self. The
+            // husk is emptied so its stale child handles can't be seen
+            // by the audit or a later walk.
+            pub fn concatSteal(self: *Array, vm: *VM, other: *Array) !void {
+                std.debug.assert(other.dyn.isUnique());
+                try self.elems.appendSlice(vm.gc.allocator(), other.elems.items);
+                other.elems.clearRetainingCapacity();
+            }
+
             pub fn len(self: *Array) usize {
                 return self.elems.items.len;
             }
@@ -1388,6 +1417,20 @@ pub const Elem = packed union {
                     entry.value_ptr.*.retain();
                     try self.members.put(vm.gc.allocator(), entry.key_ptr.*, entry.value_ptr.*);
                 }
+            }
+
+            // Move `other`'s values into self without retaining; see
+            // Array.concatSteal. Capacity is reserved up front so no
+            // allocation (and thus no GC audit) can observe a value in
+            // both containers mid-move.
+            pub fn concatSteal(self: *Object, vm: *VM, other: *Object) !void {
+                std.debug.assert(other.dyn.isUnique());
+                try self.members.ensureUnusedCapacity(vm.gc.allocator(), other.members.count());
+                var iterator = other.members.iterator();
+                while (iterator.next()) |entry| {
+                    self.members.putAssumeCapacity(entry.key_ptr.*, entry.value_ptr.*);
+                }
+                other.members.clearRetainingCapacity();
             }
 
             pub fn put(self: *Object, vm: *VM, sid: StringTable.Id, value: Elem) !void {
