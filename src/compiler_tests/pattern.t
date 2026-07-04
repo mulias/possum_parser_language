@@ -5,7 +5,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -24,7 +24,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -46,7 +46,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -67,7 +67,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -87,7 +87,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -105,7 +105,7 @@
   0016    | CallFunction 1
   0018    | Destructure 0: [A, [[B], 3]]
   0020    | TakeRight 20 -> 25
-  0023    | GetBoundLocal 1
+  0023    | GetBoundLocalMove 1
   0025    | End
   ========================================
 
@@ -125,7 +125,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -145,7 +145,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -170,7 +170,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -189,7 +189,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -209,7 +209,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -235,7 +235,7 @@
   0002    | CallFunctionConstant 1: "foobar"
   0004    | Destructure 0: ("fo" + Ob + "ar")
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -244,7 +244,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -257,7 +257,7 @@
   0006    | CallFunction 1
   0008    | Destructure 0: ([1] + Rest)
   0010    | TakeRight 10 -> 15
-  0013    | GetBoundLocal 0
+  0013    | GetBoundLocalMove 0
   0015    | End
   ========================================
 
@@ -266,7 +266,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -285,7 +285,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -306,7 +306,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -326,7 +326,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -346,7 +346,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -366,7 +366,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -386,7 +386,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -451,7 +451,7 @@
   Is.Array(V) = V -> [..._]
   ========================================
   0000    | PushUnderscoreVar
-  0001    | GetBoundLocal 0
+  0001    | GetBoundLocalMove 0
   0003    | Destructure 0: ([] + _)
   0005    | End
   ========================================
@@ -459,7 +459,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -499,34 +499,34 @@
   0004    | PushUnderscoreVar
   0005    | GetConstant 2: RowRest
   0007    | SetInputMark
-  0008    | GetBoundLocal 0
+  0008    | GetBoundLocalMove 0
   0010    | Destructure 0: ([Row] + Rest)
   0012    | ConditionalThen 12 -> 59
   0015    | SetInputMark
-  0016    | GetBoundLocal 2
+  0016    | GetBoundLocalMove 2
   0018    | Destructure 1: ([_] + RowRest)
   0020    | ConditionalThen 20 -> 43
   0023    | GetConstant 3: __Table.RestPerRow
-  0025    | GetBoundLocal 3
+  0025    | GetBoundLocalMove 3
   0027    | PushEmptyArray
-  0028    | GetBoundLocal 1
+  0028    | GetBoundLocalMove 1
   0030    | Merge
   0031    | GetConstant 4: [_]
-  0033    | GetBoundLocal 5
+  0033    | GetBoundLocalMove 5
   0035    | InsertAtIndex 0
   0037    | Merge
   0038    | CallTailFunction 2
   0040    | Jump 40 -> 56
   0043    | GetConstant 3: __Table.RestPerRow
-  0045    | GetBoundLocal 3
+  0045    | GetBoundLocalMove 3
   0047    | PushEmptyArray
-  0048    | GetBoundLocal 1
+  0048    | GetBoundLocalMove 1
   0050    | Merge
   0051    | GetConstant 5: [[]]
   0053    | Merge
   0054    | CallTailFunction 2
   0056    | Jump 56 -> 61
-  0059    | GetBoundLocal 1
+  0059    | GetBoundLocalMove 1
   0061    | End
   ========================================
   
@@ -544,10 +544,10 @@
   ========================================
   0000    | PushCharVar V
   0002    | PushUnderscoreVar
-  0003    | GetBoundLocal 0
+  0003    | GetBoundLocalMove 0
   0005    | Destructure 0: ({K: V} + _)
   0007    | TakeRight 7 -> 12
-  0010    | GetBoundLocal 2
+  0010    | GetBoundLocalMove 2
   0012    | End
   ========================================
   
@@ -618,7 +618,7 @@
   0002    | ParseNumberStringChar 6
   0004    | Destructure 0: (1 + X + 3)
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -641,7 +641,7 @@
   0002    | ParseNumberStringChar 6
   0004    | Destructure 0: (1 + X + -3)
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -654,7 +654,7 @@
   0002    | ParseNumberStringChar 6
   0004    | Destructure 0: (1 + -X + 3)
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -677,7 +677,7 @@
   0002    | ParseNumberStringChar 5
   0004    | Destructure 0: (-X + -1)
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -686,7 +686,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -699,7 +699,7 @@
   0006    | CallFunction 1
   0008    | Destructure 0: [1, (-X + -1), 2]
   0010    | TakeRight 10 -> 15
-  0013    | GetBoundLocal 0
+  0013    | GetBoundLocalMove 0
   0015    | End
   ========================================
 
@@ -732,7 +732,7 @@
   0002    | CallFunctionConstant 0: "50"
   0004    | Destructure 0: "%(0 + N)"
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -1030,11 +1030,11 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: true
-  0003    | GetBoundLocal 0
+  0003    | GetBoundLocalMove 0
   0005    | CallFunction 1
   0007    | Or 7 -> 16
   0010    | GetConstant 1: false
-  0012    | GetBoundLocal 1
+  0012    | GetBoundLocalMove 1
   0014    | CallTailFunction 1
   0016    | End
   ========================================
@@ -1097,7 +1097,7 @@
   0002    | CallFunctionLocal 0
   0004    | Destructure 0: "%(0 + N)"
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 1
+  0009    | GetBoundLocalMove 1
   0011    | End
   ========================================
   
@@ -1123,7 +1123,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -1267,7 +1267,7 @@
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstant 2: [_]
-  0011    | GetBoundLocal 1
+  0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1332,7 +1332,7 @@
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstant 2: [_]
-  0011    | GetBoundLocal 1
+  0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1399,7 +1399,7 @@
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstant 2: [_]
-  0011    | GetBoundLocal 1
+  0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1464,7 +1464,7 @@
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstant 2: [_]
-  0011    | GetBoundLocal 1
+  0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1530,7 +1530,7 @@
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstant 2: [_]
-  0011    | GetBoundLocal 1
+  0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1551,7 +1551,7 @@
   0006    | CallFunction 1
   0008    | Destructure 0: ([1] * N)
   0010    | TakeRight 10 -> 15
-  0013    | GetBoundLocal 0
+  0013    | GetBoundLocalMove 0
   0015    | End
   ========================================
 
@@ -1598,7 +1598,7 @@
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstant 2: [_]
-  0011    | GetBoundLocal 1
+  0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1666,7 +1666,7 @@
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstant 2: [_]
-  0011    | GetBoundLocal 1
+  0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1739,8 +1739,8 @@
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
   0018    | GetConstant 1: {_0_}
-  0020    | GetBoundLocal 2
-  0022    | GetBoundLocal 3
+  0020    | GetBoundLocalMove 2
+  0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -1822,8 +1822,8 @@
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
   0018    | GetConstant 1: {_0_}
-  0020    | GetBoundLocal 2
-  0022    | GetBoundLocal 3
+  0020    | GetBoundLocalMove 2
+  0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -1906,8 +1906,8 @@
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
   0018    | GetConstant 1: {_0_}
-  0020    | GetBoundLocal 2
-  0022    | GetBoundLocal 3
+  0020    | GetBoundLocalMove 2
+  0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -1990,8 +1990,8 @@
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
   0018    | GetConstant 1: {_0_}
-  0020    | GetBoundLocal 2
-  0022    | GetBoundLocal 3
+  0020    | GetBoundLocalMove 2
+  0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -2075,8 +2075,8 @@
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
   0018    | GetConstant 1: {_0_}
-  0020    | GetBoundLocal 2
-  0022    | GetBoundLocal 3
+  0020    | GetBoundLocalMove 2
+  0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -2160,8 +2160,8 @@
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
   0018    | GetConstant 1: {_0_}
-  0020    | GetBoundLocal 2
-  0022    | GetBoundLocal 3
+  0020    | GetBoundLocalMove 2
+  0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -2239,7 +2239,7 @@
   0004    | Destructure 0: Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstant 2: [_]
-  0011    | GetBoundLocal 1
+  0011    | GetBoundLocalMove 1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -2311,8 +2311,8 @@
   0013    | Destructure 1: V
   0015    | TakeRight 15 -> 26
   0018    | GetConstant 1: {_0_}
-  0020    | GetBoundLocal 2
-  0022    | GetBoundLocal 3
+  0020    | GetBoundLocalMove 2
+  0022    | GetBoundLocalMove 3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -2376,7 +2376,7 @@
   0002    | CallFunctionConstant 0: "null"
   0004    | Destructure 0: "%(N)"
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -2389,7 +2389,7 @@
   0002    | CallFunctionConstant 0: "true"
   0004    | Destructure 0: "%(true + B)"
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -2446,7 +2446,7 @@
   0002    | CallFunctionConstant 0: "abcabcabc"
   0004    | Destructure 0: "%(("abc" * N))"
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -2459,7 +2459,7 @@
   0002    | CallFunctionConstant 0: "prefix123123suffix"
   0004    | Destructure 0: "%("prefix" + ("123" * N) + "suffix")"
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocal 0
+  0009    | GetBoundLocalMove 0
   0011    | End
   ========================================
 
@@ -2501,7 +2501,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -2521,7 +2521,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -2542,7 +2542,7 @@
   Double(N) = N + N
   ========================================
   0000    | GetBoundLocal 0
-  0002    | GetBoundLocal 0
+  0002    | GetBoundLocalMove 0
   0004    | Merge
   0005    | End
   ========================================

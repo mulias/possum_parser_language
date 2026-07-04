@@ -17,7 +17,7 @@
   0011    | CallFunction 1
   0013    | ConditionalThen 13 -> 25
   0016    | GetConstant 2: const
-  0018    | GetBoundLocal 0
+  0018    | GetBoundLocalMove 0
   0020    | CallTailFunction 1
   0022    | Jump 22 -> 57
   0025    | GetConstant 3: fib
@@ -28,14 +28,14 @@
   0033    | Destructure 1: N1
   0035    | TakeRight 35 -> 57
   0038    | GetConstant 3: fib
-  0040    | GetBoundLocal 0
+  0040    | GetBoundLocalMove 0
   0042    | PushNegNumber -2
   0044    | Merge
   0045    | CallFunction 1
   0047    | Destructure 2: N2
   0049    | TakeRight 49 -> 57
-  0052    | GetBoundLocal 1
-  0054    | GetBoundLocal 2
+  0052    | GetBoundLocalMove 1
+  0054    | GetBoundLocalMove 2
   0056    | Merge
   0057    | End
   ========================================
@@ -43,7 +43,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -60,7 +60,7 @@
   0013    | Merge
   0014    | CallFunction 1
   0016    | GetConstant 4: Fib
-  0018    | GetBoundLocal 0
+  0018    | GetBoundLocalMove 0
   0020    | PushNegNumber -2
   0022    | Merge
   0023    | CallFunction 1

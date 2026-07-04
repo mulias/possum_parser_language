@@ -7,6 +7,7 @@ const Ast = Frontend.Ast;
 const GlobalKey = Frontend.GlobalKey;
 const DependencyGraphNode = Frontend.DependencyGraphNode;
 const Ir = @import("ir.zig").Ir;
+const liveness = @import("liveness.zig");
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Pattern = @import("pattern.zig").Pattern;
@@ -2348,6 +2349,8 @@ pub const Compiler = struct {
             };
         }
 
+        try self.rewriteLastReadsAsMoves(module_id, &function_ir);
+
         const chunk = &self.currentFunction().chunk;
         function_ir.writeTo(self.vm.allocator, chunk) catch |err| switch (err) {
             ChunkError.ShortOverflow => {
@@ -2357,6 +2360,44 @@ pub const Compiler = struct {
             },
             else => |other_error| return other_error,
         };
+    }
+
+    // Replace each local read that liveness proves is the slot's last read
+    // on every path with its move variant: the slot's reference transfers
+    // to the stack instead of duplicating, so values used once (the common
+    // case for params and pattern bindings) stay unique and eligible for
+    // in-place mutation.
+    fn rewriteLastReadsAsMoves(self: *Compiler, module_id: Module.Id, function_ir: *Ir) !void {
+        const module = self.vm.getModule(module_id);
+
+        const pattern_reads = try self.vm.allocator.alloc(liveness.SlotSet, module.patterns.items.len);
+        defer self.vm.allocator.free(pattern_reads);
+        for (module.patterns.items, 0..) |pattern, i| {
+            pattern_reads[i] = liveness.patternReads(pattern);
+        }
+
+        const local_count: u16 = @intCast(self.currentScope().locals().len);
+        var last_reads = try liveness.Liveness.analyze(
+            self.vm.allocator,
+            function_ir,
+            local_count,
+            pattern_reads,
+        );
+        defer last_reads.deinit(self.vm.allocator);
+
+        for (function_ir.instructions.items, 0..) |*insn, i| {
+            switch (insn.operand) {
+                .byte => |*b| {
+                    const move_op: OpCode = switch (b.op) {
+                        .GetLocal => .GetLocalMove,
+                        .GetBoundLocal => .GetBoundLocalMove,
+                        else => continue,
+                    };
+                    if (last_reads.diesAt(@intCast(i), b.byte)) b.op = move_op;
+                },
+                else => {},
+            }
+        }
     }
 
     fn findGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id) ?Elem {

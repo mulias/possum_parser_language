@@ -20,7 +20,7 @@
   0002    | ParseOne
   0003    | Destructure 0: A
   0005    | TakeRight 5 -> 10
-  0008    | GetBoundLocal 0
+  0008    | GetBoundLocalMove 0
   0010    | End
   ========================================
 
@@ -34,7 +34,7 @@
   0003    | Destructure 0: A
   0005    | TakeRight 5 -> 14
   0008    | GetConstant 0: [_]
-  0010    | GetBoundLocal 0
+  0010    | GetBoundLocalMove 0
   0012    | InsertAtIndex 0
   0014    | End
   ========================================
@@ -74,7 +74,7 @@
   0005    | TakeRight 5 -> 18
   0008    | GetConstant 0: [_]
   0010    | GetConstant 1: [_]
-  0012    | GetBoundLocal 0
+  0012    | GetBoundLocalMove 0
   0014    | InsertAtIndex 0
   0016    | InsertAtIndex 0
   0018    | End
@@ -90,7 +90,7 @@
   0003    | Destructure 0: A
   0005    | TakeRight 5 -> 13
   0008    | GetBoundLocal 0
-  0010    | GetBoundLocal 0
+  0010    | GetBoundLocalMove 0
   0012    | Merge
   0013    | End
   ========================================
@@ -116,7 +116,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -148,10 +148,10 @@
   0013    | TakeRight 13 -> 30
   0016    | GetConstant 0: {_0_, _1_}
   0018    | PushChar 'a'
-  0020    | GetBoundLocal 0
+  0020    | GetBoundLocalMove 0
   0022    | InsertKeyVal 0
   0024    | PushChar 'b'
-  0026    | GetBoundLocal 1
+  0026    | GetBoundLocalMove 1
   0028    | InsertKeyVal 1
   0030    | End
   ========================================
@@ -161,7 +161,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -179,7 +179,7 @@
   =================const==================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
@@ -214,11 +214,11 @@
   Obj.Put(O, K, V) = {...O, K: V}
   ========================================
   0000    | PushEmptyObject
-  0001    | GetBoundLocal 0
+  0001    | GetBoundLocalMove 0
   0003    | Merge
   0004    | GetConstant 0: {_0_}
-  0006    | GetBoundLocal 1
-  0008    | GetBoundLocal 2
+  0006    | GetBoundLocalMove 1
+  0008    | GetBoundLocalMove 2
   0010    | InsertKeyVal 0
   0012    | Merge
   0013    | End
@@ -356,7 +356,7 @@
   ==================Foo===================
   Foo(X) = X
   ========================================
-  0000    | GetBoundLocal 0
+  0000    | GetBoundLocalMove 0
   0002    | End
   ========================================
   
