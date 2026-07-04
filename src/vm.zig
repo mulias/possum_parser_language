@@ -1599,12 +1599,17 @@ pub const VM = struct {
 
         if (slot.*) |cached| {
             if (cached.isUnique()) {
+                // Retain before refreshing so the husk is never unique
+                // mid-refill: a collection triggered by refreshFrom would
+                // otherwise see ref_count 1 in clearConsumedMutableConstants,
+                // release the partially refilled children, and clear the
+                // slot under the refill's feet.
+                cached.retain();
                 switch (template.dynType) {
                     .Array => try cached.asArray().refreshFrom(self, template.asArray()),
                     .Object => try cached.asObject().refreshFrom(self, template.asObject()),
                     else => unreachable,
                 }
-                cached.retain();
                 self.rc_stats.mutable_constant_reused += 1;
                 return self.push(cached.elem());
             }
