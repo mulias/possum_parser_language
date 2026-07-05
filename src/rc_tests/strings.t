@@ -11,6 +11,7 @@ Parsing the full input uses an input substring, no dynamic string allocation.
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
+  strings size:      5532 chars
   bytes in use:      3136
 
 Right-built strings: each recursion level prepends a value segment onto
@@ -29,6 +30,7 @@ quadratic (every level copied the whole suffix).
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
+  strings size:      5532 chars
   bytes in use:      3824
 
 With fast paths disabled every level copies the whole suffix again:
@@ -45,4 +47,5 @@ one string allocation per level instead of one rope total.
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
+  strings size:      5532 chars
   bytes in use:      3270

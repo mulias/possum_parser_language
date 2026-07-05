@@ -14,6 +14,7 @@ from a consumed unique rhs would flip that split.
   mutable constants: 1 reused, 5 copied
   closures:          0 reused, 0 created
   strings interned:  529
+  strings size:      5535 chars
   bytes in use:      3760
 
 Same build with the small result kept live, to pin the unique/shared split
@@ -34,4 +35,5 @@ of the survivors.
   mutable constants: 1 reused, 5 copied
   closures:          0 reused, 0 created
   strings interned:  528
+  strings size:      5532 chars
   bytes in use:      4312

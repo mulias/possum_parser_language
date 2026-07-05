@@ -1067,13 +1067,11 @@ pub const VM = struct {
                 // Push singleton true value.
                 try self.push(Elem.boolean(true));
             },
-            .PushChar => {
-                const byte = self.readByte();
-                try self.push(Elem.string(try self.strings.insert(&[_]u8{byte})));
+            .PushString, .PushString2, .PushString3, .PushString4 => {
+                try self.push(Elem.string(self.readSid(opCode)));
             },
-            .PushCharVar => {
-                const byte = self.readByte();
-                try self.push(Elem.valueVar(try self.strings.insert(&[_]u8{byte}), false));
+            .PushVar, .PushVar2, .PushVar3, .PushVar4 => {
+                try self.push(Elem.valueVar(self.readSid(opCode), false));
             },
             .PushEmptyArray => {
                 if (self.singleton_empty_array) |empty_array| {
@@ -1196,6 +1194,7 @@ pub const VM = struct {
         try writer.print("mutable constants: {d} reused, {d} copied\n", .{ self.rc_stats.mutable_constant_reused, self.rc_stats.mutable_constant_copied });
         try writer.print("closures:          {d} reused, {d} created\n", .{ self.rc_stats.closure_reused, self.rc_stats.closure_created });
         try writer.print("strings interned:  {d}\n", .{self.strings.count});
+        try writer.print("strings size:      {d} chars\n", .{self.strings.buffer.items.len});
         try writer.print("bytes in use:      {d}\n", .{self.gc.bytesAllocated});
     }
 
@@ -1741,6 +1740,16 @@ pub const VM = struct {
         return (@as(u24, @intCast(items[self.cur_frame.ip - 3])) << 16) |
             (@as(u24, @intCast(items[self.cur_frame.ip - 2])) << 8) |
             items[self.cur_frame.ip - 1];
+    }
+
+    fn readSid(self: *VM, opCode: OpCode) StringTable.Id {
+        return switch (opCode) {
+            .PushString, .PushVar => self.readByte(),
+            .PushString2, .PushVar2 => self.readShort(),
+            .PushString3, .PushVar3 => self.readMedium(),
+            .PushString4, .PushVar4 => self.readLong(),
+            else => unreachable,
+        };
     }
 
     fn readLong(self: *VM) u32 {

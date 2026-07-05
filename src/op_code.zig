@@ -67,8 +67,14 @@ pub const OpCode = enum(u8) {
     ParseUpperBoundedRange,
     ParseZero,
     PopInputMark,
-    PushChar,
-    PushCharVar,
+    PushString,
+    PushString2,
+    PushString3,
+    PushString4,
+    PushVar,
+    PushVar2,
+    PushVar3,
+    PushVar4,
     PushEmptyArray,
     PushEmptyObject,
     PushEmptyString,
@@ -161,8 +167,14 @@ pub const OpCode = enum(u8) {
             .ParseThree,
             .ParseTwo,
             .ParseZero,
-            .PushChar,
-            .PushCharVar,
+            .PushString,
+            .PushString2,
+            .PushString3,
+            .PushString4,
+            .PushVar,
+            .PushVar2,
+            .PushVar3,
+            .PushVar4,
             .PushEmptyArray,
             .PushEmptyObject,
             .PushEmptyString,
@@ -385,8 +397,14 @@ pub const OpCode = enum(u8) {
             .ParseThree,
             .ParseTwo,
             .ParseZero,
-            .PushChar,
-            .PushCharVar,
+            .PushString,
+            .PushString2,
+            .PushString3,
+            .PushString4,
+            .PushVar,
+            .PushVar2,
+            .PushVar3,
+            .PushVar4,
             .PushEmptyString,
             .PushFail,
             .PushFalse,
@@ -580,12 +598,25 @@ pub const OpCode = enum(u8) {
             .InsertKeyVal,
             => self.byteInstruciton(chunk, writer, offset),
             .ParseChar,
-            .PushChar,
             => self.charInstruction(chunk, writer, offset),
+            .PushString,
+            => self.stringInstruction(chunk, vm, writer, offset, 1),
+            .PushVar,
+            => self.varInstruction(chunk, vm, writer, offset, 1),
+            .PushString2,
+            => self.stringInstruction(chunk, vm, writer, offset, 2),
+            .PushVar2,
+            => self.varInstruction(chunk, vm, writer, offset, 2),
+            .PushString3,
+            => self.stringInstruction(chunk, vm, writer, offset, 3),
+            .PushVar3,
+            => self.varInstruction(chunk, vm, writer, offset, 3),
+            .PushString4,
+            => self.stringInstruction(chunk, vm, writer, offset, 4),
+            .PushVar4,
+            => self.varInstruction(chunk, vm, writer, offset, 4),
             .PushNumber,
             => self.pushNumberInstruciton(chunk, writer, offset),
-            .PushCharVar,
-            => self.pushCharVarInstruciton(chunk, writer, offset),
             .PushNegNumber,
             => self.pushNegNumberInstruction(chunk, writer, offset),
             .PushNumberStringChar,
@@ -709,10 +740,24 @@ pub const OpCode = enum(u8) {
         return offset + 2;
     }
 
-    fn pushCharVarInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
-        const byte = chunk.read(offset + 1);
-        try writer.print("{s} {c}\n", .{ @tagName(self), byte });
-        return offset + 2;
+    fn stringInstruction(self: OpCode, chunk: *Chunk, vm: VM, writer: *Writer, offset: usize, width: usize) !usize {
+        var sid: u32 = 0;
+        for (1..width + 1) |i| {
+            sid = (sid << 8) | chunk.read(offset + i);
+        }
+        const str = vm.strings.get(sid);
+        try writer.print("{s} \"{s}\"\n", .{ @tagName(self), str });
+        return offset + 1 + width;
+    }
+
+    fn varInstruction(self: OpCode, chunk: *Chunk, vm: VM, writer: *Writer, offset: usize, width: usize) !usize {
+        var sid: u32 = 0;
+        for (1..width + 1) |i| {
+            sid = (sid << 8) | chunk.read(offset + i);
+        }
+        const str = vm.strings.get(sid);
+        try writer.print("{s} {s}\n", .{ @tagName(self), str });
+        return offset + 1 + width;
     }
 
     fn pushNegNumberInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {

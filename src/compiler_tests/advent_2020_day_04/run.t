@@ -17,11 +17,11 @@
   ========================================
   0000    | GetConstant 0: object_sep
   0002    | GetConstant 1: alphas
-  0004    | PushChar ':'
-  0006    | GetConstant 2: token
-  0008    | GetConstant 3: @fn39
-  0010    | CallTailFunction 4
-  0012    | End
+  0004    | PushString2 ":"
+  0007    | GetConstant 2: token
+  0009    | GetConstant 3: @fn39
+  0011    | CallTailFunction 4
+  0013    | End
   ========================================
   
   ===============object_sep===============
@@ -77,21 +77,21 @@
   ================pair_sep================
   pair_sep(key, sep, value) = key -> K & sep & value -> V $ {K: V}
   ========================================
-  0000    | PushCharVar K
-  0002    | PushCharVar V
-  0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
-  0008    | TakeRight 8 -> 13
-  0011    | CallFunctionLocal 1
-  0013    | TakeRight 13 -> 31
-  0016    | CallFunctionLocal 2
-  0018    | Destructure 1: V
-  0020    | TakeRight 20 -> 31
-  0023    | GetConstantMutable 1: {_0_}
-  0025    | GetBoundLocalMove 3
-  0027    | GetBoundLocalMove 4
-  0029    | InsertKeyVal 0
-  0031    | End
+  0000    | PushVar2 K
+  0003    | PushVar2 V
+  0006    | CallFunctionLocal 0
+  0008    | Destructure 0: K
+  0010    | TakeRight 10 -> 15
+  0013    | CallFunctionLocal 1
+  0015    | TakeRight 15 -> 33
+  0018    | CallFunctionLocal 2
+  0020    | Destructure 1: V
+  0022    | TakeRight 22 -> 33
+  0025    | GetConstantMutable 1: {_0_}
+  0027    | GetBoundLocalMove 3
+  0029    | GetBoundLocalMove 4
+  0031    | InsertKeyVal 0
+  0033    | End
   ========================================
   
   =================alphas=================
@@ -205,33 +205,33 @@
   ========================================
   0000    | SetInputMark
   0001    | ParseChar ' '
-  0003    | Or 3 -> 41
+  0003    | Or 3 -> 43
   0006    | SetInputMark
   0007    | ParseChar '\t' (esc)
-  0009    | Or 9 -> 41
+  0009    | Or 9 -> 43
   0012    | SetInputMark
   0013    | CallFunctionConstant 12: "\xc2\xa0" (esc)
-  0015    | Or 15 -> 41
+  0015    | Or 15 -> 43
   0018    | SetInputMark
-  0019    | GetConstant 13: "\xe2\x80\x80" (esc)
-  0021    | GetConstant 14: "\xe2\x80\x8a" (esc)
-  0023    | ParseRange
-  0024    | Or 24 -> 41
-  0027    | SetInputMark
-  0028    | CallFunctionConstant 15: "\xe2\x80\xaf" (esc)
-  0030    | Or 30 -> 41
-  0033    | SetInputMark
-  0034    | CallFunctionConstant 16: "\xe2\x81\x9f" (esc)
-  0036    | Or 36 -> 41
-  0039    | CallTailFunctionConstant 17: "\xe3\x80\x80" (esc)
-  0041    | End
+  0019    | PushString2 "\xe2\x80\x80" (esc)
+  0022    | PushString2 "\xe2\x80\x8a" (esc)
+  0025    | ParseRange
+  0026    | Or 26 -> 43
+  0029    | SetInputMark
+  0030    | CallFunctionConstant 13: "\xe2\x80\xaf" (esc)
+  0032    | Or 32 -> 43
+  0035    | SetInputMark
+  0036    | CallFunctionConstant 14: "\xe2\x81\x9f" (esc)
+  0038    | Or 38 -> 43
+  0041    | CallTailFunctionConstant 15: "\xe3\x80\x80" (esc)
+  0043    | End
   ========================================
   
   ================newline=================
   newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 18: "\r (esc)
+  0001    | CallFunctionConstant 16: "\r (esc)
   "
   0003    | Or 3 -> 27
   0006    | SetInputMark
@@ -240,12 +240,12 @@
   '
   0010    | Or 10 -> 27
   0013    | SetInputMark
-  0014    | CallFunctionConstant 19: "\xc2\x85" (esc)
+  0014    | CallFunctionConstant 17: "\xc2\x85" (esc)
   0016    | Or 16 -> 27
   0019    | SetInputMark
-  0020    | CallFunctionConstant 20: "\xe2\x80\xa8" (esc)
+  0020    | CallFunctionConstant 18: "\xe2\x80\xa8" (esc)
   0022    | Or 22 -> 27
-  0025    | CallTailFunctionConstant 21: "\xe2\x80\xa9" (esc)
+  0025    | CallTailFunctionConstant 19: "\xe2\x80\xa9" (esc)
   0027    | End
   ========================================
   

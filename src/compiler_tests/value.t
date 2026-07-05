@@ -16,12 +16,12 @@
   =================@main==================
   1 -> A $ A
   ========================================
-  0000    | PushCharVar A
-  0002    | ParseOne
-  0003    | Destructure 0: A
-  0005    | TakeRight 5 -> 10
-  0008    | GetBoundLocalMove 0
-  0010    | End
+  0000    | PushVar2 A
+  0003    | ParseOne
+  0004    | Destructure 0: A
+  0006    | TakeRight 6 -> 11
+  0009    | GetBoundLocalMove 0
+  0011    | End
   ========================================
 
   $ possum -p '1 -> A $ [A]' -i ''
@@ -29,14 +29,14 @@
   =================@main==================
   1 -> A $ [A]
   ========================================
-  0000    | PushCharVar A
-  0002    | ParseOne
-  0003    | Destructure 0: A
-  0005    | TakeRight 5 -> 14
-  0008    | GetConstantMutable 0: [_]
-  0010    | GetBoundLocalMove 0
-  0012    | InsertAtIndex 0
-  0014    | End
+  0000    | PushVar2 A
+  0003    | ParseOne
+  0004    | Destructure 0: A
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstantMutable 0: [_]
+  0011    | GetBoundLocalMove 0
+  0013    | InsertAtIndex 0
+  0015    | End
   ========================================
 
   $ possum -p '2 -> A $ [1, [2]]' -i ''
@@ -44,14 +44,14 @@
   =================@main==================
   2 -> A $ [1, [2]]
   ========================================
-  0000    | PushCharVar A
-  0002    | ParseTwo
-  0003    | Destructure 0: A
-  0005    | TakeRight 5 -> 14
-  0008    | GetConstantMutable 0: [1, _]
-  0010    | GetConstant 1: [2]
-  0012    | InsertAtIndex 1
-  0014    | End
+  0000    | PushVar2 A
+  0003    | ParseTwo
+  0004    | Destructure 0: A
+  0006    | TakeRight 6 -> 15
+  0009    | GetConstantMutable 0: [1, _]
+  0011    | GetConstant 1: [2]
+  0013    | InsertAtIndex 1
+  0015    | End
   ========================================
 
   $ possum -p 'Foo = 1 + 1 ; "" $ [Foo]' -i ''
@@ -68,16 +68,16 @@
   =================@main==================
   1 -> A $ [[A]]
   ========================================
-  0000    | PushCharVar A
-  0002    | ParseOne
-  0003    | Destructure 0: A
-  0005    | TakeRight 5 -> 18
-  0008    | GetConstantMutable 0: [_]
-  0010    | GetConstantMutable 1: [_]
-  0012    | GetBoundLocalMove 0
-  0014    | InsertAtIndex 0
-  0016    | InsertAtIndex 0
-  0018    | End
+  0000    | PushVar2 A
+  0003    | ParseOne
+  0004    | Destructure 0: A
+  0006    | TakeRight 6 -> 19
+  0009    | GetConstantMutable 0: [_]
+  0011    | GetConstantMutable 1: [_]
+  0013    | GetBoundLocalMove 0
+  0015    | InsertAtIndex 0
+  0017    | InsertAtIndex 0
+  0019    | End
   ========================================
 
   $ possum -p 'Foo = 1 -> A & A + A ; "" $ [Foo]' -i ''
@@ -85,15 +85,15 @@
   ==================Foo===================
   Foo = 1 -> A & A + A
   ========================================
-  0000    | PushCharVar A
-  0002    | PushNumberOne
-  0003    | Destructure 0: A
-  0005    | TakeRight 5 -> 16
-  0008    | GetBoundLocal 0
-  0010    | JumpIfFailure 10 -> 16
-  0013    | GetBoundLocalMove 0
-  0015    | Merge
-  0016    | End
+  0000    | PushVar2 A
+  0003    | PushNumberOne
+  0004    | Destructure 0: A
+  0006    | TakeRight 6 -> 17
+  0009    | GetBoundLocal 0
+  0011    | JumpIfFailure 11 -> 17
+  0014    | GetBoundLocalMove 0
+  0016    | Merge
+  0017    | End
   ========================================
   
   =================@main==================
@@ -141,22 +141,22 @@
   =================@main==================
   1 -> A & 2 -> B $ {"a": A, "b": B}
   ========================================
-  0000    | PushCharVar A
-  0002    | PushCharVar B
-  0004    | ParseOne
-  0005    | Destructure 0: A
-  0007    | TakeRight 7 -> 30
-  0010    | ParseTwo
-  0011    | Destructure 1: B
-  0013    | TakeRight 13 -> 30
-  0016    | GetConstantMutable 0: {_0_, _1_}
-  0018    | PushChar 'a'
-  0020    | GetBoundLocalMove 0
-  0022    | InsertKeyVal 0
-  0024    | PushChar 'b'
-  0026    | GetBoundLocalMove 1
-  0028    | InsertKeyVal 1
-  0030    | End
+  0000    | PushVar2 A
+  0003    | PushVar2 B
+  0006    | ParseOne
+  0007    | Destructure 0: A
+  0009    | TakeRight 9 -> 34
+  0012    | ParseTwo
+  0013    | Destructure 1: B
+  0015    | TakeRight 15 -> 34
+  0018    | GetConstantMutable 0: {_0_, _1_}
+  0020    | PushString2 "a"
+  0023    | GetBoundLocalMove 0
+  0025    | InsertKeyVal 0
+  0027    | PushString2 "b"
+  0030    | GetBoundLocalMove 1
+  0032    | InsertKeyVal 1
+  0034    | End
   ========================================
 
   $ possum -p 'const({"a": 1 + 2 + 3})' -i '12'
@@ -191,13 +191,13 @@
   ========================================
   0000    | GetConstant 0: const
   0002    | GetConstantMutable 1: {_0_}
-  0004    | PushChar 'a'
-  0006    | GetConstantMutable 2: [_]
-  0008    | GetConstant 3: {"b": "foo"}
-  0010    | InsertAtIndex 0
-  0012    | InsertKeyVal 0
-  0014    | CallTailFunction 1
-  0016    | End
+  0004    | PushString2 "a"
+  0007    | GetConstantMutable 2: [_]
+  0009    | GetConstant 3: {"b": "foo"}
+  0011    | InsertAtIndex 0
+  0013    | InsertKeyVal 0
+  0015    | CallTailFunction 1
+  0017    | End
   ========================================
 
   $ possum -p '"" $ "%(1 + 1)"' -i ''
