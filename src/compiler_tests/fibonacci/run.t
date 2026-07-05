@@ -19,25 +19,28 @@
   0016    | GetConstant 2: const
   0018    | GetBoundLocalMove 0
   0020    | CallTailFunction 1
-  0022    | Jump 22 -> 57
+  0022    | Jump 22 -> 66
   0025    | GetConstant 3: fib
   0027    | GetBoundLocal 0
-  0029    | PushNumberNegOne
-  0030    | Merge
-  0031    | CallFunction 1
-  0033    | Destructure 1: N1
-  0035    | TakeRight 35 -> 57
-  0038    | GetConstant 3: fib
-  0040    | GetBoundLocalMove 0
-  0042    | PushNegNumber -2
-  0044    | Merge
-  0045    | CallFunction 1
-  0047    | Destructure 2: N2
-  0049    | TakeRight 49 -> 57
-  0052    | GetBoundLocalMove 1
-  0054    | GetBoundLocalMove 2
-  0056    | Merge
-  0057    | End
+  0029    | JumpIfFailure 29 -> 34
+  0032    | PushNumberNegOne
+  0033    | Merge
+  0034    | CallFunction 1
+  0036    | Destructure 1: N1
+  0038    | TakeRight 38 -> 66
+  0041    | GetConstant 3: fib
+  0043    | GetBoundLocalMove 0
+  0045    | JumpIfFailure 45 -> 51
+  0048    | PushNegNumber -2
+  0050    | Merge
+  0051    | CallFunction 1
+  0053    | Destructure 2: N2
+  0055    | TakeRight 55 -> 66
+  0058    | GetBoundLocalMove 1
+  0060    | JumpIfFailure 60 -> 66
+  0063    | GetBoundLocalMove 2
+  0065    | Merge
+  0066    | End
   ========================================
   
   =================const==================
@@ -53,19 +56,22 @@
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | Destructure 3: ..1
-  0005    | Or 5 -> 26
+  0005    | Or 5 -> 35
   0008    | GetConstant 4: Fib
   0010    | GetBoundLocal 0
-  0012    | PushNumberNegOne
-  0013    | Merge
-  0014    | CallFunction 1
-  0016    | GetConstant 4: Fib
-  0018    | GetBoundLocalMove 0
-  0020    | PushNegNumber -2
-  0022    | Merge
-  0023    | CallFunction 1
-  0025    | Merge
-  0026    | End
+  0012    | JumpIfFailure 12 -> 17
+  0015    | PushNumberNegOne
+  0016    | Merge
+  0017    | CallFunction 1
+  0019    | JumpIfFailure 19 -> 35
+  0022    | GetConstant 4: Fib
+  0024    | GetBoundLocalMove 0
+  0026    | JumpIfFailure 26 -> 32
+  0029    | PushNegNumber -2
+  0031    | Merge
+  0032    | CallFunction 1
+  0034    | Merge
+  0035    | End
   ========================================
   
   =================@main==================

@@ -88,11 +88,12 @@
   0000    | PushCharVar A
   0002    | PushNumberOne
   0003    | Destructure 0: A
-  0005    | TakeRight 5 -> 13
+  0005    | TakeRight 5 -> 16
   0008    | GetBoundLocal 0
-  0010    | GetBoundLocalMove 0
-  0012    | Merge
-  0013    | End
+  0010    | JumpIfFailure 10 -> 16
+  0013    | GetBoundLocalMove 0
+  0015    | Merge
+  0016    | End
   ========================================
   
   =================@main==================
@@ -125,12 +126,14 @@
   ========================================
   0000    | GetConstant 1: const
   0002    | PushEmptyArray
-  0003    | CallFunctionConstant 2: A
-  0005    | Merge
+  0003    | JumpIfFailure 3 -> 9
   0006    | CallFunctionConstant 2: A
   0008    | Merge
-  0009    | CallTailFunction 1
-  0011    | End
+  0009    | JumpIfFailure 9 -> 15
+  0012    | CallFunctionConstant 2: A
+  0014    | Merge
+  0015    | CallTailFunction 1
+  0017    | End
   ========================================
 
   $ possum -p '1 -> A & 2 -> B $ {"a": A, "b": B}' -i '12'
@@ -214,14 +217,16 @@
   Obj.Put(O, K, V) = {...O, K: V}
   ========================================
   0000    | PushEmptyObject
-  0001    | GetBoundLocalMove 0
-  0003    | Merge
-  0004    | GetConstantMutable 0: {_0_}
-  0006    | GetBoundLocalMove 1
-  0008    | GetBoundLocalMove 2
-  0010    | InsertKeyVal 0
-  0012    | Merge
-  0013    | End
+  0001    | JumpIfFailure 1 -> 7
+  0004    | GetBoundLocalMove 0
+  0006    | Merge
+  0007    | JumpIfFailure 7 -> 19
+  0010    | GetConstantMutable 0: {_0_}
+  0012    | GetBoundLocalMove 1
+  0014    | GetBoundLocalMove 2
+  0016    | InsertKeyVal 0
+  0018    | Merge
+  0019    | End
   ========================================
   
   =================@main==================

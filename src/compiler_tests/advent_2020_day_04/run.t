@@ -34,43 +34,44 @@
   0004    | GetBoundLocal 1
   0006    | GetBoundLocal 2
   0008    | CallFunction 3
-  0010    | PushNull
-  0011    | PushNumberZero
-  0012    | ValidateRepeatPattern
-  0013    | JumpIfZero 13 -> 44
-  0016    | Swap
-  0017    | CallFunctionLocal 3
-  0019    | TakeRight 19 -> 32
-  0022    | GetConstant 0: pair_sep
-  0024    | GetBoundLocal 0
-  0026    | GetBoundLocal 1
-  0028    | GetBoundLocal 2
-  0030    | CallFunction 3
-  0032    | Merge
-  0033    | JumpIfFailure 33 -> 71
-  0036    | Swap
-  0037    | Decrement
-  0038    | JumpIfZero 38 -> 44
-  0041    | JumpBack 41 -> 16
-  0044    | Swap
-  0045    | SetInputMark
-  0046    | CallFunctionLocal 3
-  0048    | TakeRight 48 -> 61
-  0051    | GetConstant 0: pair_sep
-  0053    | GetBoundLocal 0
-  0055    | GetBoundLocal 1
-  0057    | GetBoundLocal 2
-  0059    | CallFunction 3
-  0061    | JumpIfFailure 61 -> 69
-  0064    | PopInputMark
-  0065    | Merge
-  0066    | JumpBack 66 -> 45
-  0069    | ResetInput
-  0070    | Drop
-  0071    | Swap
-  0072    | Drop
-  0073    | Merge
-  0074    | End
+  0010    | JumpIfFailure 10 -> 77
+  0013    | PushNull
+  0014    | PushNumberZero
+  0015    | ValidateRepeatPattern
+  0016    | JumpIfZero 16 -> 47
+  0019    | Swap
+  0020    | CallFunctionLocal 3
+  0022    | TakeRight 22 -> 35
+  0025    | GetConstant 0: pair_sep
+  0027    | GetBoundLocal 0
+  0029    | GetBoundLocal 1
+  0031    | GetBoundLocal 2
+  0033    | CallFunction 3
+  0035    | Merge
+  0036    | JumpIfFailure 36 -> 74
+  0039    | Swap
+  0040    | Decrement
+  0041    | JumpIfZero 41 -> 47
+  0044    | JumpBack 44 -> 19
+  0047    | Swap
+  0048    | SetInputMark
+  0049    | CallFunctionLocal 3
+  0051    | TakeRight 51 -> 64
+  0054    | GetConstant 0: pair_sep
+  0056    | GetBoundLocal 0
+  0058    | GetBoundLocal 1
+  0060    | GetBoundLocal 2
+  0062    | CallFunction 3
+  0064    | JumpIfFailure 64 -> 72
+  0067    | PopInputMark
+  0068    | Merge
+  0069    | JumpBack 69 -> 48
+  0072    | ResetInput
+  0073    | Drop
+  0074    | Swap
+  0075    | Drop
+  0076    | Merge
+  0077    | End
   ========================================
   
   ================pair_sep================
@@ -279,44 +280,46 @@
   many_sep(p, sep) = p + ((sep > p) * 0..)
   ========================================
   0000    | CallFunctionLocal 0
-  0002    | PushNull
-  0003    | PushNumberZero
-  0004    | ValidateRepeatPattern
-  0005    | JumpIfZero 5 -> 28
-  0008    | Swap
-  0009    | CallFunctionLocal 1
-  0011    | TakeRight 11 -> 16
-  0014    | CallFunctionLocal 0
-  0016    | Merge
-  0017    | JumpIfFailure 17 -> 47
-  0020    | Swap
-  0021    | Decrement
-  0022    | JumpIfZero 22 -> 28
-  0025    | JumpBack 25 -> 8
-  0028    | Swap
-  0029    | SetInputMark
-  0030    | CallFunctionLocal 1
-  0032    | TakeRight 32 -> 37
-  0035    | CallFunctionLocal 0
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 29
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | Merge
-  0050    | End
+  0002    | JumpIfFailure 2 -> 53
+  0005    | PushNull
+  0006    | PushNumberZero
+  0007    | ValidateRepeatPattern
+  0008    | JumpIfZero 8 -> 31
+  0011    | Swap
+  0012    | CallFunctionLocal 1
+  0014    | TakeRight 14 -> 19
+  0017    | CallFunctionLocal 0
+  0019    | Merge
+  0020    | JumpIfFailure 20 -> 50
+  0023    | Swap
+  0024    | Decrement
+  0025    | JumpIfZero 25 -> 31
+  0028    | JumpBack 28 -> 11
+  0031    | Swap
+  0032    | SetInputMark
+  0033    | CallFunctionLocal 1
+  0035    | TakeRight 35 -> 40
+  0038    | CallFunctionLocal 0
+  0040    | JumpIfFailure 40 -> 48
+  0043    | PopInputMark
+  0044    | Merge
+  0045    | JumpBack 45 -> 32
+  0048    | ResetInput
+  0049    | Drop
+  0050    | Swap
+  0051    | Drop
+  0052    | Merge
+  0053    | End
   ========================================
   
   =================@fn55==================
   nl+nl
   ========================================
   0000    | CallFunctionConstant 5: newline
-  0002    | CallFunctionConstant 5: newline
-  0004    | Merge
-  0005    | End
+  0002    | JumpIfFailure 2 -> 8
+  0005    | CallFunctionConstant 5: newline
+  0007    | Merge
+  0008    | End
   ========================================
   
   =================@main==================

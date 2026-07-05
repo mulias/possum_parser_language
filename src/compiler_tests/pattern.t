@@ -501,33 +501,37 @@
   0007    | SetInputMark
   0008    | GetBoundLocalMove 0
   0010    | Destructure 0: ([Row] + Rest)
-  0012    | ConditionalThen 12 -> 59
+  0012    | ConditionalThen 12 -> 71
   0015    | SetInputMark
   0016    | GetBoundLocalMove 2
   0018    | Destructure 1: ([_] + RowRest)
-  0020    | ConditionalThen 20 -> 43
+  0020    | ConditionalThen 20 -> 49
   0023    | GetConstant 3: __Table.RestPerRow
   0025    | GetBoundLocalMove 3
   0027    | PushEmptyArray
-  0028    | GetBoundLocalMove 1
-  0030    | Merge
-  0031    | GetConstantMutable 4: [_]
-  0033    | GetBoundLocalMove 5
-  0035    | InsertAtIndex 0
-  0037    | Merge
-  0038    | CallTailFunction 2
-  0040    | Jump 40 -> 56
-  0043    | GetConstant 3: __Table.RestPerRow
-  0045    | GetBoundLocalMove 3
-  0047    | PushEmptyArray
-  0048    | GetBoundLocalMove 1
-  0050    | Merge
-  0051    | GetConstant 5: [[]]
-  0053    | Merge
-  0054    | CallTailFunction 2
-  0056    | Jump 56 -> 61
-  0059    | GetBoundLocalMove 1
-  0061    | End
+  0028    | JumpIfFailure 28 -> 34
+  0031    | GetBoundLocalMove 1
+  0033    | Merge
+  0034    | JumpIfFailure 34 -> 44
+  0037    | GetConstantMutable 4: [_]
+  0039    | GetBoundLocalMove 5
+  0041    | InsertAtIndex 0
+  0043    | Merge
+  0044    | CallTailFunction 2
+  0046    | Jump 46 -> 68
+  0049    | GetConstant 3: __Table.RestPerRow
+  0051    | GetBoundLocalMove 3
+  0053    | PushEmptyArray
+  0054    | JumpIfFailure 54 -> 60
+  0057    | GetBoundLocalMove 1
+  0059    | Merge
+  0060    | JumpIfFailure 60 -> 66
+  0063    | GetConstant 5: [[]]
+  0065    | Merge
+  0066    | CallTailFunction 2
+  0068    | Jump 68 -> 73
+  0071    | GetBoundLocalMove 1
+  0073    | End
   ========================================
   
   =================@main==================
@@ -1076,9 +1080,10 @@
   0000    | GetConstant 2: maybe
   0002    | PushChar '-'
   0004    | CallFunction 1
-  0006    | CallFunctionConstant 3: _number_integer_part
-  0008    | Merge
-  0009    | End
+  0006    | JumpIfFailure 6 -> 12
+  0009    | CallFunctionConstant 3: _number_integer_part
+  0011    | Merge
+  0012    | End
   ========================================
   
   ================integer=================
@@ -1132,11 +1137,12 @@
   ========================================
   0000    | SetInputMark
   0001    | ParseCodepointRange '1'..'9'
-  0004    | CallFunctionConstant 6: numerals
-  0006    | Merge
-  0007    | Or 7 -> 12
-  0010    | CallTailFunctionConstant 7: numeral
-  0012    | End
+  0004    | JumpIfFailure 4 -> 10
+  0007    | CallFunctionConstant 6: numerals
+  0009    | Merge
+  0010    | Or 10 -> 15
+  0013    | CallTailFunctionConstant 7: numeral
+  0015    | End
   ========================================
   
   ================numerals================
@@ -2542,9 +2548,10 @@
   Double(N) = N + N
   ========================================
   0000    | GetBoundLocal 0
-  0002    | GetBoundLocalMove 0
-  0004    | Merge
-  0005    | End
+  0002    | JumpIfFailure 2 -> 8
+  0005    | GetBoundLocalMove 0
+  0007    | Merge
+  0008    | End
   ========================================
   
   =================@main==================

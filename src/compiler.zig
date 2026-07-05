@@ -450,8 +450,10 @@ pub const Compiler = struct {
         switch (node) {
             .merge => |merge| {
                 try self.writeParser(module_id, merge.left, false);
+                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                 try self.writeParser(module_id, merge.right, false);
                 try self.emitOp(.Merge, region);
+                self.patchJump(jumpIndex);
             },
             .take_left => |take_left| {
                 try self.writeParser(module_id, take_left.left, false);
@@ -1763,8 +1765,10 @@ pub const Compiler = struct {
             },
             .merge => |merge| {
                 try self.writePatternAsBoundRepeatValue(module_id, merge.left);
+                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                 try self.writePatternAsBoundRepeatValue(module_id, merge.right);
                 try self.emitOp(.Merge, region);
+                self.patchJump(jumpIndex);
             },
             .negation => |inner| {
                 try self.writePatternAsBoundRepeatValue(module_id, inner);
@@ -1799,8 +1803,10 @@ pub const Compiler = struct {
         switch (node) {
             .merge => |merge| {
                 try self.writeValue(module_id, merge.left, false);
+                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
                 try self.writeValue(module_id, merge.right, false);
                 try self.emitOp(.Merge, region);
+                self.patchJump(jumpIndex);
             },
             .take_left => |take_left| {
                 try self.writeValue(module_id, take_left.left, false);

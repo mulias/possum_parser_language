@@ -419,9 +419,10 @@
   0000    | GetConstant 2: maybe
   0002    | PushChar '-'
   0004    | CallFunction 1
-  0006    | CallFunctionConstant 3: _number_integer_part
-  0008    | Merge
-  0009    | End
+  0006    | JumpIfFailure 6 -> 12
+  0009    | CallFunctionConstant 3: _number_integer_part
+  0011    | Merge
+  0012    | End
   ========================================
   
   ================integer=================
@@ -475,11 +476,12 @@
   ========================================
   0000    | SetInputMark
   0001    | ParseCodepointRange '1'..'9'
-  0004    | CallFunctionConstant 6: numerals
-  0006    | Merge
-  0007    | Or 7 -> 12
-  0010    | CallTailFunctionConstant 7: numeral
-  0012    | End
+  0004    | JumpIfFailure 4 -> 10
+  0007    | CallFunctionConstant 6: numerals
+  0009    | Merge
+  0010    | Or 10 -> 15
+  0013    | CallTailFunctionConstant 7: numeral
+  0015    | End
   ========================================
   
   ================numerals================
@@ -574,9 +576,10 @@
   ========================================
   0000    | CallFunctionConstant 0: "Hello "
   0002    | CallFunctionConstant 1: integer
-  0004    | CallFunctionConstant 2: word
-  0006    | Merge
-  0007    | MergeAsString
-  0008    | End
+  0004    | JumpIfFailure 4 -> 10
+  0007    | CallFunctionConstant 2: word
+  0009    | Merge
+  0010    | MergeAsString
+  0011    | End
   ========================================
 
