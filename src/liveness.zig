@@ -25,8 +25,6 @@ pub const Liveness = struct {
     // deaths[i] holds the slots read by instruction i and by nothing
     // reachable after it.
     deaths: []SlotSet,
-    // Slots below the function's local count that no instruction reads.
-    unused: SlotSet,
 
     // Requires an IR that passes verify. `pattern_reads` maps each pattern
     // constant id to the slots the pattern references; entries for ids not
@@ -34,7 +32,6 @@ pub const Liveness = struct {
     pub fn analyze(
         allocator: Allocator,
         ir: *const Ir,
-        local_count: u16,
         pattern_reads: []const SlotSet,
     ) Allocator.Error!Liveness {
         const insns = ir.instructions.items;
@@ -69,18 +66,11 @@ pub const Liveness = struct {
 
         const deaths = try allocator.alloc(SlotSet, insns.len);
         errdefer allocator.free(deaths);
-        var read_anywhere = SlotSet.initEmpty();
         for (insns, 0..) |_, i| {
             deaths[i] = reads[i].differenceWith(liveOut(insns, live_in, i));
-            read_anywhere.setUnion(reads[i]);
         }
 
-        var unused = SlotSet.initEmpty();
-        for (0..local_count) |slot| {
-            if (!read_anywhere.isSet(slot)) unused.set(slot);
-        }
-
-        return .{ .deaths = deaths, .unused = unused };
+        return .{ .deaths = deaths };
     }
 
     pub fn deinit(self: *Liveness, allocator: Allocator) void {
@@ -202,13 +192,12 @@ test "a slot dies at its last read" {
     _ = try ir.push(allocator, .{ .none = .Merge }, testRegion(2));
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(3));
 
-    var liveness = try Liveness.analyze(allocator, &ir, 2, &.{});
+    var liveness = try Liveness.analyze(allocator, &ir, &.{});
     defer liveness.deinit(allocator);
 
     try testing.expectEqual(slots(&.{}), liveness.deaths[0]);
     try testing.expectEqual(slots(&.{0}), liveness.deaths[1]);
     try testing.expectEqual(slots(&.{}), liveness.deaths[2]);
-    try testing.expectEqual(slots(&.{1}), liveness.unused);
 }
 
 test "a read behind a branch keeps the slot live at the branch" {
@@ -223,14 +212,13 @@ test "a read behind a branch keeps the slot live at the branch" {
     ir.patchJumpTarget(jump);
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(4));
 
-    var liveness = try Liveness.analyze(allocator, &ir, 1, &.{});
+    var liveness = try Liveness.analyze(allocator, &ir, &.{});
     defer liveness.deinit(allocator);
 
     // The fallthrough path reads slot 0 again, so it survives the first
     // read and the branch, and dies at the read inside the branch.
     try testing.expectEqual(slots(&.{}), liveness.deaths[0]);
     try testing.expectEqual(slots(&.{0}), liveness.deaths[2]);
-    try testing.expectEqual(slots(&.{}), liveness.unused);
 }
 
 test "a loop back-edge keeps a slot read at the loop head alive" {
@@ -246,7 +234,7 @@ test "a loop back-edge keeps a slot read at the loop head alive" {
     ir.patchJumpTarget(done);
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(4));
 
-    var liveness = try Liveness.analyze(allocator, &ir, 1, &.{});
+    var liveness = try Liveness.analyze(allocator, &ir, &.{});
     defer liveness.deinit(allocator);
 
     // The read at the loop head is reachable from the back-edge, so the
@@ -254,7 +242,6 @@ test "a loop back-edge keeps a slot read at the loop head alive" {
     for (liveness.deaths) |death_set| {
         try testing.expectEqual(slots(&.{}), death_set);
     }
-    try testing.expectEqual(slots(&.{}), liveness.unused);
 }
 
 test "destructure reads its pattern's slots" {
@@ -266,12 +253,11 @@ test "destructure reads its pattern's slots" {
     _ = try ir.push(allocator, .{ .destructure = 0 }, testRegion(1));
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(2));
 
-    var liveness = try Liveness.analyze(allocator, &ir, 2, &.{slots(&.{ 0, 1 })});
+    var liveness = try Liveness.analyze(allocator, &ir, &.{slots(&.{ 0, 1 })});
     defer liveness.deinit(allocator);
 
     try testing.expectEqual(slots(&.{}), liveness.deaths[0]);
     try testing.expectEqual(slots(&.{ 0, 1 }), liveness.deaths[1]);
-    try testing.expectEqual(slots(&.{}), liveness.unused);
 }
 
 test "patternReads collects local slots through nested patterns" {
