@@ -35,6 +35,8 @@ pub const Ir = struct {
         long: struct { op: OpCode, value: u32 },
         get_constant: u24,
         get_constant_mutable: u24,
+        push_string: u32,
+        push_var: u32,
         call_function_constant: u24,
         call_tail_function_constant: u24,
         destructure: u24,
@@ -112,6 +114,8 @@ pub const Ir = struct {
                 },
                 .get_constant => |idx| try writeIndexed(chunk, allocator, idx, .GetConstant, .GetConstant2, .GetConstant3, region),
                 .get_constant_mutable => |idx| try writeIndexed(chunk, allocator, idx, .GetConstantMutable, .GetConstantMutable2, .GetConstantMutable3, region),
+                .push_string => |sid| try writeSid(chunk, allocator, sid, .PushString, .PushString2, .PushString3, .PushString4, region),
+                .push_var => |sid| try writeSid(chunk, allocator, sid, .PushVar, .PushVar2, .PushVar3, .PushVar4, region),
                 .call_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallFunctionConstant, .CallFunctionConstant2, .CallFunctionConstant3, region),
                 .call_tail_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallTailFunctionConstant, .CallTailFunctionConstant2, .CallTailFunctionConstant3, region),
                 .destructure => |idx| try writeIndexed(chunk, allocator, idx, .Destructure, .Destructure2, .Destructure3, region),
@@ -139,6 +143,22 @@ pub const Ir = struct {
         try chunk.writeShort(allocator, @intCast(distance), region);
     }
 
+    fn writeSid(chunk: *Chunk, allocator: Allocator, sid: u32, op1: OpCode, op2: OpCode, op3: OpCode, op4: OpCode, region: Region) !void {
+        if (sid <= 0xFF) {
+            try chunk.writeOp(allocator, op1, region);
+            try chunk.write(allocator, @intCast(sid), region);
+        } else if (sid <= 0xFFFF) {
+            try chunk.writeOp(allocator, op2, region);
+            try chunk.writeShort(allocator, @intCast(sid), region);
+        } else if (sid <= 0xFFFFFF) {
+            try chunk.writeOp(allocator, op3, region);
+            try chunk.writeMedium(allocator, @intCast(sid), region);
+        } else {
+            try chunk.writeOp(allocator, op4, region);
+            try chunk.writeLong(allocator, sid, region);
+        }
+    }
+
     fn writeIndexed(chunk: *Chunk, allocator: Allocator, idx: u24, op1: OpCode, op2: OpCode, op3: OpCode, region: Region) !void {
         if (idx <= 0xFF) {
             try chunk.writeOp(allocator, op1, region);
@@ -164,6 +184,7 @@ pub const Ir = struct {
             .call_tail_function_constant,
             .destructure,
             => |idx| indexedByteLength(idx),
+            .push_string, .push_var => |sid| sidByteLength(sid),
             .jump, .jump_back => 3,
         };
     }
@@ -172,6 +193,13 @@ pub const Ir = struct {
         if (idx <= 0xFF) return 2;
         if (idx <= 0xFFFF) return 3;
         return 4;
+    }
+
+    fn sidByteLength(sid: u32) u32 {
+        if (sid <= 0xFF) return 2;
+        if (sid <= 0xFFFF) return 3;
+        if (sid <= 0xFFFFFF) return 4;
+        return 5;
     }
 
     pub const VerifyError = error{
@@ -285,6 +313,8 @@ pub const Ir = struct {
             .long => |l| l.op,
             .get_constant => .GetConstant,
             .get_constant_mutable => .GetConstantMutable,
+            .push_string => .PushString,
+            .push_var => .PushVar,
             .call_function_constant => .CallFunctionConstant,
             .call_tail_function_constant => .CallTailFunctionConstant,
             .destructure => .Destructure,

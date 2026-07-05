@@ -14,6 +14,7 @@ the unmutated A.
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
+  strings size:      5532 chars
   bytes in use:      3576
 
 When the first alternative succeeds, the copy is the fresh result and A
@@ -30,4 +31,5 @@ dies unread in its slot.
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
+  strings size:      5532 chars
   bytes in use:      3576

@@ -15,6 +15,7 @@ iteration allocates a fresh closure.
   mutable constants: 2 reused, 3 copied
   closures:          4 reused, 1 created
   strings interned:  533
+  strings size:      5542 chars
   bytes in use:      4784
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p 'array_sep(word, ",")' -i 'ab,cd,ef,gh,ij'
@@ -28,6 +29,7 @@ iteration allocates a fresh closure.
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  533
+  strings size:      5542 chars
   bytes in use:      4512
 
 Object closures: object_sep itself takes plain-variable arguments and
@@ -51,6 +53,7 @@ second object on.
   mutable constants: 0 reused, 6 copied
   closures:          4 reused, 7 created
   strings interned:  570
+  strings size:      5668 chars
   bytes in use:      11920
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p 'json' -i '[{"a": 1}, {"b": 2}, {"c": 3}]'
@@ -68,4 +71,5 @@ second object on.
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  570
+  strings size:      5668 chars
   bytes in use:      11296

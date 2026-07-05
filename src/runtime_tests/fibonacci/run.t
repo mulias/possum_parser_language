@@ -5,22 +5,22 @@
   input   | 4 @ Line 1 byte 0
   Frames  | @main
   Stack   | @main
-  0000    | PushCharVar N
+  0000    | PushVar2 N
   
   input   | 4 @ Line 1 byte 0
   Frames  | @main
   Stack   | @main, N
-  0002    | PushNumberZero
+  0003    | PushNumberZero
   
   input   | 4 @ Line 1 byte 0
   Frames  | @main
   Stack   | @main, N, 0
-  0003    | ParseLowerBoundedRange
+  0004    | ParseLowerBoundedRange
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, N, 4
-  0004    | Destructure 1: N
+  0005    | Destructure 1: N
   
   Destructure:
       4 -> N
@@ -29,22 +29,22 @@
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4, 4
-  0006    | TakeRight 6 -> 15
+  0007    | TakeRight 7 -> 16
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4
-  0009    | GetConstant 0: Fib
+  0010    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4, Fib
-  0011    | GetBoundLocalMove 0
+  0012    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, null, Fib, 4
-  0013    | CallTailFunction 1
+  0014    | CallTailFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib

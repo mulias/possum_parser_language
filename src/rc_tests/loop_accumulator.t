@@ -13,6 +13,7 @@ place every iteration.
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  529
+  strings size:      5535 chars
   bytes in use:      3208
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p '("a" $ [1]) * 40 $ "ok"' -i 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -26,4 +27,5 @@ place every iteration.
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  529
+  strings size:      5535 chars
   bytes in use:      3208

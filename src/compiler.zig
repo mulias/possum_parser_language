@@ -2246,12 +2246,12 @@ pub const Compiler = struct {
                 }
             },
             .ValueVar => {
-                const sid = elem.asValueVar().sid;
-                const bytes = self.vm.strings.get(sid);
+                const value_var = elem.asValueVar();
+                const bytes = self.vm.strings.get(value_var.sid);
                 if (bytes.len == 1 and bytes[0] == '_') {
                     return try self.emitOp(.PushUnderscoreVar, region);
-                } else if (bytes.len == 1) {
-                    return try self.emitUnaryOp(.PushCharVar, bytes[0], region);
+                } else if (!value_var.placeholder) {
+                    return try self.emitPushVar(value_var.sid, region);
                 }
             },
             .String => {
@@ -2259,9 +2259,8 @@ pub const Compiler = struct {
                 const bytes = self.vm.strings.get(sid);
                 if (bytes.len == 0) {
                     return try self.emitOp(.PushEmptyString, region);
-                } else if (bytes.len == 1) {
-                    return try self.emitUnaryOp(.PushChar, bytes[0], region);
                 }
+                return try self.emitPushString(sid, region);
             },
             .NumberFloat => {
                 const n = elem.asFloat();
@@ -2567,6 +2566,14 @@ pub const Compiler = struct {
 
     fn emitConstant(self: *Compiler, idx: u24, region: Region) !void {
         _ = try self.ir().push(self.vm.allocator, .{ .get_constant = idx }, region);
+    }
+
+    fn emitPushString(self: *Compiler, sid: StringTable.Id, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .push_string = sid }, region);
+    }
+
+    fn emitPushVar(self: *Compiler, sid: StringTable.Id, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .push_var = sid }, region);
     }
 
     fn emitCallFunctionConstant(self: *Compiler, idx: u24, region: Region) !void {

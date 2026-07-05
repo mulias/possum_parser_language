@@ -31,14 +31,14 @@
   =================@main==================
   const([1,2,3]) -> [A,B,C]
   ========================================
-  0000    | PushCharVar A
-  0002    | PushCharVar B
-  0004    | PushCharVar C
-  0006    | GetConstant 0: const
-  0008    | GetConstant 1: [1, 2, 3]
-  0010    | CallFunction 1
-  0012    | Destructure 0: [A, B, C]
-  0014    | End
+  0000    | PushVar2 A
+  0003    | PushVar2 B
+  0006    | PushVar2 C
+  0009    | GetConstant 0: const
+  0011    | GetConstant 1: [1, 2, 3]
+  0013    | CallFunction 1
+  0015    | Destructure 0: [A, B, C]
+  0017    | End
   ========================================
 
   $ possum -p 'A = 1 ; const([1,2,3]) -> [A,B,C]' -i ''
@@ -53,13 +53,13 @@
   =================@main==================
   const([1,2,3]) -> [A,B,C]
   ========================================
-  0000    | PushCharVar B
-  0002    | PushCharVar C
-  0004    | GetConstant 0: const
-  0006    | GetConstant 1: [1, 2, 3]
-  0008    | CallFunction 1
-  0010    | Destructure 0: [A, B, C]
-  0012    | End
+  0000    | PushVar2 B
+  0003    | PushVar2 C
+  0006    | GetConstant 0: const
+  0008    | GetConstant 1: [1, 2, 3]
+  0010    | CallFunction 1
+  0012    | Destructure 0: [A, B, C]
+  0014    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [A, 2, 3]' -i ''
@@ -74,12 +74,12 @@
   =================@main==================
   const([1,2,3]) -> [A, 2, 3]
   ========================================
-  0000    | PushCharVar A
-  0002    | GetConstant 0: const
-  0004    | GetConstant 1: [1, 2, 3]
-  0006    | CallFunction 1
-  0008    | Destructure 0: [A, 2, 3]
-  0010    | End
+  0000    | PushVar2 A
+  0003    | GetConstant 0: const
+  0005    | GetConstant 1: [1, 2, 3]
+  0007    | CallFunction 1
+  0009    | Destructure 0: [A, 2, 3]
+  0011    | End
   ========================================
 
   $ possum -p 'const([1,[[2],3]]) -> [A, [[B], 3]] $ B' -i ''
@@ -94,19 +94,19 @@
   =================@main==================
   const([1,[[2],3]]) -> [A, [[B], 3]] $ B
   ========================================
-  0000    | PushCharVar A
-  0002    | PushCharVar B
-  0004    | GetConstant 0: const
-  0006    | GetConstantMutable 1: [1, _]
-  0008    | GetConstantMutable 2: [_, 3]
-  0010    | GetConstant 3: [2]
-  0012    | InsertAtIndex 0
-  0014    | InsertAtIndex 1
-  0016    | CallFunction 1
-  0018    | Destructure 0: [A, [[B], 3]]
-  0020    | TakeRight 20 -> 25
-  0023    | GetBoundLocalMove 1
-  0025    | End
+  0000    | PushVar2 A
+  0003    | PushVar2 B
+  0006    | GetConstant 0: const
+  0008    | GetConstantMutable 1: [1, _]
+  0010    | GetConstantMutable 2: [_, 3]
+  0012    | GetConstant 3: [2]
+  0014    | InsertAtIndex 0
+  0016    | InsertAtIndex 1
+  0018    | CallFunction 1
+  0020    | Destructure 0: [A, [[B], 3]]
+  0022    | TakeRight 22 -> 27
+  0025    | GetBoundLocalMove 1
+  0027    | End
   ========================================
 
   $ possum -p '3 -> (2 + B)' -i '3'
@@ -114,10 +114,10 @@
   =================@main==================
   3 -> (2 + B)
   ========================================
-  0000    | PushCharVar B
-  0002    | ParseThree
-  0003    | Destructure 0: (2 + B)
-  0005    | End
+  0000    | PushVar2 B
+  0003    | ParseThree
+  0004    | Destructure 0: (2 + B)
+  0006    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [A, 1 + 1, 3]' -i ''
@@ -132,12 +132,12 @@
   =================@main==================
   const([1,2,3]) -> [A, 1 + 1, 3]
   ========================================
-  0000    | PushCharVar A
-  0002    | GetConstant 0: const
-  0004    | GetConstant 1: [1, 2, 3]
-  0006    | CallFunction 1
-  0008    | Destructure 0: [A, 2, 3]
-  0010    | End
+  0000    | PushVar2 A
+  0003    | GetConstant 0: const
+  0005    | GetConstant 1: [1, 2, 3]
+  0007    | CallFunction 1
+  0009    | Destructure 0: [A, 2, 3]
+  0011    | End
   ========================================
 
   $ possum -p 'const([1, @Add(1, 2), 3]) -> [A, @Add(1, 1), 3]' -i ''
@@ -152,17 +152,17 @@
   =================@main==================
   const([1, @Add(1, 2), 3]) -> [A, @Add(1, 1), 3]
   ========================================
-  0000    | PushCharVar A
-  0002    | GetConstant 0: const
-  0004    | GetConstantMutable 1: [1, _, 3]
-  0006    | GetConstant 2: @Add
-  0008    | PushNumberOne
-  0009    | PushNumberTwo
-  0010    | CallFunction 2
-  0012    | InsertAtIndex 1
-  0014    | CallFunction 1
-  0016    | Destructure 0: [A, @Add(1, 1), 3]
-  0018    | End
+  0000    | PushVar2 A
+  0003    | GetConstant 0: const
+  0005    | GetConstantMutable 1: [1, _, 3]
+  0007    | GetConstant 2: @Add
+  0009    | PushNumberOne
+  0010    | PushNumberTwo
+  0011    | CallFunction 2
+  0013    | InsertAtIndex 1
+  0015    | CallFunction 1
+  0017    | Destructure 0: [A, @Add(1, 1), 3]
+  0019    | End
   ========================================
 
   $ possum -p 'const([1,2]) -> ([1] + [2])' -i ''
@@ -196,12 +196,12 @@
   =================@main==================
   const([1,2,3]) -> ([1] + B + [3])
   ========================================
-  0000    | PushCharVar B
-  0002    | GetConstant 0: const
-  0004    | GetConstant 1: [1, 2, 3]
-  0006    | CallFunction 1
-  0008    | Destructure 0: ([1] + B + [3])
-  0010    | End
+  0000    | PushVar2 B
+  0003    | GetConstant 0: const
+  0005    | GetConstant 1: [1, 2, 3]
+  0007    | CallFunction 1
+  0009    | Destructure 0: ([1] + B + [3])
+  0011    | End
   ========================================
 
   $ possum -p 'const([1,[2],2,3]) -> ([1,A] + A + [3])' -i ''
@@ -216,14 +216,14 @@
   =================@main==================
   const([1,[2],2,3]) -> ([1,A] + A + [3])
   ========================================
-  0000    | PushCharVar A
-  0002    | GetConstant 0: const
-  0004    | GetConstantMutable 1: [1, _, 2, 3]
-  0006    | GetConstant 2: [2]
-  0008    | InsertAtIndex 1
-  0010    | CallFunction 1
-  0012    | Destructure 0: ([1, A] + A + [3])
-  0014    | End
+  0000    | PushVar2 A
+  0003    | GetConstant 0: const
+  0005    | GetConstantMutable 1: [1, _, 2, 3]
+  0007    | GetConstant 2: [2]
+  0009    | InsertAtIndex 1
+  0011    | CallFunction 1
+  0013    | Destructure 0: ([1, A] + A + [3])
+  0015    | End
   ========================================
 
   $ possum -p '"foobar" -> ("fo" + Ob + "ar") $ Ob' -i ''
@@ -231,12 +231,12 @@
   =================@main==================
   "foobar" -> ("fo" + Ob + "ar") $ Ob
   ========================================
-  0000    | GetConstant 0: Ob
-  0002    | CallFunctionConstant 1: "foobar"
-  0004    | Destructure 0: ("fo" + Ob + "ar")
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 Ob
+  0003    | CallFunctionConstant 0: "foobar"
+  0005    | Destructure 0: ("fo" + Ob + "ar")
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [1, ...Rest] $ Rest' -i ''
@@ -251,14 +251,14 @@
   =================@main==================
   const([1,2,3]) -> [1, ...Rest] $ Rest
   ========================================
-  0000    | GetConstant 0: Rest
-  0002    | GetConstant 1: const
-  0004    | GetConstant 2: [1, 2, 3]
-  0006    | CallFunction 1
-  0008    | Destructure 0: ([1] + Rest)
-  0010    | TakeRight 10 -> 15
-  0013    | GetBoundLocalMove 0
-  0015    | End
+  0000    | PushVar2 Rest
+  0003    | GetConstant 0: const
+  0005    | GetConstant 1: [1, 2, 3]
+  0007    | CallFunction 1
+  0009    | Destructure 0: ([1] + Rest)
+  0011    | TakeRight 11 -> 16
+  0014    | GetBoundLocalMove 0
+  0016    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, "b": 2}' -i ''
@@ -292,13 +292,13 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> {"a": A, "b": B}
   ========================================
-  0000    | PushCharVar A
-  0002    | PushCharVar B
-  0004    | GetConstant 0: const
-  0006    | GetConstant 1: {"a": 1, "b": 2}
-  0008    | CallFunction 1
-  0010    | Destructure 0: {"a": A, "b": B}
-  0012    | End
+  0000    | PushVar2 A
+  0003    | PushVar2 B
+  0006    | GetConstant 0: const
+  0008    | GetConstant 1: {"a": 1, "b": 2}
+  0010    | CallFunction 1
+  0012    | Destructure 0: {"a": A, "b": B}
+  0014    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": _, "b": _}' -i ''
@@ -333,12 +333,12 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> ({"a": 1} + B)
   ========================================
-  0000    | PushCharVar B
-  0002    | GetConstant 0: const
-  0004    | GetConstant 1: {"a": 1, "b": 2}
-  0006    | CallFunction 1
-  0008    | Destructure 0: ({"a": 1} + B)
-  0010    | End
+  0000    | PushVar2 B
+  0003    | GetConstant 0: const
+  0005    | GetConstant 1: {"a": 1, "b": 2}
+  0007    | CallFunction 1
+  0009    | Destructure 0: ({"a": 1} + B)
+  0011    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> ({"b": 2} + A)' -i ''
@@ -353,12 +353,12 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> ({"b": 2} + A)
   ========================================
-  0000    | PushCharVar A
-  0002    | GetConstant 0: const
-  0004    | GetConstant 1: {"a": 1, "b": 2}
-  0006    | CallFunction 1
-  0008    | Destructure 0: ({"b": 2} + A)
-  0010    | End
+  0000    | PushVar2 A
+  0003    | GetConstant 0: const
+  0005    | GetConstant 1: {"a": 1, "b": 2}
+  0007    | CallFunction 1
+  0009    | Destructure 0: ({"b": 2} + A)
+  0011    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> (A + {"b": 2})' -i ''
@@ -373,12 +373,12 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> (A + {"b": 2})
   ========================================
-  0000    | PushCharVar A
-  0002    | GetConstant 0: const
-  0004    | GetConstant 1: {"a": 1, "b": 2}
-  0006    | CallFunction 1
-  0008    | Destructure 0: (A + {"b": 2})
-  0010    | End
+  0000    | PushVar2 A
+  0003    | GetConstant 0: const
+  0005    | GetConstant 1: {"a": 1, "b": 2}
+  0007    | CallFunction 1
+  0009    | Destructure 0: (A + {"b": 2})
+  0011    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, ...B}' -i ''
@@ -393,12 +393,12 @@
   =================@main==================
   const({"a": 1, "b": 2}) -> {"a": 1, ...B}
   ========================================
-  0000    | PushCharVar B
-  0002    | GetConstant 0: const
-  0004    | GetConstant 1: {"a": 1, "b": 2}
-  0006    | CallFunction 1
-  0008    | Destructure 0: ({"a": 1} + B)
-  0010    | End
+  0000    | PushVar2 B
+  0003    | GetConstant 0: const
+  0005    | GetConstant 1: {"a": 1, "b": 2}
+  0007    | CallFunction 1
+  0009    | Destructure 0: ({"a": 1} + B)
+  0011    | End
   ========================================
 
   $ possum -p '2 -> 0..5' -i '2'
@@ -494,44 +494,44 @@
     ) :
     Acc
   ========================================
-  0000    | GetConstant 0: Row
-  0002    | GetConstant 1: Rest
-  0004    | PushUnderscoreVar
-  0005    | GetConstant 2: RowRest
-  0007    | SetInputMark
-  0008    | GetBoundLocalMove 0
-  0010    | Destructure 0: ([Row] + Rest)
-  0012    | ConditionalThen 12 -> 71
-  0015    | SetInputMark
-  0016    | GetBoundLocalMove 2
-  0018    | Destructure 1: ([_] + RowRest)
-  0020    | ConditionalThen 20 -> 49
-  0023    | GetConstant 3: __Table.RestPerRow
-  0025    | GetBoundLocalMove 3
-  0027    | PushEmptyArray
-  0028    | JumpIfFailure 28 -> 34
-  0031    | GetBoundLocalMove 1
-  0033    | Merge
-  0034    | JumpIfFailure 34 -> 44
-  0037    | GetConstantMutable 4: [_]
-  0039    | GetBoundLocalMove 5
-  0041    | InsertAtIndex 0
-  0043    | Merge
-  0044    | CallTailFunction 2
-  0046    | Jump 46 -> 68
-  0049    | GetConstant 3: __Table.RestPerRow
-  0051    | GetBoundLocalMove 3
-  0053    | PushEmptyArray
-  0054    | JumpIfFailure 54 -> 60
-  0057    | GetBoundLocalMove 1
-  0059    | Merge
-  0060    | JumpIfFailure 60 -> 66
-  0063    | GetConstant 5: [[]]
-  0065    | Merge
-  0066    | CallTailFunction 2
-  0068    | Jump 68 -> 73
-  0071    | GetBoundLocalMove 1
-  0073    | End
+  0000    | PushVar2 Row
+  0003    | PushVar2 Rest
+  0006    | PushUnderscoreVar
+  0007    | PushVar2 RowRest
+  0010    | SetInputMark
+  0011    | GetBoundLocalMove 0
+  0013    | Destructure 0: ([Row] + Rest)
+  0015    | ConditionalThen 15 -> 74
+  0018    | SetInputMark
+  0019    | GetBoundLocalMove 2
+  0021    | Destructure 1: ([_] + RowRest)
+  0023    | ConditionalThen 23 -> 52
+  0026    | GetConstant 0: __Table.RestPerRow
+  0028    | GetBoundLocalMove 3
+  0030    | PushEmptyArray
+  0031    | JumpIfFailure 31 -> 37
+  0034    | GetBoundLocalMove 1
+  0036    | Merge
+  0037    | JumpIfFailure 37 -> 47
+  0040    | GetConstantMutable 1: [_]
+  0042    | GetBoundLocalMove 5
+  0044    | InsertAtIndex 0
+  0046    | Merge
+  0047    | CallTailFunction 2
+  0049    | Jump 49 -> 71
+  0052    | GetConstant 0: __Table.RestPerRow
+  0054    | GetBoundLocalMove 3
+  0056    | PushEmptyArray
+  0057    | JumpIfFailure 57 -> 63
+  0060    | GetBoundLocalMove 1
+  0062    | Merge
+  0063    | JumpIfFailure 63 -> 69
+  0066    | GetConstant 2: [[]]
+  0068    | Merge
+  0069    | CallTailFunction 2
+  0071    | Jump 71 -> 76
+  0074    | GetBoundLocalMove 1
+  0076    | End
   ========================================
   
   =================@main==================
@@ -546,13 +546,13 @@
   ================Obj.Get=================
   Obj.Get(O, K) = O -> {K: V, ..._} & V
   ========================================
-  0000    | PushCharVar V
-  0002    | PushUnderscoreVar
-  0003    | GetBoundLocalMove 0
-  0005    | Destructure 0: ({K: V} + _)
-  0007    | TakeRight 7 -> 12
-  0010    | GetBoundLocalMove 2
-  0012    | End
+  0000    | PushVar2 V
+  0003    | PushUnderscoreVar
+  0004    | GetBoundLocalMove 0
+  0006    | Destructure 0: ({K: V} + _)
+  0008    | TakeRight 8 -> 13
+  0011    | GetBoundLocalMove 2
+  0013    | End
   ========================================
   
   =================@main==================
@@ -587,10 +587,10 @@
   =================@main==================
   5 -> (2 + X + 3)
   ========================================
-  0000    | PushCharVar X
-  0002    | ParseNumberStringChar 5
-  0004    | Destructure 0: (2 + X + 3)
-  0006    | End
+  0000    | PushVar2 X
+  0003    | ParseNumberStringChar 5
+  0005    | Destructure 0: (2 + X + 3)
+  0007    | End
   ========================================
 
   $ possum -p 'X = 3; 7 -> (X + 4)' -i '7'
@@ -618,12 +618,12 @@
   =================@main==================
   6 -> (1 + X + 3) $ X
   ========================================
-  0000    | PushCharVar X
-  0002    | ParseNumberStringChar 6
-  0004    | Destructure 0: (1 + X + 3)
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 X
+  0003    | ParseNumberStringChar 6
+  0005    | Destructure 0: (1 + X + 3)
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p '5 -> (2 - 3)' -i '5'
@@ -641,12 +641,12 @@
   =================@main==================
   6 -> (1 + X - 3) $ X
   ========================================
-  0000    | PushCharVar X
-  0002    | ParseNumberStringChar 6
-  0004    | Destructure 0: (1 + X + -3)
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 X
+  0003    | ParseNumberStringChar 6
+  0005    | Destructure 0: (1 + X + -3)
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p '6 -> (1 - X + 3) $ X' -i '6'
@@ -654,12 +654,12 @@
   =================@main==================
   6 -> (1 - X + 3) $ X
   ========================================
-  0000    | PushCharVar X
-  0002    | ParseNumberStringChar 6
-  0004    | Destructure 0: (1 + -X + 3)
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 X
+  0003    | ParseNumberStringChar 6
+  0005    | Destructure 0: (1 + -X + 3)
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p '5 -> (1 + 6 + 3 - (2 + 3))' -i '5'
@@ -677,12 +677,12 @@
   =================@main==================
   5 -> -(X + 1) $ X
   ========================================
-  0000    | PushCharVar X
-  0002    | ParseNumberStringChar 5
-  0004    | Destructure 0: (-X + -1)
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 X
+  0003    | ParseNumberStringChar 5
+  0005    | Destructure 0: (-X + -1)
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p 'const([1, 5, 2]) -> [1, -(X + 1), 2] $ X' -i ''
@@ -697,14 +697,14 @@
   =================@main==================
   const([1, 5, 2]) -> [1, -(X + 1), 2] $ X
   ========================================
-  0000    | PushCharVar X
-  0002    | GetConstant 0: const
-  0004    | GetConstant 1: [1, 5, 2]
-  0006    | CallFunction 1
-  0008    | Destructure 0: [1, (-X + -1), 2]
-  0010    | TakeRight 10 -> 15
-  0013    | GetBoundLocalMove 0
-  0015    | End
+  0000    | PushVar2 X
+  0003    | GetConstant 0: const
+  0005    | GetConstant 1: [1, 5, 2]
+  0007    | CallFunction 1
+  0009    | Destructure 0: [1, (-X + -1), 2]
+  0011    | TakeRight 11 -> 16
+  0014    | GetBoundLocalMove 0
+  0016    | End
   ========================================
 
   $ possum -p '"1" -> "%(1)"' -i '1'
@@ -732,12 +732,12 @@
   =================@main==================
   "50" -> "%(0 + N)" $ N
   ========================================
-  0000    | PushCharVar N
-  0002    | CallFunctionConstant 0: "50"
-  0004    | Destructure 0: "%(0 + N)"
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 N
+  0003    | CallFunctionConstant 0: "50"
+  0005    | Destructure 0: "%(0 + N)"
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p '"ab" * 3' -i 'ababab'
@@ -811,10 +811,10 @@
   =================@main==================
   123 -> V
   ========================================
-  0000    | PushCharVar V
-  0002    | CallFunctionConstant 0: 123
-  0004    | Destructure 0: V
-  0006    | End
+  0000    | PushVar2 V
+  0003    | CallFunctionConstant 0: 123
+  0005    | Destructure 0: V
+  0007    | End
   ========================================
 
   $ possum -p '"abc" -> "abc"' -i 'abc'
@@ -1078,12 +1078,12 @@
   maybe("-") + _number_integer_part
   ========================================
   0000    | GetConstant 2: maybe
-  0002    | PushChar '-'
-  0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 12
-  0009    | CallFunctionConstant 3: _number_integer_part
-  0011    | Merge
-  0012    | End
+  0002    | PushString2 "-"
+  0005    | CallFunction 1
+  0007    | JumpIfFailure 7 -> 13
+  0010    | CallFunctionConstant 3: _number_integer_part
+  0012    | Merge
+  0013    | End
   ========================================
   
   ================integer=================
@@ -1098,12 +1098,12 @@
   ===============as_number================
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
-  0000    | PushCharVar N
-  0002    | CallFunctionLocal 0
-  0004    | Destructure 0: "%(0 + N)"
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 1
-  0011    | End
+  0000    | PushVar2 N
+  0003    | CallFunctionLocal 0
+  0005    | Destructure 0: "%(0 + N)"
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 1
+  0012    | End
   ========================================
   
   =================maybe==================
@@ -1213,10 +1213,10 @@
   =================@main==================
   8 -> (0 + N)
   ========================================
-  0000    | PushCharVar N
-  0002    | ParseNumberStringChar 8
-  0004    | Destructure 0: (0 + N)
-  0006    | End
+  0000    | PushVar2 N
+  0003    | ParseNumberStringChar 8
+  0005    | Destructure 0: (0 + N)
+  0007    | End
   ========================================
 
   $ possum -p '8 -> (N + 100)' -i '8'
@@ -1224,10 +1224,10 @@
   =================@main==================
   8 -> (N + 100)
   ========================================
-  0000    | PushCharVar N
-  0002    | ParseNumberStringChar 8
-  0004    | Destructure 0: (N + 100)
-  0006    | End
+  0000    | PushVar2 N
+  0003    | ParseNumberStringChar 8
+  0005    | Destructure 0: (N + 100)
+  0007    | End
   ========================================
 
   $ possum -p 'array(digit) -> [1, 2, 3]' -i '123'
@@ -1268,14 +1268,14 @@
   =================tuple1=================
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
-  0000    | GetConstant 1: Elem
-  0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 2: [_]
-  0011    | GetBoundLocalMove 1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0000    | PushVar2 Elem
+  0003    | CallFunctionLocal 0
+  0005    | Destructure 0: Elem
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 1: [_]
+  0012    | GetBoundLocalMove 1
+  0014    | InsertAtIndex 0
+  0016    | End
   ========================================
   
   =================digit==================
@@ -1333,14 +1333,14 @@
   =================tuple1=================
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
-  0000    | GetConstant 1: Elem
-  0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 2: [_]
-  0011    | GetBoundLocalMove 1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0000    | PushVar2 Elem
+  0003    | CallFunctionLocal 0
+  0005    | Destructure 0: Elem
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 1: [_]
+  0012    | GetBoundLocalMove 1
+  0014    | InsertAtIndex 0
+  0016    | End
   ========================================
   
   =================digit==================
@@ -1353,13 +1353,13 @@
   =================@main==================
   array(digit) -> [A, ..._]
   ========================================
-  0000    | PushCharVar A
-  0002    | PushUnderscoreVar
-  0003    | GetConstant 0: array
-  0005    | GetConstant 1: digit
-  0007    | CallFunction 1
-  0009    | Destructure 0: ([A] + _)
-  0011    | End
+  0000    | PushVar2 A
+  0003    | PushUnderscoreVar
+  0004    | GetConstant 0: array
+  0006    | GetConstant 1: digit
+  0008    | CallFunction 1
+  0010    | Destructure 0: ([A] + _)
+  0012    | End
   ========================================
 
   $ possum -p 'array(digit) -> ([1] * 5)' -i '11111'
@@ -1400,14 +1400,14 @@
   =================tuple1=================
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
-  0000    | GetConstant 1: Elem
-  0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 2: [_]
-  0011    | GetBoundLocalMove 1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0000    | PushVar2 Elem
+  0003    | CallFunctionLocal 0
+  0005    | Destructure 0: Elem
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 1: [_]
+  0012    | GetBoundLocalMove 1
+  0014    | InsertAtIndex 0
+  0016    | End
   ========================================
   
   =================digit==================
@@ -1465,14 +1465,14 @@
   =================tuple1=================
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
-  0000    | GetConstant 1: Elem
-  0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 2: [_]
-  0011    | GetBoundLocalMove 1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0000    | PushVar2 Elem
+  0003    | CallFunctionLocal 0
+  0005    | Destructure 0: Elem
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 1: [_]
+  0012    | GetBoundLocalMove 1
+  0014    | InsertAtIndex 0
+  0016    | End
   ========================================
   
   =================digit==================
@@ -1485,12 +1485,12 @@
   =================@main==================
   array(digit) -> ([A] * 5)
   ========================================
-  0000    | PushCharVar A
-  0002    | GetConstant 0: array
-  0004    | GetConstant 1: digit
-  0006    | CallFunction 1
-  0008    | Destructure 0: [A, A, A, A, A]
-  0010    | End
+  0000    | PushVar2 A
+  0003    | GetConstant 0: array
+  0005    | GetConstant 1: digit
+  0007    | CallFunction 1
+  0009    | Destructure 0: [A, A, A, A, A]
+  0011    | End
   ========================================
 
   $ possum -p 'array(digit) -> ([1] * N) $ N' -i '11111111'
@@ -1531,14 +1531,14 @@
   =================tuple1=================
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
-  0000    | GetConstant 1: Elem
-  0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 2: [_]
-  0011    | GetBoundLocalMove 1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0000    | PushVar2 Elem
+  0003    | CallFunctionLocal 0
+  0005    | Destructure 0: Elem
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 1: [_]
+  0012    | GetBoundLocalMove 1
+  0014    | InsertAtIndex 0
+  0016    | End
   ========================================
   
   =================digit==================
@@ -1551,14 +1551,14 @@
   =================@main==================
   array(digit) -> ([1] * N) $ N
   ========================================
-  0000    | PushCharVar N
-  0002    | GetConstant 0: array
-  0004    | GetConstant 1: digit
-  0006    | CallFunction 1
-  0008    | Destructure 0: ([1] * N)
-  0010    | TakeRight 10 -> 15
-  0013    | GetBoundLocalMove 0
-  0015    | End
+  0000    | PushVar2 N
+  0003    | GetConstant 0: array
+  0005    | GetConstant 1: digit
+  0007    | CallFunction 1
+  0009    | Destructure 0: ([1] * N)
+  0011    | TakeRight 11 -> 16
+  0014    | GetBoundLocalMove 0
+  0016    | End
   ========================================
 
   $ possum -p 'array(digit) -> [A, ..._, Z]' -i '12345678'
@@ -1599,14 +1599,14 @@
   =================tuple1=================
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
-  0000    | GetConstant 1: Elem
-  0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 2: [_]
-  0011    | GetBoundLocalMove 1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0000    | PushVar2 Elem
+  0003    | CallFunctionLocal 0
+  0005    | Destructure 0: Elem
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 1: [_]
+  0012    | GetBoundLocalMove 1
+  0014    | InsertAtIndex 0
+  0016    | End
   ========================================
   
   =================digit==================
@@ -1619,14 +1619,14 @@
   =================@main==================
   array(digit) -> [A, ..._, Z]
   ========================================
-  0000    | PushCharVar A
-  0002    | PushUnderscoreVar
-  0003    | PushCharVar Z
-  0005    | GetConstant 0: array
-  0007    | GetConstant 1: digit
-  0009    | CallFunction 1
-  0011    | Destructure 0: ([A] + _ + [Z])
-  0013    | End
+  0000    | PushVar2 A
+  0003    | PushUnderscoreVar
+  0004    | PushVar2 Z
+  0007    | GetConstant 0: array
+  0009    | GetConstant 1: digit
+  0011    | CallFunction 1
+  0013    | Destructure 0: ([A] + _ + [Z])
+  0015    | End
   ========================================
 
   $ possum -p 'array(digit) -> [1, B, _]' -i '123'
@@ -1667,14 +1667,14 @@
   =================tuple1=================
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
-  0000    | GetConstant 1: Elem
-  0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 2: [_]
-  0011    | GetBoundLocalMove 1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0000    | PushVar2 Elem
+  0003    | CallFunctionLocal 0
+  0005    | Destructure 0: Elem
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 1: [_]
+  0012    | GetBoundLocalMove 1
+  0014    | InsertAtIndex 0
+  0016    | End
   ========================================
   
   =================digit==================
@@ -1687,13 +1687,13 @@
   =================@main==================
   array(digit) -> [1, B, _]
   ========================================
-  0000    | PushCharVar B
-  0002    | PushUnderscoreVar
-  0003    | GetConstant 0: array
-  0005    | GetConstant 1: digit
-  0007    | CallFunction 1
-  0009    | Destructure 0: [1, B, _]
-  0011    | End
+  0000    | PushVar2 B
+  0003    | PushUnderscoreVar
+  0004    | GetConstant 0: array
+  0006    | GetConstant 1: digit
+  0008    | CallFunction 1
+  0010    | Destructure 0: [1, B, _]
+  0012    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": 1, "b": 2}' -i 'a1b2'
@@ -1736,19 +1736,19 @@
   ==================pair==================
   pair(key, value) = key -> K & value -> V $ {K: V}
   ========================================
-  0000    | PushCharVar K
-  0002    | PushCharVar V
-  0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
-  0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstantMutable 1: {_0_}
-  0020    | GetBoundLocalMove 2
-  0022    | GetBoundLocalMove 3
-  0024    | InsertKeyVal 0
-  0026    | End
+  0000    | PushVar2 K
+  0003    | PushVar2 V
+  0006    | CallFunctionLocal 0
+  0008    | Destructure 0: K
+  0010    | TakeRight 10 -> 28
+  0013    | CallFunctionLocal 1
+  0015    | Destructure 1: V
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstantMutable 1: {_0_}
+  0022    | GetBoundLocalMove 2
+  0024    | GetBoundLocalMove 3
+  0026    | InsertKeyVal 0
+  0028    | End
   ========================================
   
   =================alpha==================
@@ -1819,19 +1819,19 @@
   ==================pair==================
   pair(key, value) = key -> K & value -> V $ {K: V}
   ========================================
-  0000    | PushCharVar K
-  0002    | PushCharVar V
-  0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
-  0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstantMutable 1: {_0_}
-  0020    | GetBoundLocalMove 2
-  0022    | GetBoundLocalMove 3
-  0024    | InsertKeyVal 0
-  0026    | End
+  0000    | PushVar2 K
+  0003    | PushVar2 V
+  0006    | CallFunctionLocal 0
+  0008    | Destructure 0: K
+  0010    | TakeRight 10 -> 28
+  0013    | CallFunctionLocal 1
+  0015    | Destructure 1: V
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstantMutable 1: {_0_}
+  0022    | GetBoundLocalMove 2
+  0024    | GetBoundLocalMove 3
+  0026    | InsertKeyVal 0
+  0028    | End
   ========================================
   
   =================alpha==================
@@ -1903,19 +1903,19 @@
   ==================pair==================
   pair(key, value) = key -> K & value -> V $ {K: V}
   ========================================
-  0000    | PushCharVar K
-  0002    | PushCharVar V
-  0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
-  0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstantMutable 1: {_0_}
-  0020    | GetBoundLocalMove 2
-  0022    | GetBoundLocalMove 3
-  0024    | InsertKeyVal 0
-  0026    | End
+  0000    | PushVar2 K
+  0003    | PushVar2 V
+  0006    | CallFunctionLocal 0
+  0008    | Destructure 0: K
+  0010    | TakeRight 10 -> 28
+  0013    | CallFunctionLocal 1
+  0015    | Destructure 1: V
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstantMutable 1: {_0_}
+  0022    | GetBoundLocalMove 2
+  0024    | GetBoundLocalMove 3
+  0026    | InsertKeyVal 0
+  0028    | End
   ========================================
   
   =================alpha==================
@@ -1987,19 +1987,19 @@
   ==================pair==================
   pair(key, value) = key -> K & value -> V $ {K: V}
   ========================================
-  0000    | PushCharVar K
-  0002    | PushCharVar V
-  0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
-  0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstantMutable 1: {_0_}
-  0020    | GetBoundLocalMove 2
-  0022    | GetBoundLocalMove 3
-  0024    | InsertKeyVal 0
-  0026    | End
+  0000    | PushVar2 K
+  0003    | PushVar2 V
+  0006    | CallFunctionLocal 0
+  0008    | Destructure 0: K
+  0010    | TakeRight 10 -> 28
+  0013    | CallFunctionLocal 1
+  0015    | Destructure 1: V
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstantMutable 1: {_0_}
+  0022    | GetBoundLocalMove 2
+  0024    | GetBoundLocalMove 3
+  0026    | InsertKeyVal 0
+  0028    | End
   ========================================
   
   =================alpha==================
@@ -2022,14 +2022,14 @@
   =================@main==================
   object(alpha, digit) -> {"a": A, ..._}
   ========================================
-  0000    | PushCharVar A
-  0002    | PushUnderscoreVar
-  0003    | GetConstant 0: object
-  0005    | GetConstant 1: alpha
-  0007    | GetConstant 2: digit
-  0009    | CallFunction 2
-  0011    | Destructure 0: ({"a": A} + _)
-  0013    | End
+  0000    | PushVar2 A
+  0003    | PushUnderscoreVar
+  0004    | GetConstant 0: object
+  0006    | GetConstant 1: alpha
+  0008    | GetConstant 2: digit
+  0010    | CallFunction 2
+  0012    | Destructure 0: ({"a": A} + _)
+  0014    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {..._, "a": A}' -i 'a1b2'
@@ -2072,19 +2072,19 @@
   ==================pair==================
   pair(key, value) = key -> K & value -> V $ {K: V}
   ========================================
-  0000    | PushCharVar K
-  0002    | PushCharVar V
-  0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
-  0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstantMutable 1: {_0_}
-  0020    | GetBoundLocalMove 2
-  0022    | GetBoundLocalMove 3
-  0024    | InsertKeyVal 0
-  0026    | End
+  0000    | PushVar2 K
+  0003    | PushVar2 V
+  0006    | CallFunctionLocal 0
+  0008    | Destructure 0: K
+  0010    | TakeRight 10 -> 28
+  0013    | CallFunctionLocal 1
+  0015    | Destructure 1: V
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstantMutable 1: {_0_}
+  0022    | GetBoundLocalMove 2
+  0024    | GetBoundLocalMove 3
+  0026    | InsertKeyVal 0
+  0028    | End
   ========================================
   
   =================alpha==================
@@ -2108,13 +2108,13 @@
   object(alpha, digit) -> {..._, "a": A}
   ========================================
   0000    | PushUnderscoreVar
-  0001    | PushCharVar A
-  0003    | GetConstant 0: object
-  0005    | GetConstant 1: alpha
-  0007    | GetConstant 2: digit
-  0009    | CallFunction 2
-  0011    | Destructure 0: ({} + _ + {"a": A})
-  0013    | End
+  0001    | PushVar2 A
+  0004    | GetConstant 0: object
+  0006    | GetConstant 1: alpha
+  0008    | GetConstant 2: digit
+  0010    | CallFunction 2
+  0012    | Destructure 0: ({} + _ + {"a": A})
+  0014    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": _, "b": B}' -i 'a1b2'
@@ -2157,19 +2157,19 @@
   ==================pair==================
   pair(key, value) = key -> K & value -> V $ {K: V}
   ========================================
-  0000    | PushCharVar K
-  0002    | PushCharVar V
-  0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
-  0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstantMutable 1: {_0_}
-  0020    | GetBoundLocalMove 2
-  0022    | GetBoundLocalMove 3
-  0024    | InsertKeyVal 0
-  0026    | End
+  0000    | PushVar2 K
+  0003    | PushVar2 V
+  0006    | CallFunctionLocal 0
+  0008    | Destructure 0: K
+  0010    | TakeRight 10 -> 28
+  0013    | CallFunctionLocal 1
+  0015    | Destructure 1: V
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstantMutable 1: {_0_}
+  0022    | GetBoundLocalMove 2
+  0024    | GetBoundLocalMove 3
+  0026    | InsertKeyVal 0
+  0028    | End
   ========================================
   
   =================alpha==================
@@ -2193,13 +2193,13 @@
   object(alpha, digit) -> {"a": _, "b": B}
   ========================================
   0000    | PushUnderscoreVar
-  0001    | PushCharVar B
-  0003    | GetConstant 0: object
-  0005    | GetConstant 1: alpha
-  0007    | GetConstant 2: digit
-  0009    | CallFunction 2
-  0011    | Destructure 0: {"a": _, "b": B}
-  0013    | End
+  0001    | PushVar2 B
+  0004    | GetConstant 0: object
+  0006    | GetConstant 1: alpha
+  0008    | GetConstant 2: digit
+  0010    | CallFunction 2
+  0012    | Destructure 0: {"a": _, "b": B}
+  0014    | End
   ========================================
 
   $ possum -p 'array(digit) -> [...A]' -i '123'
@@ -2240,14 +2240,14 @@
   =================tuple1=================
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
-  0000    | GetConstant 1: Elem
-  0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 2: [_]
-  0011    | GetBoundLocalMove 1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0000    | PushVar2 Elem
+  0003    | CallFunctionLocal 0
+  0005    | Destructure 0: Elem
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 1: [_]
+  0012    | GetBoundLocalMove 1
+  0014    | InsertAtIndex 0
+  0016    | End
   ========================================
   
   =================digit==================
@@ -2260,12 +2260,12 @@
   =================@main==================
   array(digit) -> [...A]
   ========================================
-  0000    | PushCharVar A
-  0002    | GetConstant 0: array
-  0004    | GetConstant 1: digit
-  0006    | CallFunction 1
-  0008    | Destructure 0: ([] + A)
-  0010    | End
+  0000    | PushVar2 A
+  0003    | GetConstant 0: array
+  0005    | GetConstant 1: digit
+  0007    | CallFunction 1
+  0009    | Destructure 0: ([] + A)
+  0011    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {...O}' -i 'a1b2'
@@ -2308,19 +2308,19 @@
   ==================pair==================
   pair(key, value) = key -> K & value -> V $ {K: V}
   ========================================
-  0000    | PushCharVar K
-  0002    | PushCharVar V
-  0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
-  0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstantMutable 1: {_0_}
-  0020    | GetBoundLocalMove 2
-  0022    | GetBoundLocalMove 3
-  0024    | InsertKeyVal 0
-  0026    | End
+  0000    | PushVar2 K
+  0003    | PushVar2 V
+  0006    | CallFunctionLocal 0
+  0008    | Destructure 0: K
+  0010    | TakeRight 10 -> 28
+  0013    | CallFunctionLocal 1
+  0015    | Destructure 1: V
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstantMutable 1: {_0_}
+  0022    | GetBoundLocalMove 2
+  0024    | GetBoundLocalMove 3
+  0026    | InsertKeyVal 0
+  0028    | End
   ========================================
   
   =================alpha==================
@@ -2343,13 +2343,13 @@
   =================@main==================
   object(alpha, digit) -> {...O}
   ========================================
-  0000    | PushCharVar O
-  0002    | GetConstant 0: object
-  0004    | GetConstant 1: alpha
-  0006    | GetConstant 2: digit
-  0008    | CallFunction 2
-  0010    | Destructure 0: ({} + O)
-  0012    | End
+  0000    | PushVar2 O
+  0003    | GetConstant 0: object
+  0005    | GetConstant 1: alpha
+  0007    | GetConstant 2: digit
+  0009    | CallFunction 2
+  0011    | Destructure 0: ({} + O)
+  0013    | End
   ========================================
 
   $ possum -p '"abc" -> "%(S)"' -i 'abc'
@@ -2357,10 +2357,10 @@
   =================@main==================
   "abc" -> "%(S)"
   ========================================
-  0000    | PushCharVar S
-  0002    | CallFunctionConstant 0: "abc"
-  0004    | Destructure 0: "%(S)"
-  0006    | End
+  0000    | PushVar2 S
+  0003    | CallFunctionConstant 0: "abc"
+  0005    | Destructure 0: "%(S)"
+  0007    | End
   ========================================
 
   $ possum -p '"null" -> "%(null)"' -i 'null'
@@ -2378,12 +2378,12 @@
   =================@main==================
   "null" -> "%(null + N)" $ N
   ========================================
-  0000    | PushCharVar N
-  0002    | CallFunctionConstant 0: "null"
-  0004    | Destructure 0: "%(N)"
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 N
+  0003    | CallFunctionConstant 0: "null"
+  0005    | Destructure 0: "%(N)"
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p '"true" -> "%(true + B)" $ B' -i 'true'
@@ -2391,12 +2391,12 @@
   =================@main==================
   "true" -> "%(true + B)" $ B
   ========================================
-  0000    | PushCharVar B
-  0002    | CallFunctionConstant 0: "true"
-  0004    | Destructure 0: "%(true + B)"
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 B
+  0003    | CallFunctionConstant 0: "true"
+  0005    | Destructure 0: "%(true + B)"
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p '"123" -> "%(0 + N)"' -i '123'
@@ -2404,10 +2404,10 @@
   =================@main==================
   "123" -> "%(0 + N)"
   ========================================
-  0000    | PushCharVar N
-  0002    | CallFunctionConstant 0: "123"
-  0004    | Destructure 0: "%(0 + N)"
-  0006    | End
+  0000    | PushVar2 N
+  0003    | CallFunctionConstant 0: "123"
+  0005    | Destructure 0: "%(0 + N)"
+  0007    | End
   ========================================
 
   $ possum -p '"123" -> "%(N + 1)"' -i '123'
@@ -2415,10 +2415,10 @@
   =================@main==================
   "123" -> "%(N + 1)"
   ========================================
-  0000    | PushCharVar N
-  0002    | CallFunctionConstant 0: "123"
-  0004    | Destructure 0: "%(N + 1)"
-  0006    | End
+  0000    | PushVar2 N
+  0003    | CallFunctionConstant 0: "123"
+  0005    | Destructure 0: "%(N + 1)"
+  0007    | End
   ========================================
 
   $ possum -p '"[1,2,3]" -> "%([...A])"' -i '[1,2,3]'
@@ -2426,10 +2426,10 @@
   =================@main==================
   "[1,2,3]" -> "%([...A])"
   ========================================
-  0000    | PushCharVar A
-  0002    | CallFunctionConstant 0: "[1,2,3]"
-  0004    | Destructure 0: "%([] + A)"
-  0006    | End
+  0000    | PushVar2 A
+  0003    | CallFunctionConstant 0: "[1,2,3]"
+  0005    | Destructure 0: "%([] + A)"
+  0007    | End
   ========================================
 
   $ possum -p '`{"a": 1, "b": 2}` -> "%({..._})"' -i '{"a": 1, "b": 2}'
@@ -2448,12 +2448,12 @@
   =================@main==================
   "abcabcabc" -> "%( `abc` * N)" $ N
   ========================================
-  0000    | PushCharVar N
-  0002    | CallFunctionConstant 0: "abcabcabc"
-  0004    | Destructure 0: "%(("abc" * N))"
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 N
+  0003    | CallFunctionConstant 0: "abcabcabc"
+  0005    | Destructure 0: "%(("abc" * N))"
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p '"prefix123123suffix" -> "%(`prefix` + (`123` * N) + `suffix`)" $ N' -i 'prefix123123suffix'
@@ -2461,12 +2461,12 @@
   =================@main==================
   "prefix123123suffix" -> "%(`prefix` + (`123` * N) + `suffix`)" $ N
   ========================================
-  0000    | PushCharVar N
-  0002    | CallFunctionConstant 0: "prefix123123suffix"
-  0004    | Destructure 0: "%("prefix" + ("123" * N) + "suffix")"
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0000    | PushVar2 N
+  0003    | CallFunctionConstant 0: "prefix123123suffix"
+  0005    | Destructure 0: "%("prefix" + ("123" * N) + "suffix")"
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p '"" -> ("" * N)' -i ''
@@ -2474,10 +2474,10 @@
   =================@main==================
   "" -> ("" * N)
   ========================================
-  0000    | PushCharVar N
-  0002    | PushEmptyString
-  0003    | Destructure 0: ("" * N)
-  0005    | End
+  0000    | PushVar2 N
+  0003    | PushEmptyString
+  0004    | Destructure 0: ("" * N)
+  0006    | End
   ========================================
 
   $ possum -p '"" -> "%(`` * N)"' -i ''
@@ -2485,10 +2485,10 @@
   =================@main==================
   "" -> "%(`` * N)"
   ========================================
-  0000    | PushCharVar N
-  0002    | PushEmptyString
-  0003    | Destructure 0: "%(("" * N))"
-  0005    | End
+  0000    | PushVar2 N
+  0003    | PushEmptyString
+  0004    | Destructure 0: "%(("" * N))"
+  0006    | End
   ========================================
 
   $ possum -p '"" $ 0 -> (0 * N)' -i ''
@@ -2496,10 +2496,10 @@
   =================@main==================
   "" $ 0 -> (0 * N)
   ========================================
-  0000    | PushCharVar N
-  0002    | PushNumberZero
-  0003    | Destructure 0: (0 * N)
-  0005    | End
+  0000    | PushVar2 N
+  0003    | PushNumberZero
+  0004    | Destructure 0: (0 * N)
+  0006    | End
   ========================================
 
   $ possum -p 'const($true) -> (true * N)' -i ''
@@ -2514,12 +2514,12 @@
   =================@main==================
   const($true) -> (true * N)
   ========================================
-  0000    | PushCharVar N
-  0002    | GetConstant 0: const
-  0004    | PushTrue
-  0005    | CallFunction 1
-  0007    | Destructure 0: (true * N)
-  0009    | End
+  0000    | PushVar2 N
+  0003    | GetConstant 0: const
+  0005    | PushTrue
+  0006    | CallFunction 1
+  0008    | Destructure 0: (true * N)
+  0010    | End
   ========================================
 
   $ possum -p 'const($false) -> (false * N)' -i ''
@@ -2534,12 +2534,12 @@
   =================@main==================
   const($false) -> (false * N)
   ========================================
-  0000    | PushCharVar N
-  0002    | GetConstant 0: const
-  0004    | PushFalse
-  0005    | CallFunction 1
-  0007    | Destructure 0: (false * N)
-  0009    | End
+  0000    | PushVar2 N
+  0003    | GetConstant 0: const
+  0005    | PushFalse
+  0006    | CallFunction 1
+  0008    | Destructure 0: (false * N)
+  0010    | End
   ========================================
 
   $ possum -p 'Double(N) = N + N; 6 -> Double(1 + 2)' -i ''

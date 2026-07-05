@@ -15,6 +15,7 @@ string templates, and container construction.
   mutable constants: 0 reused, 4 copied
   closures:          1 reused, 5 created
   strings interned:  572
+  strings size:      5681 chars
   bytes in use:      11992
 
 A dyn string passed to a native builtin and kept live: the native
@@ -32,4 +33,5 @@ instead of carrying the popped copy's count forever.
   mutable constants: 0 reused, 1 copied
   closures:          0 reused, 0 created
   strings interned:  529
+  strings size:      5537 chars
   bytes in use:      3473

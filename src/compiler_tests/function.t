@@ -121,15 +121,15 @@
   0020    | GetConstant 3: 8
   0022    | PushEmptyArray
   0023    | GetConstant 4: 10
-  0025    | PushChar 'a'
-  0027    | GetConstant 5: 12
-  0029    | GetConstant 6: 13
-  0031    | GetConstant 7: 14
-  0033    | GetConstant 8: 15
-  0035    | PushTrue
-  0036    | GetConstant 9: 17
-  0038    | CallTailFunction 17
-  0040    | End
+  0025    | PushString2 "a"
+  0028    | GetConstant 5: 12
+  0030    | GetConstant 6: 13
+  0032    | GetConstant 7: 14
+  0034    | GetConstant 8: 15
+  0036    | PushTrue
+  0037    | GetConstant 9: 17
+  0039    | CallTailFunction 17
+  0041    | End
   ========================================
   
   ==================bar===================
