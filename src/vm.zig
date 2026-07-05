@@ -407,15 +407,13 @@ pub const VM = struct {
             .CallFunctionLocal => {
                 const slot = self.readByte();
                 const local = try self.getBoundLocal(slot);
-                local.retain();
-                try self.push(local);
+                try self.pushDerived(.CallFunctionLocal, local);
                 try self.callFunction(self.peek(0), 0, false);
             },
             .CallTailFunctionLocal => {
                 const slot = self.readByte();
                 const local = try self.getBoundLocal(slot);
-                local.retain();
-                try self.push(local);
+                try self.pushDerived(.CallTailFunctionLocal, local);
                 try self.callFunction(self.peek(0), 0, true);
             },
             .CaptureLocal => {
@@ -446,11 +444,8 @@ pub const VM = struct {
                 // If `condition` failed then jump to the start of `else` branch.
                 const offset = self.readShort();
                 const resetPos = self.popInputMark();
-                self.peek(0).release();
-                if (self.peekIsSuccess()) {
-                    self.drop(1);
-                } else {
-                    self.drop(1);
+                const condition = self.popConsumed(.ConditionalThen);
+                if (condition.isFailure()) {
                     self.inputPos = resetPos;
                     self.frame().ip += offset;
                 }
@@ -467,8 +462,8 @@ pub const VM = struct {
 
                 // The closure retained the function; the function's stack
                 // handle dies here.
-                self.pop().release();
-                try self.push(closure.dyn.elem());
+                _ = self.popConsumed(.CreateClosure);
+                try self.pushFresh(.CreateClosure, closure.dyn.elem());
             },
             .Crash => {
                 if (self.peekIsSuccess()) {
@@ -498,8 +493,7 @@ pub const VM = struct {
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
                     // value is already on the stack
                 } else {
-                    value.release();
-                    self.drop(1);
+                    _ = self.popConsumed(.Destructure);
                     try self.pushFailure();
                 }
             },
@@ -511,8 +505,7 @@ pub const VM = struct {
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
                     // value is already on the stack
                 } else {
-                    value.release();
-                    self.drop(1);
+                    _ = self.popConsumed(.Destructure2);
                     try self.pushFailure();
                 }
             },
@@ -524,14 +517,12 @@ pub const VM = struct {
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
                     // value is already on the stack
                 } else {
-                    value.release();
-                    self.drop(1);
+                    _ = self.popConsumed(.Destructure3);
                     try self.pushFailure();
                 }
             },
             .Drop => {
-                self.peek(0).release();
-                self.drop(1);
+                _ = self.popConsumed(.Drop);
             },
             .End => {
                 // End of function cleanup. Remove everything from the stack
@@ -548,7 +539,7 @@ pub const VM = struct {
                 }
 
                 try self.stack.resize(self.allocator, prevFrame.elemsOffset);
-                try self.push(result);
+                try self.pushTransferred(.End, result);
             },
             .PushFail => {
                 // Push singleton failure value.
@@ -560,9 +551,7 @@ pub const VM = struct {
             },
             .GetLocal => {
                 const slot = self.readByte();
-                const local = self.getLocal(slot);
-                local.retain();
-                try self.push(local);
+                try self.pushDerived(.GetLocal, self.getLocal(slot));
             },
             .GetLocalMove => {
                 // Emitted at the slot's last read on every path: the
@@ -572,19 +561,18 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const local = self.getLocal(slot);
                 self.setLocal(slot, Elem.nullConst);
-                try self.push(local);
+                try self.pushTransferred(.GetLocalMove, local);
             },
             .GetBoundLocal => {
                 const slot = self.readByte();
                 const local = try self.getBoundLocal(slot);
-                local.retain();
-                try self.push(local);
+                try self.pushDerived(.GetBoundLocal, local);
             },
             .GetBoundLocalMove => {
                 const slot = self.readByte();
                 const local = try self.getBoundLocal(slot);
                 self.setLocal(slot, Elem.nullConst);
-                try self.push(local);
+                try self.pushTransferred(.GetBoundLocalMove, local);
             },
             .Increment => {
                 const elem = self.peek(0);
@@ -601,9 +589,8 @@ pub const VM = struct {
                 const array_elem = self.peek(1);
 
                 if (elem.isFailure() or array_elem.isFailure()) {
-                    elem.release();
-                    array_elem.release();
-                    self.drop(2);
+                    _ = self.popConsumed(.InsertAtIndex);
+                    _ = self.popConsumed(.InsertAtIndex);
                     try self.pushFailure();
                 } else {
                     const array = array_elem.asDyn().asArray();
@@ -613,9 +600,9 @@ pub const VM = struct {
                         elem.retain();
                         array.elems.items[index].release();
                         array.elems.items[index] = elem;
-                        releaseConsumed(elem, array_elem);
+                        releaseConsumed(.InsertAtIndex, elem, array_elem);
                         self.drop(2);
-                        try self.push(array_elem);
+                        try self.pushFreshOrTransferred(.InsertAtIndex, array_elem);
                     } else {
                         self.rc_stats.insert_copy += 1;
                         var copy = try Elem.DynElem.Array.copy(self, array.elems.items);
@@ -624,10 +611,10 @@ pub const VM = struct {
                         copy.elems.items[index] = elem;
 
                         const result = copy.dyn.elem();
-                        releaseConsumed(elem, result);
-                        releaseConsumed(array_elem, result);
+                        releaseConsumed(.InsertAtIndex, elem, result);
+                        releaseConsumed(.InsertAtIndex, array_elem, result);
                         self.drop(2);
-                        try self.push(result);
+                        try self.pushFreshOrTransferred(.InsertAtIndex, result);
                     }
                 }
             },
@@ -640,10 +627,9 @@ pub const VM = struct {
                 const placeholder_key_sid = StringTable.reservedSid(placeholder_key);
 
                 if (val.isFailure() or key_elem.isFailure() or object_elem.isFailure()) {
-                    val.release();
-                    key_elem.release();
-                    object_elem.release();
-                    self.drop(3);
+                    _ = self.popConsumed(.InsertKeyVal);
+                    _ = self.popConsumed(.InsertKeyVal);
+                    _ = self.popConsumed(.InsertKeyVal);
                     try self.pushFailure();
                 } else {
                     const object = object_elem.asDyn().asObject();
@@ -694,11 +680,11 @@ pub const VM = struct {
                     }
 
                     const result = target.dyn.elem();
-                    releaseConsumed(val, result);
-                    releaseConsumed(key_elem, result);
-                    releaseConsumed(object_elem, result);
+                    releaseConsumed(.InsertKeyVal, val, result);
+                    releaseConsumed(.InsertKeyVal, key_elem, result);
+                    releaseConsumed(.InsertKeyVal, object_elem, result);
                     self.drop(3);
-                    try self.push(result);
+                    try self.pushFreshOrTransferred(.InsertKeyVal, result);
                 }
             },
             .Jump => {
@@ -796,10 +782,10 @@ pub const VM = struct {
                 const lhs = self.peek(1);
 
                 if (try Elem.merge(lhs, rhs, self)) |value| {
-                    releaseConsumed(lhs, value);
-                    releaseConsumed(rhs, value);
+                    releaseConsumed(.Merge, lhs, value);
+                    releaseConsumed(.Merge, rhs, value);
                     self.drop(2);
-                    try self.push(value);
+                    try self.pushFreshOrTransferred(.Merge, value);
                 } else {
                     return self.runtimeError("Merge type mismatch", .{});
                 }
@@ -821,13 +807,13 @@ pub const VM = struct {
 
                     const merged = (try lstr.merge(rstr, self)).?;
 
-                    releaseConsumed(lhs, merged);
-                    releaseConsumed(rhs, merged);
+                    releaseConsumed(.MergeAsString, lhs, merged);
+                    releaseConsumed(.MergeAsString, rhs, merged);
                     self.drop(2);
-                    try self.push(merged);
+                    try self.pushFreshOrTransferred(.MergeAsString, merged);
                 } else {
-                    releaseConsumed(lhs, Elem.failureConst);
-                    releaseConsumed(rhs, Elem.failureConst);
+                    releaseConsumed(.MergeAsString, lhs, Elem.failureConst);
+                    releaseConsumed(.MergeAsString, rhs, Elem.failureConst);
                     self.drop(2);
                     try self.push(Elem.failureConst);
                 }
@@ -889,7 +875,7 @@ pub const VM = struct {
                 if (self.peekIsSuccess()) {
                     self.frame().ip += offset;
                 } else {
-                    self.drop(1);
+                    _ = self.popConsumed(.Or);
                     self.inputPos = resetPos;
                 }
             },
@@ -1040,10 +1026,10 @@ pub const VM = struct {
                 const rhs = self.peek(0);
 
                 if (try Elem.repeat(lhs, rhs, self)) |result| {
-                    releaseConsumed(lhs, result);
-                    releaseConsumed(rhs, result);
+                    releaseConsumed(.RepeatValue, lhs, result);
+                    releaseConsumed(.RepeatValue, rhs, result);
                     self.drop(2);
-                    try self.push(result);
+                    try self.pushFreshOrTransferred(.RepeatValue, result);
                 } else {
                     return self.runtimeError("Merge type mismatch", .{});
                 }
@@ -1057,12 +1043,10 @@ pub const VM = struct {
                 // If rhs succeeded then discard rhs, keep lhs.
                 // If rhs failed then drop both and push failure.
                 if (self.peekIsSuccess()) {
-                    self.peek(0).release();
-                    self.drop(1);
+                    _ = self.popConsumed(.TakeLeft);
                 } else {
-                    self.peek(0).release();
-                    self.peek(1).release();
-                    self.drop(2);
+                    _ = self.popConsumed(.TakeLeft);
+                    _ = self.popConsumed(.TakeLeft);
                     try self.pushFailure();
                 }
             },
@@ -1072,8 +1056,7 @@ pub const VM = struct {
                 // If lhs failed then keep it and jump to skip rhs ops.
                 const offset = self.readShort();
                 if (self.peekIsSuccess()) {
-                    self.peek(0).release();
-                    self.drop(1);
+                    _ = self.popConsumed(.TakeRight);
                 } else {
                     self.frame().ip += offset;
                 }
@@ -1705,11 +1688,52 @@ pub const VM = struct {
     }
 
     // Release a consumed operand's stack handle, unless the result is the
-    // same value: then the handle transferred into the result push.
-    fn releaseConsumed(operand: Elem, result: Elem) void {
+    // same value: then the handle transferred into the result push. The
+    // op's effect table entry must admit consuming operands.
+    fn releaseConsumed(comptime op: OpCode, operand: Elem, result: Elem) void {
+        comptime std.debug.assert(op.rcEffect().?.operands.canConsume());
         if (!operand.isType(.Dyn)) return;
         if (result.isType(.Dyn) and result.asDyn() == operand.asDyn()) return;
         operand.asDyn().release();
+    }
+
+    // Pop an operand whose handle leaves the stack for good, released
+    // here. The op's effect table entry must admit consuming operands.
+    fn popConsumed(self: *VM, comptime op: OpCode) Elem {
+        comptime std.debug.assert(op.rcEffect().?.operands.canConsume());
+        const value = self.pop();
+        value.release();
+        return value;
+    }
+
+    // Push an additional handle to a value that keeps its existing
+    // handles: increments, per the op's effect table entry.
+    fn pushDerived(self: *VM, comptime op: OpCode, elem: Elem) !void {
+        comptime std.debug.assert(op.rcEffect().?.result == .derived);
+        elem.retain();
+        try self.push(elem);
+    }
+
+    // Push a handle transferred from a frame slot or a consumed operand:
+    // no increment, per the op's effect table entry.
+    fn pushTransferred(self: *VM, comptime op: OpCode, elem: Elem) !void {
+        comptime std.debug.assert(op.rcEffect().?.result == .transferred);
+        try self.push(elem);
+    }
+
+    // Push a newly allocated value's first stack handle: no increment,
+    // per the op's effect table entry.
+    fn pushFresh(self: *VM, comptime op: OpCode, elem: Elem) !void {
+        comptime std.debug.assert(op.rcEffect().?.result == .fresh);
+        try self.push(elem);
+    }
+
+    // Push a result that is either fresh or a consumed operand re-pushed
+    // by an in-place fast path; releaseConsumed told them apart by
+    // pointer equality.
+    fn pushFreshOrTransferred(self: *VM, comptime op: OpCode, elem: Elem) !void {
+        comptime std.debug.assert(op.rcEffect().?.result == .fresh_or_transferred);
+        try self.push(elem);
     }
 
     pub fn push(self: *VM, elem: Elem) !void {

@@ -285,6 +285,21 @@ pub const OpCode = enum(u8) {
             // Values are only inspected: they stay on the stack (peeks) or
             // are re-pushed unchanged (Swap). No handle count change.
             borrowed,
+            // Branch ops that pop only when falling through (Or drops the
+            // lhs failure, TakeRight drops the successful lhs) and leave
+            // the value in place when the jump is taken.
+            consumed_on_fallthrough,
+            // Destructure: the matched value stays on the stack on
+            // success, and is released and replaced by the failure const
+            // when the match fails.
+            consumed_on_failure,
+
+            pub fn canConsume(self: Operands) bool {
+                return switch (self) {
+                    .consumed, .consumed_on_fallthrough, .consumed_on_failure => true,
+                    .none, .borrowed => false,
+                };
+            }
         };
 
         pub const Result = enum {
@@ -297,9 +312,14 @@ pub const OpCode = enum(u8) {
             // existing handles (locals, constants, singletons). The push
             // increments.
             derived,
-            // Re-pushes a handle the op consumed (Merge in-place lhs,
-            // TakeLeft's kept lhs, End's function result). No count change.
+            // Re-pushes a handle the op consumed (TakeLeft's kept lhs,
+            // End's function result). No count change.
             transferred,
+            // The in-place fast paths re-push a consumed operand handle
+            // (transferred); the copy paths push a new allocation
+            // (fresh). Which one is decided at runtime, detected by
+            // pointer equality in releaseConsumed.
+            fresh_or_transferred,
         };
     };
 
@@ -388,22 +408,26 @@ pub const OpCode = enum(u8) {
             .PushUnderscoreVar,
             => .{ .operands = .none, .result = .fresh },
 
-            // Peeks: inspect and leave in place. Destructure additionally
-            // binds pattern vars into frame slots: +1 per binding in the
-            // pattern solver. CaptureLocal copies a local into a closure:
-            // +1 in the dispatch.
+            // Peeks: inspect and leave in place. CaptureLocal copies a
+            // local into a closure: +1 in the dispatch.
             .AssertFunctionArity,
             .AssertParamTypes,
             .AssertParamTypes4,
             .CaptureLocal,
-            .Destructure,
-            .Destructure2,
-            .Destructure3,
             .JumpIfBound,
             .JumpIfFailure,
             .JumpIfZero,
             .ValidateRepeatPattern,
             => .{ .operands = .borrowed, .result = .none },
+
+            // The matched value stays on the stack on success (pattern
+            // vars bound into frame slots add +1 per binding in the
+            // pattern solver), or is released and replaced by the failure
+            // const on failure.
+            .Destructure,
+            .Destructure2,
+            .Destructure3,
+            => .{ .operands = .consumed_on_failure, .result = .none },
 
             // Pure reorder of two handles already on the stack.
             .Swap => .{ .operands = .borrowed, .result = .none },
@@ -431,15 +455,13 @@ pub const OpCode = enum(u8) {
             .Drop => .{ .operands = .consumed, .result = .none },
 
             // Operand handles move into the result (or die when the copy
-            // path duplicates children instead). The in-place fast paths
-            // re-push the lhs handle: transferred, detected by pointer
-            // equality in the dispatch.
+            // path duplicates children instead).
             .InsertAtIndex,
             .InsertKeyVal,
             .Merge,
             .MergeAsString,
             .RepeatValue,
-            => .{ .operands = .consumed, .result = .fresh },
+            => .{ .operands = .consumed, .result = .fresh_or_transferred },
 
             // Keeps lhs (re-pushed), drops rhs; or drops both on failure.
             .TakeLeft => .{ .operands = .consumed, .result = .transferred },
@@ -449,15 +471,16 @@ pub const OpCode = enum(u8) {
             .JumpBack,
             => .{ .operands = .none, .result = .none },
 
-            // Or drops the lhs failure const on the fallthrough path only;
-            // failures are never Dyn.
-            .Or => .{ .operands = .borrowed, .result = .none },
-
-            // Drops the condition (ConditionalThen) or the successful lhs
-            // (TakeRight); keeps the value on the other path.
-            .ConditionalThen,
+            // Or drops the lhs failure (never a Dyn) on fallthrough and
+            // keeps the successful lhs when jumping; TakeRight drops the
+            // successful lhs on fallthrough and keeps the failure when
+            // jumping.
+            .Or,
             .TakeRight,
-            => .{ .operands = .consumed, .result = .none },
+            => .{ .operands = .consumed_on_fallthrough, .result = .none },
+
+            // Drops the condition on both paths.
+            .ConditionalThen => .{ .operands = .consumed, .result = .none },
 
             .Crash => .{ .operands = .consumed, .result = .none },
 
