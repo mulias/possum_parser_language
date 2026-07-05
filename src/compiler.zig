@@ -2414,11 +2414,9 @@ pub const Compiler = struct {
         const pattern_reads: []const liveness.SlotSet =
             if (self.pattern_reads.get(module_id)) |list| list.items else &.{};
 
-        const local_count: u16 = @intCast(self.currentScope().locals().len);
         var last_reads = try liveness.Liveness.analyze(
             self.vm.allocator,
             function_ir,
-            local_count,
             pattern_reads,
         );
         defer last_reads.deinit(self.vm.allocator);
