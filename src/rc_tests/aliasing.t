@@ -12,7 +12,6 @@ the unmutated A.
   merges:            0 in place, 2 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
-  gc runs:           0
   strings interned:  528
   bytes in use:      3576
 
@@ -28,6 +27,5 @@ dies unread in its slot.
   merges:            0 in place, 2 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
-  gc runs:           0
   strings interned:  528
   bytes in use:      3576
