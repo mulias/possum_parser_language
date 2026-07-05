@@ -375,18 +375,8 @@ pub const VM = struct {
                 const argCount = self.readByte();
                 try self.callFunction(self.peek(argCount), argCount, false);
             },
-            .CallFunctionConstant => {
-                const idx = self.readByte();
-                try self.push(self.getConstant(idx));
-                try self.callFunction(self.peek(0), 0, false);
-            },
-            .CallFunctionConstant2 => {
-                const idx = self.readShort();
-                try self.push(self.getConstant(idx));
-                try self.callFunction(self.peek(0), 0, false);
-            },
-            .CallFunctionConstant3 => {
-                const idx = self.readMedium();
+            .CallFunctionConstant, .CallFunctionConstant2, .CallFunctionConstant3 => {
+                const idx = self.readIndex(opCode);
                 try self.push(self.getConstant(idx));
                 try self.callFunction(self.peek(0), 0, false);
             },
@@ -396,18 +386,8 @@ pub const VM = struct {
                 const argCount = self.readByte();
                 try self.callFunction(self.peek(argCount), argCount, true);
             },
-            .CallTailFunctionConstant => {
-                const idx = self.readByte();
-                try self.push(self.getConstant(idx));
-                try self.callFunction(self.peek(0), 0, true);
-            },
-            .CallTailFunctionConstant2 => {
-                const idx = self.readShort();
-                try self.push(self.getConstant(idx));
-                try self.callFunction(self.peek(0), 0, true);
-            },
-            .CallTailFunctionConstant3 => {
-                const idx = self.readMedium();
+            .CallTailFunctionConstant, .CallTailFunctionConstant2, .CallTailFunctionConstant3 => {
+                const idx = self.readIndex(opCode);
                 try self.push(self.getConstant(idx));
                 try self.callFunction(self.peek(0), 0, true);
             },
@@ -711,28 +691,12 @@ pub const VM = struct {
                     self.cur_frame.ip += offset;
                 }
             },
-            .GetConstant => {
-                const idx = self.readByte();
+            .GetConstant, .GetConstant2, .GetConstant3 => {
+                const idx = self.readIndex(opCode);
                 try self.push(self.getConstant(idx));
             },
-            .GetConstant2 => {
-                const idx = self.readShort();
-                try self.push(self.getConstant(idx));
-            },
-            .GetConstant3 => {
-                const idx = self.readMedium();
-                try self.push(self.getConstant(idx));
-            },
-            .GetConstantMutable => {
-                const idx = self.readByte();
-                try self.pushMutableConstant(idx);
-            },
-            .GetConstantMutable2 => {
-                const idx = self.readShort();
-                try self.pushMutableConstant(idx);
-            },
-            .GetConstantMutable3 => {
-                const idx = self.readMedium();
+            .GetConstantMutable, .GetConstantMutable2, .GetConstantMutable3 => {
+                const idx = self.readIndex(opCode);
                 try self.pushMutableConstant(idx);
             },
             .SetClosureCaptures => {
@@ -1744,6 +1708,27 @@ pub const VM = struct {
             .PushString2, .PushVar2 => self.readShort(),
             .PushString3, .PushVar3 => self.readMedium(),
             .PushString4, .PushVar4 => self.readLong(),
+            else => unreachable,
+        };
+    }
+
+    fn readIndex(self: *VM, opCode: OpCode) usize {
+        return switch (opCode) {
+            .CallFunctionConstant,
+            .CallTailFunctionConstant,
+            .GetConstant,
+            .GetConstantMutable,
+            => self.readByte(),
+            .CallFunctionConstant2,
+            .CallTailFunctionConstant2,
+            .GetConstant2,
+            .GetConstantMutable2,
+            => self.readShort(),
+            .CallFunctionConstant3,
+            .CallTailFunctionConstant3,
+            .GetConstant3,
+            .GetConstantMutable3,
+            => self.readMedium(),
             else => unreachable,
         };
     }
