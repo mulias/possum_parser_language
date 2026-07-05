@@ -2265,20 +2265,12 @@ pub const Compiler = struct {
             .NumberFloat => {
                 const n = elem.asFloat();
                 if (n == @floor(n)) {
-                    if (n == -1) {
-                        return try self.emitOp(.PushNumberNegOne, region);
-                    } else if (0 <= n and n <= 255) {
+                    if (0 <= n and n <= 255) {
                         const byte: u8 = @intFromFloat(n);
-                        switch (byte) {
-                            0 => return try self.emitOp(.PushNumberZero, region),
-                            1 => return try self.emitOp(.PushNumberOne, region),
-                            2 => return try self.emitOp(.PushNumberTwo, region),
-                            3 => return try self.emitOp(.PushNumberThree, region),
-                            else => return try self.emitUnaryOp(.PushNumber, byte, region),
-                        }
+                        return try self.emitUnaryOp(.PushInteger, byte, region);
                     } else if (-255 <= n and n <= -1) {
                         const byte_val: u8 = @intFromFloat(-n);
-                        return try self.emitUnaryOp(.PushNegNumber, byte_val, region);
+                        return try self.emitUnaryOp(.PushNegInteger, byte_val, region);
                     }
                 }
             },

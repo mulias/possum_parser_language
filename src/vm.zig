@@ -1056,28 +1056,13 @@ pub const VM = struct {
             .PushEmptyString => {
                 try self.push(self.singleton_empty_string);
             },
-            .PushNumber => {
+            .PushInteger => {
                 const byte = self.readByte();
                 try self.push(Elem.numberFloat(@floatFromInt(byte)));
             },
-            .PushNegNumber => {
+            .PushNegInteger => {
                 const byte = self.readByte();
                 try self.push(Elem.numberFloat(-@as(f64, @floatFromInt(byte))));
-            },
-            .PushNumberNegOne => {
-                try self.push(Elem.numberFloat(-1));
-            },
-            .PushNumberZero => {
-                try self.push(Elem.numberFloat(0));
-            },
-            .PushNumberOne => {
-                try self.push(Elem.numberFloat(1));
-            },
-            .PushNumberTwo => {
-                try self.push(Elem.numberFloat(2));
-            },
-            .PushNumberThree => {
-                try self.push(Elem.numberFloat(3));
             },
             .PushNumberStringNegOne => {
                 try self.push(self.singleton_neg_one);

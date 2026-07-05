@@ -19,28 +19,28 @@
   0018    | GetConstant 0: const
   0020    | GetBoundLocalMove 0
   0022    | CallTailFunction 1
-  0024    | Jump 24 -> 68
+  0024    | Jump 24 -> 69
   0027    | GetConstant 1: fib
   0029    | GetBoundLocal 0
-  0031    | JumpIfFailure 31 -> 36
-  0034    | PushNumberNegOne
-  0035    | Merge
-  0036    | CallFunction 1
-  0038    | Destructure 1: N1
-  0040    | TakeRight 40 -> 68
-  0043    | GetConstant 1: fib
-  0045    | GetBoundLocalMove 0
-  0047    | JumpIfFailure 47 -> 53
-  0050    | PushNegNumber -2
-  0052    | Merge
-  0053    | CallFunction 1
-  0055    | Destructure 2: N2
-  0057    | TakeRight 57 -> 68
-  0060    | GetBoundLocalMove 1
-  0062    | JumpIfFailure 62 -> 68
-  0065    | GetBoundLocalMove 2
-  0067    | Merge
-  0068    | End
+  0031    | JumpIfFailure 31 -> 37
+  0034    | PushNegInteger -1
+  0036    | Merge
+  0037    | CallFunction 1
+  0039    | Destructure 1: N1
+  0041    | TakeRight 41 -> 69
+  0044    | GetConstant 1: fib
+  0046    | GetBoundLocalMove 0
+  0048    | JumpIfFailure 48 -> 54
+  0051    | PushNegInteger -2
+  0053    | Merge
+  0054    | CallFunction 1
+  0056    | Destructure 2: N2
+  0058    | TakeRight 58 -> 69
+  0061    | GetBoundLocalMove 1
+  0063    | JumpIfFailure 63 -> 69
+  0066    | GetBoundLocalMove 2
+  0068    | Merge
+  0069    | End
   ========================================
   
   =================const==================
@@ -56,35 +56,35 @@
   0000    | SetInputMark
   0001    | GetBoundLocal 0
   0003    | Destructure 3: ..1
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   0008    | GetConstant 2: Fib
   0010    | GetBoundLocal 0
-  0012    | JumpIfFailure 12 -> 17
-  0015    | PushNumberNegOne
-  0016    | Merge
-  0017    | CallFunction 1
-  0019    | JumpIfFailure 19 -> 35
-  0022    | GetConstant 2: Fib
-  0024    | GetBoundLocalMove 0
-  0026    | JumpIfFailure 26 -> 32
-  0029    | PushNegNumber -2
-  0031    | Merge
-  0032    | CallFunction 1
-  0034    | Merge
-  0035    | End
+  0012    | JumpIfFailure 12 -> 18
+  0015    | PushNegInteger -1
+  0017    | Merge
+  0018    | CallFunction 1
+  0020    | JumpIfFailure 20 -> 36
+  0023    | GetConstant 2: Fib
+  0025    | GetBoundLocalMove 0
+  0027    | JumpIfFailure 27 -> 33
+  0030    | PushNegInteger -2
+  0032    | Merge
+  0033    | CallFunction 1
+  0035    | Merge
+  0036    | End
   ========================================
   
   =================@main==================
   0.. -> N & fib(N) -> Fib(N)
   ========================================
   0000    | PushVar2 N
-  0003    | PushNumberZero
-  0004    | ParseLowerBoundedRange
-  0005    | Destructure 4: N
-  0007    | TakeRight 7 -> 18
-  0010    | GetConstant 1: fib
-  0012    | GetBoundLocal 0
-  0014    | CallFunction 1
-  0016    | Destructure 5: Fib(N)
-  0018    | End
+  0003    | PushInteger 0
+  0005    | ParseLowerBoundedRange
+  0006    | Destructure 4: N
+  0008    | TakeRight 8 -> 19
+  0011    | GetConstant 1: fib
+  0013    | GetBoundLocal 0
+  0015    | CallFunction 1
+  0017    | Destructure 5: Fib(N)
+  0019    | End
   ========================================
