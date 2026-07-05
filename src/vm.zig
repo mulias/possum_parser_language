@@ -296,14 +296,14 @@ pub const VM = struct {
         }
 
         while (true) {
-            try self.printDebug();
+            if (self.config.printVM) try self.printDebug();
 
             const opCode = self.readOp();
             try self.runOp(opCode);
             if (self.frames.items.len == 0) break;
         }
 
-        try self.printDebug();
+        if (self.config.printVM) try self.printDebug();
     }
 
     pub fn runFunction(self: *VM) Error!void {
@@ -315,13 +315,13 @@ pub const VM = struct {
 
         // Run until we return to the previous frame level (or have no frames left)
         while (self.frames.items.len >= initialFrameCount and self.frames.items.len > 0) {
-            try self.printDebug();
+            if (self.config.printVM) try self.printDebug();
 
             const opCode = self.readOp();
             try self.runOp(opCode);
         }
 
-        try self.printDebug();
+        if (self.config.printVM) try self.printDebug();
     }
 
     fn runOp(self: *VM, opCode: OpCode) !void {
@@ -1200,16 +1200,14 @@ pub const VM = struct {
     }
 
     fn printDebug(self: *VM) !void {
-        if (self.config.printVM) {
-            try self.writers.debug.print("\n", .{});
-            try self.printInput();
-            try self.printFrames();
-            try self.printElems();
+        try self.writers.debug.print("\n", .{});
+        try self.printInput();
+        try self.printFrames();
+        try self.printElems();
 
-            if (self.frames.items.len > 0) {
-                const module = self.currentFunctionModule();
-                _ = try self.chunk().disassembleInstruction(self.*, module.*, self.writers.debug, self.frame().ip);
-            }
+        if (self.frames.items.len > 0) {
+            const module = self.currentFunctionModule();
+            _ = try self.chunk().disassembleInstruction(self.*, module.*, self.writers.debug, self.frame().ip);
         }
     }
 
