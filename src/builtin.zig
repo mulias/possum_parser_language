@@ -760,7 +760,7 @@ fn createAt(vm: *VM, module: *Module) !void {
     try fun.chunk.write(vm.allocator, 1, loc);
     try fun.chunk.writeOp(vm.allocator, .CallFunction, loc);
     try fun.chunk.write(vm.allocator, 0, loc);
-    try fun.chunk.writeOp(vm.allocator, .Backtrack, loc);
+    try fun.chunk.writeOp(vm.allocator, .ResetInput, loc);
     try fun.chunk.patchJump(jumpIndex);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
 }
