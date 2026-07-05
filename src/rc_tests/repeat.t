@@ -11,7 +11,6 @@ visible as ~500 extra dyns created.
   merges:            498 in place, 0 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
-  gc runs:           0
   strings interned:  530
   bytes in use:      3024
 
@@ -24,7 +23,6 @@ visible as ~500 extra dyns created.
   merges:            0 in place, 498 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
-  gc runs:           0
   strings interned:  530
   bytes in use:      3024
 
@@ -40,6 +38,5 @@ report as the only unique live dyn.
   merges:            3 in place, 1 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
-  gc runs:           0
   strings interned:  528
   bytes in use:      3392

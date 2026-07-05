@@ -1163,11 +1163,9 @@ pub const VM = struct {
     }
 
     // Post-run memory report. Forces a collection first so the dyn chain
-    // holds only reachable values; "gc runs" counts the collections before
-    // that forced one. In Debug builds the collection also runs the
-    // refcount audit, so every reported run is audited.
+    // holds only reachable values. In Debug builds the collection also runs
+    // the refcount audit.
     pub fn writeMemoryReport(self: *VM, writer: *Writer) !void {
-        const gc_runs = self.gc.collections;
         self.gc.collect();
 
         var live: u64 = 0;
@@ -1211,7 +1209,6 @@ pub const VM = struct {
         try writer.print("merges:            {d} in place, {d} copied\n", .{ self.rc_stats.merge_in_place, self.rc_stats.merge_copy });
         try writer.print("inserts:           {d} in place, {d} copied\n", .{ self.rc_stats.insert_in_place, self.rc_stats.insert_copy });
         try writer.print("mutable constants: {d} reused, {d} copied\n", .{ self.rc_stats.mutable_constant_reused, self.rc_stats.mutable_constant_copied });
-        try writer.print("gc runs:           {d}\n", .{gc_runs});
         try writer.print("strings interned:  {d}\n", .{self.strings.count});
         try writer.print("bytes in use:      {d}\n", .{self.gc.bytesAllocated});
     }

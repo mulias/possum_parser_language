@@ -13,7 +13,6 @@ string templates, and container construction.
   merges:            2 in place, 0 copied
   inserts:           4 in place, 0 copied
   mutable constants: 0 reused, 4 copied
-  gc runs:           0
   strings interned:  572
   bytes in use:      11552
 
@@ -30,6 +29,5 @@ instead of carrying the popped copy's count forever.
   merges:            0 in place, 0 copied
   inserts:           2 in place, 0 copied
   mutable constants: 0 reused, 1 copied
-  gc runs:           0
   strings interned:  529
   bytes in use:      3465

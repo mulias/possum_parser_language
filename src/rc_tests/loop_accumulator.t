@@ -11,7 +11,6 @@ place every iteration.
   merges:            38 in place, 1 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
-  gc runs:           0
   strings interned:  529
   bytes in use:      3208
 
@@ -24,6 +23,5 @@ place every iteration.
   merges:            0 in place, 39 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
-  gc runs:           0
   strings interned:  529
   bytes in use:      3208

@@ -12,7 +12,6 @@ of copying — one fewer dyn created, and gc runs is nonzero.
   merges:            1199999 in place, 1 copied
   inserts:           1 in place, 0 copied
   mutable constants: 0 reused, 1 copied
-  gc runs:           4
   strings interned:  530
   bytes in use:      3944
 
@@ -29,6 +28,5 @@ rather than shared.
   merges:            0 in place, 1 copied
   inserts:           1 in place, 0 copied
   mutable constants: 0 reused, 1 copied
-  gc runs:           0
   strings interned:  529
   bytes in use:      3760

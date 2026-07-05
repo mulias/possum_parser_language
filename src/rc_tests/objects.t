@@ -14,7 +14,6 @@ replaced value's handle.
   merges:            2 in place, 0 copied
   inserts:           9 in place, 0 copied
   mutable constants: 1 reused, 5 copied
-  gc runs:           0
   strings interned:  529
   bytes in use:      4184
 
@@ -30,7 +29,6 @@ replaced value's handle.
   merges:            0 in place, 2 copied
   inserts:           0 in place, 9 copied
   mutable constants: 0 reused, 0 copied
-  gc runs:           0
   strings interned:  529
   bytes in use:      3920
 
@@ -52,6 +50,5 @@ result instead of shared.
   merges:            1 in place, 1 copied
   inserts:           4 in place, 0 copied
   mutable constants: 0 reused, 3 copied
-  gc runs:           0
   strings interned:  528
   bytes in use:      5000

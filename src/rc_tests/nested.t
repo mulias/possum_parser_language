@@ -12,7 +12,6 @@ from a consumed unique rhs would flip that split.
   merges:            2 in place, 0 copied
   inserts:           9 in place, 0 copied
   mutable constants: 1 reused, 5 copied
-  gc runs:           0
   strings interned:  529
   bytes in use:      3760
 
@@ -32,6 +31,5 @@ of the survivors.
   merges:            2 in place, 0 copied
   inserts:           9 in place, 0 copied
   mutable constants: 1 reused, 5 copied
-  gc runs:           0
   strings interned:  528
   bytes in use:      4312
