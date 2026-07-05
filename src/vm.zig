@@ -87,6 +87,8 @@ pub const VM = struct {
     compiler: ?*const Compiler,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
+    cur_frame: *CallFrame,
+    cur_code: []const u8,
     temp_dyns: ArrayList(*Elem.DynElem),
     input: []const u8,
     inputMarks: ArrayList(Pos),
@@ -137,6 +139,8 @@ pub const VM = struct {
             .compiler = undefined,
             .stack = undefined,
             .frames = undefined,
+            .cur_frame = undefined,
+            .cur_code = undefined,
             .temp_dyns = undefined,
             .input = undefined,
             .inputMarks = undefined,
@@ -170,6 +174,8 @@ pub const VM = struct {
         self.compiler = null;
         self.stack = ArrayList(Elem){};
         self.frames = ArrayList(CallFrame){};
+        self.cur_frame = undefined;
+        self.cur_code = undefined;
         self.temp_dyns = ArrayList(*Elem.DynElem){};
         self.input = undefined;
         self.inputMarks = ArrayList(Pos){};
@@ -258,7 +264,7 @@ pub const VM = struct {
 
         if (compiler.main) |main| {
             try self.push(main.dyn.elem());
-            try self.addFrame(main);
+            try self.pushFrame(main);
         }
     }
 
@@ -283,7 +289,7 @@ pub const VM = struct {
     }
 
     pub fn currentFunctionModule(self: *VM) *Module {
-        return self.getModule(self.frame().function.mid);
+        return self.getModule(self.cur_frame.function.mid);
     }
 
     pub fn run(self: *VM) !void {
@@ -292,7 +298,7 @@ pub const VM = struct {
         }
 
         if (self.config.printExecutedBytecode) {
-            try self.frame().function.disassemble(self.*, self.writers.debug);
+            try self.cur_frame.function.disassemble(self.*, self.writers.debug);
         }
 
         while (true) {
@@ -452,7 +458,7 @@ pub const VM = struct {
                 const condition = self.popConsumed(.ConditionalThen);
                 if (condition.isFailure()) {
                     self.inputPos = resetPos;
-                    self.frame().ip += offset;
+                    self.cur_frame.ip += offset;
                 }
             },
             .CreateClosure => {
@@ -523,7 +529,7 @@ pub const VM = struct {
             .End => {
                 // End of function cleanup. Remove everything from the stack
                 // frame except the final function result.
-                const prevFrame = self.frames.pop().?;
+                const prevFrame = self.popFrame();
                 const result = self.pop();
 
                 // Every truncated handle dies: the function elem, locals
@@ -685,28 +691,28 @@ pub const VM = struct {
             },
             .Jump => {
                 const offset = self.readShort();
-                self.frame().ip += offset;
+                self.cur_frame.ip += offset;
             },
             .JumpBack => {
                 const offset = self.readShort();
-                self.frame().ip -= offset;
+                self.cur_frame.ip -= offset;
             },
             .JumpIfFailure => {
                 const offset = self.readShort();
-                if (self.peekIsFailure()) self.frame().ip += offset;
+                if (self.peekIsFailure()) self.cur_frame.ip += offset;
             },
             .JumpIfZero => {
                 const offset = self.readShort();
                 const elem = self.peek(0);
                 if (elem.isEql(Elem.numberFloat(0), self.*)) {
-                    self.frame().ip += offset;
+                    self.cur_frame.ip += offset;
                 }
             },
             .JumpIfBound => {
                 const offset = self.readShort();
                 const elem = self.peek(0);
                 if (!elem.isType(.ValueVar)) {
-                    self.frame().ip += offset;
+                    self.cur_frame.ip += offset;
                 }
             },
             .GetConstant => {
@@ -869,7 +875,7 @@ pub const VM = struct {
                 const offset = self.readShort();
                 const resetPos = self.popInputMark();
                 if (self.peekIsSuccess()) {
-                    self.frame().ip += offset;
+                    self.cur_frame.ip += offset;
                 } else {
                     _ = self.popConsumed(.Or);
                     self.inputPos = resetPos;
@@ -1054,7 +1060,7 @@ pub const VM = struct {
                 if (self.peekIsSuccess()) {
                     _ = self.popConsumed(.TakeRight);
                 } else {
-                    self.frame().ip += offset;
+                    self.cur_frame.ip += offset;
                 }
             },
             .PushTrue => {
@@ -1207,7 +1213,7 @@ pub const VM = struct {
 
         if (self.frames.items.len > 0) {
             const module = self.currentFunctionModule();
-            _ = try self.chunk().disassembleInstruction(self.*, module.*, self.writers.debug, self.frame().ip);
+            _ = try self.chunk().disassembleInstruction(self.*, module.*, self.writers.debug, self.cur_frame.ip);
         }
     }
 
@@ -1240,7 +1246,7 @@ pub const VM = struct {
                                 // Remove the elements belonging to the previous call
                                 // frame. This includes the function itself, its
                                 // arguments, and any added local variables.
-                                const frameStart = self.frame().elemsOffset;
+                                const frameStart = self.cur_frame.elemsOffset;
                                 const frameEnd = self.stack.items.len - function.arity - 1;
                                 const length = frameEnd - frameStart;
                                 for (self.stack.items[frameStart..frameEnd]) |item| {
@@ -1249,7 +1255,7 @@ pub const VM = struct {
                                 try self.stack.replaceRange(self.allocator, frameStart, length, &[0]Elem{});
                                 _ = self.frames.pop();
                             }
-                            try self.addFrame(function);
+                            try self.pushFrame(function);
                         } else {
                             return self.runtimeError("Expected {} arguments but got {}.", .{ function.arity, argCount });
                         }
@@ -1532,8 +1538,28 @@ pub const VM = struct {
         return var_id == self.strings.getId("_");
     }
 
-    fn frame(self: *VM) *CallFrame {
-        return &self.frames.items[self.frames.items.len - 1];
+    pub fn pushFrame(self: *VM, function: *Elem.DynElem.Function) !void {
+        try self.frames.append(self.allocator, CallFrame{
+            .function = function,
+            .ip = 0,
+            .elemsOffset = self.stack.items.len - function.arity - 1,
+        });
+        self.syncCurrentFrame();
+    }
+
+    fn popFrame(self: *VM) CallFrame {
+        const frame = self.frames.pop().?;
+        if (self.frames.items.len > 0) self.syncCurrentFrame();
+        return frame;
+    }
+
+    // Refresh the cached current-frame pointer and code slice. Must be called
+    // after any mutation of self.frames (append/pop), since frame() and the
+    // operand readers read through the cache to avoid re-deriving the top
+    // frame and its chunk on every instruction.
+    fn syncCurrentFrame(self: *VM) void {
+        self.cur_frame = &self.frames.items[self.frames.items.len - 1];
+        self.cur_code = self.cur_frame.function.chunk.code.items;
     }
 
     fn parentFrame(self: *VM) ?*CallFrame {
@@ -1545,7 +1571,7 @@ pub const VM = struct {
     }
 
     fn chunk(self: *VM) *Chunk {
-        return &self.frame().function.chunk;
+        return &self.cur_frame.function.chunk;
     }
 
     pub fn getConstant(self: *VM, idx: usize) Elem {
@@ -1663,22 +1689,14 @@ pub const VM = struct {
         return self.currentFunctionModule().getPattern(idx);
     }
 
-    pub fn addFrame(self: *VM, function: *Elem.DynElem.Function) !void {
-        try self.frames.append(self.allocator, CallFrame{
-            .function = function,
-            .ip = 0,
-            .elemsOffset = self.stack.items.len - function.arity - 1,
-        });
-    }
-
     pub fn getFunctionElem(self: *VM) Elem {
-        return self.stack.items[self.frame().elemsOffset];
+        return self.stack.items[self.cur_frame.elemsOffset];
     }
 
     pub fn getLocal(self: *VM, slot: usize) Elem {
         // The local slot is at the start of the frame + 1, since the first
         // elem in the frame is the function getting called.
-        return self.stack.items[self.frame().elemsOffset + slot + 1];
+        return self.stack.items[self.cur_frame.elemsOffset + slot + 1];
     }
 
     pub fn getBoundLocal(self: *VM, slot: usize) !Elem {
@@ -1696,42 +1714,42 @@ pub const VM = struct {
     pub fn setLocal(self: *VM, slot: usize, elem: Elem) void {
         // The local slot is at the start of the frame + 1, since the first
         // elem in the frame is the function getting called.
-        self.stack.items[self.frame().elemsOffset + slot + 1] = elem;
+        self.stack.items[self.cur_frame.elemsOffset + slot + 1] = elem;
     }
 
     fn readByte(self: *VM) u8 {
-        const byte = self.chunk().read(self.frame().ip);
-        self.frame().ip += 1;
+        const byte = self.cur_code[self.cur_frame.ip];
+        self.cur_frame.ip += 1;
         return byte;
     }
 
     fn readOp(self: *VM) OpCode {
-        const op = self.chunk().readOp(self.frame().ip);
-        self.frame().ip += 1;
+        const op: OpCode = @enumFromInt(self.cur_code[self.cur_frame.ip]);
+        self.cur_frame.ip += 1;
         return op;
     }
 
     fn readShort(self: *VM) u16 {
-        self.frame().ip += 2;
-        const items = self.chunk().code.items;
-        return (@as(u16, @intCast(items[self.frame().ip - 2])) << 8) | items[self.frame().ip - 1];
+        self.cur_frame.ip += 2;
+        const items = self.cur_code;
+        return (@as(u16, @intCast(items[self.cur_frame.ip - 2])) << 8) | items[self.cur_frame.ip - 1];
     }
 
     fn readMedium(self: *VM) u24 {
-        self.frame().ip += 3;
-        const items = self.chunk().code.items;
-        return (@as(u24, @intCast(items[self.frame().ip - 3])) << 16) |
-            (@as(u24, @intCast(items[self.frame().ip - 2])) << 8) |
-            items[self.frame().ip - 1];
+        self.cur_frame.ip += 3;
+        const items = self.cur_code;
+        return (@as(u24, @intCast(items[self.cur_frame.ip - 3])) << 16) |
+            (@as(u24, @intCast(items[self.cur_frame.ip - 2])) << 8) |
+            items[self.cur_frame.ip - 1];
     }
 
     fn readLong(self: *VM) u32 {
-        self.frame().ip += 4;
-        const items = self.chunk().code.items;
-        return (@as(u32, @intCast(items[self.frame().ip - 4])) << 24) |
-            (@as(u32, @intCast(items[self.frame().ip - 3])) << 16) |
-            (@as(u32, @intCast(items[self.frame().ip - 2])) << 8) |
-            items[self.frame().ip - 1];
+        self.cur_frame.ip += 4;
+        const items = self.cur_code;
+        return (@as(u32, @intCast(items[self.cur_frame.ip - 4])) << 24) |
+            (@as(u32, @intCast(items[self.cur_frame.ip - 3])) << 16) |
+            (@as(u32, @intCast(items[self.cur_frame.ip - 2])) << 8) |
+            items[self.cur_frame.ip - 1];
     }
 
     // Release a consumed operand's stack handle, unless the result is the
@@ -1872,10 +1890,10 @@ pub const VM = struct {
     }
 
     pub fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
-        const target_frame = if (self.frame().function.isBuiltin())
-            self.parentFrame() orelse self.frame()
+        const target_frame = if (self.cur_frame.function.isBuiltin())
+            self.parentFrame() orelse self.cur_frame
         else
-            self.frame();
+            self.cur_frame;
 
         const function = target_frame.function;
         const module = self.getModule(function.mid);

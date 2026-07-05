@@ -34,7 +34,7 @@ fn runWithUtilModule(vm: *VM, util_source: []const u8, main_source: []const u8, 
 
     const main = compiler.main.?;
     try vm.push(main.dyn.elem());
-    try vm.addFrame(main);
+    try vm.pushFrame(main);
     try vm.run();
 
     return vm.peek(0);
