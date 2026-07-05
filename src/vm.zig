@@ -330,7 +330,7 @@ pub const VM = struct {
         if (self.config.printVM) try self.printDebug();
     }
 
-    fn runOp(self: *VM, opCode: OpCode) !void {
+    inline fn runOp(self: *VM, opCode: OpCode) !void {
         switch (opCode) {
             .AssertFunctionArity => {
                 const expected_arity = self.readByte();
