@@ -117,7 +117,7 @@ fn stringToCodepoint(vm: *VM) VM.Error!void {
     defer value.release();
 
     if (value.isSuccess()) {
-        if (value.stringBytes(vm.*)) |bytes| {
+        if (try value.stringBytes(vm)) |bytes| {
             if (parsing.parseCodepoint(bytes)) |c| {
                 const len = try unicode.utf8CodepointSequenceLength(c);
                 const buffer = try vm.allocator.alloc(u8, len);
@@ -174,8 +174,8 @@ fn stringsToSurrogateCodepoint(vm: *VM) VM.Error!void {
     defer highSurrogate.release();
 
     if (highSurrogate.isSuccess() and lowSurrogate.isSuccess()) {
-        if (highSurrogate.stringBytes(vm.*)) |high| {
-            if (lowSurrogate.stringBytes(vm.*)) |low| {
+        if (try highSurrogate.stringBytes(vm)) |high| {
+            if (try lowSurrogate.stringBytes(vm)) |low| {
                 if (parsing.parseSurrogatePair(high, low)) |c| {
                     const len = try unicode.utf8CodepointSequenceLength(c);
                     const buffer = try vm.allocator.alloc(u8, len);

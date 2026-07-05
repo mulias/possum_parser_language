@@ -730,7 +730,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
     for (parts, 0..) |part, part_index| {
         switch (part) {
             .Value => |elem| {
-                if (elem.stringBytes(self.vm.*)) |part_str| {
+                if (try elem.stringBytes(self.vm)) |part_str| {
                     if (unbound_part == null) {
                         before_unbound_length += part_str.len;
                     } else {
@@ -754,7 +754,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
         }
     }
 
-    const value_str = value.stringBytes(self.vm.*) orelse return false;
+    const value_str = (try value.stringBytes(self.vm)) orelse return false;
 
     if (value_str.len < before_unbound_length + after_unbound_length) {
         return false;
@@ -766,7 +766,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
     for (parts) |part| {
         switch (part) {
             .Value => |elem| {
-                if (elem.stringBytes(self.vm.*)) |part_str| {
+                if (try elem.stringBytes(self.vm)) |part_str| {
                     const end_index = value_index + part_str.len;
                     if (end_index > value_str.len) return false;
 
@@ -821,7 +821,7 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
         for (parts[(unbound_idx + 1)..]) |part| {
             switch (part) {
                 .Value => |elem| {
-                    if (elem.stringBytes(self.vm.*)) |part_str| {
+                    if (try elem.stringBytes(self.vm)) |part_str| {
                         const end_index = value_index + part_str.len;
                         if (end_index > value_str.len) return false;
 
@@ -1068,7 +1068,7 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
     for (parts, 0..) |part, part_index| {
         switch (part) {
             .Value => |elem| {
-                if (elem.stringBytes(self.vm.*)) |part_str| {
+                if (try elem.stringBytes(self.vm)) |part_str| {
                     if (unbound_part == null) {
                         before_unbound_length += part_str.len;
                     } else {
@@ -1102,7 +1102,7 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
         }
     }
 
-    const value_str = value.stringBytes(self.vm.*) orelse return false;
+    const value_str = (try value.stringBytes(self.vm)) orelse return false;
 
     if (value_str.len < before_unbound_length + after_unbound_length) {
         return false;
@@ -1114,7 +1114,7 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
     for (parts) |part| {
         switch (part) {
             .Value => |elem| {
-                if (elem.stringBytes(self.vm.*)) |part_str| {
+                if (try elem.stringBytes(self.vm)) |part_str| {
                     const end_index = value_index + part_str.len;
                     if (end_index > value_str.len) return false;
 
@@ -1311,7 +1311,7 @@ fn matchStringTemplate(self: *PatternSolver, value: Elem, template_pattern: Arra
         for (parts[(unbound_idx + 1)..]) |part| {
             switch (part) {
                 .Value => |elem| {
-                    if (elem.stringBytes(self.vm.*)) |part_str| {
+                    if (try elem.stringBytes(self.vm)) |part_str| {
                         const end_index = value_index + part_str.len;
                         if (end_index > value_str.len) return false;
 
@@ -1390,8 +1390,8 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
         // Pattern is constant - we can determine the count
 
         // Handle string repetition
-        if (pattern_value.stringBytes(self.vm.*)) |pattern_str| {
-            const value_str = value.stringBytes(self.vm.*) orelse return false;
+        if (try pattern_value.stringBytes(self.vm)) |pattern_str| {
+            const value_str = (try value.stringBytes(self.vm)) orelse return false;
 
             // Special case: empty string (identity element)
             if (pattern_str.len == 0) {
@@ -1531,7 +1531,7 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
             const count = @as(usize, @intFromFloat(count_float));
 
             // Try string pattern matching
-            if (value.stringBytes(self.vm.*)) |value_str| {
+            if (try value.stringBytes(self.vm)) |value_str| {
                 // Special case: count is 0
                 if (count == 0) {
                     // Pattern * 0 = "" for any pattern (empty string identity)
@@ -1545,7 +1545,7 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
                     // Evaluate range bounds to get codepoint limits
                     const lower_codepoint: ?u21 = if (range.lower) |lower_pattern| blk: {
                         const lower_elem = try self.attemptEval(lower_pattern.*) orelse return Error.RuntimeError;
-                        if (lower_elem.stringBytes(self.vm.*)) |bytes| {
+                        if (try lower_elem.stringBytes(self.vm)) |bytes| {
                             break :blk parsing.utf8Decode(bytes);
                         } else {
                             return Error.RuntimeError;
@@ -1554,7 +1554,7 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
 
                     const upper_codepoint: ?u21 = if (range.upper) |upper_pattern| blk: {
                         const upper_elem = try self.attemptEval(upper_pattern.*) orelse return Error.RuntimeError;
-                        if (upper_elem.stringBytes(self.vm.*)) |bytes| {
+                        if (try upper_elem.stringBytes(self.vm)) |bytes| {
                             break :blk parsing.utf8Decode(bytes);
                         } else {
                             return Error.RuntimeError;
@@ -1672,12 +1672,12 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
                 const range = repeat_pattern.pattern.Range;
 
                 // This only works for string values
-                const value_str = value.stringBytes(self.vm.*) orelse return false;
+                const value_str = (try value.stringBytes(self.vm)) orelse return false;
 
                 // Evaluate range bounds to get codepoint limits
                 const lower_codepoint: ?u21 = if (range.lower) |lower_pattern| blk: {
                     const lower_elem = try self.attemptEval(lower_pattern.*) orelse return Error.RuntimeError;
-                    if (lower_elem.stringBytes(self.vm.*)) |bytes| {
+                    if (try lower_elem.stringBytes(self.vm)) |bytes| {
                         break :blk parsing.utf8Decode(bytes);
                     } else {
                         return Error.RuntimeError;
@@ -1686,7 +1686,7 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
 
                 const upper_codepoint: ?u21 = if (range.upper) |upper_pattern| blk: {
                     const upper_elem = try self.attemptEval(upper_pattern.*) orelse return Error.RuntimeError;
-                    if (upper_elem.stringBytes(self.vm.*)) |bytes| {
+                    if (try upper_elem.stringBytes(self.vm)) |bytes| {
                         break :blk parsing.utf8Decode(bytes);
                     } else {
                         return Error.RuntimeError;

@@ -30,4 +30,4 @@ instead of carrying the popped copy's count forever.
   inserts:           2 in place, 0 copied
   mutable constants: 0 reused, 1 copied
   strings interned:  529
-  bytes in use:      3465
+  bytes in use:      3473

@@ -371,6 +371,63 @@ pub const Elem = packed union {
         if (self.isType(.Dyn)) self.asDyn().release();
     }
 
+    pub fn isStringy(self: Elem) bool {
+        return self.isType(.String) or self.isType(.InputSubstring) or self.isDynType(.String);
+    }
+
+    // Iterate the contiguous byte runs of a stringy Elem: one run for
+    // value strings and leaves, one per segment for ropes.
+    const StringRuns = struct {
+        single: ?[]const u8,
+        segments: []const Elem,
+        index: usize = 0,
+
+        fn init(e: Elem, vm: VM) StringRuns {
+            if (e.isType(.Dyn)) {
+                switch (e.asDyn().asString().repr) {
+                    .rope => |rope| return .{ .single = null, .segments = rope.segments.items },
+                    .leaf => {},
+                }
+            }
+            return .{ .single = DynElem.String.segmentBytes(e, vm), .segments = &.{} };
+        }
+
+        fn next(self: *StringRuns, vm: VM) ?[]const u8 {
+            if (self.single) |s| {
+                self.single = null;
+                return s;
+            }
+            if (self.index >= self.segments.len) return null;
+            const s = DynElem.String.segmentBytes(self.segments[self.index], vm);
+            self.index += 1;
+            return s;
+        }
+    };
+
+    fn eqlStrings(a: Elem, b: Elem, vm: VM) bool {
+        if (a.isType(.String) and b.isType(.String)) return a.asString() == b.asString();
+        if (a.isType(.InputSubstring) and b.isType(.InputSubstring) and
+            a.asInputSubstring().eql(b.asInputSubstring())) return true;
+        if (a.isType(.Dyn) and b.isType(.Dyn) and a.asDyn() == b.asDyn()) return true;
+
+        var runs_a = StringRuns.init(a, vm);
+        var runs_b = StringRuns.init(b, vm);
+        var ra: []const u8 = "";
+        var rb: []const u8 = "";
+        while (true) {
+            if (ra.len == 0) ra = runs_a.next(vm) orelse break;
+            if (rb.len == 0) rb = runs_b.next(vm) orelse break;
+            const n = @min(ra.len, rb.len);
+            if (!std.mem.eql(u8, ra[0..n], rb[0..n])) return false;
+            ra = ra[n..];
+            rb = rb[n..];
+        }
+        // One side ran out; equal iff the other has no bytes left either.
+        while (ra.len == 0) ra = runs_a.next(vm) orelse break;
+        while (rb.len == 0) rb = runs_b.next(vm) orelse break;
+        return ra.len == 0 and rb.len == 0;
+    }
+
     pub fn print(self: Elem, vm: VM, writer: *Writer) Writer.Error!void {
         switch (self.getType()) {
             .ValueVar => {
@@ -434,85 +491,20 @@ pub const Elem = packed union {
         }
 
         // Handle non-numbers
+        if (self.isStringy() and other.isStringy()) {
+            return eqlStrings(self, other, vm);
+        }
+
         if (self.isType(.ValueVar)) {
             if (!other.isType(.ValueVar)) return false;
             const sid1 = self.asValueVar().sid;
             const sid2 = other.asValueVar().sid;
             return sid1 == sid2;
-        } else if (self.isType(.String)) {
-            const sId1 = self.asString();
-            if (other.isType(.String)) {
-                return sId1 == other.asString();
-            } else if (other.isType(.InputSubstring)) {
-                const s1 = vm.strings.get(sId1);
-                const is2 = other.asInputSubstring();
-                const s2 = is2.bytes(vm);
-                return std.mem.eql(u8, s1, s2);
-            } else if (other.isType(.Dyn)) {
-                const d2 = other.asDyn();
-                if (d2.isType(.String)) {
-                    const s1 = vm.strings.get(sId1);
-                    const s2 = d2.asString().bytes();
-                    return std.mem.eql(u8, s1, s2);
-                }
-            }
-            return false;
-        } else if (self.isType(.InputSubstring)) {
-            const is1 = self.asInputSubstring();
-            if (other.isType(.String)) {
-                const s1 = is1.bytes(vm);
-                const s2 = vm.strings.get(other.asString());
-                return std.mem.eql(u8, s1, s2);
-            } else if (other.isType(.InputSubstring)) {
-                const is2 = other.asInputSubstring();
-                if (is1.eql(is2)) return true;
-                const s1 = is1.bytes(vm);
-                const s2 = is2.bytes(vm);
-                return std.mem.eql(u8, s1, s2);
-            } else if (other.isType(.Dyn)) {
-                const d2 = other.asDyn();
-                if (d2.isType(.String)) {
-                    const s1 = is1.bytes(vm);
-                    const s2 = d2.asString().bytes();
-                    return std.mem.eql(u8, s1, s2);
-                }
-            }
-            return false;
-        } else if (self.isType(.NumberString)) {
-            const n1 = self.asNumberString();
-            if (other.isType(.NumberString)) {
-                const n2 = other.asNumberString();
-                const elem1 = n1.toNumberFloat(vm.strings);
-                const elem2 = n2.toNumberFloat(vm.strings);
-                return elem1.isEql(elem2, vm);
-            } else if (other.isFloat()) {
-                const elem1 = n1.toNumberFloat(vm.strings);
-                return elem1.isEql(other, vm);
-            }
-            return false;
         } else if (self.isType(.Const)) {
             if (!other.isType(.Const)) return false;
             return self.tagged.payload.constant.value == other.tagged.payload.constant.value;
         } else if (self.isType(.Dyn)) {
-            const d1 = self.asDyn();
-            if (other.isType(.String)) {
-                if (d1.isType(.String)) {
-                    const s1 = d1.asString().bytes();
-                    const s2 = vm.strings.get(other.asString());
-                    return std.mem.eql(u8, s1, s2);
-                }
-                return false;
-            } else if (other.isType(.InputSubstring)) {
-                if (d1.isType(.String)) {
-                    const s1 = d1.asString().bytes();
-                    const is2 = other.asInputSubstring();
-                    const s2 = is2.bytes(vm);
-                    return std.mem.eql(u8, s1, s2);
-                }
-                return false;
-            } else if (other.isType(.Dyn)) {
-                return d1.isEql(other.asDyn(), vm);
-            }
+            if (other.isType(.Dyn)) return self.asDyn().isEql(other.asDyn(), vm);
             return false;
         }
         return false;
@@ -555,11 +547,33 @@ pub const Elem = packed union {
     }
 
     fn toCodepoint(elem: Elem, vm: VM) ?u21 {
-        if (elem.stringBytes(vm)) |bytes| {
-            return unicode.utf8Decode(bytes) catch return null;
-        } else {
-            return null;
+        var buf: [4]u8 = undefined;
+        const bytes = elem.shortStringBytes(&buf, vm) orelse return null;
+        return unicode.utf8Decode(bytes) catch return null;
+    }
+
+    // Bytes of a stringy elem when they fit in `buf`, without
+    // allocating: value strings and leaves are borrowed directly, rope
+    // segments are gathered into `buf`. Null when not stringy or when a
+    // rope is longer than the buffer.
+    fn shortStringBytes(elem: Elem, buf: []u8, vm: VM) ?[]const u8 {
+        if (!elem.isStringy()) return null;
+        if (elem.isType(.Dyn)) {
+            switch (elem.asDyn().asString().repr) {
+                .rope => |rope| {
+                    if (rope.byte_len > buf.len) return null;
+                    var i: usize = 0;
+                    for (rope.segments.items) |seg| {
+                        const bs = DynElem.String.segmentBytes(seg, vm);
+                        @memcpy(buf[i..(i + bs.len)], bs);
+                        i += bs.len;
+                    }
+                    return buf[0..i];
+                },
+                .leaf => {},
+            }
         }
+        return DynElem.String.segmentBytes(elem, vm);
     }
 
     pub fn merge(elemA: Elem, elemB: Elem, vm: *VM) !?Elem {
@@ -568,73 +582,12 @@ pub const Elem = packed union {
         if (elemA.isConst(.Null)) return elemB;
         if (elemB.isConst(.Null)) return elemA;
 
+        if (elemA.isStringy() and elemB.isStringy()) {
+            return try mergeStrings(elemA, elemB, vm);
+        }
+
         return switch (elemA.getType()) {
-            .String => switch (elemB.getType()) {
-                .String => {
-                    const s1 = vm.strings.get(elemA.asString());
-                    const s2 = vm.strings.get(elemB.asString());
-                    const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
-                    try s.concatBytes(s1);
-                    try s.concatBytes(s2);
-                    return s.dyn.elem();
-                },
-                .InputSubstring => {
-                    const s1 = vm.strings.get(elemA.asString());
-                    const s2 = elemB.asInputSubstring().bytes(vm.*);
-                    const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
-                    try s.concatBytes(s1);
-                    try s.concatBytes(s2);
-                    return s.dyn.elem();
-                },
-                .Dyn => switch (elemB.asDyn().dynType) {
-                    .String => {
-                        const s1 = vm.strings.get(elemA.asString());
-                        const ds2 = elemB.asDyn().asString();
-                        const s = try Elem.DynElem.String.create(vm, s1.len + ds2.buffer.size);
-                        try s.concatBytes(s1);
-                        try s.concat(ds2);
-                        return s.dyn.elem();
-                    },
-                    else => null,
-                },
-                else => null,
-            },
-            .InputSubstring => switch (elemB.getType()) {
-                .String => {
-                    const s1 = elemA.asInputSubstring().bytes(vm.*);
-                    const s2 = vm.strings.get(elemB.asString());
-                    const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
-                    try s.concatBytes(s1);
-                    try s.concatBytes(s2);
-                    return s.dyn.elem();
-                },
-                .InputSubstring => {
-                    const is1 = elemA.asInputSubstring();
-                    const is2 = elemB.asInputSubstring();
-                    if (is1.mergeContiguous(is2)) |merged| {
-                        return merged.elem();
-                    } else {
-                        const s1 = is1.bytes(vm.*);
-                        const s2 = is2.bytes(vm.*);
-                        const s = try Elem.DynElem.String.create(vm, s1.len + s2.len);
-                        try s.concatBytes(s1);
-                        try s.concatBytes(s2);
-                        return s.dyn.elem();
-                    }
-                },
-                .Dyn => switch (elemB.asDyn().dynType) {
-                    .String => {
-                        const s1 = elemA.asInputSubstring().bytes(vm.*);
-                        const ds2 = elemB.asDyn().asString();
-                        const s = try Elem.DynElem.String.create(vm, s1.len + ds2.buffer.size);
-                        try s.concatBytes(s1);
-                        try s.concat(ds2);
-                        return s.dyn.elem();
-                    },
-                    else => null,
-                },
-                else => null,
-            },
+            .String, .InputSubstring => null,
             .NumberString => {
                 if (elemB.isZero(vm.strings)) {
                     return elemA;
@@ -663,61 +616,7 @@ pub const Elem = packed union {
             .ValueVar,
             => return null,
             .Dyn => switch (elemA.asDyn().dynType) {
-                .String => {
-                    const ds1 = elemA.asDyn().asString();
-                    // A unique lhs has no other owner: append instead of
-                    // copying. A shared rhs is only read.
-                    if (vm.config.rc_fast_paths and ds1.dyn.isUnique()) {
-                        switch (elemB.getType()) {
-                            .String => {
-                                vm.rc_stats.merge_in_place += 1;
-                                try ds1.concatBytes(vm.strings.get(elemB.asString()));
-                                return elemA;
-                            },
-                            .InputSubstring => {
-                                vm.rc_stats.merge_in_place += 1;
-                                try ds1.concatBytes(elemB.asInputSubstring().bytes(vm.*));
-                                return elemA;
-                            },
-                            .Dyn => if (elemB.asDyn().isType(.String)) {
-                                vm.rc_stats.merge_in_place += 1;
-                                try ds1.concat(elemB.asDyn().asString());
-                                return elemA;
-                            },
-                            else => {},
-                        }
-                    }
-                    return switch (elemB.getType()) {
-                        .String => {
-                            vm.rc_stats.merge_copy += 1;
-                            const s2 = vm.strings.get(elemB.asString());
-                            const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + s2.len);
-                            try s.concat(ds1);
-                            try s.concatBytes(s2);
-                            return s.dyn.elem();
-                        },
-                        .InputSubstring => {
-                            vm.rc_stats.merge_copy += 1;
-                            const s2 = elemB.asInputSubstring().bytes(vm.*);
-                            const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + s2.len);
-                            try s.concat(ds1);
-                            try s.concatBytes(s2);
-                            return s.dyn.elem();
-                        },
-                        .Dyn => switch (elemB.asDyn().dynType) {
-                            .String => {
-                                vm.rc_stats.merge_copy += 1;
-                                const ds2 = elemB.asDyn().asString();
-                                const s = try Elem.DynElem.String.create(vm, ds1.buffer.size + ds2.buffer.size);
-                                try s.concat(ds1);
-                                try s.concat(ds2);
-                                return s.dyn.elem();
-                            },
-                            else => null,
-                        },
-                        else => null,
-                    };
-                },
+                .String => null,
                 .Array => {
                     const a1 = elemA.asDyn().asArray();
                     if (vm.config.rc_fast_paths and a1.dyn.isUniqueBesidesCache() and elemB.isDynType(.Array)) {
@@ -770,6 +669,111 @@ pub const Elem = packed union {
                 => @panic("Internal error"),
             },
         };
+    }
+
+    // Merge two strings. Value strings and leaves are the leaves of the
+    // representation; merges build ropes instead of copying bytes
+    // wherever a copy can be avoided. Both operands must be rooted:
+    // every path below may allocate.
+    fn mergeStrings(elemA: Elem, elemB: Elem, vm: *VM) !Elem {
+        // Adjacent input substrings stay a value type: zero-copy.
+        if (elemA.isType(.InputSubstring) and elemB.isType(.InputSubstring)) {
+            if (elemA.asInputSubstring().mergeContiguous(elemB.asInputSubstring())) |merged| {
+                return merged.elem();
+            }
+        }
+
+        if (!vm.config.rc_fast_paths) {
+            if (elemA.isType(.Dyn) or elemB.isType(.Dyn)) vm.rc_stats.merge_copy += 1;
+            return try copyStrings(elemA, elemB, vm);
+        }
+
+        if (elemA.isType(.Dyn)) {
+            const sa = elemA.asDyn().asString();
+            if (sa.dyn.isUnique()) {
+                vm.rc_stats.merge_in_place += 1;
+                switch (sa.repr) {
+                    // An owned buffer accumulates rhs bytes directly,
+                    // keeping left-fold accumulation contiguous.
+                    .leaf => try appendStringBytes(sa, elemB, vm),
+                    .rope => try ropeAppend(sa, elemB, vm),
+                }
+                return elemA;
+            }
+        } else if (elemB.isType(.Dyn)) {
+            const sb = elemB.asDyn().asString();
+            // A consumable unique rope absorbs a prepended value
+            // segment: right-built strings stay linear.
+            if (sb.dyn.isUnique() and sb.repr == .rope) {
+                vm.rc_stats.merge_in_place += 1;
+                try sb.prependSegment(vm, elemA);
+                return elemB;
+            }
+        }
+
+        // No in-place path: build a fresh rope referencing both
+        // operands instead of copying their bytes. Shared ropes are
+        // flattened first so segments stay one level deep, and segment
+        // capacity is counted up front so filling the rope cannot
+        // allocate while it is unrooted. For the stats this is the
+        // not-in-place bucket: no existing Dyn was mutated.
+        if (elemA.isType(.Dyn) or elemB.isType(.Dyn)) vm.rc_stats.merge_copy += 1;
+        if (elemA.isType(.Dyn) and elemA.asDyn().asString().repr == .rope) {
+            _ = try elemA.asDyn().asString().flatten(vm);
+        }
+        var splice_b: ?*DynElem.String = null;
+        var capacity_b: usize = 1;
+        if (elemB.isType(.Dyn)) {
+            const sb = elemB.asDyn().asString();
+            if (sb.repr == .rope) {
+                if (sb.dyn.isUnique()) {
+                    splice_b = sb;
+                    capacity_b = sb.repr.rope.segments.items.len;
+                } else {
+                    _ = try sb.flatten(vm);
+                }
+            }
+        }
+
+        const result = try DynElem.String.createRope(vm, 1 + capacity_b);
+        try result.appendSegment(vm, elemA);
+        if (splice_b) |sb| {
+            try result.spliceRope(vm, sb);
+        } else {
+            try result.appendSegment(vm, elemB);
+        }
+        return result.dyn.elem();
+    }
+
+    // Append a string operand's bytes into a unique leaf.
+    fn appendStringBytes(sa: *DynElem.String, e: Elem, vm: *VM) !void {
+        var runs = StringRuns.init(e, vm.*);
+        while (runs.next(vm.*)) |run| try sa.concatBytes(run);
+    }
+
+    // Append a string operand onto a unique rope: values and leaves
+    // become segments, unique ropes are spliced, shared ropes are
+    // flattened and referenced.
+    fn ropeAppend(sa: *DynElem.String, e: Elem, vm: *VM) !void {
+        if (e.isType(.Dyn)) {
+            const se = e.asDyn().asString();
+            if (se.repr == .rope) {
+                if (se.dyn.isUnique()) return sa.spliceRope(vm, se);
+                _ = try se.flatten(vm);
+            }
+        }
+        try sa.appendSegment(vm, e);
+    }
+
+    // Baseline for disabled fast paths: always copy both operands into
+    // a fresh leaf, exactly the pre-refcounting behavior. The exact
+    // pre-sizing means the fills never reallocate the unrooted leaf.
+    fn copyStrings(elemA: Elem, elemB: Elem, vm: *VM) !Elem {
+        const size = DynElem.String.segmentByteLen(elemA, vm.*) + DynElem.String.segmentByteLen(elemB, vm.*);
+        const s = try DynElem.String.create(vm, size);
+        try appendStringBytes(s, elemA, vm);
+        try appendStringBytes(s, elemB, vm);
+        return s.dyn.elem();
     }
 
     pub fn repeat(elem: Elem, count: Elem, vm: *VM) !?Elem {
@@ -858,27 +862,6 @@ pub const Elem = packed union {
         };
     }
 
-    pub fn toNumber(self: Elem, vm: *VM) !?Elem {
-        const bytes = switch (self) {
-            .NumberString,
-            .Number,
-            => return self,
-            .String => |sId| vm.strings.get(sId),
-            .InputSubstring => |is| vm.input[is[0]..is[1]],
-            .Dyn => |dyn| switch (dyn.dynType) {
-                .String => dyn.asString().buffer.str(),
-                else => return null,
-            },
-            else => return null,
-        };
-
-        if (parsing.isValidNumberString(bytes)) {
-            return try Elem.numberString(bytes, vm);
-        } else {
-            return null;
-        }
-    }
-
     pub fn isZero(self: Elem, strings: StringTable) bool {
         return switch (self.getType()) {
             .NumberString => self.asNumberString().toNumberFloat(strings).asFloat() == 0,
@@ -900,12 +883,15 @@ pub const Elem = packed union {
         }
     }
 
-    pub fn stringBytes(elem: Elem, vm: VM) ?[]const u8 {
+    // Contiguous bytes of a stringy elem. Ropes are flattened in place
+    // (an allocation, hence *VM and the error), so the elem must be
+    // rooted.
+    pub fn stringBytes(elem: Elem, vm: *VM) !?[]const u8 {
         return switch (elem.getType()) {
             .String => vm.strings.get(elem.asString()),
-            .InputSubstring => elem.asInputSubstring().bytes(vm),
+            .InputSubstring => elem.asInputSubstring().bytes(vm.*),
             .Dyn => switch (elem.asDyn().dynType) {
-                .String => elem.asDyn().asString().buffer.str(),
+                .String => try elem.asDyn().asString().flatten(vm),
                 else => null,
             },
             else => null,
@@ -916,7 +902,7 @@ pub const Elem = packed union {
         switch (elem.getType()) {
             .String => return elem.asString(),
             else => {
-                if (elem.stringBytes(vm.*)) |bytes| {
+                if (try elem.stringBytes(vm)) |bytes| {
                     return try vm.strings.insert(bytes);
                 } else {
                     return null;
@@ -954,7 +940,7 @@ pub const Elem = packed union {
             },
             .Dyn => switch (self.asDyn().dynType) {
                 .String => {
-                    const s = self.asDyn().asString().buffer.str();
+                    const s = try self.asDyn().asString().bytesAlloc(vm, vm.allocator);
                     return .{ .string = s };
                 },
                 .Array => {
@@ -1129,6 +1115,10 @@ pub const Elem = packed union {
             comptime visit: fn (@TypeOf(context), Elem) void,
         ) void {
             switch (self.dynType) {
+                .String => switch (self.asString().repr) {
+                    .rope => |rope| for (rope.segments.items) |item| visit(context, item),
+                    .leaf => {},
+                },
                 .Array => {
                     for (self.asArray().elems.items) |item| visit(context, item);
                 },
@@ -1143,7 +1133,7 @@ pub const Elem = packed union {
                         if (maybe_elem) |item| visit(context, item);
                     }
                 },
-                .String, .Function, .NativeCode => {},
+                .Function, .NativeCode => {},
             }
         }
 
@@ -1179,7 +1169,7 @@ pub const Elem = packed union {
 
         pub fn print(self: *DynElem, vm: VM, writer: *Writer) Writer.Error!void {
             return switch (self.dynType) {
-                .String => self.asString().print(writer),
+                .String => self.asString().print(vm, writer),
                 .Array => self.asArray().print(vm, writer),
                 .Object => self.asObject().print(vm, writer),
                 .Function => self.asFunction().print(vm, writer),
@@ -1190,7 +1180,7 @@ pub const Elem = packed union {
 
         pub fn isEql(self: *DynElem, other: *DynElem, vm: VM) bool {
             return switch (self.dynType) {
-                .String => self.asString().isEql(other),
+                .String => self.asString().isEql(other, vm),
                 .Array => self.asArray().isEql(other, vm),
                 .Object => self.asObject().isEql(other, vm),
                 .Function => self.asFunction().isEql(other),
@@ -1229,7 +1219,24 @@ pub const Elem = packed union {
 
         pub const String = struct {
             dyn: DynElem,
-            buffer: StringBuffer,
+            repr: Repr,
+
+            pub const Repr = union(enum) {
+                // Owned contiguous bytes: the only form readers consume
+                // directly.
+                leaf: StringBuffer,
+                // Concatenation segments, in order: interned strings,
+                // input substrings, and leaf strings. Merges append
+                // segments instead of copying bytes; the first byte read
+                // flattens the rope into a leaf. Segments are never
+                // ropes, so readers walk one level.
+                rope: Rope,
+            };
+
+            pub const Rope = struct {
+                segments: ArrayList(Elem),
+                byte_len: usize,
+            };
 
             pub fn copy(vm: *VM, source: []const u8) !*String {
                 const str = try create(vm, source.len);
@@ -1247,47 +1254,202 @@ pub const Elem = packed union {
 
                 str.* = String{
                     .dyn = dyn.*,
-                    .buffer = buffer,
+                    .repr = .{ .leaf = buffer },
+                };
+
+                return str;
+            }
+
+            pub fn createRope(vm: *VM, capacity: usize) !*String {
+                // Allocate segments before the string is added to GC,
+                // with enough capacity that filling the rope allocates
+                // nothing: a collection during construction would sweep
+                // the unrooted string.
+                var segments = ArrayList(Elem){};
+                try segments.ensureTotalCapacity(vm.gc.allocator(), capacity);
+
+                const dyn = try vm.gc.createDynElem(String, .String);
+                const str = dyn.asString();
+
+                str.* = String{
+                    .dyn = dyn.*,
+                    .repr = .{ .rope = .{ .segments = segments, .byte_len = 0 } },
                 };
 
                 return str;
             }
 
             pub fn destroy(self: *String, vm: *VM) void {
-                self.buffer.deinit();
+                switch (self.repr) {
+                    .leaf => |*buffer| buffer.deinit(),
+                    .rope => |*rope| rope.segments.deinit(vm.gc.allocator()),
+                }
                 vm.gc.allocator().destroy(self);
             }
 
-            pub fn print(self: *String, writer: *Writer) Writer.Error!void {
-                try writer.print("\"{s}\"", .{self.buffer.str()});
+            // Collapse a rope into its leaf and return the contiguous
+            // bytes. Content-idempotent, so safe on shared values: a
+            // cache fill, not a mutation.
+            pub fn flatten(self: *String, vm: *VM) ![]const u8 {
+                switch (self.repr) {
+                    .leaf => {},
+                    .rope => |rope| {
+                        // Root self: building the leaf allocates, which
+                        // can run a collection, and some callers hold
+                        // the only handle off-stack (builtin args).
+                        try vm.pushTempDyn(&self.dyn);
+                        defer vm.dropTempDyn();
+
+                        var buffer = StringBuffer.init(vm.gc.allocator());
+                        try buffer.allocate(rope.byte_len);
+                        for (rope.segments.items) |seg| {
+                            try buffer.concat(segmentBytes(seg, vm.*));
+                        }
+                        // The swap and releases allocate nothing, so no
+                        // collection observes the intermediate state.
+                        var segments = rope.segments;
+                        self.repr = .{ .leaf = buffer };
+                        for (segments.items) |seg| seg.release();
+                        segments.deinit(vm.gc.allocator());
+                    },
+                }
+                return self.repr.leaf.str();
             }
 
-            pub fn isEql(self: *String, other: *DynElem) bool {
-                return other.isType(.String) and std.mem.eql(
-                    u8,
-                    self.buffer.str(),
-                    other.asString().buffer.str(),
-                );
+            // Bytes of a single rope segment. Dyn segments are always
+            // leaves, by construction.
+            fn segmentBytes(seg: Elem, vm: VM) []const u8 {
+                return switch (seg.getType()) {
+                    .String => vm.strings.get(seg.asString()),
+                    .InputSubstring => seg.asInputSubstring().bytes(vm),
+                    .Dyn => seg.asDyn().asString().bytes(),
+                    else => unreachable,
+                };
+            }
+
+            fn segmentByteLen(seg: Elem, vm: VM) usize {
+                return switch (seg.getType()) {
+                    .String => vm.strings.get(seg.asString()).len,
+                    .InputSubstring => seg.asInputSubstring().offset,
+                    .Dyn => seg.asDyn().asString().byteLen(),
+                    else => unreachable,
+                };
+            }
+
+            // Append a value string or leaf as a segment, retaining the
+            // stored handle (mirrors Array.append). Adjacent input
+            // substrings collapse, keeping contiguous scans at one
+            // segment.
+            pub fn appendSegment(self: *String, vm: *VM, seg: Elem) !void {
+                const rope = &self.repr.rope;
+                const items = rope.segments.items;
+                if (seg.isType(.InputSubstring) and items.len > 0 and items[items.len - 1].isType(.InputSubstring)) {
+                    const last = items[items.len - 1].asInputSubstring();
+                    if (last.mergeContiguous(seg.asInputSubstring())) |merged| {
+                        items[items.len - 1] = merged.elem();
+                        rope.byte_len += seg.asInputSubstring().offset;
+                        return;
+                    }
+                }
+                seg.retain();
+                try rope.segments.append(vm.gc.allocator(), seg);
+                rope.byte_len += segmentByteLen(seg, vm.*);
+            }
+
+            // Prepend a segment; see appendSegment.
+            pub fn prependSegment(self: *String, vm: *VM, seg: Elem) !void {
+                const rope = &self.repr.rope;
+                const items = rope.segments.items;
+                if (seg.isType(.InputSubstring) and items.len > 0 and items[0].isType(.InputSubstring)) {
+                    const first = items[0].asInputSubstring();
+                    if (seg.asInputSubstring().mergeContiguous(first)) |merged| {
+                        items[0] = merged.elem();
+                        rope.byte_len += seg.asInputSubstring().offset;
+                        return;
+                    }
+                }
+                seg.retain();
+                try rope.segments.insert(vm.gc.allocator(), 0, seg);
+                rope.byte_len += segmentByteLen(seg, vm.*);
+            }
+
+            // Move `other`'s segments onto the end of self without
+            // retaining: the caller owns `other`'s only handle and is
+            // consuming it, so each segment's handle transfers. The husk
+            // is emptied so its stale handles can't be seen by the audit
+            // or a later walk. Capacity is reserved up front so no
+            // allocation can observe a segment in both ropes mid-move.
+            pub fn spliceRope(self: *String, vm: *VM, other: *String) !void {
+                std.debug.assert(other.dyn.isUnique());
+                const rope = &self.repr.rope;
+                const other_rope = &other.repr.rope;
+                try rope.segments.ensureUnusedCapacity(vm.gc.allocator(), other_rope.segments.items.len);
+                rope.segments.appendSliceAssumeCapacity(other_rope.segments.items);
+                rope.byte_len += other_rope.byte_len;
+                other_rope.segments.clearRetainingCapacity();
+                other_rope.byte_len = 0;
+            }
+
+            pub fn print(self: *String, vm: VM, writer: *Writer) Writer.Error!void {
+                switch (self.repr) {
+                    .leaf => |buffer| try writer.print("\"{s}\"", .{buffer.str()}),
+                    .rope => |rope| {
+                        try writer.print("\"", .{});
+                        for (rope.segments.items) |seg| {
+                            try writer.print("{s}", .{segmentBytes(seg, vm)});
+                        }
+                        try writer.print("\"", .{});
+                    },
+                }
+            }
+
+            pub fn isEql(self: *String, other: *DynElem, vm: VM) bool {
+                if (!other.isType(.String)) return false;
+                return eqlStrings(self.dyn.elem(), other.elem(), vm);
             }
 
             pub fn concat(self: *String, other: *String) !void {
-                try self.buffer.concat(other.buffer.str());
+                try self.repr.leaf.concat(other.bytes());
             }
 
             pub fn concatByte(self: *String, other: u8) !void {
-                try self.buffer.concat(&[_]u8{other});
+                try self.repr.leaf.concat(&[_]u8{other});
             }
 
             pub fn concatBytes(self: *String, other: []const u8) !void {
-                try self.buffer.concat(other);
+                try self.repr.leaf.concat(other);
             }
 
-            pub fn len(self: *String) usize {
-                return self.buffer.size;
+            pub fn byteLen(self: *String) usize {
+                return switch (self.repr) {
+                    .leaf => |buffer| buffer.size,
+                    .rope => |rope| rope.byte_len,
+                };
             }
 
+            // Contiguous bytes of a leaf. Readers that may see a rope go
+            // through Elem.stringBytes, which flattens first.
             pub fn bytes(self: *String) []const u8 {
-                return self.buffer.str();
+                return self.repr.leaf.str();
+            }
+
+            // Contiguous bytes without mutating: leaves are borrowed,
+            // ropes are concatenated into `allocator` memory. For
+            // readers that cannot flatten (no *VM).
+            pub fn bytesAlloc(self: *String, vm: VM, allocator: std.mem.Allocator) ![]const u8 {
+                switch (self.repr) {
+                    .leaf => |buffer| return buffer.str(),
+                    .rope => |rope| {
+                        const out = try allocator.alloc(u8, rope.byte_len);
+                        var i: usize = 0;
+                        for (rope.segments.items) |seg| {
+                            const bs = segmentBytes(seg, vm);
+                            @memcpy(out[i..(i + bs.len)], bs);
+                            i += bs.len;
+                        }
+                        return out;
+                    },
+                }
             }
         };
 
@@ -1747,7 +1909,7 @@ pub const Elem = packed union {
 test "struct size" {
     try std.testing.expectEqual(8, @sizeOf(Elem));
     try std.testing.expectEqual(32, @sizeOf(Elem.DynElem));
-    try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
+    try std.testing.expectEqual(80, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
     try std.testing.expectEqual(112, @sizeOf(Elem.DynElem.Function));

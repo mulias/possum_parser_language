@@ -63,8 +63,11 @@ pub const Pos = struct {
 };
 
 // How often the uniqueness fast paths fired. Counted only at the decision
-// points: container/string merges with a Dyn lhs, and the Insert opcodes.
-// Value-type merges never copy containers and are not counted.
+// points: container merges with a Dyn lhs, string merges with a Dyn
+// operand on either side, and the Insert opcodes. Pure value-type merges
+// are not counted. A fresh rope referencing a shared Dyn operand counts
+// as a copy: no existing value was mutated, even though no bytes were
+// copied.
 pub const RcStats = struct {
     merge_in_place: u64 = 0,
     merge_copy: u64 = 0,
@@ -470,7 +473,7 @@ pub const VM = struct {
                     const value = self.peek(0);
 
                     const str = try value.toString(self);
-                    const message = str.stringBytes(self.*).?;
+                    const message = (try str.stringBytes(self)).?;
                     return self.runtimeError("{s}", .{message});
                 } else {
                     return self.runtimeError("Crashed with no error message", .{});

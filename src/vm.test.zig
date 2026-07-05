@@ -2570,7 +2570,7 @@ test "merge appends to a unique dyn string in place" {
     try std.testing.expectEqualStrings("abcd", merged.asDyn().asString().bytes());
 }
 
-test "merge copies a shared dyn string" {
+test "merge references a shared dyn string from a fresh rope" {
     var vm = VM.create();
     try vm.init(allocator, writers, rc_config);
     defer vm.deinit();
@@ -2583,7 +2583,11 @@ test "merge copies a shared dyn string" {
 
     try std.testing.expect(s.dyn.id != merged.asDyn().id);
     try std.testing.expectEqualStrings("ab", s.bytes());
-    try std.testing.expectEqualStrings("abcd", merged.asDyn().asString().bytes());
+    // The rope holds a retained handle on the shared string, no copy.
+    try std.testing.expectEqual(@as(u32, 3), s.dyn.ref_count);
+    try std.testing.expectEqualStrings("abcd", try merged.asDyn().asString().flatten(&vm));
+    // Flattening released the rope's segment handles.
+    try std.testing.expectEqual(@as(u32, 2), s.dyn.ref_count);
 }
 
 test "merge copies a unique array when fast paths are disabled" {
@@ -2737,4 +2741,108 @@ test "a full program allocates fewer dyns with fast paths than without" {
     _ = try vm_copy.interpret("test", parser, input);
 
     try std.testing.expect(vm_fast.uniqueIdCount < vm_copy.uniqueIdCount);
+}
+
+test "merge of two value strings builds a rope without copying bytes" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const a = Elem.string(try vm.strings.insert("ab"));
+    const b = Elem.string(try vm.strings.insert("cd"));
+
+    const merged = (try Elem.merge(a, b, &vm)).?;
+    const s = merged.asDyn().asString();
+
+    try std.testing.expect(s.repr == .rope);
+    try std.testing.expectEqual(@as(usize, 4), s.byteLen());
+    try std.testing.expectEqualStrings("abcd", try s.flatten(&vm));
+    try std.testing.expect(s.repr == .leaf);
+}
+
+test "merge prepends a value string onto a unique rope in place" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const b = Elem.string(try vm.strings.insert("bc"));
+    const c = Elem.string(try vm.strings.insert("de"));
+    const rope = (try Elem.merge(b, c, &vm)).?;
+
+    const a = Elem.string(try vm.strings.insert("a"));
+    const merged = (try Elem.merge(a, rope, &vm)).?;
+
+    try std.testing.expectEqual(rope.asDyn().id, merged.asDyn().id);
+    try std.testing.expectEqualStrings("abcde", try merged.asDyn().asString().flatten(&vm));
+}
+
+test "merge splices a consumed unique rope and empties the husk" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const a = Elem.string(try vm.strings.insert("ab"));
+    const b = Elem.string(try vm.strings.insert("cd"));
+    const lhs = (try Elem.merge(a, b, &vm)).?;
+    const rhs = (try Elem.merge(a, b, &vm)).?;
+
+    const merged = (try Elem.merge(lhs, rhs, &vm)).?;
+
+    try std.testing.expectEqual(lhs.asDyn().id, merged.asDyn().id);
+    try std.testing.expectEqual(@as(usize, 4), merged.asDyn().asString().repr.rope.segments.items.len);
+    try std.testing.expectEqual(@as(usize, 0), rhs.asDyn().asString().byteLen());
+    try std.testing.expectEqualStrings("abcdabcd", try merged.asDyn().asString().flatten(&vm));
+}
+
+test "contiguous input substring segments collapse in a rope" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+    vm.input = "abcdef";
+
+    const s1 = Elem.inputSubstring(0, 2);
+    const s2 = Elem.inputSubstring(3, 1);
+    const s3 = Elem.inputSubstring(4, 2);
+
+    // Non-contiguous, so a rope; the following contiguous append
+    // extends the last segment instead of adding one.
+    const rope = (try Elem.merge(s1, s2, &vm)).?;
+    const merged = (try Elem.merge(rope, s3, &vm)).?;
+
+    const s = merged.asDyn().asString();
+    try std.testing.expectEqual(@as(usize, 2), s.repr.rope.segments.items.len);
+    try std.testing.expectEqualStrings("abdef", try s.flatten(&vm));
+}
+
+test "string equality compares ropes without flattening" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const a = Elem.string(try vm.strings.insert("ab"));
+    const b = Elem.string(try vm.strings.insert("cd"));
+    const rope = (try Elem.merge(a, b, &vm)).?;
+    const leaf = (try Elem.DynElem.String.copy(&vm, "abcd")).dyn.elem();
+    const interned = Elem.string(try vm.strings.insert("abcd"));
+    const shorter = Elem.string(try vm.strings.insert("abc"));
+
+    try std.testing.expect(rope.isEql(leaf, vm));
+    try std.testing.expect(rope.isEql(interned, vm));
+    try std.testing.expect(interned.isEql(rope, vm));
+    try std.testing.expect(!rope.isEql(shorter, vm));
+    try std.testing.expect(!shorter.isEql(rope, vm));
+    try std.testing.expect(rope.asDyn().asString().repr == .rope);
+}
+
+test "string repeat allocates one rope accumulator" {
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+
+    const s = Elem.string(try vm.strings.insert("ab"));
+
+    const before = vm.uniqueIdCount;
+    const repeated = (try Elem.repeat(s, Elem.numberFloat(500), &vm)).?;
+    try std.testing.expectEqual(before + 1, vm.uniqueIdCount);
+    try std.testing.expectEqual(@as(usize, 1000), repeated.asDyn().asString().byteLen());
 }
