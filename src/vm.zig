@@ -1779,7 +1779,11 @@ pub const VM = struct {
     }
 
     pub fn push(self: *VM, elem: Elem) !void {
-        try self.stack.append(self.allocator, elem);
+        if (self.stack.items.len < self.stack.capacity) {
+            self.stack.appendAssumeCapacity(elem);
+        } else {
+            try self.stack.append(self.allocator, elem);
+        }
     }
 
     pub fn pushFailure(self: *VM) !void {
