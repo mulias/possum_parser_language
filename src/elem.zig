@@ -375,6 +375,15 @@ pub const Elem = packed union {
         return self.isType(.String) or self.isType(.InputSubstring) or self.isDynType(.String);
     }
 
+    pub fn isEmptyString(self: Elem, vm: VM) bool {
+        return switch (self.getType()) {
+            .String => vm.strings.get(self.asString()).len == 0,
+            .InputSubstring => self.asInputSubstring().offset == 0,
+            .Dyn => self.isDynType(.String) and self.asDyn().asString().byteLen() == 0,
+            else => false,
+        };
+    }
+
     // Iterate the contiguous byte runs of a stringy Elem: one run for
     // value strings and leaves, one per segment for ropes.
     const StringRuns = struct {
@@ -676,6 +685,9 @@ pub const Elem = packed union {
     // wherever a copy can be avoided. Both operands must be rooted:
     // every path below may allocate.
     fn mergeStrings(elemA: Elem, elemB: Elem, vm: *VM) !Elem {
+        if (elemA.isEmptyString(vm.*)) return elemB;
+        if (elemB.isEmptyString(vm.*)) return elemA;
+
         // Adjacent input substrings stay a value type: zero-copy.
         if (elemA.isType(.InputSubstring) and elemB.isType(.InputSubstring)) {
             if (elemA.asInputSubstring().mergeContiguous(elemB.asInputSubstring())) |merged| {
