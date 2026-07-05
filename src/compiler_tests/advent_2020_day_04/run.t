@@ -34,44 +34,44 @@
   0004    | GetBoundLocal 1
   0006    | GetBoundLocal 2
   0008    | CallFunction 3
-  0010    | JumpIfFailure 10 -> 77
+  0010    | JumpIfFailure 10 -> 78
   0013    | PushNull
-  0014    | PushNumberZero
-  0015    | ValidateRepeatPattern
-  0016    | JumpIfZero 16 -> 47
-  0019    | Swap
-  0020    | CallFunctionLocal 3
-  0022    | TakeRight 22 -> 35
-  0025    | GetConstant 0: pair_sep
-  0027    | GetBoundLocal 0
-  0029    | GetBoundLocal 1
-  0031    | GetBoundLocal 2
-  0033    | CallFunction 3
-  0035    | Merge
-  0036    | JumpIfFailure 36 -> 74
-  0039    | Swap
-  0040    | Decrement
-  0041    | JumpIfZero 41 -> 47
-  0044    | JumpBack 44 -> 19
-  0047    | Swap
-  0048    | SetInputMark
-  0049    | CallFunctionLocal 3
-  0051    | TakeRight 51 -> 64
-  0054    | GetConstant 0: pair_sep
-  0056    | GetBoundLocal 0
-  0058    | GetBoundLocal 1
-  0060    | GetBoundLocal 2
-  0062    | CallFunction 3
-  0064    | JumpIfFailure 64 -> 72
-  0067    | PopInputMark
-  0068    | Merge
-  0069    | JumpBack 69 -> 48
-  0072    | ResetInput
-  0073    | Drop
-  0074    | Swap
-  0075    | Drop
-  0076    | Merge
-  0077    | End
+  0014    | PushInteger 0
+  0016    | ValidateRepeatPattern
+  0017    | JumpIfZero 17 -> 48
+  0020    | Swap
+  0021    | CallFunctionLocal 3
+  0023    | TakeRight 23 -> 36
+  0026    | GetConstant 0: pair_sep
+  0028    | GetBoundLocal 0
+  0030    | GetBoundLocal 1
+  0032    | GetBoundLocal 2
+  0034    | CallFunction 3
+  0036    | Merge
+  0037    | JumpIfFailure 37 -> 75
+  0040    | Swap
+  0041    | Decrement
+  0042    | JumpIfZero 42 -> 48
+  0045    | JumpBack 45 -> 20
+  0048    | Swap
+  0049    | SetInputMark
+  0050    | CallFunctionLocal 3
+  0052    | TakeRight 52 -> 65
+  0055    | GetConstant 0: pair_sep
+  0057    | GetBoundLocal 0
+  0059    | GetBoundLocal 1
+  0061    | GetBoundLocal 2
+  0063    | CallFunction 3
+  0065    | JumpIfFailure 65 -> 73
+  0068    | PopInputMark
+  0069    | Merge
+  0070    | JumpBack 70 -> 49
+  0073    | ResetInput
+  0074    | Drop
+  0075    | Swap
+  0076    | Drop
+  0077    | Merge
+  0078    | End
   ========================================
   
   ================pair_sep================
@@ -107,29 +107,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   =================alpha==================
@@ -267,49 +267,49 @@
   ========================================
   0000    | SetInputMark
   0001    | CallFunctionConstant 7: valid_passport
-  0003    | TakeRight 3 -> 7
-  0006    | PushNumberOne
-  0007    | Or 7 -> 16
-  0010    | CallFunctionConstant 6: passport
-  0012    | TakeRight 12 -> 16
-  0015    | PushNumberZero
-  0016    | End
+  0003    | TakeRight 3 -> 8
+  0006    | PushInteger 1
+  0008    | Or 8 -> 18
+  0011    | CallFunctionConstant 6: passport
+  0013    | TakeRight 13 -> 18
+  0016    | PushInteger 0
+  0018    | End
   ========================================
   
   ================many_sep================
   many_sep(p, sep) = p + ((sep > p) * 0..)
   ========================================
   0000    | CallFunctionLocal 0
-  0002    | JumpIfFailure 2 -> 53
+  0002    | JumpIfFailure 2 -> 54
   0005    | PushNull
-  0006    | PushNumberZero
-  0007    | ValidateRepeatPattern
-  0008    | JumpIfZero 8 -> 31
-  0011    | Swap
-  0012    | CallFunctionLocal 1
-  0014    | TakeRight 14 -> 19
-  0017    | CallFunctionLocal 0
-  0019    | Merge
-  0020    | JumpIfFailure 20 -> 50
-  0023    | Swap
-  0024    | Decrement
-  0025    | JumpIfZero 25 -> 31
-  0028    | JumpBack 28 -> 11
-  0031    | Swap
-  0032    | SetInputMark
-  0033    | CallFunctionLocal 1
-  0035    | TakeRight 35 -> 40
-  0038    | CallFunctionLocal 0
-  0040    | JumpIfFailure 40 -> 48
-  0043    | PopInputMark
-  0044    | Merge
-  0045    | JumpBack 45 -> 32
-  0048    | ResetInput
-  0049    | Drop
-  0050    | Swap
-  0051    | Drop
-  0052    | Merge
-  0053    | End
+  0006    | PushInteger 0
+  0008    | ValidateRepeatPattern
+  0009    | JumpIfZero 9 -> 32
+  0012    | Swap
+  0013    | CallFunctionLocal 1
+  0015    | TakeRight 15 -> 20
+  0018    | CallFunctionLocal 0
+  0020    | Merge
+  0021    | JumpIfFailure 21 -> 51
+  0024    | Swap
+  0025    | Decrement
+  0026    | JumpIfZero 26 -> 32
+  0029    | JumpBack 29 -> 12
+  0032    | Swap
+  0033    | SetInputMark
+  0034    | CallFunctionLocal 1
+  0036    | TakeRight 36 -> 41
+  0039    | CallFunctionLocal 0
+  0041    | JumpIfFailure 41 -> 49
+  0044    | PopInputMark
+  0045    | Merge
+  0046    | JumpBack 46 -> 33
+  0049    | ResetInput
+  0050    | Drop
+  0051    | Swap
+  0052    | Drop
+  0053    | Merge
+  0054    | End
   ========================================
   
   =================@fn55==================

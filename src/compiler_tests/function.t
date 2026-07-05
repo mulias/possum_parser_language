@@ -43,13 +43,13 @@
   0000    | GetBoundLocalMove 0
   0002    | AssertFunctionArity 5
   0004    | AssertParamTypes 00001001
-  0006    | PushNumberOne
-  0007    | PushNumberStringTwo
-  0008    | PushNumberStringThree
-  0009    | PushNumber 4
-  0011    | GetConstant 0: 5
-  0013    | CallTailFunction 5
-  0015    | End
+  0006    | PushInteger 1
+  0008    | PushNumberStringTwo
+  0009    | PushNumberStringThree
+  0010    | PushInteger 4
+  0012    | GetConstant 0: 5
+  0014    | CallTailFunction 5
+  0016    | End
   ========================================
   
   ==================bar===================
@@ -80,9 +80,9 @@
   0002    | AssertFunctionArity 2
   0004    | AssertParamTypes 00000010
   0006    | PushNumberStringOne
-  0007    | PushNumberTwo
-  0008    | CallTailFunction 2
-  0010    | End
+  0007    | PushInteger 2
+  0009    | CallTailFunction 2
+  0011    | End
   ========================================
   
   ==================bar===================
@@ -111,25 +111,25 @@
   0000    | GetBoundLocalMove 0
   0002    | AssertFunctionArity 17
   0004    | AssertParamTypes4 00000000000000001000010100001001
-  0009    | PushNumberOne
-  0010    | PushNumberStringTwo
-  0011    | PushNumberStringThree
-  0012    | PushNumber 4
-  0014    | GetConstant 0: 5
-  0016    | GetConstant 1: 6
-  0018    | GetConstant 2: 7
-  0020    | GetConstant 3: 8
-  0022    | PushEmptyArray
-  0023    | GetConstant 4: 10
-  0025    | PushString2 "a"
-  0028    | GetConstant 5: 12
-  0030    | GetConstant 6: 13
-  0032    | GetConstant 7: 14
-  0034    | GetConstant 8: 15
-  0036    | PushTrue
-  0037    | GetConstant 9: 17
-  0039    | CallTailFunction 17
-  0041    | End
+  0009    | PushInteger 1
+  0011    | PushNumberStringTwo
+  0012    | PushNumberStringThree
+  0013    | PushInteger 4
+  0015    | GetConstant 0: 5
+  0017    | GetConstant 1: 6
+  0019    | GetConstant 2: 7
+  0021    | GetConstant 3: 8
+  0023    | PushEmptyArray
+  0024    | GetConstant 4: 10
+  0026    | PushString2 "a"
+  0029    | GetConstant 5: 12
+  0031    | GetConstant 6: 13
+  0033    | GetConstant 7: 14
+  0035    | GetConstant 8: 15
+  0037    | PushTrue
+  0038    | GetConstant 9: 17
+  0040    | CallTailFunction 17
+  0042    | End
   ========================================
   
   ==================bar===================

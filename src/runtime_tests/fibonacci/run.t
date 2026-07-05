@@ -10,17 +10,17 @@
   input   | 4 @ Line 1 byte 0
   Frames  | @main
   Stack   | @main, N
-  0003    | PushNumberZero
+  0003    | PushInteger 0
   
   input   | 4 @ Line 1 byte 0
   Frames  | @main
   Stack   | @main, N, 0
-  0004    | ParseLowerBoundedRange
+  0005    | ParseLowerBoundedRange
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, N, 4
-  0005    | Destructure 1: N
+  0006    | Destructure 1: N
   
   Destructure:
       4 -> N
@@ -29,22 +29,22 @@
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4, 4
-  0007    | TakeRight 7 -> 16
+  0008    | TakeRight 8 -> 17
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4
-  0010    | GetConstant 0: Fib
+  0011    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4, Fib
-  0012    | GetBoundLocalMove 0
+  0013    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, null, Fib, 4
-  0014    | CallTailFunction 1
+  0015    | CallTailFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
@@ -68,7 +68,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, @Failure
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
@@ -83,22 +83,22 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, Fib, 4
-  0012    | JumpIfFailure 12 -> 17
+  0012    | JumpIfFailure 12 -> 18
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, Fib, 4
-  0015    | PushNumberNegOne
+  0015    | PushNegInteger -1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, Fib, 4, -1
-  0016    | Merge
+  0017    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, Fib, 3
-  0017    | CallFunction 1
+  0018    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -122,7 +122,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, @Failure
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -137,22 +137,22 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 3
-  0012    | JumpIfFailure 12 -> 17
+  0012    | JumpIfFailure 12 -> 18
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 3
-  0015    | PushNumberNegOne
+  0015    | PushNegInteger -1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 3, -1
-  0016    | Merge
+  0017    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2
-  0017    | CallFunction 1
+  0018    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -176,7 +176,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, @Failure
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -191,22 +191,22 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib, 2
-  0012    | JumpIfFailure 12 -> 17
+  0012    | JumpIfFailure 12 -> 18
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib, 2
-  0015    | PushNumberNegOne
+  0015    | PushNegInteger -1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib, 2, -1
-  0016    | Merge
+  0017    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib, 1
-  0017    | CallFunction 1
+  0018    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
@@ -230,47 +230,47 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib, 1, 1
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib, 1, 1
-  0035    | End
+  0036    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, 1
-  0019    | JumpIfFailure 19 -> 35
+  0020    | JumpIfFailure 20 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, 1
-  0022    | GetConstant 0: Fib
+  0023    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib
-  0024    | GetBoundLocalMove 0
+  0025    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 2
-  0026    | JumpIfFailure 26 -> 32
+  0027    | JumpIfFailure 27 -> 33
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 2
-  0029    | PushNegNumber -2
+  0030    | PushNegInteger -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 2, -2
-  0031    | Merge
+  0032    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0
-  0032    | CallFunction 1
+  0033    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
@@ -294,57 +294,57 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0, 0
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0, 0
-  0035    | End
+  0036    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, null, 1, 0
-  0034    | Merge
+  0035    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, null, 1
-  0035    | End
+  0036    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, 1
-  0019    | JumpIfFailure 19 -> 35
+  0020    | JumpIfFailure 20 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, 1
-  0022    | GetConstant 0: Fib
+  0023    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, 1, Fib
-  0024    | GetBoundLocalMove 0
+  0025    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, null, 1, Fib, 3
-  0026    | JumpIfFailure 26 -> 32
+  0027    | JumpIfFailure 27 -> 33
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, null, 1, Fib, 3
-  0029    | PushNegNumber -2
+  0030    | PushNegInteger -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, null, 1, Fib, 3, -2
-  0031    | Merge
+  0032    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, null, 1, Fib, 1
-  0032    | CallFunction 1
+  0033    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -368,57 +368,57 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, null, 1, Fib, 1, 1
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, null, 1, Fib, 1, 1
-  0035    | End
+  0036    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, null, 1, 1
-  0034    | Merge
+  0035    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, null, 2
-  0035    | End
+  0036    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, 2
-  0019    | JumpIfFailure 19 -> 35
+  0020    | JumpIfFailure 20 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, 2
-  0022    | GetConstant 0: Fib
+  0023    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, 2, Fib
-  0024    | GetBoundLocalMove 0
+  0025    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, null, 2, Fib, 4
-  0026    | JumpIfFailure 26 -> 32
+  0027    | JumpIfFailure 27 -> 33
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, null, 2, Fib, 4
-  0029    | PushNegNumber -2
+  0030    | PushNegInteger -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, null, 2, Fib, 4, -2
-  0031    | Merge
+  0032    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, null, 2, Fib, 2
-  0032    | CallFunction 1
+  0033    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -442,7 +442,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, @Failure
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -457,22 +457,22 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, Fib, 2
-  0012    | JumpIfFailure 12 -> 17
+  0012    | JumpIfFailure 12 -> 18
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, Fib, 2
-  0015    | PushNumberNegOne
+  0015    | PushNegInteger -1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, Fib, 2, -1
-  0016    | Merge
+  0017    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, Fib, 1
-  0017    | CallFunction 1
+  0018    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -496,47 +496,47 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, Fib, 1, 1
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, Fib, 1, 1
-  0035    | End
+  0036    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, 1
-  0019    | JumpIfFailure 19 -> 35
+  0020    | JumpIfFailure 20 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, 1
-  0022    | GetConstant 0: Fib
+  0023    | GetConstant 0: Fib
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, 1, Fib
-  0024    | GetBoundLocalMove 0
+  0025    | GetBoundLocalMove 0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, null, 1, Fib, 2
-  0026    | JumpIfFailure 26 -> 32
+  0027    | JumpIfFailure 27 -> 33
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, null, 1, Fib, 2
-  0029    | PushNegNumber -2
+  0030    | PushNegInteger -2
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, null, 1, Fib, 2, -2
-  0031    | Merge
+  0032    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, null, 1, Fib, 0
-  0032    | CallFunction 1
+  0033    | CallFunction 1
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -560,32 +560,32 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, null, 2, Fib, null, 1, Fib, 0, 0
-  0005    | Or 5 -> 35
+  0005    | Or 5 -> 36
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, null, 2, Fib, null, 1, Fib, 0, 0
-  0035    | End
+  0036    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, null, 1, 0
-  0034    | Merge
+  0035    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, null, 1
-  0035    | End
+  0036    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, null, 2, 1
-  0034    | Merge
+  0035    | Merge
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, null, 3
-  0035    | End
+  0036    | End
   
   input   | 4 @ Line 1 byte 1
   Frames  | 

@@ -86,14 +86,14 @@
   Foo = 1 -> A & A + A
   ========================================
   0000    | PushVar2 A
-  0003    | PushNumberOne
-  0004    | Destructure 0: A
-  0006    | TakeRight 6 -> 17
-  0009    | GetBoundLocal 0
-  0011    | JumpIfFailure 11 -> 17
-  0014    | GetBoundLocalMove 0
-  0016    | Merge
-  0017    | End
+  0003    | PushInteger 1
+  0005    | Destructure 0: A
+  0007    | TakeRight 7 -> 18
+  0010    | GetBoundLocal 0
+  0012    | JumpIfFailure 12 -> 18
+  0015    | GetBoundLocalMove 0
+  0017    | Merge
+  0018    | End
   ========================================
   
   =================@main==================
@@ -206,9 +206,9 @@
   "" $ "%(1 + 1)"
   ========================================
   0000    | PushEmptyString
-  0001    | PushNumberTwo
-  0002    | MergeAsString
-  0003    | End
+  0001    | PushInteger 2
+  0003    | MergeAsString
+  0004    | End
   ========================================
 
   $ possum -p 'Obj.Put(O, K, V) = {...O, K: V} ; 1' -i '1'
@@ -258,12 +258,12 @@
   "" $ (1 ? 2 : 3)
   ========================================
   0000    | SetInputMark
-  0001    | PushNumberOne
-  0002    | ConditionalThen 2 -> 9
-  0005    | PushNumberTwo
-  0006    | Jump 6 -> 10
-  0009    | PushNumberThree
-  0010    | End
+  0001    | PushInteger 1
+  0003    | ConditionalThen 3 -> 11
+  0006    | PushInteger 2
+  0008    | Jump 8 -> 13
+  0011    | PushInteger 3
+  0013    | End
   ========================================
 
   $ possum -p '"" $ [1 ? 2 : 3]' -i ''
@@ -273,13 +273,13 @@
   ========================================
   0000    | GetConstantMutable 0: [_]
   0002    | SetInputMark
-  0003    | PushNumberOne
-  0004    | ConditionalThen 4 -> 11
-  0007    | PushNumberTwo
-  0008    | Jump 8 -> 12
-  0011    | PushNumberThree
-  0012    | InsertAtIndex 0
-  0014    | End
+  0003    | PushInteger 1
+  0005    | ConditionalThen 5 -> 13
+  0008    | PushInteger 2
+  0010    | Jump 10 -> 15
+  0013    | PushInteger 3
+  0015    | InsertAtIndex 0
+  0017    | End
   ========================================
 
   $ possum -p 'X = 1 ; "" $ [1, -X, 3]' -i ''
@@ -288,10 +288,10 @@
   "" $ [1, -X, 3]
   ========================================
   0000    | GetConstantMutable 0: [1, _, 3]
-  0002    | PushNumberOne
-  0003    | NegateNumber
-  0004    | InsertAtIndex 1
-  0006    | End
+  0002    | PushInteger 1
+  0004    | NegateNumber
+  0005    | InsertAtIndex 1
+  0007    | End
   ========================================
 
   $ possum -p '"ab" * 3' -i 'ababab'
@@ -300,20 +300,20 @@
   "ab" * 3
   ========================================
   0000    | PushNull
-  0001    | PushNumberThree
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 22
-  0006    | Swap
-  0007    | CallFunctionConstant 0: "ab"
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 21
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 22
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | Drop
-  0023    | End
+  0001    | PushInteger 3
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 23
+  0007    | Swap
+  0008    | CallFunctionConstant 0: "ab"
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 22
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 23
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | Drop
+  0024    | End
   ========================================
 
   $ possum -p '2 * (2 * 2)' -i '2222'
@@ -322,7 +322,7 @@
   2 * (2 * 2)
   ========================================
   0000    | PushNull
-  0001    | PushNumber 4
+  0001    | PushInteger 4
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
@@ -343,8 +343,8 @@
   =================@main==================
   "" $ A
   ========================================
-  0000    | PushNumberOne
-  0001    | End
+  0000    | PushInteger 1
+  0002    | End
   ========================================
 
   $ possum -p 'A = 1 ; "" $ [A]' -i ''

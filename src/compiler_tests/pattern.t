@@ -156,13 +156,13 @@
   0003    | GetConstant 0: const
   0005    | GetConstantMutable 1: [1, _, 3]
   0007    | GetConstant 2: @Add
-  0009    | PushNumberOne
-  0010    | PushNumberTwo
-  0011    | CallFunction 2
-  0013    | InsertAtIndex 1
-  0015    | CallFunction 1
-  0017    | Destructure 0: [A, @Add(1, 1), 3]
-  0019    | End
+  0009    | PushInteger 1
+  0011    | PushInteger 2
+  0013    | CallFunction 2
+  0015    | InsertAtIndex 1
+  0017    | CallFunction 1
+  0019    | Destructure 0: [A, @Add(1, 1), 3]
+  0021    | End
   ========================================
 
   $ possum -p 'const([1,2]) -> ([1] + [2])' -i ''
@@ -746,20 +746,20 @@
   "ab" * 3
   ========================================
   0000    | PushNull
-  0001    | PushNumberThree
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 22
-  0006    | Swap
-  0007    | CallFunctionConstant 0: "ab"
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 21
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 22
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | Drop
-  0023    | End
+  0001    | PushInteger 3
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 23
+  0007    | Swap
+  0008    | CallFunctionConstant 0: "ab"
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 22
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 23
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | Drop
+  0024    | End
   ========================================
 
   $ possum -p '2 * (2 * 2)' -i '2222'
@@ -768,7 +768,7 @@
   2 * (2 * 2)
   ========================================
   0000    | PushNull
-  0001    | PushNumber 4
+  0001    | PushInteger 4
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
@@ -790,20 +790,20 @@
   2 * (2 + (-1 * -1))
   ========================================
   0000    | PushNull
-  0001    | PushNumberThree
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | ParseTwo
-  0008    | Merge
-  0009    | JumpIfFailure 9 -> 20
-  0012    | Swap
-  0013    | Decrement
-  0014    | JumpIfZero 14 -> 21
-  0017    | JumpBack 17 -> 6
-  0020    | Swap
-  0021    | Drop
-  0022    | End
+  0001    | PushInteger 3
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | ParseTwo
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 21
+  0013    | Swap
+  0014    | Decrement
+  0015    | JumpIfZero 15 -> 22
+  0018    | JumpBack 18 -> 7
+  0021    | Swap
+  0022    | Drop
+  0023    | End
   ========================================
 
   $ possum -p '123 -> V' -i '123'
@@ -833,29 +833,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   ==================char==================
@@ -881,29 +881,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   ==================char==================
@@ -939,29 +939,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   ================numeral=================
@@ -985,29 +985,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   ==================char==================
@@ -1158,29 +1158,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   ================numeral=================
@@ -1236,33 +1236,33 @@
   array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 25
-  0006    | Swap
-  0007    | GetConstant 0: tuple1
-  0009    | GetBoundLocal 0
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 43
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 25
-  0022    | JumpBack 22 -> 6
-  0025    | Swap
-  0026    | SetInputMark
-  0027    | GetConstant 0: tuple1
-  0029    | GetBoundLocal 0
-  0031    | CallFunction 1
-  0033    | JumpIfFailure 33 -> 41
-  0036    | PopInputMark
-  0037    | Merge
-  0038    | JumpBack 38 -> 26
-  0041    | ResetInput
-  0042    | Drop
-  0043    | Swap
-  0044    | Drop
-  0045    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 0: tuple1
+  0010    | GetBoundLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetBoundLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
   ========================================
   
   =================tuple1=================
@@ -1301,33 +1301,33 @@
   array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 25
-  0006    | Swap
-  0007    | GetConstant 0: tuple1
-  0009    | GetBoundLocal 0
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 43
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 25
-  0022    | JumpBack 22 -> 6
-  0025    | Swap
-  0026    | SetInputMark
-  0027    | GetConstant 0: tuple1
-  0029    | GetBoundLocal 0
-  0031    | CallFunction 1
-  0033    | JumpIfFailure 33 -> 41
-  0036    | PopInputMark
-  0037    | Merge
-  0038    | JumpBack 38 -> 26
-  0041    | ResetInput
-  0042    | Drop
-  0043    | Swap
-  0044    | Drop
-  0045    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 0: tuple1
+  0010    | GetBoundLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetBoundLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
   ========================================
   
   =================tuple1=================
@@ -1368,33 +1368,33 @@
   array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 25
-  0006    | Swap
-  0007    | GetConstant 0: tuple1
-  0009    | GetBoundLocal 0
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 43
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 25
-  0022    | JumpBack 22 -> 6
-  0025    | Swap
-  0026    | SetInputMark
-  0027    | GetConstant 0: tuple1
-  0029    | GetBoundLocal 0
-  0031    | CallFunction 1
-  0033    | JumpIfFailure 33 -> 41
-  0036    | PopInputMark
-  0037    | Merge
-  0038    | JumpBack 38 -> 26
-  0041    | ResetInput
-  0042    | Drop
-  0043    | Swap
-  0044    | Drop
-  0045    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 0: tuple1
+  0010    | GetBoundLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetBoundLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
   ========================================
   
   =================tuple1=================
@@ -1433,33 +1433,33 @@
   array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 25
-  0006    | Swap
-  0007    | GetConstant 0: tuple1
-  0009    | GetBoundLocal 0
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 43
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 25
-  0022    | JumpBack 22 -> 6
-  0025    | Swap
-  0026    | SetInputMark
-  0027    | GetConstant 0: tuple1
-  0029    | GetBoundLocal 0
-  0031    | CallFunction 1
-  0033    | JumpIfFailure 33 -> 41
-  0036    | PopInputMark
-  0037    | Merge
-  0038    | JumpBack 38 -> 26
-  0041    | ResetInput
-  0042    | Drop
-  0043    | Swap
-  0044    | Drop
-  0045    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 0: tuple1
+  0010    | GetBoundLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetBoundLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
   ========================================
   
   =================tuple1=================
@@ -1499,33 +1499,33 @@
   array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 25
-  0006    | Swap
-  0007    | GetConstant 0: tuple1
-  0009    | GetBoundLocal 0
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 43
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 25
-  0022    | JumpBack 22 -> 6
-  0025    | Swap
-  0026    | SetInputMark
-  0027    | GetConstant 0: tuple1
-  0029    | GetBoundLocal 0
-  0031    | CallFunction 1
-  0033    | JumpIfFailure 33 -> 41
-  0036    | PopInputMark
-  0037    | Merge
-  0038    | JumpBack 38 -> 26
-  0041    | ResetInput
-  0042    | Drop
-  0043    | Swap
-  0044    | Drop
-  0045    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 0: tuple1
+  0010    | GetBoundLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetBoundLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
   ========================================
   
   =================tuple1=================
@@ -1567,33 +1567,33 @@
   array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 25
-  0006    | Swap
-  0007    | GetConstant 0: tuple1
-  0009    | GetBoundLocal 0
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 43
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 25
-  0022    | JumpBack 22 -> 6
-  0025    | Swap
-  0026    | SetInputMark
-  0027    | GetConstant 0: tuple1
-  0029    | GetBoundLocal 0
-  0031    | CallFunction 1
-  0033    | JumpIfFailure 33 -> 41
-  0036    | PopInputMark
-  0037    | Merge
-  0038    | JumpBack 38 -> 26
-  0041    | ResetInput
-  0042    | Drop
-  0043    | Swap
-  0044    | Drop
-  0045    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 0: tuple1
+  0010    | GetBoundLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetBoundLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
   ========================================
   
   =================tuple1=================
@@ -1635,33 +1635,33 @@
   array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 25
-  0006    | Swap
-  0007    | GetConstant 0: tuple1
-  0009    | GetBoundLocal 0
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 43
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 25
-  0022    | JumpBack 22 -> 6
-  0025    | Swap
-  0026    | SetInputMark
-  0027    | GetConstant 0: tuple1
-  0029    | GetBoundLocal 0
-  0031    | CallFunction 1
-  0033    | JumpIfFailure 33 -> 41
-  0036    | PopInputMark
-  0037    | Merge
-  0038    | JumpBack 38 -> 26
-  0041    | ResetInput
-  0042    | Drop
-  0043    | Swap
-  0044    | Drop
-  0045    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 0: tuple1
+  0010    | GetBoundLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetBoundLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
   ========================================
   
   =================tuple1=================
@@ -1702,35 +1702,35 @@
   object(key, value) = pair(key, value) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 27
-  0006    | Swap
-  0007    | GetConstant 0: pair
-  0009    | GetBoundLocal 0
-  0011    | GetBoundLocal 1
-  0013    | CallFunction 2
-  0015    | Merge
-  0016    | JumpIfFailure 16 -> 47
-  0019    | Swap
-  0020    | Decrement
-  0021    | JumpIfZero 21 -> 27
-  0024    | JumpBack 24 -> 6
-  0027    | Swap
-  0028    | SetInputMark
-  0029    | GetConstant 0: pair
-  0031    | GetBoundLocal 0
-  0033    | GetBoundLocal 1
-  0035    | CallFunction 2
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 28
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 28
+  0007    | Swap
+  0008    | GetConstant 0: pair
+  0010    | GetBoundLocal 0
+  0012    | GetBoundLocal 1
+  0014    | CallFunction 2
+  0016    | Merge
+  0017    | JumpIfFailure 17 -> 48
+  0020    | Swap
+  0021    | Decrement
+  0022    | JumpIfZero 22 -> 28
+  0025    | JumpBack 25 -> 7
+  0028    | Swap
+  0029    | SetInputMark
+  0030    | GetConstant 0: pair
+  0032    | GetBoundLocal 0
+  0034    | GetBoundLocal 1
+  0036    | CallFunction 2
+  0038    | JumpIfFailure 38 -> 46
+  0041    | PopInputMark
+  0042    | Merge
+  0043    | JumpBack 43 -> 29
+  0046    | ResetInput
+  0047    | Drop
+  0048    | Swap
+  0049    | Drop
+  0050    | End
   ========================================
   
   ==================pair==================
@@ -1785,35 +1785,35 @@
   object(key, value) = pair(key, value) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 27
-  0006    | Swap
-  0007    | GetConstant 0: pair
-  0009    | GetBoundLocal 0
-  0011    | GetBoundLocal 1
-  0013    | CallFunction 2
-  0015    | Merge
-  0016    | JumpIfFailure 16 -> 47
-  0019    | Swap
-  0020    | Decrement
-  0021    | JumpIfZero 21 -> 27
-  0024    | JumpBack 24 -> 6
-  0027    | Swap
-  0028    | SetInputMark
-  0029    | GetConstant 0: pair
-  0031    | GetBoundLocal 0
-  0033    | GetBoundLocal 1
-  0035    | CallFunction 2
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 28
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 28
+  0007    | Swap
+  0008    | GetConstant 0: pair
+  0010    | GetBoundLocal 0
+  0012    | GetBoundLocal 1
+  0014    | CallFunction 2
+  0016    | Merge
+  0017    | JumpIfFailure 17 -> 48
+  0020    | Swap
+  0021    | Decrement
+  0022    | JumpIfZero 22 -> 28
+  0025    | JumpBack 25 -> 7
+  0028    | Swap
+  0029    | SetInputMark
+  0030    | GetConstant 0: pair
+  0032    | GetBoundLocal 0
+  0034    | GetBoundLocal 1
+  0036    | CallFunction 2
+  0038    | JumpIfFailure 38 -> 46
+  0041    | PopInputMark
+  0042    | Merge
+  0043    | JumpBack 43 -> 29
+  0046    | ResetInput
+  0047    | Drop
+  0048    | Swap
+  0049    | Drop
+  0050    | End
   ========================================
   
   ==================pair==================
@@ -1869,35 +1869,35 @@
   object(key, value) = pair(key, value) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 27
-  0006    | Swap
-  0007    | GetConstant 0: pair
-  0009    | GetBoundLocal 0
-  0011    | GetBoundLocal 1
-  0013    | CallFunction 2
-  0015    | Merge
-  0016    | JumpIfFailure 16 -> 47
-  0019    | Swap
-  0020    | Decrement
-  0021    | JumpIfZero 21 -> 27
-  0024    | JumpBack 24 -> 6
-  0027    | Swap
-  0028    | SetInputMark
-  0029    | GetConstant 0: pair
-  0031    | GetBoundLocal 0
-  0033    | GetBoundLocal 1
-  0035    | CallFunction 2
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 28
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 28
+  0007    | Swap
+  0008    | GetConstant 0: pair
+  0010    | GetBoundLocal 0
+  0012    | GetBoundLocal 1
+  0014    | CallFunction 2
+  0016    | Merge
+  0017    | JumpIfFailure 17 -> 48
+  0020    | Swap
+  0021    | Decrement
+  0022    | JumpIfZero 22 -> 28
+  0025    | JumpBack 25 -> 7
+  0028    | Swap
+  0029    | SetInputMark
+  0030    | GetConstant 0: pair
+  0032    | GetBoundLocal 0
+  0034    | GetBoundLocal 1
+  0036    | CallFunction 2
+  0038    | JumpIfFailure 38 -> 46
+  0041    | PopInputMark
+  0042    | Merge
+  0043    | JumpBack 43 -> 29
+  0046    | ResetInput
+  0047    | Drop
+  0048    | Swap
+  0049    | Drop
+  0050    | End
   ========================================
   
   ==================pair==================
@@ -1953,35 +1953,35 @@
   object(key, value) = pair(key, value) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 27
-  0006    | Swap
-  0007    | GetConstant 0: pair
-  0009    | GetBoundLocal 0
-  0011    | GetBoundLocal 1
-  0013    | CallFunction 2
-  0015    | Merge
-  0016    | JumpIfFailure 16 -> 47
-  0019    | Swap
-  0020    | Decrement
-  0021    | JumpIfZero 21 -> 27
-  0024    | JumpBack 24 -> 6
-  0027    | Swap
-  0028    | SetInputMark
-  0029    | GetConstant 0: pair
-  0031    | GetBoundLocal 0
-  0033    | GetBoundLocal 1
-  0035    | CallFunction 2
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 28
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 28
+  0007    | Swap
+  0008    | GetConstant 0: pair
+  0010    | GetBoundLocal 0
+  0012    | GetBoundLocal 1
+  0014    | CallFunction 2
+  0016    | Merge
+  0017    | JumpIfFailure 17 -> 48
+  0020    | Swap
+  0021    | Decrement
+  0022    | JumpIfZero 22 -> 28
+  0025    | JumpBack 25 -> 7
+  0028    | Swap
+  0029    | SetInputMark
+  0030    | GetConstant 0: pair
+  0032    | GetBoundLocal 0
+  0034    | GetBoundLocal 1
+  0036    | CallFunction 2
+  0038    | JumpIfFailure 38 -> 46
+  0041    | PopInputMark
+  0042    | Merge
+  0043    | JumpBack 43 -> 29
+  0046    | ResetInput
+  0047    | Drop
+  0048    | Swap
+  0049    | Drop
+  0050    | End
   ========================================
   
   ==================pair==================
@@ -2038,35 +2038,35 @@
   object(key, value) = pair(key, value) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 27
-  0006    | Swap
-  0007    | GetConstant 0: pair
-  0009    | GetBoundLocal 0
-  0011    | GetBoundLocal 1
-  0013    | CallFunction 2
-  0015    | Merge
-  0016    | JumpIfFailure 16 -> 47
-  0019    | Swap
-  0020    | Decrement
-  0021    | JumpIfZero 21 -> 27
-  0024    | JumpBack 24 -> 6
-  0027    | Swap
-  0028    | SetInputMark
-  0029    | GetConstant 0: pair
-  0031    | GetBoundLocal 0
-  0033    | GetBoundLocal 1
-  0035    | CallFunction 2
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 28
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 28
+  0007    | Swap
+  0008    | GetConstant 0: pair
+  0010    | GetBoundLocal 0
+  0012    | GetBoundLocal 1
+  0014    | CallFunction 2
+  0016    | Merge
+  0017    | JumpIfFailure 17 -> 48
+  0020    | Swap
+  0021    | Decrement
+  0022    | JumpIfZero 22 -> 28
+  0025    | JumpBack 25 -> 7
+  0028    | Swap
+  0029    | SetInputMark
+  0030    | GetConstant 0: pair
+  0032    | GetBoundLocal 0
+  0034    | GetBoundLocal 1
+  0036    | CallFunction 2
+  0038    | JumpIfFailure 38 -> 46
+  0041    | PopInputMark
+  0042    | Merge
+  0043    | JumpBack 43 -> 29
+  0046    | ResetInput
+  0047    | Drop
+  0048    | Swap
+  0049    | Drop
+  0050    | End
   ========================================
   
   ==================pair==================
@@ -2123,35 +2123,35 @@
   object(key, value) = pair(key, value) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 27
-  0006    | Swap
-  0007    | GetConstant 0: pair
-  0009    | GetBoundLocal 0
-  0011    | GetBoundLocal 1
-  0013    | CallFunction 2
-  0015    | Merge
-  0016    | JumpIfFailure 16 -> 47
-  0019    | Swap
-  0020    | Decrement
-  0021    | JumpIfZero 21 -> 27
-  0024    | JumpBack 24 -> 6
-  0027    | Swap
-  0028    | SetInputMark
-  0029    | GetConstant 0: pair
-  0031    | GetBoundLocal 0
-  0033    | GetBoundLocal 1
-  0035    | CallFunction 2
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 28
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 28
+  0007    | Swap
+  0008    | GetConstant 0: pair
+  0010    | GetBoundLocal 0
+  0012    | GetBoundLocal 1
+  0014    | CallFunction 2
+  0016    | Merge
+  0017    | JumpIfFailure 17 -> 48
+  0020    | Swap
+  0021    | Decrement
+  0022    | JumpIfZero 22 -> 28
+  0025    | JumpBack 25 -> 7
+  0028    | Swap
+  0029    | SetInputMark
+  0030    | GetConstant 0: pair
+  0032    | GetBoundLocal 0
+  0034    | GetBoundLocal 1
+  0036    | CallFunction 2
+  0038    | JumpIfFailure 38 -> 46
+  0041    | PopInputMark
+  0042    | Merge
+  0043    | JumpBack 43 -> 29
+  0046    | ResetInput
+  0047    | Drop
+  0048    | Swap
+  0049    | Drop
+  0050    | End
   ========================================
   
   ==================pair==================
@@ -2208,33 +2208,33 @@
   array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 25
-  0006    | Swap
-  0007    | GetConstant 0: tuple1
-  0009    | GetBoundLocal 0
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 43
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 25
-  0022    | JumpBack 22 -> 6
-  0025    | Swap
-  0026    | SetInputMark
-  0027    | GetConstant 0: tuple1
-  0029    | GetBoundLocal 0
-  0031    | CallFunction 1
-  0033    | JumpIfFailure 33 -> 41
-  0036    | PopInputMark
-  0037    | Merge
-  0038    | JumpBack 38 -> 26
-  0041    | ResetInput
-  0042    | Drop
-  0043    | Swap
-  0044    | Drop
-  0045    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 0: tuple1
+  0010    | GetBoundLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetBoundLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
   ========================================
   
   =================tuple1=================
@@ -2274,35 +2274,35 @@
   object(key, value) = pair(key, value) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 27
-  0006    | Swap
-  0007    | GetConstant 0: pair
-  0009    | GetBoundLocal 0
-  0011    | GetBoundLocal 1
-  0013    | CallFunction 2
-  0015    | Merge
-  0016    | JumpIfFailure 16 -> 47
-  0019    | Swap
-  0020    | Decrement
-  0021    | JumpIfZero 21 -> 27
-  0024    | JumpBack 24 -> 6
-  0027    | Swap
-  0028    | SetInputMark
-  0029    | GetConstant 0: pair
-  0031    | GetBoundLocal 0
-  0033    | GetBoundLocal 1
-  0035    | CallFunction 2
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 28
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 28
+  0007    | Swap
+  0008    | GetConstant 0: pair
+  0010    | GetBoundLocal 0
+  0012    | GetBoundLocal 1
+  0014    | CallFunction 2
+  0016    | Merge
+  0017    | JumpIfFailure 17 -> 48
+  0020    | Swap
+  0021    | Decrement
+  0022    | JumpIfZero 22 -> 28
+  0025    | JumpBack 25 -> 7
+  0028    | Swap
+  0029    | SetInputMark
+  0030    | GetConstant 0: pair
+  0032    | GetBoundLocal 0
+  0034    | GetBoundLocal 1
+  0036    | CallFunction 2
+  0038    | JumpIfFailure 38 -> 46
+  0041    | PopInputMark
+  0042    | Merge
+  0043    | JumpBack 43 -> 29
+  0046    | ResetInput
+  0047    | Drop
+  0048    | Swap
+  0049    | Drop
+  0050    | End
   ========================================
   
   ==================pair==================
@@ -2497,9 +2497,9 @@
   "" $ 0 -> (0 * N)
   ========================================
   0000    | PushVar2 N
-  0003    | PushNumberZero
-  0004    | Destructure 0: (0 * N)
-  0006    | End
+  0003    | PushInteger 0
+  0005    | Destructure 0: (0 * N)
+  0007    | End
   ========================================
 
   $ possum -p 'const($true) -> (true * N)' -i ''

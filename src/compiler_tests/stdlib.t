@@ -39,29 +39,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   =================lower==================
@@ -316,40 +316,40 @@
   many_until(p, stop) = unless(p, stop) * 1.. < peek(stop)
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 27
-  0006    | Swap
-  0007    | GetConstant 7: unless
-  0009    | GetBoundLocal 0
-  0011    | GetBoundLocal 1
-  0013    | CallFunction 2
-  0015    | Merge
-  0016    | JumpIfFailure 16 -> 47
-  0019    | Swap
-  0020    | Decrement
-  0021    | JumpIfZero 21 -> 27
-  0024    | JumpBack 24 -> 6
-  0027    | Swap
-  0028    | SetInputMark
-  0029    | GetConstant 7: unless
-  0031    | GetBoundLocal 0
-  0033    | GetBoundLocal 1
-  0035    | CallFunction 2
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 28
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | JumpIfFailure 49 -> 59
-  0052    | GetConstant 27: peek
-  0054    | GetBoundLocalMove 1
-  0056    | CallFunction 1
-  0058    | TakeLeft
-  0059    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 28
+  0007    | Swap
+  0008    | GetConstant 7: unless
+  0010    | GetBoundLocal 0
+  0012    | GetBoundLocal 1
+  0014    | CallFunction 2
+  0016    | Merge
+  0017    | JumpIfFailure 17 -> 48
+  0020    | Swap
+  0021    | Decrement
+  0022    | JumpIfZero 22 -> 28
+  0025    | JumpBack 25 -> 7
+  0028    | Swap
+  0029    | SetInputMark
+  0030    | GetConstant 7: unless
+  0032    | GetBoundLocal 0
+  0034    | GetBoundLocal 1
+  0036    | CallFunction 2
+  0038    | JumpIfFailure 38 -> 46
+  0041    | PopInputMark
+  0042    | Merge
+  0043    | JumpBack 43 -> 29
+  0046    | ResetInput
+  0047    | Drop
+  0048    | Swap
+  0049    | Drop
+  0050    | JumpIfFailure 50 -> 60
+  0053    | GetConstant 27: peek
+  0055    | GetBoundLocalMove 1
+  0057    | CallFunction 1
+  0059    | TakeLeft
+  0060    | End
   ========================================
   
   ==================peek==================
@@ -770,7 +770,7 @@
   0010    | Or 10 -> 15
   0013    | ParseChar 'A'
   0015    | TakeRight 15 -> 20
-  0018    | PushNumber 10
+  0018    | PushInteger 10
   0020    | Or 20 -> 104
   0023    | SetInputMark
   0024    | SetInputMark
@@ -778,7 +778,7 @@
   0027    | Or 27 -> 32
   0030    | ParseChar 'B'
   0032    | TakeRight 32 -> 37
-  0035    | PushNumber 11
+  0035    | PushInteger 11
   0037    | Or 37 -> 104
   0040    | SetInputMark
   0041    | SetInputMark
@@ -786,7 +786,7 @@
   0044    | Or 44 -> 49
   0047    | ParseChar 'C'
   0049    | TakeRight 49 -> 54
-  0052    | PushNumber 12
+  0052    | PushInteger 12
   0054    | Or 54 -> 104
   0057    | SetInputMark
   0058    | SetInputMark
@@ -794,7 +794,7 @@
   0061    | Or 61 -> 66
   0064    | ParseChar 'D'
   0066    | TakeRight 66 -> 71
-  0069    | PushNumber 13
+  0069    | PushInteger 13
   0071    | Or 71 -> 104
   0074    | SetInputMark
   0075    | SetInputMark
@@ -802,14 +802,14 @@
   0078    | Or 78 -> 83
   0081    | ParseChar 'E'
   0083    | TakeRight 83 -> 88
-  0086    | PushNumber 14
+  0086    | PushInteger 14
   0088    | Or 88 -> 104
   0091    | SetInputMark
   0092    | ParseChar 'f'
   0094    | Or 94 -> 99
   0097    | ParseChar 'F'
   0099    | TakeRight 99 -> 104
-  0102    | PushNumber 15
+  0102    | PushInteger 15
   0104    | End
   ========================================
   
@@ -832,33 +832,33 @@
   array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 25
-  0006    | Swap
-  0007    | GetConstant 51: tuple1
-  0009    | GetBoundLocal 0
-  0011    | CallFunction 1
-  0013    | Merge
-  0014    | JumpIfFailure 14 -> 43
-  0017    | Swap
-  0018    | Decrement
-  0019    | JumpIfZero 19 -> 25
-  0022    | JumpBack 22 -> 6
-  0025    | Swap
-  0026    | SetInputMark
-  0027    | GetConstant 51: tuple1
-  0029    | GetBoundLocal 0
-  0031    | CallFunction 1
-  0033    | JumpIfFailure 33 -> 41
-  0036    | PopInputMark
-  0037    | Merge
-  0038    | JumpBack 38 -> 26
-  0041    | ResetInput
-  0042    | Drop
-  0043    | Swap
-  0044    | Drop
-  0045    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 51: tuple1
+  0010    | GetBoundLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 51: tuple1
+  0030    | GetBoundLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
   ========================================
   
   =================tuple1=================
@@ -884,16 +884,16 @@
   0005    | GetBoundLocal 0
   0007    | CallFunction 1
   0009    | Destructure 4: Len
-  0011    | TakeRight 11 -> 28
+  0011    | TakeRight 11 -> 30
   0014    | GetConstant 54: _Num.FromBinaryDigits
   0016    | GetBoundLocalMove 0
   0018    | GetBoundLocalMove 1
-  0020    | JumpIfFailure 20 -> 25
-  0023    | PushNumberNegOne
-  0024    | Merge
-  0025    | PushNumberZero
-  0026    | CallTailFunction 3
-  0028    | End
+  0020    | JumpIfFailure 20 -> 26
+  0023    | PushNegInteger -1
+  0025    | Merge
+  0026    | PushInteger 0
+  0028    | CallTailFunction 3
+  0030    | End
   ========================================
   
   ==============Array.Length==============
@@ -925,30 +925,30 @@
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
   0009    | Destructure 6: ([B] + Rest)
-  0011    | ConditionalThen 11 -> 56
+  0011    | ConditionalThen 11 -> 58
   0014    | GetBoundLocal 3
   0016    | Destructure 7: 0..1
-  0018    | TakeRight 18 -> 53
+  0018    | TakeRight 18 -> 55
   0021    | GetConstant 54: _Num.FromBinaryDigits
   0023    | GetBoundLocalMove 4
   0025    | GetBoundLocal 1
-  0027    | JumpIfFailure 27 -> 32
-  0030    | PushNumberNegOne
-  0031    | Merge
-  0032    | GetBoundLocalMove 2
-  0034    | JumpIfFailure 34 -> 51
-  0037    | GetConstant 55: @Multiply
-  0039    | GetBoundLocalMove 3
-  0041    | GetConstant 56: @Power
-  0043    | PushNumberTwo
-  0044    | GetBoundLocalMove 1
-  0046    | CallFunction 2
+  0027    | JumpIfFailure 27 -> 33
+  0030    | PushNegInteger -1
+  0032    | Merge
+  0033    | GetBoundLocalMove 2
+  0035    | JumpIfFailure 35 -> 53
+  0038    | GetConstant 55: @Multiply
+  0040    | GetBoundLocalMove 3
+  0042    | GetConstant 56: @Power
+  0044    | PushInteger 2
+  0046    | GetBoundLocalMove 1
   0048    | CallFunction 2
-  0050    | Merge
-  0051    | CallTailFunction 3
-  0053    | Jump 53 -> 58
-  0056    | GetBoundLocalMove 2
-  0058    | End
+  0050    | CallFunction 2
+  0052    | Merge
+  0053    | CallTailFunction 3
+  0055    | Jump 55 -> 60
+  0058    | GetBoundLocalMove 2
+  0060    | End
   ========================================
   
   =============octal_integer==============
@@ -976,16 +976,16 @@
   0005    | GetBoundLocal 0
   0007    | CallFunction 1
   0009    | Destructure 9: Len
-  0011    | TakeRight 11 -> 28
+  0011    | TakeRight 11 -> 30
   0014    | GetConstant 59: _Num.FromOctalDigits
   0016    | GetBoundLocalMove 0
   0018    | GetBoundLocalMove 1
-  0020    | JumpIfFailure 20 -> 25
-  0023    | PushNumberNegOne
-  0024    | Merge
-  0025    | PushNumberZero
-  0026    | CallTailFunction 3
-  0028    | End
+  0020    | JumpIfFailure 20 -> 26
+  0023    | PushNegInteger -1
+  0025    | Merge
+  0026    | PushInteger 0
+  0028    | CallTailFunction 3
+  0030    | End
   ========================================
   
   ==========_Num.FromOctalDigits==========
@@ -1005,30 +1005,30 @@
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
   0009    | Destructure 10: ([O] + Rest)
-  0011    | ConditionalThen 11 -> 57
+  0011    | ConditionalThen 11 -> 58
   0014    | GetBoundLocal 3
   0016    | Destructure 11: 0..7
-  0018    | TakeRight 18 -> 54
+  0018    | TakeRight 18 -> 55
   0021    | GetConstant 59: _Num.FromOctalDigits
   0023    | GetBoundLocalMove 4
   0025    | GetBoundLocal 1
-  0027    | JumpIfFailure 27 -> 32
-  0030    | PushNumberNegOne
-  0031    | Merge
-  0032    | GetBoundLocalMove 2
-  0034    | JumpIfFailure 34 -> 52
-  0037    | GetConstant 55: @Multiply
-  0039    | GetBoundLocalMove 3
-  0041    | GetConstant 56: @Power
-  0043    | PushNumber 8
-  0045    | GetBoundLocalMove 1
-  0047    | CallFunction 2
-  0049    | CallFunction 2
-  0051    | Merge
-  0052    | CallTailFunction 3
-  0054    | Jump 54 -> 59
-  0057    | GetBoundLocalMove 2
-  0059    | End
+  0027    | JumpIfFailure 27 -> 33
+  0030    | PushNegInteger -1
+  0032    | Merge
+  0033    | GetBoundLocalMove 2
+  0035    | JumpIfFailure 35 -> 53
+  0038    | GetConstant 55: @Multiply
+  0040    | GetBoundLocalMove 3
+  0042    | GetConstant 56: @Power
+  0044    | PushInteger 8
+  0046    | GetBoundLocalMove 1
+  0048    | CallFunction 2
+  0050    | CallFunction 2
+  0052    | Merge
+  0053    | CallTailFunction 3
+  0055    | Jump 55 -> 60
+  0058    | GetBoundLocalMove 2
+  0060    | End
   ========================================
   
   ==============hex_integer===============
@@ -1056,16 +1056,16 @@
   0005    | GetBoundLocal 0
   0007    | CallFunction 1
   0009    | Destructure 13: Len
-  0011    | TakeRight 11 -> 28
+  0011    | TakeRight 11 -> 30
   0014    | GetConstant 62: _Num.FromHexDigits
   0016    | GetBoundLocalMove 0
   0018    | GetBoundLocalMove 1
-  0020    | JumpIfFailure 20 -> 25
-  0023    | PushNumberNegOne
-  0024    | Merge
-  0025    | PushNumberZero
-  0026    | CallTailFunction 3
-  0028    | End
+  0020    | JumpIfFailure 20 -> 26
+  0023    | PushNegInteger -1
+  0025    | Merge
+  0026    | PushInteger 0
+  0028    | CallTailFunction 3
+  0030    | End
   ========================================
   
   ===========_Num.FromHexDigits===========
@@ -1085,30 +1085,30 @@
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
   0009    | Destructure 14: ([H] + Rest)
-  0011    | ConditionalThen 11 -> 57
+  0011    | ConditionalThen 11 -> 58
   0014    | GetBoundLocal 3
   0016    | Destructure 15: 0..15
-  0018    | TakeRight 18 -> 54
+  0018    | TakeRight 18 -> 55
   0021    | GetConstant 62: _Num.FromHexDigits
   0023    | GetBoundLocalMove 4
   0025    | GetBoundLocal 1
-  0027    | JumpIfFailure 27 -> 32
-  0030    | PushNumberNegOne
-  0031    | Merge
-  0032    | GetBoundLocalMove 2
-  0034    | JumpIfFailure 34 -> 52
-  0037    | GetConstant 55: @Multiply
-  0039    | GetBoundLocalMove 3
-  0041    | GetConstant 56: @Power
-  0043    | PushNumber 16
-  0045    | GetBoundLocalMove 1
-  0047    | CallFunction 2
-  0049    | CallFunction 2
-  0051    | Merge
-  0052    | CallTailFunction 3
-  0054    | Jump 54 -> 59
-  0057    | GetBoundLocalMove 2
-  0059    | End
+  0027    | JumpIfFailure 27 -> 33
+  0030    | PushNegInteger -1
+  0032    | Merge
+  0033    | GetBoundLocalMove 2
+  0035    | JumpIfFailure 35 -> 53
+  0038    | GetConstant 55: @Multiply
+  0040    | GetBoundLocalMove 3
+  0042    | GetConstant 56: @Power
+  0044    | PushInteger 16
+  0046    | GetBoundLocalMove 1
+  0048    | CallFunction 2
+  0050    | CallFunction 2
+  0052    | Merge
+  0053    | CallTailFunction 3
+  0055    | Jump 55 -> 60
+  0058    | GetBoundLocalMove 2
+  0060    | End
   ========================================
   
   ==================true==================
@@ -1182,42 +1182,42 @@
   0000    | GetConstant 51: tuple1
   0002    | GetBoundLocal 0
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 67
+  0006    | JumpIfFailure 6 -> 68
   0009    | PushNull
-  0010    | PushNumberZero
-  0011    | ValidateRepeatPattern
-  0012    | JumpIfZero 12 -> 40
-  0015    | Swap
-  0016    | GetConstant 51: tuple1
-  0018    | GetConstant 65: @fn115
-  0020    | CreateClosure 2
-  0022    | CaptureLocal 1
-  0024    | CaptureLocal 0
-  0026    | CallFunction 1
-  0028    | Merge
-  0029    | JumpIfFailure 29 -> 64
-  0032    | Swap
-  0033    | Decrement
-  0034    | JumpIfZero 34 -> 40
-  0037    | JumpBack 37 -> 15
-  0040    | Swap
-  0041    | SetInputMark
-  0042    | GetConstant 51: tuple1
-  0044    | GetConstant 66: @fn116
-  0046    | CreateClosure 2
-  0048    | CaptureLocal 1
-  0050    | CaptureLocal 0
-  0052    | CallFunction 1
-  0054    | JumpIfFailure 54 -> 62
-  0057    | PopInputMark
-  0058    | Merge
-  0059    | JumpBack 59 -> 41
-  0062    | ResetInput
-  0063    | Drop
-  0064    | Swap
-  0065    | Drop
-  0066    | Merge
-  0067    | End
+  0010    | PushInteger 0
+  0012    | ValidateRepeatPattern
+  0013    | JumpIfZero 13 -> 41
+  0016    | Swap
+  0017    | GetConstant 51: tuple1
+  0019    | GetConstant 65: @fn115
+  0021    | CreateClosure 2
+  0023    | CaptureLocal 1
+  0025    | CaptureLocal 0
+  0027    | CallFunction 1
+  0029    | Merge
+  0030    | JumpIfFailure 30 -> 65
+  0033    | Swap
+  0034    | Decrement
+  0035    | JumpIfZero 35 -> 41
+  0038    | JumpBack 38 -> 16
+  0041    | Swap
+  0042    | SetInputMark
+  0043    | GetConstant 51: tuple1
+  0045    | GetConstant 66: @fn116
+  0047    | CreateClosure 2
+  0049    | CaptureLocal 1
+  0051    | CaptureLocal 0
+  0053    | CallFunction 1
+  0055    | JumpIfFailure 55 -> 63
+  0058    | PopInputMark
+  0059    | Merge
+  0060    | JumpBack 60 -> 42
+  0063    | ResetInput
+  0064    | Drop
+  0065    | Swap
+  0066    | Drop
+  0067    | Merge
+  0068    | End
   ========================================
   
   =================@fn118=================
@@ -1246,44 +1246,44 @@
   array_until(elem, stop) = unless(tuple1(elem), stop) * 1.. < peek(stop)
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 31
-  0006    | Swap
-  0007    | GetConstant 7: unless
-  0009    | GetConstant 67: @fn118
-  0011    | CreateClosure 1
-  0013    | CaptureLocal 0
-  0015    | GetBoundLocal 1
-  0017    | CallFunction 2
-  0019    | Merge
-  0020    | JumpIfFailure 20 -> 55
-  0023    | Swap
-  0024    | Decrement
-  0025    | JumpIfZero 25 -> 31
-  0028    | JumpBack 28 -> 6
-  0031    | Swap
-  0032    | SetInputMark
-  0033    | GetConstant 7: unless
-  0035    | GetConstant 68: @fn119
-  0037    | CreateClosure 1
-  0039    | CaptureLocal 0
-  0041    | GetBoundLocal 1
-  0043    | CallFunction 2
-  0045    | JumpIfFailure 45 -> 53
-  0048    | PopInputMark
-  0049    | Merge
-  0050    | JumpBack 50 -> 32
-  0053    | ResetInput
-  0054    | Drop
-  0055    | Swap
-  0056    | Drop
-  0057    | JumpIfFailure 57 -> 67
-  0060    | GetConstant 27: peek
-  0062    | GetBoundLocalMove 1
-  0064    | CallFunction 1
-  0066    | TakeLeft
-  0067    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 32
+  0007    | Swap
+  0008    | GetConstant 7: unless
+  0010    | GetConstant 67: @fn118
+  0012    | CreateClosure 1
+  0014    | CaptureLocal 0
+  0016    | GetBoundLocal 1
+  0018    | CallFunction 2
+  0020    | Merge
+  0021    | JumpIfFailure 21 -> 56
+  0024    | Swap
+  0025    | Decrement
+  0026    | JumpIfZero 26 -> 32
+  0029    | JumpBack 29 -> 7
+  0032    | Swap
+  0033    | SetInputMark
+  0034    | GetConstant 7: unless
+  0036    | GetConstant 68: @fn119
+  0038    | CreateClosure 1
+  0040    | CaptureLocal 0
+  0042    | GetBoundLocal 1
+  0044    | CallFunction 2
+  0046    | JumpIfFailure 46 -> 54
+  0049    | PopInputMark
+  0050    | Merge
+  0051    | JumpBack 51 -> 33
+  0054    | ResetInput
+  0055    | Drop
+  0056    | Swap
+  0057    | Drop
+  0058    | JumpIfFailure 58 -> 68
+  0061    | GetConstant 27: peek
+  0063    | GetBoundLocalMove 1
+  0065    | CallFunction 1
+  0067    | TakeLeft
+  0068    | End
   ========================================
   
   =================@fn122=================
@@ -1489,31 +1489,31 @@
   0000    | GetConstant 51: tuple1
   0002    | GetBoundLocal 0
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 49
+  0006    | JumpIfFailure 6 -> 50
   0009    | PushNull
   0010    | GetBoundLocalMove 2
-  0012    | JumpIfFailure 12 -> 17
-  0015    | PushNumberNegOne
-  0016    | Merge
-  0017    | ValidateRepeatPattern
-  0018    | JumpIfZero 18 -> 47
-  0021    | Swap
-  0022    | GetConstant 51: tuple1
-  0024    | GetConstant 77: @fn135
-  0026    | CreateClosure 2
-  0028    | CaptureLocal 1
-  0030    | CaptureLocal 0
-  0032    | CallFunction 1
-  0034    | Merge
-  0035    | JumpIfFailure 35 -> 46
-  0038    | Swap
-  0039    | Decrement
-  0040    | JumpIfZero 40 -> 47
-  0043    | JumpBack 43 -> 21
-  0046    | Swap
-  0047    | Drop
-  0048    | Merge
-  0049    | End
+  0012    | JumpIfFailure 12 -> 18
+  0015    | PushNegInteger -1
+  0017    | Merge
+  0018    | ValidateRepeatPattern
+  0019    | JumpIfZero 19 -> 48
+  0022    | Swap
+  0023    | GetConstant 51: tuple1
+  0025    | GetConstant 77: @fn135
+  0027    | CreateClosure 2
+  0029    | CaptureLocal 1
+  0031    | CaptureLocal 0
+  0033    | CallFunction 1
+  0035    | Merge
+  0036    | JumpIfFailure 36 -> 47
+  0039    | Swap
+  0040    | Decrement
+  0041    | JumpIfZero 41 -> 48
+  0044    | JumpBack 44 -> 22
+  0047    | Swap
+  0048    | Drop
+  0049    | Merge
+  0050    | End
   ========================================
   
   =================@fn137=================
@@ -1572,44 +1572,44 @@
   0006    | CaptureLocal 0
   0008    | CaptureLocal 1
   0010    | CallFunction 1
-  0012    | JumpIfFailure 12 -> 77
+  0012    | JumpIfFailure 12 -> 78
   0015    | PushNull
-  0016    | PushNumberZero
-  0017    | ValidateRepeatPattern
-  0018    | JumpIfZero 18 -> 48
-  0021    | Swap
-  0022    | GetConstant 51: tuple1
-  0024    | GetConstant 79: @fn138
-  0026    | CreateClosure 3
-  0028    | CaptureLocal 2
-  0030    | CaptureLocal 0
-  0032    | CaptureLocal 1
-  0034    | CallFunction 1
-  0036    | Merge
-  0037    | JumpIfFailure 37 -> 74
-  0040    | Swap
-  0041    | Decrement
-  0042    | JumpIfZero 42 -> 48
-  0045    | JumpBack 45 -> 21
-  0048    | Swap
-  0049    | SetInputMark
-  0050    | GetConstant 51: tuple1
-  0052    | GetConstant 80: @fn139
-  0054    | CreateClosure 3
-  0056    | CaptureLocal 2
-  0058    | CaptureLocal 0
-  0060    | CaptureLocal 1
-  0062    | CallFunction 1
-  0064    | JumpIfFailure 64 -> 72
-  0067    | PopInputMark
-  0068    | Merge
-  0069    | JumpBack 69 -> 49
-  0072    | ResetInput
-  0073    | Drop
-  0074    | Swap
-  0075    | Drop
-  0076    | Merge
-  0077    | End
+  0016    | PushInteger 0
+  0018    | ValidateRepeatPattern
+  0019    | JumpIfZero 19 -> 49
+  0022    | Swap
+  0023    | GetConstant 51: tuple1
+  0025    | GetConstant 79: @fn138
+  0027    | CreateClosure 3
+  0029    | CaptureLocal 2
+  0031    | CaptureLocal 0
+  0033    | CaptureLocal 1
+  0035    | CallFunction 1
+  0037    | Merge
+  0038    | JumpIfFailure 38 -> 75
+  0041    | Swap
+  0042    | Decrement
+  0043    | JumpIfZero 43 -> 49
+  0046    | JumpBack 46 -> 22
+  0049    | Swap
+  0050    | SetInputMark
+  0051    | GetConstant 51: tuple1
+  0053    | GetConstant 80: @fn139
+  0055    | CreateClosure 3
+  0057    | CaptureLocal 2
+  0059    | CaptureLocal 0
+  0061    | CaptureLocal 1
+  0063    | CallFunction 1
+  0065    | JumpIfFailure 65 -> 73
+  0068    | PopInputMark
+  0069    | Merge
+  0070    | JumpBack 70 -> 50
+  0073    | ResetInput
+  0074    | Drop
+  0075    | Swap
+  0076    | Drop
+  0077    | Merge
+  0078    | End
   ========================================
   
   =================@fn142=================
@@ -1646,20 +1646,20 @@
   0023    | TakeRight 23 -> 30
   0026    | CallFunctionLocal 0
   0028    | Destructure 27: First
-  0030    | TakeRight 30 -> 55
+  0030    | TakeRight 30 -> 56
   0033    | GetConstant 83: _rows_padded
   0035    | GetBoundLocalMove 0
   0037    | GetBoundLocalMove 1
   0039    | GetBoundLocalMove 2
   0041    | GetBoundLocalMove 3
-  0043    | PushNumberOne
-  0044    | GetBoundLocalMove 4
-  0046    | GetConstantMutable 84: [_]
-  0048    | GetBoundLocalMove 6
-  0050    | InsertAtIndex 0
-  0052    | PushEmptyArray
-  0053    | CallTailFunction 8
-  0055    | End
+  0043    | PushInteger 1
+  0045    | GetBoundLocalMove 4
+  0047    | GetConstantMutable 84: [_]
+  0049    | GetBoundLocalMove 6
+  0051    | InsertAtIndex 0
+  0053    | PushEmptyArray
+  0054    | CallTailFunction 8
+  0056    | End
   ========================================
   
   ==============_dimensions===============
@@ -1667,16 +1667,16 @@
     elem > __dimensions(elem, col_sep, row_sep, $1, $1, $0)
   ========================================
   0000    | CallFunctionLocal 0
-  0002    | TakeRight 2 -> 18
+  0002    | TakeRight 2 -> 21
   0005    | GetConstant 85: __dimensions
   0007    | GetBoundLocalMove 0
   0009    | GetBoundLocalMove 1
   0011    | GetBoundLocalMove 2
-  0013    | PushNumberOne
-  0014    | PushNumberOne
-  0015    | PushNumberZero
-  0016    | CallTailFunction 6
-  0018    | End
+  0013    | PushInteger 1
+  0015    | PushInteger 1
+  0017    | PushInteger 0
+  0019    | CallTailFunction 6
+  0021    | End
   ========================================
   
   ==============__dimensions==============
@@ -1702,37 +1702,37 @@
   0025    | GetBoundLocalMove 4
   0027    | GetBoundLocalMove 5
   0029    | CallTailFunction 6
-  0031    | Jump 31 -> 93
+  0031    | Jump 31 -> 94
   0034    | SetInputMark
   0035    | CallFunctionLocal 2
   0037    | TakeRight 37 -> 42
   0040    | CallFunctionLocal 0
-  0042    | ConditionalThen 42 -> 73
+  0042    | ConditionalThen 42 -> 74
   0045    | GetConstant 85: __dimensions
   0047    | GetBoundLocalMove 0
   0049    | GetBoundLocalMove 1
   0051    | GetBoundLocalMove 2
-  0053    | PushNumberOne
-  0054    | GetConstant 86: Num.Inc
-  0056    | GetBoundLocalMove 4
-  0058    | CallFunction 1
-  0060    | GetConstant 87: Num.Max
-  0062    | GetBoundLocalMove 3
-  0064    | GetBoundLocalMove 5
-  0066    | CallFunction 2
-  0068    | CallTailFunction 6
-  0070    | Jump 70 -> 93
-  0073    | GetConstant 31: const
-  0075    | GetConstantMutable 88: [_, _]
-  0077    | GetConstant 87: Num.Max
-  0079    | GetBoundLocalMove 3
-  0081    | GetBoundLocalMove 5
-  0083    | CallFunction 2
-  0085    | InsertAtIndex 0
-  0087    | GetBoundLocalMove 4
-  0089    | InsertAtIndex 1
-  0091    | CallTailFunction 1
-  0093    | End
+  0053    | PushInteger 1
+  0055    | GetConstant 86: Num.Inc
+  0057    | GetBoundLocalMove 4
+  0059    | CallFunction 1
+  0061    | GetConstant 87: Num.Max
+  0063    | GetBoundLocalMove 3
+  0065    | GetBoundLocalMove 5
+  0067    | CallFunction 2
+  0069    | CallTailFunction 6
+  0071    | Jump 71 -> 94
+  0074    | GetConstant 31: const
+  0076    | GetConstantMutable 88: [_, _]
+  0078    | GetConstant 87: Num.Max
+  0080    | GetBoundLocalMove 3
+  0082    | GetBoundLocalMove 5
+  0084    | CallFunction 2
+  0086    | InsertAtIndex 0
+  0088    | GetBoundLocalMove 4
+  0090    | InsertAtIndex 1
+  0092    | CallTailFunction 1
+  0094    | End
   ========================================
   
   ================Num.Inc=================
@@ -1740,9 +1740,9 @@
   ========================================
   0000    | GetConstant 89: @Add
   0002    | GetBoundLocalMove 0
-  0004    | PushNumberOne
-  0005    | CallTailFunction 2
-  0007    | End
+  0004    | PushInteger 1
+  0006    | CallTailFunction 2
+  0008    | End
   ========================================
   
   ================Num.Max=================
@@ -1794,62 +1794,62 @@
   0053    | Merge
   0054    | GetBoundLocalMove 7
   0056    | CallTailFunction 8
-  0058    | Jump 58 -> 166
+  0058    | Jump 58 -> 167
   0061    | SetInputMark
   0062    | CallFunctionLocal 2
   0064    | TakeRight 64 -> 69
   0067    | CallFunctionLocal 0
   0069    | Destructure 30: NextRow
-  0071    | ConditionalThen 71 -> 130
+  0071    | ConditionalThen 71 -> 131
   0074    | GetConstant 83: _rows_padded
   0076    | GetBoundLocalMove 0
   0078    | GetBoundLocalMove 1
   0080    | GetBoundLocalMove 2
   0082    | GetBoundLocal 3
-  0084    | PushNumberOne
-  0085    | GetBoundLocal 5
-  0087    | GetConstantMutable 91: [_]
-  0089    | GetBoundLocalMove 9
-  0091    | InsertAtIndex 0
-  0093    | PushEmptyArray
-  0094    | JumpIfFailure 94 -> 100
-  0097    | GetBoundLocalMove 7
-  0099    | Merge
-  0100    | JumpIfFailure 100 -> 125
-  0103    | GetConstantMutable 92: [_]
-  0105    | GetConstant 93: Array.AppendN
-  0107    | GetBoundLocalMove 6
-  0109    | GetBoundLocalMove 3
-  0111    | GetBoundLocalMove 5
-  0113    | JumpIfFailure 113 -> 120
-  0116    | GetBoundLocalMove 4
-  0118    | NegateNumber
-  0119    | Merge
-  0120    | CallFunction 3
-  0122    | InsertAtIndex 0
-  0124    | Merge
-  0125    | CallTailFunction 8
-  0127    | Jump 127 -> 166
-  0130    | GetConstant 31: const
-  0132    | PushEmptyArray
-  0133    | JumpIfFailure 133 -> 139
-  0136    | GetBoundLocalMove 7
-  0138    | Merge
-  0139    | JumpIfFailure 139 -> 164
-  0142    | GetConstantMutable 94: [_]
-  0144    | GetConstant 93: Array.AppendN
-  0146    | GetBoundLocalMove 6
-  0148    | GetBoundLocalMove 3
-  0150    | GetBoundLocalMove 5
-  0152    | JumpIfFailure 152 -> 159
-  0155    | GetBoundLocalMove 4
-  0157    | NegateNumber
-  0158    | Merge
-  0159    | CallFunction 3
-  0161    | InsertAtIndex 0
-  0163    | Merge
-  0164    | CallTailFunction 1
-  0166    | End
+  0084    | PushInteger 1
+  0086    | GetBoundLocal 5
+  0088    | GetConstantMutable 91: [_]
+  0090    | GetBoundLocalMove 9
+  0092    | InsertAtIndex 0
+  0094    | PushEmptyArray
+  0095    | JumpIfFailure 95 -> 101
+  0098    | GetBoundLocalMove 7
+  0100    | Merge
+  0101    | JumpIfFailure 101 -> 126
+  0104    | GetConstantMutable 92: [_]
+  0106    | GetConstant 93: Array.AppendN
+  0108    | GetBoundLocalMove 6
+  0110    | GetBoundLocalMove 3
+  0112    | GetBoundLocalMove 5
+  0114    | JumpIfFailure 114 -> 121
+  0117    | GetBoundLocalMove 4
+  0119    | NegateNumber
+  0120    | Merge
+  0121    | CallFunction 3
+  0123    | InsertAtIndex 0
+  0125    | Merge
+  0126    | CallTailFunction 8
+  0128    | Jump 128 -> 167
+  0131    | GetConstant 31: const
+  0133    | PushEmptyArray
+  0134    | JumpIfFailure 134 -> 140
+  0137    | GetBoundLocalMove 7
+  0139    | Merge
+  0140    | JumpIfFailure 140 -> 165
+  0143    | GetConstantMutable 94: [_]
+  0145    | GetConstant 93: Array.AppendN
+  0147    | GetBoundLocalMove 6
+  0149    | GetBoundLocalMove 3
+  0151    | GetBoundLocalMove 5
+  0153    | JumpIfFailure 153 -> 160
+  0156    | GetBoundLocalMove 4
+  0158    | NegateNumber
+  0159    | Merge
+  0160    | CallFunction 3
+  0162    | InsertAtIndex 0
+  0164    | Merge
+  0165    | CallTailFunction 1
+  0167    | End
   ========================================
   
   =============Array.AppendN==============
@@ -2073,35 +2073,35 @@
   object(key, value) = pair(key, value) * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 27
-  0006    | Swap
-  0007    | GetConstant 109: pair
-  0009    | GetBoundLocal 0
-  0011    | GetBoundLocal 1
-  0013    | CallFunction 2
-  0015    | Merge
-  0016    | JumpIfFailure 16 -> 47
-  0019    | Swap
-  0020    | Decrement
-  0021    | JumpIfZero 21 -> 27
-  0024    | JumpBack 24 -> 6
-  0027    | Swap
-  0028    | SetInputMark
-  0029    | GetConstant 109: pair
-  0031    | GetBoundLocal 0
-  0033    | GetBoundLocal 1
-  0035    | CallFunction 2
-  0037    | JumpIfFailure 37 -> 45
-  0040    | PopInputMark
-  0041    | Merge
-  0042    | JumpBack 42 -> 28
-  0045    | ResetInput
-  0046    | Drop
-  0047    | Swap
-  0048    | Drop
-  0049    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 28
+  0007    | Swap
+  0008    | GetConstant 109: pair
+  0010    | GetBoundLocal 0
+  0012    | GetBoundLocal 1
+  0014    | CallFunction 2
+  0016    | Merge
+  0017    | JumpIfFailure 17 -> 48
+  0020    | Swap
+  0021    | Decrement
+  0022    | JumpIfZero 22 -> 28
+  0025    | JumpBack 25 -> 7
+  0028    | Swap
+  0029    | SetInputMark
+  0030    | GetConstant 109: pair
+  0032    | GetBoundLocal 0
+  0034    | GetBoundLocal 1
+  0036    | CallFunction 2
+  0038    | JumpIfFailure 38 -> 46
+  0041    | PopInputMark
+  0042    | Merge
+  0043    | JumpBack 43 -> 29
+  0046    | ResetInput
+  0047    | Drop
+  0048    | Swap
+  0049    | Drop
+  0050    | End
   ========================================
   
   ==================pair==================
@@ -2132,44 +2132,44 @@
   0004    | GetBoundLocal 1
   0006    | GetBoundLocal 2
   0008    | CallFunction 3
-  0010    | JumpIfFailure 10 -> 77
+  0010    | JumpIfFailure 10 -> 78
   0013    | PushNull
-  0014    | PushNumberZero
-  0015    | ValidateRepeatPattern
-  0016    | JumpIfZero 16 -> 47
-  0019    | Swap
-  0020    | CallFunctionLocal 3
-  0022    | TakeRight 22 -> 35
-  0025    | GetConstant 111: pair_sep
-  0027    | GetBoundLocal 0
-  0029    | GetBoundLocal 1
-  0031    | GetBoundLocal 2
-  0033    | CallFunction 3
-  0035    | Merge
-  0036    | JumpIfFailure 36 -> 74
-  0039    | Swap
-  0040    | Decrement
-  0041    | JumpIfZero 41 -> 47
-  0044    | JumpBack 44 -> 19
-  0047    | Swap
-  0048    | SetInputMark
-  0049    | CallFunctionLocal 3
-  0051    | TakeRight 51 -> 64
-  0054    | GetConstant 111: pair_sep
-  0056    | GetBoundLocal 0
-  0058    | GetBoundLocal 1
-  0060    | GetBoundLocal 2
-  0062    | CallFunction 3
-  0064    | JumpIfFailure 64 -> 72
-  0067    | PopInputMark
-  0068    | Merge
-  0069    | JumpBack 69 -> 48
-  0072    | ResetInput
-  0073    | Drop
-  0074    | Swap
-  0075    | Drop
-  0076    | Merge
-  0077    | End
+  0014    | PushInteger 0
+  0016    | ValidateRepeatPattern
+  0017    | JumpIfZero 17 -> 48
+  0020    | Swap
+  0021    | CallFunctionLocal 3
+  0023    | TakeRight 23 -> 36
+  0026    | GetConstant 111: pair_sep
+  0028    | GetBoundLocal 0
+  0030    | GetBoundLocal 1
+  0032    | GetBoundLocal 2
+  0034    | CallFunction 3
+  0036    | Merge
+  0037    | JumpIfFailure 37 -> 75
+  0040    | Swap
+  0041    | Decrement
+  0042    | JumpIfZero 42 -> 48
+  0045    | JumpBack 45 -> 20
+  0048    | Swap
+  0049    | SetInputMark
+  0050    | CallFunctionLocal 3
+  0052    | TakeRight 52 -> 65
+  0055    | GetConstant 111: pair_sep
+  0057    | GetBoundLocal 0
+  0059    | GetBoundLocal 1
+  0061    | GetBoundLocal 2
+  0063    | CallFunction 3
+  0065    | JumpIfFailure 65 -> 73
+  0068    | PopInputMark
+  0069    | Merge
+  0070    | JumpBack 70 -> 49
+  0073    | ResetInput
+  0074    | Drop
+  0075    | Swap
+  0076    | Drop
+  0077    | Merge
+  0078    | End
   ========================================
   
   ================pair_sep================
@@ -2223,46 +2223,46 @@
     unless(pair(key, value), stop) * 1.. < peek(stop)
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 33
-  0006    | Swap
-  0007    | GetConstant 7: unless
-  0009    | GetConstant 113: @fn176
-  0011    | CreateClosure 2
-  0013    | CaptureLocal 0
-  0015    | CaptureLocal 1
-  0017    | GetBoundLocal 2
-  0019    | CallFunction 2
-  0021    | Merge
-  0022    | JumpIfFailure 22 -> 59
-  0025    | Swap
-  0026    | Decrement
-  0027    | JumpIfZero 27 -> 33
-  0030    | JumpBack 30 -> 6
-  0033    | Swap
-  0034    | SetInputMark
-  0035    | GetConstant 7: unless
-  0037    | GetConstant 114: @fn177
-  0039    | CreateClosure 2
-  0041    | CaptureLocal 0
-  0043    | CaptureLocal 1
-  0045    | GetBoundLocal 2
-  0047    | CallFunction 2
-  0049    | JumpIfFailure 49 -> 57
-  0052    | PopInputMark
-  0053    | Merge
-  0054    | JumpBack 54 -> 34
-  0057    | ResetInput
-  0058    | Drop
-  0059    | Swap
-  0060    | Drop
-  0061    | JumpIfFailure 61 -> 71
-  0064    | GetConstant 27: peek
-  0066    | GetBoundLocalMove 2
-  0068    | CallFunction 1
-  0070    | TakeLeft
-  0071    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 34
+  0007    | Swap
+  0008    | GetConstant 7: unless
+  0010    | GetConstant 113: @fn176
+  0012    | CreateClosure 2
+  0014    | CaptureLocal 0
+  0016    | CaptureLocal 1
+  0018    | GetBoundLocal 2
+  0020    | CallFunction 2
+  0022    | Merge
+  0023    | JumpIfFailure 23 -> 60
+  0026    | Swap
+  0027    | Decrement
+  0028    | JumpIfZero 28 -> 34
+  0031    | JumpBack 31 -> 7
+  0034    | Swap
+  0035    | SetInputMark
+  0036    | GetConstant 7: unless
+  0038    | GetConstant 114: @fn177
+  0040    | CreateClosure 2
+  0042    | CaptureLocal 0
+  0044    | CaptureLocal 1
+  0046    | GetBoundLocal 2
+  0048    | CallFunction 2
+  0050    | JumpIfFailure 50 -> 58
+  0053    | PopInputMark
+  0054    | Merge
+  0055    | JumpBack 55 -> 35
+  0058    | ResetInput
+  0059    | Drop
+  0060    | Swap
+  0061    | Drop
+  0062    | JumpIfFailure 62 -> 72
+  0065    | GetConstant 27: peek
+  0067    | GetBoundLocalMove 2
+  0069    | CallFunction 1
+  0071    | TakeLeft
+  0072    | End
   ========================================
   
   =================@fn179=================
@@ -2460,65 +2460,65 @@
   many_sep(p, sep) = p + ((sep > p) * 0..)
   ========================================
   0000    | CallFunctionLocal 0
-  0002    | JumpIfFailure 2 -> 53
+  0002    | JumpIfFailure 2 -> 54
   0005    | PushNull
-  0006    | PushNumberZero
-  0007    | ValidateRepeatPattern
-  0008    | JumpIfZero 8 -> 31
-  0011    | Swap
-  0012    | CallFunctionLocal 1
-  0014    | TakeRight 14 -> 19
-  0017    | CallFunctionLocal 0
-  0019    | Merge
-  0020    | JumpIfFailure 20 -> 50
-  0023    | Swap
-  0024    | Decrement
-  0025    | JumpIfZero 25 -> 31
-  0028    | JumpBack 28 -> 11
-  0031    | Swap
-  0032    | SetInputMark
-  0033    | CallFunctionLocal 1
-  0035    | TakeRight 35 -> 40
-  0038    | CallFunctionLocal 0
-  0040    | JumpIfFailure 40 -> 48
-  0043    | PopInputMark
-  0044    | Merge
-  0045    | JumpBack 45 -> 32
-  0048    | ResetInput
-  0049    | Drop
-  0050    | Swap
-  0051    | Drop
-  0052    | Merge
-  0053    | End
+  0006    | PushInteger 0
+  0008    | ValidateRepeatPattern
+  0009    | JumpIfZero 9 -> 32
+  0012    | Swap
+  0013    | CallFunctionLocal 1
+  0015    | TakeRight 15 -> 20
+  0018    | CallFunctionLocal 0
+  0020    | Merge
+  0021    | JumpIfFailure 21 -> 51
+  0024    | Swap
+  0025    | Decrement
+  0026    | JumpIfZero 26 -> 32
+  0029    | JumpBack 29 -> 12
+  0032    | Swap
+  0033    | SetInputMark
+  0034    | CallFunctionLocal 1
+  0036    | TakeRight 36 -> 41
+  0039    | CallFunctionLocal 0
+  0041    | JumpIfFailure 41 -> 49
+  0044    | PopInputMark
+  0045    | Merge
+  0046    | JumpBack 46 -> 33
+  0049    | ResetInput
+  0050    | Drop
+  0051    | Swap
+  0052    | Drop
+  0053    | Merge
+  0054    | End
   ========================================
   
   ===============maybe_many===============
   maybe_many(p) = p * 0..
   ========================================
   0000    | PushNull
-  0001    | PushNumberZero
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 0
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   =============maybe_many_sep=============
@@ -3006,7 +3006,7 @@
   0003    | CallFunctionConstant 163: "\u"
   0005    | TakeRight 5 -> 32
   0008    | PushNull
-  0009    | PushNumber 4
+  0009    | PushInteger 4
   0011    | ValidateRepeatPattern
   0012    | JumpIfZero 12 -> 31
   0015    | Swap
@@ -3516,7 +3516,7 @@
   0004    | CallFunctionConstant 163: "\u"
   0006    | TakeRight 6 -> 33
   0009    | PushNull
-  0010    | PushNumber 4
+  0010    | PushInteger 4
   0012    | ValidateRepeatPattern
   0013    | JumpIfZero 13 -> 32
   0016    | Swap
@@ -3538,7 +3538,7 @@
   0047    | CallFunctionConstant 208: "\U"
   0049    | TakeRight 49 -> 76
   0052    | PushNull
-  0053    | PushNumber 8
+  0053    | PushInteger 8
   0055    | ValidateRepeatPattern
   0056    | JumpIfZero 56 -> 75
   0059    | Swap
@@ -4343,42 +4343,42 @@
   0033    | PushString2 """""
   0036    | CallFunction 1
   0038    | Merge
-  0039    | JumpIfFailure 39 -> 94
+  0039    | JumpIfFailure 39 -> 97
   0042    | PushNull
-  0043    | PushNumberZero
-  0044    | ValidateRepeatPattern
-  0045    | JumpIfZero 45 -> 63
-  0048    | Swap
-  0049    | ParseChar '"'
-  0051    | Merge
-  0052    | JumpIfFailure 52 -> 91
-  0055    | Swap
-  0056    | Decrement
-  0057    | JumpIfZero 57 -> 63
-  0060    | JumpBack 60 -> 48
-  0063    | Drop
-  0064    | PushNumberTwo
-  0065    | PushNumberZero
-  0066    | NegateNumber
-  0067    | Merge
-  0068    | ValidateRepeatPattern
-  0069    | JumpIfZero 69 -> 92
-  0072    | Swap
-  0073    | SetInputMark
-  0074    | ParseChar '"'
-  0076    | JumpIfFailure 76 -> 89
-  0079    | PopInputMark
-  0080    | Merge
-  0081    | Swap
-  0082    | Decrement
-  0083    | JumpIfZero 83 -> 92
-  0086    | JumpBack 86 -> 72
-  0089    | ResetInput
-  0090    | Drop
-  0091    | Swap
-  0092    | Drop
-  0093    | Merge
-  0094    | End
+  0043    | PushInteger 0
+  0045    | ValidateRepeatPattern
+  0046    | JumpIfZero 46 -> 64
+  0049    | Swap
+  0050    | ParseChar '"'
+  0052    | Merge
+  0053    | JumpIfFailure 53 -> 94
+  0056    | Swap
+  0057    | Decrement
+  0058    | JumpIfZero 58 -> 64
+  0061    | JumpBack 61 -> 49
+  0064    | Drop
+  0065    | PushInteger 2
+  0067    | PushInteger 0
+  0069    | NegateNumber
+  0070    | Merge
+  0071    | ValidateRepeatPattern
+  0072    | JumpIfZero 72 -> 95
+  0075    | Swap
+  0076    | SetInputMark
+  0077    | ParseChar '"'
+  0079    | JumpIfFailure 79 -> 92
+  0082    | PopInputMark
+  0083    | Merge
+  0084    | Swap
+  0085    | Decrement
+  0086    | JumpIfZero 86 -> 95
+  0089    | JumpBack 89 -> 75
+  0092    | ResetInput
+  0093    | Drop
+  0094    | Swap
+  0095    | Drop
+  0096    | Merge
+  0097    | End
   ========================================
   
   =================@fn311=================
@@ -4425,42 +4425,42 @@
   0035    | PushString2 "'''"
   0038    | CallFunction 1
   0040    | Merge
-  0041    | JumpIfFailure 41 -> 96
+  0041    | JumpIfFailure 41 -> 99
   0044    | PushNull
-  0045    | PushNumberZero
-  0046    | ValidateRepeatPattern
-  0047    | JumpIfZero 47 -> 65
-  0050    | Swap
-  0051    | ParseChar '''
-  0053    | Merge
-  0054    | JumpIfFailure 54 -> 93
-  0057    | Swap
-  0058    | Decrement
-  0059    | JumpIfZero 59 -> 65
-  0062    | JumpBack 62 -> 50
-  0065    | Drop
-  0066    | PushNumberTwo
-  0067    | PushNumberZero
-  0068    | NegateNumber
-  0069    | Merge
-  0070    | ValidateRepeatPattern
-  0071    | JumpIfZero 71 -> 94
-  0074    | Swap
-  0075    | SetInputMark
-  0076    | ParseChar '''
-  0078    | JumpIfFailure 78 -> 91
-  0081    | PopInputMark
-  0082    | Merge
-  0083    | Swap
-  0084    | Decrement
-  0085    | JumpIfZero 85 -> 94
-  0088    | JumpBack 88 -> 74
-  0091    | ResetInput
-  0092    | Drop
-  0093    | Swap
-  0094    | Drop
-  0095    | Merge
-  0096    | End
+  0045    | PushInteger 0
+  0047    | ValidateRepeatPattern
+  0048    | JumpIfZero 48 -> 66
+  0051    | Swap
+  0052    | ParseChar '''
+  0054    | Merge
+  0055    | JumpIfFailure 55 -> 96
+  0058    | Swap
+  0059    | Decrement
+  0060    | JumpIfZero 60 -> 66
+  0063    | JumpBack 63 -> 51
+  0066    | Drop
+  0067    | PushInteger 2
+  0069    | PushInteger 0
+  0071    | NegateNumber
+  0072    | Merge
+  0073    | ValidateRepeatPattern
+  0074    | JumpIfZero 74 -> 97
+  0077    | Swap
+  0078    | SetInputMark
+  0079    | ParseChar '''
+  0081    | JumpIfFailure 81 -> 94
+  0084    | PopInputMark
+  0085    | Merge
+  0086    | Swap
+  0087    | Decrement
+  0088    | JumpIfZero 88 -> 97
+  0091    | JumpBack 91 -> 77
+  0094    | ResetInput
+  0095    | Drop
+  0096    | Swap
+  0097    | Drop
+  0098    | Merge
+  0099    | End
   ========================================
   
   =============toml.datetime==============
@@ -4526,7 +4526,7 @@
   _toml.datetime.year = numeral * 4
   ========================================
   0000    | PushNull
-  0001    | PushNumber 4
+  0001    | PushInteger 4
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 23
   0007    | Swap
@@ -4594,42 +4594,42 @@
   "." + (numeral * 1..9)
   ========================================
   0000    | ParseChar '.'
-  0002    | JumpIfFailure 2 -> 58
+  0002    | JumpIfFailure 2 -> 60
   0005    | PushNull
-  0006    | PushNumberOne
-  0007    | ValidateRepeatPattern
-  0008    | JumpIfZero 8 -> 26
-  0011    | Swap
-  0012    | CallFunctionConstant 4: numeral
-  0014    | Merge
-  0015    | JumpIfFailure 15 -> 55
-  0018    | Swap
-  0019    | Decrement
-  0020    | JumpIfZero 20 -> 26
-  0023    | JumpBack 23 -> 11
-  0026    | Drop
-  0027    | PushNumber 9
-  0029    | PushNumberOne
-  0030    | NegateNumber
-  0031    | Merge
-  0032    | ValidateRepeatPattern
-  0033    | JumpIfZero 33 -> 56
-  0036    | Swap
-  0037    | SetInputMark
-  0038    | CallFunctionConstant 4: numeral
-  0040    | JumpIfFailure 40 -> 53
-  0043    | PopInputMark
-  0044    | Merge
-  0045    | Swap
-  0046    | Decrement
-  0047    | JumpIfZero 47 -> 56
-  0050    | JumpBack 50 -> 36
-  0053    | ResetInput
-  0054    | Drop
-  0055    | Swap
+  0006    | PushInteger 1
+  0008    | ValidateRepeatPattern
+  0009    | JumpIfZero 9 -> 27
+  0012    | Swap
+  0013    | CallFunctionConstant 4: numeral
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 57
+  0019    | Swap
+  0020    | Decrement
+  0021    | JumpIfZero 21 -> 27
+  0024    | JumpBack 24 -> 12
+  0027    | Drop
+  0028    | PushInteger 9
+  0030    | PushInteger 1
+  0032    | NegateNumber
+  0033    | Merge
+  0034    | ValidateRepeatPattern
+  0035    | JumpIfZero 35 -> 58
+  0038    | Swap
+  0039    | SetInputMark
+  0040    | CallFunctionConstant 4: numeral
+  0042    | JumpIfFailure 42 -> 55
+  0045    | PopInputMark
+  0046    | Merge
+  0047    | Swap
+  0048    | Decrement
+  0049    | JumpIfZero 49 -> 58
+  0052    | JumpBack 52 -> 38
+  0055    | ResetInput
   0056    | Drop
-  0057    | Merge
-  0058    | End
+  0057    | Swap
+  0058    | Drop
+  0059    | Merge
+  0060    | End
   ========================================
   
   ========toml.datetime.local_time========
@@ -5576,9 +5576,9 @@
   0005    | GetBoundLocalMove 1
   0007    | GetBoundLocalMove 2
   0009    | GetBoundLocalMove 3
-  0011    | PushNumberZero
-  0012    | CallTailFunction 5
-  0014    | End
+  0011    | PushInteger 0
+  0013    | CallTailFunction 5
+  0015    | End
   ========================================
   
   =======_ast.with_precedence_start=======
@@ -6006,9 +6006,9 @@
   ========================================
   0000    | GetConstant2 349: @Subtract
   0003    | GetBoundLocalMove 0
-  0005    | PushNumberOne
-  0006    | CallTailFunction 2
-  0008    | End
+  0005    | PushInteger 1
+  0007    | CallTailFunction 2
+  0009    | End
   ========================================
   
   ================Num.Abs=================
@@ -6491,9 +6491,9 @@
   ========================================
   0000    | GetConstant2 371: _Obj.Size
   0003    | GetBoundLocalMove 0
-  0005    | PushNumberZero
-  0006    | CallTailFunction 2
-  0008    | End
+  0005    | PushInteger 0
+  0007    | CallTailFunction 2
+  0009    | End
   ========================================
   
   ===============_Obj.Size================
@@ -6504,17 +6504,17 @@
   0004    | SetInputMark
   0005    | GetBoundLocalMove 0
   0007    | Destructure 123: ({_: _} + Rest)
-  0009    | ConditionalThen 9 -> 29
+  0009    | ConditionalThen 9 -> 30
   0012    | GetConstant2 371: _Obj.Size
   0015    | GetBoundLocalMove 3
   0017    | GetBoundLocalMove 1
-  0019    | JumpIfFailure 19 -> 24
-  0022    | PushNumberOne
-  0023    | Merge
-  0024    | CallTailFunction 2
-  0026    | Jump 26 -> 31
-  0029    | GetBoundLocalMove 1
-  0031    | End
+  0019    | JumpIfFailure 19 -> 25
+  0022    | PushInteger 1
+  0024    | Merge
+  0025    | CallTailFunction 2
+  0027    | Jump 27 -> 32
+  0030    | GetBoundLocalMove 1
+  0032    | End
   ========================================
   
   ================Obj.Keys================

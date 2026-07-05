@@ -55,29 +55,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   =================alnum==================
@@ -144,29 +144,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   =================alnum==================
@@ -233,29 +233,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   =================alnum==================
@@ -324,29 +324,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   =================alnum==================
@@ -395,7 +395,7 @@
   "" $ "%(5)"
   ========================================
   0000    | PushEmptyString
-  0001    | PushNumber 5
+  0001    | PushInteger 5
   0003    | MergeAsString
   0004    | End
   ========================================
@@ -497,29 +497,29 @@
   many(p) = p * 1..
   ========================================
   0000    | PushNull
-  0001    | PushNumberOne
-  0002    | ValidateRepeatPattern
-  0003    | JumpIfZero 3 -> 21
-  0006    | Swap
-  0007    | CallFunctionLocal 0
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 35
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 21
-  0018    | JumpBack 18 -> 6
-  0021    | Swap
-  0022    | SetInputMark
-  0023    | CallFunctionLocal 0
-  0025    | JumpIfFailure 25 -> 33
-  0028    | PopInputMark
-  0029    | Merge
-  0030    | JumpBack 30 -> 22
-  0033    | ResetInput
-  0034    | Drop
-  0035    | Swap
-  0036    | Drop
-  0037    | End
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   ================numeral=================
