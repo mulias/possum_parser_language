@@ -376,7 +376,7 @@ pub const Elem = packed union {
             .ValueVar => {
                 const v = self.asValueVar();
                 if (StringTable.asReserved(v.sid)) |rid| {
-                    try writer.print("_{d}", .{rid});
+                    try writer.print("_{d}_", .{rid});
                 } else {
                     try writer.print("{s}", .{vm.strings.get(v.sid)});
                 }
@@ -384,7 +384,7 @@ pub const Elem = packed union {
             .String => {
                 const sid = self.asString();
                 if (StringTable.asReserved(sid)) |rid| {
-                    try writer.print("_{d}", .{rid});
+                    try writer.print("_{d}_", .{rid});
                 } else {
                     try writer.print("\"{s}\"", .{vm.strings.get(sid)});
                 }
