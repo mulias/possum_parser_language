@@ -369,10 +369,6 @@ pub const VM = struct {
                     return self.runtimeError("Expected function.", .{});
                 }
             },
-            .Backtrack => {
-                const resetPos = self.popInputMark();
-                self.inputPos = resetPos;
-            },
             .CallFunction => {
                 // Postfix, function and args on stack.
                 // Create new stack frame and continue eval within new function.

@@ -8,7 +8,6 @@ pub const OpCode = enum(u8) {
     AssertFunctionArity,
     AssertParamTypes,
     AssertParamTypes4,
-    Backtrack,
     CallFunction,
     CallFunctionConstant,
     CallFunctionConstant2,
@@ -132,7 +131,6 @@ pub const OpCode = enum(u8) {
 
     pub fn stackEffect(self: OpCode) StackEffect {
         return switch (self) {
-            .Backtrack,
             .PopInputMark,
             .ResetInput,
             .SetClosureCaptures,
@@ -340,7 +338,6 @@ pub const OpCode = enum(u8) {
         return switch (self) {
             // No stack traffic. SetClosureCaptures copies captures into
             // frame slots: +1 per capture in the dispatch.
-            .Backtrack,
             .PopInputMark,
             .ResetInput,
             .SetClosureCaptures,
@@ -515,7 +512,6 @@ pub const OpCode = enum(u8) {
 
     pub fn disassemble(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         return switch (self) {
-            .Backtrack,
             .Crash,
             .Decrement,
             .Drop,
