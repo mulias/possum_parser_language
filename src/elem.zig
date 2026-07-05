@@ -1715,6 +1715,7 @@ pub const Elem = packed union {
             chunk: Chunk,
             name: StringTable.Id,
             is_anonymous: bool,
+            builtin: bool,
 
             pub const ParamType = enum { Parser, Value };
 
@@ -1741,6 +1742,7 @@ pub const Elem = packed union {
                 const function = dyn.asFunction();
 
                 const chunk = Chunk{ .source_region = fields.region };
+                const name_bytes = vm.strings.get(fields.name);
 
                 function.* = Function{
                     .dyn = dyn.*,
@@ -1750,6 +1752,7 @@ pub const Elem = packed union {
                     .chunk = chunk,
                     .name = fields.name,
                     .is_anonymous = false,
+                    .builtin = name_bytes.len > 0 and name_bytes[0] == '@',
                 };
 
                 return function;
@@ -1775,6 +1778,7 @@ pub const Elem = packed union {
                     .chunk = chunk,
                     .name = name,
                     .is_anonymous = true,
+                    .builtin = name_str.len > 0 and name_str[0] == '@',
                 };
 
                 return function;
@@ -1803,9 +1807,8 @@ pub const Elem = packed union {
                 return vm.strings.get(self.name);
             }
 
-            pub fn isBuiltin(self: *Function, vm: VM) bool {
-                const name = self.nameBytes(vm);
-                return name.len > 0 and name[0] == '@';
+            pub fn isBuiltin(self: *Function) bool {
+                return self.builtin;
             }
 
             pub fn hasEmptyBytecode(self: *Function) bool {

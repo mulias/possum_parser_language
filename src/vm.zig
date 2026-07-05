@@ -1238,7 +1238,7 @@ pub const VM = struct {
                         }
 
                         if (function.arity == argCount) {
-                            if (isTailPosition and !function.isBuiltin(self.*)) {
+                            if (isTailPosition and !function.isBuiltin()) {
                                 // Remove the elements belonging to the previous call
                                 // frame. This includes the function itself, its
                                 // arguments, and any added local variables.
@@ -1874,7 +1874,7 @@ pub const VM = struct {
     }
 
     pub fn runtimeError(self: *VM, comptime message: []const u8, args: anytype) Error {
-        const target_frame = if (self.frame().function.isBuiltin(self.*))
+        const target_frame = if (self.frame().function.isBuiltin())
             self.parentFrame() orelse self.frame()
         else
             self.frame();
