@@ -80,8 +80,9 @@ pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern, value_discarde
     const temp_dyns_start = self.vm.temp_dyns.items.len;
     defer self.vm.clearTempDyns(temp_dyns_start);
 
+    const prev_depth = self.depth;
     self.depth = 0;
-    defer self.depth = 0;
+    defer self.depth = prev_depth;
 
     if (self.printSteps) {
         try self.vm.writers.debug.print("\nDestructure:\n", .{});
