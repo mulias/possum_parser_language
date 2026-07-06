@@ -2743,11 +2743,10 @@ test "a full program allocates fewer dyns with fast paths than without" {
     try std.testing.expect(vm_fast.uniqueIdCount < vm_copy.uniqueIdCount);
 }
 
-test "closure creation reuses the cached closure once the prior one is consumed" {
+test "closure creation reuses a parked husk once the prior one is consumed" {
     // The repeat loop re-emits the compound argument's closure creation
-    // every iteration; each prior closure is fully consumed by then, so
-    // the module cache slot holds the only handle and the allocation is
-    // reused.
+    // every iteration; each prior closure is fully consumed by frame
+    // teardown by then, so its parked husk serves the next creation.
     const parser =
         \\id(q) = q
         \\list(p, sep) = p + (id(sep > p) * 0..)
@@ -2760,8 +2759,7 @@ test "closure creation reuses the cached closure once the prior one is consumed"
     defer vm_fast.deinit();
     _ = try vm_fast.interpret("test", parser, input);
 
-    try std.testing.expectEqual(@as(u64, 4), vm_fast.rc_stats.closure_reused);
-    try std.testing.expectEqual(@as(u64, 1), vm_fast.rc_stats.closure_created);
+    try std.testing.expectEqual(@as(u64, 4), vm_fast.rc_stats.husks_reused);
 
     var vm_copy = VM.create();
     var no_fast_paths = rc_config;
@@ -2770,15 +2768,16 @@ test "closure creation reuses the cached closure once the prior one is consumed"
     defer vm_copy.deinit();
     _ = try vm_copy.interpret("test", parser, input);
 
-    try std.testing.expectEqual(@as(u64, 0), vm_copy.rc_stats.closure_reused);
-    try std.testing.expectEqual(@as(u64, 0), vm_copy.rc_stats.closure_created);
+    try std.testing.expectEqual(@as(u64, 0), vm_copy.rc_stats.husks_parked);
+    try std.testing.expectEqual(@as(u64, 0), vm_copy.rc_stats.husks_reused);
     try std.testing.expect(vm_fast.uniqueIdCount < vm_copy.uniqueIdCount);
 }
 
 test "a live prior closure forces a fresh allocation at the same creation site" {
     // Each recursion level re-executes the creation site while the prior
-    // level's closure is still held as a frame local, so the cache slot is
-    // shared and every level allocates fresh.
+    // level's closure is still held as a frame local, so nothing has
+    // parked yet and every level allocates fresh. The closures park only
+    // as the frames unwind.
     const parser =
         \\f(p) = ("!" > f(p + "")) | p
         \\f("a")
@@ -2790,8 +2789,8 @@ test "a live prior closure forces a fresh allocation at the same creation site" 
     defer vm.deinit();
     _ = try vm.interpret("test", parser, input);
 
-    try std.testing.expectEqual(@as(u64, 0), vm.rc_stats.closure_reused);
-    try std.testing.expectEqual(@as(u64, 2), vm.rc_stats.closure_created);
+    try std.testing.expectEqual(@as(u64, 0), vm.rc_stats.husks_reused);
+    try std.testing.expectEqual(@as(u64, 2), vm.rc_stats.husks_parked);
 }
 
 test "merge of two value strings builds a rope without copying bytes" {

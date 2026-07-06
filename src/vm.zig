@@ -63,19 +63,16 @@ pub const Pos = struct {
 
 // How often the uniqueness fast paths fired. Counted only at the decision
 // points: container merges with a Dyn lhs, string merges with a Dyn
-// operand on either side, the Insert opcodes, and closure creation sites.
-// Pure value-type merges are not counted. A fresh rope referencing a
-// shared Dyn operand counts as a copy: no existing value was mutated,
-// even though no bytes were copied.
+// operand on either side, and the Insert opcodes. Pure value-type merges
+// are not counted. A fresh rope referencing a shared Dyn operand counts
+// as a copy: no existing value was mutated, even though no bytes were
+// copied. The husk counters track the pools: parked at a consuming
+// release of a last handle, reused at a create served from a pool.
 pub const RcStats = struct {
     merge_in_place: u64 = 0,
     merge_copy: u64 = 0,
     insert_in_place: u64 = 0,
     insert_copy: u64 = 0,
-    mutable_constant_reused: u64 = 0,
-    mutable_constant_copied: u64 = 0,
-    closure_reused: u64 = 0,
-    closure_created: u64 = 0,
     husks_parked: u64 = 0,
     husks_reused: u64 = 0,
 };
@@ -551,7 +548,7 @@ pub const VM = struct {
                 } else {
                     const array = array_elem.asDyn().asArray();
 
-                    if (self.config.rc_fast_paths and array.dyn.isUniqueBesidesCache()) {
+                    if (self.config.rc_fast_paths and array.dyn.isUnique()) {
                         self.rc_stats.insert_in_place += 1;
                         elem.retain();
                         array.elems.items[index].release();
@@ -600,7 +597,7 @@ pub const VM = struct {
                     const placeholder_index = object.members.getIndex(placeholder_key_sid).?;
                     const calculated_index = object.members.getIndex(key_sid);
 
-                    const in_place = self.config.rc_fast_paths and object.dyn.isUniqueBesidesCache();
+                    const in_place = self.config.rc_fast_paths and object.dyn.isUnique();
                     if (in_place) {
                         self.rc_stats.insert_in_place += 1;
                     } else {
@@ -1094,8 +1091,6 @@ pub const VM = struct {
         try writer.print("live ref counts:   unique {d}, shared {d}, immortal {d}\n", .{ unique, shared, immortal });
         try writer.print("merges:            {d} in place, {d} copied\n", .{ self.rc_stats.merge_in_place, self.rc_stats.merge_copy });
         try writer.print("inserts:           {d} in place, {d} copied\n", .{ self.rc_stats.insert_in_place, self.rc_stats.insert_copy });
-        try writer.print("mutable constants: {d} reused, {d} copied\n", .{ self.rc_stats.mutable_constant_reused, self.rc_stats.mutable_constant_copied });
-        try writer.print("closures:          {d} reused, {d} created\n", .{ self.rc_stats.closure_reused, self.rc_stats.closure_created });
         try writer.print("husks:             {d} parked, {d} reused\n", .{ self.rc_stats.husks_parked, self.rc_stats.husks_reused });
         try writer.print("strings interned:  {d}\n", .{self.strings.count});
         try writer.print("strings size:      {d} chars\n", .{self.strings.buffer.items.len});
@@ -1484,15 +1479,11 @@ pub const VM = struct {
     }
 
     // Push a mutable copy of a container constant that later Insert ops
-    // fill in. When the module's cache slot for this constant holds the
-    // only remaining handle, the previous incarnation was fully consumed:
-    // refresh it from the template and reuse the allocation. Otherwise
-    // copy the template and cache the copy, replacing whatever the slot
-    // held. The cache-slot handle is marked on the value so mutating ops
-    // can treat ref_count 2 as unique; see DynElem.cache_held.
+    // fill in. The copy lands in a pooled husk whenever the constant's
+    // previous incarnation was consumed and parked, so a loop body reuses
+    // one allocation.
     fn pushMutableConstant(self: *VM, idx: usize) !void {
-        const module = self.currentFunctionModule();
-        const constant = module.getConstant(idx);
+        const constant = self.getConstant(idx);
 
         if (!self.config.rc_fast_paths) {
             // Baseline: push the immortal constant and let the mutating
@@ -1501,91 +1492,25 @@ pub const VM = struct {
         }
 
         const template = constant.asDyn();
-        const existing = module.mutable_constants.get(idx);
-
-        if (existing) |cached| {
-            if (cached.isUnique()) {
-                // Retain before refreshing so the husk is never unique
-                // mid-refill: a collection triggered by refreshFrom would
-                // otherwise see ref_count 1 in clearConsumedMutableConstants,
-                // release the partially refilled children, and clear the
-                // slot under the refill's feet.
-                cached.retain();
-                switch (template.dynType) {
-                    .Array => try cached.asArray().refreshFrom(self, template.asArray()),
-                    .Object => try cached.asObject().refreshFrom(self, template.asObject()),
-                    else => unreachable,
-                }
-                self.rc_stats.mutable_constant_reused += 1;
-                return self.push(cached.elem());
-            }
-        }
-
         const copy: *Elem.DynElem = switch (template.dynType) {
             .Array => &(try Elem.DynElem.Array.copy(self, template.asArray().elems.items)).dyn,
             .Object => &(try Elem.DynElem.Object.copy(self, template.asObject())).dyn,
             else => unreachable,
         };
-
-        if (existing) |old| {
-            old.cache_held = false;
-            old.release();
-        }
-        copy.retain();
-        copy.cache_held = true;
-        try module.mutable_constants.put(self.allocator, idx, copy);
-        self.rc_stats.mutable_constant_copied += 1;
         try self.push(copy.elem());
     }
 
-    // Pop the function on top of the stack and push a closure over it that
-    // later CaptureLocal ops fill in. When the module's cache slot for this
-    // function holds the only remaining handle, the previous closure from
-    // this creation site was fully consumed: reset its captures and reuse
-    // the allocation. Otherwise allocate a fresh closure and cache it,
-    // replacing whatever the slot held.
+    // Pop the function on top of the stack and push a closure over it
+    // that later CaptureLocal ops fill in. Creation reuses a parked
+    // closure husk when the last closure from this site was consumed.
     fn pushClosure(self: *VM, localCount: u8) !void {
         const elem = self.peek(0);
         std.debug.assert(elem.isDynType(.Function));
         const function = elem.asDyn().asFunction();
 
-        if (!self.config.rc_fast_paths) {
-            const closure = try Elem.DynElem.Closure.create(self, function, localCount);
-            // The closure retained the function; the function's stack
-            // handle dies here.
-            _ = self.popConsumed(.CreateClosure);
-            return self.push(closure.dyn.elem());
-        }
-
-        const module = self.currentFunctionModule();
-        const existing = module.closure_cache.get(function);
-
-        if (existing) |cached| {
-            if (cached.isUnique()) {
-                cached.retain();
-                const closure = cached.asClosure();
-                std.debug.assert(closure.function == function);
-                std.debug.assert(closure.captures.len == localCount);
-                closure.clearCaptures();
-                _ = self.popConsumed(.CreateClosure);
-                self.rc_stats.closure_reused += 1;
-                return self.push(cached.elem());
-            }
-        }
-
-        // Allocate before touching the cache slot: creation may trigger a
-        // collection, during which the old entry must still be validly
-        // cached and rooted.
         const closure = try Elem.DynElem.Closure.create(self, function, localCount);
-
-        if (existing) |old| {
-            old.cache_held = false;
-            old.release();
-        }
-        closure.dyn.retain();
-        closure.dyn.cache_held = true;
-        try module.closure_cache.put(self.allocator, function, &closure.dyn);
-        self.rc_stats.closure_created += 1;
+        // The closure retained the function; the function's stack
+        // handle dies here.
         _ = self.popConsumed(.CreateClosure);
         try self.push(closure.dyn.elem());
     }

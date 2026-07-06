@@ -110,7 +110,7 @@ pub const GC = struct {
     // uniqueness-trusting paths so a refcount bug can be bisected with
     // one flag.
     pub fn reclaim(self: *GC, dyn: *Elem.DynElem) void {
-        if (self.vm.config.rc_fast_paths and dyn.ref_count == 1 and !dyn.cache_held) {
+        if (self.vm.config.rc_fast_paths and dyn.ref_count == 1) {
             switch (dyn.dynType) {
                 .Array, .Object, .Closure => return self.park(dyn),
                 .String, .Function, .NativeCode => {},
@@ -242,7 +242,6 @@ pub const GC = struct {
 
         self.running_gc = true;
         self.parked = ParkedLists.initFill(null);
-        self.clearConsumedCaches();
         if (comptime builtin.mode == .Debug) self.auditRefCounts();
         self.markRoots();
         self.traceReferences();
@@ -313,27 +312,6 @@ pub const GC = struct {
         return count;
     }
 
-    // A mutable-constant or closure cache entry whose slot holds the only
-    // handle was fully consumed: its children are unobservable until the
-    // next reuse refills them. Releasing them here mirrors sweep's
-    // dead-holder release — a value whose only extra holder is a parked
-    // cache copy becomes unique again — and lets the children be swept
-    // this cycle. The emptied husk stays parked for reuse.
-    fn clearConsumedCaches(self: *GC) void {
-        for (self.vm.modules.items) |module| {
-            var constants = module.mutable_constants.valueIterator();
-            while (constants.next()) |cached| {
-                if (!cached.*.isUnique()) continue;
-                cached.*.clearChildren();
-            }
-            var closures = module.closure_cache.valueIterator();
-            while (closures.next()) |cached| {
-                if (!cached.*.isUnique()) continue;
-                cached.*.asClosure().clearCaptures();
-            }
-        }
-    }
-
     fn markRoots(self: *GC) void {
         if (self.print_trace) {
             self.vm.writers.debug.print("  marking roots:\n", .{}) catch {};
@@ -387,14 +365,6 @@ pub const GC = struct {
             }
             for (module.constants.items) |elem| {
                 self.markElem(elem);
-            }
-            var mutable_constants = module.mutable_constants.valueIterator();
-            while (mutable_constants.next()) |cached| {
-                self.markDyn(cached.*);
-            }
-            var closure_cache = module.closure_cache.valueIterator();
-            while (closure_cache.next()) |cached| {
-                self.markDyn(cached.*);
             }
         }
 

@@ -7,16 +7,14 @@ of copying — one fewer dyn created, and gc runs is nonzero.
   [1, 1, 2]
   ===== memory report =====
   dyns created:      7
-  dyns live:         5 (string 0, array 5, object 0, function 0, native 0, closure 0)
-  live ref counts:   unique 2, shared 0, immortal 3
+  dyns live:         4 (string 0, array 4, object 0, function 0, native 0, closure 0)
+  live ref counts:   unique 1, shared 0, immortal 3
   merges:            1199999 in place, 1 copied
   inserts:           1 in place, 0 copied
-  mutable constants: 0 reused, 1 copied
-  closures:          0 reused, 0 created
-  husks:             0 parked, 0 reused
+  husks:             1 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
-  bytes in use:      920
+  bytes in use:      736
 
 A wrapper built and dropped inside a failed Or alternative: the report's
 own collection sweeps the wrapper, so the returned X reports unique
@@ -26,13 +24,11 @@ rather than shared.
   [1, 1]
   ===== memory report =====
   dyns created:      5
-  dyns live:         4 (string 0, array 4, object 0, function 0, native 0, closure 0)
-  live ref counts:   unique 2, shared 0, immortal 2
+  dyns live:         3 (string 0, array 3, object 0, function 0, native 0, closure 0)
+  live ref counts:   unique 1, shared 0, immortal 2
   merges:            0 in place, 1 copied
   inserts:           1 in place, 0 copied
-  mutable constants: 0 reused, 1 copied
-  closures:          0 reused, 0 created
-  husks:             0 parked, 0 reused
+  husks:             1 parked, 0 reused
   strings interned:  8
   strings size:      23 chars
-  bytes in use:      736
+  bytes in use:      552

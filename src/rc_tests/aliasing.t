@@ -11,8 +11,6 @@ the unmutated A.
   live ref counts:   unique 1, shared 0, immortal 2
   merges:            0 in place, 2 copied
   inserts:           0 in place, 0 copied
-  mutable constants: 0 reused, 0 copied
-  closures:          0 reused, 0 created
   husks:             1 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
@@ -29,8 +27,6 @@ dies unread in its slot.
   live ref counts:   unique 1, shared 0, immortal 2
   merges:            0 in place, 2 copied
   inserts:           0 in place, 0 copied
-  mutable constants: 0 reused, 0 copied
-  closures:          0 reused, 0 created
   husks:             1 parked, 0 reused
   strings interned:  8
   strings size:      23 chars
