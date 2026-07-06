@@ -17,11 +17,11 @@
   1 -> A $ A
   ========================================
   0000    | PushVar2 A
-  0003    | ParseOne
-  0004    | Destructure 0: A
-  0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
-  0011    | End
+  0003    | ParseNumberStringChar 1
+  0005    | Destructure 0: A
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 0
+  0012    | End
   ========================================
 
   $ possum -p '1 -> A $ [A]' -i ''
@@ -30,13 +30,13 @@
   1 -> A $ [A]
   ========================================
   0000    | PushVar2 A
-  0003    | ParseOne
-  0004    | Destructure 0: A
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 0: [_]
-  0011    | GetBoundLocalMove 0
-  0013    | InsertAtIndex 0
-  0015    | End
+  0003    | ParseNumberStringChar 1
+  0005    | Destructure 0: A
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 0: [_]
+  0012    | GetBoundLocalMove 0
+  0014    | InsertAtIndex 0
+  0016    | End
   ========================================
 
   $ possum -p '2 -> A $ [1, [2]]' -i ''
@@ -45,13 +45,13 @@
   2 -> A $ [1, [2]]
   ========================================
   0000    | PushVar2 A
-  0003    | ParseTwo
-  0004    | Destructure 0: A
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 0: [1, _]
-  0011    | GetConstant 1: [2]
-  0013    | InsertAtIndex 1
-  0015    | End
+  0003    | ParseNumberStringChar 2
+  0005    | Destructure 0: A
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 0: [1, _]
+  0012    | GetConstant 1: [2]
+  0014    | InsertAtIndex 1
+  0016    | End
   ========================================
 
   $ possum -p 'Foo = 1 + 1 ; "" $ [Foo]' -i ''
@@ -69,15 +69,15 @@
   1 -> A $ [[A]]
   ========================================
   0000    | PushVar2 A
-  0003    | ParseOne
-  0004    | Destructure 0: A
-  0006    | TakeRight 6 -> 19
-  0009    | GetConstantMutable 0: [_]
-  0011    | GetConstantMutable 1: [_]
-  0013    | GetBoundLocalMove 0
-  0015    | InsertAtIndex 0
-  0017    | InsertAtIndex 0
-  0019    | End
+  0003    | ParseNumberStringChar 1
+  0005    | Destructure 0: A
+  0007    | TakeRight 7 -> 20
+  0010    | GetConstantMutable 0: [_]
+  0012    | GetConstantMutable 1: [_]
+  0014    | GetBoundLocalMove 0
+  0016    | InsertAtIndex 0
+  0018    | InsertAtIndex 0
+  0020    | End
   ========================================
 
   $ possum -p 'Foo = 1 -> A & A + A ; "" $ [Foo]' -i ''
@@ -143,20 +143,20 @@
   ========================================
   0000    | PushVar2 A
   0003    | PushVar2 B
-  0006    | ParseOne
-  0007    | Destructure 0: A
-  0009    | TakeRight 9 -> 34
-  0012    | ParseTwo
-  0013    | Destructure 1: B
-  0015    | TakeRight 15 -> 34
-  0018    | GetConstantMutable 0: {_0_, _1_}
-  0020    | PushString2 "a"
-  0023    | GetBoundLocalMove 0
-  0025    | InsertKeyVal 0
-  0027    | PushString2 "b"
-  0030    | GetBoundLocalMove 1
-  0032    | InsertKeyVal 1
-  0034    | End
+  0006    | ParseNumberStringChar 1
+  0008    | Destructure 0: A
+  0010    | TakeRight 10 -> 36
+  0013    | ParseNumberStringChar 2
+  0015    | Destructure 1: B
+  0017    | TakeRight 17 -> 36
+  0020    | GetConstantMutable 0: {_0_, _1_}
+  0022    | PushString2 "a"
+  0025    | GetBoundLocalMove 0
+  0027    | InsertKeyVal 0
+  0029    | PushString2 "b"
+  0032    | GetBoundLocalMove 1
+  0034    | InsertKeyVal 1
+  0036    | End
   ========================================
 
   $ possum -p 'const({"a": 1 + 2 + 3})' -i '12'
@@ -232,8 +232,8 @@
   =================@main==================
   1
   ========================================
-  0000    | ParseOne
-  0001    | End
+  0000    | ParseNumberStringChar 1
+  0002    | End
   ========================================
 
   $ possum -p '_Toml.Doc.Empty = {"value": {}, "type": {}} ; 1' -i '1'
@@ -248,8 +248,8 @@
   =================@main==================
   1
   ========================================
-  0000    | ParseOne
-  0001    | End
+  0000    | ParseNumberStringChar 1
+  0002    | End
   ========================================
 
   $ possum -p '"" $ (1 ? 2 : 3)' -i ''
@@ -324,18 +324,18 @@
   0000    | PushNull
   0001    | PushInteger 4
   0003    | ValidateRepeatPattern
-  0004    | JumpIfZero 4 -> 22
+  0004    | JumpIfZero 4 -> 23
   0007    | Swap
-  0008    | ParseTwo
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 21
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 22
-  0018    | JumpBack 18 -> 7
-  0021    | Swap
-  0022    | Drop
-  0023    | End
+  0008    | ParseNumberStringChar 2
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 22
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 23
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | Drop
+  0024    | End
   ========================================
 
   $ possum -p 'A = B ; B = C ; C = 1 ; "" $ A' -i ''

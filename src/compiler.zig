@@ -533,16 +533,8 @@ pub const Compiler = struct {
             .number_string => |ns| {
                 const bytes = ns.number;
 
-                if (std.mem.eql(u8, bytes, "-1")) {
-                    return try self.emitOp(.ParseNegOne, region);
-                } else if (bytes.len == 1) {
-                    switch (bytes[0]) {
-                        '0' => try self.emitOp(.ParseZero, region),
-                        '1' => try self.emitOp(.ParseOne, region),
-                        '2' => try self.emitOp(.ParseTwo, region),
-                        '3' => try self.emitOp(.ParseThree, region),
-                        else => try self.emitUnaryOp(.ParseNumberStringChar, bytes[0], region),
-                    }
+                if (bytes.len == 1) {
+                    try self.emitUnaryOp(.ParseNumberStringChar, bytes[0], region);
                 } else {
                     const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
                     try self.writeCallFunctionConstant(module_id, elem, region, isTailPosition);

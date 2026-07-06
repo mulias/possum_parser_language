@@ -115,9 +115,9 @@
   3 -> (2 + B)
   ========================================
   0000    | PushVar2 B
-  0003    | ParseThree
-  0004    | Destructure 0: (2 + B)
-  0006    | End
+  0003    | ParseNumberStringChar 3
+  0005    | Destructure 0: (2 + B)
+  0007    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [A, 1 + 1, 3]' -i ''
@@ -406,9 +406,9 @@
   =================@main==================
   2 -> 0..5
   ========================================
-  0000    | ParseTwo
-  0001    | Destructure 0: 0..5
-  0003    | End
+  0000    | ParseNumberStringChar 2
+  0002    | Destructure 0: 0..5
+  0004    | End
   ========================================
 
   $ possum -p 'char -> "a".."z"' -i 'q'
@@ -537,8 +537,8 @@
   =================@main==================
   1
   ========================================
-  0000    | ParseOne
-  0001    | End
+  0000    | ParseNumberStringChar 1
+  0002    | End
   ========================================
 
   $ possum -p 'Obj.Get(O, K) = O -> {K: V, ..._} & V ; 1' -i '1'
@@ -558,8 +558,8 @@
   =================@main==================
   1
   ========================================
-  0000    | ParseOne
-  0001    | End
+  0000    | ParseNumberStringChar 1
+  0002    | End
   ========================================
 
   $ possum -p '4 -> (1 + 1 + 2)' -i '4'
@@ -770,18 +770,18 @@
   0000    | PushNull
   0001    | PushInteger 4
   0003    | ValidateRepeatPattern
-  0004    | JumpIfZero 4 -> 22
+  0004    | JumpIfZero 4 -> 23
   0007    | Swap
-  0008    | ParseTwo
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 21
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 22
-  0018    | JumpBack 18 -> 7
-  0021    | Swap
-  0022    | Drop
-  0023    | End
+  0008    | ParseNumberStringChar 2
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 22
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 23
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | Drop
+  0024    | End
   ========================================
 
   $ possum -p '2 * (2 + (-1 * -1))' -i '2222'
@@ -792,18 +792,18 @@
   0000    | PushNull
   0001    | PushInteger 3
   0003    | ValidateRepeatPattern
-  0004    | JumpIfZero 4 -> 22
+  0004    | JumpIfZero 4 -> 23
   0007    | Swap
-  0008    | ParseTwo
-  0009    | Merge
-  0010    | JumpIfFailure 10 -> 21
-  0013    | Swap
-  0014    | Decrement
-  0015    | JumpIfZero 15 -> 22
-  0018    | JumpBack 18 -> 7
-  0021    | Swap
-  0022    | Drop
-  0023    | End
+  0008    | ParseNumberStringChar 2
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 22
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 23
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | Drop
+  0024    | End
   ========================================
 
   $ possum -p '123 -> V' -i '123'
