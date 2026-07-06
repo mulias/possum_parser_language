@@ -1253,6 +1253,7 @@ pub const VM = struct {
         const start = self.inputPos.offset;
 
         if (start < self.input.len and self.input[start] == char) {
+            self.inputPos.offset = start + 1;
             const ns = try Elem.numberStringFromBytes(&[_]u8{char}, self);
             try self.push(ns);
 
