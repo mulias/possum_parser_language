@@ -463,39 +463,17 @@ pub const VM = struct {
                     @panic("Internal Error");
                 }
             },
-            .Destructure => {
-                const patternIdx = self.readByte();
+            .Destructure, .Destructure2, .Destructure3 => {
+                const patternIdx = self.readIndex(opCode);
                 const pattern = self.getPattern(patternIdx);
                 const value = self.peek(0);
 
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
                     // value is already on the stack
                 } else {
+                    // This should technically match `opCode`, but the RC
+                    // semantics are the same for all destructure ops
                     _ = self.popConsumed(.Destructure);
-                    try self.pushFailure();
-                }
-            },
-            .Destructure2 => {
-                const patternIdx = self.readShort();
-                const pattern = self.getPattern(patternIdx);
-                const value = self.peek(0);
-
-                if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
-                    // value is already on the stack
-                } else {
-                    _ = self.popConsumed(.Destructure2);
-                    try self.pushFailure();
-                }
-            },
-            .Destructure3 => {
-                const patternIdx = self.readMedium();
-                const pattern = self.getPattern(patternIdx);
-                const value = self.peek(0);
-
-                if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
-                    // value is already on the stack
-                } else {
-                    _ = self.popConsumed(.Destructure3);
                     try self.pushFailure();
                 }
             },
@@ -1703,16 +1681,19 @@ pub const VM = struct {
             .CallTailFunctionConstant,
             .GetConstant,
             .GetConstantMutable,
+            .Destructure,
             => self.readByte(),
             .CallFunctionConstant2,
             .CallTailFunctionConstant2,
             .GetConstant2,
             .GetConstantMutable2,
+            .Destructure2,
             => self.readShort(),
             .CallFunctionConstant3,
             .CallTailFunctionConstant3,
             .GetConstant3,
             .GetConstantMutable3,
+            .Destructure3,
             => self.readMedium(),
             else => unreachable,
         };
