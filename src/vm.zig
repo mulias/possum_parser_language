@@ -819,26 +819,6 @@ pub const VM = struct {
                     self.inputPos = resetPos;
                 }
             },
-            .ParseNegOne => {
-                const ns = self.singleton_neg_one.asNumberString();
-                try self.parseNumberString(ns);
-            },
-            .ParseZero => {
-                const ns = self.singleton_zero.asNumberString();
-                try self.parseNumberString(ns);
-            },
-            .ParseOne => {
-                const ns = self.singleton_one.asNumberString();
-                try self.parseNumberString(ns);
-            },
-            .ParseTwo => {
-                const ns = self.singleton_two.asNumberString();
-                try self.parseNumberString(ns);
-            },
-            .ParseThree => {
-                const ns = self.singleton_three.asNumberString();
-                try self.parseNumberString(ns);
-            },
             .ParseNumberStringChar => {
                 const char = self.readByte();
                 try self.parseNumberStringCharacter(char);
