@@ -2,29 +2,128 @@
 
   $ possum $TESTDIR/part_1.possum $TESTDIR/input.txt
   
-  ==================@fn4==================
-  space | nl
+  ================0:@fail=================
+  0000    | PushFail
+  0001    | End
+  ========================================
+  
+  =================1:char=================
+  char = "\u000000"..
+  ========================================
+  0000    | ParseCodepoint
+  0001    | End
+  ========================================
+  
+  ================1:alpha=================
+  alpha = "a".."z" | "A".."Z"
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 4: space
-  0003    | Or 3 -> 8
-  0006    | CallTailFunctionConstant 5: newline
-  0008    | End
+  0001    | ParseCodepointRange 'a'..'z'
+  0004    | Or 4 -> 10
+  0007    | ParseCodepointRange 'A'..'Z'
+  0010    | End
   ========================================
   
-  ================passport================
-  passport = object_sep(alphas, ":", token, space | nl)
+  ================1:alphas================
+  alphas = many(alpha)
   ========================================
-  0000    | GetConstant 0: object_sep
-  0002    | GetConstant 1: alphas
-  0004    | PushString ":"
-  0006    | GetConstant 2: token
-  0008    | GetConstant 3: @fn4
-  0010    | CallTailFunction 4
-  0012    | End
+  0000    | GetConstant 2: many
+  0002    | GetConstant 3: alpha
+  0004    | CallTailFunction 1
+  0006    | End
   ========================================
   
-  ===============object_sep===============
+  ================1:token=================
+  token = many(unless(char, whitespace))
+  ========================================
+  0000    | GetConstant 2: many
+  0002    | GetConstant 4: @fn0
+  0004    | CallTailFunction 1
+  0006    | End
+  ========================================
+  
+  ================1:space=================
+  space =
+    " " | "\t" | "\u0000A0" | "\u002000".."\u00200A" | "\u00202F" | "\u00205F" | "\u003000"
+  ========================================
+  0000    | SetInputMark
+  0001    | ParseChar ' '
+  0003    | Or 3 -> 41
+  0006    | SetInputMark
+  0007    | ParseChar '\t' (esc)
+  0009    | Or 9 -> 41
+  0012    | SetInputMark
+  0013    | CallFunctionConstant 12: "\xc2\xa0" (esc)
+  0015    | Or 15 -> 41
+  0018    | SetInputMark
+  0019    | PushString "\xe2\x80\x80" (esc)
+  0021    | PushString "\xe2\x80\x8a" (esc)
+  0023    | ParseRange
+  0024    | Or 24 -> 41
+  0027    | SetInputMark
+  0028    | CallFunctionConstant 13: "\xe2\x80\xaf" (esc)
+  0030    | Or 30 -> 41
+  0033    | SetInputMark
+  0034    | CallFunctionConstant 14: "\xe2\x81\x9f" (esc)
+  0036    | Or 36 -> 41
+  0039    | CallTailFunctionConstant 15: "\xe3\x80\x80" (esc)
+  0041    | End
+  ========================================
+  
+  ===============1:newline================
+  newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
+  ========================================
+  0000    | SetInputMark
+  0001    | CallFunctionConstant 16: "\r (esc)
+  "
+  0003    | Or 3 -> 27
+  0006    | SetInputMark
+  0007    | ParseCodepointRange '
+  '..'\r (no-eol) (esc)
+  '
+  0010    | Or 10 -> 27
+  0013    | SetInputMark
+  0014    | CallFunctionConstant 17: "\xc2\x85" (esc)
+  0016    | Or 16 -> 27
+  0019    | SetInputMark
+  0020    | CallFunctionConstant 18: "\xe2\x80\xa8" (esc)
+  0022    | Or 22 -> 27
+  0025    | CallTailFunctionConstant 19: "\xe2\x80\xa9" (esc)
+  0027    | End
+  ========================================
+  
+  ===============1:newline================
+  newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
+  ========================================
+  0000    | SetInputMark
+  0001    | CallFunctionConstant 16: "\r (esc)
+  "
+  0003    | Or 3 -> 27
+  0006    | SetInputMark
+  0007    | ParseCodepointRange '
+  '..'\r (no-eol) (esc)
+  '
+  0010    | Or 10 -> 27
+  0013    | SetInputMark
+  0014    | CallFunctionConstant 17: "\xc2\x85" (esc)
+  0016    | Or 16 -> 27
+  0019    | SetInputMark
+  0020    | CallFunctionConstant 18: "\xe2\x80\xa8" (esc)
+  0022    | Or 22 -> 27
+  0025    | CallTailFunctionConstant 19: "\xe2\x80\xa9" (esc)
+  0027    | End
+  ========================================
+  
+  ==============1:whitespace==============
+  whitespace = many(space | newline)
+  ========================================
+  0000    | GetConstant 2: many
+  0002    | GetConstant 9: @fn3
+  0004    | CallTailFunction 1
+  0006    | End
+  ========================================
+  
+  ==============1:object_sep==============
   object_sep(key, kv_sep, value, sep) =
     pair_sep(key, kv_sep, value) +
     ((sep > pair_sep(key, kv_sep, value)) * 0..)
@@ -74,7 +173,7 @@
   0078    | End
   ========================================
   
-  ================pair_sep================
+  ===============1:pair_sep===============
   pair_sep(key, sep, value) = key -> K & sep & value -> V $ {K: V}
   ========================================
   0000    | PushVar K
@@ -94,16 +193,7 @@
   0031    | End
   ========================================
   
-  =================alphas=================
-  alphas = many(alpha)
-  ========================================
-  0000    | GetConstant 2: many
-  0002    | GetConstant 3: alpha
-  0004    | CallTailFunction 1
-  0006    | End
-  ========================================
-  
-  ==================many==================
+  =================1:many=================
   many(p) = p * 1..
   ========================================
   0000    | PushNull
@@ -132,151 +222,7 @@
   0038    | End
   ========================================
   
-  =================alpha==================
-  alpha = "a".."z" | "A".."Z"
-  ========================================
-  0000    | SetInputMark
-  0001    | ParseCodepointRange 'a'..'z'
-  0004    | Or 4 -> 10
-  0007    | ParseCodepointRange 'A'..'Z'
-  0010    | End
-  ========================================
-  
-  =================@fn11==================
-  unless(char, whitespace)
-  ========================================
-  0000    | GetConstant 5: unless
-  0002    | GetConstant 6: char
-  0004    | GetConstant 7: whitespace
-  0006    | CallTailFunction 2
-  0008    | End
-  ========================================
-  
-  =================token==================
-  token = many(unless(char, whitespace))
-  ========================================
-  0000    | GetConstant 2: many
-  0002    | GetConstant 4: @fn11
-  0004    | CallTailFunction 1
-  0006    | End
-  ========================================
-  
-  =================unless=================
-  unless(p, excluded) = excluded ? @fail : p
-  ========================================
-  0000    | SetInputMark
-  0001    | CallFunctionLocal 1
-  0003    | ConditionalThen 3 -> 11
-  0006    | CallTailFunctionConstant 8: @fail
-  0008    | Jump 8 -> 13
-  0011    | CallTailFunctionLocal 0
-  0013    | End
-  ========================================
-  
-  ==================char==================
-  char = "\u000000"..
-  ========================================
-  0000    | ParseCodepoint
-  0001    | End
-  ========================================
-  
-  =================@fn16==================
-  space | newline
-  ========================================
-  0000    | SetInputMark
-  0001    | CallFunctionConstant 10: space
-  0003    | Or 3 -> 8
-  0006    | CallTailFunctionConstant 11: newline
-  0008    | End
-  ========================================
-  
-  ===============whitespace===============
-  whitespace = many(space | newline)
-  ========================================
-  0000    | GetConstant 2: many
-  0002    | GetConstant 9: @fn16
-  0004    | CallTailFunction 1
-  0006    | End
-  ========================================
-  
-  =================space==================
-  space =
-    " " | "\t" | "\u0000A0" | "\u002000".."\u00200A" | "\u00202F" | "\u00205F" | "\u003000"
-  ========================================
-  0000    | SetInputMark
-  0001    | ParseChar ' '
-  0003    | Or 3 -> 41
-  0006    | SetInputMark
-  0007    | ParseChar '\t' (esc)
-  0009    | Or 9 -> 41
-  0012    | SetInputMark
-  0013    | CallFunctionConstant 12: "\xc2\xa0" (esc)
-  0015    | Or 15 -> 41
-  0018    | SetInputMark
-  0019    | PushString "\xe2\x80\x80" (esc)
-  0021    | PushString "\xe2\x80\x8a" (esc)
-  0023    | ParseRange
-  0024    | Or 24 -> 41
-  0027    | SetInputMark
-  0028    | CallFunctionConstant 13: "\xe2\x80\xaf" (esc)
-  0030    | Or 30 -> 41
-  0033    | SetInputMark
-  0034    | CallFunctionConstant 14: "\xe2\x81\x9f" (esc)
-  0036    | Or 36 -> 41
-  0039    | CallTailFunctionConstant 15: "\xe3\x80\x80" (esc)
-  0041    | End
-  ========================================
-  
-  ================newline=================
-  newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
-  ========================================
-  0000    | SetInputMark
-  0001    | CallFunctionConstant 16: "\r (esc)
-  "
-  0003    | Or 3 -> 27
-  0006    | SetInputMark
-  0007    | ParseCodepointRange '
-  '..'\r (no-eol) (esc)
-  '
-  0010    | Or 10 -> 27
-  0013    | SetInputMark
-  0014    | CallFunctionConstant 17: "\xc2\x85" (esc)
-  0016    | Or 16 -> 27
-  0019    | SetInputMark
-  0020    | CallFunctionConstant 18: "\xe2\x80\xa8" (esc)
-  0022    | Or 22 -> 27
-  0025    | CallTailFunctionConstant 19: "\xe2\x80\xa9" (esc)
-  0027    | End
-  ========================================
-  
-  =============valid_passport=============
-  valid_passport =
-    passport -> {
-      "byr": _, "iyr": _, "eyr": _, "hgt": _,
-      "hcl": _, "ecl": _, "pid": _, ..._,
-    }
-  ========================================
-  0000    | PushUnderscoreVar
-  0001    | CallFunctionConstant 6: passport
-  0003    | Destructure 0: ({"byr": _, "iyr": _, "eyr": _, "hgt": _, "hcl": _, "ecl": _, "pid": _} + _)
-  0005    | End
-  ========================================
-  
-  ==========count_valid_passport==========
-  count_valid_passport = (valid_passport $ 1) | (passport $ 0)
-  ========================================
-  0000    | SetInputMark
-  0001    | CallFunctionConstant 7: valid_passport
-  0003    | TakeRight 3 -> 8
-  0006    | PushInteger 1
-  0008    | Or 8 -> 18
-  0011    | CallFunctionConstant 6: passport
-  0013    | TakeRight 13 -> 18
-  0016    | PushInteger 0
-  0018    | End
-  ========================================
-  
-  ================many_sep================
+  ===============1:many_sep===============
   many_sep(p, sep) = p + ((sep > p) * 0..)
   ========================================
   0000    | CallFunctionLocal 0
@@ -312,7 +258,88 @@
   0054    | End
   ========================================
   
-  =================@fn21==================
+  ================1:unless================
+  unless(p, excluded) = excluded ? @fail : p
+  ========================================
+  0000    | SetInputMark
+  0001    | CallFunctionLocal 1
+  0003    | ConditionalThen 3 -> 11
+  0006    | CallTailFunctionConstant 8: @fail
+  0008    | Jump 8 -> 13
+  0011    | CallTailFunctionLocal 0
+  0013    | End
+  ========================================
+  
+  =================1:@fn0=================
+  unless(char, whitespace)
+  ========================================
+  0000    | GetConstant 5: unless
+  0002    | GetConstant 6: char
+  0004    | GetConstant 7: whitespace
+  0006    | CallTailFunction 2
+  0008    | End
+  ========================================
+  
+  =================1:@fn3=================
+  space | newline
+  ========================================
+  0000    | SetInputMark
+  0001    | CallFunctionConstant 10: space
+  0003    | Or 3 -> 8
+  0006    | CallTailFunctionConstant 11: newline
+  0008    | End
+  ========================================
+  
+  ===============2:passport===============
+  passport = object_sep(alphas, ":", token, space | nl)
+  ========================================
+  0000    | GetConstant 0: object_sep
+  0002    | GetConstant 1: alphas
+  0004    | PushString ":"
+  0006    | GetConstant 2: token
+  0008    | GetConstant 3: @fn0
+  0010    | CallTailFunction 4
+  0012    | End
+  ========================================
+  
+  ============2:valid_passport============
+  valid_passport =
+    passport -> {
+      "byr": _, "iyr": _, "eyr": _, "hgt": _,
+      "hcl": _, "ecl": _, "pid": _, ..._,
+    }
+  ========================================
+  0000    | PushUnderscoreVar
+  0001    | CallFunctionConstant 6: passport
+  0003    | Destructure 0: ({"byr": _, "iyr": _, "eyr": _, "hgt": _, "hcl": _, "ecl": _, "pid": _} + _)
+  0005    | End
+  ========================================
+  
+  =========2:count_valid_passport=========
+  count_valid_passport = (valid_passport $ 1) | (passport $ 0)
+  ========================================
+  0000    | SetInputMark
+  0001    | CallFunctionConstant 7: valid_passport
+  0003    | TakeRight 3 -> 8
+  0006    | PushInteger 1
+  0008    | Or 8 -> 18
+  0011    | CallFunctionConstant 6: passport
+  0013    | TakeRight 13 -> 18
+  0016    | PushInteger 0
+  0018    | End
+  ========================================
+  
+  =================2:@fn0=================
+  space | nl
+  ========================================
+  0000    | SetInputMark
+  0001    | CallFunctionConstant 4: space
+  0003    | Or 3 -> 8
+  0006    | CallTailFunctionConstant 5: newline
+  0008    | End
+  ========================================
+  
+  =================2:@fn1=================
   nl+nl
   ========================================
   0000    | CallFunctionConstant 5: newline
@@ -322,12 +349,12 @@
   0008    | End
   ========================================
   
-  =================@main==================
+  ================2:@main=================
   many_sep(count_valid_passport, nl+nl)
   ========================================
   0000    | GetConstant 8: many_sep
   0002    | GetConstant 9: count_valid_passport
-  0004    | GetConstant 10: @fn21
+  0004    | GetConstant 10: @fn1
   0006    | CallTailFunction 2
   0008    | End
   ========================================

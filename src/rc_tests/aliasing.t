@@ -13,8 +13,8 @@ the unmutated A.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
-  strings interned:  10
-  strings size:      30 chars
+  strings interned:  9
+  strings size:      25 chars
   bytes in use:      552
 
 When the first alternative succeeds, the copy is the fresh result and A
@@ -30,6 +30,6 @@ dies unread in its slot.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
-  strings interned:  9
-  strings size:      28 chars
+  strings interned:  8
+  strings size:      23 chars
   bytes in use:      552

@@ -144,14 +144,35 @@ pub const Compiler = struct {
             if (self.frontend.main) |main_ast| {
                 try self.compileMainParser(target_module_id, main_ast);
             }
+
+            if (self.printBytecode) try self.printCompiled();
         } else {
             @panic("Internal Error: Can't compile without target module");
         }
     }
 
     fn compileModule(self: *Compiler, module_id: Module.Id) !void {
-        for (try self.frontend.declarationKeys(module_id)) |decl_key| {
-            try self.compileDeclaration(decl_key);
+        var iter = self.frontend.dependenciesIterator();
+
+        while (iter.next()) |entry| {
+            const key = entry.key_ptr.*;
+            const node = entry.value_ptr.*;
+            if (key.module_id == module_id and node.* == .declaration) {
+                try self.compileDeclaration(key);
+            }
+        }
+    }
+
+    fn printCompiled(self: Compiler) !void {
+        var iter = self.frontend.dependenciesIterator();
+
+        while (iter.next()) |entry| {
+            const key = entry.key_ptr.*;
+            if (self.findGlobal(key.module_id, key.name)) |elem| {
+                if (elem.isDynType(.Function)) {
+                    try elem.asDyn().asFunction().disassemble(self.vm.*, self.writers.debug);
+                }
+            }
         }
     }
 
@@ -162,11 +183,7 @@ pub const Compiler = struct {
             try self.compileDeclaration(dep_key);
         }
 
-        const function = try Elem.DynElem.Function.createAnonParser(
-            self.vm,
-            .{ .module_id = module_id, .arity = 0, .region = main_ast.region },
-        );
-        function.name = try self.internForRuntime(main_ast.node.name);
+        const function = try self.declareAnonFunction(.{ .module_id = module_id, .name = main_ast.node.name });
 
         try self.emitAnonFunctionBody(module_id, main_node, function, main_ast.node.body, main_ast.region);
 
@@ -194,10 +211,6 @@ pub const Compiler = struct {
 
         try self.writeParser(module_id, body, true);
         try self.finishFunctionIr(module_id);
-
-        if (self.printBytecode) {
-            try function.disassemble(self.vm.*, self.writers.debug);
-        }
 
         _ = self.functions.pop();
         _ = self.scopes.pop();
@@ -243,8 +256,17 @@ pub const Compiler = struct {
                     .alias_value, .alias_ident => {},
                 }
             },
-            .anonymous_function => {
-                // Anonymous functions should not be compiled through this path
+            .anonymous_function => |*anon| {
+                const function = try self.declareAnonFunction(decl_key);
+                if (function.hasEmptyBytecode()) {
+                    try self.emitAnonFunctionBody(
+                        decl_key.module_id,
+                        node,
+                        function,
+                        anon.ast.node.body,
+                        anon.ast.region,
+                    );
+                }
             },
         }
 
@@ -265,9 +287,29 @@ pub const Compiler = struct {
                 try self.declareFromKind(dep_key, n.ast, try self.classifyDecl(n.ast));
             },
             .anonymous_function => {
-                // Anonymous functions are compiled inline where they appear.
+                _ = try self.declareAnonFunction(dep_key);
             },
         }
+    }
+
+    fn declareAnonFunction(self: *Compiler, key: GlobalKey) !*Elem.DynElem.Function {
+        if (self.findGlobal(key.module_id, key.name)) |elem| {
+            return elem.asDyn().asFunction();
+        }
+
+        const ast = self.frontend.getNode(key).anonymous_function.ast;
+
+        const function = try Elem.DynElem.Function.create(self.vm, .{
+            .module_id = key.module_id,
+            .name = try self.internForRuntime(key.name),
+            .arity = 0,
+            .region = ast.region,
+            .is_anonymous = true,
+        });
+
+        try self.addGlobal(key.module_id, key.name, function.dyn.elem());
+
+        return function;
     }
 
     fn createBuiltin(self: *Compiler, key: GlobalKey) !void {
@@ -313,6 +355,7 @@ pub const Compiler = struct {
             .name = try self.internForRuntime(function_name),
             .arity = 0,
             .region = decl.region(),
+            .is_anonymous = false,
         });
 
         try self.addGlobal(module_id, function_name, function.dyn.elem());
@@ -447,10 +490,6 @@ pub const Compiler = struct {
         }
 
         try self.finishFunctionIr(module_id);
-
-        if (self.printBytecode) {
-            try function.disassemble(self.vm.*, self.writers.debug);
-        }
 
         _ = self.functions.pop();
         _ = self.scopes.pop();
@@ -595,8 +634,8 @@ pub const Compiler = struct {
                 try self.writeParser(module_id, conditional.else_branch, isTailPosition);
                 self.patchJump(thenElseJumpIndex);
             },
-            .anonymous_function => {
-                try self.writeParserAnonymousFunction(module_id, rnode);
+            .anonymous_function => |anon| {
+                try self.writeParserAnonymousFunction(module_id, anon, region);
             },
         }
     }
@@ -1432,8 +1471,8 @@ pub const Compiler = struct {
                 .identifier => |ident| {
                     try self.writeGetVar(module_id, ident.name, region);
                 },
-                .anonymous_function => {
-                    try self.writeParserAnonymousFunction(module_id, p);
+                .anonymous_function => |anon| {
+                    try self.writeParserAnonymousFunction(module_id, anon, region);
                 },
                 else => @panic("Internal Error: compound parser in function args must be wrapped in an anonymous function."),
             },
@@ -1441,25 +1480,13 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeParserAnonymousFunction(self: *Compiler, module_id: Module.Id, rnode: *Ast.Parser.RNode) Error!void {
-        const region = rnode.region;
-        const anon = rnode.node.anonymous_function;
-
-        const function = try Elem.DynElem.Function.createAnonParser(
-            self.vm,
-            .{ .module_id = module_id, .arity = 0, .region = region },
-        );
+    fn writeParserAnonymousFunction(self: *Compiler, module_id: Module.Id, anon: Ast.Parser.AnonymousFunction, region: Region) Error!void {
+        const key = GlobalKey{ .module_id = module_id, .name = anon.name };
+        const function = try self.declareAnonFunction(key);
 
         const constId = try self.makeConstant(module_id, function.dyn.elem());
 
-        const graph_node = self.frontend.getNode(.{ .module_id = module_id, .name = anon.name });
-        const anon_node = graph_node.anonymous_function;
-
-        for (anon_node.dependencies.items) |dep_key| {
-            try self.ensureDeclared(dep_key);
-        }
-
-        try self.emitAnonFunctionBody(module_id, graph_node, function, anon.body, region);
+        const anon_node = self.frontend.getNode(key).anonymous_function;
 
         try self.emitConstant(constId, region);
 
@@ -2456,7 +2483,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn findGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
+    fn findGlobal(self: Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
         if (self.global_map.get(.{ .module_id = module_id, .name = sid })) |elem| {
             return elem;
         }
@@ -2471,19 +2498,29 @@ pub const Compiler = struct {
     // compiled. Names that refer to declarations in other modules are found
     // through the function's dependency graph node, where the resolver
     // recorded the target module.
+    // Resolve an identifier written in source. Anonymous functions are in
+    // the globals map but can't be invoked by name, so they are hidden here.
     fn resolveGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
         if (self.findGlobal(module_id, sid)) |elem| {
-            return elem;
+            return visibleGlobal(elem);
         }
 
         const node = self.currentScope();
         for (node.dependencies()) |dep_key| {
             if (dep_key.name == sid) {
-                return self.findGlobal(dep_key.module_id, dep_key.name);
+                const elem = self.findGlobal(dep_key.module_id, dep_key.name) orelse return null;
+                return visibleGlobal(elem);
             }
         }
 
         return null;
+    }
+
+    fn visibleGlobal(elem: Elem) ?Elem {
+        if (elem.isDynType(.Function) and elem.asDyn().asFunction().is_anonymous) {
+            return null;
+        }
+        return elem;
     }
 
     fn currentScope(self: *Compiler) Scope {

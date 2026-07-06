@@ -58,6 +58,7 @@ fn createFailParser(vm: *VM, module: *Module, name: StringTable.Id) CreateError!
         .module_id = module.id,
         .name = name,
         .arity = 0,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -76,6 +77,7 @@ fn createFailValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*
         .module_id = module.id,
         .name = name,
         .arity = 0,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -94,6 +96,7 @@ fn createCrashValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!
         .module_id = module.id,
         .name = name,
         .arity = 1,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -114,6 +117,7 @@ fn createCodepointValue(vm: *VM, module: *Module, name: StringTable.Id) CreateEr
         .module_id = module.id,
         .name = name,
         .arity = 1,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -168,6 +172,7 @@ fn createSurrogatePairCodepointValue(vm: *VM, module: *Module, name: StringTable
         .module_id = module.id,
         .name = name,
         .arity = 2,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -230,6 +235,7 @@ fn createDbgParser(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*
         .module_id = module.id,
         .name = name,
         .arity = 1,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -257,6 +263,7 @@ fn createDbgValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*F
         .module_id = module.id,
         .name = name,
         .arity = 1,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -291,6 +298,7 @@ fn createAddValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*F
         .module_id = module.id,
         .name = name,
         .arity = 2,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -346,6 +354,7 @@ fn createSubtractValue(vm: *VM, module: *Module, name: StringTable.Id) CreateErr
         .module_id = module.id,
         .name = name,
         .arity = 2,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -395,6 +404,7 @@ fn createMultiplyValue(vm: *VM, module: *Module, name: StringTable.Id) CreateErr
         .module_id = module.id,
         .name = name,
         .arity = 2,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -444,6 +454,7 @@ fn createDivideValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError
         .module_id = module.id,
         .name = name,
         .arity = 2,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -497,6 +508,7 @@ fn createPowerValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!
         .module_id = module.id,
         .name = name,
         .arity = 2,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -546,6 +558,7 @@ fn createModulusValue(vm: *VM, module: *Module, name: StringTable.Id) CreateErro
         .module_id = module.id,
         .name = name,
         .arity = 2,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -600,6 +613,7 @@ fn createFloorValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!
         .module_id = module.id,
         .name = name,
         .arity = 1,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -644,6 +658,7 @@ fn createCeilingValue(vm: *VM, module: *Module, name: StringTable.Id) CreateErro
         .module_id = module.id,
         .name = name,
         .arity = 1,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -688,6 +703,7 @@ fn createInputOffset(vm: *VM, module: *Module, name: StringTable.Id) CreateError
         .module_id = module.id,
         .name = name,
         .arity = 0,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -717,6 +733,7 @@ fn createInputLine(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*
         .module_id = module.id,
         .name = name,
         .arity = 0,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -746,6 +763,7 @@ fn createInputLineOffset(vm: *VM, module: *Module, name: StringTable.Id) CreateE
         .module_id = module.id,
         .name = name,
         .arity = 0,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 
@@ -775,6 +793,7 @@ fn createAt(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Functio
         .module_id = module.id,
         .name = name,
         .arity = 2,
+        .is_anonymous = false,
         .region = Region.new(0, 0),
     });
 

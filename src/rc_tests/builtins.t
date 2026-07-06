@@ -7,16 +7,16 @@ string templates, and container construction.
     "b": "xy"
   }
   ===== memory report =====
-  dyns created:      82
-  dyns live:         81 (string 0, array 4, object 4, function 66, native 2, closure 5)
-  live ref counts:   unique 9, shared 0, immortal 72
+  dyns created:      81
+  dyns live:         80 (string 0, array 4, object 4, function 65, native 2, closure 5)
+  live ref counts:   unique 9, shared 0, immortal 71
   merges:            2 in place, 0 copied
   inserts:           4 in place, 0 copied
   mutable constants: 0 reused, 4 copied
   closures:          1 reused, 5 created
-  strings interned:  127
-  strings size:      861 chars
-  bytes in use:      9416
+  strings interned:  125
+  strings size:      849 chars
+  bytes in use:      9304
 
 A dyn string passed to a native builtin and kept live: the native
 releases the popped argument handle, so U reports unique in the result
@@ -32,6 +32,6 @@ instead of carrying the popped copy's count forever.
   inserts:           2 in place, 0 copied
   mutable constants: 0 reused, 1 copied
   closures:          0 reused, 0 created
-  strings interned:  12
-  strings size:      46 chars
+  strings interned:  11
+  strings size:      41 chars
   bytes in use:      617
