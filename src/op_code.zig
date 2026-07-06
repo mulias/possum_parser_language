@@ -701,7 +701,7 @@ pub const OpCode = enum(u8) {
         for (1..width + 1) |i| {
             sid = (sid << 8) | chunk.read(offset + i);
         }
-        const str = vm.strings.get(sid);
+        const str = vm.strings.get(@enumFromInt(sid));
         try writer.print("{s} \"{s}\"\n", .{ @tagName(self), str });
         return offset + 1 + width;
     }
@@ -711,7 +711,7 @@ pub const OpCode = enum(u8) {
         for (1..width + 1) |i| {
             sid = (sid << 8) | chunk.read(offset + i);
         }
-        const str = vm.strings.get(sid);
+        const str = vm.strings.get(@enumFromInt(sid));
         try writer.print("{s} {s}\n", .{ @tagName(self), str });
         return offset + 1 + width;
     }

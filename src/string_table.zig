@@ -7,125 +7,142 @@ const StringIndexAdapter = std.hash_map.StringIndexAdapter;
 const StringIndexContext = std.hash_map.StringIndexContext;
 const Writer = std.Io.Writer;
 
-pub const StringTable = struct {
-    allocator: Allocator,
-    buffer: ArrayList(u8),
-    table: HashMap(u32, void, StringIndexContext, std.hash_map.default_max_load_percentage),
-    count: u32,
+pub const Scope = enum { frontend, runtime };
 
-    pub const Id = u32;
-    pub const ReservedId = u8;
+// Each scope instantiates a distinct table type with a distinct `Id`, so a
+// sid from one table can't be passed where the other table's sid is
+// expected.
+pub fn StringTable(comptime table_scope: Scope) type {
+    return struct {
+        allocator: Allocator,
+        buffer: ArrayList(u8),
+        table: HashMap(u32, void, StringIndexContext, std.hash_map.default_max_load_percentage),
+        count: u32,
 
-    pub fn init(allocator: Allocator) StringTable {
-        return StringTable{
-            .allocator = allocator,
-            .buffer = .{},
-            .table = .{},
-            .count = 0,
+        const Self = @This();
+
+        pub const scope = table_scope;
+
+        // A sid is a byte offset into `buffer`, wrapped in a non-exhaustive
+        // enum so that ids from differently scoped tables are incompatible
+        // types. The enum body must reference `table_scope`, otherwise the
+        // compiler treats every instantiation's Id as the same type.
+        pub const Id = enum(u32) {
+            _,
+            pub const scope = table_scope;
         };
-    }
+        pub const ReservedId = u8;
 
-    pub fn deinit(self: *StringTable) void {
-        self.buffer.deinit(self.allocator);
-        self.table.deinit(self.allocator);
-    }
-
-    pub fn insert(self: *StringTable, string: []const u8) !Id {
-        // The null byte is used as a sentinal character, so it can't appear in
-        // `string`. In order to support interned null bytes we allow the
-        // string "\u{000000}" and "insert" it at the very end of the table.
-        if (string.len == 1 and string[0] == 0) {
-            return std.math.maxInt(u32);
+        pub fn init(allocator: Allocator) Self {
+            return Self{
+                .allocator = allocator,
+                .buffer = .{},
+                .table = .{},
+                .count = 0,
+            };
         }
 
-        const gop = try self.table.getOrPutContextAdapted(self.allocator, @as([]const u8, string), StringIndexAdapter{
-            .bytes = &self.buffer,
-        }, StringIndexContext{
-            .bytes = &self.buffer,
-        });
-        if (gop.found_existing) {
-            // const offset = gop.key_ptr.*;
-            // log.debug("reusing string '{s}' at offset 0x{x}", .{ string, offset });
-            return gop.key_ptr.*;
+        pub fn deinit(self: *Self) void {
+            self.buffer.deinit(self.allocator);
+            self.table.deinit(self.allocator);
         }
 
-        try self.buffer.ensureUnusedCapacity(self.allocator, string.len + 1);
-        const new_off = @as(u32, @intCast(self.buffer.items.len));
+        pub fn insert(self: *Self, string: []const u8) !Id {
+            // The null byte is used as a sentinal character, so it can't appear in
+            // `string`. In order to support interned null bytes we allow the
+            // string "\u{000000}" and "insert" it at the very end of the table.
+            if (string.len == 1 and string[0] == 0) {
+                return @enumFromInt(std.math.maxInt(u32));
+            }
 
-        // log.debug("writing new string '{s}' at offset 0x{x}", .{ string, new_off });
+            const gop = try self.table.getOrPutContextAdapted(self.allocator, @as([]const u8, string), StringIndexAdapter{
+                .bytes = &self.buffer,
+            }, StringIndexContext{
+                .bytes = &self.buffer,
+            });
+            if (gop.found_existing) {
+                // const offset = gop.key_ptr.*;
+                // log.debug("reusing string '{s}' at offset 0x{x}", .{ string, offset });
+                return @enumFromInt(gop.key_ptr.*);
+            }
 
-        try self.buffer.appendSlice(self.allocator, string);
-        try self.buffer.append(self.allocator, 0);
-        self.count += 1;
+            try self.buffer.ensureUnusedCapacity(self.allocator, string.len + 1);
+            const new_off = @as(u32, @intCast(self.buffer.items.len));
 
-        gop.key_ptr.* = new_off;
+            // log.debug("writing new string '{s}' at offset 0x{x}", .{ string, new_off });
 
-        return new_off;
-    }
+            try self.buffer.appendSlice(self.allocator, string);
+            try self.buffer.append(self.allocator, 0);
+            self.count += 1;
 
-    pub fn find(self: StringTable, sid: Id) ?[:0]const u8 {
-        if (isNullByte(sid)) return "\u{000000}";
-        if (isReserved(sid)) return "";
-        if (sid >= self.buffer.items.len) return null;
-        return mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + sid)), 0);
-    }
+            gop.key_ptr.* = new_off;
 
-    pub fn findId(self: *StringTable, string: []const u8) ?Id {
-        if (string.len == 1 and string[0] == 0) return std.math.maxInt(u32);
-        return self.table.getKeyAdapted(string, StringIndexAdapter{
-            .bytes = &self.buffer,
-        });
-    }
-
-    pub fn getId(self: *StringTable, string: []const u8) Id {
-        if (string.len == 1 and string[0] == 0) return std.math.maxInt(u32);
-        return self.table.getKeyAdapted(string, StringIndexAdapter{
-            .bytes = &self.buffer,
-        }) orelse @panic("failed to get interned string id, this should never happen");
-    }
-
-    pub fn get(self: StringTable, sid: Id) [:0]const u8 {
-        return self.find(sid) orelse @panic("failed to get interned string by id, this should never happen");
-    }
-
-    pub fn equal(self: StringTable, sid: Id, compare: []const u8) bool {
-        return std.mem.eql(u8, self.get(sid), compare);
-    }
-
-    pub fn isNullByte(sid: Id) bool {
-        return sid == std.math.maxInt(u32);
-    }
-
-    pub fn isReserved(sid: Id) bool {
-        return sid > std.math.maxInt(u32) - std.math.maxInt(u8);
-    }
-
-    pub fn reservedIndex(sid: Id) ReservedId {
-        return @as(u8, @intCast(std.math.maxInt(u32) - sid));
-    }
-
-    pub fn reservedSid(rid: ReservedId) Id {
-        return std.math.maxInt(u32) - @as(u32, @intCast(rid));
-    }
-
-    pub fn asReserved(sid: Id) ?ReservedId {
-        return if (isReserved(sid)) reservedIndex(sid) else null;
-    }
-
-    pub fn print(self: StringTable, writer: *Writer) Writer.Error!void {
-        var offset: u32 = 0;
-        while (offset < self.buffer.items.len) {
-            const string = mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + offset)), 0);
-            try writer.print("{d}: \"{s}\"\n", .{ offset, string });
-            offset += @as(u32, @intCast(string.len)) + 1;
+            return @enumFromInt(new_off);
         }
-    }
-};
+
+        pub fn find(self: Self, sid: Id) ?[:0]const u8 {
+            if (isNullByte(sid)) return "\u{000000}";
+            if (isReserved(sid)) return "";
+            const offset = @intFromEnum(sid);
+            if (offset >= self.buffer.items.len) return null;
+            return mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + offset)), 0);
+        }
+
+        pub fn findId(self: *Self, string: []const u8) ?Id {
+            if (string.len == 1 and string[0] == 0) return @enumFromInt(std.math.maxInt(u32));
+            const offset = self.table.getKeyAdapted(string, StringIndexAdapter{
+                .bytes = &self.buffer,
+            }) orelse return null;
+            return @enumFromInt(offset);
+        }
+
+        pub fn getId(self: *Self, string: []const u8) Id {
+            return self.findId(string) orelse @panic("failed to get interned string id, this should never happen");
+        }
+
+        pub fn get(self: Self, sid: Id) [:0]const u8 {
+            return self.find(sid) orelse @panic("failed to get interned string by id, this should never happen");
+        }
+
+        pub fn equal(self: Self, sid: Id, compare: []const u8) bool {
+            return std.mem.eql(u8, self.get(sid), compare);
+        }
+
+        pub fn isNullByte(sid: Id) bool {
+            return @intFromEnum(sid) == std.math.maxInt(u32);
+        }
+
+        pub fn isReserved(sid: Id) bool {
+            return @intFromEnum(sid) > std.math.maxInt(u32) - std.math.maxInt(u8);
+        }
+
+        pub fn reservedIndex(sid: Id) ReservedId {
+            return @as(u8, @intCast(std.math.maxInt(u32) - @intFromEnum(sid)));
+        }
+
+        pub fn reservedSid(rid: ReservedId) Id {
+            return @enumFromInt(std.math.maxInt(u32) - @as(u32, @intCast(rid)));
+        }
+
+        pub fn asReserved(sid: Id) ?ReservedId {
+            return if (isReserved(sid)) reservedIndex(sid) else null;
+        }
+
+        pub fn print(self: Self, writer: *Writer) Writer.Error!void {
+            var offset: u32 = 0;
+            while (offset < self.buffer.items.len) {
+                const string = mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + offset)), 0);
+                try writer.print("{d}: \"{s}\"\n", .{ offset, string });
+                offset += @as(u32, @intCast(string.len)) + 1;
+            }
+        }
+    };
+}
 
 test "StringTable.insert copies and interns a string" {
     const allocator = std.testing.allocator;
 
-    var table = StringTable.init(allocator);
+    var table = StringTable(.frontend).init(allocator);
     defer table.deinit();
 
     const original = "foo";
@@ -140,7 +157,7 @@ test "StringTable.insert copies and interns a string" {
 test "StringTable.insert does not add a string more than once" {
     const allocator = std.testing.allocator;
 
-    var table = StringTable.init(allocator);
+    var table = StringTable(.frontend).init(allocator);
     defer table.deinit();
 
     const original1 = "foo";
@@ -160,7 +177,7 @@ test "StringTable.insert does not add a string more than once" {
 test "StringTable.insert can add multiple strings" {
     const allocator = std.testing.allocator;
 
-    var table = StringTable.init(allocator);
+    var table = StringTable(.frontend).init(allocator);
     defer table.deinit();
 
     _ = try table.insert("foo");
@@ -181,13 +198,20 @@ test "StringTable.insert can add multiple strings" {
 test "StringTable contains the null byte" {
     const allocator = std.testing.allocator;
 
-    var table = StringTable.init(allocator);
+    const Table = StringTable(.frontend);
+    var table = Table.init(allocator);
     defer table.deinit();
 
     _ = try table.insert("");
     _ = try table.insert(" ");
 
-    try std.testing.expectEqual(0, table.getId(""));
-    try std.testing.expectEqual(1, table.getId(" "));
-    try std.testing.expectEqual(std.math.maxInt(u32), table.getId("\u{000000}"));
+    try std.testing.expectEqual(@as(Table.Id, @enumFromInt(0)), table.getId(""));
+    try std.testing.expectEqual(@as(Table.Id, @enumFromInt(1)), table.getId(" "));
+    try std.testing.expectEqual(@as(Table.Id, @enumFromInt(std.math.maxInt(u32))), table.getId("\u{000000}"));
+}
+
+test "ids from differently scoped tables are distinct types" {
+    comptime {
+        std.debug.assert(StringTable(.frontend).Id != StringTable(.runtime).Id);
+    }
 }

@@ -6,7 +6,7 @@ const DependencyGraph = @import("frontend/dependency_graph.zig");
 const DependencyResolver = @import("frontend/dependency_resolver.zig");
 const Module = @import("module.zig").Module;
 const Parser = @import("frontend/parser.zig").Parser;
-const StringTable = @import("string_table.zig").StringTable;
+const StringTable = @import("string_table.zig").StringTable(.frontend);
 const Writers = @import("writer.zig").Writers;
 const std = @import("std");
 

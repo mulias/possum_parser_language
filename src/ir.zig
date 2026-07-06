@@ -5,6 +5,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
 const OpCode = @import("op_code.zig").OpCode;
 const Region = @import("region.zig").Region;
+const StringTable = @import("string_table.zig").StringTable(.frontend);
 
 // Linear instruction list emitted by the compiler for a single function.
 // Jumps reference instruction indices. Byte offsets, jump distances, and
@@ -35,8 +36,8 @@ pub const Ir = struct {
         long: struct { op: OpCode, value: u32 },
         get_constant: u24,
         get_constant_mutable: u24,
-        push_string: u32,
-        push_var: u32,
+        push_string: StringTable.Id,
+        push_var: StringTable.Id,
         call_function_constant: u24,
         call_tail_function_constant: u24,
         destructure: u24,
@@ -143,7 +144,8 @@ pub const Ir = struct {
         try chunk.writeShort(allocator, @intCast(distance), region);
     }
 
-    fn writeSid(chunk: *Chunk, allocator: Allocator, sid: u32, op1: OpCode, op2: OpCode, op3: OpCode, op4: OpCode, region: Region) !void {
+    fn writeSid(chunk: *Chunk, allocator: Allocator, id: StringTable.Id, op1: OpCode, op2: OpCode, op3: OpCode, op4: OpCode, region: Region) !void {
+        const sid = @intFromEnum(id);
         if (sid <= 0xFF) {
             try chunk.writeOp(allocator, op1, region);
             try chunk.write(allocator, @intCast(sid), region);
@@ -195,7 +197,8 @@ pub const Ir = struct {
         return 4;
     }
 
-    fn sidByteLength(sid: u32) u32 {
+    fn sidByteLength(id: StringTable.Id) u32 {
+        const sid = @intFromEnum(id);
         if (sid <= 0xFF) return 2;
         if (sid <= 0xFFFF) return 3;
         if (sid <= 0xFFFFFF) return 4;

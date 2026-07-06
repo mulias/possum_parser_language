@@ -265,15 +265,15 @@ test "patternReads collects local slots through nested patterns" {
 
     var items = ArrayList(Pattern){};
     defer items.deinit(allocator);
-    try items.append(allocator, .{ .Local = .{ .sid = 0, .idx = 3, .negation_count = 0 } });
+    try items.append(allocator, .{ .Local = .{ .sid = @enumFromInt(0), .idx = 3, .negation_count = 0 } });
     try items.append(allocator, .{ .Number = 7 });
 
     var args = ArrayList(Pattern){};
     defer args.deinit(allocator);
-    try args.append(allocator, .{ .Local = .{ .sid = 0, .idx = 5, .negation_count = 0 } });
+    try args.append(allocator, .{ .Local = .{ .sid = @enumFromInt(0), .idx = 5, .negation_count = 0 } });
 
     try items.append(allocator, .{ .FunctionCall = .{
-        .function = .{ .sid = 0, .idx = 1, .negation_count = 0 },
+        .function = .{ .sid = @enumFromInt(0), .idx = 1, .negation_count = 0 },
         .kind = .Local,
         .args = args,
     } });
