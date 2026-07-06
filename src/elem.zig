@@ -1076,6 +1076,10 @@ pub const Elem = packed union {
         // never look unique.
         pub const immortal_ref_count = std.math.maxInt(u32);
 
+        // A husk parked in a GC free list holds no handles and is
+        // referenced by no handle; live values are always at least 1.
+        pub const parked_ref_count = 0;
+
         pub fn retain(self: *DynElem) void {
             std.debug.assert(self.ref_count >= 1);
             if (self.ref_count == immortal_ref_count) return;
@@ -1477,6 +1481,8 @@ pub const Elem = packed union {
             }
 
             pub fn create(vm: *VM, capacity: usize) !*Array {
+                if (vm.gc.takeParkedArray(capacity)) |array| return array;
+
                 // Allocate elems before array is added to GC
                 var elems = ArrayList(Elem){};
                 try elems.ensureTotalCapacity(vm.gc.allocator(), capacity);
@@ -1591,6 +1597,8 @@ pub const Elem = packed union {
             }
 
             pub fn create(vm: *VM, capacity: usize) !*Object {
+                if (vm.gc.takeParkedObject(capacity)) |object| return object;
+
                 // Allocate members before object is added to GC
                 var members: AutoArrayHashMap(StringTable.Id, Elem) = .{};
                 try members.ensureTotalCapacity(vm.gc.allocator(), capacity);
@@ -1830,6 +1838,8 @@ pub const Elem = packed union {
             captures: []?Elem,
 
             pub fn create(vm: *VM, function: *Function, localCount: u8) !*Closure {
+                if (vm.gc.takeParkedClosure(function, localCount)) |closure| return closure;
+
                 const captures = try vm.gc.allocator().alloc(?Elem, localCount);
                 @memset(captures, null);
                 function.dyn.retain();

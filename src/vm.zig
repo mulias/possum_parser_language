@@ -76,6 +76,8 @@ pub const RcStats = struct {
     mutable_constant_copied: u64 = 0,
     closure_reused: u64 = 0,
     closure_created: u64 = 0,
+    husks_parked: u64 = 0,
+    husks_reused: u64 = 0,
 };
 
 pub const VM = struct {

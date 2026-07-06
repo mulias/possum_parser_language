@@ -11,10 +11,20 @@ pub const GC = struct {
     nextGC: usize,
     nextDyn: ?*Elem.DynElem,
     nextGray: ?*Elem.DynElem,
+    // Heads of the per-type parked-husk free lists: fully consumed values
+    // whose header and payload capacity are ready to reuse. Parked husks
+    // hold no handles, keep ref_count at parked_ref_count, stay linked in
+    // the dyn list, and thread the free list through nextGray, which is
+    // only otherwise used mid-collection. Collection clears the heads
+    // before marking, so parked husks sweep as ordinary garbage: every
+    // collection is also the pool trim.
+    parked: ParkedLists,
     mode: Mode,
     print_gc: bool,
     print_trace: bool,
     running_gc: bool,
+
+    const ParkedLists = std.EnumArray(Elem.DynType, ?*Elem.DynElem);
 
     pub const Mode = enum { GC, NoGC, StressTest };
 
@@ -28,6 +38,7 @@ pub const GC = struct {
             .nextGC = 1024 * 1024,
             .nextDyn = null,
             .nextGray = null,
+            .parked = ParkedLists.initFill(null),
             .mode = vm.config.gc_mode,
             .print_gc = vm.config.print_gc,
             .print_trace = false,
@@ -73,6 +84,66 @@ pub const GC = struct {
         self.nextDyn = &ptr.dyn;
 
         return &ptr.dyn;
+    }
+
+    // Park a fully consumed value's husk for reuse. The caller owns the
+    // value's only handle and is dropping it: children are released and
+    // collections emptied here, so the husk holds no handles while parked.
+    // Closures keep their function handle; see Closure.clearCaptures.
+    pub fn park(self: *GC, dyn: *Elem.DynElem) void {
+        std.debug.assert(dyn.ref_count == 1);
+        switch (dyn.dynType) {
+            .Array, .Object => dyn.clearChildren(),
+            .Closure => dyn.asClosure().clearCaptures(),
+            .String, .Function, .NativeCode => unreachable,
+        }
+        dyn.ref_count = Elem.DynElem.parked_ref_count;
+        dyn.nextGray = self.parked.get(dyn.dynType);
+        self.parked.set(dyn.dynType, dyn);
+        self.vm.rc_stats.husks_parked += 1;
+    }
+
+    // The take side checks only the head of the free list: a miss leaves
+    // the husk parked for the next collection to trim. Takes allocate
+    // nothing, so an unparked husk is safe to fill while unrooted exactly
+    // as far as a freshly created one is: callers must not allocate
+    // through gc.allocator() past the reserved capacity until the value
+    // is rooted.
+    pub fn takeParkedArray(self: *GC, capacity: usize) ?*Elem.DynElem.Array {
+        const head = self.parked.get(.Array) orelse return null;
+        const array = head.asArray();
+        if (array.elems.capacity < capacity) return null;
+        self.unpark(head);
+        return array;
+    }
+
+    pub fn takeParkedObject(self: *GC, capacity: usize) ?*Elem.DynElem.Object {
+        const head = self.parked.get(.Object) orelse return null;
+        const object = head.asObject();
+        if (object.members.capacity() < capacity) return null;
+        self.unpark(head);
+        return object;
+    }
+
+    pub fn takeParkedClosure(self: *GC, function: *Elem.DynElem.Function, localCount: u8) ?*Elem.DynElem.Closure {
+        const head = self.parked.get(.Closure) orelse return null;
+        const closure = head.asClosure();
+        if (closure.captures.len != localCount) return null;
+        self.unpark(head);
+        if (closure.function != function) {
+            function.dyn.retain();
+            closure.function.dyn.release();
+            closure.function = function;
+        }
+        return closure;
+    }
+
+    fn unpark(self: *GC, dyn: *Elem.DynElem) void {
+        std.debug.assert(dyn.ref_count == Elem.DynElem.parked_ref_count);
+        self.parked.set(dyn.dynType, dyn.nextGray);
+        dyn.nextGray = null;
+        dyn.ref_count = 1;
+        self.vm.rc_stats.husks_reused += 1;
     }
 
     fn shouldRunGc(self: GC, n: usize) bool {
@@ -154,6 +225,7 @@ pub const GC = struct {
         const before_count = self.countDynElems();
 
         self.running_gc = true;
+        self.parked = ParkedLists.initFill(null);
         self.clearConsumedCaches();
         if (comptime builtin.mode == .Debug) self.auditRefCounts();
         self.markRoots();
