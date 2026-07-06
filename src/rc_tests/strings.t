@@ -46,3 +46,21 @@ one string allocation per level instead of one rope total.
   strings interned:  9
   strings size:      25 chars
   bytes in use:      246
+
+Each iteration builds a fresh rope from the bound char and a value
+string, and the accumulator merge splices and consumes it: the rope
+husk parks and the next iteration's rope creation takes it back, so
+one rope allocation cycles through the whole loop.
+
+  $ PRINT_MEMORY_REPORT=true possum -p 'f * 8 ; f = char -> C $ (C + ",")' -i 'abcdefgh'
+  "a,b,c,d,e,f,g,h,"
+  ===== memory report =====
+  dyns created:      5
+  dyns live:         3 (string 1, array 0, object 0, function 2, native 0, closure 0)
+  live ref counts:   unique 1, shared 0, immortal 2
+  merges:            7 in place, 0 copied
+  inserts:           0 in place, 0 copied
+  husks:             7 parked, 6 reused
+  strings interned:  11
+  strings size:      32 chars
+  bytes in use:      432

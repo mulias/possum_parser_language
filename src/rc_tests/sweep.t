@@ -11,7 +11,7 @@ of copying — one fewer dyn created, and gc runs is nonzero.
   live ref counts:   unique 1, shared 0, immortal 3
   merges:            1199999 in place, 1 copied
   inserts:           1 in place, 0 copied
-  husks:             1 parked, 0 reused
+  husks:             2 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
   bytes in use:      736
