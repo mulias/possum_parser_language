@@ -1,6 +1,5 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
-const HashMap = std.AutoHashMapUnmanaged;
 const Writer = std.Io.Writer;
 const unicode = std.unicode;
 const VM = @import("vm.zig").VM;
@@ -32,6 +31,11 @@ const Simplified = union(enum) {
 
 vm: *VM,
 bound_locals: ArrayList(Pattern.PatternVar),
+// Scratch space for object matching: keys of the value object claimed by a
+// pattern part so far. Object matches nested inside an in-progress object
+// match append after the outer match's entries and truncate back on exit,
+// so each match only consults its own slice.
+matched_keys: ArrayList(StringTable.Id),
 depth: u8,
 printSteps: bool,
 
@@ -41,6 +45,7 @@ pub fn init(vm: *VM) PatternSolver {
     return PatternSolver{
         .vm = vm,
         .bound_locals = ArrayList(Pattern.PatternVar){},
+        .matched_keys = ArrayList(StringTable.Id){},
         .depth = 1,
         .printSteps = vm.config.printVM or vm.config.printDestructure,
     };
@@ -48,6 +53,7 @@ pub fn init(vm: *VM) PatternSolver {
 
 pub fn deinit(self: *PatternSolver) void {
     self.bound_locals.deinit(self.vm.allocator);
+    self.matched_keys.deinit(self.vm.allocator);
 }
 
 pub const Error = error{
@@ -587,14 +593,8 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
 
     var value_object = value.asDyn().asObject();
 
-    // Initialize a set of all keys in the value object
-    var unmatched_keys = HashMap(StringTable.Id, void){};
-    defer unmatched_keys.deinit(self.vm.allocator);
-
-    var iterator = value_object.members.iterator();
-    while (iterator.next()) |entry| {
-        try unmatched_keys.put(self.vm.allocator, entry.key_ptr.*, {});
-    }
+    const matched_base = self.matched_keys.items.len;
+    defer self.matched_keys.shrinkRetainingCapacity(matched_base);
 
     var unbound_part: ?Pattern = null;
 
@@ -612,8 +612,7 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
                             if (!(try self.checkEquality(value_object_pair_value, pair.value_ptr.*))) {
                                 return false;
                             }
-                            // Remove this key from unmatched set
-                            _ = unmatched_keys.remove(key_sid);
+                            try self.markKeyMatched(matched_base, key_sid);
                         } else {
                             // Value object doesn't have this key
                             return false;
@@ -636,8 +635,7 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
                                 if (!(try self.matchPattern(value_object_pair_value, pattern_pair.value))) {
                                     return false;
                                 }
-                                // Remove this key from unmatched set
-                                _ = unmatched_keys.remove(key_sid);
+                                try self.markKeyMatched(matched_base, key_sid);
                             } else {
                                 // Value object doesn't have this key
                                 return false;
@@ -654,7 +652,7 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
 
                             while (key_iterator.next()) |entry| {
                                 const obj_key_sid = entry.key_ptr.*;
-                                if (!unmatched_keys.contains(obj_key_sid)) continue;
+                                if (self.keyMatched(matched_base, obj_key_sid)) continue;
                                 const obj_value = entry.value_ptr.*;
 
                                 // Try to match the key pattern
@@ -677,9 +675,8 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
                                 return false;
                             }
 
-                            // Remove the matched key from unmatched set
                             if (matched_key) |key| {
-                                _ = unmatched_keys.remove(key);
+                                try self.markKeyMatched(matched_base, key);
                             }
                         }
                     }
@@ -704,13 +701,14 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
         if (self.printSteps or !self.isPlaceholderLocal(pattern)) {
             // Create an object with only the unmatched keys, preserving the
             // value object's member order
-            const unbound_object = try Elem.DynElem.Object.create(self.vm, unmatched_keys.count());
+            const matched_count = self.matched_keys.items.len - matched_base;
+            const unbound_object = try Elem.DynElem.Object.create(self.vm, value_object.members.count() - matched_count);
             try self.vm.pushTempDyn(&unbound_object.dyn);
 
             var member_iterator = value_object.members.iterator();
             while (member_iterator.next()) |entry| {
                 const key_sid = entry.key_ptr.*;
-                if (!unmatched_keys.contains(key_sid)) continue;
+                if (self.keyMatched(matched_base, key_sid)) continue;
                 try unbound_object.put(self.vm, key_sid, entry.value_ptr.*);
             }
 
@@ -723,6 +721,15 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
     }
 
     return true;
+}
+
+fn keyMatched(self: *PatternSolver, base: usize, sid: StringTable.Id) bool {
+    return std.mem.indexOfScalar(StringTable.Id, self.matched_keys.items[base..], sid) != null;
+}
+
+fn markKeyMatched(self: *PatternSolver, base: usize, sid: StringTable.Id) !void {
+    if (self.keyMatched(base, sid)) return;
+    try self.matched_keys.append(self.vm.allocator, sid);
 }
 
 fn isPlaceholderLocal(self: *PatternSolver, pattern: Pattern) bool {
@@ -920,9 +927,8 @@ fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Patt
                 return false;
             }
 
-            // Use a set to track which keys we have matched
-            var matched_keys = HashMap(StringTable.Id, void){};
-            defer matched_keys.deinit(self.vm.allocator);
+            const matched_base = self.matched_keys.items.len;
+            defer self.matched_keys.shrinkRetainingCapacity(matched_base);
 
             for (pattern_object.items) |pattern_pair| {
                 if (try self.attemptEval(pattern_pair.key)) |key_value| {
@@ -950,8 +956,8 @@ fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Patt
                             return false;
                         }
 
-                        // Mark this key as matched (it's ok to match the same key multiple times)
-                        try matched_keys.put(self.vm.allocator, key_sid, {});
+                        // It's ok to match the same key multiple times
+                        try self.markKeyMatched(matched_base, key_sid);
                     } else {
                         // Value object doesn't have this key
                         return false;
@@ -966,7 +972,7 @@ fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Patt
                         const obj_value = entry.value_ptr.*;
 
                         // Skip keys we've already matched
-                        if (matched_keys.contains(obj_key_sid)) {
+                        if (self.keyMatched(matched_base, obj_key_sid)) {
                             continue;
                         }
 
@@ -993,7 +999,7 @@ fn matchObject(self: *PatternSolver, value: Elem, pattern_object: ArrayList(Patt
                             if (try self.matchPattern(obj_value, pattern_pair.value)) {
 
                                 // Both key and value match - mark this key as matched
-                                try matched_keys.put(self.vm.allocator, obj_key_sid, {});
+                                try self.markKeyMatched(matched_base, obj_key_sid);
                                 found_match = true;
                                 break;
                             }
