@@ -103,6 +103,22 @@ pub const GC = struct {
         self.vm.rc_stats.husks_parked += 1;
     }
 
+    // Release a consumed value's handle; when it was the only one and the
+    // type is poolable, park the husk instead of leaving it for the next
+    // collection. Only sound where the handle is the value's last touch:
+    // parking empties the husk in place. Gated with the other
+    // uniqueness-trusting paths so a refcount bug can be bisected with
+    // one flag.
+    pub fn reclaim(self: *GC, dyn: *Elem.DynElem) void {
+        if (self.vm.config.rc_fast_paths and dyn.ref_count == 1 and !dyn.cache_held) {
+            switch (dyn.dynType) {
+                .Array, .Object, .Closure => return self.park(dyn),
+                .String, .Function, .NativeCode => {},
+            }
+        }
+        dyn.release();
+    }
+
     // The take side checks only the head of the free list: a miss leaves
     // the husk parked for the next collection to trim. Takes allocate
     // nothing, so an unparked husk is safe to fill while unrooted exactly

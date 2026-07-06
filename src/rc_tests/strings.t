@@ -10,6 +10,7 @@ Parsing the full input uses an input substring, no dynamic string allocation.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  8
   strings size:      23 chars
   bytes in use:      112
@@ -29,6 +30,7 @@ quadratic (every level copied the whole suffix).
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
   bytes in use:      800
@@ -46,6 +48,7 @@ one string allocation per level instead of one rope total.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
   bytes in use:      246

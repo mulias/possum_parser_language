@@ -13,6 +13,7 @@ from a consumed unique rhs would flip that split.
   inserts:           9 in place, 0 copied
   mutable constants: 1 reused, 5 copied
   closures:          0 reused, 0 created
+  husks:             1 parked, 0 reused
   strings interned:  9
   strings size:      26 chars
   bytes in use:      736
@@ -34,6 +35,7 @@ of the survivors.
   inserts:           9 in place, 0 copied
   mutable constants: 1 reused, 5 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  8
   strings size:      23 chars
   bytes in use:      1288

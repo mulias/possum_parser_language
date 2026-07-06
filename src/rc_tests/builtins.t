@@ -14,6 +14,7 @@ string templates, and container construction.
   inserts:           4 in place, 0 copied
   mutable constants: 0 reused, 4 copied
   closures:          1 reused, 5 created
+  husks:             0 parked, 0 reused
   strings interned:  125
   strings size:      849 chars
   bytes in use:      9304
@@ -32,6 +33,7 @@ instead of carrying the popped copy's count forever.
   inserts:           2 in place, 0 copied
   mutable constants: 0 reused, 1 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  11
   strings size:      41 chars
   bytes in use:      617

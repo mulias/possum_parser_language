@@ -13,6 +13,7 @@ the unmutated A.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             1 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
   bytes in use:      552
@@ -30,6 +31,7 @@ dies unread in its slot.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             1 parked, 0 reused
   strings interned:  8
   strings size:      23 chars
   bytes in use:      552

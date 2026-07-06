@@ -491,7 +491,7 @@ pub const VM = struct {
                 // any operand leftovers. The result handle transfers to
                 // the caller's stack.
                 for (self.stack.items[prevFrame.elemsOffset..]) |item| {
-                    item.release();
+                    self.reclaimElem(item);
                 }
 
                 try self.stack.resize(self.allocator, prevFrame.elemsOffset);
@@ -556,7 +556,7 @@ pub const VM = struct {
                         elem.retain();
                         array.elems.items[index].release();
                         array.elems.items[index] = elem;
-                        releaseConsumed(.InsertAtIndex, elem, array_elem);
+                        self.releaseConsumed(.InsertAtIndex, elem, array_elem);
                         self.drop(2);
                         try self.pushFreshOrTransferred(.InsertAtIndex, array_elem);
                     } else {
@@ -567,8 +567,8 @@ pub const VM = struct {
                         copy.elems.items[index] = elem;
 
                         const result = copy.dyn.elem();
-                        releaseConsumed(.InsertAtIndex, elem, result);
-                        releaseConsumed(.InsertAtIndex, array_elem, result);
+                        self.releaseConsumed(.InsertAtIndex, elem, result);
+                        self.releaseConsumed(.InsertAtIndex, array_elem, result);
                         self.drop(2);
                         try self.pushFreshOrTransferred(.InsertAtIndex, result);
                     }
@@ -636,9 +636,9 @@ pub const VM = struct {
                     }
 
                     const result = target.dyn.elem();
-                    releaseConsumed(.InsertKeyVal, val, result);
-                    releaseConsumed(.InsertKeyVal, key_elem, result);
-                    releaseConsumed(.InsertKeyVal, object_elem, result);
+                    self.releaseConsumed(.InsertKeyVal, val, result);
+                    self.releaseConsumed(.InsertKeyVal, key_elem, result);
+                    self.releaseConsumed(.InsertKeyVal, object_elem, result);
                     self.drop(3);
                     try self.pushFreshOrTransferred(.InsertKeyVal, result);
                 }
@@ -722,8 +722,8 @@ pub const VM = struct {
                 const lhs = self.peek(1);
 
                 if (try Elem.merge(lhs, rhs, self)) |value| {
-                    releaseConsumed(.Merge, lhs, value);
-                    releaseConsumed(.Merge, rhs, value);
+                    self.releaseConsumed(.Merge, lhs, value);
+                    self.releaseConsumed(.Merge, rhs, value);
                     self.drop(2);
                     try self.pushFreshOrTransferred(.Merge, value);
                 } else {
@@ -747,13 +747,13 @@ pub const VM = struct {
 
                     const merged = (try lstr.merge(rstr, self)).?;
 
-                    releaseConsumed(.MergeAsString, lhs, merged);
-                    releaseConsumed(.MergeAsString, rhs, merged);
+                    self.releaseConsumed(.MergeAsString, lhs, merged);
+                    self.releaseConsumed(.MergeAsString, rhs, merged);
                     self.drop(2);
                     try self.pushFreshOrTransferred(.MergeAsString, merged);
                 } else {
-                    releaseConsumed(.MergeAsString, lhs, Elem.failureConst);
-                    releaseConsumed(.MergeAsString, rhs, Elem.failureConst);
+                    self.releaseConsumed(.MergeAsString, lhs, Elem.failureConst);
+                    self.releaseConsumed(.MergeAsString, rhs, Elem.failureConst);
                     self.drop(2);
                     try self.push(Elem.failureConst);
                 }
@@ -946,8 +946,8 @@ pub const VM = struct {
                 const rhs = self.peek(0);
 
                 if (try Elem.repeat(lhs, rhs, self)) |result| {
-                    releaseConsumed(.RepeatValue, lhs, result);
-                    releaseConsumed(.RepeatValue, rhs, result);
+                    self.releaseConsumed(.RepeatValue, lhs, result);
+                    self.releaseConsumed(.RepeatValue, rhs, result);
                     self.drop(2);
                     try self.pushFreshOrTransferred(.RepeatValue, result);
                 } else {
@@ -1096,6 +1096,7 @@ pub const VM = struct {
         try writer.print("inserts:           {d} in place, {d} copied\n", .{ self.rc_stats.insert_in_place, self.rc_stats.insert_copy });
         try writer.print("mutable constants: {d} reused, {d} copied\n", .{ self.rc_stats.mutable_constant_reused, self.rc_stats.mutable_constant_copied });
         try writer.print("closures:          {d} reused, {d} created\n", .{ self.rc_stats.closure_reused, self.rc_stats.closure_created });
+        try writer.print("husks:             {d} parked, {d} reused\n", .{ self.rc_stats.husks_parked, self.rc_stats.husks_reused });
         try writer.print("strings interned:  {d}\n", .{self.strings.count});
         try writer.print("strings size:      {d} chars\n", .{self.strings.buffer.items.len});
         try writer.print("bytes in use:      {d}\n", .{self.gc.bytesAllocated});
@@ -1153,7 +1154,7 @@ pub const VM = struct {
                                 const frameEnd = self.stack.items.len - function.arity - 1;
                                 const length = frameEnd - frameStart;
                                 for (self.stack.items[frameStart..frameEnd]) |item| {
-                                    item.release();
+                                    self.reclaimElem(item);
                                 }
                                 try self.stack.replaceRange(self.allocator, frameStart, length, &[0]Elem{});
                                 _ = self.frames.pop();
@@ -1692,20 +1693,29 @@ pub const VM = struct {
 
     // Release a consumed operand's stack handle, unless the result is the
     // same value: then the handle transferred into the result push. The
-    // op's effect table entry must admit consuming operands.
-    fn releaseConsumed(comptime op: OpCode, operand: Elem, result: Elem) void {
+    // op's effect table entry must admit consuming operands. A last
+    // handle parks the husk, so the operand must not be read afterward.
+    fn releaseConsumed(self: *VM, comptime op: OpCode, operand: Elem, result: Elem) void {
         comptime std.debug.assert(op.rcEffect().?.operands.canConsume());
         if (!operand.isType(.Dyn)) return;
         if (result.isType(.Dyn) and result.asDyn() == operand.asDyn()) return;
-        operand.asDyn().release();
+        self.gc.reclaim(operand.asDyn());
+    }
+
+    // Drop a handle to a value the op is done with; a last handle parks
+    // the husk for reuse.
+    fn reclaimElem(self: *VM, value: Elem) void {
+        if (value.isType(.Dyn)) self.gc.reclaim(value.asDyn());
     }
 
     // Pop an operand whose handle leaves the stack for good, released
     // here. The op's effect table entry must admit consuming operands.
+    // Callers may only inspect the returned Elem's value-type bits: a
+    // last handle parked the husk.
     fn popConsumed(self: *VM, comptime op: OpCode) Elem {
         comptime std.debug.assert(op.rcEffect().?.operands.canConsume());
         const value = self.pop();
-        value.release();
+        self.reclaimElem(value);
         return value;
     }
 
