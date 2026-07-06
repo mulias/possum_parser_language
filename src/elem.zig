@@ -9,7 +9,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
 const StringBuffer = @import("string_buffer.zig").StringBuffer;
-const StringTable = @import("string_table.zig").StringTable;
+const StringTable = @import("string_table.zig").StringTable(.frontend);
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
 
@@ -48,7 +48,7 @@ pub const Elem = packed union {
         payload: packed union {
             bits: u48,
             value_var: ValueVar,
-            interned_string: packed struct { sid: u32, _unused: u16 = 0 },
+            interned_string: packed struct { sid: StringTable.Id, _unused: u16 = 0 },
             input_substring: InputSubstringElem,
             number_string: NumberStringElem,
             constant: packed struct { value: ConstElem, _unused: u46 = 0 },
@@ -58,7 +58,7 @@ pub const Elem = packed union {
     },
 
     pub const ValueVar = packed struct {
-        sid: u32,
+        sid: StringTable.Id,
         placeholder: bool,
         _unused: u15 = 0,
     };
@@ -1703,7 +1703,7 @@ pub const Elem = packed union {
             }
 
             pub fn putReservedId(self: *Object, vm: *VM, reservedId: u8, value: Elem) !void {
-                return self.put(vm, std.math.maxInt(u32) - @as(u32, @intCast(reservedId)), value);
+                return self.put(vm, StringTable.reservedSid(reservedId), value);
             }
         };
 

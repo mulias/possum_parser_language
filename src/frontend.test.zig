@@ -3,7 +3,7 @@ const allocator = std.testing.allocator;
 const Frontend = @import("frontend.zig").Frontend;
 const DependencyGraph = @import("frontend/dependency_graph.zig");
 const Module = @import("module.zig").Module;
-const StringTable = @import("string_table.zig").StringTable;
+const StringTable = @import("string_table.zig").StringTable(.frontend);
 const writers = @import("testing.zig").writers;
 
 const expect = std.testing.expect;

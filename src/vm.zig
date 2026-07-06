@@ -11,7 +11,7 @@ const Env = @import("env.zig").Env;
 const GC = @import("gc.zig").GC;
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
-const StringTable = @import("string_table.zig").StringTable;
+const StringTable = @import("string_table.zig").StringTable(.frontend);
 const Pattern = @import("pattern.zig").Pattern;
 const PatternSolver = @import("pattern_solver.zig");
 const Writers = @import("writer.zig").Writers;
@@ -1646,13 +1646,13 @@ pub const VM = struct {
     }
 
     fn readSid(self: *VM, opCode: OpCode) StringTable.Id {
-        return switch (opCode) {
-            .PushString, .PushVar => self.readByte(),
-            .PushString2, .PushVar2 => self.readShort(),
-            .PushString3, .PushVar3 => self.readMedium(),
+        return @enumFromInt(switch (opCode) {
+            .PushString, .PushVar => @as(u32, self.readByte()),
+            .PushString2, .PushVar2 => @as(u32, self.readShort()),
+            .PushString3, .PushVar3 => @as(u32, self.readMedium()),
             .PushString4, .PushVar4 => self.readLong(),
             else => unreachable,
-        };
+        });
     }
 
     fn readIndex(self: *VM, opCode: OpCode) usize {
