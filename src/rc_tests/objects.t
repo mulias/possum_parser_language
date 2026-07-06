@@ -15,8 +15,8 @@ replaced value's handle.
   inserts:           9 in place, 0 copied
   mutable constants: 1 reused, 5 copied
   closures:          0 reused, 0 created
-  strings interned:  11
-  strings size:      32 chars
+  strings interned:  10
+  strings size:      27 chars
   bytes in use:      1160
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p '("a" -> C $ {"k": C, "n": [C]}) * 3' -i 'aaa'
@@ -32,8 +32,8 @@ replaced value's handle.
   inserts:           0 in place, 9 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
-  strings interned:  11
-  strings size:      32 chars
+  strings interned:  10
+  strings size:      27 chars
   bytes in use:      896
 
 A replaced value kept live through a binding: the object merge overwrites
@@ -55,6 +55,6 @@ result instead of shared.
   inserts:           4 in place, 0 copied
   mutable constants: 0 reused, 3 copied
   closures:          0 reused, 0 created
-  strings interned:  11
-  strings size:      32 chars
+  strings interned:  10
+  strings size:      27 chars
   bytes in use:      1976

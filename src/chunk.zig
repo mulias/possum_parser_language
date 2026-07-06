@@ -88,10 +88,20 @@ pub const Chunk = struct {
     }
 
     pub fn disassemble(self: *Chunk, vm: VM, module: Module, writer: *Writer, name: []const u8) !void {
-        try writer.print("\n{s:=^40}\n", .{name});
+        var buf: [128]u8 = undefined;
+        const formatted_label = std.fmt.bufPrint(&buf, "{d}:{s}", .{ module.id, name });
 
-        try module.printSourceRange(self.source_region, writer);
-        try writer.print("\n{s:=^40}\n", .{""});
+        if (formatted_label) |label| {
+            try writer.print("\n{s:=^40}\n", .{label});
+        } else |_| {
+            try writer.print("\n{d}:{s}\n", .{ module.id, name });
+        }
+
+        // builtin module has no source to print
+        if (module.source.len > 0) {
+            try module.printSourceRange(self.source_region, writer);
+            try writer.print("\n{s:=^40}\n", .{""});
+        }
 
         var offset: usize = 0;
         while (offset < self.code.items.len) {

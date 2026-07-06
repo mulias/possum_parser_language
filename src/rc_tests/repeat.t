@@ -12,8 +12,8 @@ visible as ~500 extra dyns created.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
-  strings interned:  10
-  strings size:      32 chars
+  strings interned:  9
+  strings size:      27 chars
   bytes in use:      0
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p '"" $ "ab" * 500 $ "ok"' -i ''
@@ -26,8 +26,8 @@ visible as ~500 extra dyns created.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
-  strings interned:  10
-  strings size:      32 chars
+  strings interned:  9
+  strings size:      27 chars
   bytes in use:      0
 
 Array repeat with the result kept live: the result array survives to the
@@ -43,6 +43,6 @@ report as the only unique live dyn.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
-  strings interned:  8
-  strings size:      26 chars
+  strings interned:  7
+  strings size:      21 chars
   bytes in use:      368

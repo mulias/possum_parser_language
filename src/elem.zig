@@ -1737,7 +1737,7 @@ pub const Elem = packed union {
                 }
             };
 
-            pub fn create(vm: *VM, fields: struct { module_id: Module.Id, name: StringTable.Id, arity: u5, region: Region }) !*Function {
+            pub fn create(vm: *VM, fields: struct { module_id: Module.Id, name: StringTable.Id, arity: u5, is_anonymous: bool, region: Region }) !*Function {
                 const dyn = try vm.gc.createDynElem(Function, .Function);
                 const function = dyn.asFunction();
 
@@ -1751,34 +1751,8 @@ pub const Elem = packed union {
                     .param_types = ParamTypes{},
                     .chunk = chunk,
                     .name = fields.name,
-                    .is_anonymous = false,
+                    .is_anonymous = fields.is_anonymous,
                     .builtin = name_bytes.len > 0 and name_bytes[0] == '@',
-                };
-
-                return function;
-            }
-
-            pub fn createAnonParser(vm: *VM, fields: struct { module_id: Module.Id, arity: u5, region: Region }) !*Function {
-                const dyn = try vm.gc.createDynElem(Function, .Function);
-                const function = dyn.asFunction();
-
-                const name_str = try std.fmt.allocPrint(vm.allocator, "@fn{d}", .{dyn.id});
-                defer vm.allocator.free(name_str);
-                const name = try vm.strings.insert(name_str);
-
-                const chunk = Chunk{
-                    .source_region = fields.region,
-                };
-
-                function.* = Function{
-                    .dyn = dyn.*,
-                    .mid = fields.module_id,
-                    .arity = fields.arity,
-                    .param_types = ParamTypes{},
-                    .chunk = chunk,
-                    .name = name,
-                    .is_anonymous = true,
-                    .builtin = name_str.len > 0 and name_str[0] == '@',
                 };
 
                 return function;
