@@ -405,10 +405,10 @@
   =================@main==================
   "" -> "%(Str)"
   ========================================
-  0000    | PushVar2 Str
-  0003    | PushEmptyString
-  0004    | Destructure 0: "%(Str)"
-  0006    | End
+  0000    | PushVar Str
+  0002    | PushEmptyString
+  0003    | Destructure 0: "%(Str)"
+  0005    | End
   ========================================
 
   $ possum -p '"Hello %(int + word)"' -i ''
@@ -417,12 +417,12 @@
   maybe("-") + _number_integer_part
   ========================================
   0000    | GetConstant 2: maybe
-  0002    | PushString2 "-"
-  0005    | CallFunction 1
-  0007    | JumpIfFailure 7 -> 13
-  0010    | CallFunctionConstant 3: _number_integer_part
-  0012    | Merge
-  0013    | End
+  0002    | PushString "-"
+  0004    | CallFunction 1
+  0006    | JumpIfFailure 6 -> 12
+  0009    | CallFunctionConstant 3: _number_integer_part
+  0011    | Merge
+  0012    | End
   ========================================
   
   ================integer=================
@@ -437,12 +437,12 @@
   ===============as_number================
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
-  0000    | PushVar2 N
-  0003    | CallFunctionLocal 0
-  0005    | Destructure 0: "%(0 + N)"
-  0007    | TakeRight 7 -> 12
-  0010    | GetBoundLocalMove 1
-  0012    | End
+  0000    | PushVar N
+  0002    | CallFunctionLocal 0
+  0004    | Destructure 0: "%(0 + N)"
+  0006    | TakeRight 6 -> 11
+  0009    | GetBoundLocalMove 1
+  0011    | End
   ========================================
   
   =================maybe==================

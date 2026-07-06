@@ -6,7 +6,7 @@ const unicode = std.unicode;
 const VM = @import("vm.zig").VM;
 const Pattern = @import("pattern.zig").Pattern;
 const Elem = @import("elem.zig").Elem;
-const StringTable = @import("string_table.zig").StringTable(.frontend);
+const StringTable = @import("string_table.zig").StringTable(.runtime);
 const parsing = @import("parsing.zig");
 const isValidNumberString = parsing.isValidNumberString;
 

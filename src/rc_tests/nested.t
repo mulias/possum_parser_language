@@ -13,8 +13,8 @@ from a consumed unique rhs would flip that split.
   inserts:           9 in place, 0 copied
   mutable constants: 1 reused, 5 copied
   closures:          0 reused, 0 created
-  strings interned:  529
-  strings size:      5535 chars
+  strings interned:  10
+  strings size:      31 chars
   bytes in use:      736
 
 Same build with the small result kept live, to pin the unique/shared split
@@ -34,6 +34,6 @@ of the survivors.
   inserts:           9 in place, 0 copied
   mutable constants: 1 reused, 5 copied
   closures:          0 reused, 0 created
-  strings interned:  528
-  strings size:      5532 chars
+  strings interned:  9
+  strings size:      28 chars
   bytes in use:      1288

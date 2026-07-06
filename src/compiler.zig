@@ -12,7 +12,8 @@ const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const Pattern = @import("pattern.zig").Pattern;
 const Region = @import("region.zig").Region;
-const StringTable = @import("string_table.zig").StringTable(.frontend);
+const FrontendStrings = @import("string_table.zig").StringTable(.frontend);
+const RuntimeStrings = @import("string_table.zig").StringTable(.runtime);
 const VM = @import("vm.zig").VM;
 const Writer = std.Io.Writer;
 const Writers = @import("writer.zig").Writers;
@@ -37,6 +38,8 @@ pub const Compiler = struct {
     // the runtime Module.
     pattern_reads: AutoHashMap(Module.Id, ArrayList(liveness.SlotSet)) = .{},
     main: ?*Elem.DynElem.Function = null,
+    // Memoizes internForRuntime so repeated names hash their bytes once.
+    sid_map: AutoHashMap(FrontendStrings.Id, RuntimeStrings.Id) = .{},
 
     const ConstantMapKey = struct {
         module_id: u32,
@@ -53,7 +56,7 @@ pub const Compiler = struct {
     // own bytecode. Computed once by classifyDecl and reused.
     const DeclKind = union(enum) {
         alias_value: Elem,
-        alias_ident: StringTable.Id,
+        alias_ident: FrontendStrings.Id,
         function,
     };
 
@@ -79,11 +82,22 @@ pub const Compiler = struct {
     pub fn init(vm: *VM) !Compiler {
         return Compiler{
             .vm = vm,
-            .frontend = try Frontend.init(vm.allocator, &vm.strings, vm.writers),
+            .frontend = try Frontend.init(vm.allocator, vm.writers),
             .writers = vm.writers,
             .printBytecode = vm.config.printCompiledBytecode,
             .constant_map = .{},
         };
+    }
+
+    // Copy a frontend-interned string into the VM string table. This is the
+    // only place strings cross from the frontend table to the runtime table,
+    // so the VM only holds strings that compiled code references.
+    fn internForRuntime(self: *Compiler, sid: FrontendStrings.Id) !RuntimeStrings.Id {
+        const gop = try self.sid_map.getOrPut(self.vm.allocator, sid);
+        if (!gop.found_existing) {
+            gop.value_ptr.* = try self.vm.strings.insert(self.frontend.strings.get(sid));
+        }
+        return gop.value_ptr.*;
     }
 
     pub fn deinit(self: *Compiler) void {
@@ -93,6 +107,7 @@ pub const Compiler = struct {
         var pattern_reads = self.pattern_reads.valueIterator();
         while (pattern_reads.next()) |list| list.deinit(self.vm.allocator);
         self.pattern_reads.deinit(self.vm.allocator);
+        self.sid_map.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
         self.scopes.deinit(self.vm.allocator);
         for (self.irs.items) |*function_ir| function_ir.deinit(self.vm.allocator);
@@ -151,7 +166,7 @@ pub const Compiler = struct {
             self.vm,
             .{ .module_id = module_id, .arity = 0, .region = main_ast.region },
         );
-        function.name = main_ast.node.name;
+        function.name = try self.internForRuntime(main_ast.node.name);
 
         try self.emitAnonFunctionBody(module_id, main_node, function, main_ast.node.body, main_ast.region);
 
@@ -258,7 +273,7 @@ pub const Compiler = struct {
     fn createBuiltin(self: *Compiler, key: GlobalKey) !void {
         if (self.findGlobal(key.module_id, key.name) != null) return;
 
-        const name = self.vm.strings.get(key.name);
+        const name = self.frontend.strings.get(key.name);
         const module = self.vm.getModule(key.module_id);
         const maybe_function = try builtins.create(self.vm, module, name);
         const function = maybe_function orelse
@@ -295,7 +310,7 @@ pub const Compiler = struct {
 
         var function = try Elem.DynElem.Function.create(self.vm, .{
             .module_id = module_id,
-            .name = function_name,
+            .name = try self.internForRuntime(function_name),
             .arity = 0,
             .region = decl.region(),
         });
@@ -346,7 +361,7 @@ pub const Compiler = struct {
             }
 
             if (path.contains(target_key)) {
-                try self.printError(decl_key.module_id, decl.region(), "Circular alias dependency detected for '{s}'", .{self.vm.strings.get(decl_key.name)});
+                try self.printError(decl_key.module_id, decl.region(), "Circular alias dependency detected for '{s}'", .{self.frontend.strings.get(decl_key.name)});
                 return Error.AliasCycle;
             }
             try path.put(self.vm.allocator, target_key, undefined);
@@ -375,7 +390,7 @@ pub const Compiler = struct {
             // resolver recorded no dependency edge for it, so that identifier
             // names nothing.
             if (self.getAliasChainName(target_decl)) |unresolved_name| {
-                try self.printError(target_key.module_id, target_decl.region(), "undefined variable '{s}'", .{self.vm.strings.get(unresolved_name)});
+                try self.printError(target_key.module_id, target_decl.region(), "undefined variable '{s}'", .{self.frontend.strings.get(unresolved_name)});
                 return Error.UndefinedVariable;
             }
 
@@ -453,9 +468,9 @@ pub const Compiler = struct {
         }
 
         for (locals[param_count..]) |sid| {
-            const bytes = self.vm.strings.get(sid);
+            const bytes = self.frontend.strings.get(sid);
             const underscored = bytes.len > 0 and bytes[0] == '_';
-            try self.writeConstant(module_id, Elem.valueVar(sid, underscored), region);
+            try self.writeConstant(module_id, Elem.valueVar(try self.internForRuntime(sid), underscored), region);
         }
     }
 
@@ -538,7 +553,7 @@ pub const Compiler = struct {
                     if (self.resolveGlobal(module_id, ident.name)) |globalElem| {
                         try self.writeCallFunctionConstant(module_id, globalElem, region, isTailPosition);
                     } else {
-                        try self.printError(module_id, region, "undefined variable '{s}'", .{self.vm.strings.get(ident.name)});
+                        try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.strings.get(ident.name)});
                         return Error.UndefinedVariable;
                     }
                 }
@@ -615,7 +630,7 @@ pub const Compiler = struct {
             function_elem = global.asDyn().asFunction();
             try self.writeConstant(module_id, global, function.region);
         } else {
-            const function_name = self.vm.strings.get(function_id);
+            const function_name = self.frontend.strings.get(function_id);
             try self.printError(module_id, function.region, "Undefined function '{s}'", .{function_name});
             return Error.UndefinedVariable;
         }
@@ -1363,14 +1378,14 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGetVar(self: *Compiler, module_id: Module.Id, name: StringTable.Id, region: Region) !void {
+    fn writeGetVar(self: *Compiler, module_id: Module.Id, name: FrontendStrings.Id, region: Region) !void {
         if (self.localSlot(name)) |slot| {
             try self.emitUnaryOp(.GetBoundLocal, slot, region);
         } else {
             if (self.resolveGlobal(module_id, name)) |globalElem| {
                 try self.writeConstant(module_id, globalElem, region);
             } else {
-                try self.printError(module_id, region, "undefined variable '{s}'", .{self.vm.strings.get(name)});
+                try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.strings.get(name)});
                 return Error.UndefinedVariable;
             }
         }
@@ -1524,18 +1539,18 @@ pub const Compiler = struct {
                 return Pattern{ .String = sid };
             },
             .identifier => |ident| {
-                const sid = ident.name;
-                if (self.resolveGlobal(module_id, sid)) |globalElem| {
+                const name = ident.name;
+                if (self.resolveGlobal(module_id, name)) |globalElem| {
                     const constId = try self.makeConstant(module_id, globalElem);
                     return Pattern{ .Constant = .{
-                        .sid = sid,
+                        .sid = try self.internForRuntime(name),
                         .idx = constId,
                         .negation_count = negation_count,
                     } };
                 } else {
-                    const slot = self.localSlot(sid).?;
+                    const slot = self.localSlot(name).?;
                     return Pattern{ .Local = .{
-                        .sid = sid,
+                        .sid = try self.internForRuntime(name),
                         .idx = slot,
                         .negation_count = negation_count,
                     } };
@@ -1628,13 +1643,13 @@ pub const Compiler = struct {
 
                 const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
                     .{
-                        .sid = function_ident.name,
+                        .sid = try self.internForRuntime(function_ident.name),
                         .idx = try self.makeConstant(module_id, globalElem),
                         .negation_count = negation_count,
                     }
                 else if (self.localSlot(function_ident.name)) |slot|
                     .{
-                        .sid = function_ident.name,
+                        .sid = try self.internForRuntime(function_ident.name),
                         .idx = slot,
                         .negation_count = negation_count,
                     }
@@ -1730,14 +1745,14 @@ pub const Compiler = struct {
             .identifier => |ident| {
                 if (self.resolveGlobal(module_id, ident.name)) |elem| {
                     return Pattern{ .Constant = .{
-                        .sid = ident.name,
+                        .sid = try self.internForRuntime(ident.name),
                         .idx = try self.makeConstant(module_id, elem),
                         .negation_count = negation_count,
                     } };
                 } else {
                     const slot = self.localSlot(ident.name).?;
                     return Pattern{ .Local = .{
-                        .sid = ident.name,
+                        .sid = try self.internForRuntime(ident.name),
                         .idx = slot,
                         .negation_count = negation_count,
                     } };
@@ -1946,7 +1961,7 @@ pub const Compiler = struct {
                 function = global.asDyn().asFunction();
                 try self.writeConstant(module_id, global, function_region);
             } else {
-                const functionNameStr = self.vm.strings.get(functionName);
+                const functionNameStr = self.frontend.strings.get(functionName);
                 try self.printError(module_id, function_region, "Undefined function '{s}'", .{functionNameStr});
                 return Error.UndefinedVariable;
             }
@@ -2348,7 +2363,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?StringTable.Id {
+    fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?FrontendStrings.Id {
         if (self.declHasNoParams(decl)) {
             return switch (decl) {
                 .parser => |p_decl| if (p_decl.node.body.node == .identifier)
@@ -2441,7 +2456,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn findGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id) ?Elem {
+    fn findGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
         if (self.global_map.get(.{ .module_id = module_id, .name = sid })) |elem| {
             return elem;
         }
@@ -2456,7 +2471,7 @@ pub const Compiler = struct {
     // compiled. Names that refer to declarations in other modules are found
     // through the function's dependency graph node, where the resolver
     // recorded the target module.
-    fn resolveGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id) ?Elem {
+    fn resolveGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
         if (self.findGlobal(module_id, sid)) |elem| {
             return elem;
         }
@@ -2479,7 +2494,7 @@ pub const Compiler = struct {
         try self.scopes.append(self.vm.allocator, node);
     }
 
-    fn addGlobal(self: *Compiler, module_id: Module.Id, sid: StringTable.Id, elem: Elem) !void {
+    fn addGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id, elem: Elem) !void {
         try self.global_map.put(
             self.vm.allocator,
             .{ .module_id = module_id, .name = sid },
@@ -2487,7 +2502,7 @@ pub const Compiler = struct {
         );
     }
 
-    pub fn localSlot(self: *Compiler, name: StringTable.Id) ?u8 {
+    pub fn localSlot(self: *Compiler, name: FrontendStrings.Id) ?u8 {
         const scope = self.currentScope();
         for (scope.locals(), 0..) |local, i| {
             if (local == name) return @intCast(i);
@@ -2568,11 +2583,11 @@ pub const Compiler = struct {
         _ = try self.ir().push(self.vm.allocator, .{ .get_constant = idx }, region);
     }
 
-    fn emitPushString(self: *Compiler, sid: StringTable.Id, region: Region) !void {
+    fn emitPushString(self: *Compiler, sid: RuntimeStrings.Id, region: Region) !void {
         _ = try self.ir().push(self.vm.allocator, .{ .push_string = sid }, region);
     }
 
-    fn emitPushVar(self: *Compiler, sid: StringTable.Id, region: Region) !void {
+    fn emitPushVar(self: *Compiler, sid: RuntimeStrings.Id, region: Region) !void {
         _ = try self.ir().push(self.vm.allocator, .{ .push_var = sid }, region);
     }
 

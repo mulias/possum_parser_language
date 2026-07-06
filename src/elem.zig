@@ -9,7 +9,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const Module = @import("module.zig").Module;
 const Region = @import("region.zig").Region;
 const StringBuffer = @import("string_buffer.zig").StringBuffer;
-const StringTable = @import("string_table.zig").StringTable(.frontend);
+const StringTable = @import("string_table.zig").StringTable(.runtime);
 const VM = @import("vm.zig").VM;
 const parsing = @import("parsing.zig");
 

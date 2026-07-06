@@ -13,8 +13,8 @@ of copying — one fewer dyn created, and gc runs is nonzero.
   inserts:           1 in place, 0 copied
   mutable constants: 0 reused, 1 copied
   closures:          0 reused, 0 created
-  strings interned:  530
-  strings size:      5536 chars
+  strings interned:  10
+  strings size:      30 chars
   bytes in use:      920
 
 A wrapper built and dropped inside a failed Or alternative: the report's
@@ -31,6 +31,6 @@ rather than shared.
   inserts:           1 in place, 0 copied
   mutable constants: 0 reused, 1 copied
   closures:          0 reused, 0 created
-  strings interned:  529
-  strings size:      5534 chars
+  strings interned:  9
+  strings size:      28 chars
   bytes in use:      736
