@@ -454,17 +454,27 @@ fn matchArrayMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool
 
         std.debug.assert(unbound_start <= unbound_end);
 
-        // Create an array element containing the unbound range
-        const unbound_elems = value_array.elems.items[unbound_start..unbound_end];
-        const unbound_array = try Elem.DynElem.Array.create(self.vm, unbound_elems.len);
-        try self.vm.pushTempDyn(&unbound_array.dyn);
+        // A bare `_` rest matches any range without binding; skip
+        // materializing it.
+        if (self.printSteps or !self.isPlaceholderLocal(pattern)) {
+            // Create an array element containing the unbound range
+            const unbound_elems = value_array.elems.items[unbound_start..unbound_end];
+            const unbound_array = try Elem.DynElem.Array.create(self.vm, unbound_elems.len);
+            try self.vm.pushTempDyn(&unbound_array.dyn);
 
-        for (unbound_elems) |unbound_item| unbound_item.retain();
-        try unbound_array.elems.appendSlice(self.vm.gc.allocator(), unbound_elems);
-        const unbound_elem = unbound_array.dyn.elem();
+            for (unbound_elems) |unbound_item| unbound_item.retain();
+            try unbound_array.elems.appendSlice(self.vm.gc.allocator(), unbound_elems);
+            const unbound_elem = unbound_array.dyn.elem();
 
-        if (!(try self.matchPattern(unbound_elem, pattern))) {
-            return false;
+            const rest_matched = try self.matchPattern(unbound_elem, pattern);
+
+            // Hand the creator handle to whatever the match bound; see
+            // matchObjectMerge.
+            unbound_array.dyn.release();
+
+            if (!rest_matched) {
+                return false;
+            }
         }
 
         value_index = unbound_end;
@@ -867,26 +877,36 @@ fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
 
         std.debug.assert(unbound_start <= unbound_end);
 
-        const unbound_value = value_str[unbound_start..unbound_end];
-        const unbound_elem = if (value.isType(.InputSubstring)) blk: {
-            const start = value.asInputSubstring().start;
-            if (try Elem.inputSubstringFromRange(start + unbound_start, start + unbound_end)) |elem| {
-                break :blk elem;
-            } else {
-                const str = try Elem.DynElem.String.copy(self.vm, value_str[unbound_start..unbound_end]);
-                try self.vm.pushTempDyn(&str.dyn);
-                break :blk str.dyn.elem();
-            }
-        } else blk: {
-            // Allocate a dynamic string
-            const dyn_str = try Elem.DynElem.String.create(self.vm, unbound_value.len);
-            try self.vm.pushTempDyn(&dyn_str.dyn);
-            try dyn_str.concatBytes(unbound_value);
-            break :blk dyn_str.dyn.elem();
-        };
+        // A bare `_` rest matches any substring without binding; skip
+        // materializing it.
+        if (self.printSteps or !self.isPlaceholderLocal(pattern)) {
+            const unbound_value = value_str[unbound_start..unbound_end];
+            const unbound_elem = if (value.isType(.InputSubstring)) blk: {
+                const start = value.asInputSubstring().start;
+                if (try Elem.inputSubstringFromRange(start + unbound_start, start + unbound_end)) |elem| {
+                    break :blk elem;
+                } else {
+                    const str = try Elem.DynElem.String.copy(self.vm, value_str[unbound_start..unbound_end]);
+                    try self.vm.pushTempDyn(&str.dyn);
+                    break :blk str.dyn.elem();
+                }
+            } else blk: {
+                // Allocate a dynamic string
+                const dyn_str = try Elem.DynElem.String.create(self.vm, unbound_value.len);
+                try self.vm.pushTempDyn(&dyn_str.dyn);
+                try dyn_str.concatBytes(unbound_value);
+                break :blk dyn_str.dyn.elem();
+            };
 
-        if (!(try self.matchPattern(unbound_elem, pattern))) {
-            return false;
+            const rest_matched = try self.matchPattern(unbound_elem, pattern);
+
+            // Hand the creator handle to whatever the match bound; see
+            // matchObjectMerge.
+            if (unbound_elem.isType(.Dyn)) unbound_elem.asDyn().release();
+
+            if (!rest_matched) {
+                return false;
+            }
         }
 
         value_index = unbound_end;
