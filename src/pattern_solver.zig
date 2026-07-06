@@ -698,26 +698,42 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
 
     // Handle the unbound pattern if it exists
     if (unbound_part) |pattern| {
-        // Create an object with only the unmatched keys, preserving the
-        // value object's member order
-        const unbound_object = try Elem.DynElem.Object.create(self.vm, unmatched_keys.count());
-        try self.vm.pushTempDyn(&unbound_object.dyn);
+        // A bare `_` rest matches any remaining members without binding, so
+        // the rest object is never observed. Keep the slow path when
+        // printing steps so the debug output still shows the match.
+        if (self.printSteps or !self.isPlaceholderLocal(pattern)) {
+            // Create an object with only the unmatched keys, preserving the
+            // value object's member order
+            const unbound_object = try Elem.DynElem.Object.create(self.vm, unmatched_keys.count());
+            try self.vm.pushTempDyn(&unbound_object.dyn);
 
-        var member_iterator = value_object.members.iterator();
-        while (member_iterator.next()) |entry| {
-            const key_sid = entry.key_ptr.*;
-            if (!unmatched_keys.contains(key_sid)) continue;
-            try unbound_object.put(self.vm, key_sid, entry.value_ptr.*);
-        }
+            var member_iterator = value_object.members.iterator();
+            while (member_iterator.next()) |entry| {
+                const key_sid = entry.key_ptr.*;
+                if (!unmatched_keys.contains(key_sid)) continue;
+                try unbound_object.put(self.vm, key_sid, entry.value_ptr.*);
+            }
 
-        const unbound_elem = unbound_object.dyn.elem();
+            const unbound_elem = unbound_object.dyn.elem();
 
-        if (!(try self.matchPattern(unbound_elem, pattern))) {
-            return false;
+            if (!(try self.matchPattern(unbound_elem, pattern))) {
+                return false;
+            }
         }
     }
 
     return true;
+}
+
+fn isPlaceholderLocal(self: *PatternSolver, pattern: Pattern) bool {
+    switch (pattern) {
+        .Local => |pattern_var| {
+            if (pattern_var.hasBeenNegated()) return false;
+            const local = self.vm.getLocal(pattern_var.idx);
+            return local.isType(.ValueVar) and self.vm.varIdIsPlaceholder(local.asValueVar().sid);
+        },
+        else => return false,
+    }
 }
 
 fn matchStringMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !bool {
