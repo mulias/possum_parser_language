@@ -5,6 +5,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.HashMapUnmanaged;
 const StringIndexAdapter = std.hash_map.StringIndexAdapter;
 const StringIndexContext = std.hash_map.StringIndexContext;
+const Writer = std.Io.Writer;
 
 pub const StringTable = struct {
     allocator: Allocator,
@@ -109,6 +110,15 @@ pub const StringTable = struct {
 
     pub fn asReserved(sid: Id) ?ReservedId {
         return if (isReserved(sid)) reservedIndex(sid) else null;
+    }
+
+    pub fn print(self: StringTable, writer: *Writer) Writer.Error!void {
+        var offset: u32 = 0;
+        while (offset < self.buffer.items.len) {
+            const string = mem.sliceTo(@as([*:0]const u8, @ptrCast(self.buffer.items.ptr + offset)), 0);
+            try writer.print("{d}: \"{s}\"\n", .{ offset, string });
+            offset += @as(u32, @intCast(string.len)) + 1;
+        }
     }
 };
 

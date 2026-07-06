@@ -1099,6 +1099,7 @@ pub const VM = struct {
         try writer.print("strings interned:  {d}\n", .{self.strings.count});
         try writer.print("strings size:      {d} chars\n", .{self.strings.buffer.items.len});
         try writer.print("bytes in use:      {d}\n", .{self.gc.bytesAllocated});
+        // try self.strings.print(writer);
     }
 
     pub fn nextUniqueId(self: *VM) u64 {
