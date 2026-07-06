@@ -209,7 +209,7 @@ pub const Compiler = struct {
             try self.emitOp(.SetClosureCaptures, region);
         }
 
-        try self.writeParser(module_id, body, true);
+        try self.writeParser(module_id, body);
         try self.finishFunctionIr(module_id);
 
         _ = self.functions.pop();
@@ -482,10 +482,10 @@ pub const Compiler = struct {
 
         switch (decl) {
             .parser => |p| {
-                try self.writeParser(module_id, p.node.body, true);
+                try self.writeParser(module_id, p.node.body);
             },
             .value => |v| {
-                try self.writeValue(module_id, v.node.body, true);
+                try self.writeValue(module_id, v.node.body);
             },
         }
 
@@ -513,51 +513,51 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeParser(self: *Compiler, module_id: Module.Id, rnode: *Ast.Parser.RNode, isTailPosition: bool) !void {
+    fn writeParser(self: *Compiler, module_id: Module.Id, rnode: *Ast.Parser.RNode) !void {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
             .merge => |merge| {
-                try self.writeParser(module_id, merge.left, false);
+                try self.writeParser(module_id, merge.left);
                 const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeParser(module_id, merge.right, false);
+                try self.writeParser(module_id, merge.right);
                 try self.emitOp(.Merge, region);
                 self.patchJump(jumpIndex);
             },
             .take_left => |take_left| {
-                try self.writeParser(module_id, take_left.left, false);
+                try self.writeParser(module_id, take_left.left);
                 const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeParser(module_id, take_left.right, false);
+                try self.writeParser(module_id, take_left.right);
                 try self.emitOp(.TakeLeft, region);
                 self.patchJump(jumpIndex);
             },
             .take_right => |take_right| {
-                try self.writeParser(module_id, take_right.left, false);
+                try self.writeParser(module_id, take_right.left);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeParser(module_id, take_right.right, isTailPosition);
+                try self.writeParser(module_id, take_right.right);
                 self.patchJump(jumpIndex);
             },
             .destructure => |destructure| {
-                try self.writeParser(module_id, destructure.left, false);
+                try self.writeParser(module_id, destructure.left);
                 const patternId = try self.createPattern(module_id, destructure.right);
                 try self.emitPattern(patternId, region);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
-                try self.writeParser(module_id, or_node.left, false);
+                try self.writeParser(module_id, or_node.left);
                 const jumpIndex = try self.emitJump(.Or, region);
-                try self.writeParser(module_id, or_node.right, isTailPosition);
+                try self.writeParser(module_id, or_node.right);
                 self.patchJump(jumpIndex);
             },
             .@"return" => |return_node| {
                 // Special case: `"" $ Foo` will always succeed and push `Foo` on the stack
                 if (return_node.left.node == .string and return_node.left.node.string.len == 0) {
-                    try self.writeValue(module_id, return_node.right, isTailPosition);
+                    try self.writeValue(module_id, return_node.right);
                 } else {
-                    try self.writeParser(module_id, return_node.left, false);
+                    try self.writeParser(module_id, return_node.left);
                     const jumpIndex = try self.emitJump(.TakeRight, region);
-                    try self.writeValue(module_id, return_node.right, isTailPosition);
+                    try self.writeValue(module_id, return_node.right);
                     self.patchJump(jumpIndex);
                 }
             },
@@ -575,22 +575,14 @@ pub const Compiler = struct {
             },
             .negation => |inner| {
                 try self.writeNegatedParserElem(module_id, inner, region);
-                if (isTailPosition) {
-                    try self.emitUnaryOp(.CallTailFunction, 0, region);
-                } else {
-                    try self.emitUnaryOp(.CallFunction, 0, region);
-                }
+                try self.emitUnaryOp(.CallFunction, 0, region);
             },
             .identifier => |ident| {
                 if (self.localSlot(ident.name)) |slot| {
-                    if (isTailPosition) {
-                        try self.emitUnaryOp(.CallTailFunctionLocal, slot, region);
-                    } else {
-                        try self.emitUnaryOp(.CallFunctionLocal, slot, region);
-                    }
+                    try self.emitUnaryOp(.CallFunctionLocal, slot, region);
                 } else {
                     if (self.resolveGlobal(module_id, ident.name)) |globalElem| {
-                        try self.writeCallFunctionConstant(module_id, globalElem, region, isTailPosition);
+                        try self.writeCallFunctionConstant(module_id, globalElem, region);
                     } else {
                         try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.strings.get(ident.name)});
                         return Error.UndefinedVariable;
@@ -598,7 +590,7 @@ pub const Compiler = struct {
                 }
             },
             .function_call => |function_call| {
-                try self.writeParserFunctionCall(module_id, function_call.function, function_call.args, region, isTailPosition);
+                try self.writeParserFunctionCall(module_id, function_call.function, function_call.args, region);
             },
             .number_string => |ns| {
                 const bytes = ns.number;
@@ -607,7 +599,7 @@ pub const Compiler = struct {
                     try self.emitUnaryOp(.ParseNumberStringChar, bytes[0], region);
                 } else {
                     const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                    try self.writeCallFunctionConstant(module_id, elem, region, isTailPosition);
+                    try self.writeCallFunctionConstant(module_id, elem, region);
                 }
             },
             .string => |string| {
@@ -618,7 +610,7 @@ pub const Compiler = struct {
                 } else {
                     const sid = try self.vm.strings.insert(string);
                     const elem = Elem.string(sid);
-                    try self.writeCallFunctionConstant(module_id, elem, region, isTailPosition);
+                    try self.writeCallFunctionConstant(module_id, elem, region);
                 }
             },
             .string_template => |parts| {
@@ -626,12 +618,12 @@ pub const Compiler = struct {
             },
             .conditional => |conditional| {
                 try self.emitOp(.SetInputMark, region);
-                try self.writeParser(module_id, conditional.condition, false);
+                try self.writeParser(module_id, conditional.condition);
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
-                try self.writeParser(module_id, conditional.then_branch, isTailPosition);
+                try self.writeParser(module_id, conditional.then_branch);
                 const thenElseJumpIndex = try self.emitJump(.Jump, region);
                 self.patchJump(ifThenJumpIndex);
-                try self.writeParser(module_id, conditional.else_branch, isTailPosition);
+                try self.writeParser(module_id, conditional.else_branch);
                 self.patchJump(thenElseJumpIndex);
             },
             .anonymous_function => |anon| {
@@ -646,7 +638,6 @@ pub const Compiler = struct {
         function: *Ast.Parser.RNode,
         arguments: ArrayList(Ast.ParserOrValue.RNode),
         call_region: Region,
-        isTailPosition: bool,
     ) !void {
         const function_ident = switch (function.node) {
             .identifier => |ident| ident,
@@ -754,11 +745,7 @@ pub const Compiler = struct {
             try self.writeParserFunctionArgument(module_id, arg);
         }
 
-        if (isTailPosition) {
-            try self.emitUnaryOp(.CallTailFunction, @intCast(arg_count), call_region);
-        } else {
-            try self.emitUnaryOp(.CallFunction, @intCast(arg_count), call_region);
-        }
+        try self.emitUnaryOp(.CallFunction, @intCast(arg_count), call_region);
     }
 
     fn writeRangeParser(self: *Compiler, module_id: Module.Id, low: *Ast.Parser.RNode, high: *Ast.Parser.RNode, region: Region) !void {
@@ -1089,7 +1076,7 @@ pub const Compiler = struct {
         try self.emitOp(.Swap, repeat_region);
 
         // Run parser, accumulate, end loop if failure
-        try self.writeParser(module_id, parser, false);
+        try self.writeParser(module_id, parser);
         try self.emitOp(.Merge, parser.region);
         const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
 
@@ -1124,7 +1111,7 @@ pub const Compiler = struct {
 
         // Run parser, end loop if failure, otherwise accumulate
         try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(module_id, parser, false);
+        try self.writeParser(module_id, parser);
         const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
         try self.emitOp(.PopInputMark, parser.region);
         try self.emitOp(.Merge, parser.region);
@@ -1166,7 +1153,7 @@ pub const Compiler = struct {
         try self.emitOp(.Swap, region);
 
         // Run parser, accumulate, end loop if failure
-        try self.writeParser(module_id, parser, false);
+        try self.writeParser(module_id, parser);
         try self.emitOp(.Merge, parser.region);
         const failureLowerBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
 
@@ -1195,7 +1182,7 @@ pub const Compiler = struct {
         const loopStart = self.ir().nextIndex();
         try self.emitOp(.Swap, region);
         try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(module_id, parser, false);
+        try self.writeParser(module_id, parser);
         const failureUpperBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
         try self.emitOp(.PopInputMark, parser.region);
         try self.emitOp(.Merge, parser.region);
@@ -1239,7 +1226,7 @@ pub const Compiler = struct {
         try self.emitOp(.Swap, region);
 
         // Run parser, accumulate, end loop if failure
-        try self.writeParser(module_id, parser, false);
+        try self.writeParser(module_id, parser);
         try self.emitOp(.Merge, parser.region);
         const failureLowerBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
 
@@ -1263,7 +1250,7 @@ pub const Compiler = struct {
 
         // Run parser, end loop if failure, otherwise accumulate
         try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(module_id, parser, false);
+        try self.writeParser(module_id, parser);
         const failureJumpOptional = try self.emitJump(.JumpIfFailure, parser.region);
         try self.emitOp(.PopInputMark, parser.region);
         try self.emitOp(.Merge, parser.region);
@@ -1313,7 +1300,7 @@ pub const Compiler = struct {
         const loopStart = self.ir().nextIndex();
         try self.emitOp(.Swap, region);
         try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(module_id, parser, false);
+        try self.writeParser(module_id, parser);
         const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
         try self.emitOp(.PopInputMark, parser.region);
         try self.emitOp(.Merge, parser.region);
@@ -1476,7 +1463,7 @@ pub const Compiler = struct {
                 },
                 else => @panic("Internal Error: compound parser in function args must be wrapped in an anonymous function."),
             },
-            .value => |v| try self.writeValue(module_id, v, false),
+            .value => |v| try self.writeValue(module_id, v),
         }
     }
 
@@ -1825,7 +1812,7 @@ pub const Compiler = struct {
                 try self.emitOp(.NegateNumber, region);
             },
             .function_call => |function_call| {
-                try self.writeValueFunctionCall(module_id, function_call.function, function_call.args, region, false);
+                try self.writeValueFunctionCall(module_id, function_call.function, function_call.args, region);
             },
             .null => {
                 const elem = Elem.numberFloat(0);
@@ -1846,56 +1833,56 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeValue(self: *Compiler, module_id: Module.Id, rnode: *Ast.Value.RNode, isTailPosition: bool) !void {
+    fn writeValue(self: *Compiler, module_id: Module.Id, rnode: *Ast.Value.RNode) !void {
         const node = rnode.node;
         const region = rnode.region;
 
         switch (node) {
             .merge => |merge| {
-                try self.writeValue(module_id, merge.left, false);
+                try self.writeValue(module_id, merge.left);
                 const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeValue(module_id, merge.right, false);
+                try self.writeValue(module_id, merge.right);
                 try self.emitOp(.Merge, region);
                 self.patchJump(jumpIndex);
             },
             .take_left => |take_left| {
-                try self.writeValue(module_id, take_left.left, false);
+                try self.writeValue(module_id, take_left.left);
                 const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeValue(module_id, take_left.right, false);
+                try self.writeValue(module_id, take_left.right);
                 try self.emitOp(.TakeLeft, region);
                 self.patchJump(jumpIndex);
             },
             .take_right => |take_right| {
-                try self.writeValue(module_id, take_right.left, false);
+                try self.writeValue(module_id, take_right.left);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeValue(module_id, take_right.right, isTailPosition);
+                try self.writeValue(module_id, take_right.right);
                 self.patchJump(jumpIndex);
             },
             .destructure => |destructure| {
-                try self.writeValue(module_id, destructure.left, false);
+                try self.writeValue(module_id, destructure.left);
                 const patternId = try self.createPattern(module_id, destructure.right);
                 try self.emitPattern(patternId, region);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
-                try self.writeValue(module_id, or_node.left, false);
+                try self.writeValue(module_id, or_node.left);
                 const jumpIndex = try self.emitJump(.Or, region);
-                try self.writeValue(module_id, or_node.right, isTailPosition);
+                try self.writeValue(module_id, or_node.right);
                 self.patchJump(jumpIndex);
             },
             .@"return" => |return_node| {
-                try self.writeValue(module_id, return_node.left, false);
+                try self.writeValue(module_id, return_node.left);
                 const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeValue(module_id, return_node.right, isTailPosition);
+                try self.writeValue(module_id, return_node.right);
                 self.patchJump(jumpIndex);
             },
             .repeat => |repeat| {
-                try self.writeValue(module_id, repeat.left, false);
-                try self.writeValue(module_id, repeat.right, false);
+                try self.writeValue(module_id, repeat.left);
+                try self.writeValue(module_id, repeat.right);
                 try self.emitOp(.RepeatValue, region);
             },
             .negation => |inner| {
-                try self.writeValue(module_id, inner, false);
+                try self.writeValue(module_id, inner);
                 try self.emitOp(.NegateNumber, region);
             },
             .array => |elements| {
@@ -1909,16 +1896,16 @@ pub const Compiler = struct {
             },
             .conditional => |conditional| {
                 try self.emitOp(.SetInputMark, region);
-                try self.writeValue(module_id, conditional.condition, false);
+                try self.writeValue(module_id, conditional.condition);
                 const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
-                try self.writeValue(module_id, conditional.then_branch, isTailPosition);
+                try self.writeValue(module_id, conditional.then_branch);
                 const thenElseJumpIndex = try self.emitJump(.Jump, region);
                 self.patchJump(ifThenJumpIndex);
-                try self.writeValue(module_id, conditional.else_branch, isTailPosition);
+                try self.writeValue(module_id, conditional.else_branch);
                 self.patchJump(thenElseJumpIndex);
             },
             .function_call => |function_call| {
-                try self.writeValueFunctionCall(module_id, function_call.function, function_call.args, region, isTailPosition);
+                try self.writeValueFunctionCall(module_id, function_call.function, function_call.args, region);
             },
             .identifier => |ident| {
                 if (self.localSlot(ident.name)) |slot| {
@@ -1933,7 +1920,7 @@ pub const Compiler = struct {
                 } else {
                     const globalElem = self.resolveGlobal(module_id, ident.name).?;
                     if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
-                        try self.writeCallFunctionConstant(module_id, globalElem, region, isTailPosition);
+                        try self.writeCallFunctionConstant(module_id, globalElem, region);
                     } else {
                         try self.writeConstant(module_id, globalElem, region);
                     }
@@ -1964,7 +1951,6 @@ pub const Compiler = struct {
         function_rnode: *Ast.Value.RNode,
         arguments: ArrayList(*Ast.Value.RNode),
         call_region: Region,
-        isTailPosition: bool,
     ) !void {
         // TODO: handle curried function calls like `Foo(A)(B)`
         // TODO: handle non-function with parens like `X = 1 ; "" $ X()`
@@ -1996,11 +1982,7 @@ pub const Compiler = struct {
 
         const argCount = try self.writeValueFunctionArguments(module_id, arguments, function);
 
-        if (isTailPosition) {
-            try self.emitUnaryOp(.CallTailFunction, argCount, call_region);
-        } else {
-            try self.emitUnaryOp(.CallFunction, argCount, call_region);
-        }
+        try self.emitUnaryOp(.CallFunction, argCount, call_region);
     }
 
     fn writeValueFunctionArguments(
@@ -2049,7 +2031,7 @@ pub const Compiler = struct {
         }
 
         for (arguments.items) |arg| {
-            try self.writeValue(module_id, arg, false);
+            try self.writeValue(module_id, arg);
         }
 
         return @intCast(arg_count);
@@ -2074,13 +2056,13 @@ pub const Compiler = struct {
     }
 
     fn appendDynamicValue(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8) !void {
-        try self.writeValue(module_id, rnode, false);
+        try self.writeValue(module_id, rnode);
         try self.emitUnaryOp(.InsertAtIndex, index, rnode.region);
         try array.append(self.vm, try self.placeholderVar());
     }
 
     fn negateAndAppendDynamicValue(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) !void {
-        try self.writeValue(module_id, rnode, false);
+        try self.writeValue(module_id, rnode);
         try self.emitOp(.NegateNumber, region);
         try self.emitUnaryOp(.InsertAtIndex, index, region);
         try array.append(self.vm, try self.placeholderVar());
@@ -2216,8 +2198,8 @@ pub const Compiler = struct {
         std.debug.assert(index <= 255);
         const pos = @as(u8, @intCast(index));
         try object.putReservedId(self.vm, pos, try self.placeholderVar());
-        try self.writeValue(module_id, pair.key, false);
-        try self.writeValue(module_id, pair.value, false);
+        try self.writeValue(module_id, pair.key);
+        try self.writeValue(module_id, pair.value);
         try self.emitUnaryOp(.InsertKeyVal, pos, pair.key.region);
     }
 
@@ -2235,7 +2217,7 @@ pub const Compiler = struct {
 
         // Write all parts with MergeAsString between each part after the first two
         for (parts.items, 0..) |part, i| {
-            try self.writeParser(module_id, part, false);
+            try self.writeParser(module_id, part);
             if (i > 0 or firstPart.node != .string) {
                 try self.emitOp(.MergeAsString, region);
             }
@@ -2256,7 +2238,7 @@ pub const Compiler = struct {
 
         // Write all parts with MergeAsString between each part after the first two
         for (parts.items, 0..) |part, i| {
-            try self.writeValue(module_id, part, false);
+            try self.writeValue(module_id, part);
             if (i > 0 or firstPart.node != .string) {
                 try self.emitOp(.MergeAsString, region);
             }
@@ -2330,13 +2312,9 @@ pub const Compiler = struct {
         return try self.emitConstant(constId, region);
     }
 
-    fn writeCallFunctionConstant(self: *Compiler, module_id: Module.Id, elem: Elem, region: Region, isTailPosition: bool) !void {
+    fn writeCallFunctionConstant(self: *Compiler, module_id: Module.Id, elem: Elem, region: Region) !void {
         const constId = try self.makeConstant(module_id, elem);
-        if (isTailPosition) {
-            return try self.emitCallTailFunctionConstant(constId, region);
-        } else {
-            return try self.emitCallFunctionConstant(constId, region);
-        }
+        return try self.emitCallFunctionConstant(constId, region);
     }
 
     fn numberStringNodeToElem(self: *Compiler, number: []const u8, negated: bool) !Elem {
@@ -2421,6 +2399,8 @@ pub const Compiler = struct {
 
         var function_ir = self.irs.pop().?;
         defer function_ir.deinit(self.vm.allocator);
+
+        function_ir.markTailCalls();
 
         // A verification failure is a compiler bug, not a user error. Gated
         // to debug builds, which is what `zig build` and the test suites use.
@@ -2630,10 +2610,6 @@ pub const Compiler = struct {
 
     fn emitCallFunctionConstant(self: *Compiler, idx: u24, region: Region) !void {
         _ = try self.ir().push(self.vm.allocator, .{ .call_function_constant = idx }, region);
-    }
-
-    fn emitCallTailFunctionConstant(self: *Compiler, idx: u24, region: Region) !void {
-        _ = try self.ir().push(self.vm.allocator, .{ .call_tail_function_constant = idx }, region);
     }
 
     fn emitPattern(self: *Compiler, idx: u24, region: Region) !void {

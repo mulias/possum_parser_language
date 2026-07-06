@@ -68,6 +68,50 @@ pub const Ir = struct {
         insn.operand = .{ .get_constant_mutable = idx };
     }
 
+    // Rewrite calls into their tail variants when the frame runs nothing
+    // after the callee returns: the call's fallthrough, following
+    // unconditional jumps, is End. The compiler emits every call in its
+    // non-tail form and marks tail calls here, once the function's shape is
+    // final. Run after all jumps are patched.
+    pub fn markTailCalls(self: *Ir) void {
+        const insns = self.instructions.items;
+        for (insns, 0..) |*insn, i| {
+            switch (insn.operand) {
+                .byte => |*b| {
+                    const tail_op: OpCode = switch (b.op) {
+                        .CallFunction => .CallTailFunction,
+                        .CallFunctionLocal => .CallTailFunctionLocal,
+                        else => continue,
+                    };
+                    if (fallsThroughToEnd(insns, i + 1)) b.op = tail_op;
+                },
+                .call_function_constant => |idx| {
+                    if (fallsThroughToEnd(insns, i + 1)) {
+                        insn.operand = .{ .call_tail_function_constant = idx };
+                    }
+                },
+                else => {},
+            }
+        }
+    }
+
+    // Whether execution reaching `start` runs only unconditional forward
+    // jumps before ending the frame.
+    fn fallsThroughToEnd(insns: []const Insn, start: usize) bool {
+        var i = start;
+        while (i < insns.len) {
+            switch (insns[i].operand) {
+                .none => |op| return op == .End,
+                .jump => |j| {
+                    if (j.op != .Jump) return false;
+                    i = j.target;
+                },
+                else => return false,
+            }
+        }
+        return false;
+    }
+
     // Point the jump at `index` to the next instruction to be emitted.
     pub fn patchJumpTarget(self: *Ir, index: Index) void {
         const insn = &self.instructions.items[index];
@@ -469,6 +513,64 @@ test "jump distances are resolved from instruction indices" {
         0x0A,
         @intFromEnum(OpCode.End),
     }, chunk.code.items);
+}
+
+test "markTailCalls rewrites calls that fall through to End" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .GetBoundLocal, .byte = 0 } }, testRegion(0));
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .CallFunction, .byte = 1 } }, testRegion(1));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(2));
+
+    ir.markTailCalls();
+
+    try testing.expectEqual(OpCode.CallTailFunction, ir.instructions.items[1].operand.byte.op);
+}
+
+test "markTailCalls rewrites local and constant call forms" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    // Conditional shape: each branch's call reaches End, the then-branch
+    // through an unconditional Jump.
+    _ = try ir.push(allocator, .{ .none = .SetInputMark }, testRegion(0));
+    _ = try ir.push(allocator, .{ .none = .ParseCodepoint }, testRegion(1));
+    const cond = try ir.push(allocator, .{ .jump = .{ .op = .ConditionalThen, .target = Ir.unpatched_jump } }, testRegion(2));
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .CallFunctionLocal, .byte = 0 } }, testRegion(3));
+    const then_done = try ir.push(allocator, .{ .jump = .{ .op = .Jump, .target = Ir.unpatched_jump } }, testRegion(4));
+    ir.patchJumpTarget(cond);
+    _ = try ir.push(allocator, .{ .call_function_constant = 7 }, testRegion(5));
+    ir.patchJumpTarget(then_done);
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(6));
+
+    ir.markTailCalls();
+
+    try testing.expectEqual(OpCode.CallTailFunctionLocal, ir.instructions.items[3].operand.byte.op);
+    try testing.expectEqual(@as(u24, 7), ir.instructions.items[5].operand.call_tail_function_constant);
+}
+
+test "markTailCalls leaves calls whose result the frame consumes" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    // A call followed by Merge, and a call followed by a conditional jump
+    // that targets End: both still run frame code after returning.
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .CallFunction, .byte = 0 } }, testRegion(0));
+    _ = try ir.push(allocator, .{ .none = .Merge }, testRegion(1));
+    _ = try ir.push(allocator, .{ .call_function_constant = 2 }, testRegion(2));
+    const jump = try ir.push(allocator, .{ .jump = .{ .op = .JumpIfFailure, .target = Ir.unpatched_jump } }, testRegion(3));
+    _ = try ir.push(allocator, .{ .none = .Drop }, testRegion(4));
+    ir.patchJumpTarget(jump);
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(5));
+
+    ir.markTailCalls();
+
+    try testing.expectEqual(OpCode.CallFunction, ir.instructions.items[0].operand.byte.op);
+    try testing.expectEqual(@as(u24, 2), ir.instructions.items[2].operand.call_function_constant);
 }
 
 test "verify accepts a balanced function" {
