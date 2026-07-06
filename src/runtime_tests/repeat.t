@@ -2,6 +2,21 @@
   "aaa"
 
   $ possum -p '"a" * 2..' -i 'a'
+  
+  Parse Failure: expected "a"
+  
+  input:1:1:
+  
+  1 \xe2\x96\x8f a (esc)
+    \xe2\x96\x8f  ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:0-3:
+  
+  1 \xe2\x96\x8f "a" * 2.. (esc)
+    \xe2\x96\x8f ^^^ (esc)
+  
   [ParserFailure]
   [1]
 
@@ -12,6 +27,21 @@
   "aaaaaa"
 
   $ possum -p '"a" * 4..6' -i 'aa'
+  
+  Parse Failure: expected "a"
+  
+  input:1:2:
+  
+  1 \xe2\x96\x8f aa (esc)
+    \xe2\x96\x8f   ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:0-3:
+  
+  1 \xe2\x96\x8f "a" * 4..6 (esc)
+    \xe2\x96\x8f ^^^ (esc)
+  
   [ParserFailure]
   [1]
 

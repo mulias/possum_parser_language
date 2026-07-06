@@ -541,7 +541,7 @@ pub const Compiler = struct {
             .destructure => |destructure| {
                 try self.writeParser(module_id, destructure.left);
                 const patternId = try self.createPattern(module_id, destructure.right);
-                try self.emitPattern(patternId, region);
+                try self.emitPattern(patternId, destructure.right.region);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
@@ -1861,7 +1861,7 @@ pub const Compiler = struct {
             .destructure => |destructure| {
                 try self.writeValue(module_id, destructure.left);
                 const patternId = try self.createPattern(module_id, destructure.right);
-                try self.emitPattern(patternId, region);
+                try self.emitPattern(patternId, destructure.right.region);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
