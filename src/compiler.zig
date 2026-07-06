@@ -17,6 +17,7 @@ const VM = @import("vm.zig").VM;
 const Writer = std.Io.Writer;
 const Writers = @import("writer.zig").Writers;
 const builtin = @import("builtin");
+const builtins = @import("builtin.zig");
 const parsing = @import("parsing.zig");
 const std = @import("std");
 
@@ -104,18 +105,14 @@ pub const Compiler = struct {
 
     pub fn addModule(self: *Compiler, module: Module, opts: Frontend.AddModuleOpts) !void {
         try self.frontend.addModule(module, opts);
+    }
 
-        // Add precompiled functions to function map so that they're
-        // discoverable during compilation
-        for (module.constants.items) |elem| {
-            if (elem.isDynType(.Function)) {
-                const func = elem.asDyn().asFunction();
-                try self.global_map.put(
-                    self.vm.allocator,
-                    .{ .module_id = module.id, .name = func.name },
-                    elem,
-                );
-            }
+    // Register the builtin functions as precompiled dependency graph nodes.
+    // The function elems are only created when a program uses them, in
+    // createBuiltin.
+    pub fn addBuiltinsModule(self: *Compiler, module: Module) !void {
+        for (builtins.functions) |bf| {
+            try self.frontend.addPrecompiled(module.id, bf.name);
         }
     }
 
@@ -208,7 +205,7 @@ pub const Compiler = struct {
 
         // Only compile if this is actually a declaration
         switch (node.*) {
-            .precompiled => {},
+            .precompiled => try self.createBuiltin(decl_key),
             .declaration => |*n| {
                 const decl = n.ast;
                 const kind = try self.classifyDecl(decl);
@@ -248,7 +245,7 @@ pub const Compiler = struct {
         }
 
         switch (self.frontend.getNode(dep_key).*) {
-            .precompiled => {},
+            .precompiled => try self.createBuiltin(dep_key),
             .declaration => |*n| {
                 try self.declareFromKind(dep_key, n.ast, try self.classifyDecl(n.ast));
             },
@@ -256,6 +253,17 @@ pub const Compiler = struct {
                 // Anonymous functions are compiled inline where they appear.
             },
         }
+    }
+
+    fn createBuiltin(self: *Compiler, key: GlobalKey) !void {
+        if (self.findGlobal(key.module_id, key.name) != null) return;
+
+        const name = self.vm.strings.get(key.name);
+        const module = self.vm.getModule(key.module_id);
+        const maybe_function = try builtins.create(self.vm, module, name);
+        const function = maybe_function orelse
+            @panic("Internal Error: precompiled node has no builtin implementation");
+        try self.addGlobal(key.module_id, key.name, function.dyn.elem());
     }
 
     // A parameterless alias body inlines to a value elem; a bare-identifier
@@ -343,7 +351,15 @@ pub const Compiler = struct {
             }
             try path.put(self.vm.allocator, target_key, undefined);
 
-            const target_decl = self.frontend.getDeclaration(target_key);
+            const target_node = self.frontend.getNode(target_key);
+
+            if (target_node.* == .precompiled) {
+                try self.createBuiltin(target_key);
+                target_elem = self.getGlobal(target_key);
+                break;
+            }
+
+            const target_decl = target_node.declaration.ast;
 
             if (try self.getAliasDependency(target_key, target_decl)) |next_key| {
                 target_key = next_key;

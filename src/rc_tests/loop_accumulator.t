@@ -5,27 +5,27 @@ place every iteration.
   $ PRINT_MEMORY_REPORT=true possum -p '("a" $ [1]) * 40 $ "ok"' -i 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   "ok"
   ===== memory report =====
-  dyns created:      38
-  dyns live:         36 (string 0, array 1, object 0, function 19, native 16, closure 0)
-  live ref counts:   unique 0, shared 0, immortal 36
+  dyns created:      3
+  dyns live:         1 (string 0, array 1, object 0, function 0, native 0, closure 0)
+  live ref counts:   unique 0, shared 0, immortal 1
   merges:            38 in place, 1 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  529
   strings size:      5535 chars
-  bytes in use:      3208
+  bytes in use:      184
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p '("a" $ [1]) * 40 $ "ok"' -i 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   "ok"
   ===== memory report =====
-  dyns created:      76
-  dyns live:         36 (string 0, array 1, object 0, function 19, native 16, closure 0)
-  live ref counts:   unique 0, shared 0, immortal 36
+  dyns created:      41
+  dyns live:         1 (string 0, array 1, object 0, function 0, native 0, closure 0)
+  live ref counts:   unique 0, shared 0, immortal 1
   merges:            0 in place, 39 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  529
   strings size:      5535 chars
-  bytes in use:      3208
+  bytes in use:      184
