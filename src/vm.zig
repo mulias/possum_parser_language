@@ -516,7 +516,14 @@ pub const VM = struct {
                 const pattern = self.getPattern(patternIdx);
                 const value = self.peek(0);
 
-                if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
+                // ConditionalThen and TakeRight pop a successful result
+                // without looking inside it, so on those paths the value's
+                // stack handle dies unobserved and the solver may consume a
+                // uniquely-referenced value while matching.
+                const next_op: OpCode = @enumFromInt(self.cur_code[self.cur_frame.ip]);
+                const value_discarded = next_op == .ConditionalThen or next_op == .TakeRight;
+
+                if (value.isSuccess() and (try self.pattern_solver.match(value, pattern, value_discarded))) {
                     // value is already on the stack
                 } else {
                     // Snapshot before popConsumed reclaims the value. A

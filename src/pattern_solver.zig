@@ -36,6 +36,10 @@ bound_locals: ArrayList(Pattern.PatternVar),
 // match append after the outer match's entries and truncate back on exit,
 // so each match only consults its own slice.
 matched_keys: ArrayList(StringTable.Id),
+// The value dyn of the current match call, when the VM will discard the
+// match result without observing it. Null when the result is used or the
+// value is not a dyn.
+discardable_root: ?*Elem.DynElem,
 depth: u8,
 printSteps: bool,
 
@@ -46,6 +50,7 @@ pub fn init(vm: *VM) PatternSolver {
         .vm = vm,
         .bound_locals = ArrayList(Pattern.PatternVar){},
         .matched_keys = ArrayList(StringTable.Id){},
+        .discardable_root = null,
         .depth = 1,
         .printSteps = vm.config.printVM or vm.config.printDestructure,
     };
@@ -61,9 +66,15 @@ pub const Error = error{
     OutOfMemory,
 } || VM.Error;
 
-pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool {
+pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern, value_discarded: bool) Error!bool {
     self.bound_locals.shrinkRetainingCapacity(0);
     defer self.bound_locals.shrinkRetainingCapacity(0);
+
+    // Function-call patterns re-enter the VM and can nest another match,
+    // so restore rather than clear.
+    const prev_discardable_root = self.discardable_root;
+    self.discardable_root = if (value_discarded and value.isType(.Dyn)) value.asDyn() else null;
+    defer self.discardable_root = prev_discardable_root;
 
     // Prevent GC for all dyns created in pattern solver, until match is complete
     const temp_dyns_start = self.vm.temp_dyns.items.len;
@@ -699,28 +710,70 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
         // the rest object is never observed. Keep the slow path when
         // printing steps so the debug output still shows the match.
         if (self.printSteps or !self.isPlaceholderLocal(pattern)) {
-            // Create an object with only the unmatched keys, preserving the
-            // value object's member order
-            const matched_count = self.matched_keys.items.len - matched_base;
-            const unbound_object = try Elem.DynElem.Object.create(self.vm, value_object.members.count() - matched_count);
-            try self.vm.pushTempDyn(&unbound_object.dyn);
+            if (self.canBindRestInPlace(value, pattern)) {
+                // Every part before the rest has matched and binding an
+                // unbound var cannot fail, so the match is already a
+                // success. Give up the matched members and bind the rest
+                // var to the value object itself instead of copying the
+                // remaining members into a fresh object.
+                for (self.matched_keys.items[matched_base..]) |sid| {
+                    const removed = value_object.members.fetchOrderedRemove(sid);
+                    removed.?.value.release();
+                }
+                try self.setLocal(pattern.Local, value);
+            } else {
+                // Create an object with only the unmatched keys, preserving
+                // the value object's member order
+                const matched_count = self.matched_keys.items.len - matched_base;
+                const unbound_object = try Elem.DynElem.Object.create(self.vm, value_object.members.count() - matched_count);
+                try self.vm.pushTempDyn(&unbound_object.dyn);
 
-            var member_iterator = value_object.members.iterator();
-            while (member_iterator.next()) |entry| {
-                const key_sid = entry.key_ptr.*;
-                if (self.keyMatched(matched_base, key_sid)) continue;
-                try unbound_object.put(self.vm, key_sid, entry.value_ptr.*);
-            }
+                var member_iterator = value_object.members.iterator();
+                while (member_iterator.next()) |entry| {
+                    const key_sid = entry.key_ptr.*;
+                    if (self.keyMatched(matched_base, key_sid)) continue;
+                    try unbound_object.put(self.vm, key_sid, entry.value_ptr.*);
+                }
 
-            const unbound_elem = unbound_object.dyn.elem();
+                const unbound_elem = unbound_object.dyn.elem();
 
-            if (!(try self.matchPattern(unbound_elem, pattern))) {
-                return false;
+                const rest_matched = try self.matchPattern(unbound_elem, pattern);
+
+                // Hand the creator handle over: after this the object is
+                // owned by the local slot the match bound (or by no one, if
+                // the rest matched against an already-bound value). Keeping
+                // the extra count would make every rest binding look shared
+                // and defeat downstream unique-value fast paths.
+                unbound_object.dyn.release();
+
+                if (!rest_matched) {
+                    return false;
+                }
             }
         }
     }
 
     return true;
+}
+
+// The rest of a root-level object destructure can take over the value
+// object when the VM will discard the match result and the stack holds the
+// only handle: nothing else can observe the removed members. Restricted to
+// a plain unbound var so the binding cannot fail after the mutation.
+fn canBindRestInPlace(self: *PatternSolver, value: Elem, pattern: Pattern) bool {
+    if (self.printSteps) return false;
+    if (!self.vm.config.rc_fast_paths) return false;
+    if (self.discardable_root == null or self.discardable_root != value.asDyn()) return false;
+    if (!value.asDyn().isUnique()) return false;
+
+    switch (pattern) {
+        .Local => |pattern_var| {
+            if (pattern_var.hasBeenNegated()) return false;
+            const local = self.vm.getLocal(pattern_var.idx);
+            return local.isType(.ValueVar) and !self.vm.varIdIsPlaceholder(local.asValueVar().sid);
+        },
+        else => return false,
+    }
 }
 
 fn keyMatched(self: *PatternSolver, base: usize, sid: StringTable.Id) bool {
