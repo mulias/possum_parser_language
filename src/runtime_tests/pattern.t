@@ -977,3 +977,25 @@ only succeeds if A did not stay stale-bound to "x".
 
   $ possum -p 'Id(N) = N -> M & M ; json -> {A: Id(A), "z": 1} $ A | json -> A $ A' -i '{"x": "y", "a": "a"}'
   {"x": "y", "a": "a"}
+
+The nested match must also restore the outer match's print depth: trace
+lines after the pattern function returns keep their original indentation.
+
+  $ export PRINT_DESTRUCTURE=true
+
+  $ possum -p 'Id(N) = N -> M & M ; const([1, 2]) -> [Id(1), X] $ X' -i ''
+  
+  Destructure:
+      [1, 2] -> [Id(1), X]
+          1 -> Id(1)
+  
+  Eval Pattern Function: Id(1)
+  
+  Destructure:
+      1 -> M
+  Destructure Success: 1 -> M
+  
+          1 -> 1
+          2 -> X
+  Destructure Success: [1, 2] -> [Id(1), X]
+  2
