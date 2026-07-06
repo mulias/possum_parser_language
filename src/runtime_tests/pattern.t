@@ -960,3 +960,20 @@
           5 -> N
   Destructure Success: "12345" -> ("0".."9" * N)
   5
+
+A pattern function whose body contains `->` re-enters the pattern solver
+mid-match. The nested match must not clobber the outer match's undo log:
+after the first key mismatches, the unbound-key scan unbinds A and goes on
+to match the second key.
+
+  $ export PRINT_DESTRUCTURE=false
+
+  $ possum -p 'Id(N) = N -> M & M ; json -> {A: Id(A), ..._} $ A' -i '{"x": "y", "a": "a"}'
+  "a"
+
+A failed match containing a re-entrant pattern function unbinds everything
+it bound: the alternative destructures the same value to a bare A, which
+only succeeds if A did not stay stale-bound to "x".
+
+  $ possum -p 'Id(N) = N -> M & M ; json -> {A: Id(A), "z": 1} $ A | json -> A $ A' -i '{"x": "y", "a": "a"}'
+  {"x": "y", "a": "a"}
