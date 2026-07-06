@@ -154,7 +154,7 @@ pub const GC = struct {
         const before_count = self.countDynElems();
 
         self.running_gc = true;
-        self.clearConsumedMutableConstants();
+        self.clearConsumedCaches();
         if (comptime builtin.mode == .Debug) self.auditRefCounts();
         self.markRoots();
         self.traceReferences();
@@ -225,18 +225,23 @@ pub const GC = struct {
         return count;
     }
 
-    // A mutable-constant cache entry whose slot holds the only handle was
-    // fully consumed: its children are unobservable until the next reuse
-    // refreshes them from the template. Releasing them here mirrors
-    // sweep's dead-holder release — a value whose only extra holder is a
-    // parked cache copy becomes unique again — and lets the children be
-    // swept this cycle. The emptied husk stays parked for reuse.
-    fn clearConsumedMutableConstants(self: *GC) void {
+    // A mutable-constant or closure cache entry whose slot holds the only
+    // handle was fully consumed: its children are unobservable until the
+    // next reuse refills them. Releasing them here mirrors sweep's
+    // dead-holder release — a value whose only extra holder is a parked
+    // cache copy becomes unique again — and lets the children be swept
+    // this cycle. The emptied husk stays parked for reuse.
+    fn clearConsumedCaches(self: *GC) void {
         for (self.vm.modules.items) |module| {
-            var iter = module.mutable_constants.valueIterator();
-            while (iter.next()) |cached| {
+            var constants = module.mutable_constants.valueIterator();
+            while (constants.next()) |cached| {
                 if (!cached.*.isUnique()) continue;
                 cached.*.clearChildren();
+            }
+            var closures = module.closure_cache.valueIterator();
+            while (closures.next()) |cached| {
+                if (!cached.*.isUnique()) continue;
+                cached.*.asClosure().clearCaptures();
             }
         }
     }
@@ -297,6 +302,10 @@ pub const GC = struct {
             }
             var mutable_constants = module.mutable_constants.valueIterator();
             while (mutable_constants.next()) |cached| {
+                self.markDyn(cached.*);
+            }
+            var closure_cache = module.closure_cache.valueIterator();
+            while (closure_cache.next()) |cached| {
                 self.markDyn(cached.*);
             }
         }

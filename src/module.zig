@@ -19,15 +19,23 @@ pub const Module = struct {
     // Each entry owns one handle to the last copy made for that constant;
     // the copy is reusable again once that handle is the only one left.
     mutable_constants: AutoHashMap(usize, *Elem.DynElem) = .{},
+    // Cached current closure per anonymous function, keyed by the function
+    // constant (immortal, stable pointer; one creation site per function).
+    // Each entry owns one handle to the last closure created for that
+    // function; the closure is reusable once that handle is the only one
+    // left.
+    closure_cache: AutoHashMap(*Elem.DynElem.Function, *Elem.DynElem) = .{},
     patterns: ArrayList(Pattern) = ArrayList(Pattern){},
 
     pub const Id = u16;
 
     pub fn deinit(self: *Module, allocator: Allocator) void {
-        // Cached mutable copies are not released here: the GC destroys
-        // every dyn before modules deinit, so the slots may already
-        // dangle. The slot handles only matter while the VM is running.
+        // Cached mutable copies and closures are not released here: the GC
+        // destroys every dyn before modules deinit, so the slots may
+        // already dangle. The slot handles only matter while the VM is
+        // running.
         self.mutable_constants.deinit(allocator);
+        self.closure_cache.deinit(allocator);
         self.constants.deinit(allocator);
         for (self.patterns.items) |*pattern| {
             pattern.deinit(allocator);
