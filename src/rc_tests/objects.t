@@ -15,6 +15,7 @@ replaced value's handle.
   inserts:           9 in place, 0 copied
   mutable constants: 1 reused, 5 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  10
   strings size:      27 chars
   bytes in use:      1160
@@ -32,6 +33,7 @@ replaced value's handle.
   inserts:           0 in place, 9 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  10
   strings size:      27 chars
   bytes in use:      896
@@ -55,6 +57,7 @@ result instead of shared.
   inserts:           4 in place, 0 copied
   mutable constants: 0 reused, 3 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  10
   strings size:      27 chars
   bytes in use:      1976

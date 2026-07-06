@@ -12,6 +12,7 @@ visible as ~500 extra dyns created.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  9
   strings size:      27 chars
   bytes in use:      0
@@ -26,6 +27,7 @@ visible as ~500 extra dyns created.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  9
   strings size:      27 chars
   bytes in use:      0
@@ -43,6 +45,7 @@ report as the only unique live dyn.
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  7
   strings size:      21 chars
   bytes in use:      368

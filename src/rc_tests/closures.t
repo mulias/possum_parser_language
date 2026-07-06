@@ -14,6 +14,7 @@ iteration allocates a fresh closure.
   inserts:           5 in place, 0 copied
   mutable constants: 2 reused, 3 copied
   closures:          4 reused, 1 created
+  husks:             1 parked, 0 reused
   strings interned:  26
   strings size:      107 chars
   bytes in use:      1648
@@ -28,6 +29,7 @@ iteration allocates a fresh closure.
   inserts:           0 in place, 5 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  26
   strings size:      107 chars
   bytes in use:      1376
@@ -52,6 +54,7 @@ second object on.
   inserts:           6 in place, 0 copied
   mutable constants: 0 reused, 6 copied
   closures:          4 reused, 7 created
+  husks:             1 parked, 0 reused
   strings interned:  122
   strings size:      824 chars
   bytes in use:      9232
@@ -70,6 +73,7 @@ second object on.
   inserts:           0 in place, 6 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
+  husks:             0 parked, 0 reused
   strings interned:  122
   strings size:      824 chars
   bytes in use:      8608
