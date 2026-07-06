@@ -15,7 +15,6 @@ const StringTable = @import("string_table.zig").StringTable;
 const Pattern = @import("pattern.zig").Pattern;
 const PatternSolver = @import("pattern_solver.zig");
 const Writers = @import("writer.zig").Writers;
-const builtin = @import("builtin.zig");
 const parsing = @import("parsing.zig");
 
 pub const Config = struct {
@@ -224,7 +223,6 @@ pub const VM = struct {
 
     pub fn compile(self: *VM, module_name: []const u8, source: []const u8) !void {
         const builtin_module = try self.createModule("builtins", "");
-        try builtin.loadFunctions(self, builtin_module);
 
         var maybe_stdlib_module: ?Module = null;
         if (self.config.includeStdlib) {
@@ -241,7 +239,7 @@ pub const VM = struct {
         var compiler = try Compiler.init(self);
         defer compiler.deinit();
 
-        try compiler.addModule(builtin_module.*, .{});
+        try compiler.addBuiltinsModule(builtin_module.*);
         if (maybe_stdlib_module) |stdlib_module| {
             try compiler.addModule(stdlib_module, .{});
         }

@@ -84,18 +84,6 @@ pub const AnonymousFunctionNode = struct {
 };
 
 pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: Ast) !void {
-    // Include precompiled functions
-    for (module.constants.items) |compiled_elem| {
-        if (compiled_elem.isDynType(.Function)) {
-            try self.addNode(
-                allocator,
-                module.id,
-                compiled_elem.asDyn().asFunction().name,
-                .{ .precompiled = undefined },
-            );
-        }
-    }
-
     for (ast.declarations.items) |decl| {
         try self.addNode(
             allocator,
@@ -120,6 +108,10 @@ pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: Ast) !
             } },
         );
     }
+}
+
+pub fn addPrecompiled(self: *Graph, allocator: Allocator, module_id: Module.Id, name: StringTable.Id) !void {
+    try self.addNode(allocator, module_id, name, .precompiled);
 }
 
 fn addNode(self: *Graph, allocator: Allocator, module_id: Module.Id, name: StringTable.Id, fields: Node) !void {

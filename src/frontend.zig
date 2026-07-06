@@ -70,6 +70,14 @@ pub fn addModule(self: *Frontend, module: Module, opts: AddModuleOpts) !void {
     try self.resolver.addModule(module, ast);
 }
 
+// Register a function that the backend can compile on demand, without a
+// source declaration. The name becomes a precompiled node in the dependency
+// graph so that identifiers can resolve to it.
+pub fn addPrecompiled(self: *Frontend, module_id: Module.Id, name: []const u8) !void {
+    const sid = try self.strings.insert(name);
+    try self.resolver.graph.addPrecompiled(self.arena.allocator(), module_id, sid);
+}
+
 pub fn addModuleDependency(
     self: *Frontend,
     module_id: Module.Id,

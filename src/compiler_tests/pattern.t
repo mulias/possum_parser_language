@@ -1074,7 +1074,7 @@
 
   $ possum -p 'int -> 5' -i '5'
   
-  =================@fn37==================
+  ==================@fn2==================
   maybe("-") + _number_integer_part
   ========================================
   0000    | GetConstant 2: maybe
@@ -1090,7 +1090,7 @@
   integer = as_number(maybe("-") + _number_integer_part)
   ========================================
   0000    | GetConstant 0: as_number
-  0002    | GetConstant 1: @fn37
+  0002    | GetConstant 1: @fn2
   0004    | CallTailFunction 1
   0006    | End
   ========================================

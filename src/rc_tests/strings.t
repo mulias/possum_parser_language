@@ -3,16 +3,16 @@ Parsing the full input uses an input substring, no dynamic string allocation.
   $ PRINT_MEMORY_REPORT=true possum -p 'f ; f = "a" + (f | "")' -i 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   ===== memory report =====
-  dyns created:      37
-  dyns live:         36 (string 0, array 0, object 0, function 20, native 16, closure 0)
-  live ref counts:   unique 0, shared 0, immortal 36
+  dyns created:      2
+  dyns live:         1 (string 0, array 0, object 0, function 1, native 0, closure 0)
+  live ref counts:   unique 0, shared 0, immortal 1
   merges:            0 in place, 0 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
   strings size:      5532 chars
-  bytes in use:      3136
+  bytes in use:      112
 
 Right-built strings: each recursion level prepends a value segment onto
 the unique rope accumulator in place. No bytes are copied until the
@@ -22,16 +22,16 @@ quadratic (every level copied the whole suffix).
   $ PRINT_MEMORY_REPORT=true possum -p 'f ; f = ("a" $ "b") + (f | "")' -i 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   ===== memory report =====
-  dyns created:      38
-  dyns live:         37 (string 1, array 0, object 0, function 20, native 16, closure 0)
-  live ref counts:   unique 1, shared 0, immortal 36
+  dyns created:      3
+  dyns live:         2 (string 1, array 0, object 0, function 1, native 0, closure 0)
+  live ref counts:   unique 1, shared 0, immortal 1
   merges:            52 in place, 0 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
   strings size:      5532 chars
-  bytes in use:      3824
+  bytes in use:      800
 
 With fast paths disabled every level copies the whole suffix again:
 one string allocation per level instead of one rope total.
@@ -39,13 +39,13 @@ one string allocation per level instead of one rope total.
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p 'f ; f = ("a" $ "b") + (f | "")' -i 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   ===== memory report =====
-  dyns created:      90
-  dyns live:         37 (string 1, array 0, object 0, function 20, native 16, closure 0)
-  live ref counts:   unique 1, shared 0, immortal 36
+  dyns created:      55
+  dyns live:         2 (string 1, array 0, object 0, function 1, native 0, closure 0)
+  live ref counts:   unique 1, shared 0, immortal 1
   merges:            0 in place, 52 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
   strings size:      5532 chars
-  bytes in use:      3270
+  bytes in use:      246

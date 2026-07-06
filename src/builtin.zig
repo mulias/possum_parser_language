@@ -4,35 +4,57 @@ const Elem = @import("elem.zig").Elem;
 const Function = @import("elem.zig").Elem.DynElem.Function;
 const NativeCode = @import("elem.zig").Elem.DynElem.NativeCode;
 const Region = @import("region.zig").Region;
+const StringTable = @import("string_table.zig").StringTable;
 const VM = @import("vm.zig").VM;
 const Module = @import("module.zig").Module;
 const parsing = @import("parsing.zig");
 
-pub fn loadFunctions(vm: *VM, module: *Module) !void {
-    try createFailParser(vm, module);
-    try createFailValue(vm, module);
-    try createCrashValue(vm, module);
-    try createCodepointValue(vm, module);
-    try createSurrogatePairCodepointValue(vm, module);
-    try createDbgParser(vm, module);
-    try createDbgValue(vm, module);
-    try createAddValue(vm, module);
-    try createSubtractValue(vm, module);
-    try createMultiplyValue(vm, module);
-    try createDivideValue(vm, module);
-    try createPowerValue(vm, module);
-    try createModulusValue(vm, module);
-    try createFloorValue(vm, module);
-    try createCeilingValue(vm, module);
-    try createInputOffset(vm, module);
-    try createInputLine(vm, module);
-    try createInputLineOffset(vm, module);
-    try createAt(vm, module);
+pub const CreateError = error{ OutOfMemory, ShortOverflow };
+
+const CreateFn = *const fn (vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function;
+
+pub const BuiltinFunction = struct {
+    name: []const u8,
+    create: CreateFn,
+};
+
+pub const functions = [_]BuiltinFunction{
+    .{ .name = "@fail", .create = createFailParser },
+    .{ .name = "@Fail", .create = createFailValue },
+    .{ .name = "@Crash", .create = createCrashValue },
+    .{ .name = "@Codepoint", .create = createCodepointValue },
+    .{ .name = "@SurrogatePairCodepoint", .create = createSurrogatePairCodepointValue },
+    .{ .name = "@dbg", .create = createDbgParser },
+    .{ .name = "@Dbg", .create = createDbgValue },
+    .{ .name = "@Add", .create = createAddValue },
+    .{ .name = "@Subtract", .create = createSubtractValue },
+    .{ .name = "@Multiply", .create = createMultiplyValue },
+    .{ .name = "@Divide", .create = createDivideValue },
+    .{ .name = "@Power", .create = createPowerValue },
+    .{ .name = "@Modulus", .create = createModulusValue },
+    .{ .name = "@Floor", .create = createFloorValue },
+    .{ .name = "@Ceiling", .create = createCeilingValue },
+    .{ .name = "@input.offset", .create = createInputOffset },
+    .{ .name = "@input.line", .create = createInputLine },
+    .{ .name = "@input.line_offset", .create = createInputLineOffset },
+    .{ .name = "@at", .create = createAt },
+};
+
+// Instantiate the builtin with the given name, or return null if no such
+// builtin exists. The name is interned into the VM string table here so that
+// only builtins that are actually created add strings to the table.
+pub fn create(vm: *VM, module: *Module, name: []const u8) CreateError!?*Function {
+    for (functions) |bf| {
+        if (std.mem.eql(u8, bf.name, name)) {
+            const sid = try vm.strings.insert(bf.name);
+            return try bf.create(vm, module, sid);
+        }
+    }
+    return null;
 }
 
-fn createFailParser(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@fail");
-    var fun = try Function.create(vm, .{
+fn createFailParser(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 0,
@@ -45,11 +67,12 @@ fn createFailParser(vm: *VM, module: *Module) !void {
 
     try fun.chunk.writeOp(vm.allocator, .PushFail, loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
-fn createFailValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Fail");
-    var fun = try Function.create(vm, .{
+fn createFailValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 0,
@@ -62,11 +85,12 @@ fn createFailValue(vm: *VM, module: *Module) !void {
 
     try fun.chunk.writeOp(vm.allocator, .PushFail, loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
-fn createCrashValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Crash");
-    var fun = try Function.create(vm, .{
+fn createCrashValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 1,
@@ -81,11 +105,12 @@ fn createCrashValue(vm: *VM, module: *Module) !void {
     try fun.chunk.write(vm.allocator, 0, loc);
     try fun.chunk.writeOp(vm.allocator, .Crash, loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
-fn createCodepointValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Codepoint");
-    var fun = try Function.create(vm, .{
+fn createCodepointValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 1,
@@ -110,6 +135,8 @@ fn createCodepointValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn stringToCodepoint(vm: *VM) VM.Error!void {
@@ -136,9 +163,8 @@ fn stringToCodepoint(vm: *VM) VM.Error!void {
     }
 }
 
-fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@SurrogatePairCodepoint");
-    var fun = try Function.create(vm, .{
+fn createSurrogatePairCodepointValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 2,
@@ -165,6 +191,8 @@ fn createSurrogatePairCodepointValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn stringsToSurrogateCodepoint(vm: *VM) VM.Error!void {
@@ -197,9 +225,8 @@ fn stringsToSurrogateCodepoint(vm: *VM) VM.Error!void {
     }
 }
 
-fn createDbgParser(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@dbg");
-    var fun = try Function.create(vm, .{
+fn createDbgParser(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 1,
@@ -221,11 +248,12 @@ fn createDbgParser(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
-fn createDbgValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Dbg");
-    var fun = try Function.create(vm, .{
+fn createDbgValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 1,
@@ -245,6 +273,8 @@ fn createDbgValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn dbgNative(vm: *VM) VM.Error!void {
@@ -256,9 +286,8 @@ fn dbgNative(vm: *VM) VM.Error!void {
     try vm.writers.debug.print("\n", .{});
 }
 
-fn createAddValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Add");
-    var fun = try Function.create(vm, .{
+fn createAddValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 2,
@@ -280,6 +309,8 @@ fn createAddValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn addNative(vm: *VM) VM.Error!void {
@@ -310,9 +341,8 @@ fn addNative(vm: *VM) VM.Error!void {
     }
 }
 
-fn createSubtractValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Subtract");
-    var fun = try Function.create(vm, .{
+fn createSubtractValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 2,
@@ -334,6 +364,8 @@ fn createSubtractValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn subtractNative(vm: *VM) VM.Error!void {
@@ -358,9 +390,8 @@ fn subtractNative(vm: *VM) VM.Error!void {
     }
 }
 
-fn createMultiplyValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Multiply");
-    var fun = try Function.create(vm, .{
+fn createMultiplyValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 2,
@@ -382,6 +413,8 @@ fn createMultiplyValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn multiplyNative(vm: *VM) VM.Error!void {
@@ -406,9 +439,8 @@ fn multiplyNative(vm: *VM) VM.Error!void {
     }
 }
 
-fn createDivideValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Divide");
-    var fun = try Function.create(vm, .{
+fn createDivideValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 2,
@@ -430,6 +462,8 @@ fn createDivideValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn divideNative(vm: *VM) VM.Error!void {
@@ -458,9 +492,8 @@ fn divideNative(vm: *VM) VM.Error!void {
     }
 }
 
-fn createPowerValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Power");
-    var fun = try Function.create(vm, .{
+fn createPowerValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 2,
@@ -482,6 +515,8 @@ fn createPowerValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn powerNative(vm: *VM) VM.Error!void {
@@ -506,9 +541,8 @@ fn powerNative(vm: *VM) VM.Error!void {
     }
 }
 
-fn createModulusValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Modulus");
-    var fun = try Function.create(vm, .{
+fn createModulusValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 2,
@@ -531,6 +565,8 @@ fn createModulusValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn modulusNative(vm: *VM) VM.Error!void {
@@ -559,9 +595,8 @@ fn modulusNative(vm: *VM) VM.Error!void {
     }
 }
 
-fn createFloorValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Floor");
-    var fun = try Function.create(vm, .{
+fn createFloorValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 1,
@@ -582,6 +617,8 @@ fn createFloorValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn floorNative(vm: *VM) VM.Error!void {
@@ -602,9 +639,8 @@ fn floorNative(vm: *VM) VM.Error!void {
     }
 }
 
-fn createCeilingValue(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@Ceiling");
-    var fun = try Function.create(vm, .{
+fn createCeilingValue(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 1,
@@ -625,6 +661,8 @@ fn createCeilingValue(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn ceilingNative(vm: *VM) VM.Error!void {
@@ -645,9 +683,8 @@ fn ceilingNative(vm: *VM) VM.Error!void {
     }
 }
 
-fn createInputOffset(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@input.offset");
-    var fun = try Function.create(vm, .{
+fn createInputOffset(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 0,
@@ -665,6 +702,8 @@ fn createInputOffset(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn inputOffsetNative(vm: *VM) VM.Error!void {
@@ -673,9 +712,8 @@ fn inputOffsetNative(vm: *VM) VM.Error!void {
     ))));
 }
 
-fn createInputLine(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@input.line");
-    var fun = try Function.create(vm, .{
+fn createInputLine(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 0,
@@ -693,6 +731,8 @@ fn createInputLine(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn inputLineNative(vm: *VM) VM.Error!void {
@@ -701,9 +741,8 @@ fn inputLineNative(vm: *VM) VM.Error!void {
     ))));
 }
 
-fn createInputLineOffset(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@input.line_offset");
-    var fun = try Function.create(vm, .{
+fn createInputLineOffset(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 0,
@@ -721,6 +760,8 @@ fn createInputLineOffset(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .NativeCode, loc);
     try fun.chunk.write(vm.allocator, @intCast(nc_id), loc);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn inputLineOffsetNative(vm: *VM) VM.Error!void {
@@ -729,9 +770,8 @@ fn inputLineOffsetNative(vm: *VM) VM.Error!void {
     ));
 }
 
-fn createAt(vm: *VM, module: *Module) !void {
-    const name = try vm.strings.insert("@at");
-    var fun = try Function.create(vm, .{
+fn createAt(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
+    const fun = try Function.create(vm, .{
         .module_id = module.id,
         .name = name,
         .arity = 2,
@@ -763,6 +803,8 @@ fn createAt(vm: *VM, module: *Module) !void {
     try fun.chunk.writeOp(vm.allocator, .ResetInput, loc);
     try fun.chunk.patchJump(jumpIndex);
     try fun.chunk.writeOp(vm.allocator, .End, loc);
+
+    return fun;
 }
 
 fn setInputPositionNative(vm: *VM) VM.Error!void {

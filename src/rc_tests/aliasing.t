@@ -6,16 +6,16 @@ the unmutated A.
   $ PRINT_MEMORY_REPORT=true possum -p '(("a" $ [1]) * 2) -> A & ((("" $ (A + [2])) -> B & "x") | ("" $ A))' -i 'aa'
   [1, 1]
   ===== memory report =====
-  dyns created:      40
-  dyns live:         38 (string 0, array 3, object 0, function 19, native 16, closure 0)
-  live ref counts:   unique 1, shared 0, immortal 37
+  dyns created:      5
+  dyns live:         3 (string 0, array 3, object 0, function 0, native 0, closure 0)
+  live ref counts:   unique 1, shared 0, immortal 2
   merges:            0 in place, 2 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
   strings size:      5532 chars
-  bytes in use:      3576
+  bytes in use:      552
 
 When the first alternative succeeds, the copy is the fresh result and A
 dies unread in its slot.
@@ -23,13 +23,13 @@ dies unread in its slot.
   $ PRINT_MEMORY_REPORT=true possum -p '(("a" $ [1]) * 2) -> A & (("" $ (A + [2])) | ("" $ A))' -i 'aa'
   [1, 1, 2]
   ===== memory report =====
-  dyns created:      40
-  dyns live:         38 (string 0, array 3, object 0, function 19, native 16, closure 0)
-  live ref counts:   unique 1, shared 0, immortal 37
+  dyns created:      5
+  dyns live:         3 (string 0, array 3, object 0, function 0, native 0, closure 0)
+  live ref counts:   unique 1, shared 0, immortal 2
   merges:            0 in place, 2 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
   closures:          0 reused, 0 created
   strings interned:  528
   strings size:      5532 chars
-  bytes in use:      3576
+  bytes in use:      552
