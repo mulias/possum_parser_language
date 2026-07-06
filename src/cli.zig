@@ -93,6 +93,10 @@ pub const CLI = struct {
             .Path => |path| try self.readFile(path),
             .Stdin => try self.readStdin("input"),
         };
+        const input_name = switch (args.input) {
+            .Path => |path| path,
+            else => "input",
+        };
 
         var vm = VM.create();
         try vm.init(self.allocator, self.writers, config);
@@ -101,6 +105,7 @@ pub const CLI = struct {
             const parsed = try vm.interpret(module_name, source, input);
 
             if (parsed.isFailure()) {
+                try vm.printParseFailure(input_name);
                 return error.ParserFailure;
             } else {
                 try parsed.writeJson(.Pretty, vm, self.writers.out);

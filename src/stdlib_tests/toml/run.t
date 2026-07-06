@@ -1,4 +1,4 @@
-  $ for f in $TESTDIR/y_*.toml; do echo "$(basename $f)"; cat $f; echo "--------"; possum -p 'input(toml.tagged)' $f; echo ""; done
+  $ for f in $TESTDIR/y_*.toml; do echo "$(basename $f)"; cat $f; echo "--------"; possum -p 'input(toml.tagged)' $f 2>err; grep -a '^\[' err; echo ""; done
   y_array_multi_line.toml
   integers2 = [
     1, 2, 3
@@ -825,7 +825,7 @@
   }
   
 
-  $ for f in $TESTDIR/n_*.toml; do echo "$(basename $f)"; cat $f; echo "--------"; possum -p 'input(toml.tagged)' $f; echo ""; done
+  $ for f in $TESTDIR/n_*.toml; do echo "$(basename $f)"; cat $f; echo "--------"; possum -p 'input(toml.tagged)' $f 2>err; grep -a '^\[' err; echo ""; done
   n_append_array_of_tables_element_to_array.toml
   fruits = []
   

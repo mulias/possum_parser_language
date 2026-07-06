@@ -394,7 +394,7 @@
    [] 
   []
   
-  $ for f in $TESTDIR/n_*.json; do echo "$(basename $f)"; cat $f; echo ""; possum -p 'input(json)' $f; echo ""; done
+  $ for f in $TESTDIR/n_*.json; do echo "$(basename $f)"; cat $f; echo ""; possum -p 'input(json)' $f 2>err; grep -a '^\[' err; echo ""; done
   n_array_1_true_without_comma.json
   [1 true]
   [ParserFailure]
@@ -1137,7 +1137,7 @@
   [\x0c] (esc)
   [ParserFailure]
   
-  $ for f in $TESTDIR/i_*.json; do echo "$(basename $f)"; cat $f; echo ""; possum -p 'input(json)' $f; echo ""; done
+  $ for f in $TESTDIR/i_*.json; do echo "$(basename $f)"; cat $f; echo ""; possum -p 'input(json)' $f 2>err; grep -a '^\[' err; echo ""; done
   i_number_double_huge_neg_exp.json
   [123.456e-789]
   [123.456e-789]

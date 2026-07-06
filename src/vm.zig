@@ -14,6 +14,8 @@ const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable(.runtime);
 const Pattern = @import("pattern.zig").Pattern;
 const PatternSolver = @import("pattern_solver.zig");
+const Region = @import("region.zig").Region;
+const hl = @import("highlight.zig");
 const Writers = @import("writer.zig").Writers;
 const parsing = @import("parsing.zig");
 
@@ -61,6 +63,51 @@ pub const Pos = struct {
     }
 };
 
+// Snapshot of the failure that reached farthest into the input. Plain ids
+// and values only — the record outlives backtracking and GC, so it must
+// not hold anything that can dangle.
+pub const FarthestFailure = struct {
+    pos: Pos,
+    region: Region,
+    function_name: StringTable.Id,
+    module_id: Module.Id,
+    kind: Kind,
+    value_snapshot: [value_snapshot_capacity]u8,
+    value_snapshot_len: u8,
+    value_truncated: bool,
+
+    pub const Kind = enum { input_mismatch, pattern_mismatch };
+    pub const value_snapshot_capacity = 64;
+
+    pub fn valueSnapshot(self: *const FarthestFailure) []const u8 {
+        return self.value_snapshot[0..self.value_snapshot_len];
+    }
+};
+
+// Print the source text of a region on one line for a report headline,
+// clipped at the first newline or excerpt_max_len bytes.
+fn printSourceExcerpt(source: []const u8, region: Region, writer: *Writer) !void {
+    const excerpt_max_len = 40;
+
+    const start = @min(region.start, source.len);
+    var end = @min(region.end, source.len);
+    var clipped = false;
+
+    if (std.mem.indexOfScalar(u8, source[start..end], '\n')) |nl| {
+        end = start + nl;
+        clipped = true;
+    }
+    if (end - start > excerpt_max_len) {
+        end = start + excerpt_max_len;
+        while (end > start and source[end - 1] & 0xC0 == 0x80) end -= 1;
+        if (end > start and source[end - 1] >= 0xC0) end -= 1;
+        clipped = true;
+    }
+
+    try writer.print("{s}", .{source[start..end]});
+    if (clipped) try writer.print("…", .{});
+}
+
 // How often the uniqueness fast paths fired. Counted only at the decision
 // points: container merges with a Dyn lhs, string merges with a Dyn
 // operand on either side, and the Insert opcodes. Pure value-type merges
@@ -91,6 +138,7 @@ pub const VM = struct {
     input: []const u8,
     inputMarks: ArrayList(Pos),
     inputPos: Pos,
+    farthest: ?FarthestFailure,
     uniqueIdCount: u64,
     rc_stats: RcStats,
     pattern_solver: PatternSolver,
@@ -143,6 +191,7 @@ pub const VM = struct {
             .input = undefined,
             .inputMarks = undefined,
             .inputPos = undefined,
+            .farthest = null,
             .uniqueIdCount = undefined,
             .rc_stats = undefined,
             .pattern_solver = undefined,
@@ -178,6 +227,7 @@ pub const VM = struct {
         self.input = undefined;
         self.inputMarks = ArrayList(Pos){};
         self.inputPos = Pos{};
+        self.farthest = null;
         self.uniqueIdCount = 0;
         self.rc_stats = RcStats{};
         self.pattern_solver = PatternSolver.init(self);
@@ -212,6 +262,7 @@ pub const VM = struct {
         if (input.len > std.math.maxInt(u32)) return error.InputTooLong;
 
         self.input = input;
+        self.farthest = null;
         try self.compile(module_name, source);
         try self.run();
         assert(self.stack.items.len == 1);
@@ -468,6 +519,10 @@ pub const VM = struct {
                 if (value.isSuccess() and (try self.pattern_solver.match(value, pattern))) {
                     // value is already on the stack
                 } else {
+                    // Snapshot before popConsumed reclaims the value. A
+                    // propagated failure is not a pattern mismatch and was
+                    // already recorded where it happened.
+                    if (value.isSuccess()) self.recordPatternFailure(value);
                     // This should technically match `opCode`, but the RC
                     // semantics are the same for all destructure ops
                     _ = self.popConsumed(.Destructure);
@@ -1676,7 +1731,65 @@ pub const VM = struct {
     }
 
     pub fn pushFailure(self: *VM) !void {
+        if (self.failureAdvancesFarthest()) {
+            self.recordFarthestFailure(.input_mismatch, null);
+        }
         try self.push(Elem.failureConst);
+    }
+
+    fn failureAdvancesFarthest(self: *VM) bool {
+        return self.farthest == null or self.inputPos.offset > self.farthest.?.pos.offset;
+    }
+
+    // A tie overrides here (`>=` vs the strict `>` in pushFailure): the
+    // rejected value parsed all the way to the farthest position, which
+    // beats a speculative parse failure recorded at the same offset.
+    fn recordPatternFailure(self: *VM, value: Elem) void {
+        if (self.farthest == null or self.inputPos.offset >= self.farthest.?.pos.offset) {
+            self.recordFarthestFailure(.pattern_mismatch, value);
+        }
+    }
+
+    // Cold: runs only when a failure strictly advances the farthest
+    // position. The grammar site is resolved the same way runtimeError
+    // resolves it — a builtin frame defers to its caller, never a deeper
+    // ancestry walk (under tail call elimination the walk lies).
+    noinline fn recordFarthestFailure(self: *VM, kind: FarthestFailure.Kind, value: ?Elem) void {
+        const target_frame = if (self.cur_frame.function.isBuiltin())
+            self.parentFrame() orelse self.cur_frame
+        else
+            self.cur_frame;
+
+        const function = target_frame.function;
+
+        var record = FarthestFailure{
+            .pos = self.inputPos,
+            .region = function.chunk.regions.items[target_frame.ip - 1],
+            .function_name = function.name,
+            .module_id = function.mid,
+            .kind = kind,
+            .value_snapshot = undefined,
+            .value_snapshot_len = 0,
+            .value_truncated = false,
+        };
+
+        // Render the rejected value eagerly: the destructure op reclaims
+        // it right after this, so the record cannot hold the Elem itself.
+        if (value) |v| {
+            var writer = Writer.fixed(&record.value_snapshot);
+            v.print(self.*, &writer) catch {
+                record.value_truncated = true;
+            };
+            var len = writer.end;
+            if (record.value_truncated) {
+                // Drop any codepoint the cutoff split in half.
+                while (len > 0 and record.value_snapshot[len - 1] & 0xC0 == 0x80) len -= 1;
+                if (len > 0 and record.value_snapshot[len - 1] >= 0xC0) len -= 1;
+            }
+            record.value_snapshot_len = @intCast(len);
+        }
+
+        self.farthest = record;
     }
 
     pub fn pop(self: *VM) Elem {
@@ -1786,6 +1899,60 @@ pub const VM = struct {
         try self.writers.err.print("\n", .{});
 
         return Error.RuntimeError;
+    }
+
+    pub fn printParseFailure(self: *VM, input_name: []const u8) !void {
+        const writer = self.writers.err;
+
+        const record = self.farthest orelse {
+            try writer.print("\nParse Failure\n\n", .{});
+            try self.printInputContext(self.inputPos, input_name, writer);
+            return;
+        };
+
+        const module = self.getModule(record.module_id);
+
+        try writer.print("\nParse Failure: ", .{});
+        switch (record.kind) {
+            .input_mismatch => {
+                try writer.print("expected ", .{});
+                try printSourceExcerpt(module.source, record.region, writer);
+            },
+            .pattern_mismatch => {
+                try writer.print("value {s}", .{record.valueSnapshot()});
+                if (record.value_truncated) try writer.print("…", .{});
+                try writer.print(" did not match pattern ", .{});
+                try printSourceExcerpt(module.source, record.region, writer);
+            },
+        }
+        try writer.print("\n\n", .{});
+
+        try self.printInputContext(record.pos, input_name, writer);
+
+        const name = self.strings.get(record.function_name);
+        if (name.len > 0) {
+            try writer.print("\nwhile matching parser `{s}`\n\n", .{name});
+        } else {
+            try writer.print("\nwhile matching parser\n\n", .{});
+        }
+
+        try writer.print("{s}:", .{module.name});
+        try record.region.printLineRelative(module.source, writer);
+        try writer.print(":\n\n", .{});
+        try module.highlight(record.region, writer);
+        try writer.print("\n", .{});
+    }
+
+    fn printInputContext(self: *VM, pos: Pos, input_name: []const u8, writer: *Writer) !void {
+        try writer.print("{s}:{d}:{d}:\n\n", .{ input_name, pos.line, pos.lineOffset() });
+        if (pos.offset >= self.input.len) {
+            try hl.highlightEndPosition(self.input, writer, .{});
+            // The empty-source path of highlightEndPosition omits the
+            // trailing newline the other paths print.
+            if (self.input.len == 0) try writer.print("\n", .{});
+        } else {
+            try hl.highlightRegion(self.input, Region.new(pos.offset, pos.offset + 1), writer, .{});
+        }
     }
 
     fn isNewlineChar(self: VM, offset: usize, bytes_length: u3) bool {

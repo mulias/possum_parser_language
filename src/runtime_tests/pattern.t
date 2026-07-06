@@ -12,6 +12,21 @@
   Destructure:
       0 -> 4
   Destructure Failure: 0 -> 4
+  
+  Parse Failure: value 0 did not match pattern 1 + 1 + 2
+  
+  input:1:1:
+  
+  1 \xe2\x96\x8f 0 (esc)
+    \xe2\x96\x8f  ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:6-15:
+  
+  1 \xe2\x96\x8f 0 -> (1 + 1 + 2) (esc)
+    \xe2\x96\x8f       ^^^^^^^^^ (esc)
+  
   [ParserFailure]
   [1]
 
@@ -27,6 +42,21 @@
   Destructure:
       7 -> 5
   Destructure Failure: 7 -> 5
+  
+  Parse Failure: value 7 did not match pattern 2 + 3
+  
+  input:1:1:
+  
+  1 \xe2\x96\x8f 7 (esc)
+    \xe2\x96\x8f  ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:6-11:
+  
+  1 \xe2\x96\x8f 7 -> (2 + 3) (esc)
+    \xe2\x96\x8f       ^^^^^ (esc)
+  
   [ParserFailure]
   [1]
 
@@ -51,6 +81,21 @@
       8 -> (X + 4)
       8 -> 7
   Destructure Failure: 8 -> (X + 4)
+  
+  Parse Failure: value 8 did not match pattern (X + 4)
+  
+  input:1:1:
+  
+  1 \xe2\x96\x8f 8 (esc)
+    \xe2\x96\x8f  ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:12-19:
+  
+  1 \xe2\x96\x8f X = 3; 8 -> (X + 4) (esc)
+    \xe2\x96\x8f             ^^^^^^^ (esc)
+  
   [ParserFailure]
   [1]
 
