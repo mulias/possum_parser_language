@@ -353,14 +353,14 @@ pub const OpCode = enum(u8) {
             .PushEmptyObject,
             => .{ .operands = .none, .result = .derived },
 
-            // Push a mutable copy of a container constant: a second
-            // handle to the reused cache entry, or a fresh copy whose
-            // extra cache-slot handle is added in the dispatch. With
-            // fast paths off, behaves exactly like GetConstant.
+            // Push a mutable copy of a container constant, possibly in a
+            // reused husk; the pushed handle is the copy's first. With
+            // fast paths off, pushes the immortal constant itself, whose
+            // pinned count makes the classification moot.
             .GetConstantMutable,
             .GetConstantMutable2,
             .GetConstantMutable3,
-            => .{ .operands = .none, .result = .derived },
+            => .{ .operands = .none, .result = .fresh },
 
             // Parse results and pushed literals: value types or new Dyns
             // whose pushed handle is their first reference.
@@ -433,11 +433,10 @@ pub const OpCode = enum(u8) {
             .ParseUpperBoundedRange,
             => .{ .operands = .consumed, .result = .fresh },
 
-            // Pops the function elem, pushes a closure holding it: a
-            // second handle to the reused cache entry, or a fresh closure
-            // whose extra cache-slot handle is added in the dispatch. With
-            // fast paths off, always a fresh closure.
-            .CreateClosure => .{ .operands = .consumed, .result = .derived },
+            // Pops the function elem, pushes a closure holding it,
+            // possibly in a reused husk; the pushed handle is the
+            // closure's first.
+            .CreateClosure => .{ .operands = .consumed, .result = .fresh },
 
             // The dropped handle dies.
             .Drop => .{ .operands = .consumed, .result = .none },

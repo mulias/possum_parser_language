@@ -7,16 +7,14 @@ from a consumed unique rhs would flip that split.
   "ok"
   ===== memory report =====
   dyns created:      8
-  dyns live:         4 (string 0, array 4, object 0, function 0, native 0, closure 0)
-  live ref counts:   unique 2, shared 0, immortal 2
+  dyns live:         2 (string 0, array 2, object 0, function 0, native 0, closure 0)
+  live ref counts:   unique 0, shared 0, immortal 2
   merges:            2 in place, 0 copied
   inserts:           9 in place, 0 copied
-  mutable constants: 1 reused, 5 copied
-  closures:          0 reused, 0 created
-  husks:             1 parked, 0 reused
+  husks:             3 parked, 1 reused
   strings interned:  9
   strings size:      26 chars
-  bytes in use:      736
+  bytes in use:      368
 
 Same build with the small result kept live, to pin the unique/shared split
 of the survivors.
@@ -29,13 +27,11 @@ of the survivors.
   ]
   ===== memory report =====
   dyns created:      8
-  dyns live:         7 (string 0, array 7, object 0, function 0, native 0, closure 0)
-  live ref counts:   unique 4, shared 1, immortal 2
+  dyns live:         6 (string 0, array 6, object 0, function 0, native 0, closure 0)
+  live ref counts:   unique 4, shared 0, immortal 2
   merges:            2 in place, 0 copied
   inserts:           9 in place, 0 copied
-  mutable constants: 1 reused, 5 copied
-  closures:          0 reused, 0 created
-  husks:             0 parked, 0 reused
+  husks:             2 parked, 1 reused
   strings interned:  8
   strings size:      23 chars
-  bytes in use:      1288
+  bytes in use:      1104

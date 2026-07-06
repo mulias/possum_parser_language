@@ -10,8 +10,6 @@ visible as ~500 extra dyns created.
   live ref counts:   unique 0, shared 0, immortal 0
   merges:            498 in place, 0 copied
   inserts:           0 in place, 0 copied
-  mutable constants: 0 reused, 0 copied
-  closures:          0 reused, 0 created
   husks:             0 parked, 0 reused
   strings interned:  9
   strings size:      27 chars
@@ -25,8 +23,6 @@ visible as ~500 extra dyns created.
   live ref counts:   unique 0, shared 0, immortal 0
   merges:            0 in place, 498 copied
   inserts:           0 in place, 0 copied
-  mutable constants: 0 reused, 0 copied
-  closures:          0 reused, 0 created
   husks:             0 parked, 0 reused
   strings interned:  9
   strings size:      27 chars
@@ -43,8 +39,6 @@ report as the only unique live dyn.
   live ref counts:   unique 1, shared 0, immortal 1
   merges:            3 in place, 1 copied
   inserts:           0 in place, 0 copied
-  mutable constants: 0 reused, 0 copied
-  closures:          0 reused, 0 created
   husks:             0 parked, 0 reused
   strings interned:  7
   strings size:      21 chars

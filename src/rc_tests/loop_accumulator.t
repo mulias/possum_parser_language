@@ -10,8 +10,6 @@ place every iteration.
   live ref counts:   unique 0, shared 0, immortal 1
   merges:            38 in place, 1 copied
   inserts:           0 in place, 0 copied
-  mutable constants: 0 reused, 0 copied
-  closures:          0 reused, 0 created
   husks:             1 parked, 0 reused
   strings interned:  8
   strings size:      24 chars
@@ -25,8 +23,6 @@ place every iteration.
   live ref counts:   unique 0, shared 0, immortal 1
   merges:            0 in place, 39 copied
   inserts:           0 in place, 0 copied
-  mutable constants: 0 reused, 0 copied
-  closures:          0 reused, 0 created
   husks:             0 parked, 0 reused
   strings interned:  8
   strings size:      24 chars
