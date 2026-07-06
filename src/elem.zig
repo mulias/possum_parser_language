@@ -1908,6 +1908,17 @@ pub const Elem = packed union {
                 self.captures[index] = local;
             }
 
+            // Reset a consumed closure to its as-created all-null state so
+            // CaptureLocal can refill it. The function handle is kept: the
+            // husk still references its function, and releasing it here
+            // would double-release when the closure is swept.
+            pub fn clearCaptures(self: *Closure) void {
+                for (self.captures) |*maybe_capture| {
+                    if (maybe_capture.*) |captured| captured.release();
+                    maybe_capture.* = null;
+                }
+            }
+
             pub fn getCaptured(self: *Closure, name: StringTable.Id) ?Elem {
                 if (self.function.localSlot(name)) |slot| {
                     return self.captures[slot];

@@ -448,8 +448,11 @@ pub const OpCode = enum(u8) {
             .ParseUpperBoundedRange,
             => .{ .operands = .consumed, .result = .fresh },
 
-            // Pops the function elem, pushes a new closure holding it.
-            .CreateClosure => .{ .operands = .consumed, .result = .fresh },
+            // Pops the function elem, pushes a closure holding it: a
+            // second handle to the reused cache entry, or a fresh closure
+            // whose extra cache-slot handle is added in the dispatch. With
+            // fast paths off, always a fresh closure.
+            .CreateClosure => .{ .operands = .consumed, .result = .derived },
 
             // The dropped handle dies.
             .Drop => .{ .operands = .consumed, .result = .none },

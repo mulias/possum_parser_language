@@ -9,6 +9,7 @@ Parsing the full input uses an input substring, no dynamic string allocation.
   merges:            0 in place, 0 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
+  closures:          0 reused, 0 created
   strings interned:  528
   bytes in use:      3136
 
@@ -26,6 +27,7 @@ quadratic (every level copied the whole suffix).
   merges:            52 in place, 0 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
+  closures:          0 reused, 0 created
   strings interned:  528
   bytes in use:      3824
 
@@ -41,5 +43,6 @@ one string allocation per level instead of one rope total.
   merges:            0 in place, 52 copied
   inserts:           0 in place, 0 copied
   mutable constants: 0 reused, 0 copied
+  closures:          0 reused, 0 created
   strings interned:  528
   bytes in use:      3270

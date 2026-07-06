@@ -2743,6 +2743,57 @@ test "a full program allocates fewer dyns with fast paths than without" {
     try std.testing.expect(vm_fast.uniqueIdCount < vm_copy.uniqueIdCount);
 }
 
+test "closure creation reuses the cached closure once the prior one is consumed" {
+    // The repeat loop re-emits the compound argument's closure creation
+    // every iteration; each prior closure is fully consumed by then, so
+    // the module cache slot holds the only handle and the allocation is
+    // reused.
+    const parser =
+        \\id(q) = q
+        \\list(p, sep) = p + (id(sep > p) * 0..)
+        \\list("a", ",")
+    ;
+    const input = "a,a,a,a,a";
+
+    var vm_fast = VM.create();
+    try vm_fast.init(allocator, writers, rc_config);
+    defer vm_fast.deinit();
+    _ = try vm_fast.interpret("test", parser, input);
+
+    try std.testing.expectEqual(@as(u64, 4), vm_fast.rc_stats.closure_reused);
+    try std.testing.expectEqual(@as(u64, 1), vm_fast.rc_stats.closure_created);
+
+    var vm_copy = VM.create();
+    var no_fast_paths = rc_config;
+    no_fast_paths.rc_fast_paths = false;
+    try vm_copy.init(allocator, writers, no_fast_paths);
+    defer vm_copy.deinit();
+    _ = try vm_copy.interpret("test", parser, input);
+
+    try std.testing.expectEqual(@as(u64, 0), vm_copy.rc_stats.closure_reused);
+    try std.testing.expectEqual(@as(u64, 0), vm_copy.rc_stats.closure_created);
+    try std.testing.expect(vm_fast.uniqueIdCount < vm_copy.uniqueIdCount);
+}
+
+test "a live prior closure forces a fresh allocation at the same creation site" {
+    // Each recursion level re-executes the creation site while the prior
+    // level's closure is still held as a frame local, so the cache slot is
+    // shared and every level allocates fresh.
+    const parser =
+        \\f(p) = ("!" > f(p + "")) | p
+        \\f("a")
+    ;
+    const input = "!!a";
+
+    var vm = VM.create();
+    try vm.init(allocator, writers, rc_config);
+    defer vm.deinit();
+    _ = try vm.interpret("test", parser, input);
+
+    try std.testing.expectEqual(@as(u64, 0), vm.rc_stats.closure_reused);
+    try std.testing.expectEqual(@as(u64, 2), vm.rc_stats.closure_created);
+}
+
 test "merge of two value strings builds a rope without copying bytes" {
     var vm = VM.create();
     try vm.init(allocator, writers, rc_config);

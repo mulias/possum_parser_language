@@ -64,10 +64,10 @@ pub const Pos = struct {
 
 // How often the uniqueness fast paths fired. Counted only at the decision
 // points: container merges with a Dyn lhs, string merges with a Dyn
-// operand on either side, and the Insert opcodes. Pure value-type merges
-// are not counted. A fresh rope referencing a shared Dyn operand counts
-// as a copy: no existing value was mutated, even though no bytes were
-// copied.
+// operand on either side, the Insert opcodes, and closure creation sites.
+// Pure value-type merges are not counted. A fresh rope referencing a
+// shared Dyn operand counts as a copy: no existing value was mutated,
+// even though no bytes were copied.
 pub const RcStats = struct {
     merge_in_place: u64 = 0,
     merge_copy: u64 = 0,
@@ -75,6 +75,8 @@ pub const RcStats = struct {
     insert_copy: u64 = 0,
     mutable_constant_reused: u64 = 0,
     mutable_constant_copied: u64 = 0,
+    closure_reused: u64 = 0,
+    closure_created: u64 = 0,
 };
 
 pub const VM = struct {
@@ -457,16 +459,7 @@ pub const VM = struct {
                 // Wraps a Function in a Closure with N capture slots.
                 // Takes the local count as operand.
                 const localCount = self.readByte();
-                const elem = self.peek(0);
-
-                std.debug.assert(elem.isDynType(.Function));
-                const function = elem.asDyn().asFunction();
-                const closure = try Elem.DynElem.Closure.create(self, function, localCount);
-
-                // The closure retained the function; the function's stack
-                // handle dies here.
-                _ = self.popConsumed(.CreateClosure);
-                try self.pushFresh(.CreateClosure, closure.dyn.elem());
+                try self.pushClosure(localCount);
             },
             .Crash => {
                 if (self.peekIsSuccess()) {
@@ -1195,6 +1188,7 @@ pub const VM = struct {
         try writer.print("merges:            {d} in place, {d} copied\n", .{ self.rc_stats.merge_in_place, self.rc_stats.merge_copy });
         try writer.print("inserts:           {d} in place, {d} copied\n", .{ self.rc_stats.insert_in_place, self.rc_stats.insert_copy });
         try writer.print("mutable constants: {d} reused, {d} copied\n", .{ self.rc_stats.mutable_constant_reused, self.rc_stats.mutable_constant_copied });
+        try writer.print("closures:          {d} reused, {d} created\n", .{ self.rc_stats.closure_reused, self.rc_stats.closure_created });
         try writer.print("strings interned:  {d}\n", .{self.strings.count});
         try writer.print("bytes in use:      {d}\n", .{self.gc.bytesAllocated});
     }
@@ -1615,6 +1609,58 @@ pub const VM = struct {
         try self.push(copy.elem());
     }
 
+    // Pop the function on top of the stack and push a closure over it that
+    // later CaptureLocal ops fill in. When the module's cache slot for this
+    // function holds the only remaining handle, the previous closure from
+    // this creation site was fully consumed: reset its captures and reuse
+    // the allocation. Otherwise allocate a fresh closure and cache it,
+    // replacing whatever the slot held.
+    fn pushClosure(self: *VM, localCount: u8) !void {
+        const elem = self.peek(0);
+        std.debug.assert(elem.isDynType(.Function));
+        const function = elem.asDyn().asFunction();
+
+        if (!self.config.rc_fast_paths) {
+            const closure = try Elem.DynElem.Closure.create(self, function, localCount);
+            // The closure retained the function; the function's stack
+            // handle dies here.
+            _ = self.popConsumed(.CreateClosure);
+            return self.push(closure.dyn.elem());
+        }
+
+        const module = self.currentFunctionModule();
+        const existing = module.closure_cache.get(function);
+
+        if (existing) |cached| {
+            if (cached.isUnique()) {
+                cached.retain();
+                const closure = cached.asClosure();
+                std.debug.assert(closure.function == function);
+                std.debug.assert(closure.captures.len == localCount);
+                closure.clearCaptures();
+                _ = self.popConsumed(.CreateClosure);
+                self.rc_stats.closure_reused += 1;
+                return self.push(cached.elem());
+            }
+        }
+
+        // Allocate before touching the cache slot: creation may trigger a
+        // collection, during which the old entry must still be validly
+        // cached and rooted.
+        const closure = try Elem.DynElem.Closure.create(self, function, localCount);
+
+        if (existing) |old| {
+            old.cache_held = false;
+            old.release();
+        }
+        closure.dyn.retain();
+        closure.dyn.cache_held = true;
+        try module.closure_cache.put(self.allocator, function, &closure.dyn);
+        self.rc_stats.closure_created += 1;
+        _ = self.popConsumed(.CreateClosure);
+        try self.push(closure.dyn.elem());
+    }
+
     pub fn getPattern(self: *VM, idx: usize) Pattern {
         return self.currentFunctionModule().getPattern(idx);
     }
@@ -1721,13 +1767,6 @@ pub const VM = struct {
     // no increment, per the op's effect table entry.
     fn pushTransferred(self: *VM, comptime op: OpCode, elem: Elem) !void {
         comptime std.debug.assert(op.rcEffect().?.result == .transferred);
-        try self.push(elem);
-    }
-
-    // Push a newly allocated value's first stack handle: no increment,
-    // per the op's effect table entry.
-    fn pushFresh(self: *VM, comptime op: OpCode, elem: Elem) !void {
-        comptime std.debug.assert(op.rcEffect().?.result == .fresh);
         try self.push(elem);
     }
 
