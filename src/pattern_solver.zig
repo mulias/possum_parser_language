@@ -648,59 +648,28 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
             },
             .Pattern => |pattern| switch (pattern) {
                 .Object => |pattern_object| {
-                    // Process bound object patterns
                     for (pattern_object.items) |pattern_pair| {
-                        if (try self.attemptEval(pattern_pair.key)) |key_value| {
-                            const key_sid = try key_value.getOrPutSid(self.vm) orelse return Error.RuntimeError;
-
-                            if (value_object.members.get(key_sid)) |value_object_pair_value| {
-                                if (!(try self.matchPattern(value_object_pair_value, pattern_pair.value))) {
-                                    return false;
-                                }
-                                try self.markKeyMatched(matched_base, key_sid);
-                            } else {
-                                // Value object doesn't have this key
-                                return false;
-                            }
-                        } else {
-                            // Unbound key case - search linearly through
-                            // remaining unmatched keys, in value object member
-                            // order so that matching is deterministic
-                            var found_match = false;
-                            var key_iterator = value_object.members.iterator();
-                            var matched_key: ?StringTable.Id = null;
-
-                            const bound_locals_reset_point = self.bound_locals.items.len;
-
-                            while (key_iterator.next()) |entry| {
-                                const obj_key_sid = entry.key_ptr.*;
-                                if (self.keyMatched(matched_base, obj_key_sid)) continue;
-                                const obj_value = entry.value_ptr.*;
-
-                                // Try to match the key pattern
-                                const key_elem = Elem.string(obj_key_sid);
-
-                                if (try self.matchPattern(key_elem, pattern_pair.key)) {
-                                    // Key matches, now try to match the value
-                                    if (try self.matchPattern(obj_value, pattern_pair.value)) {
-                                        matched_key = obj_key_sid;
-                                        found_match = true;
-                                        break;
-                                    }
-                                }
-
-                                // If K/V parts were partially bound we need to reset before trying the next key
-                                try self.resetLocals(bound_locals_reset_point);
-                            }
-
-                            if (!found_match) {
-                                return false;
-                            }
-
-                            if (matched_key) |key| {
-                                try self.markKeyMatched(matched_base, key);
-                            }
+                        if (!(try self.matchObjectPair(value_object, pattern_pair, matched_base, .shared))) {
+                            return false;
                         }
+                    }
+                },
+                .Repeat => |repeat| {
+                    if (try self.attemptEval(repeat.count.*)) |count_elem| {
+                        if (repeat.pattern.* != .Object) return Error.RuntimeError;
+                        const count = try self.repeatCount(count_elem) orelse return false;
+
+                        if (!(try self.matchObjectRepeat(value_object, repeat.pattern.Object.items, count, matched_base))) {
+                            return false;
+                        }
+                    } else if (unbound_part == null) {
+                        // An unbound count is determined by whatever members
+                        // the other parts leave over, so the repeat matches
+                        // them like a rest pattern.
+                        unbound_part = pattern;
+                    } else {
+                        // Object merge can only have one unbound part
+                        return Error.RuntimeError;
                     }
                 },
                 else => {
@@ -765,6 +734,102 @@ fn matchObjectMerge(self: *PatternSolver, value: Elem, parts: []Simplified) !boo
     }
 
     return true;
+}
+
+// Whether a bound key may re-match a member that an earlier pattern part
+// already matched. Parts of a single merge share members; each repetition
+// of a repeat pattern must claim members of its own.
+const KeyClaim = enum { shared, exclusive };
+
+fn matchObjectPair(
+    self: *PatternSolver,
+    value_object: *Elem.DynElem.Object,
+    pattern_pair: Pattern.ObjectPair,
+    matched_base: usize,
+    key_claim: KeyClaim,
+) Error!bool {
+    if (try self.attemptEval(pattern_pair.key)) |key_value| {
+        const key_sid = try key_value.getOrPutSid(self.vm) orelse return Error.RuntimeError;
+
+        if (key_claim == .exclusive and self.keyMatched(matched_base, key_sid)) {
+            return false;
+        }
+
+        if (value_object.members.get(key_sid)) |value_object_pair_value| {
+            if (!(try self.matchPattern(value_object_pair_value, pattern_pair.value))) {
+                return false;
+            }
+            try self.markKeyMatched(matched_base, key_sid);
+            return true;
+        } else {
+            // Value object doesn't have this key
+            return false;
+        }
+    } else {
+        // Unbound key case - search linearly through remaining unmatched
+        // keys, in value object member order so that matching is
+        // deterministic
+        var key_iterator = value_object.members.iterator();
+
+        const bound_locals_reset_point = self.bound_locals.items.len;
+
+        while (key_iterator.next()) |entry| {
+            const obj_key_sid = entry.key_ptr.*;
+            if (self.keyMatched(matched_base, obj_key_sid)) continue;
+            const obj_value = entry.value_ptr.*;
+
+            // Try to match the key pattern
+            const key_elem = Elem.string(obj_key_sid);
+
+            if (try self.matchPattern(key_elem, pattern_pair.key)) {
+                // Key matches, now try to match the value
+                if (try self.matchPattern(obj_value, pattern_pair.value)) {
+                    try self.markKeyMatched(matched_base, obj_key_sid);
+                    return true;
+                }
+            }
+
+            // If K/V parts were partially bound we need to reset before trying the next key
+            try self.resetLocals(bound_locals_reset_point);
+        }
+
+        return false;
+    }
+}
+
+// Claim `count` repetitions of an object pattern from the value object's
+// members. As in array repeats, pattern variables bound by one repetition
+// stay bound for the rest, so every repetition must match equal keys and
+// values; only `_` placeholders match fresh members each time.
+fn matchObjectRepeat(
+    self: *PatternSolver,
+    value_object: *Elem.DynElem.Object,
+    pattern_pairs: []Pattern.ObjectPair,
+    count: usize,
+    matched_base: usize,
+) Error!bool {
+    var rep: usize = 0;
+    while (rep < count) : (rep += 1) {
+        for (pattern_pairs) |pattern_pair| {
+            if (!(try self.matchObjectPair(value_object, pattern_pair, matched_base, .exclusive))) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+fn repeatCount(self: *PatternSolver, count_elem: Elem) Error!?usize {
+    if (!count_elem.isNumber()) return Error.RuntimeError;
+
+    const count_float = if (count_elem.isFloat())
+        count_elem.asFloat()
+    else
+        count_elem.asNumberString().toNumberFloat(self.vm.strings).asFloat();
+
+    if (count_float < 0 or count_float != @floor(count_float)) return null;
+    return @as(usize, @intFromFloat(count_float));
 }
 
 // The rest of a root-level object destructure can take over the value
@@ -1553,6 +1618,25 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
             return self.matchPattern(count_elem, repeat_pattern.count.*);
         }
 
+        // Handle object repetition: merging an object with itself is the
+        // identity, so like booleans the canonical count is 1
+        if (pattern_value.isDynType(.Object)) {
+            if (!value.isDynType(.Object)) return false;
+
+            const pattern_members = pattern_value.asDyn().asObject().members.count();
+            const value_members = value.asDyn().asObject().members.count();
+
+            if (value_members == 0) {
+                // {} is P * 0 for non-empty P, and {} * N for any N >= 1
+                const count_elem = Elem.numberFloat(if (pattern_members == 0) 1 else 0);
+                return self.matchPattern(count_elem, repeat_pattern.count.*);
+            }
+
+            if (!(try self.checkEquality(value, pattern_value))) return false;
+            const count_elem = Elem.numberFloat(1);
+            return self.matchPattern(count_elem, repeat_pattern.count.*);
+        }
+
         // Handle number repetition (multiplication)
         if (pattern_value.isNumber() and value.isNumber()) {
             // For numbers, pattern * count = value, so count = value / pattern
@@ -1745,6 +1829,26 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
                 return true;
             }
 
+            // Try object pattern matching: the members partition into
+            // `count` disjoint groups, each matching the pattern
+            if (value.isDynType(.Object)) {
+                if (repeat_pattern.pattern.* != .Object) return false;
+
+                const pattern_pairs = repeat_pattern.pattern.Object.items;
+                const value_object = value.asDyn().asObject();
+                const member_count = value_object.members.count();
+
+                if (count == 0 or pattern_pairs.len == 0) {
+                    return member_count == 0;
+                }
+                if (member_count != count * pattern_pairs.len) return false;
+
+                const matched_base = self.matched_keys.items.len;
+                defer self.matched_keys.shrinkRetainingCapacity(matched_base);
+
+                return self.matchObjectRepeat(value_object, pattern_pairs, count, matched_base);
+            }
+
             // Try number pattern matching (pattern * count = value, so pattern = value / count)
             if (value.isNumber()) {
                 if (count_float == 0) return false;
@@ -1824,6 +1928,35 @@ fn matchRepeat(self: *PatternSolver, value: Elem, repeat_pattern: Pattern.Repeat
 
                 // Match the count pattern with the calculated count
                 const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(codepoint_count)));
+                return self.matchPattern(count_elem, repeat_pattern.count.*);
+            }
+
+            // Object pattern with unbound count: the count is however many
+            // disjoint groups of members the pattern claims
+            if (repeat_pattern.pattern.* == .Object) {
+                if (!value.isDynType(.Object)) return false;
+
+                const pattern_pairs = repeat_pattern.pattern.Object.items;
+                const value_object = value.asDyn().asObject();
+                const member_count = value_object.members.count();
+
+                if (pattern_pairs.len == 0) {
+                    // {} * N = {} for any N >= 1; choose N = 1 as canonical
+                    if (member_count != 0) return false;
+                    return self.matchPattern(Elem.numberFloat(1), repeat_pattern.count.*);
+                }
+                if (member_count % pattern_pairs.len != 0) return false;
+
+                const count = member_count / pattern_pairs.len;
+
+                const matched_base = self.matched_keys.items.len;
+                defer self.matched_keys.shrinkRetainingCapacity(matched_base);
+
+                if (!(try self.matchObjectRepeat(value_object, pattern_pairs, count, matched_base))) {
+                    return false;
+                }
+
+                const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
                 return self.matchPattern(count_elem, repeat_pattern.count.*);
             }
 

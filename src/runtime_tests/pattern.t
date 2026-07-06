@@ -999,3 +999,182 @@ lines after the pattern function returns keep their original indentation.
           2 -> X
   Destructure Success: [1, 2] -> [Id(1), X]
   2
+
+Object repeat patterns partition the value object's members into `count`
+disjoint groups, each group matching the repeated pattern. As in array
+repeats, pattern variables bound by one repetition stay bound for the
+rest; only `_` placeholders match fresh members each repetition.
+
+  $ export PRINT_DESTRUCTURE=false
+
+  $ possum -p 'const({"a": 5, "b": 6, "c": 7}) -> ({_: _} * Size) $ Size' -i ''
+  3
+
+  $ possum -p 'const({}) -> ({K: V} * Size) $ Size' -i ''
+  0
+
+  $ possum -p 'const({"a": 5}) -> ({K: V} * Size) $ Size' -i ''
+  1
+
+  $ possum -p 'const({"a": 1, "b": 2, "c": 1, "d": 2}) -> ({_: 1, _: 2} * N) $ N' -i ''
+  2
+
+A bound variable keeps its binding on later repetitions, and an object
+can't hold two members with an equal key, so `{K: V} * Size` never
+matches an object with more than one member, while `{_: V} * Size`
+matches when every member holds an equal value.
+
+  $ possum -p 'const({"a": 5, "b": 6}) -> ({K: V} * Size) $ Size' -i ''
+  
+  Parse Failure: value {"a": 5, "b": 6} did not match pattern ({K: V} * Size)
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:27-42:
+  
+  1 \xe2\x96\x8f const({"a": 5, "b": 6}) -> ({K: V} * Size) $ Size (esc)
+    \xe2\x96\x8f                            ^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> ({_: V} * 3) $ V' -i ''
+  1
+
+  $ possum -p 'const({"a": 1, "b": 2, "c": 1}) -> ({_: V} * 3) $ V' -i ''
+  
+  Parse Failure: value {"a": 1, "b": 2, "c": 1} did not match pattern ({_: V} * 3)
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:35-47:
+  
+  1 \xe2\x96\x8f const({"a": 1, "b": 2, "c": 1}) -> ({_: V} * 3) $ V (esc)
+    \xe2\x96\x8f                                    ^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+A repeat with a bound count matches exactly: every member must be claimed
+by a repetition.
+
+  $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> ({_: 1} * 3) $ "matched"' -i ''
+  "matched"
+
+  $ possum -p 'const({"a": 1, "b": 2, "c": 1}) -> ({_: 1} * 3) $ "matched"' -i ''
+  
+  Parse Failure: value {"a": 1, "b": 2, "c": 1} did not match pattern ({_: 1} * 3)
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:35-47:
+  
+  1 \xe2\x96\x8f const({"a": 1, "b": 2, "c": 1}) -> ({_: 1} * 3) $ "matched" (esc)
+    \xe2\x96\x8f                                    ^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> ({_: 1} * 2) $ "matched"' -i ''
+  
+  Parse Failure: value {"a": 1, "b": 1, "c": 1} did not match pattern ({_: 1} * 2)
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:35-47:
+  
+  1 \xe2\x96\x8f const({"a": 1, "b": 1, "c": 1}) -> ({_: 1} * 2) $ "matched" (esc)
+    \xe2\x96\x8f                                    ^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+Each repetition claims members that earlier repetitions haven't, so a
+repeated bound key can never match more than once.
+
+  $ possum -p 'const({"q": 1}) -> ({"q": _} * 1) $ "matched"' -i ''
+  "matched"
+
+  $ possum -p 'const({"q": 1, "r": 2}) -> ({"q": _} * 2) $ "matched"' -i ''
+  
+  Parse Failure: value {"q": 1, "r": 2} did not match pattern ({"q": _} * 2)
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:27-41:
+  
+  1 \xe2\x96\x8f const({"q": 1, "r": 2}) -> ({"q": _} * 2) $ "matched" (esc)
+    \xe2\x96\x8f                            ^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+In an object merge a repeat with a bound count claims its groups in value
+object member order and leaves the remaining members to the other parts.
+
+  $ possum -p 'const({"a": 1, "b": 2, "c": 3, "d": 4}) -> {...({_: _} * 3), ...Rest} $ Rest' -i ''
+  {"d": 4}
+
+  $ possum -p 'const({"a": 1, "b": 2}) -> {...({_: _} * 3), ...Rest} $ Rest' -i ''
+  
+  Parse Failure: value {"a": 1, "b": 2} did not match pattern {...({_: _} * 3), ...Rest}
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:27-53:
+  
+  1 \xe2\x96\x8f const({"a": 1, "b": 2}) -> {...({_: _} * 3), ...Rest} $ Rest (esc)
+    \xe2\x96\x8f                            ^^^^^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p 'const({"a": 1, "b": 2, "c": 1}) -> {...({_: 1} * 2), ...Rest} $ Rest' -i ''
+  {"b": 2}
+
+A repeat with an unbound count in a merge matches the leftover members
+like a rest pattern.
+
+  $ possum -p 'const({"a": 1, "b": 2, "c": 3}) -> {"a": 1, ...({_: _} * N)} $ N' -i ''
+  2
+
+Repeating an object value merges it with itself, which is the identity.
+
+  $ possum -p 'const({"a": 5} * 3)' -i ''
+  {"a": 5}
+
+  $ possum -p 'O = {"a": 5} ; const({"a": 5}) -> (O * N) $ N' -i ''
+  1
+
+  $ possum -p 'O = {"a": 5} ; const({}) -> (O * N) $ N' -i ''
+  0
