@@ -81,6 +81,17 @@ pub const StringBuffer = struct {
         self.size += bytes.len;
     }
 
+    /// Bytes the buffer can hold before reallocating
+    pub fn capacity(self: StringBuffer) usize {
+        if (self.buffer) |buffer| return buffer.len;
+        return 0;
+    }
+
+    /// Forgets the contents, keeping the allocated buffer
+    pub fn clearRetainingCapacity(self: *StringBuffer) void {
+        self.size = 0;
+    }
+
     /// Returns the StringBuffer as a string literal
     pub fn str(self: StringBuffer) []const u8 {
         if (self.buffer) |buffer| return buffer[0..self.size];

@@ -10,7 +10,7 @@ visible as ~500 extra dyns created.
   live ref counts:   unique 0, shared 0, immortal 0
   merges:            498 in place, 0 copied
   inserts:           0 in place, 0 copied
-  husks:             0 parked, 0 reused
+  husks:             1 parked, 0 reused
   strings interned:  9
   strings size:      27 chars
   bytes in use:      0

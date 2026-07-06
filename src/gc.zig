@@ -11,9 +11,9 @@ pub const GC = struct {
     nextGC: usize,
     nextDyn: ?*Elem.DynElem,
     nextGray: ?*Elem.DynElem,
-    // Heads of the per-type parked-husk free lists: fully consumed values
-    // whose header and payload capacity are ready to reuse. Parked husks
-    // hold no handles, keep ref_count at parked_ref_count, stay linked in
+    // Heads of the parked-husk free lists: fully consumed values whose
+    // header and payload capacity are ready to reuse. Parked husks hold
+    // no handles, keep ref_count at parked_ref_count, stay linked in
     // the dyn list, and thread the free list through nextGray, which is
     // only otherwise used mid-collection. Collection clears the heads
     // before marking, so parked husks sweep as ordinary garbage: every
@@ -24,7 +24,25 @@ pub const GC = struct {
     print_trace: bool,
     running_gc: bool,
 
-    const ParkedLists = std.EnumArray(Elem.DynType, ?*Elem.DynElem);
+    // Pools are keyed by the payload a parked husk keeps warm. The two
+    // string reprs park separately: a take can't convert a leaf's byte
+    // buffer into a rope's segment list (or back) without allocating.
+    const PoolKey = enum { array, object, closure, string_leaf, string_rope };
+
+    const ParkedLists = std.EnumArray(PoolKey, ?*Elem.DynElem);
+
+    fn poolKey(dyn: *Elem.DynElem) ?PoolKey {
+        return switch (dyn.dynType) {
+            .Array => .array,
+            .Object => .object,
+            .Closure => .closure,
+            .String => switch (dyn.asString().repr) {
+                .leaf => .string_leaf,
+                .rope => .string_rope,
+            },
+            .Function, .NativeCode => null,
+        };
+    }
 
     pub const Mode = enum { GC, NoGC, StressTest };
 
@@ -92,14 +110,21 @@ pub const GC = struct {
     // Closures keep their function handle; see Closure.clearCaptures.
     pub fn park(self: *GC, dyn: *Elem.DynElem) void {
         std.debug.assert(dyn.ref_count == 1);
-        switch (dyn.dynType) {
-            .Array, .Object => dyn.clearChildren(),
-            .Closure => dyn.asClosure().clearCaptures(),
-            .String, .Function, .NativeCode => unreachable,
+        const key = poolKey(dyn).?;
+        switch (key) {
+            .array, .object => dyn.clearChildren(),
+            .closure => dyn.asClosure().clearCaptures(),
+            .string_leaf => dyn.asString().repr.leaf.clearRetainingCapacity(),
+            .string_rope => {
+                dyn.releaseChildren();
+                const rope = &dyn.asString().repr.rope;
+                rope.segments.clearRetainingCapacity();
+                rope.byte_len = 0;
+            },
         }
         dyn.ref_count = Elem.DynElem.parked_ref_count;
-        dyn.nextGray = self.parked.get(dyn.dynType);
-        self.parked.set(dyn.dynType, dyn);
+        dyn.nextGray = self.parked.get(key);
+        self.parked.set(key, dyn);
         self.vm.rc_stats.husks_parked += 1;
     }
 
@@ -110,11 +135,8 @@ pub const GC = struct {
     // uniqueness-trusting paths so a refcount bug can be bisected with
     // one flag.
     pub fn reclaim(self: *GC, dyn: *Elem.DynElem) void {
-        if (self.vm.config.rc_fast_paths and dyn.ref_count == 1) {
-            switch (dyn.dynType) {
-                .Array, .Object, .Closure => return self.park(dyn),
-                .String, .Function, .NativeCode => {},
-            }
+        if (self.vm.config.rc_fast_paths and dyn.ref_count == 1 and poolKey(dyn) != null) {
+            return self.park(dyn);
         }
         dyn.release();
     }
@@ -126,7 +148,7 @@ pub const GC = struct {
     // through gc.allocator() past the reserved capacity until the value
     // is rooted.
     pub fn takeParkedArray(self: *GC, capacity: usize) ?*Elem.DynElem.Array {
-        const head = self.parked.get(.Array) orelse return null;
+        const head = self.parked.get(.array) orelse return null;
         const array = head.asArray();
         if (array.elems.capacity < capacity) return null;
         self.unpark(head);
@@ -134,7 +156,7 @@ pub const GC = struct {
     }
 
     pub fn takeParkedObject(self: *GC, capacity: usize) ?*Elem.DynElem.Object {
-        const head = self.parked.get(.Object) orelse return null;
+        const head = self.parked.get(.object) orelse return null;
         const object = head.asObject();
         if (object.members.capacity() < capacity) return null;
         self.unpark(head);
@@ -142,7 +164,7 @@ pub const GC = struct {
     }
 
     pub fn takeParkedClosure(self: *GC, function: *Elem.DynElem.Function, localCount: u8) ?*Elem.DynElem.Closure {
-        const head = self.parked.get(.Closure) orelse return null;
+        const head = self.parked.get(.closure) orelse return null;
         const closure = head.asClosure();
         if (closure.captures.len != localCount) return null;
         self.unpark(head);
@@ -154,9 +176,25 @@ pub const GC = struct {
         return closure;
     }
 
+    pub fn takeParkedLeaf(self: *GC, size: usize) ?*Elem.DynElem.String {
+        const head = self.parked.get(.string_leaf) orelse return null;
+        const string = head.asString();
+        if (string.repr.leaf.capacity() < size) return null;
+        self.unpark(head);
+        return string;
+    }
+
+    pub fn takeParkedRope(self: *GC, capacity: usize) ?*Elem.DynElem.String {
+        const head = self.parked.get(.string_rope) orelse return null;
+        const string = head.asString();
+        if (string.repr.rope.segments.capacity < capacity) return null;
+        self.unpark(head);
+        return string;
+    }
+
     fn unpark(self: *GC, dyn: *Elem.DynElem) void {
         std.debug.assert(dyn.ref_count == Elem.DynElem.parked_ref_count);
-        self.parked.set(dyn.dynType, dyn.nextGray);
+        self.parked.set(poolKey(dyn).?, dyn.nextGray);
         dyn.nextGray = null;
         dyn.ref_count = 1;
         self.vm.rc_stats.husks_reused += 1;

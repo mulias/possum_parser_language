@@ -1245,6 +1245,8 @@ pub const Elem = packed union {
             }
 
             pub fn create(vm: *VM, size: usize) !*String {
+                if (vm.gc.takeParkedLeaf(size)) |husk| return husk;
+
                 // Allocate buffer before string is added to GC
                 var buffer = StringBuffer.init(vm.gc.allocator());
                 try buffer.allocate(size);
@@ -1261,6 +1263,8 @@ pub const Elem = packed union {
             }
 
             pub fn createRope(vm: *VM, capacity: usize) !*String {
+                if (vm.gc.takeParkedRope(capacity)) |husk| return husk;
+
                 // Allocate segments before the string is added to GC,
                 // with enough capacity that filling the rope allocates
                 // nothing: a collection during construction would sweep
