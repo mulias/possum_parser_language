@@ -5,7 +5,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const ChunkError = @import("chunk.zig").ChunkError;
 const OpCode = @import("op_code.zig").OpCode;
 const Region = @import("region.zig").Region;
-const StringTable = @import("string_table.zig").StringTable(.frontend);
+const StringTable = @import("string_table.zig").StringTable(.runtime);
 
 // Linear instruction list emitted by the compiler for a single function.
 // Jumps reference instruction indices. Byte offsets, jump distances, and

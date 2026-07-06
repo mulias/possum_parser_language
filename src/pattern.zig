@@ -2,7 +2,7 @@ const std = @import("std");
 const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
-const StringTable = @import("string_table.zig").StringTable(.frontend);
+const StringTable = @import("string_table.zig").StringTable(.runtime);
 const VM = @import("vm.zig").VM;
 
 pub const PatternType = enum {

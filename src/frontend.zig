@@ -13,7 +13,7 @@ const std = @import("std");
 allocator: Allocator,
 arena: ArenaAllocator,
 writers: Writers,
-strings: *StringTable,
+strings: StringTable,
 target_module_id: ?Module.Id = null,
 resolver: DependencyResolver.Resolver,
 main: ?*Ast.RNode(Ast.Parser.AnonymousFunction) = null,
@@ -32,12 +32,12 @@ pub const GlobalKey = DependencyGraph.NodeKey;
 
 pub const DependencyGraphNode = DependencyGraph.Node;
 
-pub fn init(allocator: Allocator, strings: *StringTable, writers: Writers) !*Frontend {
+pub fn init(allocator: Allocator, writers: Writers) !*Frontend {
     const frontend = try allocator.create(Frontend);
     frontend.allocator = allocator;
     frontend.arena = ArenaAllocator.init(allocator);
     frontend.writers = writers;
-    frontend.strings = strings;
+    frontend.strings = StringTable.init(allocator);
     frontend.target_module_id = null;
     frontend.main = null;
     frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena);
@@ -45,6 +45,7 @@ pub fn init(allocator: Allocator, strings: *StringTable, writers: Writers) !*Fro
 }
 
 pub fn deinit(self: *Frontend) void {
+    self.strings.deinit();
     self.arena.deinit();
     self.allocator.destroy(self);
 }
@@ -133,7 +134,7 @@ pub fn findNode(self: *Frontend, module_id: Module.Id, name: StringTable.Id) ?*D
 }
 
 fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !Ast {
-    var can = Can.init(&self.arena, self.writers, self.strings, module);
+    var can = Can.init(&self.arena, self.writers, &self.strings, module);
 
     if (module.source.len > 0) {
         var parser = Parser.init(&self.arena, module, self.writers, .{

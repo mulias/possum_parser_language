@@ -217,26 +217,26 @@
   ========================================
   0000    | SetInputMark
   0001    | ParseChar ' '
-  0003    | Or 3 -> 43
+  0003    | Or 3 -> 41
   0006    | SetInputMark
   0007    | ParseChar '\t' (esc)
-  0009    | Or 9 -> 43
+  0009    | Or 9 -> 41
   0012    | SetInputMark
   0013    | CallFunctionConstant 14: "\xc2\xa0" (esc)
-  0015    | Or 15 -> 43
+  0015    | Or 15 -> 41
   0018    | SetInputMark
-  0019    | PushString2 "\xe2\x80\x80" (esc)
-  0022    | PushString2 "\xe2\x80\x8a" (esc)
-  0025    | ParseRange
-  0026    | Or 26 -> 43
-  0029    | SetInputMark
-  0030    | CallFunctionConstant 15: "\xe2\x80\xaf" (esc)
-  0032    | Or 32 -> 43
-  0035    | SetInputMark
-  0036    | CallFunctionConstant 16: "\xe2\x81\x9f" (esc)
-  0038    | Or 38 -> 43
-  0041    | CallTailFunctionConstant 17: "\xe3\x80\x80" (esc)
-  0043    | End
+  0019    | PushString "\xe2\x80\x80" (esc)
+  0021    | PushString "\xe2\x80\x8a" (esc)
+  0023    | ParseRange
+  0024    | Or 24 -> 41
+  0027    | SetInputMark
+  0028    | CallFunctionConstant 15: "\xe2\x80\xaf" (esc)
+  0030    | Or 30 -> 41
+  0033    | SetInputMark
+  0034    | CallFunctionConstant 16: "\xe2\x81\x9f" (esc)
+  0036    | Or 36 -> 41
+  0039    | CallTailFunctionConstant 17: "\xe3\x80\x80" (esc)
+  0041    | End
   ========================================
   
   ================newline=================
@@ -2847,43 +2847,43 @@
   0001    | CallFunctionConstant 148: "\""
   0003    | TakeRight 3 -> 9
   0006    | PushString2 """
-  0009    | Or 9 -> 92
+  0009    | Or 9 -> 90
   0012    | SetInputMark
   0013    | CallFunctionConstant 149: "\\"
   0015    | TakeRight 15 -> 21
   0018    | PushString2 "\"
-  0021    | Or 21 -> 92
+  0021    | Or 21 -> 90
   0024    | SetInputMark
   0025    | CallFunctionConstant 150: "\/"
   0027    | TakeRight 27 -> 33
   0030    | PushString2 "/"
-  0033    | Or 33 -> 92
+  0033    | Or 33 -> 90
   0036    | SetInputMark
   0037    | CallFunctionConstant 151: "\b"
   0039    | TakeRight 39 -> 45
   0042    | PushString2 "\x08" (esc)
-  0045    | Or 45 -> 92
+  0045    | Or 45 -> 90
   0048    | SetInputMark
   0049    | CallFunctionConstant 152: "\f"
   0051    | TakeRight 51 -> 57
   0054    | PushString2 "\x0c" (esc)
-  0057    | Or 57 -> 92
+  0057    | Or 57 -> 90
   0060    | SetInputMark
   0061    | CallFunctionConstant 153: "\n"
-  0063    | TakeRight 63 -> 69
-  0066    | PushString2 "
+  0063    | TakeRight 63 -> 68
+  0066    | PushString "
   "
-  0069    | Or 69 -> 92
-  0072    | SetInputMark
-  0073    | CallFunctionConstant 154: "\r"
-  0075    | TakeRight 75 -> 81
-  0078    | PushString2 "\r (no-eol) (esc)
+  0068    | Or 68 -> 90
+  0071    | SetInputMark
+  0072    | CallFunctionConstant 154: "\r"
+  0074    | TakeRight 74 -> 79
+  0077    | PushString "\r (no-eol) (esc)
   "
-  0081    | Or 81 -> 92
-  0084    | CallFunctionConstant 155: "\t"
-  0086    | TakeRight 86 -> 92
-  0089    | PushString2 "\t" (esc)
-  0092    | End
+  0079    | Or 79 -> 90
+  0082    | CallFunctionConstant 155: "\t"
+  0084    | TakeRight 84 -> 90
+  0087    | PushString2 "\t" (esc)
+  0090    | End
   ========================================
   
   ============_escaped_unicode============
@@ -3472,38 +3472,38 @@
   0001    | CallFunctionConstant 148: "\""
   0003    | TakeRight 3 -> 9
   0006    | PushString2 """
-  0009    | Or 9 -> 80
+  0009    | Or 9 -> 78
   0012    | SetInputMark
   0013    | CallFunctionConstant 149: "\\"
   0015    | TakeRight 15 -> 21
   0018    | PushString2 "\"
-  0021    | Or 21 -> 80
+  0021    | Or 21 -> 78
   0024    | SetInputMark
   0025    | CallFunctionConstant 151: "\b"
   0027    | TakeRight 27 -> 33
   0030    | PushString2 "\x08" (esc)
-  0033    | Or 33 -> 80
+  0033    | Or 33 -> 78
   0036    | SetInputMark
   0037    | CallFunctionConstant 152: "\f"
   0039    | TakeRight 39 -> 45
   0042    | PushString2 "\x0c" (esc)
-  0045    | Or 45 -> 80
+  0045    | Or 45 -> 78
   0048    | SetInputMark
   0049    | CallFunctionConstant 153: "\n"
-  0051    | TakeRight 51 -> 57
-  0054    | PushString2 "
+  0051    | TakeRight 51 -> 56
+  0054    | PushString "
   "
-  0057    | Or 57 -> 80
-  0060    | SetInputMark
-  0061    | CallFunctionConstant 154: "\r"
-  0063    | TakeRight 63 -> 69
-  0066    | PushString2 "\r (no-eol) (esc)
+  0056    | Or 56 -> 78
+  0059    | SetInputMark
+  0060    | CallFunctionConstant 154: "\r"
+  0062    | TakeRight 62 -> 67
+  0065    | PushString "\r (no-eol) (esc)
   "
-  0069    | Or 69 -> 80
-  0072    | CallFunctionConstant 155: "\t"
-  0074    | TakeRight 74 -> 80
-  0077    | PushString2 "\t" (esc)
-  0080    | End
+  0067    | Or 67 -> 78
+  0070    | CallFunctionConstant 155: "\t"
+  0072    | TakeRight 72 -> 78
+  0075    | PushString2 "\t" (esc)
+  0078    | End
   ========================================
   
   =========_toml.escaped_unicode==========
@@ -6039,13 +6039,13 @@
   ==============Array.First===============
   Array.First(A) = A -> [F, ..._] & F
   ========================================
-  0000    | PushVar2 F
-  0003    | PushUnderscoreVar
-  0004    | GetBoundLocalMove 0
-  0006    | Destructure 109: ([F] + _)
-  0008    | TakeRight 8 -> 13
-  0011    | GetBoundLocalMove 1
-  0013    | End
+  0000    | PushVar F
+  0002    | PushUnderscoreVar
+  0003    | GetBoundLocalMove 0
+  0005    | Destructure 109: ([F] + _)
+  0007    | TakeRight 7 -> 12
+  0010    | GetBoundLocalMove 1
+  0012    | End
   ========================================
   
   ===============Array.Rest===============
