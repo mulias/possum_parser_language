@@ -67,11 +67,11 @@ pub const Error = error{
 } || VM.Error;
 
 pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern, value_discarded: bool) Error!bool {
-    self.bound_locals.shrinkRetainingCapacity(0);
-    defer self.bound_locals.shrinkRetainingCapacity(0);
-
     // Function-call patterns re-enter the VM and can nest another match,
     // so restore rather than clear.
+    const bound_locals_base = self.bound_locals.items.len;
+    defer self.bound_locals.shrinkRetainingCapacity(bound_locals_base);
+
     const prev_discardable_root = self.discardable_root;
     self.discardable_root = if (value_discarded and value.isType(.Dyn)) value.asDyn() else null;
     defer self.discardable_root = prev_discardable_root;
@@ -90,7 +90,7 @@ pub fn match(self: *PatternSolver, value: Elem, pattern: Pattern, value_discarde
     const success = try self.matchPattern(value, pattern);
 
     if (!success) {
-        try self.resetLocals(0);
+        try self.resetLocals(bound_locals_base);
     }
 
     if (self.printSteps) {
