@@ -2199,7 +2199,7 @@ pub fn checkEquality(self: *PatternSolver, value: Elem, pattern: Elem) !bool {
     return value.isEql(pattern, self.vm.*);
 }
 
-pub fn setLocal(self: *PatternSolver, local: Pattern.PatternVar, value: Elem) !void {
+fn setLocal(self: *PatternSolver, local: Pattern.PatternVar, value: Elem) !void {
     // The slot takes a second handle; the value also stays on the stack.
     value.retain();
     self.vm.setLocal(local.idx, value);
@@ -2217,7 +2217,7 @@ noinline fn emitBind(self: *PatternSolver, local: Pattern.PatternVar, value: Ele
     } });
 }
 
-pub fn resetLocals(self: *PatternSolver, index: usize) !void {
+fn resetLocals(self: *PatternSolver, index: usize) !void {
     const locals = self.bound_locals.items[index..];
 
     if (self.printSteps and locals.len > 0) {

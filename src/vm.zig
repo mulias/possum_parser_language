@@ -623,7 +623,7 @@ pub const VM = struct {
                 const value = self.peek(0);
 
                 const matched = value.isSuccess() and
-                    (try match_plan_interpreter.match(&self.pattern_solver, value, plan));
+                    (try match_plan_interpreter.match(self, value, plan));
 
                 if (matched) {
                     // value is already on the stack

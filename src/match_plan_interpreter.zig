@@ -1,45 +1,43 @@
 const std = @import("std");
 const Elem = @import("elem.zig").Elem;
-const Pattern = @import("pattern.zig").Pattern;
-const PatternSolver = @import("pattern_solver.zig");
+const VM = @import("vm.zig").VM;
 const MatchPlan = @import("match_plan.zig").MatchPlan;
 
-// Interpreter for compiled match plans. Mirrors PatternSolver.match's
-// bookkeeping: binds route through solver.setLocal so a failure after a
-// bind resets the touched slots and releases their handles.
-pub fn match(solver: *PatternSolver, value: Elem, plan: MatchPlan) PatternSolver.Error!bool {
-    const vm = solver.vm;
+pub const Error = error{
+    RuntimeError,
+    OutOfMemory,
+} || VM.Error;
 
+// Interpreter for compiled match plans. Runs directly against the VM with no
+// PatternSolver bookkeeping: bind-vs-equality is decided statically, so there
+// is no runtime boundness probing, and a failed match leaves its binds in
+// place. Binding analysis guarantees stale slots are never read and emits
+// preclears before any pattern that may re-bind them.
+pub fn match(vm: *VM, value: Elem, plan: MatchPlan) Error!bool {
     // Prevent GC of dyns created while a bound_eq evaluates a zero-arity
     // function on the VM.
     const temp_dyns_start = vm.temp_dyns.items.len;
     defer vm.clearTempDyns(temp_dyns_start);
 
-    // Function evaluation re-enters the VM and can nest another match, so
-    // restore rather than clear.
-    const bound_locals_base = solver.bound_locals.items.len;
-    defer solver.bound_locals.shrinkRetainingCapacity(bound_locals_base);
-
-    const success = try matchNode(solver, value, plan, 0);
-
-    if (!success) {
-        try solver.resetLocals(bound_locals_base);
-    }
-
-    return success;
+    return matchNode(vm, value, plan, 0);
 }
 
-fn matchNode(solver: *PatternSolver, value: Elem, plan: MatchPlan, idx: u32) PatternSolver.Error!bool {
-    const vm = solver.vm;
+fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32) Error!bool {
     const node = plan.nodes[idx];
 
     switch (node.tag) {
         .placeholder => return true,
-        .equality => return solver.checkEquality(value, plan.elems[node.payload]),
+        .equality => return value.isEql(plan.elems[node.payload], vm.*),
         .bind => {
             const pattern_var = plan.vars[node.payload];
-            std.debug.assert(vm.getLocal(pattern_var.idx).isType(.ValueVar));
-            try solver.setLocal(pattern_var, value);
+            // The slot takes a second handle; the value also stays on the
+            // stack. The slot's previous handle dies: usually a placeholder
+            // var, but possibly a stale value left by an earlier failed
+            // match.
+            const previous = vm.getLocal(pattern_var.idx);
+            value.retain();
+            vm.setLocal(pattern_var.idx, value);
+            previous.release();
             return true;
         },
         .bound_eq => {
@@ -48,15 +46,12 @@ fn matchNode(solver: *PatternSolver, value: Elem, plan: MatchPlan, idx: u32) Pat
 
             if (pattern_value.isDynType(.Function)) {
                 const function = pattern_value.asDyn().asFunction();
+                // Must be zero-arity, since it was not called with args.
                 if (function.arity != 0) return error.RuntimeError;
-                pattern_value = try solver.executeFunctionOnVM(
-                    Pattern{ .Local = pattern_var },
-                    pattern_value,
-                    null,
-                );
+                pattern_value = try executeFunctionOnVM(vm, pattern_value);
             }
 
-            return solver.checkEquality(value, pattern_value);
+            return value.isEql(pattern_value, vm.*);
         },
         .array => {
             if (!value.isDynType(.Array)) return false;
@@ -65,10 +60,20 @@ fn matchNode(solver: *PatternSolver, value: Elem, plan: MatchPlan, idx: u32) Pat
 
             var child = idx + 1;
             for (value_array.elems.items) |element| {
-                if (!(try matchNode(solver, element, plan, child))) return false;
+                if (!(try matchNode(vm, element, plan, child))) return false;
                 child += plan.nodes[child].subtree_len;
             }
             return true;
         },
     }
+}
+
+// Evaluate a zero-arity function bound to a pattern local. Plans never run
+// under the debug print modes (those compile the tree path), so this is
+// PatternSolver.executeFunctionOnVM minus the print hooks.
+fn executeFunctionOnVM(vm: *VM, function: Elem) Error!Elem {
+    try vm.push(function);
+    try vm.callFunction(function, 0, false);
+    try vm.runFunction();
+    return vm.pop();
 }
