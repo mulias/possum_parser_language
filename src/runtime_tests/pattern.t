@@ -975,7 +975,7 @@ A failed match containing a re-entrant pattern function unbinds everything
 it bound: the alternative destructures the same value to a bare A, which
 only succeeds if A did not stay stale-bound to "x".
 
-  $ possum -p 'Id(N) = N -> M & M ; json -> {A: Id(A), "z": 1} $ A | json -> A $ A' -i '{"x": "y", "a": "a"}'
+  $ possum -p 'Id(N) = N -> M & M ; json -> {A: Id(A), "z": 1} $ A | (json -> A $ A)' -i '{"x": "y", "a": "a"}'
   {"x": "y", "a": "a"}
 
 The nested match must also restore the outer match's print depth: trace

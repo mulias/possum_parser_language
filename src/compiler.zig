@@ -17,6 +17,7 @@ const RuntimeStrings = @import("string_table.zig").StringTable(.runtime);
 const VM = @import("vm.zig").VM;
 const Writer = std.Io.Writer;
 const Writers = @import("writer.zig").Writers;
+const binding = @import("binding.zig");
 const builtin = @import("builtin");
 const builtins = @import("builtin.zig");
 const parsing = @import("parsing.zig");
@@ -40,6 +41,9 @@ pub const Compiler = struct {
     main: ?*Elem.DynElem.Function = null,
     // Memoizes internForRuntime so repeated names hash their bytes once.
     sid_map: AutoHashMap(FrontendStrings.Id, RuntimeStrings.Id) = .{},
+    // Per-function binding analysis results, populated before each function
+    // body is emitted and consulted during emission.
+    binding_maps: binding.Maps = .{},
 
     const ConstantMapKey = struct {
         module_id: u32,
@@ -69,6 +73,7 @@ pub const Compiler = struct {
         TooManyPatterns,
         ShortOverflow,
         AliasCycle,
+        UnboundVariable,
         UndefinedVariable,
         FunctionCallTooManyArgs,
         FunctionCallTooFewArgs,
@@ -107,6 +112,7 @@ pub const Compiler = struct {
         var pattern_reads = self.pattern_reads.valueIterator();
         while (pattern_reads.next()) |list| list.deinit(self.vm.allocator);
         self.pattern_reads.deinit(self.vm.allocator);
+        self.binding_maps.deinit(self.vm.allocator);
         self.sid_map.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
         self.scopes.deinit(self.vm.allocator);
@@ -209,6 +215,12 @@ pub const Compiler = struct {
             try self.emitOp(.SetClosureCaptures, region);
         }
 
+        try self.analyzeParserBindings(
+            module_id,
+            body,
+            function.arity,
+            node.anonymous_function.closure_captures.items,
+        );
         try self.writeParser(module_id, body);
         try self.finishFunctionIr(module_id);
 
@@ -482,9 +494,11 @@ pub const Compiler = struct {
 
         switch (decl) {
             .parser => |p| {
+                try self.analyzeParserBindings(module_id, p.node.body, function.arity, &.{});
                 try self.writeParser(module_id, p.node.body);
             },
             .value => |v| {
+                try self.analyzeValueBindings(module_id, v.node.body, function.arity);
                 try self.writeValue(module_id, v.node.body);
             },
         }
@@ -493,6 +507,52 @@ pub const Compiler = struct {
 
         _ = self.functions.pop();
         _ = self.scopes.pop();
+    }
+
+    fn analyzeParserBindings(
+        self: *Compiler,
+        module_id: Module.Id,
+        body: *Ast.Parser.RNode,
+        arity: usize,
+        captures: []const Frontend.ClosureCapture,
+    ) !void {
+        var result = try binding.analyzeParserFunction(self, module_id, body, arity, captures);
+        defer result.deinit(self.vm.allocator);
+        try self.reportBindingDiagnostics(module_id, result.diagnostics.items);
+    }
+
+    fn analyzeValueBindings(self: *Compiler, module_id: Module.Id, body: *Ast.Value.RNode, arity: usize) !void {
+        var result = try binding.analyzeValueFunction(self, module_id, body, arity);
+        defer result.deinit(self.vm.allocator);
+        try self.reportBindingDiagnostics(module_id, result.diagnostics.items);
+    }
+
+    fn reportBindingDiagnostics(self: *Compiler, module_id: Module.Id, diagnostics: []const binding.Diagnostic) !void {
+        for (diagnostics) |diagnostic| {
+            const name = self.frontend.strings.get(diagnostic.name);
+            switch (diagnostic.kind) {
+                .unbound => try self.printError(
+                    module_id,
+                    diagnostic.region,
+                    "variable '{s}' is unbound here",
+                    .{name},
+                ),
+                .out_of_scope => try self.printError(
+                    module_id,
+                    diagnostic.region,
+                    "variable '{s}' is unbound here: its binding is out of scope",
+                    .{name},
+                ),
+                .split => try self.printError(
+                    module_id,
+                    diagnostic.region,
+                    "variable '{s}' may be unbound here: it is not bound on every path",
+                    .{name},
+                ),
+            }
+        }
+
+        if (diagnostics.len > 0) return Error.UnboundVariable;
     }
 
     // Function params get stack slots from the arguments pushed by the
@@ -1030,24 +1090,10 @@ pub const Compiler = struct {
                 if (self.resolveGlobal(module_id, ident.name) != null) {
                     // Globals are always bound to a concrete value
                     try self.writeParserRepeatCount(module_id, parser, repeat, region);
+                } else if (self.repeatCountIsBound(repeat)) {
+                    try self.writeParserRepeatCount(module_id, parser, repeat, region);
                 } else {
-                    const slot = self.localSlot(ident.name).?;
-                    if (self.currentFunction().arity > slot) {
-                        // The local var is a function arg, so we know it's bound
-                        try self.writeParserRepeatCount(module_id, parser, repeat, region);
-                    } else {
-                        // The value may or may not be bound. Generate
-                        // conditional code covering both cases.
-                        try self.emitUnaryOp(.GetLocal, slot, repeat.region);
-                        const knownCountJump = try self.emitJump(.JumpIfBound, repeat.region);
-                        try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
-                        const endJump = try self.emitJump(.Jump, repeat.region);
-                        self.patchJump(knownCountJump);
-                        try self.writeParserRepeatCount(module_id, parser, repeat, region);
-                        self.patchJump(endJump);
-                        try self.emitOp(.Swap, region);
-                        try self.emitOp(.Drop, region);
-                    }
+                    try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
                 }
             },
             else => {
@@ -1350,8 +1396,8 @@ pub const Compiler = struct {
                 } else {
                     if (self.resolveGlobal(module_id, ident.name) != null) {
                         return true;
-                    } else if (self.localSlot(ident.name)) |slot| {
-                        return self.currentFunction().arity > slot;
+                    } else if (self.localSlot(ident.name) != null) {
+                        return self.repeatCountIsBound(rnode);
                     } else {
                         return false;
                     }
@@ -1376,6 +1422,17 @@ pub const Compiler = struct {
             .repeat,
             => false,
         };
+    }
+
+    // Whether a repeat-count local is bound at the repeat, per the binding
+    // analysis. Falls back to the param check for identifiers the analysis
+    // does not classify (builtins).
+    fn repeatCountIsBound(self: *Compiler, rnode: *Ast.Pattern.RNode) bool {
+        if (self.binding_maps.repeat_count_bound.get(rnode)) |bound| {
+            return bound;
+        }
+        const slot = self.localSlot(rnode.node.identifier.name) orelse return false;
+        return self.currentFunction().arity > slot;
     }
 
     fn writeNegatedParserElem(self: *Compiler, module_id: Module.Id, negated: *Ast.Parser.RNode, region: Region) !void {
@@ -1494,6 +1551,7 @@ pub const Compiler = struct {
     }
 
     fn createPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) Error!u24 {
+        try self.emitPatternPreclears(module_id, rnode);
         const patternElem = try self.astToPattern(module_id, rnode, 0);
         const module = self.vm.getModule(module_id);
         const idx = try module.addPattern(self.vm.allocator, patternElem);
@@ -1503,6 +1561,22 @@ pub const Compiler = struct {
         try gop.value_ptr.append(self.vm.allocator, liveness.patternReads(patternElem));
 
         return @intCast(idx);
+    }
+
+    // The binding analysis lists slots this pattern may bind while the slot
+    // still holds a value whose binding is out of scope. Restore their
+    // placeholders so the solver's bind-if-unbound check sees them as
+    // unbound. Stack-neutral, so it can run any time before the Destructure.
+    fn emitPatternPreclears(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) !void {
+        const preclears = self.binding_maps.preclears.get(rnode) orelse return;
+
+        for (preclears.items) |preclear| {
+            const bytes = self.frontend.strings.get(preclear.name);
+            const underscored = bytes.len > 0 and bytes[0] == '_';
+            const placeholder = Elem.valueVar(try self.internForRuntime(preclear.name), underscored);
+            try self.writeConstant(module_id, placeholder, rnode.region);
+            try self.emitUnaryOp(.SetLocal, preclear.slot, rnode.region);
+        }
     }
 
     fn astToPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode, negation_count: u2) Error!Pattern {
@@ -2480,7 +2554,7 @@ pub const Compiler = struct {
     // recorded the target module.
     // Resolve an identifier written in source. Anonymous functions are in
     // the globals map but can't be invoked by name, so they are hidden here.
-    fn resolveGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
+    pub fn resolveGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
         if (self.findGlobal(module_id, sid)) |elem| {
             return visibleGlobal(elem);
         }

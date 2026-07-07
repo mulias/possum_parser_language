@@ -3468,7 +3468,7 @@
   0038    | GetConstant 160: @Codepoint
   0040    | GetBoundLocal 0
   0042    | CallFunction 1
-  0044    | Or 44 -> 87
+  0044    | Or 44 -> 92
   0047    | CallFunctionConstant 201: "\U"
   0049    | TakeRight 49 -> 76
   0052    | PushNull
@@ -3485,12 +3485,14 @@
   0071    | JumpBack 71 -> 59
   0074    | Swap
   0075    | Drop
-  0076    | Destructure 64: U
-  0078    | TakeRight 78 -> 87
-  0081    | GetConstant 160: @Codepoint
-  0083    | GetBoundLocalMove 0
-  0085    | CallTailFunction 1
-  0087    | End
+  0076    | PushVar2 U
+  0079    | SetLocal 0
+  0081    | Destructure 64: U
+  0083    | TakeRight 83 -> 92
+  0086    | GetConstant 160: @Codepoint
+  0088    | GetBoundLocalMove 0
+  0090    | CallTailFunction 1
+  0092    | End
   ========================================
   
   =========1:toml.datetime.offset=========
@@ -4090,55 +4092,57 @@
   0021    | GetBoundLocalMove 4
   0023    | GetBoundLocalMove 2
   0025    | CallTailFunction 3
-  0027    | Jump 27 -> 128
+  0027    | Jump 27 -> 133
   0030    | SetInputMark
   0031    | GetBoundLocalMove 1
-  0033    | Destructure 66: ([Key] + PathRest)
-  0035    | ConditionalThen 35 -> 126
-  0038    | SetInputMark
-  0039    | GetConstant 212: _Toml.Doc.Has
-  0041    | GetBoundLocal 0
-  0043    | GetBoundLocal 4
-  0045    | CallFunction 2
-  0047    | ConditionalThen 47 -> 86
-  0050    | GetConstant 213: _Toml.Doc.IsTable
-  0052    | GetConstant 214: _Toml.Doc.Get
-  0054    | GetBoundLocal 0
-  0056    | GetBoundLocal 4
-  0058    | CallFunction 2
-  0060    | CallFunction 1
-  0062    | TakeRight 62 -> 83
-  0065    | GetConstant 210: _Toml.Doc.UpdateAtPath
-  0067    | GetConstant 214: _Toml.Doc.Get
-  0069    | GetBoundLocal 0
-  0071    | GetBoundLocal 4
-  0073    | CallFunction 2
-  0075    | GetBoundLocalMove 5
-  0077    | GetBoundLocalMove 2
-  0079    | GetBoundLocalMove 3
-  0081    | CallFunction 4
-  0083    | Jump 83 -> 98
-  0086    | GetConstant 210: _Toml.Doc.UpdateAtPath
-  0088    | CallFunctionConstant 181: _Toml.Doc.Empty
-  0090    | GetBoundLocalMove 5
-  0092    | GetBoundLocalMove 2
-  0094    | GetBoundLocalMove 3
-  0096    | CallFunction 4
-  0098    | Destructure 67: InnerDoc
-  0100    | TakeRight 100 -> 123
-  0103    | GetConstant 215: _Toml.Doc.Insert
-  0105    | GetBoundLocalMove 0
-  0107    | GetBoundLocalMove 4
-  0109    | GetConstant 176: _Toml.Doc.Value
-  0111    | GetBoundLocal 6
-  0113    | CallFunction 1
-  0115    | GetConstant 216: _Toml.Doc.Type
-  0117    | GetBoundLocalMove 6
-  0119    | CallFunction 1
-  0121    | CallTailFunction 4
-  0123    | Jump 123 -> 128
-  0126    | GetBoundLocalMove 0
-  0128    | End
+  0033    | PushVar2 Key
+  0036    | SetLocal 4
+  0038    | Destructure 66: ([Key] + PathRest)
+  0040    | ConditionalThen 40 -> 131
+  0043    | SetInputMark
+  0044    | GetConstant 212: _Toml.Doc.Has
+  0046    | GetBoundLocal 0
+  0048    | GetBoundLocal 4
+  0050    | CallFunction 2
+  0052    | ConditionalThen 52 -> 91
+  0055    | GetConstant 213: _Toml.Doc.IsTable
+  0057    | GetConstant 214: _Toml.Doc.Get
+  0059    | GetBoundLocal 0
+  0061    | GetBoundLocal 4
+  0063    | CallFunction 2
+  0065    | CallFunction 1
+  0067    | TakeRight 67 -> 88
+  0070    | GetConstant 210: _Toml.Doc.UpdateAtPath
+  0072    | GetConstant 214: _Toml.Doc.Get
+  0074    | GetBoundLocal 0
+  0076    | GetBoundLocal 4
+  0078    | CallFunction 2
+  0080    | GetBoundLocalMove 5
+  0082    | GetBoundLocalMove 2
+  0084    | GetBoundLocalMove 3
+  0086    | CallFunction 4
+  0088    | Jump 88 -> 103
+  0091    | GetConstant 210: _Toml.Doc.UpdateAtPath
+  0093    | CallFunctionConstant 181: _Toml.Doc.Empty
+  0095    | GetBoundLocalMove 5
+  0097    | GetBoundLocalMove 2
+  0099    | GetBoundLocalMove 3
+  0101    | CallFunction 4
+  0103    | Destructure 67: InnerDoc
+  0105    | TakeRight 105 -> 128
+  0108    | GetConstant 215: _Toml.Doc.Insert
+  0110    | GetBoundLocalMove 0
+  0112    | GetBoundLocalMove 4
+  0114    | GetConstant 176: _Toml.Doc.Value
+  0116    | GetBoundLocal 6
+  0118    | CallFunction 1
+  0120    | GetConstant 216: _Toml.Doc.Type
+  0122    | GetBoundLocalMove 6
+  0124    | CallFunction 1
+  0126    | CallTailFunction 4
+  0128    | Jump 128 -> 133
+  0131    | GetBoundLocalMove 0
+  0133    | End
   ========================================
   
   ========1:_Toml.Doc.ValueUpdater========
@@ -4371,58 +4375,60 @@
   0084    | Merge
   0085    | Merge
   0086    | CallTailFunction 6
-  0088    | Jump 88 -> 200
+  0088    | Jump 88 -> 205
   0091    | SetInputMark
   0092    | CallFunctionLocal 2
-  0094    | Destructure 91: ({"power": [RightBindingPower, NextLeftBindingPower]} + InfixNode)
-  0096    | TakeRight 96 -> 112
-  0099    | GetConstant 31: const
-  0101    | GetConstant2 329: Is.LessThan
-  0104    | GetBoundLocal 4
-  0106    | GetBoundLocalMove 6
-  0108    | CallFunction 2
-  0110    | CallFunction 1
-  0112    | ConditionalThen 112 -> 194
-  0115    | GetConstant2 325: _ast.with_precedence_start
-  0118    | GetBoundLocal 0
-  0120    | GetBoundLocal 1
-  0122    | GetBoundLocal 2
-  0124    | GetBoundLocal 3
-  0126    | GetBoundLocalMove 8
-  0128    | CallFunction 5
-  0130    | Destructure 92: RightNode
-  0132    | TakeRight 132 -> 191
-  0135    | GetConstant2 326: _ast.with_precedence_rest
-  0138    | GetBoundLocalMove 0
-  0140    | GetBoundLocalMove 1
-  0142    | GetBoundLocalMove 2
-  0144    | GetBoundLocalMove 3
-  0146    | GetBoundLocalMove 4
-  0148    | PushEmptyObject
-  0149    | JumpIfFailure 149 -> 155
-  0152    | GetBoundLocalMove 9
-  0154    | Merge
-  0155    | JumpIfFailure 155 -> 189
-  0158    | GetConstantMutable2 331: {_0_, _1_}
-  0161    | PushString2 "left"
-  0164    | GetBoundLocal 5
-  0166    | InsertKeyVal 0
-  0168    | PushString2 "right"
-  0171    | GetBoundLocal 10
-  0173    | InsertKeyVal 1
-  0175    | JumpIfFailure 175 -> 188
-  0178    | GetConstant2 328: _Ast.MergePos
-  0181    | GetBoundLocalMove 5
-  0183    | GetBoundLocalMove 10
-  0185    | CallFunction 2
-  0187    | Merge
-  0188    | Merge
-  0189    | CallTailFunction 6
-  0191    | Jump 191 -> 200
-  0194    | GetConstant 31: const
-  0196    | GetBoundLocalMove 5
-  0198    | CallTailFunction 1
-  0200    | End
+  0094    | PushVar2 RightBindingPower
+  0097    | SetLocal 6
+  0099    | Destructure 91: ({"power": [RightBindingPower, NextLeftBindingPower]} + InfixNode)
+  0101    | TakeRight 101 -> 117
+  0104    | GetConstant 31: const
+  0106    | GetConstant2 329: Is.LessThan
+  0109    | GetBoundLocal 4
+  0111    | GetBoundLocalMove 6
+  0113    | CallFunction 2
+  0115    | CallFunction 1
+  0117    | ConditionalThen 117 -> 199
+  0120    | GetConstant2 325: _ast.with_precedence_start
+  0123    | GetBoundLocal 0
+  0125    | GetBoundLocal 1
+  0127    | GetBoundLocal 2
+  0129    | GetBoundLocal 3
+  0131    | GetBoundLocalMove 8
+  0133    | CallFunction 5
+  0135    | Destructure 92: RightNode
+  0137    | TakeRight 137 -> 196
+  0140    | GetConstant2 326: _ast.with_precedence_rest
+  0143    | GetBoundLocalMove 0
+  0145    | GetBoundLocalMove 1
+  0147    | GetBoundLocalMove 2
+  0149    | GetBoundLocalMove 3
+  0151    | GetBoundLocalMove 4
+  0153    | PushEmptyObject
+  0154    | JumpIfFailure 154 -> 160
+  0157    | GetBoundLocalMove 9
+  0159    | Merge
+  0160    | JumpIfFailure 160 -> 194
+  0163    | GetConstantMutable2 331: {_0_, _1_}
+  0166    | PushString2 "left"
+  0169    | GetBoundLocal 5
+  0171    | InsertKeyVal 0
+  0173    | PushString2 "right"
+  0176    | GetBoundLocal 10
+  0178    | InsertKeyVal 1
+  0180    | JumpIfFailure 180 -> 193
+  0183    | GetConstant2 328: _Ast.MergePos
+  0186    | GetBoundLocalMove 5
+  0188    | GetBoundLocalMove 10
+  0190    | CallFunction 2
+  0192    | Merge
+  0193    | Merge
+  0194    | CallTailFunction 6
+  0196    | Jump 196 -> 205
+  0199    | GetConstant 31: const
+  0201    | GetBoundLocalMove 5
+  0203    | CallTailFunction 1
+  0205    | End
   ========================================
   
   ===============1:ast.node===============
@@ -5587,40 +5593,21 @@
   ========================================
   
   ===============1:Obj.Size===============
-  Obj.Size(O) = _Obj.Size(O, 0)
-  ========================================
-  0000    | GetConstant2 367: _Obj.Size
-  0003    | GetBoundLocalMove 0
-  0005    | PushInteger 0
-  0007    | CallTailFunction 2
-  0009    | End
-  ========================================
-  
-  ==============1:_Obj.Size===============
-  _Obj.Size(O, Acc) = O -> {_: _, ...Rest} ? _Obj.Size(Rest, Acc + 1) : Acc
+  Obj.Size(O) = O -> ({_: _} * S) & S
   ========================================
   0000    | PushUnderscoreVar
-  0001    | PushVar2 Rest
-  0004    | SetInputMark
-  0005    | GetBoundLocalMove 0
-  0007    | Destructure 123: ({_: _} + Rest)
-  0009    | ConditionalThen 9 -> 30
-  0012    | GetConstant2 367: _Obj.Size
-  0015    | GetBoundLocalMove 3
-  0017    | GetBoundLocalMove 1
-  0019    | JumpIfFailure 19 -> 25
-  0022    | PushInteger 1
-  0024    | Merge
-  0025    | CallTailFunction 2
-  0027    | Jump 27 -> 32
-  0030    | GetBoundLocalMove 1
-  0032    | End
+  0001    | PushVar2 S
+  0004    | GetBoundLocalMove 0
+  0006    | Destructure 123: ({_: _} * S)
+  0008    | TakeRight 8 -> 13
+  0011    | GetBoundLocalMove 2
+  0013    | End
   ========================================
   
   ===============1:Obj.Keys===============
   Obj.Keys(O) = _Obj.Keys(O, [])
   ========================================
-  0000    | GetConstant2 368: _Obj.Keys
+  0000    | GetConstant2 367: _Obj.Keys
   0003    | GetBoundLocalMove 0
   0005    | PushEmptyArray
   0006    | CallTailFunction 2
@@ -5637,14 +5624,14 @@
   0008    | GetBoundLocalMove 0
   0010    | Destructure 124: ({K: _} + Rest)
   0012    | ConditionalThen 12 -> 43
-  0015    | GetConstant2 368: _Obj.Keys
+  0015    | GetConstant2 367: _Obj.Keys
   0018    | GetBoundLocalMove 4
   0020    | PushEmptyArray
   0021    | JumpIfFailure 21 -> 27
   0024    | GetBoundLocalMove 1
   0026    | Merge
   0027    | JumpIfFailure 27 -> 38
-  0030    | GetConstantMutable2 369: [_]
+  0030    | GetConstantMutable2 368: [_]
   0033    | GetBoundLocalMove 2
   0035    | InsertAtIndex 0
   0037    | Merge
@@ -5657,7 +5644,7 @@
   ==============1:Obj.Values==============
   Obj.Values(O) = _Obj.Values(O, [])
   ========================================
-  0000    | GetConstant2 370: _Obj.Values
+  0000    | GetConstant2 369: _Obj.Values
   0003    | GetBoundLocalMove 0
   0005    | PushEmptyArray
   0006    | CallTailFunction 2
@@ -5674,14 +5661,14 @@
   0008    | GetBoundLocalMove 0
   0010    | Destructure 125: ({_: V} + Rest)
   0012    | ConditionalThen 12 -> 43
-  0015    | GetConstant2 370: _Obj.Values
+  0015    | GetConstant2 369: _Obj.Values
   0018    | GetBoundLocalMove 4
   0020    | PushEmptyArray
   0021    | JumpIfFailure 21 -> 27
   0024    | GetBoundLocalMove 1
   0026    | Merge
   0027    | JumpIfFailure 27 -> 38
-  0030    | GetConstantMutable2 371: [_]
+  0030    | GetConstantMutable2 370: [_]
   0033    | GetBoundLocalMove 3
   0035    | InsertAtIndex 0
   0037    | Merge
@@ -5838,7 +5825,7 @@
   ========================================
   0000    | PushVar2 N
   0003    | SetInputMark
-  0004    | GetConstant2 372: Is.Number
+  0004    | GetConstant2 371: Is.Number
   0007    | GetBoundLocal 0
   0009    | CallFunction 1
   0011    | Or 11 -> 23

@@ -1123,7 +1123,7 @@ test "bar(12 -> N) $ N ; bar(p) = p" {
         var vm = VM.create();
         try vm.init(allocator, writers, config);
         defer vm.deinit();
-        try std.testing.expectError(error.RuntimeError, vm.interpret("test", parser, "12"));
+        try std.testing.expectError(error.UnboundVariable, vm.interpret("test", parser, "12"));
     }
 }
 

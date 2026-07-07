@@ -18,6 +18,15 @@
     (Object 1:5-12 [
       (ObjectPair (Identifier 1:6-7 A) (NumberString 1:9-10 1))
     ]))
+  
+  Program Error: variable 'A' is unbound here
+  
+  program:1:6-7:
+  1 \xe2\x96\x8f "" $ {A: 1,} (esc)
+    \xe2\x96\x8f       ^ (esc)
+  
+  [UnboundVariable]
+  [1]
 
   $ possum -p '"" $ {...{"x": Z}}' -i ''
   (Return 1:0-18
@@ -27,6 +36,15 @@
       (Object 1:9-17 [
         (ObjectPair (String 1:10-13 "x") (Identifier 1:15-16 Z))
       ])))
+  
+  Program Error: variable 'Z' is unbound here
+  
+  program:1:15-16:
+  1 \xe2\x96\x8f "" $ {...{"x": Z}} (esc)
+    \xe2\x96\x8f                ^ (esc)
+  
+  [UnboundVariable]
+  [1]
 
   $ possum -p '"" $ {...{"x": Z},}' -i ''
   (Return 1:0-19
@@ -36,6 +54,15 @@
       (Object 1:9-17 [
         (ObjectPair (String 1:10-13 "x") (Identifier 1:15-16 Z))
       ])))
+  
+  Program Error: variable 'Z' is unbound here
+  
+  program:1:15-16:
+  1 \xe2\x96\x8f "" $ {...{"x": Z},} (esc)
+    \xe2\x96\x8f                ^ (esc)
+  
+  [UnboundVariable]
+  [1]
 
   $ possum -p '"" $ {...{"a": 1}, ...{"b": 2}}' -i ''
   (Return 1:0-31

@@ -651,6 +651,14 @@ pub const VM = struct {
                 const slot = self.readByte();
                 try self.pushDerived(.GetLocal, self.getLocal(slot));
             },
+            .SetLocal => {
+                // The popped handle moves into the slot; the slot's previous
+                // handle dies.
+                const slot = self.readByte();
+                const previous = self.getLocal(slot);
+                self.setLocal(slot, self.pop());
+                previous.release();
+            },
             .GetLocalMove => {
                 // Emitted at the slot's last read on every path: the
                 // slot's handle transfers to the stack without an
@@ -801,13 +809,6 @@ pub const VM = struct {
                 const offset = self.readShort();
                 const elem = self.peek(0);
                 if (elem.isEql(Elem.numberFloat(0), self.*)) {
-                    self.cur_frame.ip += offset;
-                }
-            },
-            .JumpIfBound => {
-                const offset = self.readShort();
-                const elem = self.peek(0);
-                if (!elem.isType(.ValueVar)) {
                     self.cur_frame.ip += offset;
                 }
             },
