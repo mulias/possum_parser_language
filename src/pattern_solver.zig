@@ -8,6 +8,7 @@ const Elem = @import("elem.zig").Elem;
 const StringTable = @import("string_table.zig").StringTable(.runtime);
 const parsing = @import("parsing.zig");
 const isValidNumberString = parsing.isValidNumberString;
+const explain = @import("explain.zig");
 
 const Simplified = union(enum) {
     Pattern: Pattern,
@@ -42,6 +43,7 @@ matched_keys: ArrayList(StringTable.Id),
 discardable_root: ?*Elem.DynElem,
 depth: u8,
 printSteps: bool,
+tracing: bool,
 
 const PatternSolver = @This();
 
@@ -53,6 +55,7 @@ pub fn init(vm: *VM) PatternSolver {
         .discardable_root = null,
         .depth = 1,
         .printSteps = vm.config.printVM or vm.config.printDestructure,
+        .tracing = vm.config.explain,
     };
 }
 
@@ -111,6 +114,33 @@ fn matchPattern(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool 
         try self.printDestructure(value, pattern);
     }
 
+    if (self.tracing) {
+        return self.matchPatternTraced(value, pattern);
+    }
+
+    return self.dispatchPattern(value, pattern);
+}
+
+// Explain mode: emit the step before dispatch so nested steps order after
+// it, then patch the result in. Later appends may grow the list, so
+// re-index at patch time rather than holding a pointer.
+noinline fn matchPatternTraced(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool {
+    try self.vm.explain_events.append(self.vm.allocator, .{ .step = .{
+        .depth = self.depth,
+        .value = explain.snapshot(self.vm, value),
+        .pattern = explain.snapshot(self.vm, pattern),
+        .matched = false,
+    } });
+    const step_idx = self.vm.explain_events.items.len - 1;
+
+    const result = try self.dispatchPattern(value, pattern);
+
+    self.vm.explain_events.items[step_idx].step.matched = result;
+
+    return result;
+}
+
+inline fn dispatchPattern(self: *PatternSolver, value: Elem, pattern: Pattern) Error!bool {
     return switch (pattern) {
         .Array => |p| self.matchArray(value, p),
         .Boolean => |p| self.matchBoolean(value, p),
@@ -2174,6 +2204,17 @@ fn setLocal(self: *PatternSolver, local: Pattern.PatternVar, value: Elem) !void 
     value.retain();
     self.vm.setLocal(local.idx, value);
     try self.bound_locals.append(self.vm.allocator, local);
+
+    if (self.tracing) {
+        try self.emitBind(local, value);
+    }
+}
+
+noinline fn emitBind(self: *PatternSolver, local: Pattern.PatternVar, value: Elem) !void {
+    try self.vm.explain_events.append(self.vm.allocator, .{ .bind = .{
+        .name = local.sid,
+        .value = explain.snapshot(self.vm, value),
+    } });
 }
 
 fn resetLocals(self: *PatternSolver, index: usize) !void {
