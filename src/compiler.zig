@@ -1592,12 +1592,14 @@ pub const Compiler = struct {
         nodes: ArrayList(match_plan.Node) = .{},
         vars: ArrayList(Pattern.PatternVar) = .{},
         elems: ArrayList(Elem) = .{},
+        sids: ArrayList(RuntimeStrings.Id) = .{},
         reads: liveness.SlotSet = liveness.SlotSet.initEmpty(),
 
         fn deinit(self: *PlanBuilder, allocator: std.mem.Allocator) void {
             self.nodes.deinit(allocator);
             self.vars.deinit(allocator);
             self.elems.deinit(allocator);
+            self.sids.deinit(allocator);
         }
 
         fn appendLeaf(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, payload: u32) !void {
@@ -1645,12 +1647,15 @@ pub const Compiler = struct {
         errdefer allocator.free(vars);
         const elems = try builder.elems.toOwnedSlice(allocator);
         errdefer allocator.free(elems);
+        const sids = try builder.sids.toOwnedSlice(allocator);
+        errdefer allocator.free(sids);
 
         const module = self.vm.getModule(module_id);
         const idx = try module.addMatchPlan(allocator, .{
             .nodes = nodes,
             .vars = vars,
             .elems = elems,
+            .sids = sids,
         });
 
         const gop = try self.plan_reads.getOrPut(allocator, module_id);
@@ -1723,6 +1728,30 @@ pub const Compiler = struct {
                 });
                 for (elements.items) |element| {
                     try self.lowerPatternNode(module_id, element, builder);
+                }
+                builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
+            },
+            .object => |pairs| {
+                // Constant string keys only: any other key form keeps the
+                // tree path's unbound-key linear search and backtracking.
+                const start = builder.nodes.items.len;
+                try builder.nodes.append(allocator, .{
+                    .tag = .object,
+                    .subtree_len = undefined,
+                    .payload = @intCast(pairs.items.len),
+                });
+                for (pairs.items) |pair| {
+                    if (pair.key.node != .string) return error.UnsupportedPattern;
+                    const sid = try self.vm.strings.insert(pair.key.node.string);
+                    const key_start = builder.nodes.items.len;
+                    try builder.nodes.append(allocator, .{
+                        .tag = .const_key,
+                        .subtree_len = undefined,
+                        .payload = @intCast(builder.sids.items.len),
+                    });
+                    try builder.sids.append(allocator, sid);
+                    try self.lowerPatternNode(module_id, pair.value, builder);
+                    builder.nodes.items[key_start].subtree_len = @intCast(builder.nodes.items.len - key_start);
                 }
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
