@@ -117,7 +117,12 @@ Despite not interacting with the parsing state, values still have a concept of f
 
 The `p -> P` destructure operator asserts that a parsed value matches the structure of a pattern and optionally binds the value or a substructure of the value to local variables. After `p` successfully parses part of the input the resulting value is destructured against the pattern. If the value and pattern match structurally then parsing succeeds. If the value and pattern do not match structurally then the destructure fails.
 
-Patterns can contain variables that are both bound and unbound. Variables must be `UpperCamelCase`. Variables cannot be re-bound within a parser, so once the variable is set any subsequent references will use the bound value instead of re-binding.
+Patterns can contain variables that are both bound and unbound. Variables must be `UpperCamelCase`. Variable scope is resolved at compile time: at every use a variable is either definitely bound, in which case the use matches the bound value by equality, or definitely unbound, in which case the pattern binds it. Variables cannot be re-bound within a parser, so once the variable is set any subsequent references will use the bound value instead of re-binding.
+
+A binding made inside a parser that fails is out of scope afterward:
+  - The right side of `|` and the else branch of `?:` run only after the left side or condition failed, so they do not see its bindings and may bind the same variable fresh.
+  - A variable bound in every branch of an alternation is bound afterward. A variable bound in only some branches is neither bound nor unbound on the paths that follow; using it there is a compile error.
+  - Reading a variable that has no binding in scope — never bound, bound only in a failed alternative, or bound only inside a repeat body — is a compile error.
 
 | Destructured Value      | Description                                               |
 | ----------------------- | --------------------------------------------------------- |
@@ -140,7 +145,7 @@ Patterns can contain variables that are both bound and unbound. Variables must b
 | `p -> {"a": 1, ..._}`   | Match an object where the key `"a"` has the value `1`     |
 | `p -> {_: 1, ..._}`     | Match an object where one of the keys has the value `1`   |
 | `p -> {"a": A, ..._}`   | Match an object with the key `"a"`, match or bind the value to `A` |
-| `p -> {..._, "a": A}`   | As above, object patterns are not position dependant      |
+| `p -> {..._, "a": A}`   | As above, object patterns are not position dependent      |
 | `p -> {"a": _, "b": B}` | Match an object with exactly the keys `"a"` and `"b"`, match or bind the value of `"b"` to `B` |
 | `p -> [...A]`           | Match the array `A`, or if unbound bind the value to `A`  |
 | `p -> {...O}`           | Match the object `O`, or if unbound bind the value to `O` |
@@ -161,7 +166,7 @@ This list is not exhaustive. Pattern matching in Possum is intended to be maxima
 
 ### Repeat
 
-The repeat operator `p * P` runs the parser `p` multiple times in a row, merging the results together into one value. The right-side pattern determines the number of repeats, and must be an integer, integer range, or contain unbound variables witch will be bound to concrete integer values.
+The repeat operator `p * P` runs the parser `p` multiple times in a row, merging the results together into one value. The right-side pattern determines the number of repeats, and must be an integer, integer range, or contain unbound variables which will be bound to concrete integer values.
 
 | Destructured Value      | Description                                               |
 | ----------------------- | --------------------------------------------------------- |
@@ -176,6 +181,8 @@ The repeat operator `p * P` runs the parser `p` multiple times in a row, merging
 | `p * (N + 2)`           | `p` exactly `N + 2` times, or zero or more times and bind the calculated value of `N` |
 
 The pattern may not contain more than one unbound variable.
+
+Variables bound inside the repeated parser are scoped to a single iteration: each iteration binds them fresh, and they are out of scope after the loop.
 
 If the repeated parser succeeds after zero matches the resulting value is `null`. The repeated merging behavior depends on the type of the parsed value, as defined by the `+` merge operator. For example `1..9 * 5` parses the input `12345` as `1 + 2 + 3 + 4 + 5 = 15`, while `1..9 -> D $ [D] * 5` parses the same input as `[1, 2, 3, 4, 5]`.
 

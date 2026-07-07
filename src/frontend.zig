@@ -33,6 +33,8 @@ pub const GlobalKey = DependencyGraph.NodeKey;
 
 pub const DependencyGraphNode = DependencyGraph.Node;
 
+pub const ClosureCapture = DependencyGraph.ClosureCapture;
+
 pub fn init(allocator: Allocator, writers: Writers) !*Frontend {
     const frontend = try allocator.create(Frontend);
     frontend.allocator = allocator;

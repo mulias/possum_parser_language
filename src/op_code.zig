@@ -43,7 +43,6 @@ pub const OpCode = enum(u8) {
     InsertKeyVal,
     Jump,
     JumpBack,
-    JumpIfBound,
     JumpIfFailure,
     JumpIfZero,
     Merge,
@@ -88,6 +87,7 @@ pub const OpCode = enum(u8) {
     ResetInput,
     SetClosureCaptures,
     SetInputMark,
+    SetLocal,
     Swap,
     TakeLeft,
     TakeRight,
@@ -193,7 +193,9 @@ pub const OpCode = enum(u8) {
             .ValidateRepeatPattern,
             => .{ .fixed = .{ .pops = 1, .pushes = 1 } },
 
-            .Drop => .{ .fixed = .{ .pops = 1, .pushes = 0 } },
+            .Drop,
+            .SetLocal,
+            => .{ .fixed = .{ .pops = 1, .pushes = 0 } },
 
             .InsertAtIndex,
             .Merge,
@@ -218,7 +220,6 @@ pub const OpCode = enum(u8) {
                 .jump = .{ .pops = 0, .pushes = 0 },
             } },
 
-            .JumpIfBound,
             .JumpIfFailure,
             .JumpIfZero,
             => .{ .branch = .{
@@ -399,11 +400,14 @@ pub const OpCode = enum(u8) {
             .AssertParamTypes,
             .AssertParamTypes4,
             .CaptureLocal,
-            .JumpIfBound,
             .JumpIfFailure,
             .JumpIfZero,
             .ValidateRepeatPattern,
             => .{ .operands = .borrowed, .result = .none },
+
+            // The popped handle moves into a frame slot; the slot's
+            // previous handle is released in the dispatch.
+            .SetLocal => .{ .operands = .consumed, .result = .none },
 
             // The matched value stays on the stack on success (pattern
             // vars bound into frame slots add +1 per binding in the
@@ -551,6 +555,7 @@ pub const OpCode = enum(u8) {
             .GetLocalMove,
             .InsertAtIndex,
             .InsertKeyVal,
+            .SetLocal,
             => self.byteInstruciton(chunk, writer, offset),
             .ParseChar,
             => self.charInstruction(chunk, writer, offset),
@@ -585,7 +590,6 @@ pub const OpCode = enum(u8) {
             .Jump,
             .JumpIfFailure,
             .JumpIfZero,
-            .JumpIfBound,
             .Or,
             .TakeRight,
             => self.jumpInstruction(chunk, writer, offset),
