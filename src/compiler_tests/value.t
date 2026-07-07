@@ -18,7 +18,7 @@
   ========================================
   0000    | PushVar A
   0002    | ParseNumberStringChar 1
-  0004    | Destructure 0: A
+  0004    | DestructurePlan 0: bind A
   0006    | TakeRight 6 -> 11
   0009    | GetBoundLocalMove 0
   0011    | End
@@ -31,7 +31,7 @@
   ========================================
   0000    | PushVar A
   0002    | ParseNumberStringChar 1
-  0004    | Destructure 0: A
+  0004    | DestructurePlan 0: bind A
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 0: [_]
   0011    | GetBoundLocalMove 0
@@ -46,7 +46,7 @@
   ========================================
   0000    | PushVar A
   0002    | ParseNumberStringChar 2
-  0004    | Destructure 0: A
+  0004    | DestructurePlan 0: bind A
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 0: [1, _]
   0011    | GetConstant 1: [2]
@@ -70,7 +70,7 @@
   ========================================
   0000    | PushVar A
   0002    | ParseNumberStringChar 1
-  0004    | Destructure 0: A
+  0004    | DestructurePlan 0: bind A
   0006    | TakeRight 6 -> 19
   0009    | GetConstantMutable 0: [_]
   0011    | GetConstantMutable 1: [_]
@@ -87,7 +87,7 @@
   ========================================
   0000    | PushVar A
   0002    | PushInteger 1
-  0004    | Destructure 0: A
+  0004    | DestructurePlan 0: bind A
   0006    | TakeRight 6 -> 17
   0009    | GetBoundLocal 0
   0011    | JumpIfFailure 11 -> 17
@@ -144,10 +144,10 @@
   0000    | PushVar A
   0002    | PushVar B
   0004    | ParseNumberStringChar 1
-  0006    | Destructure 0: A
+  0006    | DestructurePlan 0: bind A
   0008    | TakeRight 8 -> 32
   0011    | ParseNumberStringChar 2
-  0013    | Destructure 1: B
+  0013    | DestructurePlan 1: bind B
   0015    | TakeRight 15 -> 32
   0018    | GetConstantMutable 0: {_0_, _1_}
   0020    | PushString "a"

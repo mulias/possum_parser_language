@@ -2191,7 +2191,7 @@ fn evalLocal(self: *PatternSolver, local: Pattern.PatternVar) !?Elem {
     }
 }
 
-fn checkEquality(self: *PatternSolver, value: Elem, pattern: Elem) !bool {
+pub fn checkEquality(self: *PatternSolver, value: Elem, pattern: Elem) !bool {
     if (self.printSteps) {
         try self.printDestructureEquality(value, pattern);
     }
@@ -2238,7 +2238,7 @@ fn resetLocals(self: *PatternSolver, index: usize) !void {
     self.bound_locals.shrinkRetainingCapacity(index);
 }
 
-fn executeFunctionOnVM(self: *PatternSolver, pattern: Pattern, function: Elem, args: ?[]Elem) !Elem {
+pub fn executeFunctionOnVM(self: *PatternSolver, pattern: Pattern, function: Elem, args: ?[]Elem) !Elem {
     if (self.printSteps) {
         try self.vm.writers.debug.print("\nEval Pattern Function: ", .{});
         try pattern.print(self.vm.*, self.vm.writers.debug);

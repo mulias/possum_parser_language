@@ -27,19 +27,21 @@ pub const Liveness = struct {
     deaths: []SlotSet,
 
     // Requires an IR that passes verify. `pattern_reads` maps each pattern
-    // constant id to the slots the pattern references; entries for ids not
-    // used by this function's Destructure instructions are ignored.
+    // constant id to the slots the pattern references, `plan_reads` does the
+    // same for match plan ids; entries for ids not used by this function's
+    // Destructure/DestructurePlan instructions are ignored.
     pub fn analyze(
         allocator: Allocator,
         ir: *const Ir,
         pattern_reads: []const SlotSet,
+        plan_reads: []const SlotSet,
     ) Allocator.Error!Liveness {
         const insns = ir.instructions.items;
 
         const reads = try allocator.alloc(SlotSet, insns.len);
         defer allocator.free(reads);
         for (insns, 0..) |insn, i| {
-            reads[i] = instructionReads(insn.operand, pattern_reads);
+            reads[i] = instructionReads(insn.operand, pattern_reads, plan_reads);
         }
 
         const live_in = try allocator.alloc(SlotSet, insns.len);
@@ -82,9 +84,10 @@ pub const Liveness = struct {
     }
 };
 
-fn instructionReads(operand: Ir.Operand, pattern_reads: []const SlotSet) SlotSet {
+fn instructionReads(operand: Ir.Operand, pattern_reads: []const SlotSet, plan_reads: []const SlotSet) SlotSet {
     switch (operand) {
         .destructure => |idx| return pattern_reads[idx],
+        .destructure_plan => |idx| return plan_reads[idx],
         else => {
             var reads = SlotSet.initEmpty();
             const op = Ir.operandOp(operand);
@@ -192,7 +195,7 @@ test "a slot dies at its last read" {
     _ = try ir.push(allocator, .{ .none = .Merge }, testRegion(2));
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(3));
 
-    var liveness = try Liveness.analyze(allocator, &ir, &.{});
+    var liveness = try Liveness.analyze(allocator, &ir, &.{}, &.{});
     defer liveness.deinit(allocator);
 
     try testing.expectEqual(slots(&.{}), liveness.deaths[0]);
@@ -212,7 +215,7 @@ test "a read behind a branch keeps the slot live at the branch" {
     ir.patchJumpTarget(jump);
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(4));
 
-    var liveness = try Liveness.analyze(allocator, &ir, &.{});
+    var liveness = try Liveness.analyze(allocator, &ir, &.{}, &.{});
     defer liveness.deinit(allocator);
 
     // The fallthrough path reads slot 0 again, so it survives the first
@@ -234,7 +237,7 @@ test "a loop back-edge keeps a slot read at the loop head alive" {
     ir.patchJumpTarget(done);
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(4));
 
-    var liveness = try Liveness.analyze(allocator, &ir, &.{});
+    var liveness = try Liveness.analyze(allocator, &ir, &.{}, &.{});
     defer liveness.deinit(allocator);
 
     // The read at the loop head is reachable from the back-edge, so the
@@ -253,7 +256,7 @@ test "destructure reads its pattern's slots" {
     _ = try ir.push(allocator, .{ .destructure = 0 }, testRegion(1));
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(2));
 
-    var liveness = try Liveness.analyze(allocator, &ir, &.{slots(&.{ 0, 1 })});
+    var liveness = try Liveness.analyze(allocator, &ir, &.{slots(&.{ 0, 1 })}, &.{});
     defer liveness.deinit(allocator);
 
     try testing.expectEqual(slots(&.{}), liveness.deaths[0]);

@@ -95,12 +95,17 @@ pub const PreClear = struct {
 pub const Maps = struct {
     preclears: AutoHashMap(*const Ast.Pattern.RNode, ArrayList(PreClear)) = .{},
     repeat_count_bound: AutoHashMap(*const Ast.Pattern.RNode, bool) = .{},
+    // Whether each pattern-local occurrence is bound on the paths reaching
+    // its destructure, keyed by the identifier node. Lets codegen lower an
+    // occurrence to a bind or an equality check without a runtime probe.
+    pattern_local_bound: AutoHashMap(*const Ast.Pattern.RNode, bool) = .{},
 
     pub fn deinit(self: *Maps, allocator: Allocator) void {
         var preclears = self.preclears.valueIterator();
         while (preclears.next()) |list| list.deinit(allocator);
         self.preclears.deinit(allocator);
         self.repeat_count_bound.deinit(allocator);
+        self.pattern_local_bound.deinit(allocator);
     }
 };
 
@@ -228,7 +233,7 @@ const Analyzer = struct {
         rnode: *const Ast.Pattern.RNode,
     ) Allocator.Error!void {
         switch (rnode.node) {
-            .identifier => |ident| try self.patternLocalOccurrence(env, root, ident.name, rnode.region),
+            .identifier => |ident| try self.patternLocalOccurrence(env, root, rnode, ident.name, rnode.region),
             .array => |elems| for (elems.items) |elem| {
                 try self.visitPatternLocals(env, bindable, root, elem);
             },
@@ -509,11 +514,18 @@ const Analyzer = struct {
         self: *Analyzer,
         env: *Env,
         root: *const Ast.Pattern.RNode,
+        rnode: *const Ast.Pattern.RNode,
         name: Strings.Id,
         region: Region,
     ) !void {
         const slot = self.patternLocalSlot(name) orelse return;
         const state = &env.slots[slot];
+
+        try self.compiler.binding_maps.pattern_local_bound.put(
+            self.allocator,
+            rnode,
+            state.state == .bound,
+        );
 
         switch (state.state) {
             .bound => {},

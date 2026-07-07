@@ -820,7 +820,7 @@
   ========================================
   0000    | PushVar V
   0002    | CallFunctionConstant 0: 123
-  0004    | Destructure 0: V
+  0004    | DestructurePlan 0: bind V
   0006    | End
   ========================================
 
@@ -1307,7 +1307,7 @@
   ========================================
   0000    | PushVar Elem
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
+  0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
   0011    | GetBoundLocalMove 1
@@ -1372,7 +1372,7 @@
   ========================================
   0000    | PushVar Elem
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
+  0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
   0011    | GetBoundLocalMove 1
@@ -1439,7 +1439,7 @@
   ========================================
   0000    | PushVar Elem
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
+  0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
   0011    | GetBoundLocalMove 1
@@ -1504,7 +1504,7 @@
   ========================================
   0000    | PushVar Elem
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
+  0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
   0011    | GetBoundLocalMove 1
@@ -1570,7 +1570,7 @@
   ========================================
   0000    | PushVar Elem
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
+  0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
   0011    | GetBoundLocalMove 1
@@ -1638,7 +1638,7 @@
   ========================================
   0000    | PushVar Elem
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
+  0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
   0011    | GetBoundLocalMove 1
@@ -1706,7 +1706,7 @@
   ========================================
   0000    | PushVar Elem
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
+  0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
   0011    | GetBoundLocalMove 1
@@ -1786,10 +1786,10 @@
   0000    | PushVar K
   0002    | PushVar V
   0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
+  0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
   0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
+  0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
@@ -1869,10 +1869,10 @@
   0000    | PushVar K
   0002    | PushVar V
   0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
+  0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
   0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
+  0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
@@ -1953,10 +1953,10 @@
   0000    | PushVar K
   0002    | PushVar V
   0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
+  0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
   0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
+  0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
@@ -2037,10 +2037,10 @@
   0000    | PushVar K
   0002    | PushVar V
   0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
+  0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
   0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
+  0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
@@ -2122,10 +2122,10 @@
   0000    | PushVar K
   0002    | PushVar V
   0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
+  0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
   0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
+  0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
@@ -2207,10 +2207,10 @@
   0000    | PushVar K
   0002    | PushVar V
   0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
+  0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
   0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
+  0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2
@@ -2279,7 +2279,7 @@
   ========================================
   0000    | PushVar Elem
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: Elem
+  0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
   0011    | GetBoundLocalMove 1
@@ -2358,10 +2358,10 @@
   0000    | PushVar K
   0002    | PushVar V
   0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
+  0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
   0011    | CallFunctionLocal 1
-  0013    | Destructure 1: V
+  0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
   0020    | GetBoundLocalMove 2

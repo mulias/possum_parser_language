@@ -9,6 +9,7 @@ const DependencyGraphNode = Frontend.DependencyGraphNode;
 const Ir = @import("ir.zig").Ir;
 const liveness = @import("liveness.zig");
 const Module = @import("module.zig").Module;
+const match_plan = @import("match_plan.zig");
 const OpCode = @import("op_code.zig").OpCode;
 const Pattern = @import("pattern.zig").Pattern;
 const Region = @import("region.zig").Region;
@@ -38,6 +39,8 @@ pub const Compiler = struct {
     // Compile-time only (feeds liveness), so it lives here rather than on
     // the runtime Module.
     pattern_reads: AutoHashMap(Module.Id, ArrayList(liveness.SlotSet)) = .{},
+    // Same, for match plans, indexed to match the module's `match_plans`.
+    plan_reads: AutoHashMap(Module.Id, ArrayList(liveness.SlotSet)) = .{},
     main: ?*Elem.DynElem.Function = null,
     // Memoizes internForRuntime so repeated names hash their bytes once.
     sid_map: AutoHashMap(FrontendStrings.Id, RuntimeStrings.Id) = .{},
@@ -112,6 +115,9 @@ pub const Compiler = struct {
         var pattern_reads = self.pattern_reads.valueIterator();
         while (pattern_reads.next()) |list| list.deinit(self.vm.allocator);
         self.pattern_reads.deinit(self.vm.allocator);
+        var plan_reads = self.plan_reads.valueIterator();
+        while (plan_reads.next()) |list| list.deinit(self.vm.allocator);
+        self.plan_reads.deinit(self.vm.allocator);
         self.binding_maps.deinit(self.vm.allocator);
         self.sid_map.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
@@ -616,8 +622,7 @@ pub const Compiler = struct {
             },
             .destructure => |destructure| {
                 try self.writeParser(module_id, destructure.left);
-                const patternId = try self.createPattern(module_id, destructure.right);
-                try self.emitPattern(patternId, destructure.right.region);
+                try self.writeDestructurePattern(module_id, destructure.right);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
@@ -1566,6 +1571,77 @@ pub const Compiler = struct {
         }
     }
 
+    // Compile a destructure's pattern, preferring the match plan IR. Lowering
+    // supports a subset of patterns; the rest fall back to the Pattern tree.
+    fn writeDestructurePattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) Error!void {
+        if (self.tryCreateMatchPlan(module_id, rnode)) |planId| {
+            try self.emitMatchPlan(planId, rnode.region);
+        } else |err| switch (err) {
+            error.UnsupportedPattern => {
+                const patternId = try self.createPattern(module_id, rnode);
+                try self.emitPattern(patternId, rnode.region);
+            },
+            else => |e| return e,
+        }
+    }
+
+    // Lower a pattern to a MatchPlan. Unsupported patterns (and the explain
+    // and destructure-printing modes, which report through the Pattern tree)
+    // return UnsupportedPattern so the caller falls back to createPattern.
+    fn tryCreateMatchPlan(
+        self: *Compiler,
+        module_id: Module.Id,
+        rnode: *Ast.Pattern.RNode,
+    ) (Error || error{UnsupportedPattern})!u24 {
+        if (self.vm.config.explain or self.vm.config.printVM or self.vm.config.printDestructure) {
+            return error.UnsupportedPattern;
+        }
+        if (rnode.node != .identifier) return error.UnsupportedPattern;
+        const name = rnode.node.identifier.name;
+
+        var root: match_plan.Node = undefined;
+        var pattern_var: ?Pattern.PatternVar = null;
+
+        if (std.mem.eql(u8, self.frontend.strings.get(name), "_")) {
+            root = .{ .tag = .placeholder, .subtree_len = 1, .payload = 0 };
+        } else {
+            if (self.resolveGlobal(module_id, name) != null) return error.UnsupportedPattern;
+            const slot = self.localSlot(name) orelse return error.UnsupportedPattern;
+            const bound = self.binding_maps.pattern_local_bound.get(rnode) orelse
+                return error.UnsupportedPattern;
+            pattern_var = .{
+                .sid = try self.internForRuntime(name),
+                .idx = slot,
+                .negation_count = 0,
+            };
+            root = .{ .tag = if (bound) .bound_eq else .bind, .subtree_len = 1, .payload = 0 };
+        }
+
+        try self.emitPatternPreclears(module_id, rnode);
+
+        const allocator = self.vm.allocator;
+        const nodes = try allocator.alloc(match_plan.Node, 1);
+        errdefer allocator.free(nodes);
+        nodes[0] = root;
+
+        const vars = try allocator.alloc(Pattern.PatternVar, if (pattern_var == null) 0 else 1);
+        errdefer allocator.free(vars);
+        var reads = liveness.SlotSet.initEmpty();
+        if (pattern_var) |v| {
+            vars[0] = v;
+            reads.set(v.idx);
+        }
+
+        const module = self.vm.getModule(module_id);
+        const idx = try module.addMatchPlan(allocator, .{ .nodes = nodes, .vars = vars });
+
+        const gop = try self.plan_reads.getOrPut(allocator, module_id);
+        if (!gop.found_existing) gop.value_ptr.* = .{};
+        try gop.value_ptr.append(allocator, reads);
+
+        return @intCast(idx);
+    }
+
     fn createPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) Error!u24 {
         try self.emitPatternPreclears(module_id, rnode);
         const patternElem = try self.astToPattern(module_id, rnode, 0);
@@ -1950,8 +2026,7 @@ pub const Compiler = struct {
             },
             .destructure => |destructure| {
                 try self.writeValue(module_id, destructure.left);
-                const patternId = try self.createPattern(module_id, destructure.right);
-                try self.emitPattern(patternId, destructure.right.region);
+                try self.writeDestructurePattern(module_id, destructure.right);
             },
             .@"or" => |or_node| {
                 try self.emitOp(.SetInputMark, region);
@@ -2530,11 +2605,14 @@ pub const Compiler = struct {
     fn rewriteLastReadsAsMoves(self: *Compiler, module_id: Module.Id, function_ir: *Ir) !void {
         const pattern_reads: []const liveness.SlotSet =
             if (self.pattern_reads.get(module_id)) |list| list.items else &.{};
+        const plan_reads: []const liveness.SlotSet =
+            if (self.plan_reads.get(module_id)) |list| list.items else &.{};
 
         var last_reads = try liveness.Liveness.analyze(
             self.vm.allocator,
             function_ir,
             pattern_reads,
+            plan_reads,
         );
         defer last_reads.deinit(self.vm.allocator);
 
@@ -2704,6 +2782,10 @@ pub const Compiler = struct {
 
     fn emitPattern(self: *Compiler, idx: u24, region: Region) !void {
         _ = try self.ir().push(self.vm.allocator, .{ .destructure = idx }, region);
+    }
+
+    fn emitMatchPlan(self: *Compiler, idx: u24, region: Region) !void {
+        _ = try self.ir().push(self.vm.allocator, .{ .destructure_plan = idx }, region);
     }
 
     fn printError(self: *Compiler, module_id: Module.Id, region: Region, comptime message: []const u8, args: anytype) !void {
