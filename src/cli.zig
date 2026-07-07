@@ -7,6 +7,7 @@ const VMConfig = @import("vm.zig").Config;
 const Writers = @import("writer.zig").Writers;
 const build_options = @import("build_options");
 const cli_config = @import("cli_config.zig");
+const explain = @import("explain.zig");
 const maxInt = std.math.maxInt;
 
 pub fn main() void {
@@ -69,6 +70,7 @@ pub const CLI = struct {
         const env = try Env.fromOS(self.allocator);
         var config = VMConfig{ .includeStdlib = args.stdlib };
         config.setEnv(env);
+        config.explain = args.explain;
 
         var module_name: []const u8 = undefined;
         var source: []const u8 = undefined;
@@ -106,6 +108,7 @@ pub const CLI = struct {
 
             if (parsed.isFailure()) {
                 try vm.printParseFailure(input_name);
+                if (config.explain) try explain.render(&vm, self.writers.err);
                 return error.ParserFailure;
             } else {
                 try parsed.writeJson(.Pretty, vm, self.writers.out);

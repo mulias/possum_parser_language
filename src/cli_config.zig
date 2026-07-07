@@ -24,6 +24,7 @@ pub const ParseArgs = struct {
     stdlib: bool,
     import: []const []const u8,
     errorFormat: Format,
+    explain: bool,
 };
 
 pub const Mode = union(ModeType) {
@@ -40,6 +41,7 @@ const params = clap.parseParamsComptime(
     \\--no-stdlib
     \\--import <FILE>...
     \\--error-format <FORMAT>
+    \\--explain
     \\-h, --help
     \\-v, --version
     \\--docs <DOCS>
@@ -100,6 +102,7 @@ pub fn run(allocator: Allocator) !Mode {
                 .stdlib = @field(result.args, "no-stdlib") == 0,
                 .import = result.args.import,
                 .errorFormat = @field(result.args, "error-format") orelse .plain,
+                .explain = result.args.explain != 0,
             },
         };
     } else if (requiredArgsCount > 2) {

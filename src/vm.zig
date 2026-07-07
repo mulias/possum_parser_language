@@ -17,6 +17,7 @@ const PatternSolver = @import("pattern_solver.zig");
 const Region = @import("region.zig").Region;
 const LineRelativeRegion = @import("region.zig").LineRelativeRegion;
 const hl = @import("highlight.zig");
+const explain = @import("explain.zig");
 const Writers = @import("writer.zig").Writers;
 const parsing = @import("parsing.zig");
 
@@ -37,6 +38,8 @@ pub const Config = struct {
     // behavioral diff can be bisected to refcounting in one run.
     rc_fast_paths: bool = true,
     print_memory_report: bool = false,
+    // Record call/return/destructure events for the --explain report.
+    explain: bool = false,
 
     pub fn setEnv(self: *Config, env: Env) void {
         self.printScanner = env.printScanner;
@@ -59,7 +62,7 @@ pub const Pos = struct {
     line: usize = 1,
     line_start: usize = 0,
 
-    fn lineOffset(self: Pos) usize {
+    pub fn lineOffset(self: Pos) usize {
         return self.offset - self.line_start;
     }
 };
@@ -189,6 +192,7 @@ pub const VM = struct {
     inputPos: Pos,
     farthest: ?FarthestFailure,
     expected: ExpectedSet,
+    explain_events: ArrayList(explain.Event),
     uniqueIdCount: u64,
     rc_stats: RcStats,
     pattern_solver: PatternSolver,
@@ -243,6 +247,7 @@ pub const VM = struct {
             .inputPos = undefined,
             .farthest = null,
             .expected = ExpectedSet.empty,
+            .explain_events = undefined,
             .uniqueIdCount = undefined,
             .rc_stats = undefined,
             .pattern_solver = undefined,
@@ -280,6 +285,7 @@ pub const VM = struct {
         self.inputPos = Pos{};
         self.farthest = null;
         self.expected = ExpectedSet.empty;
+        self.explain_events = ArrayList(explain.Event){};
         self.uniqueIdCount = 0;
         self.rc_stats = RcStats{};
         self.pattern_solver = PatternSolver.init(self);
@@ -307,6 +313,7 @@ pub const VM = struct {
         self.frames.deinit(self.allocator);
         self.temp_dyns.deinit(self.allocator);
         self.inputMarks.deinit(self.allocator);
+        self.explain_events.deinit(self.allocator);
         self.pattern_solver.deinit();
     }
 
@@ -365,6 +372,14 @@ pub const VM = struct {
 
         if (compiler.main) |main| {
             try self.push(main.dyn.elem());
+            if (self.config.explain) {
+                try self.explain_events.append(self.allocator, .{ .call = .{
+                    .function_name = main.name,
+                    .module_id = main.mid,
+                    .pos = self.inputPos,
+                    .is_tail = false,
+                } });
+            }
             try self.pushFrame(main);
         }
     }
@@ -576,7 +591,18 @@ pub const VM = struct {
                 const next_op: OpCode = @enumFromInt(self.cur_code[self.cur_frame.ip]);
                 const value_discarded = next_op == .ConditionalThen or next_op == .TakeRight;
 
-                if (value.isSuccess() and (try self.pattern_solver.match(value, pattern, value_discarded))) {
+                const trace_match = self.config.explain and value.isSuccess();
+                if (trace_match) {
+                    try self.emitExplainDestructureBegin(value, pattern);
+                }
+
+                const matched = value.isSuccess() and (try self.pattern_solver.match(value, pattern, value_discarded));
+
+                if (trace_match) {
+                    try self.emitExplainDestructureEnd(!matched);
+                }
+
+                if (matched) {
                     // value is already on the stack
                 } else {
                     // Snapshot before popConsumed reclaims the value. A
@@ -597,6 +623,10 @@ pub const VM = struct {
                 // frame except the final function result.
                 const prevFrame = self.popFrame();
                 const result = self.pop();
+
+                if (self.config.explain) {
+                    try self.emitExplainRet(result.isFailure());
+                }
 
                 // Every truncated handle dies: the function elem, locals
                 // (already nulled where a move transferred them out), and
@@ -1256,7 +1286,11 @@ pub const VM = struct {
                         }
 
                         if (function.arity == argCount) {
-                            if (isTailPosition and !function.isBuiltin()) {
+                            const reuses_frame = isTailPosition and !function.isBuiltin();
+                            if (self.config.explain) {
+                                try self.emitExplainCall(function, reuses_frame);
+                            }
+                            if (reuses_frame) {
                                 // Remove the elements belonging to the previous call
                                 // frame. This includes the function itself, its
                                 // arguments, and any added local variables.
@@ -1867,6 +1901,41 @@ pub const VM = struct {
         } else {
             self.expected.append(entry);
         }
+    }
+
+    // The explain emitters are noinline so the never-taken explain branch
+    // costs the hot paths (call, return, destructure) only a test and a
+    // skipped jump, not the inlined event construction.
+    noinline fn emitExplainCall(self: *VM, function: *Elem.DynElem.Function, is_tail: bool) !void {
+        try self.explain_events.append(self.allocator, .{ .call = .{
+            .function_name = function.name,
+            .module_id = function.mid,
+            .pos = self.inputPos,
+            .is_tail = is_tail,
+        } });
+    }
+
+    noinline fn emitExplainRet(self: *VM, failed: bool) !void {
+        try self.explain_events.append(self.allocator, .{ .ret = .{
+            .failed = failed,
+            .pos = self.inputPos,
+        } });
+    }
+
+    noinline fn emitExplainDestructureBegin(self: *VM, value: Elem, pattern: Pattern) !void {
+        try self.explain_events.append(self.allocator, .{ .destructure_begin = .{
+            .region = self.cur_frame.function.chunk.regions.items[self.cur_frame.ip - 1],
+            .module_id = self.cur_frame.function.mid,
+            .pos = self.inputPos,
+            .value = explain.snapshot(self, value),
+            .pattern = explain.snapshot(self, pattern),
+        } });
+    }
+
+    noinline fn emitExplainDestructureEnd(self: *VM, failed: bool) !void {
+        try self.explain_events.append(self.allocator, .{ .destructure_end = .{
+            .failed = failed,
+        } });
     }
 
     pub fn pop(self: *VM) Elem {
