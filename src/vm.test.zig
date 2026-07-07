@@ -939,6 +939,80 @@ test "a bare local var pattern compiles to a match plan" {
     }
 }
 
+test "constant literal patterns compile to match plans" {
+    const parser =
+        \\('' $ 42) -> 42 & ('' $ 'abc') -> 'abc' & ('' $ true) -> true & ('' $ null) -> null $ 'ok'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(4, plan_count);
+    }
+}
+
+test "constant equality mismatch drives alternation" {
+    const parser =
+        \\(('' $ 1) -> 2 $ 'no') | ('' $ 'yes')
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "yes")).dyn.elem(),
+            vm,
+        );
+    }
+}
+
+test "a global constant pattern compiles to a match plan" {
+    const parser =
+        \\Two = 2
+        \\'' $ 2 -> Two $ 'ok'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "a merge pattern falls back to the tree path" {
+    const parser =
+        \\('' $ 3) -> (1 + N) $ N
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(2),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(0, plan_count);
+    }
+}
+
 test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
     const parser =
         \\last(a, b, c) = a > b > c

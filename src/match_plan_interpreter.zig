@@ -18,6 +18,7 @@ pub fn match(solver: *PatternSolver, value: Elem, plan: MatchPlan) PatternSolver
     const root = plan.nodes[0];
     switch (root.tag) {
         .placeholder => return true,
+        .equality => return solver.checkEquality(value, plan.elems[root.payload]),
         .bind => {
             const pattern_var = plan.vars[root.payload];
             std.debug.assert(vm.getLocal(pattern_var.idx).isType(.ValueVar));

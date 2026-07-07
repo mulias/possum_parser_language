@@ -1585,6 +1585,40 @@ pub const Compiler = struct {
         }
     }
 
+    // Scratch state for lowering one pattern to a MatchPlan. Everything
+    // accumulates here so an UnsupportedPattern deep in the tree abandons
+    // cleanly, before any module or plan state mutation.
+    const PlanBuilder = struct {
+        nodes: ArrayList(match_plan.Node) = .{},
+        vars: ArrayList(Pattern.PatternVar) = .{},
+        elems: ArrayList(Elem) = .{},
+        reads: liveness.SlotSet = liveness.SlotSet.initEmpty(),
+
+        fn deinit(self: *PlanBuilder, allocator: std.mem.Allocator) void {
+            self.nodes.deinit(allocator);
+            self.vars.deinit(allocator);
+            self.elems.deinit(allocator);
+        }
+
+        fn appendLeaf(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, payload: u32) !void {
+            try self.nodes.append(allocator, .{ .tag = tag, .subtree_len = 1, .payload = payload });
+        }
+
+        fn appendEquality(self: *PlanBuilder, allocator: std.mem.Allocator, elem: Elem) !void {
+            // The plan holds the elem across matches, like a module
+            // constant: shared by construction, never unique.
+            if (elem.isType(.Dyn)) elem.asDyn().makeImmortal();
+            try self.appendLeaf(allocator, .equality, @intCast(self.elems.items.len));
+            try self.elems.append(allocator, elem);
+        }
+
+        fn appendVar(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, pattern_var: Pattern.PatternVar) !void {
+            try self.appendLeaf(allocator, tag, @intCast(self.vars.items.len));
+            try self.vars.append(allocator, pattern_var);
+            self.reads.set(pattern_var.idx);
+        }
+    };
+
     // Lower a pattern to a MatchPlan. Unsupported patterns (and the explain
     // and destructure-printing modes, which report through the Pattern tree)
     // return UnsupportedPattern so the caller falls back to createPattern.
@@ -1596,50 +1630,90 @@ pub const Compiler = struct {
         if (self.vm.config.explain or self.vm.config.printVM or self.vm.config.printDestructure) {
             return error.UnsupportedPattern;
         }
-        if (rnode.node != .identifier) return error.UnsupportedPattern;
-        const name = rnode.node.identifier.name;
 
-        var root: match_plan.Node = undefined;
-        var pattern_var: ?Pattern.PatternVar = null;
+        const allocator = self.vm.allocator;
+        var builder = PlanBuilder{};
+        defer builder.deinit(allocator);
 
-        if (std.mem.eql(u8, self.frontend.strings.get(name), "_")) {
-            root = .{ .tag = .placeholder, .subtree_len = 1, .payload = 0 };
-        } else {
-            if (self.resolveGlobal(module_id, name) != null) return error.UnsupportedPattern;
-            const slot = self.localSlot(name) orelse return error.UnsupportedPattern;
-            const bound = self.binding_maps.pattern_local_bound.get(rnode) orelse
-                return error.UnsupportedPattern;
-            pattern_var = .{
-                .sid = try self.internForRuntime(name),
-                .idx = slot,
-                .negation_count = 0,
-            };
-            root = .{ .tag = if (bound) .bound_eq else .bind, .subtree_len = 1, .payload = 0 };
-        }
+        try self.lowerPatternNode(module_id, rnode, &builder);
 
         try self.emitPatternPreclears(module_id, rnode);
 
-        const allocator = self.vm.allocator;
-        const nodes = try allocator.alloc(match_plan.Node, 1);
+        const nodes = try builder.nodes.toOwnedSlice(allocator);
         errdefer allocator.free(nodes);
-        nodes[0] = root;
-
-        const vars = try allocator.alloc(Pattern.PatternVar, if (pattern_var == null) 0 else 1);
+        const vars = try builder.vars.toOwnedSlice(allocator);
         errdefer allocator.free(vars);
-        var reads = liveness.SlotSet.initEmpty();
-        if (pattern_var) |v| {
-            vars[0] = v;
-            reads.set(v.idx);
-        }
+        const elems = try builder.elems.toOwnedSlice(allocator);
+        errdefer allocator.free(elems);
 
         const module = self.vm.getModule(module_id);
-        const idx = try module.addMatchPlan(allocator, .{ .nodes = nodes, .vars = vars });
+        const idx = try module.addMatchPlan(allocator, .{
+            .nodes = nodes,
+            .vars = vars,
+            .elems = elems,
+        });
 
         const gop = try self.plan_reads.getOrPut(allocator, module_id);
         if (!gop.found_existing) gop.value_ptr.* = .{};
-        try gop.value_ptr.append(allocator, reads);
+        try gop.value_ptr.append(allocator, builder.reads);
 
         return @intCast(idx);
+    }
+
+    // Append one pattern subtree to the builder in preorder. Mirrors
+    // astToPattern's constant conversions exactly so plan and tree compare
+    // identically. Negation falls back: negating a non-number literal is a
+    // compile error the tree path reports, and a negated non-number constant
+    // is a runtime error that pre-folding would turn into a compile error.
+    fn lowerPatternNode(
+        self: *Compiler,
+        module_id: Module.Id,
+        rnode: *Ast.Pattern.RNode,
+        builder: *PlanBuilder,
+    ) (Error || error{UnsupportedPattern})!void {
+        const allocator = self.vm.allocator;
+
+        switch (rnode.node) {
+            .identifier => |ident| {
+                const name = ident.name;
+                if (std.mem.eql(u8, self.frontend.strings.get(name), "_")) {
+                    return builder.appendLeaf(allocator, .placeholder, 0);
+                }
+                if (self.resolveGlobal(module_id, name)) |global| {
+                    // Zero-arity function constants are evaluated per match
+                    // (const_fn is deferred).
+                    if (global.isDynType(.Function) or
+                        global.isDynType(.NativeCode) or
+                        global.isDynType(.Closure))
+                    {
+                        return error.UnsupportedPattern;
+                    }
+                    return builder.appendEquality(allocator, global);
+                }
+                const slot = self.localSlot(name) orelse return error.UnsupportedPattern;
+                const bound = self.binding_maps.pattern_local_bound.get(rnode) orelse
+                    return error.UnsupportedPattern;
+                return builder.appendVar(allocator, if (bound) .bound_eq else .bind, .{
+                    .sid = try self.internForRuntime(name),
+                    .idx = slot,
+                    .negation_count = 0,
+                });
+            },
+            .number_float => |f| return builder.appendEquality(allocator, Elem.numberFloat(f)),
+            .number_string => |ns| {
+                const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                const number = ns_elem.asNumberString().toNumberFloat(self.vm.strings);
+                return builder.appendEquality(allocator, number);
+            },
+            .string => |s| {
+                const sid = try self.vm.strings.insert(s);
+                return builder.appendEquality(allocator, Elem.string(sid));
+            },
+            .true => return builder.appendEquality(allocator, Elem.boolean(true)),
+            .false => return builder.appendEquality(allocator, Elem.boolean(false)),
+            .null => return builder.appendEquality(allocator, Elem.nullConst),
+            else => return error.UnsupportedPattern,
+        }
     }
 
     fn createPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) Error!u24 {
