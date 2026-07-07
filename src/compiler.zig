@@ -529,25 +529,35 @@ pub const Compiler = struct {
 
     fn reportBindingDiagnostics(self: *Compiler, module_id: Module.Id, diagnostics: []const binding.Diagnostic) !void {
         for (diagnostics) |diagnostic| {
-            const name = self.frontend.strings.get(diagnostic.name);
             switch (diagnostic.kind) {
                 .unbound => try self.printError(
                     module_id,
                     diagnostic.region,
                     "variable '{s}' is unbound here",
-                    .{name},
+                    .{self.frontend.strings.get(diagnostic.name.?)},
                 ),
                 .out_of_scope => try self.printError(
                     module_id,
                     diagnostic.region,
                     "variable '{s}' is unbound here: its binding is out of scope",
-                    .{name},
+                    .{self.frontend.strings.get(diagnostic.name.?)},
                 ),
                 .split => try self.printError(
                     module_id,
                     diagnostic.region,
                     "variable '{s}' may be unbound here: it is not bound on every path",
-                    .{name},
+                    .{self.frontend.strings.get(diagnostic.name.?)},
+                ),
+                .extra_unbound_part => if (diagnostic.name) |name| try self.printError(
+                    module_id,
+                    diagnostic.region,
+                    "variable '{s}' is unbound here: a merge can solve at most one unbound part",
+                    .{self.frontend.strings.get(name)},
+                ) else try self.printError(
+                    module_id,
+                    diagnostic.region,
+                    "pattern part is unbound here: a merge can solve at most one unbound part",
+                    .{},
                 ),
             }
         }

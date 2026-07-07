@@ -34,6 +34,9 @@ const Strings = @import("string_table.zig").StringTable(.frontend);
 // - Repeat counts that are a bare local are recorded in
 //   Maps.repeat_count_bound so codegen picks the bound or count-collecting
 //   loop without a runtime bound check.
+// - A merge pattern (or string template) with more than one part the
+//   solver would have to solve for is a compile error: the solver
+//   supports at most one unbound part per merge.
 
 pub const max_locals = 256;
 const SlotSet = std.bit_set.StaticBitSet(max_locals);
@@ -56,7 +59,9 @@ const Env = struct {
 
 pub const Diagnostic = struct {
     region: Region,
-    name: Strings.Id,
+    // Null only for extra_unbound_part, when the part contains no local
+    // to name (a placeholder or a fully bound template segment).
+    name: ?Strings.Id,
     kind: Kind,
 
     pub const Kind = enum {
@@ -66,6 +71,8 @@ pub const Diagnostic = struct {
         out_of_scope,
         // Bound on some paths but not others.
         split,
+        // A second unbound part in a single merge or string template.
+        extra_unbound_part,
     };
 };
 
@@ -151,7 +158,7 @@ const Analyzer = struct {
         return env;
     }
 
-    fn diagnose(self: *Analyzer, region: Region, name: Strings.Id, kind: Diagnostic.Kind) !void {
+    fn diagnose(self: *Analyzer, region: Region, name: ?Strings.Id, kind: Diagnostic.Kind) !void {
         try self.diagnostics.append(self.allocator, .{
             .region = region,
             .name = name,
@@ -217,12 +224,21 @@ const Analyzer = struct {
                 try self.visitPatternLocals(env, root, pair.key);
                 try self.visitPatternLocals(env, root, pair.value);
             },
-            .string_template => |segments| for (segments.items) |segment| {
-                try self.visitPatternLocals(env, root, segment);
+            .string_template => |segments| {
+                try self.checkOneUnboundPart(env, segments.items, .template_segments);
+                for (segments.items) |segment| {
+                    try self.visitPatternLocals(env, root, segment);
+                }
             },
-            .merge => |merge| {
-                try self.visitPatternLocals(env, root, merge.left);
-                try self.visitPatternLocals(env, root, merge.right);
+            .merge => {
+                var parts = ArrayList(*const Ast.Pattern.RNode){};
+                defer parts.deinit(self.allocator);
+                try self.collectMergeChain(rnode, &parts);
+
+                try self.checkOneUnboundPart(env, parts.items, .merge_parts);
+                for (parts.items) |part| {
+                    try self.visitPatternLocals(env, root, part);
+                }
             },
             .negation => |inner| try self.visitPatternLocals(env, root, inner),
             .range => |bounds| {
@@ -258,6 +274,143 @@ const Analyzer = struct {
             // astToValueInPattern rejects every other compound node.
             else => {},
         }
+    }
+
+    // Flatten a chain of merges into its parts, the way the compiler and
+    // the solver flatten nested Merge patterns into a single part list.
+    fn collectMergeChain(
+        self: *Analyzer,
+        rnode: *const Ast.Pattern.RNode,
+        parts: *ArrayList(*const Ast.Pattern.RNode),
+    ) Allocator.Error!void {
+        switch (rnode.node) {
+            .merge => |merge| {
+                try self.collectMergeChain(merge.left, parts);
+                try self.collectMergeChain(merge.right, parts);
+            },
+            .negation => |inner| switch (inner.node) {
+                .merge, .negation => try self.collectMergeChain(inner, parts),
+                else => try parts.append(self.allocator, rnode),
+            },
+            else => try parts.append(self.allocator, rnode),
+        }
+    }
+
+    const PartContext = enum { merge_parts, template_segments };
+
+    // The solver simplifies every part of a merge (or segment of a string
+    // template) before matching any of them, and can solve for at most one
+    // part that does not evaluate to a value. Later parts that also need
+    // solving are a runtime error whenever the destructure runs, so reject
+    // them at compile time.
+    fn checkOneUnboundPart(
+        self: *Analyzer,
+        env: *const Env,
+        parts: []const *const Ast.Pattern.RNode,
+        context: PartContext,
+    ) Allocator.Error!void {
+        var solvable_part_found = false;
+        for (parts) |part| {
+            const unbound = switch (context) {
+                .merge_parts => self.mergePartIsUnbound(env, part),
+                .template_segments => self.templateSegmentIsUnbound(env, part),
+            };
+            if (!unbound) continue;
+            if (solvable_part_found) {
+                try self.diagnose(part.region, self.firstUnboundLocal(env, part), .extra_unbound_part);
+            }
+            solvable_part_found = true;
+        }
+    }
+
+    // Whether the solver would have to solve for this merge part. Parts
+    // that evaluate are compared directly. Arrays and objects are matched
+    // structurally — by length or by member — whatever their contents, and
+    // an object repeat with a bound count claims counted members, so none
+    // of them consume the one solvable slot.
+    fn mergePartIsUnbound(self: *Analyzer, env: *const Env, rnode: *const Ast.Pattern.RNode) bool {
+        if (self.patternEvaluates(env, rnode)) return false;
+        return switch (rnode.node) {
+            .array, .object => false,
+            .negation => |inner| self.mergePartIsUnbound(env, inner),
+            .repeat => |repeat| !(repeat.left.node == .object and
+                self.patternEvaluates(env, repeat.right)),
+            else => true,
+        };
+    }
+
+    // Template segments have no structural parts except character ranges,
+    // which always match exactly one character.
+    fn templateSegmentIsUnbound(self: *Analyzer, env: *const Env, rnode: *const Ast.Pattern.RNode) bool {
+        return rnode.node != .range and !self.patternEvaluates(env, rnode);
+    }
+
+    // Whether the solver's attemptEval would produce a value for this
+    // pattern without solving anything, given the bindings in env.
+    // Objects, ranges, and string templates never evaluate; arrays,
+    // merges, and repeats evaluate when their contents do. Function calls
+    // never become solvable parts: an unbound argument is a runtime error
+    // instead.
+    fn patternEvaluates(self: *Analyzer, env: *const Env, rnode: *const Ast.Pattern.RNode) bool {
+        return switch (rnode.node) {
+            .identifier => |ident| blk: {
+                if (self.isPlaceholder(ident.name)) break :blk false;
+                if (self.compiler.resolveGlobal(self.module_id, ident.name) != null) break :blk true;
+                const slot = self.compiler.localSlot(ident.name) orelse break :blk true;
+                break :blk env.slots[slot].state == .bound;
+            },
+            .negation => |inner| self.patternEvaluates(env, inner),
+            .array => |elems| blk: {
+                for (elems.items) |elem| {
+                    if (!self.patternEvaluates(env, elem)) break :blk false;
+                }
+                break :blk true;
+            },
+            .merge => |merge| self.patternEvaluates(env, merge.left) and
+                self.patternEvaluates(env, merge.right),
+            .repeat => |repeat| self.patternEvaluates(env, repeat.left) and
+                self.patternEvaluates(env, repeat.right),
+            .function_call, .false, .true, .null, .number_float, .number_string, .string => true,
+            .object, .range, .string_template => false,
+        };
+    }
+
+    fn firstUnboundLocal(self: *Analyzer, env: *const Env, rnode: *const Ast.Pattern.RNode) ?Strings.Id {
+        switch (rnode.node) {
+            .identifier => |ident| {
+                const slot = self.patternLocalSlot(ident.name) orelse return null;
+                return if (env.slots[slot].state == .bound) null else ident.name;
+            },
+            .negation => |inner| return self.firstUnboundLocal(env, inner),
+            .array => |elems| for (elems.items) |elem| {
+                if (self.firstUnboundLocal(env, elem)) |name| return name;
+            },
+            .object => |pairs| for (pairs.items) |pair| {
+                if (self.firstUnboundLocal(env, pair.key)) |name| return name;
+                if (self.firstUnboundLocal(env, pair.value)) |name| return name;
+            },
+            .string_template => |segments| for (segments.items) |segment| {
+                if (self.firstUnboundLocal(env, segment)) |name| return name;
+            },
+            .merge => |merge| {
+                if (self.firstUnboundLocal(env, merge.left)) |name| return name;
+                return self.firstUnboundLocal(env, merge.right);
+            },
+            .repeat => |repeat| {
+                if (self.firstUnboundLocal(env, repeat.left)) |name| return name;
+                return self.firstUnboundLocal(env, repeat.right);
+            },
+            .range => |bounds| {
+                if (bounds.lower) |lower| {
+                    if (self.firstUnboundLocal(env, lower)) |name| return name;
+                }
+                if (bounds.upper) |upper| {
+                    if (self.firstUnboundLocal(env, upper)) |name| return name;
+                }
+            },
+            .function_call, .false, .true, .null, .number_float, .number_string, .string => {},
+        }
+        return null;
     }
 
     fn patternLocalOccurrence(
