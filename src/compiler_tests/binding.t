@@ -108,6 +108,96 @@ unbound use in the function is reported.
   [UnboundVariable]
   [1]
 
+The pattern solver can solve for at most one unbound part per merge, so a
+merge with a second unbound part is a compile error.
+
+  $ possum -p 'number -> (A + B) $ [A, B]' -i '5'
+  
+  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:15-16:
+  1 \xe2\x96\x8f number -> (A + B) $ [A, B] (esc)
+    \xe2\x96\x8f                ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+String templates are matched like string merges: at most one unbound
+variable-length segment.
+
+  $ possum -p 'json -> "%(A)-%(B)" $ [A, B]' -i '"x-y"'
+  
+  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:16-17:
+  1 \xe2\x96\x8f json -> "%(A)-%(B)" $ [A, B] (esc)
+    \xe2\x96\x8f                 ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+An object repeat with an unbound count is itself a solvable part, so it
+can't share a merge with an unbound rest.
+
+  $ possum -p 'json -> ({A: B} * N + C) $ [N, C]' -i '{"a":1,"b":2}'
+  
+  Program Error: variable 'C' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:22-23:
+  1 \xe2\x96\x8f json -> ({A: B} * N + C) $ [N, C] (esc)
+    \xe2\x96\x8f                       ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+Placeholders are unbound parts too; a part with no variable to name gets
+a generic message.
+
+  $ possum -p 'json -> (_ + _)' -i '[1,2]'
+  
+  Program Error: pattern part is unbound here: a merge can solve at most one unbound part
+  
+  program:1:13-14:
+  1 \xe2\x96\x8f json -> (_ + _) (esc)
+    \xe2\x96\x8f              ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+Repeat counts are destructured like any pattern, so a count merge with
+two unbound variables is rejected.
+
+  $ possum -p '("a" -> V) * (N + M) $ [N, M]' -i 'aaa'
+  
+  Program Error: variable 'M' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:18-19:
+  1 \xe2\x96\x8f ("a" -> V) * (N + M) $ [N, M] (esc)
+    \xe2\x96\x8f                   ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+Every extra unbound part is reported.
+
+  $ possum -p 'number -> (A + B + C) $ [A, B, C]' -i '5'
+  
+  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:15-16:
+  1 \xe2\x96\x8f number -> (A + B + C) $ [A, B, C] (esc)
+    \xe2\x96\x8f                ^ (esc)
+  
+  
+  Program Error: variable 'C' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:19-20:
+  1 \xe2\x96\x8f number -> (A + B + C) $ [A, B, C] (esc)
+    \xe2\x96\x8f                    ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
 A variable bound before an alternation stays visible on both sides and
 afterward, and a variable bound in every branch is visible afterward;
 neither is an error.

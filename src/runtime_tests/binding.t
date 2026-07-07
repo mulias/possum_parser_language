@@ -28,3 +28,37 @@ completed iterations.
 
   $ possum -p '("ab" * N) & const(N)' -i 'ababab'
   3
+
+A merge solves for at most one unbound part, but nested merges are
+independent: array and object parts are matched by length or by member,
+so their contents don't consume the enclosing merge's solvable slot.
+
+  $ possum -p 'json -> {A: [B, C + 1, D] + E} $ [A, B, C, D, E]' -i '{"x": [1, 2, 3, 4, 5]}'
+  [
+    "x",
+    1,
+    1,
+    3,
+    [4, 5]
+  ]
+
+A merge part whose variables are already bound evaluates to a value, so a
+different part may be unbound.
+
+  $ possum -p 'number -> A & "," & number -> (A + B) $ B' -i '3,5'
+  2
+
+An object repeat with a bound count is matched by member count, leaving
+the merge's solvable slot for the rest part.
+
+  $ possum -p 'json -> ({A: B} * 1 + C) $ [A, B, C]' -i '{"a":1,"b":2}'
+  [
+    "a",
+    1,
+    {"b": 2}
+  ]
+
+A string merge solves for one unbound rest part between bound parts.
+
+  $ possum -p '"abbc" -> ("a" + R + "c") $ R' -i 'abbc'
+  "bb"

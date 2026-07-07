@@ -160,7 +160,7 @@ This list is not exhaustive. Pattern matching in Possum is intended to be maxima
   - No control flow operators except for `|` (no `>`, `<`, `!`, `&`, `?:`)
      - `p -> (1 | 2 | 3)` desugars to `p -> 1 | p -> 2 | p -> 3`
   - No nested destructuring
-  - Only one value may be an unknown subset of a larger structure, guaranteeing that there is only one way to interpret the pattern
+  - Only one value may be an unknown subset of a larger structure, guaranteeing that there is only one way to interpret the pattern. Since variable scope is static this is checked at compile time: a merge or string template with a second unbound part is a compile error.
     - `foo -> [[A, B], C, ...D, {...E}, F]` is fine, since despite having many potentially unbound variables only `D` is a subset of the outer array pattern with unknown length, and only `E` is a subset of the second to last array pattern element, which must be an object.
     - `foo -> [1, ...A, 5, ...B, 10]` is not valid, since both `A` and `B` are subsets of the array. In this case there are some values that have a single solution, such as `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`, while other values could bind `A` and `B` in multiple ways, such as `[1, 5, 5, 5, 5, 5, 10]`.
 
