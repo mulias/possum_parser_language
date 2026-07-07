@@ -37,6 +37,12 @@ const Strings = @import("string_table.zig").StringTable(.frontend);
 // - A merge pattern (or string template) with more than one part the
 //   solver would have to solve for is a compile error: the solver
 //   supports at most one unbound part per merge.
+// - Function calls in patterns are evaluated, not solved: the callee and
+//   every argument must hold bound values when the call runs. A variable
+//   with no binding occurrence anywhere in the pattern is a compile
+//   error. A variable another occurrence can bind is accepted; the solver
+//   matches in order, so when the call is reached first the match is
+//   still a runtime error.
 
 pub const max_locals = 256;
 const SlotSet = std.bit_set.StaticBitSet(max_locals);
@@ -73,6 +79,9 @@ pub const Diagnostic = struct {
         split,
         // A second unbound part in a single merge or string template.
         extra_unbound_part,
+        // A function callee or argument with no binding in scope and no
+        // binding occurrence anywhere in the pattern.
+        unbound_function_var,
     };
 };
 
@@ -202,32 +211,35 @@ const Analyzer = struct {
 
     // A destructure of a value against a pattern. After a successful match
     // every local the pattern references is bound: either it already was,
-    // or the match bound it (unbound vars in positions the solver cannot
-    // bind through, like function-call arguments, abort the parse with a
-    // runtime error instead of succeeding unbound).
+    // or the match bound it. Function callees and arguments are the
+    // exception: the solver evaluates them rather than binding through
+    // them, so their variables must be bound elsewhere.
     fn destructureSite(self: *Analyzer, env: *Env, pattern: *const Ast.Pattern.RNode) Allocator.Error!void {
-        try self.visitPatternLocals(env, pattern, pattern);
+        var bindable = SlotSet.initEmpty();
+        self.collectBindingOccurrences(pattern, &bindable);
+        try self.visitPatternLocals(env, &bindable, pattern, pattern);
     }
 
     fn visitPatternLocals(
         self: *Analyzer,
         env: *Env,
+        bindable: *const SlotSet,
         root: *const Ast.Pattern.RNode,
         rnode: *const Ast.Pattern.RNode,
     ) Allocator.Error!void {
         switch (rnode.node) {
             .identifier => |ident| try self.patternLocalOccurrence(env, root, ident.name, rnode.region),
             .array => |elems| for (elems.items) |elem| {
-                try self.visitPatternLocals(env, root, elem);
+                try self.visitPatternLocals(env, bindable, root, elem);
             },
             .object => |pairs| for (pairs.items) |pair| {
-                try self.visitPatternLocals(env, root, pair.key);
-                try self.visitPatternLocals(env, root, pair.value);
+                try self.visitPatternLocals(env, bindable, root, pair.key);
+                try self.visitPatternLocals(env, bindable, root, pair.value);
             },
             .string_template => |segments| {
                 try self.checkOneUnboundPart(env, segments.items, .template_segments);
                 for (segments.items) |segment| {
-                    try self.visitPatternLocals(env, root, segment);
+                    try self.visitPatternLocals(env, bindable, root, segment);
                 }
             },
             .merge => {
@@ -237,25 +249,25 @@ const Analyzer = struct {
 
                 try self.checkOneUnboundPart(env, parts.items, .merge_parts);
                 for (parts.items) |part| {
-                    try self.visitPatternLocals(env, root, part);
+                    try self.visitPatternLocals(env, bindable, root, part);
                 }
             },
-            .negation => |inner| try self.visitPatternLocals(env, root, inner),
+            .negation => |inner| try self.visitPatternLocals(env, bindable, root, inner),
             .range => |bounds| {
-                if (bounds.lower) |lower| try self.visitPatternLocals(env, root, lower);
-                if (bounds.upper) |upper| try self.visitPatternLocals(env, root, upper);
+                if (bounds.lower) |lower| try self.visitPatternLocals(env, bindable, root, lower);
+                if (bounds.upper) |upper| try self.visitPatternLocals(env, bindable, root, upper);
             },
             .repeat => |repeat| {
-                try self.visitPatternLocals(env, root, repeat.left);
-                try self.visitPatternLocals(env, root, repeat.right);
+                try self.visitPatternLocals(env, bindable, root, repeat.left);
+                try self.visitPatternLocals(env, bindable, root, repeat.right);
             },
             .function_call => |function_call| {
                 if (function_call.function.node == .identifier) {
                     const ident = function_call.function.node.identifier;
-                    try self.patternLocalOccurrence(env, root, ident.name, function_call.function.region);
+                    try self.functionVarOccurrence(env, bindable, root, ident.name, function_call.function.region);
                 }
                 for (function_call.args.items) |arg| {
-                    try self.visitValueInPatternLocals(env, root, arg);
+                    try self.visitValueInPatternLocals(env, bindable, root, arg);
                 }
             },
             .false, .true, .null, .number_float, .number_string, .string => {},
@@ -265,14 +277,94 @@ const Analyzer = struct {
     fn visitValueInPatternLocals(
         self: *Analyzer,
         env: *Env,
+        bindable: *const SlotSet,
         root: *const Ast.Pattern.RNode,
         rnode: *const Ast.Value.RNode,
     ) Allocator.Error!void {
         switch (rnode.node) {
-            .identifier => |ident| try self.patternLocalOccurrence(env, root, ident.name, rnode.region),
-            .negation => |inner| try self.visitValueInPatternLocals(env, root, inner),
+            .identifier => |ident| try self.functionVarOccurrence(env, bindable, root, ident.name, rnode.region),
+            .negation => |inner| try self.visitValueInPatternLocals(env, bindable, root, inner),
             // astToValueInPattern rejects every other compound node.
             else => {},
+        }
+    }
+
+    // A function callee or argument occurrence. The variable must already
+    // be bound or have a binding occurrence elsewhere in the pattern;
+    // otherwise no match can succeed and the use is a compile error.
+    // Bindable variables are treated as bound afterward: when the binding
+    // occurrence is matched before the call the value is available, and
+    // when it isn't the mismatch stays a runtime error.
+    fn functionVarOccurrence(
+        self: *Analyzer,
+        env: *Env,
+        bindable: *const SlotSet,
+        root: *const Ast.Pattern.RNode,
+        name: Strings.Id,
+        region: Region,
+    ) !void {
+        if (self.isPlaceholder(name)) {
+            return self.diagnose(region, name, .unbound_function_var);
+        }
+        const slot = self.patternLocalSlot(name) orelse return;
+        const state = &env.slots[slot];
+
+        switch (state.state) {
+            .bound => return,
+            .unbound => {
+                if (!bindable.isSet(slot)) {
+                    try self.diagnose(region, name, .unbound_function_var);
+                }
+                if (state.stale) {
+                    try self.addPreclear(root, slot, name);
+                }
+            },
+            .split => if (bindable.isSet(slot)) {
+                // The binding occurrence of a split variable is an error;
+                // report it here in case this call is visited first.
+                try self.diagnose(region, name, .split);
+            } else {
+                try self.diagnose(region, name, .unbound_function_var);
+            },
+        }
+
+        // Treat as bound afterward: either another occurrence binds it or
+        // compilation already failed.
+        state.* = .{ .state = .bound, .stale = false };
+    }
+
+    // Every local slot an occurrence in this pattern can bind: all local
+    // occurrences except function callees and arguments, which the solver
+    // evaluates rather than solves.
+    fn collectBindingOccurrences(self: *Analyzer, rnode: *const Ast.Pattern.RNode, set: *SlotSet) void {
+        switch (rnode.node) {
+            .identifier => |ident| {
+                if (self.patternLocalSlot(ident.name)) |slot| set.set(slot);
+            },
+            .array => |elems| for (elems.items) |elem| {
+                self.collectBindingOccurrences(elem, set);
+            },
+            .object => |pairs| for (pairs.items) |pair| {
+                self.collectBindingOccurrences(pair.key, set);
+                self.collectBindingOccurrences(pair.value, set);
+            },
+            .string_template => |segments| for (segments.items) |segment| {
+                self.collectBindingOccurrences(segment, set);
+            },
+            .merge => |merge| {
+                self.collectBindingOccurrences(merge.left, set);
+                self.collectBindingOccurrences(merge.right, set);
+            },
+            .negation => |inner| self.collectBindingOccurrences(inner, set),
+            .range => |bounds| {
+                if (bounds.lower) |lower| self.collectBindingOccurrences(lower, set);
+                if (bounds.upper) |upper| self.collectBindingOccurrences(upper, set);
+            },
+            .repeat => |repeat| {
+                self.collectBindingOccurrences(repeat.left, set);
+                self.collectBindingOccurrences(repeat.right, set);
+            },
+            .function_call, .false, .true, .null, .number_float, .number_string, .string => {},
         }
     }
 

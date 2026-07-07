@@ -198,6 +198,62 @@ Every extra unbound part is reported.
   [UnboundVariable]
   [1]
 
+Function calls in patterns are evaluated, not solved: an argument
+variable with no binding occurrence anywhere in the pattern is a compile
+error.
+
+  $ possum -p '1 -> Num.Add(A, 1)' -i '1'
+  
+  Program Error: variable 'A' is unbound here: variables in pattern function calls must be bound
+  
+  program:1:13-14:
+  1 \xe2\x96\x8f 1 -> Num.Add(A, 1) (esc)
+    \xe2\x96\x8f              ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+The same applies to the callee, which also catches misspelled function
+names since an unknown UpperCamelCase name is an unbound local.
+
+  $ possum -p '1 -> F(2)' -i '1'
+  
+  Program Error: variable 'F' is unbound here: variables in pattern function calls must be bound
+  
+  program:1:5-6:
+  1 \xe2\x96\x8f 1 -> F(2) (esc)
+    \xe2\x96\x8f      ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+Placeholders are never bound, so a placeholder argument is rejected.
+
+  $ possum -p '2 -> Num.Add(_, 1)' -i '2'
+  
+  Program Error: variable '_' is unbound here: variables in pattern function calls must be bound
+  
+  program:1:13-14:
+  1 \xe2\x96\x8f 2 -> Num.Add(_, 1) (esc)
+    \xe2\x96\x8f              ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+An argument bound on only some paths with no binding occurrence in the
+pattern is rejected too.
+
+  $ possum -p '((1 -> A) | 2) & 3 -> Num.Add(A, 1)' -i '13'
+  
+  Program Error: variable 'A' is unbound here: variables in pattern function calls must be bound
+  
+  program:1:30-31:
+  1 \xe2\x96\x8f ((1 -> A) | 2) & 3 -> Num.Add(A, 1) (esc)
+    \xe2\x96\x8f                               ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
 A variable bound before an alternation stays visible on both sides and
 afterward, and a variable bound in every branch is visible afterward;
 neither is an error.
