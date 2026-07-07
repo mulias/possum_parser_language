@@ -1712,6 +1712,20 @@ pub const Compiler = struct {
             .true => return builder.appendEquality(allocator, Elem.boolean(true)),
             .false => return builder.appendEquality(allocator, Elem.boolean(false)),
             .null => return builder.appendEquality(allocator, Elem.nullConst),
+            .array => |elements| {
+                // Fixed-length arrays only: spread/rest and merge parts are
+                // `.merge` nodes, which fall back below when recursed into.
+                const start = builder.nodes.items.len;
+                try builder.nodes.append(allocator, .{
+                    .tag = .array,
+                    .subtree_len = undefined,
+                    .payload = @intCast(elements.items.len),
+                });
+                for (elements.items) |element| {
+                    try self.lowerPatternNode(module_id, element, builder);
+                }
+                builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
+            },
             else => return error.UnsupportedPattern,
         }
     }

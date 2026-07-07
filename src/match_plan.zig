@@ -23,16 +23,32 @@ pub const MatchPlan = struct {
     }
 
     pub fn print(self: MatchPlan, vm: VM, writer: *Writer) Writer.Error!void {
-        const root = self.nodes[0];
-        switch (root.tag) {
+        _ = try self.printNode(vm, writer, 0);
+    }
+
+    // Returns the index one past the printed subtree.
+    fn printNode(self: MatchPlan, vm: VM, writer: *Writer, idx: u32) Writer.Error!u32 {
+        const node = self.nodes[idx];
+        switch (node.tag) {
             .placeholder => try writer.print("placeholder", .{}),
-            .bind => try writer.print("bind {s}", .{vm.strings.get(self.vars[root.payload].sid)}),
-            .bound_eq => try writer.print("bound_eq {s}", .{vm.strings.get(self.vars[root.payload].sid)}),
+            .bind => try writer.print("bind {s}", .{vm.strings.get(self.vars[node.payload].sid)}),
+            .bound_eq => try writer.print("bound_eq {s}", .{vm.strings.get(self.vars[node.payload].sid)}),
             .equality => {
                 try writer.print("eq ", .{});
-                try self.elems[root.payload].print(vm, writer);
+                try self.elems[node.payload].print(vm, writer);
+            },
+            .array => {
+                try writer.print("[", .{});
+                var child = idx + 1;
+                for (0..node.payload) |i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    child = try self.printNode(vm, writer, child);
+                }
+                try writer.print("]", .{});
+                return child;
             },
         }
+        return idx + 1;
     }
 };
 
@@ -54,4 +70,7 @@ pub const Tag = enum(u8) {
     equality,
     // `_`: always matches, binds nothing.
     placeholder,
+    // A fixed-length array: payload = element count, element subtrees follow
+    // in preorder.
+    array,
 };

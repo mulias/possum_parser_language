@@ -994,6 +994,78 @@ test "a global constant pattern compiles to a match plan" {
     }
 }
 
+test "a fixed-length array pattern compiles to a match plan" {
+    const parser =
+        \\('' $ [[1, 2], 3]) -> [[A, B], _] $ [B, A]
+    ;
+    {
+        const array = [_]Elem{ Elem.numberFloat(2), Elem.numberFloat(1) };
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "a repeated var in an array plan matches equal elements" {
+    const parser =
+        \\(('' $ [1, 2]) -> [A, A] $ 'no') | (('' $ [3, 3]) -> [B, B] $ B)
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            try Elem.numberStringFromBytes("3", &vm),
+            vm,
+        );
+    }
+}
+
+test "array plan failure after a bind resets locals and drives alternation" {
+    const parser =
+        \\(('' $ [1, 2]) -> [A, 3] $ 'no') | ('' $ 'yes')
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "yes")).dyn.elem(),
+            vm,
+        );
+    }
+}
+
+test "an array rest pattern falls back to the tree path" {
+    const parser =
+        \\('' $ [1, 2, 3]) -> [1, ...Rest] $ Rest
+    ;
+    {
+        const array = [_]Elem{ Elem.numberFloat(2), Elem.numberFloat(3) };
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(0, plan_count);
+    }
+}
+
 test "a merge pattern falls back to the tree path" {
     const parser =
         \\('' $ 3) -> (1 + N) $ N
