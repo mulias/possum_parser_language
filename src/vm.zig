@@ -15,6 +15,7 @@ const StringTable = @import("string_table.zig").StringTable(.runtime);
 const Pattern = @import("pattern.zig").Pattern;
 const PatternSolver = @import("pattern_solver.zig");
 const Region = @import("region.zig").Region;
+const LineRelativeRegion = @import("region.zig").LineRelativeRegion;
 const hl = @import("highlight.zig");
 const Writers = @import("writer.zig").Writers;
 const parsing = @import("parsing.zig");
@@ -84,6 +85,54 @@ pub const FarthestFailure = struct {
     }
 };
 
+// Every distinct grammar site that failed at the farthest position. A
+// strict advance restarts the set at the new site; a tie appends. Fixed
+// capacity for the same reason FarthestFailure is plain values: recording
+// happens on the failure path and may not allocate.
+pub const ExpectedSet = struct {
+    entries: [capacity]Entry,
+    len: u8,
+    truncated: bool,
+
+    pub const capacity = 32;
+
+    pub const Entry = struct {
+        region: Region,
+        function_name: StringTable.Id,
+        module_id: Module.Id,
+    };
+
+    pub const empty = ExpectedSet{
+        .entries = undefined,
+        .len = 0,
+        .truncated = false,
+    };
+
+    fn reset(self: *ExpectedSet, entry: Entry) void {
+        self.entries[0] = entry;
+        self.len = 1;
+        self.truncated = false;
+    }
+
+    fn append(self: *ExpectedSet, entry: Entry) void {
+        for (self.entries[0..self.len]) |existing| {
+            if (existing.module_id == entry.module_id and
+                existing.region.start == entry.region.start and
+                existing.region.end == entry.region.end) return;
+        }
+        if (self.len == capacity) {
+            self.truncated = true;
+            return;
+        }
+        self.entries[self.len] = entry;
+        self.len += 1;
+    }
+
+    pub fn slice(self: *const ExpectedSet) []const Entry {
+        return self.entries[0..self.len];
+    }
+};
+
 // Print the source text of a region on one line for a report headline,
 // clipped at the first newline or excerpt_max_len bytes.
 fn printSourceExcerpt(source: []const u8, region: Region, writer: *Writer) !void {
@@ -139,6 +188,7 @@ pub const VM = struct {
     inputMarks: ArrayList(Pos),
     inputPos: Pos,
     farthest: ?FarthestFailure,
+    expected: ExpectedSet,
     uniqueIdCount: u64,
     rc_stats: RcStats,
     pattern_solver: PatternSolver,
@@ -192,6 +242,7 @@ pub const VM = struct {
             .inputMarks = undefined,
             .inputPos = undefined,
             .farthest = null,
+            .expected = ExpectedSet.empty,
             .uniqueIdCount = undefined,
             .rc_stats = undefined,
             .pattern_solver = undefined,
@@ -228,6 +279,7 @@ pub const VM = struct {
         self.inputMarks = ArrayList(Pos){};
         self.inputPos = Pos{};
         self.farthest = null;
+        self.expected = ExpectedSet.empty;
         self.uniqueIdCount = 0;
         self.rc_stats = RcStats{};
         self.pattern_solver = PatternSolver.init(self);
@@ -263,6 +315,7 @@ pub const VM = struct {
 
         self.input = input;
         self.farthest = null;
+        self.expected = ExpectedSet.empty;
         try self.compile(module_name, source);
         try self.run();
         assert(self.stack.items.len == 1);
@@ -1738,29 +1791,31 @@ pub const VM = struct {
     }
 
     pub fn pushFailure(self: *VM) !void {
-        if (self.failureAdvancesFarthest()) {
+        if (self.failureReachesFarthest()) {
             self.recordFarthestFailure(.input_mismatch, null);
         }
         try self.push(Elem.failureConst);
     }
 
-    fn failureAdvancesFarthest(self: *VM) bool {
-        return self.farthest == null or self.inputPos.offset > self.farthest.?.pos.offset;
+    fn failureReachesFarthest(self: *VM) bool {
+        return self.farthest == null or self.inputPos.offset >= self.farthest.?.pos.offset;
     }
 
-    // A tie overrides here (`>=` vs the strict `>` in pushFailure): the
-    // rejected value parsed all the way to the farthest position, which
-    // beats a speculative parse failure recorded at the same offset.
     fn recordPatternFailure(self: *VM, value: Elem) void {
-        if (self.farthest == null or self.inputPos.offset >= self.farthest.?.pos.offset) {
+        if (self.failureReachesFarthest()) {
             self.recordFarthestFailure(.pattern_mismatch, value);
         }
     }
 
-    // Cold: runs only when a failure strictly advances the farthest
-    // position. The grammar site is resolved the same way runtimeError
-    // resolves it — a builtin frame defers to its caller, never a deeper
-    // ancestry walk (under tail call elimination the walk lies).
+    // Cold: runs only when a failure reaches the farthest position. On a
+    // strict advance the headline record and the expected set restart at
+    // this site; on a tie the site joins the expected set. An input tie
+    // keeps the first-recorded headline, but a pattern tie replaces it:
+    // the rejected value parsed all the way to the farthest position,
+    // which beats a speculative parse failure at the same offset. The
+    // grammar site is resolved the same way runtimeError resolves it — a
+    // builtin frame defers to its caller, never a deeper ancestry walk
+    // (under tail call elimination the walk lies).
     noinline fn recordFarthestFailure(self: *VM, kind: FarthestFailure.Kind, value: ?Elem) void {
         const target_frame = if (self.cur_frame.function.isBuiltin())
             self.parentFrame() orelse self.cur_frame
@@ -1768,35 +1823,50 @@ pub const VM = struct {
             self.cur_frame;
 
         const function = target_frame.function;
+        const region = function.chunk.regions.items[target_frame.ip - 1];
+        const advanced = self.farthest == null or self.inputPos.offset > self.farthest.?.pos.offset;
 
-        var record = FarthestFailure{
-            .pos = self.inputPos,
-            .region = function.chunk.regions.items[target_frame.ip - 1],
-            .function_name = function.name,
-            .module_id = function.mid,
-            .kind = kind,
-            .value_snapshot = undefined,
-            .value_snapshot_len = 0,
-            .value_truncated = false,
-        };
-
-        // Render the rejected value eagerly: the destructure op reclaims
-        // it right after this, so the record cannot hold the Elem itself.
-        if (value) |v| {
-            var writer = Writer.fixed(&record.value_snapshot);
-            v.print(self.*, &writer) catch {
-                record.value_truncated = true;
+        if (advanced or kind == .pattern_mismatch) {
+            var record = FarthestFailure{
+                .pos = self.inputPos,
+                .region = region,
+                .function_name = function.name,
+                .module_id = function.mid,
+                .kind = kind,
+                .value_snapshot = undefined,
+                .value_snapshot_len = 0,
+                .value_truncated = false,
             };
-            var len = writer.end;
-            if (record.value_truncated) {
-                // Drop any codepoint the cutoff split in half.
-                while (len > 0 and record.value_snapshot[len - 1] & 0xC0 == 0x80) len -= 1;
-                if (len > 0 and record.value_snapshot[len - 1] >= 0xC0) len -= 1;
+
+            // Render the rejected value eagerly: the destructure op reclaims
+            // it right after this, so the record cannot hold the Elem itself.
+            if (value) |v| {
+                var writer = Writer.fixed(&record.value_snapshot);
+                v.print(self.*, &writer) catch {
+                    record.value_truncated = true;
+                };
+                var len = writer.end;
+                if (record.value_truncated) {
+                    // Drop any codepoint the cutoff split in half.
+                    while (len > 0 and record.value_snapshot[len - 1] & 0xC0 == 0x80) len -= 1;
+                    if (len > 0 and record.value_snapshot[len - 1] >= 0xC0) len -= 1;
+                }
+                record.value_snapshot_len = @intCast(len);
             }
-            record.value_snapshot_len = @intCast(len);
+
+            self.farthest = record;
         }
 
-        self.farthest = record;
+        const entry = ExpectedSet.Entry{
+            .region = region,
+            .function_name = function.name,
+            .module_id = function.mid,
+        };
+        if (advanced) {
+            self.expected.reset(entry);
+        } else {
+            self.expected.append(entry);
+        }
     }
 
     pub fn pop(self: *VM) Elem {
@@ -1918,23 +1988,36 @@ pub const VM = struct {
         };
 
         const module = self.getModule(record.module_id);
+        const multiple_expected = self.expected.len > 1;
 
-        try writer.print("\nParse Failure: ", .{});
         switch (record.kind) {
-            .input_mismatch => {
-                try writer.print("expected ", .{});
+            .input_mismatch => if (multiple_expected) {
+                // The expected list below names every attempted site, so
+                // the headline carries only the position.
+                try writer.print("\nParse Failure at input {d}:{d}\n\n", .{
+                    record.pos.line,
+                    record.pos.lineOffset(),
+                });
+            } else {
+                try writer.print("\nParse Failure: expected ", .{});
                 try printSourceExcerpt(module.source, record.region, writer);
+                try writer.print("\n\n", .{});
             },
             .pattern_mismatch => {
-                try writer.print("value {s}", .{record.valueSnapshot()});
+                try writer.print("\nParse Failure: value {s}", .{record.valueSnapshot()});
                 if (record.value_truncated) try writer.print("…", .{});
                 try writer.print(" did not match pattern ", .{});
                 try printSourceExcerpt(module.source, record.region, writer);
+                try writer.print("\n\n", .{});
             },
         }
-        try writer.print("\n\n", .{});
 
         try self.printInputContext(record.pos, input_name, writer);
+
+        if (multiple_expected) {
+            try self.printExpectedSet(writer);
+            return;
+        }
 
         const name = self.strings.get(record.function_name);
         if (name.len > 0) {
@@ -1948,6 +2031,36 @@ pub const VM = struct {
         try writer.print(":\n\n", .{});
         try module.highlight(record.region, writer);
         try writer.print("\n", .{});
+    }
+
+    fn printExpectedSet(self: *VM, writer: *Writer) !void {
+        try writer.print("\nexpected one of:\n", .{});
+        for (self.expected.slice()) |entry| {
+            const module = self.getModule(entry.module_id);
+
+            try writer.print("  ", .{});
+            try printSourceExcerpt(module.source, entry.region, writer);
+
+            const loc = LineRelativeRegion.fromRegion(entry.region, module.source, null);
+            const name = self.strings.get(entry.function_name);
+            if (name.len > 0) {
+                try writer.print(" (parser `{s}`, {s}:{d}:{d})\n", .{
+                    name,
+                    module.name,
+                    loc.line,
+                    loc.relative_start,
+                });
+            } else {
+                try writer.print(" ({s}:{d}:{d})\n", .{
+                    module.name,
+                    loc.line,
+                    loc.relative_start,
+                });
+            }
+        }
+        if (self.expected.truncated) {
+            try writer.print("  … and others\n", .{});
+        }
     }
 
     fn printInputContext(self: *VM, pos: Pos, input_name: []const u8, writer: *Writer) !void {

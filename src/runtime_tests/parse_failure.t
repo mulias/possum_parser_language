@@ -61,12 +61,13 @@ Number literal mismatch:
   [ParserFailure]
   [1]
 
-Multi-line input shows a context window with the caret on the failure line:
+Multi-line input shows a context window with the caret on the failure line,
+and every grammar site that failed at the farthest position is listed:
 
   $ printf '{\n  "count": 12,\n  "value": tru,\n  "next": null\n}' > config.json
   $ possum -p 'input(json)' config.json
   
-  Parse Failure: expected " "
+  Parse Failure at input 3:11
   
   config.json:3:11:
   
@@ -77,21 +78,35 @@ Multi-line input shows a context window with the caret on the failure line:
   4 \xe2\x96\x8f   "next": null (esc)
   5 \xe2\x96\x8f } (esc)
   
-  while matching parser `space`
-  
-  stdlib/core.possum:42:2-5:
-  
-  40 \xe2\x96\x8f (esc)
-  41 \xe2\x96\x8f space = (esc)
-  42 \xe2\x96\x8f   " " | "\\t" | "\\u0000A0" | "\\u002000".."\\u00200A" | "\\u00202F" | "\\u00205F" | "\\u003000" (esc)
-     \xe2\x96\x8f   ^^^ (esc)
-  43 \xe2\x96\x8f (esc)
-  44 \xe2\x96\x8f spaces = many(space) (esc)
-  
+  expected one of:
+    " " (parser `space`, stdlib/core.possum:42:2)
+    "\t" (parser `space`, stdlib/core.possum:42:8)
+    "\u0000A0" (parser `space`, stdlib/core.possum:42:15)
+    "\u002000".."\u00200A" (parser `space`, stdlib/core.possum:42:28)
+    "\u00202F" (parser `space`, stdlib/core.possum:42:53)
+    "\u00205F" (parser `space`, stdlib/core.possum:42:66)
+    "\u003000" (parser `space`, stdlib/core.possum:42:79)
+    "\r\n" (parser `newline`, stdlib/core.possum:46:10)
+    "\u00000D" (parser `newline`, stdlib/core.possum:46:31)
+    "\u000085" (parser `newline`, stdlib/core.possum:46:44)
+    "\u002028" (parser `newline`, stdlib/core.possum:46:57)
+    "\u002029" (parser `newline`, stdlib/core.possum:46:70)
+    t (parser `true`, stdlib/core.possum:136:10)
+    f (parser `false`, stdlib/core.possum:138:11)
+    n (parser `null`, stdlib/core.possum:144:10)
+    p (parser `maybe`, stdlib/core.possum:277:11)
+    "9" (parser `_number_integer_part`, stdlib/core.possum:109:29)
+    "9" (parser `numeral`, stdlib/core.possum:21:15)
+    "%(0 + N)" (parser `as_number`, stdlib/core.possum:297:20)
+    '"' (parser `json.string`, stdlib/core.possum:327:14)
+    "[" (parser `json.array`, stdlib/core.possum:365:19)
+    "{" (parser `json.object`, stdlib/core.possum:368:2)
+    V (parser `pair_sep`, stdlib/core.possum:235:54)
   [ParserFailure]
   [1]
 
-Pattern mismatch reports the rejected value and the pattern:
+Pattern mismatch reports the rejected value and the pattern; input failures
+tied at the same position join the expected set:
 
   $ possum -p 'int -> 0..255' -i '300'
   
@@ -102,13 +117,9 @@ Pattern mismatch reports the rejected value and the pattern:
   1 \xe2\x96\x8f 300 (esc)
     \xe2\x96\x8f    ^ (esc)
   
-  while matching parser `@main`
-  
-  program:1:7-13:
-  
-  1 \xe2\x96\x8f int -> 0..255 (esc)
-    \xe2\x96\x8f        ^^^^^^ (esc)
-  
+  expected one of:
+    "9" (parser `numeral`, stdlib/core.possum:21:15)
+    0..255 (parser `@main`, program:1:7)
   [ParserFailure]
   [1]
 
@@ -196,24 +207,20 @@ Empty input:
   [ParserFailure]
   [1]
 
-Tie at the farthest position keeps the first-recorded failure:
+Ties at the farthest position collect the expected set in attempt order:
 
   $ possum -p '"aa" | "ab"' -i 'ax'
   
-  Parse Failure: expected "aa"
+  Parse Failure at input 1:0
   
   input:1:0:
   
   1 \xe2\x96\x8f ax (esc)
     \xe2\x96\x8f ^ (esc)
   
-  while matching parser `@main`
-  
-  program:1:0-4:
-  
-  1 \xe2\x96\x8f "aa" | "ab" (esc)
-    \xe2\x96\x8f ^^^^ (esc)
-  
+  expected one of:
+    "aa" (parser `@main`, program:1:0)
+    "ab" (parser `@main`, program:1:7)
   [ParserFailure]
   [1]
 
@@ -256,5 +263,71 @@ Bare @fail:
   1 \xe2\x96\x8f "abc" > @fail (esc)
     \xe2\x96\x8f         ^^^^^ (esc)
   
+  [ParserFailure]
+  [1]
+
+A site that fails repeatedly at the farthest position appears in the
+expected set once:
+
+  $ possum -p 'w(p) = "aa" > p ; w("x") | w("y") | "ab"' -i 'ax'
+  
+  Parse Failure at input 1:0
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f ax (esc)
+    \xe2\x96\x8f ^ (esc)
+  
+  expected one of:
+    "aa" (parser `w`, program:1:7)
+    "ab" (parser `@main`, program:1:36)
+  [ParserFailure]
+  [1]
+
+The expected set is capped; overflow is marked rather than silently dropped:
+
+  $ possum -p '"a00" | "a01" | "a02" | "a03" | "a04" | "a05" | "a06" | "a07" | "a08" | "a09" | "a10" | "a11" | "a12" | "a13" | "a14" | "a15" | "a16" | "a17" | "a18" | "a19" | "a20" | "a21" | "a22" | "a23" | "a24" | "a25" | "a26" | "a27" | "a28" | "a29" | "a30" | "a31" | "a32"' -i 'z'
+  
+  Parse Failure at input 1:0
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f z (esc)
+    \xe2\x96\x8f ^ (esc)
+  
+  expected one of:
+    "a00" (parser `@main`, program:1:0)
+    "a01" (parser `@main`, program:1:8)
+    "a02" (parser `@main`, program:1:16)
+    "a03" (parser `@main`, program:1:24)
+    "a04" (parser `@main`, program:1:32)
+    "a05" (parser `@main`, program:1:40)
+    "a06" (parser `@main`, program:1:48)
+    "a07" (parser `@main`, program:1:56)
+    "a08" (parser `@main`, program:1:64)
+    "a09" (parser `@main`, program:1:72)
+    "a10" (parser `@main`, program:1:80)
+    "a11" (parser `@main`, program:1:88)
+    "a12" (parser `@main`, program:1:96)
+    "a13" (parser `@main`, program:1:104)
+    "a14" (parser `@main`, program:1:112)
+    "a15" (parser `@main`, program:1:120)
+    "a16" (parser `@main`, program:1:128)
+    "a17" (parser `@main`, program:1:136)
+    "a18" (parser `@main`, program:1:144)
+    "a19" (parser `@main`, program:1:152)
+    "a20" (parser `@main`, program:1:160)
+    "a21" (parser `@main`, program:1:168)
+    "a22" (parser `@main`, program:1:176)
+    "a23" (parser `@main`, program:1:184)
+    "a24" (parser `@main`, program:1:192)
+    "a25" (parser `@main`, program:1:200)
+    "a26" (parser `@main`, program:1:208)
+    "a27" (parser `@main`, program:1:216)
+    "a28" (parser `@main`, program:1:224)
+    "a29" (parser `@main`, program:1:232)
+    "a30" (parser `@main`, program:1:240)
+    "a31" (parser `@main`, program:1:248)
+    \xe2\x80\xa6 and others (esc)
   [ParserFailure]
   [1]
