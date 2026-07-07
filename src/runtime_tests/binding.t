@@ -62,3 +62,17 @@ A string merge solves for one unbound rest part between bound parts.
 
   $ possum -p '"abbc" -> ("a" + R + "c") $ R' -i 'abbc'
   "bb"
+
+A function argument bound by an earlier occurrence in the same pattern is
+evaluated with the bound value.
+
+  $ possum -p 'const([1, 2]) -> [A, Num.Add(A, 1)]' -i ''
+  [1, 2]
+
+An argument whose binding occurrence comes later in the pattern compiles,
+but the solver matches in order and reaches the call first, so the match
+is a runtime error today.
+
+  $ possum -p 'const([1, 2]) -> [Num.Sub(A, 1), A]' -i ''
+  [RuntimeError]
+  [1]

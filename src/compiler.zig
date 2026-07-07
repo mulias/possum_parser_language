@@ -548,6 +548,12 @@ pub const Compiler = struct {
                     "variable '{s}' may be unbound here: it is not bound on every path",
                     .{self.frontend.strings.get(diagnostic.name.?)},
                 ),
+                .unbound_function_var => try self.printError(
+                    module_id,
+                    diagnostic.region,
+                    "variable '{s}' is unbound here: variables in pattern function calls must be bound",
+                    .{self.frontend.strings.get(diagnostic.name.?)},
+                ),
                 .extra_unbound_part => if (diagnostic.name) |name| try self.printError(
                     module_id,
                     diagnostic.region,
