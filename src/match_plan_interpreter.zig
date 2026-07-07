@@ -65,6 +65,27 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32) Error!bool {
             }
             return true;
         },
+        .object => {
+            if (!value.isDynType(.Object)) return false;
+            const value_object = value.asDyn().asObject();
+            if (value_object.members.count() != node.payload) return false;
+
+            // No matched-key bookkeeping: it only guards the tree path's
+            // unbound-key search. Duplicate literal keys just re-probe, the
+            // same members the tree path tolerates re-matching.
+            var pair = idx + 1;
+            for (0..node.payload) |_| {
+                const key_node = plan.nodes[pair];
+                std.debug.assert(key_node.tag == .const_key);
+                const member = value_object.members.get(plan.sids[key_node.payload]) orelse
+                    return false;
+                if (!(try matchNode(vm, member, plan, pair + 1))) return false;
+                pair += key_node.subtree_len;
+            }
+            return true;
+        },
+        // Only reachable through its object node.
+        .const_key => unreachable,
     }
 }
 

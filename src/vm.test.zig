@@ -1066,6 +1066,62 @@ test "an array rest pattern falls back to the tree path" {
     }
 }
 
+test "an object pattern with constant keys compiles to a match plan" {
+    const parser =
+        \\('' $ {'a': 1, 'b': [2, 3]}) -> {'a': A, 'b': [_, B]} $ [A, B]
+    ;
+    {
+        const array = [_]Elem{ Elem.numberFloat(1), Elem.numberFloat(3) };
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "object plan mismatches drive alternation" {
+    const parser =
+        \\obj = '' $ {'a': 1, 'b': 2}
+        \\'' & ((obj -> {'a': 1} $ 'count') | (obj -> {'a': 1, 'c': _} $ 'key') | (obj -> {'a': 2, 'b': _} $ 'value') | (obj -> {'a': 1, 'b': B} $ B))
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            try Elem.numberStringFromBytes("2", &vm),
+            vm,
+        );
+    }
+}
+
+test "an object pattern with a variable key falls back to the tree path" {
+    const parser =
+        \\('' $ {'a': 1}) -> {K: 1} $ K
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "a")).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(0, plan_count);
+    }
+}
+
 test "a merge pattern falls back to the tree path" {
     const parser =
         \\('' $ 3) -> (1 + N) $ N
