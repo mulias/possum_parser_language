@@ -972,9 +972,7 @@ Obj.Get(O, K) = O -> {K: V, ..._} & V
 
 Obj.Put(O, K, V) = {...O, K: V}
 
-Obj.Size(O) = _Obj.Size(O, 0)
-
-_Obj.Size(O, Acc) = O -> {_: _, ...Rest} ? _Obj.Size(Rest, Acc + 1) : Acc
+Obj.Size(O) = O -> ({_: _} * S) & S
 
 Obj.Keys(O) = _Obj.Keys(O, [])
 
