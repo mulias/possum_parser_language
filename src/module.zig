@@ -3,6 +3,7 @@ const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
+const MatchPlan = @import("match_plan.zig").MatchPlan;
 const Pattern = @import("pattern.zig").Pattern;
 const hl = @import("highlight.zig");
 const Region = @import("region.zig").Region;
@@ -13,6 +14,7 @@ pub const Module = struct {
     source: []const u8,
     constants: ArrayList(Elem) = ArrayList(Elem){},
     patterns: ArrayList(Pattern) = ArrayList(Pattern){},
+    match_plans: ArrayList(MatchPlan) = ArrayList(MatchPlan){},
 
     pub const Id = u16;
 
@@ -22,6 +24,10 @@ pub const Module = struct {
             pattern.deinit(allocator);
         }
         self.patterns.deinit(allocator);
+        for (self.match_plans.items) |*plan| {
+            plan.deinit(allocator);
+        }
+        self.match_plans.deinit(allocator);
     }
 
     pub fn addConstant(self: *Module, allocator: Allocator, elem: Elem) !usize {
@@ -45,6 +51,16 @@ pub const Module = struct {
 
     pub fn getPattern(self: Module, idx: usize) Pattern {
         return self.patterns.items[idx];
+    }
+
+    pub fn addMatchPlan(self: *Module, allocator: Allocator, plan: MatchPlan) !usize {
+        const idx = self.match_plans.items.len;
+        try self.match_plans.append(allocator, plan);
+        return idx;
+    }
+
+    pub fn getMatchPlan(self: Module, idx: usize) MatchPlan {
+        return self.match_plans.items[idx];
     }
 
     /// Highlight this region in the module source code with context lines and underlines

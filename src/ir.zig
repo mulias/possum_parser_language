@@ -41,6 +41,7 @@ pub const Ir = struct {
         call_function_constant: u24,
         call_tail_function_constant: u24,
         destructure: u24,
+        destructure_plan: u24,
         jump: struct { op: OpCode, target: Index },
         jump_back: struct { op: OpCode, target: Index },
     };
@@ -164,6 +165,7 @@ pub const Ir = struct {
                 .call_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallFunctionConstant, .CallFunctionConstant2, .CallFunctionConstant3, region),
                 .call_tail_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallTailFunctionConstant, .CallTailFunctionConstant2, .CallTailFunctionConstant3, region),
                 .destructure => |idx| try writeIndexed(chunk, allocator, idx, .Destructure, .Destructure2, .Destructure3, region),
+                .destructure_plan => |idx| try writeIndexed(chunk, allocator, idx, .DestructurePlan, .DestructurePlan2, .DestructurePlan3, region),
                 .jump => |j| {
                     std.debug.assert(j.target != unpatched_jump);
                     std.debug.assert(j.target > i);
@@ -229,6 +231,7 @@ pub const Ir = struct {
             .call_function_constant,
             .call_tail_function_constant,
             .destructure,
+            .destructure_plan,
             => |idx| indexedByteLength(idx),
             .push_string, .push_var => |sid| sidByteLength(sid),
             .jump, .jump_back => 3,
@@ -365,6 +368,7 @@ pub const Ir = struct {
             .call_function_constant => .CallFunctionConstant,
             .call_tail_function_constant => .CallTailFunctionConstant,
             .destructure => .Destructure,
+            .destructure_plan => .DestructurePlan,
             .jump => |j| j.op,
             .jump_back => |j| j.op,
         };

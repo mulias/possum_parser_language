@@ -26,6 +26,9 @@ pub const OpCode = enum(u8) {
     Destructure,
     Destructure2,
     Destructure3,
+    DestructurePlan,
+    DestructurePlan2,
+    DestructurePlan3,
     Drop,
     End,
     GetBoundLocal,
@@ -185,6 +188,9 @@ pub const OpCode = enum(u8) {
             .Destructure,
             .Destructure2,
             .Destructure3,
+            .DestructurePlan,
+            .DestructurePlan2,
+            .DestructurePlan3,
             .Increment,
             .NegateNumber,
             .NegateParser,
@@ -416,6 +422,9 @@ pub const OpCode = enum(u8) {
             .Destructure,
             .Destructure2,
             .Destructure3,
+            .DestructurePlan,
+            .DestructurePlan2,
+            .DestructurePlan3,
             => .{ .operands = .consumed_on_failure, .result = .none },
 
             // Pure reorder of two handles already on the stack.
@@ -542,6 +551,12 @@ pub const OpCode = enum(u8) {
             => self.pattern2Instruction(chunk, vm, module, writer, offset),
             .Destructure3,
             => self.pattern3Instruction(chunk, vm, module, writer, offset),
+            .DestructurePlan,
+            => self.matchPlanInstruction(chunk, vm, module, writer, offset),
+            .DestructurePlan2,
+            => self.matchPlan2Instruction(chunk, vm, module, writer, offset),
+            .DestructurePlan3,
+            => self.matchPlan3Instruction(chunk, vm, module, writer, offset),
             .AssertFunctionArity,
             .CallFunction,
             .CallTailFunction,
@@ -663,6 +678,36 @@ pub const OpCode = enum(u8) {
         var pattern = module.getPattern(patternIdx);
         try writer.print("{s} {}: ", .{ @tagName(self), patternIdx });
         try pattern.print(vm, writer);
+        try writer.print("\n", .{});
+        return offset + 4;
+    }
+
+    fn matchPlanInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const planIdx = chunk.read(offset + 1);
+        const plan = module.getMatchPlan(planIdx);
+        try writer.print("{s} {}: ", .{ @tagName(self), planIdx });
+        try plan.print(vm, writer);
+        try writer.print("\n", .{});
+        return offset + 2;
+    }
+
+    fn matchPlan2Instruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        var planIdx = @as(usize, @intCast(chunk.read(offset + 1))) << 8;
+        planIdx |= chunk.read(offset + 2);
+        const plan = module.getMatchPlan(planIdx);
+        try writer.print("{s} {}: ", .{ @tagName(self), planIdx });
+        try plan.print(vm, writer);
+        try writer.print("\n", .{});
+        return offset + 3;
+    }
+
+    fn matchPlan3Instruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        var planIdx = @as(usize, @intCast(chunk.read(offset + 1))) << 16;
+        planIdx |= @as(usize, @intCast(chunk.read(offset + 2))) << 8;
+        planIdx |= chunk.read(offset + 3);
+        const plan = module.getMatchPlan(planIdx);
+        try writer.print("{s} {}: ", .{ @tagName(self), planIdx });
+        try plan.print(vm, writer);
         try writer.print("\n", .{});
         return offset + 4;
     }

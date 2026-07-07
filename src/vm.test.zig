@@ -887,6 +887,58 @@ test "eql_to(p, V) = p -> V ; eql_to('bar' | 'foo', $'foo')" {
     }
 }
 
+test "check(V) = 'ab' -> V ; 'a' -> A & (check(A) | 'ab')" {
+    const parser =
+        \\check(V) = 'ab' -> V
+        \\'a' -> A & (check(A) | 'ab')
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, "aab"),
+            Elem.inputSubstring(1, 2),
+            vm,
+        );
+    }
+}
+
+test "'foo' -> _" {
+    const parser =
+        \\'foo' -> _
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, "foo"),
+            Elem.inputSubstring(0, 3),
+            vm,
+        );
+    }
+}
+
+test "a bare local var pattern compiles to a match plan" {
+    const parser =
+        \\'foo' -> Foo $ Foo
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, "foo"),
+            Elem.inputSubstring(0, 3),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expect(plan_count > 0);
+    }
+}
+
 test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
     const parser =
         \\last(a, b, c) = a > b > c

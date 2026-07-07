@@ -9,6 +9,8 @@ const Compiler = @import("compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 const Env = @import("env.zig").Env;
 const GC = @import("gc.zig").GC;
+const MatchPlan = @import("match_plan.zig").MatchPlan;
+const match_plan_interpreter = @import("match_plan_interpreter.zig");
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable(.runtime);
@@ -611,6 +613,23 @@ pub const VM = struct {
                     if (value.isSuccess()) self.recordPatternFailure(value);
                     // This should technically match `opCode`, but the RC
                     // semantics are the same for all destructure ops
+                    _ = self.popConsumed(.Destructure);
+                    try self.pushFailure();
+                }
+            },
+            .DestructurePlan, .DestructurePlan2, .DestructurePlan3 => {
+                const planIdx = self.readIndex(opCode);
+                const plan = self.getMatchPlan(planIdx);
+                const value = self.peek(0);
+
+                const matched = value.isSuccess() and
+                    (try match_plan_interpreter.match(&self.pattern_solver, value, plan));
+
+                if (matched) {
+                    // value is already on the stack
+                } else {
+                    if (value.isSuccess()) self.recordPatternFailure(value);
+                    // RC semantics are the same for all destructure ops
                     _ = self.popConsumed(.Destructure);
                     try self.pushFailure();
                 }
@@ -1669,6 +1688,10 @@ pub const VM = struct {
         return self.currentFunctionModule().getPattern(idx);
     }
 
+    pub fn getMatchPlan(self: *VM, idx: usize) MatchPlan {
+        return self.currentFunctionModule().getMatchPlan(idx);
+    }
+
     pub fn getFunctionElem(self: *VM) Elem {
         return self.stack.items[self.cur_frame.elemsOffset];
     }
@@ -1740,18 +1763,21 @@ pub const VM = struct {
             .GetConstant,
             .GetConstantMutable,
             .Destructure,
+            .DestructurePlan,
             => self.readByte(),
             .CallFunctionConstant2,
             .CallTailFunctionConstant2,
             .GetConstant2,
             .GetConstantMutable2,
             .Destructure2,
+            .DestructurePlan2,
             => self.readShort(),
             .CallFunctionConstant3,
             .CallTailFunctionConstant3,
             .GetConstant3,
             .GetConstantMutable3,
             .Destructure3,
+            .DestructurePlan3,
             => self.readMedium(),
             else => unreachable,
         };

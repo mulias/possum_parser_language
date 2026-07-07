@@ -179,12 +179,12 @@
   0000    | PushVar K
   0002    | PushVar V
   0004    | CallFunctionLocal 0
-  0006    | Destructure 0: K
+  0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 13
   0011    | CallFunctionLocal 1
   0013    | TakeRight 13 -> 31
   0016    | CallFunctionLocal 2
-  0018    | Destructure 1: V
+  0018    | DestructurePlan 1: bind V
   0020    | TakeRight 20 -> 31
   0023    | GetConstantMutable 1: {_0_}
   0025    | GetBoundLocalMove 3
