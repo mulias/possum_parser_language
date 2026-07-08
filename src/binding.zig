@@ -529,11 +529,16 @@ const Analyzer = struct {
         const slot = self.patternLocalSlot(name) orelse return;
         const state = &env.slots[slot];
 
-        try self.compiler.binding_maps.pattern_local_bound.put(
+        // A constant-count array-literal repeat is pre-expanded by sharing the
+        // same element node pointer across copies (`[A] * 3` → `[A, A, A]`
+        // with one `A` node). This map is keyed by node pointer, so record the
+        // first occurrence's boundness; lowering forces later copies to
+        // rebind (see the array case in lowerPatternNode).
+        const gop = try self.compiler.binding_maps.pattern_local_bound.getOrPut(
             self.allocator,
             rnode,
-            state.state == .bound,
         );
+        if (!gop.found_existing) gop.value_ptr.* = (state.state == .bound);
 
         switch (state.state) {
             .bound => {},
