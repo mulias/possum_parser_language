@@ -42,12 +42,26 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
     const node = plan.nodes[idx];
 
     switch (node.tag) {
-        .placeholder => return true,
+        .placeholder => {
+            // matchLocal checks negation before its placeholder check: a
+            // negated `_` only matches numbers, and matches them without
+            // binding or negating anything.
+            if (node.payload != 0 and !value.isNumber()) return false;
+            return true;
+        },
         .equality => return value.isEql(plan.elems[node.payload], vm.*),
         .const_fn => return value.isEql(try evalConstFn(vm, plan, node.payload), vm.*),
         .call => return value.isEql(try evalCall(vm, plan, idx), vm.*),
         .bind => {
-            bindLocal(vm, plan.vars[node.payload], value);
+            const local_var = plan.vars[node.payload];
+            // A negated bind of a non-number fails the match (not an
+            // error), mirroring matchLocal's unbound branch.
+            if (local_var.hasBeenNegated() and !value.isNumber()) return false;
+            const bound_value = if (local_var.isNegated())
+                value.negateNumber() catch return error.RuntimeError
+            else
+                value;
+            bindLocal(vm, local_var, bound_value);
             return true;
         },
         .bound_eq => {
@@ -833,8 +847,9 @@ fn matchArrayMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u3
 
         const sub = mergePart(vm, base, ui).subtree;
         // A bare `_` rest matches any range without binding; skip
-        // materializing it.
-        if (plan.nodes[sub].tag != .placeholder) {
+        // materializing it. A negated `-_` (payload != 0) still needs the
+        // materialized rest so the match applies its number check.
+        if (plan.nodes[sub].tag != .placeholder or plan.nodes[sub].payload != 0) {
             const unbound_elems = value_array.elems.items[unbound_start..unbound_end];
             const unbound_array = try Elem.DynElem.Array.create(vm, unbound_elems.len);
             try vm.pushTempDyn(&unbound_array.dyn);
@@ -1063,8 +1078,9 @@ fn matchObjectMerge(
         const sub = mergePart(vm, base, ui).subtree;
         const sub_node = plan.nodes[sub];
         // A bare `_` rest matches any remaining members without binding, so
-        // the rest object is never observed.
-        if (sub_node.tag != .placeholder) {
+        // the rest object is never observed. A negated `-_` (payload != 0)
+        // still needs the materialized rest for the match's number check.
+        if (sub_node.tag != .placeholder or sub_node.payload != 0) {
             if (canBindRestInPlace(vm, plan, value, sub_node, discardable)) {
                 // Every part before the rest has matched and binding an
                 // unbound var cannot fail, so the match is already a
@@ -1182,8 +1198,9 @@ fn matchStringMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u
 
         const sub = mergePart(vm, base, ui).subtree;
         // A bare `_` rest matches any substring without binding; skip
-        // materializing it.
-        if (plan.nodes[sub].tag != .placeholder) {
+        // materializing it. A negated `-_` (payload != 0) still needs the
+        // materialized rest so the match applies its number check.
+        if (plan.nodes[sub].tag != .placeholder or plan.nodes[sub].payload != 0) {
             const unbound_value = value_str[unbound_start..unbound_end];
             const unbound_elem = if (value.isType(.InputSubstring)) blk: {
                 const start = value.asInputSubstring().start;

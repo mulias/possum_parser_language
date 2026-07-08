@@ -1306,7 +1306,7 @@ test "merge plan mismatch drives alternation" {
     }
 }
 
-test "a merge with a negated part falls back to the tree path" {
+test "a merge with a negated part compiles to a match plan" {
     const parser =
         \\('' $ 4) -> (5 + -N) $ N
     ;
@@ -1321,7 +1321,7 @@ test "a merge with a negated part falls back to the tree path" {
         );
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(0, plan_count);
+        try std.testing.expectEqual(1, plan_count);
     }
 }
 
@@ -3316,6 +3316,177 @@ test "('' $ 10) -> (A * N) errors when neither side evaluates" {
     try vm.init(allocator, writers, config);
     defer vm.deinit();
     try std.testing.expectError(error.RuntimeError, vm.interpret("test", parser, ""));
+}
+
+test "('' $ 5) -> -N binds the negated value" {
+    const parser =
+        \\("" $ 5) -> -N $ N
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(-5),
+            vm,
+        );
+    }
+    {
+        // A negated bind of a non-number fails the match without erroring.
+        const non_number =
+            \\("" $ "x") -> -N $ N
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", non_number, ""),
+        );
+    }
+}
+
+test "('' $ 3) -> --A binds unnegated but still requires a number" {
+    const parser =
+        \\("" $ 3) -> --A $ A
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(3),
+            vm,
+        );
+    }
+    {
+        const non_number =
+            \\("" $ "x") -> --A $ A
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", non_number, ""),
+        );
+    }
+}
+
+test "a negated placeholder matches numbers only" {
+    const parser =
+        \\("" $ 5) -> -_ $ "ok"
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        const non_number =
+            \\("" $ "x") -> -_ $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", non_number, ""),
+        );
+    }
+}
+
+test "('' $ 5) -> -(2 + N) distributes negation over merge parts" {
+    const parser =
+        \\("" $ 5) -> -(2 + N) $ N
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(-7),
+        vm,
+    );
+}
+
+test "a negated placeholder rest fails against a non-number" {
+    const parser =
+        \\("" $ [1, 2]) -> ([1] + -_) $ "ok"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectFailure(
+        try vm.interpret("test", parser, ""),
+    );
+}
+
+test "('' $ 4) -> (-2 * N) folds the negated repeat pattern" {
+    const parser =
+        \\("" $ 4) -> (-2 * N) $ N
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(-2),
+        vm,
+    );
+}
+
+test "a negated global falls back to the tree path" {
+    const parser =
+        \\Two = 2 ; ("" $ -2) -> -Two $ "ok"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+        vm,
+    );
+    var plan_count: usize = 0;
+    for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+    try std.testing.expectEqual(0, plan_count);
+}
+
+test "call arguments fold literal negation but ignore identifier negation" {
+    {
+        // -5 folds to a value, so the call computes Double(-5) = -10.
+        const parser =
+            \\Double(A) = "" $ A + A ; ("" $ -10) -> Double(-5) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        // evalLocal never applies negation, so Double(-A) evaluates as
+        // Double(A); the tree path shares this asymmetry.
+        const parser =
+            \\Double(B) = "" $ B + B ; A = 3 ; ("" $ 6) -> Double(-A) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
 }
 
 const rc_config = VMConfig{

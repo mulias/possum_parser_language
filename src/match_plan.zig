@@ -41,9 +41,15 @@ pub const MatchPlan = struct {
     fn printNode(self: MatchPlan, vm: VM, writer: *Writer, idx: u32) Writer.Error!u32 {
         const node = self.nodes[idx];
         switch (node.tag) {
-            .placeholder => try writer.print("placeholder", .{}),
-            .bind => try writer.print("bind {s}", .{vm.strings.get(self.vars[node.payload].sid)}),
-            .bound_eq => try writer.print("bound_eq {s}", .{vm.strings.get(self.vars[node.payload].sid)}),
+            .placeholder => try writer.print("{s}placeholder", .{negativeSigns(@intCast(node.payload))}),
+            .bind => try writer.print("bind {s}{s}", .{
+                negativeSigns(self.vars[node.payload].negation_count),
+                vm.strings.get(self.vars[node.payload].sid),
+            }),
+            .bound_eq => try writer.print("bound_eq {s}{s}", .{
+                negativeSigns(self.vars[node.payload].negation_count),
+                vm.strings.get(self.vars[node.payload].sid),
+            }),
             .equality => {
                 try writer.print("eq ", .{});
                 try self.elems[node.payload].print(vm, writer);
@@ -138,6 +144,15 @@ pub const MatchPlan = struct {
             .bound_local => |i| try writer.print("{s}", .{vm.strings.get(self.vars[i].sid)}),
         }
     }
+
+    fn negativeSigns(count: u2) []const u8 {
+        return switch (count) {
+            0 => "",
+            1 => "-",
+            2 => "--",
+            3 => "-",
+        };
+    }
 };
 
 pub const Node = struct {
@@ -165,7 +180,9 @@ pub const Tag = enum(u8) {
     // preorder. The callee and arguments are evaluated, not matched; the
     // call result is compared against the value.
     call,
-    // `_`: always matches, binds nothing.
+    // `_`: always matches, binds nothing. payload = negation count; a
+    // negated placeholder only matches numbers, mirroring matchLocal's
+    // negation-before-placeholder check order.
     placeholder,
     // A fixed-length array: payload = element count, element subtrees follow
     // in preorder.

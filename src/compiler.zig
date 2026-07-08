@@ -1655,7 +1655,7 @@ pub const Compiler = struct {
         var builder = PlanBuilder{};
         defer builder.deinit(allocator);
 
-        try self.lowerPatternNode(module_id, rnode, &builder, false);
+        try self.lowerPatternNode(module_id, rnode, &builder, false, 0);
 
         try self.emitPatternPreclears(module_id, rnode);
 
@@ -1697,9 +1697,16 @@ pub const Compiler = struct {
 
     // Append one pattern subtree to the builder in preorder. Mirrors
     // astToPattern's constant conversions exactly so plan and tree compare
-    // identically. Negation falls back: negating a non-number literal is a
-    // compile error the tree path reports, and a negated non-number constant
-    // is a runtime error that pre-folding would turn into a compile error.
+    // identically.
+    //
+    // negation_count mirrors astToPattern's: number literals pre-fold their
+    // negation, locals carry it into their LocalVar, and shapes the tree
+    // path rejects at compile time (negated non-number literals and
+    // compounds) fall back so astToPattern reports them. Negated globals and
+    // calls also fall back: matchConstant/matchFunctionCall apply negation
+    // to the match-time value but evalConstant/evalFunctionCall ignore it
+    // when the same pattern is a merge part or repeat operand, and a plan
+    // node cannot express that context split.
     //
     // all_locals_bound lowers a repeat's rebound pattern variant: every
     // local is treated as bound, because the first repetition bound it.
@@ -1709,16 +1716,22 @@ pub const Compiler = struct {
         rnode: *Ast.Pattern.RNode,
         builder: *PlanBuilder,
         all_locals_bound: bool,
+        negation_count: u2,
     ) (Error || error{UnsupportedPattern})!void {
         const allocator = self.vm.allocator;
 
         switch (rnode.node) {
+            .negation => |inner| {
+                const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
+                return self.lowerPatternNode(module_id, inner, builder, all_locals_bound, new_negation_count);
+            },
             .identifier => |ident| {
                 const name = ident.name;
                 if (std.mem.eql(u8, self.frontend.strings.get(name), "_")) {
-                    return builder.appendLeaf(allocator, .placeholder, 0);
+                    return builder.appendLeaf(allocator, .placeholder, negation_count);
                 }
                 if (self.resolveGlobal(module_id, name)) |global| {
+                    if (negation_count != 0) return error.UnsupportedPattern;
                     // A zero-arity Function global is executed per match and
                     // its result compared. The solver never executes native
                     // code or closures here (matchConstant only runs
@@ -1740,23 +1753,38 @@ pub const Compiler = struct {
                 return builder.appendVar(allocator, if (bound) .bound_eq else .bind, .{
                     .sid = try self.internForRuntime(name),
                     .idx = slot,
-                    .negation_count = 0,
+                    .negation_count = negation_count,
                 });
             },
-            .number_float => |f| return builder.appendEquality(allocator, Elem.numberFloat(f)),
+            .number_float => |f| {
+                const number = if (negation_count % 2 == 1) -f else f;
+                return builder.appendEquality(allocator, Elem.numberFloat(number));
+            },
             .number_string => |ns| {
                 const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                const number = ns_elem.asNumberString().toNumberFloat(self.vm.strings);
+                const maybe_negated = if (negation_count % 2 == 1) ns_elem.asNumberString().negate() else ns_elem.asNumberString();
+                const number = maybe_negated.toNumberFloat(self.vm.strings);
                 return builder.appendEquality(allocator, number);
             },
             .string => |s| {
+                if (negation_count != 0) return error.UnsupportedPattern;
                 const sid = try self.vm.strings.insert(s);
                 return builder.appendEquality(allocator, Elem.string(sid));
             },
-            .true => return builder.appendEquality(allocator, Elem.boolean(true)),
-            .false => return builder.appendEquality(allocator, Elem.boolean(false)),
-            .null => return builder.appendEquality(allocator, Elem.nullConst),
+            .true => {
+                if (negation_count != 0) return error.UnsupportedPattern;
+                return builder.appendEquality(allocator, Elem.boolean(true));
+            },
+            .false => {
+                if (negation_count != 0) return error.UnsupportedPattern;
+                return builder.appendEquality(allocator, Elem.boolean(false));
+            },
+            .null => {
+                if (negation_count != 0) return error.UnsupportedPattern;
+                return builder.appendEquality(allocator, Elem.nullConst);
+            },
             .array => |elements| {
+                if (negation_count != 0) return error.UnsupportedPattern;
                 // Fixed-length arrays only: spread/rest and merge parts are
                 // `.merge` nodes, which fall back below when recursed into.
                 const start = builder.nodes.items.len;
@@ -1766,11 +1794,12 @@ pub const Compiler = struct {
                     .payload = @intCast(elements.items.len),
                 });
                 for (elements.items) |element| {
-                    try self.lowerPatternNode(module_id, element, builder, all_locals_bound);
+                    try self.lowerPatternNode(module_id, element, builder, all_locals_bound, 0);
                 }
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
             .object => |pairs| {
+                if (negation_count != 0) return error.UnsupportedPattern;
                 // Constant string keys only: any other key form keeps the
                 // tree path's unbound-key linear search and backtracking.
                 const start = builder.nodes.items.len;
@@ -1789,12 +1818,17 @@ pub const Compiler = struct {
                         .payload = @intCast(builder.sids.items.len),
                     });
                     try builder.sids.append(allocator, sid);
-                    try self.lowerPatternNode(module_id, pair.value, builder, all_locals_bound);
+                    try self.lowerPatternNode(module_id, pair.value, builder, all_locals_bound, 0);
                     builder.nodes.items[key_start].subtree_len = @intCast(builder.nodes.items.len - key_start);
                 }
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
             .range => |bounds| {
+                // astToPattern distributes negation into the limits, where
+                // the solver ignores it for evaluable limits but applies it
+                // when a limit is matched as a pattern; keep that split on
+                // the tree path.
+                if (negation_count != 0) return error.UnsupportedPattern;
                 std.debug.assert(bounds.lower != null or bounds.upper != null);
                 const lower = try self.lowerRangeLimit(module_id, bounds.lower, builder, all_locals_bound);
                 const upper = try self.lowerRangeLimit(module_id, bounds.upper, builder, all_locals_bound);
@@ -1802,6 +1836,7 @@ pub const Compiler = struct {
                 try builder.ranges.append(allocator, .{ .lower = lower, .upper = upper });
             },
             .string_template => |segments| {
+                if (negation_count != 0) return error.UnsupportedPattern;
                 const start = builder.nodes.items.len;
                 const merge_idx: u32 = @intCast(builder.merges.items.len);
                 try builder.nodes.append(allocator, .{
@@ -1817,7 +1852,7 @@ pub const Compiler = struct {
                     const unbound = self.binding_maps.merge_part_unbound.get(segment) orelse
                         return error.UnsupportedPattern;
                     const segment_start = builder.nodes.items.len;
-                    try self.lowerPatternNode(module_id, segment, builder, all_locals_bound);
+                    try self.lowerPatternNode(module_id, segment, builder, all_locals_bound, 0);
                     if (unbound) {
                         builder.merges.items[merge_idx].solvable_index = @intCast(i);
                     } else switch (builder.nodes.items[segment_start].tag) {
@@ -1856,7 +1891,7 @@ pub const Compiler = struct {
                     .solvable_index = null,
                 });
                 var merge_plan = match_plan.MergePlan{ .part_count = 0, .solvable_index = null };
-                try self.lowerMergeParts(module_id, rnode, builder, &merge_plan, all_locals_bound);
+                try self.lowerMergeParts(module_id, rnode, builder, &merge_plan, all_locals_bound, negation_count);
                 builder.merges.items[merge_idx] = merge_plan;
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
@@ -1875,9 +1910,9 @@ pub const Compiler = struct {
                 });
 
                 const pattern_start: u32 = @intCast(builder.nodes.items.len);
-                try self.lowerPatternNode(module_id, infix.left, builder, all_locals_bound);
+                try self.lowerPatternNode(module_id, infix.left, builder, all_locals_bound, negation_count);
                 const count_start: u32 = @intCast(builder.nodes.items.len);
-                try self.lowerPatternNode(module_id, infix.right, builder, all_locals_bound);
+                try self.lowerPatternNode(module_id, infix.right, builder, all_locals_bound, 0);
 
                 const pattern_op = try self.lowerRepeatOperand(builder, pattern_start);
                 const count_op = try self.lowerRepeatOperand(builder, count_start);
@@ -1894,7 +1929,7 @@ pub const Compiler = struct {
                     }
                 }
                 if (has_rebound) {
-                    try self.lowerPatternNode(module_id, infix.left, builder, true);
+                    try self.lowerPatternNode(module_id, infix.left, builder, true, negation_count);
                 }
 
                 builder.repeats.items[repeat_idx] = .{
@@ -1905,6 +1940,11 @@ pub const Compiler = struct {
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
             .function_call => |function_call| {
+                // A negated call applies negation to the result when matched
+                // but not when evaluated as a merge part or repeat operand
+                // (matchFunctionCall vs evalFunctionCall); see the doc
+                // comment above.
+                if (negation_count != 0) return error.UnsupportedPattern;
                 // A call is evaluated at match time and its result compared.
                 // Non-identifier callees are a compile error and a constant
                 // callee that is not a function or takes a different number
@@ -1944,37 +1984,49 @@ pub const Compiler = struct {
                     .arg_count = @intCast(function_call.args.items.len),
                 });
                 for (function_call.args.items) |arg| {
-                    try self.lowerCallArg(module_id, arg, builder);
+                    try self.lowerCallArg(module_id, arg, builder, 0);
                 }
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
-            else => return error.UnsupportedPattern,
         }
     }
 
     // Lower one function-call argument. Arguments are evaluated, not
     // matched: constants fold to elems here, mirroring attemptEval's
     // results; locals and function constants resolve at match time.
-    // Negation stays on the tree path until negation lowering lands.
+    // Negation mirrors astToValueInPattern and the eval path: number
+    // literals pre-fold, booleans, null, and identifiers ignore it
+    // (evalConstant/evalLocal never apply negation), and a negated string
+    // is a compile error the tree path reports.
     fn lowerCallArg(
         self: *Compiler,
         module_id: Module.Id,
         rnode: *Ast.Value.RNode,
         builder: *PlanBuilder,
+        negation_count: u2,
     ) (Error || error{UnsupportedPattern})!void {
         const allocator = self.vm.allocator;
 
         switch (rnode.node) {
+            .negation => |inner| {
+                const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
+                return self.lowerCallArg(module_id, inner, builder, new_negation_count);
+            },
             .true => return builder.appendEquality(allocator, Elem.boolean(true)),
             .false => return builder.appendEquality(allocator, Elem.boolean(false)),
             .null => return builder.appendEquality(allocator, Elem.nullConst),
-            .number_float => |f| return builder.appendEquality(allocator, Elem.numberFloat(f)),
+            .number_float => |f| {
+                const number = if (negation_count % 2 == 1) -f else f;
+                return builder.appendEquality(allocator, Elem.numberFloat(number));
+            },
             .number_string => |ns| {
                 const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                const number = ns_elem.asNumberString().toNumberFloat(self.vm.strings);
+                const maybe_negated = if (negation_count % 2 == 1) ns_elem.asNumberString().negate() else ns_elem.asNumberString();
+                const number = maybe_negated.toNumberFloat(self.vm.strings);
                 return builder.appendEquality(allocator, number);
             },
             .string => |s| {
+                if (negation_count != 0) return error.UnsupportedPattern;
                 const sid = try self.vm.strings.insert(s);
                 return builder.appendEquality(allocator, Elem.string(sid));
             },
@@ -1993,18 +2045,24 @@ pub const Compiler = struct {
                 }
                 // A local argument reads its slot at match time: it may be
                 // bound by an earlier part of this same pattern, so there is
-                // no static boundness to record.
+                // no static boundness to record. Negation is carried but
+                // never applied, like Pattern.Local under evalLocal.
                 const slot = self.localSlot(ident.name) orelse return error.UnsupportedPattern;
                 return builder.appendVar(allocator, .bound_eq, .{
                     .sid = try self.internForRuntime(ident.name),
                     .idx = slot,
-                    .negation_count = 0,
+                    .negation_count = negation_count,
                 });
             },
             else => return error.UnsupportedPattern,
         }
     }
 
+    // Negation distributes over merge parts the way astToPattern threads
+    // negation_count through collectPatternMergeElements. Negated nested
+    // merges flatten into the outer part list, mirroring the analyzer's
+    // collectMergeChain: after flattening, a part carries at most one
+    // .negation wrapper, and merge_part_unbound is keyed on that wrapper.
     fn lowerMergeParts(
         self: *Compiler,
         module_id: Module.Id,
@@ -2012,43 +2070,64 @@ pub const Compiler = struct {
         builder: *PlanBuilder,
         merge_plan: *match_plan.MergePlan,
         all_locals_bound: bool,
+        negation_count: u2,
     ) (Error || error{UnsupportedPattern})!void {
         switch (rnode.node) {
             .merge => |merge| {
-                try self.lowerMergeParts(module_id, merge.left, builder, merge_plan, all_locals_bound);
-                try self.lowerMergeParts(module_id, merge.right, builder, merge_plan, all_locals_bound);
+                try self.lowerMergeParts(module_id, merge.left, builder, merge_plan, all_locals_bound, negation_count);
+                try self.lowerMergeParts(module_id, merge.right, builder, merge_plan, all_locals_bound, negation_count);
             },
-            else => {
-                // Binding analysis records solvability per part; a part it
-                // never visited means the pattern shape diverged from the
-                // analysis walk, so fall back rather than guess.
-                const unbound = self.binding_maps.merge_part_unbound.get(rnode) orelse
-                    return error.UnsupportedPattern;
-                if (rnode.node == .repeat) {
-                    // Only an object repeat with a count that cannot fail to
-                    // evaluate is safe as a merge part: the solver decides
-                    // rest-vs-counted-structural by evaluating the count at
-                    // merge entry, and a count that evaluates statically but
-                    // comes up empty at match time (a nested repeat or merge)
-                    // would flip that classification. Rest repeats also
-                    // interact with later parts' boundness. Both stay on the
-                    // tree path.
-                    if (unbound) return error.UnsupportedPattern;
-                    if (rnode.node.repeat.left.node != .object) return error.UnsupportedPattern;
-                }
-                if (unbound) merge_plan.solvable_index = merge_plan.part_count;
-                const part_start = builder.nodes.items.len;
-                try self.lowerPatternNode(module_id, rnode, builder, all_locals_bound);
-                if (builder.nodes.items[part_start].tag == .repeat) {
-                    const count_idx = part_start + 1 + builder.nodes.items[part_start + 1].subtree_len;
-                    switch (builder.nodes.items[count_idx].tag) {
-                        .equality, .bound_eq, .const_fn, .call => {},
-                        else => return error.UnsupportedPattern,
-                    }
-                }
-                merge_plan.part_count += 1;
+            .negation => |inner| switch (inner.node) {
+                .merge, .negation => {
+                    const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
+                    try self.lowerMergeParts(module_id, inner, builder, merge_plan, all_locals_bound, new_negation_count);
+                },
+                else => try self.lowerMergePart(module_id, rnode, builder, merge_plan, all_locals_bound, negation_count),
             },
+            else => try self.lowerMergePart(module_id, rnode, builder, merge_plan, all_locals_bound, negation_count),
         }
+    }
+
+    fn lowerMergePart(
+        self: *Compiler,
+        module_id: Module.Id,
+        rnode: *Ast.Pattern.RNode,
+        builder: *PlanBuilder,
+        merge_plan: *match_plan.MergePlan,
+        all_locals_bound: bool,
+        negation_count: u2,
+    ) (Error || error{UnsupportedPattern})!void {
+        // Binding analysis records solvability per part; a part it
+        // never visited means the pattern shape diverged from the
+        // analysis walk, so fall back rather than guess.
+        const unbound = self.binding_maps.merge_part_unbound.get(rnode) orelse
+            return error.UnsupportedPattern;
+        // The part may carry one .negation wrapper (collectMergeChain keeps
+        // it); look through it for the repeat guard.
+        const part_node = if (rnode.node == .negation) rnode.node.negation.node else rnode.node;
+        if (part_node == .repeat) {
+            // Only an object repeat with a count that cannot fail to
+            // evaluate is safe as a merge part: the solver decides
+            // rest-vs-counted-structural by evaluating the count at
+            // merge entry, and a count that evaluates statically but
+            // comes up empty at match time (a nested repeat or merge)
+            // would flip that classification. Rest repeats also
+            // interact with later parts' boundness. Both stay on the
+            // tree path.
+            if (unbound) return error.UnsupportedPattern;
+            if (part_node.repeat.left.node != .object) return error.UnsupportedPattern;
+        }
+        if (unbound) merge_plan.solvable_index = merge_plan.part_count;
+        const part_start = builder.nodes.items.len;
+        try self.lowerPatternNode(module_id, rnode, builder, all_locals_bound, negation_count);
+        if (builder.nodes.items[part_start].tag == .repeat) {
+            const count_idx = part_start + 1 + builder.nodes.items[part_start + 1].subtree_len;
+            switch (builder.nodes.items[count_idx].tag) {
+                .equality, .bound_eq, .const_fn, .call => {},
+                else => return error.UnsupportedPattern,
+            }
+        }
+        merge_plan.part_count += 1;
     }
 
     // How a repeat operand subtree is obtained at match time, mirroring what
