@@ -2,7 +2,6 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Writer = std.Io.Writer;
 const Elem = @import("elem.zig").Elem;
-const Pattern = @import("pattern.zig").Pattern;
 const StringTable = @import("string_table.zig").StringTable(.runtime);
 const VM = @import("vm.zig").VM;
 
@@ -12,18 +11,20 @@ const VM = @import("vm.zig").VM;
 // path (see Compiler.tryCreateMatchPlan).
 pub const MatchPlan = struct {
     nodes: []Node,
-    vars: []Pattern.PatternVar,
+    vars: []LocalVar,
     // Constant elems compared with checkEquality. Dyn elems are immortal,
     // like module constants.
     elems: []Elem,
     // Constant object keys, interned at compile time.
     sids: []StringTable.Id,
+    ranges: []RangePlan,
 
     pub fn deinit(self: *MatchPlan, allocator: Allocator) void {
         allocator.free(self.nodes);
         allocator.free(self.vars);
         allocator.free(self.elems);
         allocator.free(self.sids);
+        allocator.free(self.ranges);
     }
 
     pub fn print(self: MatchPlan, vm: VM, writer: *Writer) Writer.Error!void {
@@ -65,8 +66,22 @@ pub const MatchPlan = struct {
                 try writer.print("\"{s}\": ", .{vm.strings.get(self.sids[node.payload])});
                 return self.printNode(vm, writer, idx + 1);
             },
+            .range => {
+                const range = self.ranges[node.payload];
+                try self.printLimit(vm, writer, range.lower);
+                try writer.print("..", .{});
+                try self.printLimit(vm, writer, range.upper);
+            },
         }
         return idx + 1;
+    }
+
+    fn printLimit(self: MatchPlan, vm: VM, writer: *Writer, limit: RangePlan.Limit) Writer.Error!void {
+        switch (limit) {
+            .none => {},
+            .const_elem => |i| try self.elems[i].print(vm, writer),
+            .bound_local => |i| try writer.print("{s}", .{vm.strings.get(self.vars[i].sid)}),
+        }
     }
 };
 
@@ -97,4 +112,33 @@ pub const Tag = enum(u8) {
     // One object pair: payload = the key's sids index, the value subtree
     // follows. subtree_len covers the value, so skipping a pair is O(1).
     const_key,
+    // A range with statically-resolvable bounds. ranges[payload].
+    range,
+};
+
+pub const LocalVar = struct {
+    sid: StringTable.Id,
+    idx: u24, // stack index/module constant id
+    negation_count: u2,
+
+    pub fn isNegated(self: LocalVar) bool {
+        return self.negation_count % 2 == 1;
+    }
+
+    pub fn hasBeenNegated(self: LocalVar) bool {
+        return self.negation_count != 0;
+    }
+};
+
+pub const RangePlan = struct {
+    lower: Limit,
+    upper: Limit,
+
+    pub const Limit = union(enum) {
+        none,
+        // elems index.
+        const_elem: u32,
+        // vars index; the local is statically bound.
+        bound_local: u32,
+    };
 };
