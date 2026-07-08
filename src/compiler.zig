@@ -1595,6 +1595,7 @@ pub const Compiler = struct {
         sids: ArrayList(RuntimeStrings.Id) = .{},
         ranges: ArrayList(match_plan.RangePlan) = .{},
         merges: ArrayList(match_plan.MergePlan) = .{},
+        calls: ArrayList(match_plan.CallPlan) = .{},
         reads: liveness.SlotSet = liveness.SlotSet.initEmpty(),
 
         fn deinit(self: *PlanBuilder, allocator: std.mem.Allocator) void {
@@ -1604,6 +1605,7 @@ pub const Compiler = struct {
             self.sids.deinit(allocator);
             self.ranges.deinit(allocator);
             self.merges.deinit(allocator);
+            self.calls.deinit(allocator);
         }
 
         fn appendLeaf(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, payload: u32) !void {
@@ -1667,6 +1669,8 @@ pub const Compiler = struct {
         errdefer allocator.free(ranges);
         const merges = try builder.merges.toOwnedSlice(allocator);
         errdefer allocator.free(merges);
+        const calls = try builder.calls.toOwnedSlice(allocator);
+        errdefer allocator.free(calls);
 
         const module = self.vm.getModule(module_id);
         const idx = try module.addMatchPlan(allocator, .{
@@ -1676,6 +1680,7 @@ pub const Compiler = struct {
             .sids = sids,
             .ranges = ranges,
             .merges = merges,
+            .calls = calls,
         });
 
         const gop = try self.plan_reads.getOrPut(allocator, module_id);
@@ -1705,13 +1710,17 @@ pub const Compiler = struct {
                     return builder.appendLeaf(allocator, .placeholder, 0);
                 }
                 if (self.resolveGlobal(module_id, name)) |global| {
-                    // Zero-arity function constants are evaluated per match
-                    // (const_fn is deferred).
-                    if (global.isDynType(.Function) or
-                        global.isDynType(.NativeCode) or
-                        global.isDynType(.Closure))
-                    {
-                        return error.UnsupportedPattern;
+                    // A zero-arity Function global is executed per match and
+                    // its result compared. The solver never executes native
+                    // code or closures here (matchConstant only runs
+                    // Functions), so those compare directly. A Function with
+                    // nonzero arity is a runtime error on every match; keep
+                    // it on the tree path.
+                    if (global.isDynType(.Function)) {
+                        if (global.asDyn().asFunction().arity != 0) {
+                            return error.UnsupportedPattern;
+                        }
+                        return builder.appendLeaf(allocator, .const_fn, try builder.addElem(allocator, global));
                     }
                     return builder.appendEquality(allocator, global);
                 }
@@ -1811,9 +1820,9 @@ pub const Compiler = struct {
                             if (stringified.isType(.Dyn)) stringified.asDyn().makeImmortal();
                             builder.elems.items[elem_idx] = stringified;
                         },
-                        // Bound locals stringify at match time; ranges
-                        // match one character.
-                        .bound_eq, .range => {},
+                        // Bound locals and evaluated calls stringify at
+                        // match time; ranges match one character.
+                        .bound_eq, .const_fn, .call, .range => {},
                         // An evaluable compound segment (an array or merge
                         // of bound values) would need runtime evaluation;
                         // keep those on the tree path.
@@ -1840,6 +1849,103 @@ pub const Compiler = struct {
                 try self.lowerMergeParts(module_id, rnode, builder, &merge_plan);
                 builder.merges.items[merge_idx] = merge_plan;
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
+            },
+            .function_call => |function_call| {
+                // A call is evaluated at match time and its result compared.
+                // Non-identifier callees are a compile error and a constant
+                // callee that is not a function or takes a different number
+                // of arguments always errors at match; both stay on the tree
+                // path, which reports them.
+                const nameNode = function_call.function.node;
+                if (nameNode != .identifier or nameNode.identifier.underscored) {
+                    return error.UnsupportedPattern;
+                }
+                const name = nameNode.identifier.name;
+
+                const callee: match_plan.CallPlan.Callee = if (self.resolveGlobal(module_id, name)) |global| blk: {
+                    if (!global.isDynType(.Function)) return error.UnsupportedPattern;
+                    if (global.asDyn().asFunction().arity != function_call.args.items.len) {
+                        return error.UnsupportedPattern;
+                    }
+                    break :blk .{ .constant = try builder.addElem(allocator, global) };
+                } else if (self.localSlot(name)) |slot|
+                    // The local's value is only known at match time; the
+                    // interpreter checks it is a function of the right arity.
+                    .{ .local = try builder.addVar(allocator, .{
+                        .sid = try self.internForRuntime(name),
+                        .idx = slot,
+                        .negation_count = 0,
+                    }) }
+                else
+                    return error.UnsupportedPattern;
+
+                const start = builder.nodes.items.len;
+                try builder.nodes.append(allocator, .{
+                    .tag = .call,
+                    .subtree_len = undefined,
+                    .payload = @intCast(builder.calls.items.len),
+                });
+                try builder.calls.append(allocator, .{
+                    .callee = callee,
+                    .arg_count = @intCast(function_call.args.items.len),
+                });
+                for (function_call.args.items) |arg| {
+                    try self.lowerCallArg(module_id, arg, builder);
+                }
+                builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
+            },
+            else => return error.UnsupportedPattern,
+        }
+    }
+
+    // Lower one function-call argument. Arguments are evaluated, not
+    // matched: constants fold to elems here, mirroring attemptEval's
+    // results; locals and function constants resolve at match time.
+    // Negation stays on the tree path until negation lowering lands.
+    fn lowerCallArg(
+        self: *Compiler,
+        module_id: Module.Id,
+        rnode: *Ast.Value.RNode,
+        builder: *PlanBuilder,
+    ) (Error || error{UnsupportedPattern})!void {
+        const allocator = self.vm.allocator;
+
+        switch (rnode.node) {
+            .true => return builder.appendEquality(allocator, Elem.boolean(true)),
+            .false => return builder.appendEquality(allocator, Elem.boolean(false)),
+            .null => return builder.appendEquality(allocator, Elem.nullConst),
+            .number_float => |f| return builder.appendEquality(allocator, Elem.numberFloat(f)),
+            .number_string => |ns| {
+                const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                const number = ns_elem.asNumberString().toNumberFloat(self.vm.strings);
+                return builder.appendEquality(allocator, number);
+            },
+            .string => |s| {
+                const sid = try self.vm.strings.insert(s);
+                return builder.appendEquality(allocator, Elem.string(sid));
+            },
+            .identifier => |ident| {
+                if (self.resolveGlobal(module_id, ident.name)) |global| {
+                    // evalConstant executes zero-arity Function arguments
+                    // per match; a nonzero arity always errors at match, so
+                    // it stays on the tree path.
+                    if (global.isDynType(.Function)) {
+                        if (global.asDyn().asFunction().arity != 0) {
+                            return error.UnsupportedPattern;
+                        }
+                        return builder.appendLeaf(allocator, .const_fn, try builder.addElem(allocator, global));
+                    }
+                    return builder.appendEquality(allocator, global);
+                }
+                // A local argument reads its slot at match time: it may be
+                // bound by an earlier part of this same pattern, so there is
+                // no static boundness to record.
+                const slot = self.localSlot(ident.name) orelse return error.UnsupportedPattern;
+                return builder.appendVar(allocator, .bound_eq, .{
+                    .sid = try self.internForRuntime(ident.name),
+                    .idx = slot,
+                    .negation_count = 0,
+                });
             },
             else => return error.UnsupportedPattern,
         }

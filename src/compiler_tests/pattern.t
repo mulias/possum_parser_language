@@ -168,7 +168,7 @@
   0012    | CallFunction 2
   0014    | InsertAtIndex 1
   0016    | CallFunction 1
-  0018    | Destructure 0: [A, @Add(1, 1), 3]
+  0018    | DestructurePlan 0: [bind A, @Add(eq 1, eq 1), eq 3]
   0020    | End
   ========================================
 
@@ -2588,6 +2588,6 @@
   6 -> Double(1 + 2)
   ========================================
   0000    | ParseNumberStringChar 6
-  0002    | Destructure 0: Double(3)
+  0002    | DestructurePlan 0: Double(eq 3)
   0004    | End
   ========================================

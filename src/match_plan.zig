@@ -19,6 +19,7 @@ pub const MatchPlan = struct {
     sids: []StringTable.Id,
     ranges: []RangePlan,
     merges: []MergePlan,
+    calls: []CallPlan,
 
     pub fn deinit(self: *MatchPlan, allocator: Allocator) void {
         allocator.free(self.nodes);
@@ -27,6 +28,7 @@ pub const MatchPlan = struct {
         allocator.free(self.sids);
         allocator.free(self.ranges);
         allocator.free(self.merges);
+        allocator.free(self.calls);
     }
 
     pub fn print(self: MatchPlan, vm: VM, writer: *Writer) Writer.Error!void {
@@ -43,6 +45,25 @@ pub const MatchPlan = struct {
             .equality => {
                 try writer.print("eq ", .{});
                 try self.elems[node.payload].print(vm, writer);
+            },
+            .const_fn => {
+                try writer.print("const_fn ", .{});
+                try self.elems[node.payload].print(vm, writer);
+            },
+            .call => {
+                const call = self.calls[node.payload];
+                switch (call.callee) {
+                    .constant => |elem_idx| try self.elems[elem_idx].print(vm, writer),
+                    .local => |var_idx| try writer.print("{s}", .{vm.strings.get(self.vars[var_idx].sid)}),
+                }
+                try writer.print("(", .{});
+                var arg = idx + 1;
+                for (0..call.arg_count) |i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    arg = try self.printNode(vm, writer, arg);
+                }
+                try writer.print(")", .{});
+                return arg;
             },
             .array => {
                 try writer.print("[", .{});
@@ -123,6 +144,15 @@ pub const Tag = enum(u8) {
     // A constant folded at compile time: compare the value against it.
     // elems[payload].
     equality,
+    // A global that may hold a function, mirroring the solver's
+    // matchConstant: a zero-arity Function is executed per match and its
+    // result compared; native code, closures, and non-function values
+    // compare directly. elems[payload].
+    const_fn,
+    // A function call: calls[payload], argument subtrees follow in
+    // preorder. The callee and arguments are evaluated, not matched; the
+    // call result is compared against the value.
+    call,
     // `_`: always matches, binds nothing.
     placeholder,
     // A fixed-length array: payload = element count, element subtrees follow
@@ -158,6 +188,21 @@ pub const MergePlan = struct {
     // solvable part with a bound_eq subtree: it matches as an equality at
     // its position, after the earlier parts have bound it.
     solvable_index: ?u32,
+};
+
+// A function call in pattern position. Constant callees are verified to be
+// functions with matching arity at lowering; local callees hold arbitrary
+// runtime values, so both checks happen at match time.
+pub const CallPlan = struct {
+    callee: Callee,
+    arg_count: u32,
+
+    pub const Callee = union(enum) {
+        // vars index; the local's value must be a Function at match time.
+        local: u32,
+        // elems index; always a Function.
+        constant: u32,
+    };
 };
 
 // A merge part after the interpreter's resolution pass.
