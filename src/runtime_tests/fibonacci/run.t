@@ -20,7 +20,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, N, 4
-  0005    | Destructure 1: N
+  0005    | DestructurePlan 1: bind N
   
   Destructure:
       4 -> N
@@ -59,7 +59,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, 4
-  0003    | Destructure 0: ..1
+  0003    | DestructurePlan 0: ..1
   
   Destructure:
       4 -> ..1
@@ -113,7 +113,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, 3
-  0003    | Destructure 0: ..1
+  0003    | DestructurePlan 0: ..1
   
   Destructure:
       3 -> ..1
@@ -167,7 +167,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, 2
-  0003    | Destructure 0: ..1
+  0003    | DestructurePlan 0: ..1
   
   Destructure:
       2 -> ..1
@@ -221,7 +221,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib, 1, 1
-  0003    | Destructure 0: ..1
+  0003    | DestructurePlan 0: ..1
   
   Destructure:
       1 -> ..1
@@ -285,7 +285,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, null, 1, Fib, 0, 0
-  0003    | Destructure 0: ..1
+  0003    | DestructurePlan 0: ..1
   
   Destructure:
       0 -> ..1
@@ -359,7 +359,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, null, 1, Fib, 1, 1
-  0003    | Destructure 0: ..1
+  0003    | DestructurePlan 0: ..1
   
   Destructure:
       1 -> ..1
@@ -433,7 +433,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, 2
-  0003    | Destructure 0: ..1
+  0003    | DestructurePlan 0: ..1
   
   Destructure:
       2 -> ..1
@@ -487,7 +487,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, null, 2, Fib, 2, Fib, 1, 1
-  0003    | Destructure 0: ..1
+  0003    | DestructurePlan 0: ..1
   
   Destructure:
       1 -> ..1
@@ -551,7 +551,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, null, 2, Fib, null, 1, Fib, 0, 0
-  0003    | Destructure 0: ..1
+  0003    | DestructurePlan 0: ..1
   
   Destructure:
       0 -> ..1

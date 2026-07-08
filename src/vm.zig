@@ -203,6 +203,10 @@ pub const VM = struct {
     // merge so nested matches (VM re-entry, nested merges) compose.
     plan_merge_parts: ArrayList(match_plan.ResolvedPart),
     plan_matched_keys: ArrayList(StringTable.Id),
+    // Match-step indentation for the plan interpreter under the debug print
+    // modes, mirroring PatternSolver.depth. Saved and restored across the
+    // nested VM executions a pattern function triggers.
+    plan_debug_depth: u8,
     writers: Writers,
     config: Config,
     singleton_empty_array: ?Elem,
@@ -260,6 +264,7 @@ pub const VM = struct {
             .pattern_solver = undefined,
             .plan_merge_parts = undefined,
             .plan_matched_keys = undefined,
+            .plan_debug_depth = undefined,
             .writers = undefined,
             .config = undefined,
             .singleton_empty_array = null,
@@ -300,6 +305,7 @@ pub const VM = struct {
         self.pattern_solver = PatternSolver.init(self);
         self.plan_merge_parts = ArrayList(match_plan.ResolvedPart){};
         self.plan_matched_keys = ArrayList(StringTable.Id){};
+        self.plan_debug_depth = 0;
         self.singleton_empty_array = null;
         self.singleton_empty_object = null;
         self.singleton_empty_string = Elem.string(try self.strings.insert(""));

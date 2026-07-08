@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const Elem = @import("elem.zig").Elem;
 const VM = @import("vm.zig").VM;
 const match_plan = @import("match_plan.zig");
@@ -14,6 +15,109 @@ pub const Error = error{
     RuntimeError,
     OutOfMemory,
 } || VM.Error;
+
+// The debug print modes (PRINT_VM / PRINT_DESTRUCTURE) trace each match step
+// as an indented `value -> pattern` line, mirroring PatternSolver.printSteps.
+// The flag is config-derived and constant for the run.
+inline fn printSteps(vm: *VM) bool {
+    return vm.config.printVM or vm.config.printDestructure;
+}
+
+fn printIndentation(vm: *VM) Error!void {
+    for (0..vm.plan_debug_depth) |_| {
+        try vm.writers.debug.print("    ", .{});
+    }
+}
+
+// `value -> pattern`, mirroring PatternSolver.printDestructure. noinline so
+// the never-taken print branch costs the interpreter only a test.
+noinline fn emitStep(vm: *VM, value: Elem, plan: MatchPlan, idx: u32) Error!void {
+    try printIndentation(vm);
+    try value.print(vm.*, vm.writers.debug);
+    try vm.writers.debug.print(" -> ", .{});
+    _ = try plan.printPatternSubtree(vm.*, vm.writers.debug, idx);
+    try vm.writers.debug.print("\n", .{});
+}
+
+// `value -> value`, mirroring PatternSolver.printDestructureEquality: the
+// checkEquality line printed after a leaf compare resolves its value.
+noinline fn emitEquality(vm: *VM, value: Elem, pattern_value: Elem) Error!void {
+    try printIndentation(vm);
+    try value.print(vm.*, vm.writers.debug);
+    try vm.writers.debug.print(" -> ", .{});
+    try pattern_value.print(vm.*, vm.writers.debug);
+    try vm.writers.debug.print("\n", .{});
+}
+
+// The pattern rendered in the `Eval Pattern Function:` banner: either a plan
+// subtree (const_fn / call node) or a bare bound local (mirrors `.Local`).
+const EvalBanner = union(enum) {
+    subtree: struct { plan: MatchPlan, idx: u32 },
+    local: LocalVar,
+};
+
+noinline fn emitEvalBanner(vm: *VM, banner: EvalBanner) Error!void {
+    try vm.writers.debug.print("\nEval Pattern Function: ", .{});
+    switch (banner) {
+        .subtree => |s| _ = try s.plan.printPatternSubtree(vm.*, vm.writers.debug, s.idx),
+        .local => |lv| try vm.writers.debug.print("{s}{s}", .{
+            negativeSigns(lv.negation_count),
+            vm.strings.get(lv.sid),
+        }),
+    }
+    try vm.writers.debug.print("\n", .{});
+}
+
+fn negativeSigns(count: u2) []const u8 {
+    return switch (count) {
+        0 => "",
+        1 => "-",
+        2 => "--",
+        3 => "-",
+    };
+}
+
+// A byte-slice comparison printed as `"value" -> "pattern"` with its own
+// depth bump, mirroring PatternSolver.matchStringBytes.
+fn matchStringBytesStep(vm: *VM, value_bytes: []const u8, pattern_bytes: []const u8) Error!bool {
+    vm.plan_debug_depth +|= 1;
+    defer vm.plan_debug_depth -|= 1;
+    if (printSteps(vm)) try emitStringBytes(vm, value_bytes, pattern_bytes);
+    return std.mem.eql(u8, value_bytes, pattern_bytes);
+}
+
+noinline fn emitStringBytes(vm: *VM, value_bytes: []const u8, pattern_bytes: []const u8) Error!void {
+    try printIndentation(vm);
+    try vm.writers.debug.print("\"{s}\" -> \"{s}\"\n", .{ value_bytes, pattern_bytes });
+}
+
+// The plain-object match banners, mirroring matchObject's inline prints. The
+// merge/repeat object pair path (matchObjectPair) prints no banner.
+noinline fn emitObjectBoundKey(vm: *VM, plan: MatchPlan, key: Elem, member: Elem, value_idx: u32) Error!void {
+    try printIndentation(vm);
+    try vm.writers.debug.print("{{", .{});
+    try key.print(vm.*, vm.writers.debug);
+    try vm.writers.debug.print(": ", .{});
+    try member.print(vm.*, vm.writers.debug);
+    try vm.writers.debug.print("}} -> {{", .{});
+    try key.print(vm.*, vm.writers.debug);
+    try vm.writers.debug.print(": ", .{});
+    _ = try plan.printPatternSubtree(vm.*, vm.writers.debug, value_idx);
+    try vm.writers.debug.print("}}\n", .{});
+}
+
+noinline fn emitObjectSearchAttempt(vm: *VM, plan: MatchPlan, obj_key: Elem, obj_value: Elem, key_idx: u32, value_idx: u32) Error!void {
+    try printIndentation(vm);
+    try vm.writers.debug.print("{{", .{});
+    try obj_key.print(vm.*, vm.writers.debug);
+    try vm.writers.debug.print(": ", .{});
+    try obj_value.print(vm.*, vm.writers.debug);
+    try vm.writers.debug.print("}} -> {{", .{});
+    _ = try plan.printPatternSubtree(vm.*, vm.writers.debug, key_idx);
+    try vm.writers.debug.print(": ", .{});
+    _ = try plan.printPatternSubtree(vm.*, vm.writers.debug, value_idx);
+    try vm.writers.debug.print("}}\n", .{});
+}
 
 // Interpreter for compiled match plans. Runs directly against the VM with no
 // PatternSolver bookkeeping: bind-vs-equality is decided statically, so there
@@ -32,13 +136,47 @@ pub fn match(vm: *VM, value: Elem, plan: MatchPlan, value_discarded: bool) Error
     const discardable_root: ?*Elem.DynElem =
         if (value_discarded and value.isType(.Dyn)) value.asDyn() else null;
 
-    return matchNode(vm, value, plan, 0, discardable_root);
+    // Depth is reset per destructure and restored on exit: a pattern
+    // function re-enters the VM and can nest another match.
+    const prev_depth = vm.plan_debug_depth;
+    vm.plan_debug_depth = 0;
+    defer vm.plan_debug_depth = prev_depth;
+
+    if (printSteps(vm)) try vm.writers.debug.print("\nDestructure:\n", .{});
+
+    const success = try matchNode(vm, value, plan, 0, discardable_root);
+
+    if (printSteps(vm)) {
+        if (success) {
+            try vm.writers.debug.print("Destructure Success: ", .{});
+        } else {
+            try vm.writers.debug.print("Destructure Failure: ", .{});
+        }
+        try value.print(vm.*, vm.writers.debug);
+        try vm.writers.debug.print(" -> ", .{});
+        _ = try plan.printPatternSubtree(vm.*, vm.writers.debug, 0);
+        try vm.writers.debug.print("\n", .{});
+    }
+
+    return success;
 }
 
 // discardable is the root value dyn when the VM discards the match result;
 // it is only consulted by an object merge matching that dyn directly, so
 // recursive calls (which match sub-values) pass null.
+//
+// One match step per recursion mirrors PatternSolver.matchPattern: bump the
+// depth, print the `value -> pattern` line, then dispatch on the node tag.
 fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Elem.DynElem) Error!bool {
+    vm.plan_debug_depth +|= 1;
+    defer vm.plan_debug_depth -|= 1;
+
+    if (printSteps(vm)) try emitStep(vm, value, plan, idx);
+
+    return dispatchNode(vm, value, plan, idx, discardable);
+}
+
+fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Elem.DynElem) Error!bool {
     const node = plan.nodes[idx];
 
     switch (node.tag) {
@@ -49,9 +187,21 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
             if (node.payload != 0 and !value.isNumber()) return false;
             return true;
         },
-        .equality => return value.isEql(plan.elems[node.payload], vm.*),
-        .const_fn => return value.isEql(try evalConstFn(vm, plan, node.payload), vm.*),
-        .call => return value.isEql(try evalCall(vm, plan, idx), vm.*),
+        .equality => {
+            const pattern_value = plan.elems[node.payload];
+            if (printSteps(vm)) try emitEquality(vm, value, pattern_value);
+            return value.isEql(pattern_value, vm.*);
+        },
+        .const_fn => {
+            const pattern_value = try evalConstFn(vm, plan, idx);
+            if (printSteps(vm)) try emitEquality(vm, value, pattern_value);
+            return value.isEql(pattern_value, vm.*);
+        },
+        .call => {
+            const pattern_value = try evalCall(vm, plan, idx);
+            if (printSteps(vm)) try emitEquality(vm, value, pattern_value);
+            return value.isEql(pattern_value, vm.*);
+        },
         .bind => {
             const local_var = plan.vars[node.payload];
             // A negated bind of a non-number fails the match (not an
@@ -66,6 +216,7 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
         },
         .bound_eq => {
             const pattern_value = try resolveBoundLocal(vm, plan.vars[node.payload]);
+            if (printSteps(vm)) try emitEquality(vm, value, pattern_value);
             return value.isEql(pattern_value, vm.*);
         },
         .array => {
@@ -119,7 +270,7 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
                 else switch (child_node.tag) {
                     .equality => .{ .value = plan.elems[child_node.payload] },
                     .bound_eq => .{ .value = try stringifyBoundLocal(vm, plan.vars[child_node.payload]) },
-                    .const_fn => .{ .value = try stringifyElem(vm, try evalConstFn(vm, plan, child_node.payload)) },
+                    .const_fn => .{ .value = try stringifyElem(vm, try evalConstFn(vm, plan, child)) },
                     .call => .{ .value = try stringifyElem(vm, try evalCall(vm, plan, child)) },
                     .range => .{ .subtree = child },
                     // Lowering rejects other non-solvable segment shapes.
@@ -207,6 +358,7 @@ fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
                 for (0..pattern_len) |j| {
                     const value_elem = value_array.elems.items[start + j];
                     const pattern_elem_at_j = pattern_array.elems.items[j];
+                    if (printSteps(vm)) try emitEquality(vm, value_elem, pattern_elem_at_j);
                     if (!value_elem.isEql(pattern_elem_at_j, vm.*)) {
                         return false;
                     }
@@ -231,6 +383,7 @@ fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
                 return matchNode(vm, count_elem, plan, count_idx, null);
             }
 
+            if (printSteps(vm)) try emitEquality(vm, value, pattern_value);
             if (!value.isEql(pattern_value, vm.*)) return false;
             return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
         }
@@ -467,7 +620,7 @@ fn evalNode(vm: *VM, plan: MatchPlan, idx: u32) Error!?Elem {
     switch (node.tag) {
         .equality => return plan.elems[node.payload],
         .bound_eq => return try resolveBoundLocal(vm, plan.vars[node.payload]),
-        .const_fn => return try evalConstFn(vm, plan, node.payload),
+        .const_fn => return try evalConstFn(vm, plan, idx),
         .call => return try evalCall(vm, plan, idx),
         .bind, .placeholder, .object, .range, .str_template => return null,
         .array => {
@@ -582,11 +735,26 @@ fn countRangeCodepoints(vm: *VM, plan: MatchPlan, range_node_idx: u32, value_str
             if (codepoint > upper) return null;
         }
 
+        if (printSteps(vm)) try emitRangeCodepointStep(vm, plan, range_node_idx, value_str[byte_index .. byte_index + byte_len]);
+
         codepoint_count += 1;
         byte_index += byte_len;
     }
 
     return codepoint_count;
+}
+
+// One codepoint of a range-repeat scan printed as `"<char>" -> <range>`,
+// mirroring the solver's per-codepoint step in its range-repeat branches.
+noinline fn emitRangeCodepointStep(vm: *VM, plan: MatchPlan, range_node_idx: u32, char_bytes: []const u8) Error!void {
+    vm.plan_debug_depth +|= 1;
+    defer vm.plan_debug_depth -|= 1;
+    try printIndentation(vm);
+    try vm.writers.debug.print("\"", .{});
+    try vm.writers.debug.writeAll(char_bytes);
+    try vm.writers.debug.print("\" -> ", .{});
+    _ = try plan.printPatternSubtree(vm.*, vm.writers.debug, range_node_idx);
+    try vm.writers.debug.print("\n", .{});
 }
 
 fn rangeLimitCodepoint(vm: *VM, plan: MatchPlan, limit: match_plan.RangePlan.Limit) Error!?u21 {
@@ -660,7 +828,7 @@ fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
         else switch (child_node.tag) {
             .equality => .{ .value = plan.elems[child_node.payload] },
             .bound_eq => .{ .value = try resolveBoundLocal(vm, plan.vars[child_node.payload]) },
-            .const_fn => .{ .value = try evalConstFn(vm, plan, child_node.payload) },
+            .const_fn => .{ .value = try evalConstFn(vm, plan, child) },
             .call => .{ .value = try evalCall(vm, plan, child) },
             else => .{ .subtree = child },
         };
@@ -712,6 +880,11 @@ fn matchObjectNode(
     object_node_idx: u32,
     value_object: *Elem.DynElem.Object,
 ) Error!bool {
+    // matchObject bumps depth for its inline banners, an extra level over the
+    // object node's own match step.
+    vm.plan_debug_depth +|= 1;
+    defer vm.plan_debug_depth -|= 1;
+
     const pair_count = plan.nodes[object_node_idx].payload;
 
     var has_search_key = false;
@@ -740,6 +913,7 @@ fn matchObjectNode(
                 value_object,
                 mark_base,
                 .shared,
+                true,
             ),
             .eval_key => blk: {
                 const key_value = (try evalNode(vm, plan, pair + 1)).?;
@@ -752,6 +926,7 @@ fn matchObjectNode(
                     value_object,
                     mark_base,
                     .shared,
+                    true,
                 );
             },
             .pattern_key => blk: {
@@ -766,9 +941,10 @@ fn matchObjectNode(
                         value_object,
                         mark_base,
                         .shared,
+                        true,
                     );
                 }
-                break :blk try searchObjectPair(vm, plan, key_idx, value_idx, value_object, matched_base);
+                break :blk try searchObjectPair(vm, plan, key_idx, value_idx, value_object, matched_base, true);
             },
             else => unreachable,
         };
@@ -802,9 +978,13 @@ fn matchResolvedKeyPair(
     value_object: *Elem.DynElem.Object,
     matched_base: ?usize,
     claim: KeyClaim,
+    print_banner: bool,
 ) Error!bool {
     if (claim == .exclusive and keyMatched(vm, matched_base.?, sid)) return false;
     const member = value_object.members.get(sid) orelse return false;
+    // The plain-object bound-key banner prints only once the member is found,
+    // mirroring matchObject.
+    if (print_banner and printSteps(vm)) try emitObjectBoundKey(vm, plan, Elem.string(sid), member, value_idx);
     if (!(try matchNode(vm, member, plan, value_idx, null))) return false;
     if (matched_base) |base| try markKeyMatched(vm, base, sid);
     return true;
@@ -831,21 +1011,22 @@ fn matchMergeObjectPair(
             value_object,
             matched_base,
             claim,
+            false,
         ),
         .eval_key => {
             const key_value = (try evalNode(vm, plan, pair_idx + 1)).?;
             const sid = (try key_value.getOrPutSid(vm)) orelse return error.RuntimeError;
             const value_idx = pair_idx + 1 + plan.nodes[pair_idx + 1].subtree_len;
-            return matchResolvedKeyPair(vm, plan, sid, value_idx, value_object, matched_base, claim);
+            return matchResolvedKeyPair(vm, plan, sid, value_idx, value_object, matched_base, claim, false);
         },
         .pattern_key => {
             const key_idx = pair_idx + 1;
             const value_idx = key_idx + plan.nodes[key_idx].subtree_len;
             if (try evalNode(vm, plan, key_idx)) |key_value| {
                 const sid = (try key_value.getOrPutSid(vm)) orelse return error.RuntimeError;
-                return matchResolvedKeyPair(vm, plan, sid, value_idx, value_object, matched_base, claim);
+                return matchResolvedKeyPair(vm, plan, sid, value_idx, value_object, matched_base, claim, false);
             }
-            return searchObjectPair(vm, plan, key_idx, value_idx, value_object, matched_base);
+            return searchObjectPair(vm, plan, key_idx, value_idx, value_object, matched_base, false);
         },
         else => unreachable,
     }
@@ -862,12 +1043,16 @@ fn searchObjectPair(
     value_idx: u32,
     value_object: *Elem.DynElem.Object,
     matched_base: usize,
+    print_banner: bool,
 ) Error!bool {
     var iterator = value_object.members.iterator();
     while (iterator.next()) |entry| {
         const obj_key_sid = entry.key_ptr.*;
         if (keyMatched(vm, matched_base, obj_key_sid)) continue;
         const key_elem = Elem.string(obj_key_sid);
+        // The plain-object search banner prints per candidate member,
+        // mirroring matchObject's search loop.
+        if (print_banner and printSteps(vm)) try emitObjectSearchAttempt(vm, plan, key_elem, entry.value_ptr.*, key_idx, value_idx);
         if (try matchNode(vm, key_elem, plan, key_idx, null)) {
             if (try matchNode(vm, entry.value_ptr.*, plan, value_idx, null)) {
                 try markKeyMatched(vm, matched_base, obj_key_sid);
@@ -1021,7 +1206,7 @@ fn matchArrayMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u3
         // A bare `_` rest matches any range without binding; skip
         // materializing it. A negated `-_` (payload != 0) still needs the
         // materialized rest so the match applies its number check.
-        if (plan.nodes[sub].tag != .placeholder or plan.nodes[sub].payload != 0) {
+        if (printSteps(vm) or plan.nodes[sub].tag != .placeholder or plan.nodes[sub].payload != 0) {
             const unbound_elems = value_array.elems.items[unbound_start..unbound_end];
             const unbound_array = try Elem.DynElem.Array.create(vm, unbound_elems.len);
             try vm.pushTempDyn(&unbound_array.dyn);
@@ -1069,7 +1254,9 @@ fn matchArrayMergeFixedPart(
                 if (end_index > value_array.elems.items.len) return false;
 
                 for (array.elems.items, 0..) |expected_elem, i| {
-                    if (!value_array.elems.items[value_index.* + i].isEql(expected_elem, vm.*)) {
+                    const value_elem = value_array.elems.items[value_index.* + i];
+                    if (printSteps(vm)) try emitEquality(vm, value_elem, expected_elem);
+                    if (!value_elem.isEql(expected_elem, vm.*)) {
                         return false;
                     }
                 }
@@ -1137,6 +1324,7 @@ fn matchBooleanMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: 
         }
     }
     // `value -> true` / `value -> false`
+    if (printSteps(vm)) try emitEquality(vm, value, bound_truth);
     return value.isEql(bound_truth, vm.*);
 }
 
@@ -1170,6 +1358,7 @@ fn matchNumberMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u
         const diff = (try value.merge(try bound_sum.negateNumber(), vm)).?;
         return matchNode(vm, diff, plan, mergePart(vm, base, ui).subtree, null);
     } else {
+        if (printSteps(vm)) try emitEquality(vm, value, bound_sum);
         return value.isEql(bound_sum, vm.*);
     }
 }
@@ -1199,6 +1388,7 @@ fn matchObjectMerge(
                     while (iter.next()) |pair| {
                         const key_sid = pair.key_ptr.*;
                         if (value_object.members.get(key_sid)) |member_value| {
+                            if (printSteps(vm)) try emitEquality(vm, member_value, pair.value_ptr.*);
                             if (!member_value.isEql(pair.value_ptr.*, vm.*)) return false;
                             try markKeyMatched(vm, matched_base, key_sid);
                         } else {
@@ -1256,7 +1446,7 @@ fn matchObjectMerge(
         // A bare `_` rest matches any remaining members without binding, so
         // the rest object is never observed. A negated `-_` (payload != 0)
         // still needs the materialized rest for the match's number check.
-        if (sub_node.tag != .placeholder or sub_node.payload != 0) {
+        if (printSteps(vm) or sub_node.tag != .placeholder or sub_node.payload != 0) {
             if (canBindRestInPlace(vm, plan, value, sub_node, discardable)) {
                 // Every part before the rest has matched and binding an
                 // unbound var cannot fail, so the match is already a
@@ -1313,6 +1503,9 @@ fn canBindRestInPlace(
     rest_node: match_plan.Node,
     discardable: ?*Elem.DynElem,
 ) bool {
+    // The slow path materializes and matches the rest so the debug output
+    // shows it, mirroring the solver.
+    if (printSteps(vm)) return false;
     if (!vm.config.rc_fast_paths) return false;
     if (discardable == null or discardable.? != value.asDyn()) return false;
     if (!value.asDyn().isUnique()) return false;
@@ -1376,7 +1569,7 @@ fn matchStringMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u
         // A bare `_` rest matches any substring without binding; skip
         // materializing it. A negated `-_` (payload != 0) still needs the
         // materialized rest so the match applies its number check.
-        if (plan.nodes[sub].tag != .placeholder or plan.nodes[sub].payload != 0) {
+        if (printSteps(vm) or plan.nodes[sub].tag != .placeholder or plan.nodes[sub].payload != 0) {
             const unbound_value = value_str[unbound_start..unbound_end];
             const unbound_elem = if (value.isType(.InputSubstring)) blk: {
                 const start = value.asInputSubstring().start;
@@ -1430,7 +1623,7 @@ fn matchStringMergeFixedPart(
                 const end_index = value_index.* + part_str.len;
                 if (end_index > value_str.len) return false;
 
-                if (!std.mem.eql(u8, value_str[value_index.*..end_index], part_str)) {
+                if (!(try matchStringBytesStep(vm, value_str[value_index.*..end_index], part_str))) {
                     return false;
                 }
                 value_index.* = end_index;
@@ -1569,7 +1762,7 @@ fn matchTemplateFixedSegment(
                 const end_index = value_index.* + part_str.len;
                 if (end_index > value_str.len) return false;
 
-                if (!std.mem.eql(u8, value_str[value_index.*..end_index], part_str)) {
+                if (!(try matchStringBytesStep(vm, value_str[value_index.*..end_index], part_str))) {
                     return false;
                 }
                 value_index.* = end_index;
@@ -1674,6 +1867,12 @@ fn matchTemplateUnboundSegment(
 
     if (unbound_elem) |cast_elem| {
         if (merge_cast) |mc| {
+            // The merge cast matches through matchMergeOfType directly, so
+            // emit the merge segment's step here, mirroring the solver's
+            // manual depth bump and printDestructure.
+            vm.plan_debug_depth +|= 1;
+            defer vm.plan_debug_depth -|= 1;
+            if (printSteps(vm)) try emitStep(vm, cast_elem, plan, sub);
             return matchMergeOfType(vm, plan, cast_elem, mc.base, mc.count, mc.merge_type, null);
         }
         return matchNode(vm, cast_elem, plan, sub, null);
@@ -1759,7 +1958,7 @@ fn resolveBoundLocal(vm: *VM, local_var: LocalVar) Error!Elem {
         const function = pattern_value.asDyn().asFunction();
         // Must be zero-arity, since it was not called with args.
         if (function.arity != 0) return error.RuntimeError;
-        pattern_value = try executeFunctionOnVM(vm, pattern_value, &.{});
+        pattern_value = try executeFunctionOnVM(vm, pattern_value, &.{}, .{ .local = local_var });
         // Root the result: it may be held across allocations (a merge's
         // resolved-part list, rest materialization) with no other handle.
         if (pattern_value.isType(.Dyn)) try vm.pushTempDyn(pattern_value.asDyn());
@@ -1771,10 +1970,10 @@ fn resolveBoundLocal(vm: *VM, local_var: LocalVar) Error!Elem {
 // Execute a zero-arity Function global, mirroring the solver's
 // matchConstant/evalConstant. Lowering only emits const_fn for Function
 // dyns with arity zero, so there is no runtime type or arity check.
-fn evalConstFn(vm: *VM, plan: MatchPlan, elem_idx: u32) Error!Elem {
-    const function = plan.elems[elem_idx];
+fn evalConstFn(vm: *VM, plan: MatchPlan, node_idx: u32) Error!Elem {
+    const function = plan.elems[plan.nodes[node_idx].payload];
     std.debug.assert(function.isDynType(.Function));
-    const result = try executeFunctionOnVM(vm, function, &.{});
+    const result = try executeFunctionOnVM(vm, function, &.{}, .{ .subtree = .{ .plan = plan, .idx = node_idx } });
     // Root the result; see resolveBoundLocal.
     if (result.isType(.Dyn)) try vm.pushTempDyn(result.asDyn());
     return result;
@@ -1809,14 +2008,14 @@ fn evalCall(vm: *VM, plan: MatchPlan, call_node_idx: u32) Error!Elem {
         arg.* = switch (child_node.tag) {
             .equality => plan.elems[child_node.payload],
             .bound_eq => try evalArgLocal(vm, plan.vars[child_node.payload]),
-            .const_fn => try evalConstFn(vm, plan, child_node.payload),
+            .const_fn => try evalConstFn(vm, plan, child),
             // Lowering rejects other argument shapes.
             else => unreachable,
         };
         child += child_node.subtree_len;
     }
 
-    const result = try executeFunctionOnVM(vm, function, args);
+    const result = try executeFunctionOnVM(vm, function, args, .{ .subtree = .{ .plan = plan, .idx = call_node_idx } });
     // Root the result; see resolveBoundLocal.
     if (result.isType(.Dyn)) try vm.pushTempDyn(result.asDyn());
     return result;
@@ -1836,10 +2035,12 @@ fn evalArgLocal(vm: *VM, local_var: LocalVar) Error!Elem {
 // the debug print modes (those compile the tree path), so this is
 // PatternSolver.executeFunctionOnVM minus the print hooks. The VM stack
 // roots the function and args while it runs.
-fn executeFunctionOnVM(vm: *VM, function: Elem, args: []const Elem) Error!Elem {
+fn executeFunctionOnVM(vm: *VM, function: Elem, args: []const Elem, banner: EvalBanner) Error!Elem {
+    if (printSteps(vm)) try emitEvalBanner(vm, banner);
     try vm.push(function);
     for (args) |arg| try vm.push(arg);
     try vm.callFunction(function, @intCast(args.len), false);
     try vm.runFunction();
+    if (printSteps(vm)) try vm.writers.debug.print("\n", .{});
     return vm.pop();
 }

@@ -158,6 +158,141 @@ pub const MatchPlan = struct {
             3 => "-",
         };
     }
+
+    // Render a plan subtree in pattern syntax for the debug/explain reports,
+    // mirroring Pattern.print case by case. Distinct from printNode above
+    // (which disassembles the plan as `eq 1` / `bind A`). Returns the index
+    // one past the printed subtree. Divergences from the tree rendering are
+    // deliberate and documented in match_plan_reporting_plan.md: equality
+    // nodes hold folded values (not source names), constant template segments
+    // were stringified at lowering, and negated nested merges are flattened.
+    pub fn printPatternSubtree(self: MatchPlan, vm: VM, writer: *Writer, idx: u32) Writer.Error!u32 {
+        const node = self.nodes[idx];
+        switch (node.tag) {
+            .placeholder => try writer.print("{s}_", .{negativeSigns(@intCast(node.payload))}),
+            .bind, .bound_eq => try writer.print("{s}{s}", .{
+                negativeSigns(self.vars[node.payload].negation_count),
+                vm.strings.get(self.vars[node.payload].sid),
+            }),
+            .equality, .const_fn => try self.elems[node.payload].print(vm, writer),
+            .call => {
+                const call = self.calls[node.payload];
+                switch (call.callee) {
+                    .constant => |elem_idx| try self.elems[elem_idx].print(vm, writer),
+                    .local => |var_idx| try writer.print("{s}", .{vm.strings.get(self.vars[var_idx].sid)}),
+                }
+                try writer.print("(", .{});
+                var arg = idx + 1;
+                for (0..call.arg_count) |i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    arg = try self.printPatternSubtree(vm, writer, arg);
+                }
+                try writer.print(")", .{});
+                return arg;
+            },
+            .array => {
+                try writer.print("[", .{});
+                var child = idx + 1;
+                for (0..node.payload) |i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    child = try self.printPatternSubtree(vm, writer, child);
+                }
+                try writer.print("]", .{});
+                return child;
+            },
+            .object => {
+                try writer.print("{{", .{});
+                var pair = idx + 1;
+                for (0..node.payload) |i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    pair = try self.printPatternSubtree(vm, writer, pair);
+                }
+                try writer.print("}}", .{});
+                return pair;
+            },
+            .const_key => {
+                try writer.print("\"{s}\": ", .{vm.strings.get(self.sids[node.payload])});
+                return self.printPatternSubtree(vm, writer, idx + 1);
+            },
+            .eval_key, .pattern_key => {
+                const value_idx = try self.printPatternSubtree(vm, writer, idx + 1);
+                try writer.print(": ", .{});
+                return self.printPatternSubtree(vm, writer, value_idx);
+            },
+            .range => {
+                const range = self.ranges[node.payload];
+                try self.printLimit(vm, writer, range.lower);
+                try writer.print("..", .{});
+                try self.printLimit(vm, writer, range.upper);
+            },
+            .merge => {
+                try writer.print("(", .{});
+                var part = idx + 1;
+                for (0..self.merges[node.payload].part_count) |i| {
+                    if (i > 0) try writer.print(" + ", .{});
+                    part = try self.printPatternSubtree(vm, writer, part);
+                }
+                try writer.print(")", .{});
+                return part;
+            },
+            .str_template => {
+                try writer.print("\"", .{});
+                var segment = idx + 1;
+                for (0..self.merges[node.payload].part_count) |_| {
+                    const segment_node = self.nodes[segment];
+                    // A folded constant segment renders its content inline,
+                    // mirroring a `.String` template item; a merge segment
+                    // renders `%(...)` via the merge's own parens, mirroring a
+                    // `.Merge` template item; everything else wraps in `%(...)`.
+                    if (segment_node.tag == .equality) {
+                        try printRawString(self.elems[segment_node.payload], vm, writer);
+                        segment += segment_node.subtree_len;
+                    } else if (segment_node.tag == .merge) {
+                        try writer.print("%", .{});
+                        segment = try self.printPatternSubtree(vm, writer, segment);
+                    } else {
+                        try writer.print("%(", .{});
+                        segment = try self.printPatternSubtree(vm, writer, segment);
+                        try writer.print(")", .{});
+                    }
+                }
+                try writer.print("\"", .{});
+                return segment;
+            },
+            .repeat => {
+                try writer.print("(", .{});
+                const pattern_idx = idx + 1;
+                const count_idx = try self.printPatternSubtree(vm, writer, pattern_idx);
+                try writer.print(" * ", .{});
+                _ = try self.printPatternSubtree(vm, writer, count_idx);
+                try writer.print(")", .{});
+                // Skip the rebound pattern variant, if any.
+                return idx + node.subtree_len;
+            },
+        }
+        return idx + 1;
+    }
+
+    // The raw content of a folded string constant, without surrounding
+    // quotes, for template segment rendering.
+    fn printRawString(elem: Elem, vm: VM, writer: *Writer) Writer.Error!void {
+        switch (elem.getType()) {
+            .String => try writer.print("{s}", .{vm.strings.get(elem.asString())}),
+            .InputSubstring => try writer.print("{s}", .{elem.asInputSubstring().bytes(vm)}),
+            else => try elem.print(vm, writer),
+        }
+    }
+};
+
+// A plan subtree rendered in pattern syntax, for explain.snapshot: a value
+// type whose print(vm, writer) mirrors Pattern.print's shape.
+pub const SubtreePrintable = struct {
+    plan: *const MatchPlan,
+    idx: u32,
+
+    pub fn print(self: SubtreePrintable, vm: VM, writer: *Writer) Writer.Error!void {
+        _ = try self.plan.printPatternSubtree(vm, writer, self.idx);
+    }
 };
 
 pub const Node = struct {
