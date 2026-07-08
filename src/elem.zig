@@ -923,7 +923,7 @@ pub const Elem = packed union {
         }
     }
 
-    pub fn toJson(self: Elem, vm: VM) !json.Value {
+    pub fn toJson(self: Elem, allocator: std.mem.Allocator, vm: VM) !json.Value {
         return switch (self.getType()) {
             .String => {
                 const s = vm.strings.get(self.asString());
@@ -952,29 +952,29 @@ pub const Elem = packed union {
             },
             .Dyn => switch (self.asDyn().dynType) {
                 .String => {
-                    const s = try self.asDyn().asString().bytesAlloc(vm, vm.allocator);
+                    const s = try self.asDyn().asString().bytesAlloc(vm, allocator);
                     return .{ .string = s };
                 },
                 .Array => {
                     const array = self.asDyn().asArray();
-                    var jsonArray = json.Array.init(vm.allocator);
+                    var jsonArray = json.Array.init(allocator);
                     try jsonArray.ensureTotalCapacity(array.elems.items.len);
 
                     for (array.elems.items) |item| {
-                        try jsonArray.append(try item.toJson(vm));
+                        try jsonArray.append(try item.toJson(allocator, vm));
                     }
 
                     return .{ .array = jsonArray };
                 },
                 .Object => {
                     var object = self.asDyn().asObject();
-                    var jsonObject = json.ObjectMap.init(vm.allocator);
+                    var jsonObject = json.ObjectMap.init(allocator);
                     try jsonObject.ensureTotalCapacity(object.members.count());
 
                     var iterator = object.members.iterator();
                     while (iterator.next()) |entry| {
                         const key = vm.strings.get(entry.key_ptr.*);
-                        const value = try entry.value_ptr.*.toJson(vm);
+                        const value = try entry.value_ptr.*.toJson(allocator, vm);
                         try jsonObject.put(key, value);
                     }
 
@@ -993,7 +993,7 @@ pub const Elem = packed union {
         var arena = std.heap.ArenaAllocator.init(vm.allocator);
         defer arena.deinit();
 
-        const j = try self.toJson(vm);
+        const j = try self.toJson(arena.allocator(), vm);
         try json_pretty.stringify(j, format, outstream);
     }
 
