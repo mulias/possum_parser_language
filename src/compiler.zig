@@ -1647,7 +1647,7 @@ pub const Compiler = struct {
         module_id: Module.Id,
         rnode: *Ast.Pattern.RNode,
     ) (Error || error{UnsupportedPattern})!u24 {
-        if (self.vm.config.explain or self.vm.config.printVM or self.vm.config.printDestructure) {
+        if (self.vm.config.explain) {
             return error.UnsupportedPattern;
         }
 

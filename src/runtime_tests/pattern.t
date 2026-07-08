@@ -4,12 +4,14 @@
   
   Destructure:
       4 -> 4
+      4 -> 4
   Destructure Success: 4 -> 4
   4
 
   $ possum -p '0 -> (1 + 1 + 2)' -i '0'
   
   Destructure:
+      0 -> 4
       0 -> 4
   Destructure Failure: 0 -> 4
   
@@ -34,12 +36,14 @@
   
   Destructure:
       5 -> 5
+      5 -> 5
   Destructure Success: 5 -> 5
   5
 
   $ possum -p '7 -> (2 + 3)' -i '7'
   
   Destructure:
+      7 -> 5
       7 -> 5
   Destructure Failure: 7 -> 5
   
@@ -64,23 +68,24 @@
   
   Destructure:
       10 -> 10
+      10 -> 10
   Destructure Success: 10 -> 10
   10
 
   $ possum -p 'X = 3; 7 -> (X + 4)' -i '7'
   
   Destructure:
-      7 -> (X + 4)
+      7 -> (3 + 4)
       7 -> 7
-  Destructure Success: 7 -> (X + 4)
+  Destructure Success: 7 -> (3 + 4)
   7
 
   $ possum -p 'X = 3; 8 -> (X + 4)' -i '8'
   
   Destructure:
-      8 -> (X + 4)
+      8 -> (3 + 4)
       8 -> 7
-  Destructure Failure: 8 -> (X + 4)
+  Destructure Failure: 8 -> (3 + 4)
   
   Parse Failure: value 8 did not match pattern (X + 4)
   
@@ -102,9 +107,9 @@
   $ possum -p 'X = 2; Y = 3; 5 -> (X + Y)' -i '5'
   
   Destructure:
-      5 -> (X + Y)
+      5 -> (2 + 3)
       5 -> 5
-  Destructure Success: 5 -> (X + Y)
+  Destructure Success: 5 -> (2 + 3)
   5
 
   $ possum -p '6 -> (1 + X + 3) $ X' -i '6'
@@ -127,6 +132,7 @@
   
   Destructure:
       5 -> 5
+      5 -> 5
   Destructure Success: 5 -> 5
   5
 
@@ -141,9 +147,9 @@
   $ possum -p '5 -> (1 + 6 + 3 - (X + 3)) $ X' -i '5'
   
   Destructure:
-      5 -> (10 + (-X + -3))
+      5 -> (10 + -X + -3)
           -2 -> -X
-  Destructure Success: 5 -> (10 + (-X + -3))
+  Destructure Success: 5 -> (10 + -X + -3)
   2
 
   $ possum -p 'const([1,2,3]) -> [1, -X, 3] $ X' -i ''
@@ -151,7 +157,9 @@
   Destructure:
       [1, 2, 3] -> [1, -X, 3]
           1 -> 1
+          1 -> 1
           2 -> -X
+          3 -> 3
           3 -> 3
   Destructure Success: [1, 2, 3] -> [1, -X, 3]
   -2
@@ -181,12 +189,12 @@
   $ possum -p '5 -> Num.Add(3,2)' -i '5'
   
   Destructure:
-      5 -> Num.Add(3, 2)
+      5 -> @Add(3, 2)
   
-  Eval Pattern Function: Num.Add(3, 2)
+  Eval Pattern Function: @Add(3, 2)
   
       5 -> 5
-  Destructure Success: 5 -> Num.Add(3, 2)
+  Destructure Success: 5 -> @Add(3, 2)
   5
 
   $ possum -p '"29" -> "%(0 + N)" $ N' -i '29'
@@ -206,6 +214,7 @@
               "ab" -> ("a" + B)
                   "a" -> "a"
                   "b" -> B
+              2 -> 2
               2 -> 2
   Destructure Success: {"ab": 2} -> {("a" + B): 2}
   "b"
@@ -312,23 +321,24 @@
   $ possum -p '(char * 10) -> ("\u000000".. * 10)' -i '12345678901234567890'
   
   Destructure:
-      "1234567890" -> ("\x00".. * 10) (esc)
-          "1" -> "\x00".. (esc)
-          "2" -> "\x00".. (esc)
-          "3" -> "\x00".. (esc)
-          "4" -> "\x00".. (esc)
-          "5" -> "\x00".. (esc)
-          "6" -> "\x00".. (esc)
-          "7" -> "\x00".. (esc)
-          "8" -> "\x00".. (esc)
-          "9" -> "\x00".. (esc)
-          "0" -> "\x00".. (esc)
-  Destructure Success: "1234567890" -> ("\x00".. * 10) (esc)
+      "1234567890" -> (_0_.. * 10)
+          "1" -> _0_..
+          "2" -> _0_..
+          "3" -> _0_..
+          "4" -> _0_..
+          "5" -> _0_..
+          "6" -> _0_..
+          "7" -> _0_..
+          "8" -> _0_..
+          "9" -> _0_..
+          "0" -> _0_..
+  Destructure Success: "1234567890" -> (_0_.. * 10)
   "1234567890"
 
   $ possum -p 'bool(1, 0) -> true' -i '1'
   
   Destructure:
+      true -> true
       true -> true
   Destructure Success: true -> true
   true
@@ -342,6 +352,7 @@
   Destructure Success: "5" -> "%(0 + N)"
   
   Destructure:
+      5 -> 5
       5 -> 5
   Destructure Success: 5 -> 5
   5
@@ -386,7 +397,10 @@
   Destructure:
       [1, 2, 3] -> [1, 2, 3]
           1 -> 1
+          1 -> 1
           2 -> 2
+          2 -> 2
+          3 -> 3
           3 -> 3
   Destructure Success: [1, 2, 3] -> [1, 2, 3]
   [1, 2, 3]
@@ -436,6 +450,11 @@
   
   Destructure:
       [1, 1, 1, 1, 1] -> [1, 1, 1, 1, 1]
+          1 -> 1
+          1 -> 1
+          1 -> 1
+          1 -> 1
+          1 -> 1
           1 -> 1
           1 -> 1
           1 -> 1
@@ -587,6 +606,7 @@
   Destructure:
       [1, 2, 3] -> [1, B, _]
           1 -> 1
+          1 -> 1
           2 -> B
           3 -> _
   Destructure Success: [1, 2, 3] -> [1, B, _]
@@ -614,7 +634,9 @@
       {"a": 1, "b": 2} -> {"a": 1, "b": 2}
           {"a": 1} -> {"a": 1}
               1 -> 1
+              1 -> 1
           {"b": 2} -> {"b": 2}
+              2 -> 2
               2 -> 2
   Destructure Success: {"a": 1, "b": 2} -> {"a": 1, "b": 2}
   {"a": 1, "b": 2}
@@ -639,6 +661,7 @@
   
   Destructure:
       {"a": 1, "b": 2} -> ({"a": 1} + _)
+          1 -> 1
           1 -> 1
           {"b": 2} -> _
   Destructure Success: {"a": 1, "b": 2} -> ({"a": 1} + _)
@@ -665,6 +688,7 @@
   Destructure:
       {"a": 1, "b": 2} -> ({_: 1} + _)
           "a" -> _
+          1 -> 1
           1 -> 1
           {"b": 2} -> _
   Destructure Success: {"a": 1, "b": 2} -> ({_: 1} + _)
@@ -802,9 +826,9 @@
   $ possum -p '"null" -> "%(null)"' -i 'null'
   
   Destructure:
-      "null" -> "%(null)"
+      "null" -> ""null""
           "null" -> "null"
-  Destructure Success: "null" -> "%(null)"
+  Destructure Success: "null" -> ""null""
   "null"
 
   $ possum -p '"null" -> "%(null + N)" $ N' -i 'null'
