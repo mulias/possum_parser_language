@@ -18,6 +18,7 @@ pub const MatchPlan = struct {
     // Constant object keys, interned at compile time.
     sids: []StringTable.Id,
     ranges: []RangePlan,
+    merges: []MergePlan,
 
     pub fn deinit(self: *MatchPlan, allocator: Allocator) void {
         allocator.free(self.nodes);
@@ -25,6 +26,7 @@ pub const MatchPlan = struct {
         allocator.free(self.elems);
         allocator.free(self.sids);
         allocator.free(self.ranges);
+        allocator.free(self.merges);
     }
 
     pub fn print(self: MatchPlan, vm: VM, writer: *Writer) Writer.Error!void {
@@ -72,6 +74,16 @@ pub const MatchPlan = struct {
                 try writer.print("..", .{});
                 try self.printLimit(vm, writer, range.upper);
             },
+            .merge => {
+                try writer.print("(", .{});
+                var part = idx + 1;
+                for (0..self.merges[node.payload].part_count) |i| {
+                    if (i > 0) try writer.print(" + ", .{});
+                    part = try self.printNode(vm, writer, part);
+                }
+                try writer.print(")", .{});
+                return part;
+            },
         }
         return idx + 1;
     }
@@ -114,6 +126,30 @@ pub const Tag = enum(u8) {
     const_key,
     // A range with statically-resolvable bounds. ranges[payload].
     range,
+    // A merge, flattened at compile time: merges[payload], part subtrees
+    // follow in preorder. The interpreter resolves value parts (equality,
+    // bound_eq) and derives the merge type from the resolved parts,
+    // mirroring the solver's getMergeType.
+    merge,
+};
+
+pub const MergePlan = struct {
+    part_count: u32,
+    // Index of the one part the solver has to solve for: the part that is
+    // not a value at merge entry. Binding analysis guarantees at most one.
+    // A bare local bound within the same merge by an earlier part is the
+    // solvable part with a bound_eq subtree: it matches as an equality at
+    // its position, after the earlier parts have bound it.
+    solvable_index: ?u32,
+};
+
+// A merge part after the interpreter's resolution pass.
+pub const ResolvedPart = union(enum) {
+    // A folded constant or a bound local read (and possibly evaluated) at
+    // match time.
+    value: Elem,
+    // A structural or solvable part: the node index of its subtree.
+    subtree: u32,
 };
 
 pub const LocalVar = struct {

@@ -1594,6 +1594,7 @@ pub const Compiler = struct {
         elems: ArrayList(Elem) = .{},
         sids: ArrayList(RuntimeStrings.Id) = .{},
         ranges: ArrayList(match_plan.RangePlan) = .{},
+        merges: ArrayList(match_plan.MergePlan) = .{},
         reads: liveness.SlotSet = liveness.SlotSet.initEmpty(),
 
         fn deinit(self: *PlanBuilder, allocator: std.mem.Allocator) void {
@@ -1602,6 +1603,7 @@ pub const Compiler = struct {
             self.elems.deinit(allocator);
             self.sids.deinit(allocator);
             self.ranges.deinit(allocator);
+            self.merges.deinit(allocator);
         }
 
         fn appendLeaf(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, payload: u32) !void {
@@ -1663,6 +1665,8 @@ pub const Compiler = struct {
         errdefer allocator.free(sids);
         const ranges = try builder.ranges.toOwnedSlice(allocator);
         errdefer allocator.free(ranges);
+        const merges = try builder.merges.toOwnedSlice(allocator);
+        errdefer allocator.free(merges);
 
         const module = self.vm.getModule(module_id);
         const idx = try module.addMatchPlan(allocator, .{
@@ -1671,6 +1675,7 @@ pub const Compiler = struct {
             .elems = elems,
             .sids = sids,
             .ranges = ranges,
+            .merges = merges,
         });
 
         const gop = try self.plan_reads.getOrPut(allocator, module_id);
@@ -1777,7 +1782,51 @@ pub const Compiler = struct {
                 try builder.appendLeaf(allocator, .range, @intCast(builder.ranges.items.len));
                 try builder.ranges.append(allocator, .{ .lower = lower, .upper = upper });
             },
+            .merge => {
+                // Nested merges flatten into one part list, the way
+                // collectPatternMergeElements flattens the Pattern tree.
+                const start = builder.nodes.items.len;
+                const merge_idx: u32 = @intCast(builder.merges.items.len);
+                try builder.nodes.append(allocator, .{
+                    .tag = .merge,
+                    .subtree_len = undefined,
+                    .payload = merge_idx,
+                });
+                try builder.merges.append(allocator, .{
+                    .part_count = 0,
+                    .solvable_index = null,
+                });
+                var merge_plan = match_plan.MergePlan{ .part_count = 0, .solvable_index = null };
+                try self.lowerMergeParts(module_id, rnode, builder, &merge_plan);
+                builder.merges.items[merge_idx] = merge_plan;
+                builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
+            },
             else => return error.UnsupportedPattern,
+        }
+    }
+
+    fn lowerMergeParts(
+        self: *Compiler,
+        module_id: Module.Id,
+        rnode: *Ast.Pattern.RNode,
+        builder: *PlanBuilder,
+        merge_plan: *match_plan.MergePlan,
+    ) (Error || error{UnsupportedPattern})!void {
+        switch (rnode.node) {
+            .merge => |merge| {
+                try self.lowerMergeParts(module_id, merge.left, builder, merge_plan);
+                try self.lowerMergeParts(module_id, merge.right, builder, merge_plan);
+            },
+            else => {
+                // Binding analysis records solvability per part; a part it
+                // never visited means the pattern shape diverged from the
+                // analysis walk, so fall back rather than guess.
+                const unbound = self.binding_maps.merge_part_unbound.get(rnode) orelse
+                    return error.UnsupportedPattern;
+                if (unbound) merge_plan.solvable_index = merge_plan.part_count;
+                try self.lowerPatternNode(module_id, rnode, builder);
+                merge_plan.part_count += 1;
+            },
         }
     }
 

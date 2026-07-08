@@ -9,7 +9,8 @@ const Compiler = @import("compiler.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 const Env = @import("env.zig").Env;
 const GC = @import("gc.zig").GC;
-const MatchPlan = @import("match_plan.zig").MatchPlan;
+const match_plan = @import("match_plan.zig");
+const MatchPlan = match_plan.MatchPlan;
 const match_plan_interpreter = @import("match_plan_interpreter.zig");
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
@@ -198,6 +199,10 @@ pub const VM = struct {
     uniqueIdCount: u64,
     rc_stats: RcStats,
     pattern_solver: PatternSolver,
+    // Scratch state for the match plan interpreter, base/shrink managed per
+    // merge so nested matches (VM re-entry, nested merges) compose.
+    plan_merge_parts: ArrayList(match_plan.ResolvedPart),
+    plan_matched_keys: ArrayList(StringTable.Id),
     writers: Writers,
     config: Config,
     singleton_empty_array: ?Elem,
@@ -253,6 +258,8 @@ pub const VM = struct {
             .uniqueIdCount = undefined,
             .rc_stats = undefined,
             .pattern_solver = undefined,
+            .plan_merge_parts = undefined,
+            .plan_matched_keys = undefined,
             .writers = undefined,
             .config = undefined,
             .singleton_empty_array = null,
@@ -291,6 +298,8 @@ pub const VM = struct {
         self.uniqueIdCount = 0;
         self.rc_stats = RcStats{};
         self.pattern_solver = PatternSolver.init(self);
+        self.plan_merge_parts = ArrayList(match_plan.ResolvedPart){};
+        self.plan_matched_keys = ArrayList(StringTable.Id){};
         self.singleton_empty_array = null;
         self.singleton_empty_object = null;
         self.singleton_empty_string = Elem.string(try self.strings.insert(""));
@@ -317,6 +326,8 @@ pub const VM = struct {
         self.inputMarks.deinit(self.allocator);
         self.explain_events.deinit(self.allocator);
         self.pattern_solver.deinit();
+        self.plan_merge_parts.deinit(self.allocator);
+        self.plan_matched_keys.deinit(self.allocator);
     }
 
     pub fn interpret(self: *VM, module_name: []const u8, source: []const u8, input: []const u8) !Elem {
@@ -622,8 +633,14 @@ pub const VM = struct {
                 const plan = self.getMatchPlan(planIdx);
                 const value = self.peek(0);
 
+                // Same criterion as Destructure: on these paths the value's
+                // stack handle dies unobserved, so an object rest may take
+                // over a uniquely-referenced value in place.
+                const next_op: OpCode = @enumFromInt(self.cur_code[self.cur_frame.ip]);
+                const value_discarded = next_op == .ConditionalThen or next_op == .TakeRight;
+
                 const matched = value.isSuccess() and
-                    (try match_plan_interpreter.match(self, value, plan));
+                    (try match_plan_interpreter.match(self, value, plan, value_discarded));
 
                 if (matched) {
                     // value is already on the stack

@@ -1046,7 +1046,7 @@ test "array plan failure after a bind resets locals and drives alternation" {
     }
 }
 
-test "an array rest pattern falls back to the tree path" {
+test "an array rest pattern compiles to a match plan" {
     const parser =
         \\('' $ [1, 2, 3]) -> [1, ...Rest] $ Rest
     ;
@@ -1062,7 +1062,7 @@ test "an array rest pattern falls back to the tree path" {
         );
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(0, plan_count);
+        try std.testing.expectEqual(1, plan_count);
     }
 }
 
@@ -1195,7 +1195,7 @@ test "a range with an unbound local bound falls back to the tree path" {
     }
 }
 
-test "a merge pattern falls back to the tree path" {
+test "a number merge pattern compiles to a match plan" {
     const parser =
         \\('' $ 3) -> (1 + N) $ N
     ;
@@ -1206,6 +1206,117 @@ test "a merge pattern falls back to the tree path" {
         try testing.expectSuccess(
             try vm.interpret("test", parser, ""),
             Elem.numberFloat(2),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "a string merge pattern compiles to a match plan" {
+    const parser =
+        \\'abc' -> ('a' + R) $ R
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, "abc"),
+            Elem.inputSubstring(1, 2),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "an object rest pattern compiles to a match plan" {
+    const parser =
+        \\('' $ {'a': 1, 'b': 2}) -> ({'a': 1} + R) & ('' $ R) -> {'b': B} $ B
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            try Elem.numberStringFromBytes("2", &vm),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(2, plan_count);
+    }
+}
+
+test "a boolean merge pattern compiles to a match plan" {
+    const parser =
+        \\('' $ true) -> (false + B) $ B
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.boolean(true),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "an untyped merge pattern compiles to a match plan" {
+    const parser =
+        \\('' $ 5) -> (null + X) $ X
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            try Elem.numberStringFromBytes("5", &vm),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "merge plan mismatch drives alternation" {
+    const parser =
+        \\(('' $ 'xyz') -> ('a' + R) $ 'no') | ('' $ 'yes')
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "yes")).dyn.elem(),
+            vm,
+        );
+    }
+}
+
+test "a merge with a negated part falls back to the tree path" {
+    const parser =
+        \\('' $ 4) -> (5 + -N) $ N
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(1),
             vm,
         );
         var plan_count: usize = 0;
