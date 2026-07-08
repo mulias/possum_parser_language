@@ -1793,8 +1793,16 @@ pub const Compiler = struct {
                     .subtree_len = undefined,
                     .payload = @intCast(elements.items.len),
                 });
+                // A constant-count array-literal repeat shares one element
+                // node pointer across its copies; a re-seen pointer is a later
+                // copy, so its locals must rebind as bound_eq the way the
+                // solver's runtime probe re-binds second-occurrence locals.
+                var seen = std.AutoHashMapUnmanaged(*const Ast.Pattern.RNode, void){};
+                defer seen.deinit(allocator);
                 for (elements.items) |element| {
-                    try self.lowerPatternNode(module_id, element, builder, all_locals_bound, 0);
+                    const gop = try seen.getOrPut(allocator, element);
+                    const rebound = all_locals_bound or gop.found_existing;
+                    try self.lowerPatternNode(module_id, element, builder, rebound, 0);
                 }
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },

@@ -1519,7 +1519,7 @@
   0002    | GetConstant 0: array
   0004    | GetConstant 1: digit
   0006    | CallFunction 1
-  0008    | DestructurePlan 0: [bound_eq A, bound_eq A, bound_eq A, bound_eq A, bound_eq A]
+  0008    | DestructurePlan 0: [bind A, bound_eq A, bound_eq A, bound_eq A, bound_eq A]
   0010    | End
   ========================================
 
