@@ -99,6 +99,12 @@ pub const Maps = struct {
     // its destructure, keyed by the identifier node. Lets codegen lower an
     // occurrence to a bind or an equality check without a runtime probe.
     pattern_local_bound: AutoHashMap(*const Ast.Pattern.RNode, bool) = .{},
+    // Whether each merge part (or string template segment) is one the
+    // solver has to solve for, keyed by the part node. The solver
+    // simplifies every part before matching any, so a local bound within
+    // the same merge by an earlier part is still unbound here even though
+    // its occurrence is sequentially bound.
+    merge_part_unbound: AutoHashMap(*const Ast.Pattern.RNode, bool) = .{},
 
     pub fn deinit(self: *Maps, allocator: Allocator) void {
         var preclears = self.preclears.valueIterator();
@@ -106,6 +112,7 @@ pub const Maps = struct {
         self.preclears.deinit(allocator);
         self.repeat_count_bound.deinit(allocator);
         self.pattern_local_bound.deinit(allocator);
+        self.merge_part_unbound.deinit(allocator);
     }
 };
 
@@ -412,6 +419,7 @@ const Analyzer = struct {
                 .merge_parts => self.mergePartIsUnbound(env, part),
                 .template_segments => self.templateSegmentIsUnbound(env, part),
             };
+            try self.compiler.binding_maps.merge_part_unbound.put(self.allocator, part, unbound);
             if (!unbound) continue;
             if (solvable_part_found) {
                 try self.diagnose(part.region, self.firstUnboundLocal(env, part), .extra_unbound_part);
