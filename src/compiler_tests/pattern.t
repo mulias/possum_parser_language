@@ -1030,7 +1030,7 @@
   0000    | GetConstant 0: many
   0002    | GetConstant 1: char
   0004    | CallFunction 1
-  0006    | Destructure 0: ("\x00".. * 10) (esc)
+  0006    | DestructurePlan 0: (_0_.. * eq 10)
   0008    | End
   ========================================
 
@@ -1585,7 +1585,7 @@
   0002    | GetConstant 0: array
   0004    | GetConstant 1: digit
   0006    | CallFunction 1
-  0008    | Destructure 0: ([1] * N)
+  0008    | DestructurePlan 0: ([eq 1] * bind N)
   0010    | TakeRight 10 -> 15
   0013    | GetBoundLocalMove 0
   0015    | End
@@ -2480,7 +2480,7 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "abcabcabc"
-  0004    | Destructure 0: "%(("abc" * N))"
+  0004    | DestructurePlan 0: tmpl((eq "abc" * bind N))
   0006    | TakeRight 6 -> 11
   0009    | GetBoundLocalMove 0
   0011    | End
@@ -2506,7 +2506,7 @@
   ========================================
   0000    | PushVar N
   0002    | PushEmptyString
-  0003    | Destructure 0: ("" * N)
+  0003    | DestructurePlan 0: (eq "" * bind N)
   0005    | End
   ========================================
 
@@ -2517,7 +2517,7 @@
   ========================================
   0000    | PushVar N
   0002    | PushEmptyString
-  0003    | Destructure 0: "%(("" * N))"
+  0003    | DestructurePlan 0: tmpl((eq "" * bind N))
   0005    | End
   ========================================
 
@@ -2528,7 +2528,7 @@
   ========================================
   0000    | PushVar N
   0002    | PushInteger 0
-  0004    | Destructure 0: (0 * N)
+  0004    | DestructurePlan 0: (eq 0 * bind N)
   0006    | End
   ========================================
 
@@ -2548,7 +2548,7 @@
   0002    | GetConstant 0: const
   0004    | PushTrue
   0005    | CallFunction 1
-  0007    | Destructure 0: (true * N)
+  0007    | DestructurePlan 0: (eq true * bind N)
   0009    | End
   ========================================
 
@@ -2568,7 +2568,7 @@
   0002    | GetConstant 0: const
   0004    | PushFalse
   0005    | CallFunction 1
-  0007    | Destructure 0: (false * N)
+  0007    | DestructurePlan 0: (eq false * bind N)
   0009    | End
   ========================================
 

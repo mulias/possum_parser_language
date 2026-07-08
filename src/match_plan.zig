@@ -20,6 +20,7 @@ pub const MatchPlan = struct {
     ranges: []RangePlan,
     merges: []MergePlan,
     calls: []CallPlan,
+    repeats: []RepeatPlan,
 
     pub fn deinit(self: *MatchPlan, allocator: Allocator) void {
         allocator.free(self.nodes);
@@ -29,6 +30,7 @@ pub const MatchPlan = struct {
         allocator.free(self.ranges);
         allocator.free(self.merges);
         allocator.free(self.calls);
+        allocator.free(self.repeats);
     }
 
     pub fn print(self: MatchPlan, vm: VM, writer: *Writer) Writer.Error!void {
@@ -64,6 +66,16 @@ pub const MatchPlan = struct {
                 }
                 try writer.print(")", .{});
                 return arg;
+            },
+            .repeat => {
+                try writer.print("(", .{});
+                const pattern_idx = idx + 1;
+                const count_idx = try self.printNode(vm, writer, pattern_idx);
+                try writer.print(" * ", .{});
+                _ = try self.printNode(vm, writer, count_idx);
+                try writer.print(")", .{});
+                // Skip the rebound pattern variant, if any.
+                return idx + node.subtree_len;
             },
             .array => {
                 try writer.print("[", .{});
@@ -176,6 +188,13 @@ pub const Tag = enum(u8) {
     // locals stringify at match time; ranges match one character; the
     // solvable segment casts the unbound byte range by its pattern kind.
     str_template,
+    // A repeat: repeats[payload]. Children in preorder: the pattern
+    // subtree, the count subtree, and (when the pattern binds locals) the
+    // pattern re-lowered with every local bound. Array repetitions match
+    // the rebound variant from the second element or chunk on, the way
+    // the solver's runtime boundness probe turns second-iteration binds
+    // into equality checks.
+    repeat,
 };
 
 // Shared by merge and str_template nodes: both are a part list with at
@@ -202,6 +221,30 @@ pub const CallPlan = struct {
         local: u32,
         // elems index; always a Function.
         constant: u32,
+    };
+};
+
+// A repeat in pattern position. The solver probes at match time whether the
+// pattern or the count evaluates; the plan classifies each operand
+// statically. A runtime evaluation that comes up empty (a nested repeat or
+// merge failing to fold) falls through to the next branch, the same way the
+// solver's attemptEval does.
+pub const RepeatPlan = struct {
+    pattern: Operand,
+    count: Operand,
+    // Whether the pattern subtree binds locals, and so a rebound variant
+    // follows the count subtree.
+    has_rebound_pattern: bool,
+
+    pub const Operand = union(enum) {
+        // elems index: the subtree folded at compile time. The subtree is
+        // still emitted; a folded count is also matched against.
+        constant: u32,
+        // The subtree evaluates at match time: bound locals, calls, and
+        // arrays, merges, or repeats of evaluable parts.
+        eval,
+        // The subtree does not evaluate; it is matched structurally.
+        subtree,
     };
 };
 

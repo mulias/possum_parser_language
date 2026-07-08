@@ -6,7 +6,9 @@ const MatchPlan = match_plan.MatchPlan;
 const LocalVar = match_plan.LocalVar;
 const ResolvedPart = match_plan.ResolvedPart;
 const StringTable = @import("string_table.zig").StringTable(.runtime);
-const isValidNumberString = @import("parsing.zig").isValidNumberString;
+const parsing = @import("parsing.zig");
+const isValidNumberString = parsing.isValidNumberString;
+const unicode = std.unicode;
 
 pub const Error = error{
     RuntimeError,
@@ -115,7 +117,516 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
 
             return matchStringTemplate(vm, plan, value, parts_base, template_plan.part_count);
         },
+        .repeat => return matchRepeat(vm, plan, value, idx),
     }
+}
+
+// Port of the solver's matchRepeat. The three-way dispatch — pattern
+// evaluates, count evaluates, neither — mirrors the solver's attemptEval
+// probing: a statically-eval operand that comes up empty at match time (a
+// nested repeat or merge failing to fold) falls through to the next branch
+// the same way attemptEval returning null does.
+fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
+    const repeat_plan = plan.repeats[plan.nodes[idx].payload];
+    const pattern_idx = idx + 1;
+    const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
+    // Iterations after the first match the rebound variant: their binds
+    // were bound by the first iteration, so they compare instead.
+    const later_pattern_idx = if (repeat_plan.has_rebound_pattern)
+        count_idx + plan.nodes[count_idx].subtree_len
+    else
+        pattern_idx;
+
+    if (try resolveRepeatOperand(vm, plan, repeat_plan.pattern, pattern_idx)) |pattern_value| {
+        // The pattern is a value: derive the count from the value.
+
+        if (try pattern_value.stringBytes(vm)) |pattern_str| {
+            const value_str = (try value.stringBytes(vm)) orelse return false;
+
+            // Special case: empty string (identity element)
+            if (pattern_str.len == 0) {
+                if (value_str.len == 0) {
+                    // "" * N = "" for any N >= 1
+                    // Choose N = 1 as the canonical answer
+                    return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+                } else {
+                    // Non-empty value can't be made from repeating empty pattern
+                    return false;
+                }
+            }
+
+            // Check if value length is divisible by pattern length
+            if (value_str.len % pattern_str.len != 0) return false;
+
+            const count = value_str.len / pattern_str.len;
+
+            // Verify value is pattern repeated count times
+            var i: usize = 0;
+            while (i < count) : (i += 1) {
+                const start = i * pattern_str.len;
+                const end = start + pattern_str.len;
+                if (!std.mem.eql(u8, value_str[start..end], pattern_str)) {
+                    return false;
+                }
+            }
+
+            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+            return matchNode(vm, count_elem, plan, count_idx, null);
+        }
+
+        if (pattern_value.isDynType(.Array)) {
+            if (!value.isDynType(.Array)) return false;
+
+            const pattern_array = pattern_value.asDyn().asArray();
+            const value_array = value.asDyn().asArray();
+
+            const pattern_len = pattern_array.len();
+            if (pattern_len == 0) return false;
+            if (value_array.len() % pattern_len != 0) return false;
+
+            const count = value_array.len() / pattern_len;
+
+            // Verify value is pattern array repeated count times
+            var i: usize = 0;
+            while (i < count) : (i += 1) {
+                const start = i * pattern_len;
+                for (0..pattern_len) |j| {
+                    const value_elem = value_array.elems.items[start + j];
+                    const pattern_elem_at_j = pattern_array.elems.items[j];
+                    if (!value_elem.isEql(pattern_elem_at_j, vm.*)) {
+                        return false;
+                    }
+                }
+            }
+
+            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+            return matchNode(vm, count_elem, plan, count_idx, null);
+        }
+
+        // Object repetition: merging an object with itself is the
+        // identity, so like booleans the canonical count is 1
+        if (pattern_value.isDynType(.Object)) {
+            if (!value.isDynType(.Object)) return false;
+
+            const pattern_members = pattern_value.asDyn().asObject().members.count();
+            const value_members = value.asDyn().asObject().members.count();
+
+            if (value_members == 0) {
+                // {} is P * 0 for non-empty P, and {} * N for any N >= 1
+                const count_elem = Elem.numberFloat(if (pattern_members == 0) 1 else 0);
+                return matchNode(vm, count_elem, plan, count_idx, null);
+            }
+
+            if (!value.isEql(pattern_value, vm.*)) return false;
+            return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+        }
+
+        // Number repetition (multiplication)
+        if (pattern_value.isNumber() and value.isNumber()) {
+            const pattern_float = numberAsFloat(pattern_value, vm);
+            const value_float = numberAsFloat(value, vm);
+
+            // Special case: zero (identity element)
+            if (pattern_float == 0) {
+                if (value_float == 0) {
+                    // 0 * N = 0 for any N >= 1
+                    // Choose N = 1 as the canonical answer
+                    return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+                } else {
+                    // Non-zero value can't be made from repeating zero
+                    return false;
+                }
+            }
+
+            const count_elem = Elem.numberFloat(value_float / pattern_float);
+            return matchNode(vm, count_elem, plan, count_idx, null);
+        }
+
+        // Boolean repetition (OR)
+        if (pattern_value.isType(.Const)) {
+            const pattern_const = pattern_value.asConst();
+            if (pattern_const == .True or pattern_const == .False) {
+                if (!value.isType(.Const)) return false;
+                const value_const = value.asConst();
+                if (value_const != .True and value_const != .False) return false;
+
+                if (pattern_value.isEql(value, vm.*)) {
+                    // true * N = true and false * N = false for any N >= 1
+                    // Choose N = 1 as the canonical answer
+                    return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+                } else {
+                    // false can't produce true, and true can't produce false
+                    return false;
+                }
+            }
+        }
+
+        // Other types not supported
+        return false;
+    } else if (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)) |count_elem| {
+        // The count is a value: match by iterating.
+        if (!count_elem.isNumber()) return error.RuntimeError;
+
+        const count_float = numberAsFloat(count_elem, vm);
+
+        // Count must be a non-negative integer
+        if (count_float < 0 or count_float != @floor(count_float)) return false;
+        const count = @as(usize, @intFromFloat(count_float));
+
+        if (try value.stringBytes(vm)) |value_str| {
+            // Special case: count is 0
+            if (count == 0) {
+                // Pattern * 0 = "" for any pattern (empty string identity)
+                return value_str.len == 0;
+            }
+
+            // Range patterns match codepoint-by-codepoint
+            if (plan.nodes[pattern_idx].tag == .range) {
+                const codepoint_count = (try countRangeCodepoints(vm, plan, pattern_idx, value_str)) orelse
+                    return false;
+                return codepoint_count == count;
+            }
+
+            // For other patterns (like unbound variables), compute repeated
+            // chunks. Check if value length is divisible by count.
+            if (value_str.len % count != 0) return false;
+
+            const chunk_len = value_str.len / count;
+
+            // Verify all chunks are equal
+            var i: usize = 1;
+            while (i < count) : (i += 1) {
+                const start = i * chunk_len;
+                const end = start + chunk_len;
+                if (!std.mem.eql(u8, value_str[0..chunk_len], value_str[start..end])) {
+                    return false;
+                }
+            }
+
+            // Match the first chunk against the pattern to bind variables
+            const chunk_elem = try substringElem(vm, value, value_str, 0, chunk_len);
+            return matchNode(vm, chunk_elem, plan, pattern_idx, null);
+        }
+
+        if (value.isDynType(.Array)) {
+            const value_array = value.asDyn().asArray();
+
+            // Value must have exactly count elements
+            if (value_array.len() != count) return false;
+
+            // Match each element against the pattern
+            for (value_array.elems.items, 0..) |elem, i| {
+                const sub = if (i == 0) pattern_idx else later_pattern_idx;
+                if (!(try matchNode(vm, elem, plan, sub, null))) return false;
+            }
+            return true;
+        }
+
+        // Object pattern matching: the members partition into `count`
+        // disjoint groups, each matching the pattern
+        if (value.isDynType(.Object)) {
+            if (plan.nodes[pattern_idx].tag != .object) return false;
+
+            const pair_count = plan.nodes[pattern_idx].payload;
+            const value_object = value.asDyn().asObject();
+            const member_count = value_object.members.count();
+
+            if (count == 0 or pair_count == 0) {
+                return member_count == 0;
+            }
+            if (member_count != count * pair_count) return false;
+
+            const matched_base = vm.plan_matched_keys.items.len;
+            defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
+
+            return matchObjectRepeat(vm, plan, pattern_idx, value_object, count, matched_base);
+        }
+
+        // Number pattern matching (pattern * count = value)
+        if (value.isNumber()) {
+            if (count_float == 0) return false;
+
+            const value_float = numberAsFloat(value, vm);
+            const computed_pattern = Elem.numberFloat(value_float / count_float);
+            return matchNode(vm, computed_pattern, plan, pattern_idx, null);
+        }
+
+        // Other value types not supported
+        return false;
+    } else {
+        // Neither pattern nor count evaluates.
+        // Special case: Range pattern with unbound count
+        if (plan.nodes[pattern_idx].tag == .range) {
+            // This only works for string values
+            const value_str = (try value.stringBytes(vm)) orelse return false;
+
+            const codepoint_count = (try countRangeCodepoints(vm, plan, pattern_idx, value_str)) orelse
+                return false;
+
+            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(codepoint_count)));
+            return matchNode(vm, count_elem, plan, count_idx, null);
+        }
+
+        // Object pattern with unbound count: the count is however many
+        // disjoint groups of members the pattern claims
+        if (plan.nodes[pattern_idx].tag == .object) {
+            if (!value.isDynType(.Object)) return false;
+
+            const pair_count = plan.nodes[pattern_idx].payload;
+            const value_object = value.asDyn().asObject();
+            const member_count = value_object.members.count();
+
+            if (pair_count == 0) {
+                // {} * N = {} for any N >= 1; choose N = 1 as canonical
+                if (member_count != 0) return false;
+                return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+            }
+            if (member_count % pair_count != 0) return false;
+
+            const count = member_count / pair_count;
+
+            const matched_base = vm.plan_matched_keys.items.len;
+            defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
+
+            if (!(try matchObjectRepeat(vm, plan, pattern_idx, value_object, count, matched_base))) {
+                return false;
+            }
+
+            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+            return matchNode(vm, count_elem, plan, count_idx, null);
+        }
+
+        // Array with a fixed-length pattern but unbound elements and count
+        if (try fixedArrayLength(vm, plan, pattern_idx)) |pattern_len| {
+            if (!value.isDynType(.Array)) return false;
+
+            const value_array = value.asDyn().asArray();
+            if (pattern_len == 0) return false;
+            if (value_array.len() % pattern_len != 0) return false;
+
+            const count = value_array.len() / pattern_len;
+
+            // Match each chunk against the pattern
+            var i: usize = 0;
+            while (i < count) : (i += 1) {
+                const start = i * pattern_len;
+                const end = start + pattern_len;
+
+                const chunk_array = try Elem.DynElem.Array.create(vm, pattern_len);
+                try vm.pushTempDyn(&chunk_array.dyn);
+                for (value_array.elems.items[start..end]) |chunk_item| chunk_item.retain();
+                try chunk_array.elems.appendSlice(vm.gc.allocator(), value_array.elems.items[start..end]);
+
+                const sub = if (i == 0) pattern_idx else later_pattern_idx;
+                if (!(try matchNode(vm, chunk_array.dyn.elem(), plan, sub, null))) {
+                    return false;
+                }
+            }
+
+            // Bind the count
+            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+            return matchNode(vm, count_elem, plan, count_idx, null);
+        } else {
+            return error.RuntimeError;
+        }
+    }
+}
+
+fn resolveRepeatOperand(
+    vm: *VM,
+    plan: MatchPlan,
+    operand: match_plan.RepeatPlan.Operand,
+    subtree_idx: u32,
+) Error!?Elem {
+    return switch (operand) {
+        .constant => |elem_idx| plan.elems[elem_idx],
+        .eval => try evalNode(vm, plan, subtree_idx),
+        .subtree => null,
+    };
+}
+
+// Evaluate a plan subtree to a value, mirroring the solver's attemptEval.
+// Null means the subtree does not evaluate (or a merge or repeat of values
+// fails to fold) and must be matched structurally instead.
+fn evalNode(vm: *VM, plan: MatchPlan, idx: u32) Error!?Elem {
+    const node = plan.nodes[idx];
+    switch (node.tag) {
+        .equality => return plan.elems[node.payload],
+        .bound_eq => return try resolveBoundLocal(vm, plan.vars[node.payload]),
+        .const_fn => return try evalConstFn(vm, plan, node.payload),
+        .call => return try evalCall(vm, plan, idx),
+        .bind, .placeholder, .object, .range, .str_template => return null,
+        .array => {
+            // Try to evaluate all elements first, the way attemptEval does.
+            const elems = try vm.allocator.alloc(Elem, node.payload);
+            defer vm.allocator.free(elems);
+
+            var child = idx + 1;
+            for (elems) |*elem| {
+                elem.* = (try evalNode(vm, plan, child)) orelse return null;
+                child += plan.nodes[child].subtree_len;
+            }
+
+            const dyn_array = try Elem.DynElem.Array.create(vm, node.payload);
+            try vm.pushTempDyn(&dyn_array.dyn);
+            for (elems) |elem| {
+                try dyn_array.append(vm, elem);
+            }
+            return dyn_array.dyn.elem();
+        },
+        .merge => {
+            var result: ?Elem = null;
+            var child = idx + 1;
+            for (0..plan.merges[node.payload].part_count) |_| {
+                const part_value = (try evalNode(vm, plan, child)) orelse return null;
+                if (result) |current| {
+                    result = (try current.merge(part_value, vm)) orelse return null;
+                    // Root the intermediate across the next part's
+                    // evaluation, which may allocate.
+                    if (result.?.isType(.Dyn)) try vm.pushTempDyn(result.?.asDyn());
+                } else {
+                    result = part_value;
+                }
+                child += plan.nodes[child].subtree_len;
+            }
+            return result;
+        },
+        .repeat => {
+            const repeat_plan = plan.repeats[node.payload];
+            const pattern_idx = idx + 1;
+            const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
+            const pattern_value = (try resolveRepeatOperand(vm, plan, repeat_plan.pattern, pattern_idx)) orelse
+                return null;
+            const count_value = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)) orelse
+                return null;
+            const result = try Elem.repeat(pattern_value, count_value, vm);
+            if (result) |elem| {
+                if (elem.isType(.Dyn)) try vm.pushTempDyn(elem.asDyn());
+            }
+            return result;
+        },
+        .const_key => unreachable,
+    }
+}
+
+// The fixed element count of an array-shaped repeat pattern, mirroring the
+// solver's getFixedArrayLength: an array subtree has its own length, and a
+// merge has a fixed length when every part is an array value or subtree.
+fn fixedArrayLength(vm: *VM, plan: MatchPlan, idx: u32) Error!?usize {
+    const node = plan.nodes[idx];
+    switch (node.tag) {
+        .array => return node.payload,
+        .merge => {
+            var total_length: usize = 0;
+            var child = idx + 1;
+            for (0..plan.merges[node.payload].part_count) |_| {
+                if (try evalNode(vm, plan, child)) |elem| {
+                    if (elem.isDynType(.Array)) {
+                        total_length += elem.asDyn().asArray().len();
+                    } else if (elem.isConst(.Null)) {
+                        // Null has no length, skip it
+                    } else {
+                        // Part is not an array
+                        return null;
+                    }
+                } else if (plan.nodes[child].tag == .array) {
+                    total_length += plan.nodes[child].payload;
+                } else {
+                    // Part has unknown length
+                    return null;
+                }
+                child += plan.nodes[child].subtree_len;
+            }
+            return total_length;
+        },
+        else => return null,
+    }
+}
+
+// Scan a string codepoint by codepoint, validating each against a range
+// node's bounds. Null means the string is not valid for the range; a count
+// means every codepoint was in range. Mirrors the solver's range-repeat
+// scanning branches.
+fn countRangeCodepoints(vm: *VM, plan: MatchPlan, range_node_idx: u32, value_str: []const u8) Error!?usize {
+    const range = plan.ranges[plan.nodes[range_node_idx].payload];
+
+    const lower_codepoint = try rangeLimitCodepoint(vm, plan, range.lower);
+    const upper_codepoint = try rangeLimitCodepoint(vm, plan, range.upper);
+
+    var codepoint_count: usize = 0;
+    var byte_index: usize = 0;
+    while (byte_index < value_str.len) {
+        const byte_len = unicode.utf8ByteSequenceLength(value_str[byte_index]) catch return null;
+        if (byte_index + byte_len > value_str.len) return null;
+
+        const codepoint = parsing.utf8Decode(value_str[byte_index .. byte_index + byte_len]) orelse return null;
+
+        if (lower_codepoint) |lower| {
+            if (codepoint < lower) return null;
+        }
+        if (upper_codepoint) |upper| {
+            if (codepoint > upper) return null;
+        }
+
+        codepoint_count += 1;
+        byte_index += byte_len;
+    }
+
+    return codepoint_count;
+}
+
+fn rangeLimitCodepoint(vm: *VM, plan: MatchPlan, limit: match_plan.RangePlan.Limit) Error!?u21 {
+    const limit_elem = (try resolveRangeLimit(vm, plan, limit)) orelse return null;
+    if (try limit_elem.stringBytes(vm)) |bytes| {
+        return parsing.utf8Decode(bytes);
+    }
+    // A non-string bound cannot limit codepoints
+    return error.RuntimeError;
+}
+
+// Claim `count` repetitions of an object pattern from the value object's
+// members. Pattern variables bound by one repetition stay bound for the
+// rest, so every repetition must match equal keys and values; with constant
+// keys a second repetition always fails the exclusive claim.
+fn matchObjectRepeat(
+    vm: *VM,
+    plan: MatchPlan,
+    object_node_idx: u32,
+    value_object: *Elem.DynElem.Object,
+    count: usize,
+    matched_base: usize,
+) Error!bool {
+    for (0..count) |_| {
+        var pair = object_node_idx + 1;
+        for (0..plan.nodes[object_node_idx].payload) |_| {
+            const key_node = plan.nodes[pair];
+            std.debug.assert(key_node.tag == .const_key);
+            const sid = plan.sids[key_node.payload];
+            // Each repetition must claim members of its own.
+            if (keyMatched(vm, matched_base, sid)) return false;
+            const member = value_object.members.get(sid) orelse return false;
+            if (!(try matchNode(vm, member, plan, pair + 1, null))) return false;
+            try markKeyMatched(vm, matched_base, sid);
+            pair += key_node.subtree_len;
+        }
+    }
+    return true;
+}
+
+fn numberAsFloat(elem: Elem, vm: *VM) f64 {
+    return if (elem.isFloat())
+        elem.asFloat()
+    else
+        elem.asNumberString().toNumberFloat(vm.strings).asFloat();
+}
+
+// Null means the count is negative or not an integer, which fails the
+// match; a non-number count is a runtime error.
+fn repeatCount(vm: *VM, count_elem: Elem) Error!?usize {
+    if (!count_elem.isNumber()) return error.RuntimeError;
+    const count_float = numberAsFloat(count_elem, vm);
+    if (count_float < 0 or count_float != @floor(count_float)) return null;
+    return @intFromFloat(count_float);
 }
 
 // Resolve the parts of a merge node into vm.plan_merge_parts, the way the
@@ -247,6 +758,9 @@ fn mergePartType(plan: MatchPlan, part: ResolvedPart) Error!MergeType {
             // binds before its position. The solver's simplify sees it
             // unbound, so its type contribution is untyped.
             .bind, .bound_eq, .placeholder => .untyped,
+            // A repeat contributes its pattern's type, mirroring
+            // mergePatternType's recursion into the raw repeat pattern.
+            .repeat => try mergePartType(plan, .{ .subtree = idx + 1 }),
             // Ranges are not mergeable; mirrors mergePatternType.
             .range => error.RuntimeError,
             // Value parts (including calls, which always evaluate) were
@@ -514,6 +1028,21 @@ fn matchObjectMerge(
             .subtree => |part_idx| switch (plan.nodes[part_idx].tag) {
                 .object => {
                     if (!(try matchObjectPairs(vm, plan, part_idx, value_object, matched_base))) {
+                        return false;
+                    }
+                },
+                .repeat => {
+                    // Lowering only admits object repeats with counts that
+                    // cannot fail to evaluate as structural merge parts;
+                    // repeats with unbound counts (the solver's rest case)
+                    // stay on the tree path.
+                    const repeat_plan = plan.repeats[plan.nodes[part_idx].payload];
+                    const pattern_idx = part_idx + 1;
+                    const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
+                    std.debug.assert(plan.nodes[pattern_idx].tag == .object);
+                    const count_elem = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)).?;
+                    const repetitions = (try repeatCount(vm, count_elem)) orelse return false;
+                    if (!(try matchObjectRepeat(vm, plan, pattern_idx, value_object, repetitions, matched_base))) {
                         return false;
                     }
                 },
@@ -939,9 +1468,10 @@ fn matchTemplateUnboundSegment(
                 },
             }
         },
-        // When the pattern is an unbound local default to string. Try to
-        // use a subset of an existing substring if possible.
-        .bind, .bound_eq, .placeholder, .str_template => {
+        // When the pattern is an unbound local default to string. Repeats
+        // also cast to string, mirroring matchStringTemplate's .Repeat
+        // case. Try to use a subset of an existing substring if possible.
+        .bind, .bound_eq, .placeholder, .str_template, .repeat => {
             unbound_elem = try substringElem(vm, value, value_str, unbound_start, unbound_end);
         },
         // Constants and calls evaluate to value segments, ranges are
