@@ -1103,7 +1103,7 @@ test "object plan mismatches drive alternation" {
     }
 }
 
-test "an object pattern with a variable key falls back to the tree path" {
+test "an object pattern with a variable key compiles to a match plan" {
     const parser =
         \\('' $ {'a': 1}) -> {K: 1} $ K
     ;
@@ -1118,7 +1118,7 @@ test "an object pattern with a variable key falls back to the tree path" {
         );
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(0, plan_count);
+        try std.testing.expectEqual(1, plan_count);
     }
 }
 
@@ -3455,6 +3455,132 @@ test "a negated global falls back to the tree path" {
     var plan_count: usize = 0;
     for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
     try std.testing.expectEqual(0, plan_count);
+}
+
+test "('' $ {'a': 1}) -> {K: V} binds key and value" {
+    const parser =
+        \\("" $ {"a": 1}) -> {K: V} $ "%(K),%(V)"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "a,1")).dyn.elem(),
+        vm,
+    );
+}
+
+test "a pattern-key search skips members earlier pairs matched" {
+    const parser =
+        \\("" $ {"a": 1, "b": 2}) -> {"a": 1, K: V} $ "%(K),%(V)"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "b,2")).dyn.elem(),
+        vm,
+    );
+}
+
+test "a failed search attempt rebinds on the next member" {
+    // The first member matches the key template (S = "b") but fails the
+    // value; the retry on the second member rebinds S without any reset
+    // machinery.
+    const parser =
+        \\("" $ {"ab": 1, "ac": 2}) -> {"a%(S)": 2, "ab": 1} $ S
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "c")).dyn.elem(),
+        vm,
+    );
+}
+
+test "a bound local key evaluates to a member probe" {
+    const parser =
+        \\("" $ ["a", {"a": 5}]) -> [K, {K: V}] $ V
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(5),
+        vm,
+    );
+}
+
+test "a string global key folds to a constant key" {
+    const parser =
+        \\Key = "a" ; ("" $ {"a": 5}) -> {Key: V} $ V
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(5),
+        vm,
+    );
+}
+
+test "a non-string key in a plain object errors" {
+    const parser =
+        \\N = 1 ; ("" $ {"1": 5}) -> {N: V} $ V
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try std.testing.expectError(error.RuntimeError, vm.interpret("test", parser, ""));
+}
+
+test "a pattern-key object is a structural merge part" {
+    const parser =
+        \\("" $ {"a": 1, "b": 2}) -> ({K: 1} + R) $ "%(K),%(R)"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "a,{\"b\":2}")).dyn.elem(),
+        vm,
+    );
+}
+
+test "a placeholder-key repeat claims fresh members each repetition" {
+    const parser =
+        \\("" $ {"a": 1, "b": 1}) -> ({_: 1} * N) $ N
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(2),
+        vm,
+    );
+}
+
+test "a binding-key repeat fails its second repetition's exclusive claim" {
+    // The first repetition binds K, so the rebound second repetition
+    // evaluates K and re-claims the same member, mirroring the solver's
+    // boundness flip.
+    const parser =
+        \\("" $ {"a": 1, "b": 1}) -> ({K: V} * 2) $ K
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectFailure(
+        try vm.interpret("test", parser, ""),
+    );
 }
 
 test "call arguments fold literal negation but ignore identifier negation" {
