@@ -42,6 +42,8 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
     switch (node.tag) {
         .placeholder => return true,
         .equality => return value.isEql(plan.elems[node.payload], vm.*),
+        .const_fn => return value.isEql(try evalConstFn(vm, plan, node.payload), vm.*),
+        .call => return value.isEql(try evalCall(vm, plan, idx), vm.*),
         .bind => {
             bindLocal(vm, plan.vars[node.payload], value);
             return true;
@@ -101,6 +103,8 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
                 else switch (child_node.tag) {
                     .equality => .{ .value = plan.elems[child_node.payload] },
                     .bound_eq => .{ .value = try stringifyBoundLocal(vm, plan.vars[child_node.payload]) },
+                    .const_fn => .{ .value = try stringifyElem(vm, try evalConstFn(vm, plan, child_node.payload)) },
+                    .call => .{ .value = try stringifyElem(vm, try evalCall(vm, plan, child)) },
                     .range => .{ .subtree = child },
                     // Lowering rejects other non-solvable segment shapes.
                     else => unreachable,
@@ -131,6 +135,8 @@ fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
         else switch (child_node.tag) {
             .equality => .{ .value = plan.elems[child_node.payload] },
             .bound_eq => .{ .value = try resolveBoundLocal(vm, plan.vars[child_node.payload]) },
+            .const_fn => .{ .value = try evalConstFn(vm, plan, child_node.payload) },
+            .call => .{ .value = try evalCall(vm, plan, child) },
             else => .{ .subtree = child },
         };
         try vm.plan_merge_parts.append(vm.allocator, part);
@@ -243,9 +249,10 @@ fn mergePartType(plan: MatchPlan, part: ResolvedPart) Error!MergeType {
             .bind, .bound_eq, .placeholder => .untyped,
             // Ranges are not mergeable; mirrors mergePatternType.
             .range => error.RuntimeError,
-            // Value parts were resolved, nested merges were flattened at
-            // compile time, and const_key only appears under an object.
-            .equality, .const_key, .merge => unreachable,
+            // Value parts (including calls, which always evaluate) were
+            // resolved, nested merges were flattened at compile time, and
+            // const_key only appears under an object.
+            .equality, .const_fn, .call, .const_key, .merge => unreachable,
         },
     };
 }
@@ -937,9 +944,9 @@ fn matchTemplateUnboundSegment(
         .bind, .bound_eq, .placeholder, .str_template => {
             unbound_elem = try substringElem(vm, value, value_str, unbound_start, unbound_end);
         },
-        // Constants evaluate to value segments, ranges are fixed-length
-        // segments, and const_key only appears under an object.
-        .equality, .const_key, .range => unreachable,
+        // Constants and calls evaluate to value segments, ranges are
+        // fixed-length segments, and const_key only appears under an object.
+        .equality, .const_fn, .call, .const_key, .range => unreachable,
     }
 
     if (unbound_elem) |cast_elem| {
@@ -984,8 +991,11 @@ fn parseBytesAsJsonElem(vm: *VM, bytes: []const u8) Error!?Elem {
 // Read a bound local and render it to a string, the way the solver
 // toStrings every simplified template segment.
 fn stringifyBoundLocal(vm: *VM, local_var: LocalVar) Error!Elem {
-    const resolved = try resolveBoundLocal(vm, local_var);
-    const str = try resolved.toString(vm);
+    return stringifyElem(vm, try resolveBoundLocal(vm, local_var));
+}
+
+fn stringifyElem(vm: *VM, elem: Elem) Error!Elem {
+    const str = try elem.toString(vm);
     if (str.isType(.Dyn)) try vm.pushTempDyn(str.asDyn());
     return str;
 }
@@ -1026,7 +1036,7 @@ fn resolveBoundLocal(vm: *VM, local_var: LocalVar) Error!Elem {
         const function = pattern_value.asDyn().asFunction();
         // Must be zero-arity, since it was not called with args.
         if (function.arity != 0) return error.RuntimeError;
-        pattern_value = try executeFunctionOnVM(vm, pattern_value);
+        pattern_value = try executeFunctionOnVM(vm, pattern_value, &.{});
         // Root the result: it may be held across allocations (a merge's
         // resolved-part list, rest materialization) with no other handle.
         if (pattern_value.isType(.Dyn)) try vm.pushTempDyn(pattern_value.asDyn());
@@ -1035,12 +1045,78 @@ fn resolveBoundLocal(vm: *VM, local_var: LocalVar) Error!Elem {
     return pattern_value;
 }
 
-// Evaluate a zero-arity function bound to a pattern local. Plans never run
-// under the debug print modes (those compile the tree path), so this is
-// PatternSolver.executeFunctionOnVM minus the print hooks.
-fn executeFunctionOnVM(vm: *VM, function: Elem) Error!Elem {
+// Execute a zero-arity Function global, mirroring the solver's
+// matchConstant/evalConstant. Lowering only emits const_fn for Function
+// dyns with arity zero, so there is no runtime type or arity check.
+fn evalConstFn(vm: *VM, plan: MatchPlan, elem_idx: u32) Error!Elem {
+    const function = plan.elems[elem_idx];
+    std.debug.assert(function.isDynType(.Function));
+    const result = try executeFunctionOnVM(vm, function, &.{});
+    // Root the result; see resolveBoundLocal.
+    if (result.isType(.Dyn)) try vm.pushTempDyn(result.asDyn());
+    return result;
+}
+
+// Evaluate a call node, mirroring the solver's evalFunctionCall. Constant
+// callees were checked at lowering; a local callee holds an arbitrary
+// runtime value, so its function-ness and arity are checked here.
+fn evalCall(vm: *VM, plan: MatchPlan, call_node_idx: u32) Error!Elem {
+    const call = plan.calls[plan.nodes[call_node_idx].payload];
+
+    const function = switch (call.callee) {
+        .local => |var_idx| blk: {
+            const local_value = vm.getLocal(plan.vars[var_idx].idx);
+            // Attempt to call non-function value
+            if (!local_value.isDynType(.Function)) return error.RuntimeError;
+            if (local_value.asDyn().asFunction().arity != call.arg_count) {
+                // Function called with wrong number of arguments
+                return error.RuntimeError;
+            }
+            break :blk local_value;
+        },
+        .constant => |elem_idx| plan.elems[elem_idx],
+    };
+
+    const args = try vm.allocator.alloc(Elem, call.arg_count);
+    defer vm.allocator.free(args);
+
+    var child = call_node_idx + 1;
+    for (args) |*arg| {
+        const child_node = plan.nodes[child];
+        arg.* = switch (child_node.tag) {
+            .equality => plan.elems[child_node.payload],
+            .bound_eq => try evalArgLocal(vm, plan.vars[child_node.payload]),
+            .const_fn => try evalConstFn(vm, plan, child_node.payload),
+            // Lowering rejects other argument shapes.
+            else => unreachable,
+        };
+        child += child_node.subtree_len;
+    }
+
+    const result = try executeFunctionOnVM(vm, function, args);
+    // Root the result; see resolveBoundLocal.
+    if (result.isType(.Dyn)) try vm.pushTempDyn(result.asDyn());
+    return result;
+}
+
+// Read a local passed as a call argument, mirroring the solver's evalLocal:
+// unlike a bound_eq occurrence the slot has no static boundness — the call
+// may run before the pattern occurrence that binds it, and an unbound slot
+// is a runtime error rather than a failed match.
+fn evalArgLocal(vm: *VM, local_var: LocalVar) Error!Elem {
+    // Patterns don't support unbound var in function call
+    if (vm.getLocal(local_var.idx).isType(.ValueVar)) return error.RuntimeError;
+    return resolveBoundLocal(vm, local_var);
+}
+
+// Evaluate a function bound or called in a pattern. Plans never run under
+// the debug print modes (those compile the tree path), so this is
+// PatternSolver.executeFunctionOnVM minus the print hooks. The VM stack
+// roots the function and args while it runs.
+fn executeFunctionOnVM(vm: *VM, function: Elem, args: []const Elem) Error!Elem {
     try vm.push(function);
-    try vm.callFunction(function, 0, false);
+    for (args) |arg| try vm.push(arg);
+    try vm.callFunction(function, @intCast(args.len), false);
     try vm.runFunction();
     return vm.pop();
 }

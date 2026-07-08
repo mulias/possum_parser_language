@@ -3051,6 +3051,111 @@ test "0..999 -> N $ 'Your number was %(N).'" {
     }
 }
 
+test "Two = @Add(1, 1); ('' $ 2) -> Two" {
+    const parser =
+        \\Two = @Add(1, 1); ("" $ 2) -> Two $ "ok"
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        const mismatch =
+            \\Two = @Add(1, 1); ("" $ 3) -> Two $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", mismatch, ""),
+        );
+    }
+}
+
+test "('' $ 10) -> (Double(3) + A) $ A" {
+    const parser =
+        \\Double(N) = N + N; ("" $ 10) -> (Double(3) + A) $ A
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(4),
+        vm,
+    );
+}
+
+test "'x6' -> 'x%(Double(3))'" {
+    const parser =
+        \\Double(N) = N + N; "x6" -> "x%(Double(3))" $ "ok"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, "x6"),
+        (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+        vm,
+    );
+}
+
+test "('' $ [2, 4]) -> [A, Double(A)] $ A" {
+    const parser =
+        \\Double(N) = N + N; ("" $ [2, 4]) -> [A, Double(A)] $ A
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(2),
+        vm,
+    );
+}
+
+test "('' $ [4, 2]) -> [Double(A), A] errors on the unbound argument" {
+    const parser =
+        \\Double(N) = N + N; ("" $ [4, 2]) -> [Double(A), A] $ A
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try std.testing.expectError(error.RuntimeError, vm.interpret("test", parser, ""));
+}
+
+test "a function-valued local is callable in a pattern" {
+    const parser =
+        \\Id(N) = N; apply(F) = ("" $ 1) -> F(1) $ "yes"; apply(Id)
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "yes")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        // Wrong arity for the local callee is only knowable at match time.
+        const mismatch =
+            \\Id(N) = N; apply(F) = ("" $ 1) -> F(1, 2) $ "yes"; apply(Id)
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try std.testing.expectError(error.RuntimeError, vm.interpret("test", mismatch, ""));
+    }
+}
+
 const rc_config = VMConfig{
     .includeStdlib = false,
     .gc_mode = .NoGC,

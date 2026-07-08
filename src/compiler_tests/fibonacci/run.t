@@ -85,6 +85,6 @@
   0010    | GetConstant 1: fib
   0012    | GetBoundLocal 0
   0014    | CallFunction 1
-  0016    | Destructure 0: Fib(N)
+  0016    | DestructurePlan 5: Fib(bound_eq N)
   0018    | End
   ========================================
