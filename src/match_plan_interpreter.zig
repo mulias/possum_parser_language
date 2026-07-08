@@ -1,7 +1,9 @@
 const std = @import("std");
 const Elem = @import("elem.zig").Elem;
 const VM = @import("vm.zig").VM;
-const MatchPlan = @import("match_plan.zig").MatchPlan;
+const match_plan = @import("match_plan.zig");
+const MatchPlan = match_plan.MatchPlan;
+const LocalVar = match_plan.LocalVar;
 
 pub const Error = error{
     RuntimeError,
@@ -29,28 +31,19 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32) Error!bool {
         .placeholder => return true,
         .equality => return value.isEql(plan.elems[node.payload], vm.*),
         .bind => {
-            const pattern_var = plan.vars[node.payload];
+            const local_idx = plan.vars[node.payload].idx;
             // The slot takes a second handle; the value also stays on the
             // stack. The slot's previous handle dies: usually a placeholder
             // var, but possibly a stale value left by an earlier failed
             // match.
-            const previous = vm.getLocal(pattern_var.idx);
+            const previous = vm.getLocal(local_idx);
             value.retain();
-            vm.setLocal(pattern_var.idx, value);
+            vm.setLocal(local_idx, value);
             previous.release();
             return true;
         },
         .bound_eq => {
-            const pattern_var = plan.vars[node.payload];
-            var pattern_value = vm.getLocal(pattern_var.idx);
-
-            if (pattern_value.isDynType(.Function)) {
-                const function = pattern_value.asDyn().asFunction();
-                // Must be zero-arity, since it was not called with args.
-                if (function.arity != 0) return error.RuntimeError;
-                pattern_value = try executeFunctionOnVM(vm, pattern_value);
-            }
-
+            const pattern_value = try resolveBoundLocal(vm, plan.vars[node.payload]);
             return value.isEql(pattern_value, vm.*);
         },
         .array => {
@@ -86,7 +79,40 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32) Error!bool {
         },
         // Only reachable through its object node.
         .const_key => unreachable,
+        .range => {
+            const range = plan.ranges[node.payload];
+            if (try resolveRangeLimit(vm, plan, range.lower)) |lower| {
+                if (!(try lower.isLessThanOrEqualInRangePattern(value, vm.*))) return false;
+            }
+            if (try resolveRangeLimit(vm, plan, range.upper)) |upper| {
+                if (!(try value.isLessThanOrEqualInRangePattern(upper, vm.*))) return false;
+            }
+            return true;
+        },
     }
+}
+
+fn resolveRangeLimit(vm: *VM, plan: MatchPlan, limit: match_plan.RangePlan.Limit) Error!?Elem {
+    return switch (limit) {
+        .none => null,
+        .const_elem => |idx| plan.elems[idx],
+        .bound_local => |idx| try resolveBoundLocal(vm, plan.vars[idx]),
+    };
+}
+
+// Read a statically-bound local for comparison, evaluating a zero-arity
+// function value the way the tree path's attemptEval does.
+fn resolveBoundLocal(vm: *VM, local_var: LocalVar) Error!Elem {
+    var pattern_value = vm.getLocal(local_var.idx);
+
+    if (pattern_value.isDynType(.Function)) {
+        const function = pattern_value.asDyn().asFunction();
+        // Must be zero-arity, since it was not called with args.
+        if (function.arity != 0) return error.RuntimeError;
+        pattern_value = try executeFunctionOnVM(vm, pattern_value);
+    }
+
+    return pattern_value;
 }
 
 // Evaluate a zero-arity function bound to a pattern local. Plans never run

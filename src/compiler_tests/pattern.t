@@ -15,7 +15,7 @@
   0000    | GetConstant 0: const
   0002    | GetConstant 1: [1, 2, 3]
   0004    | CallFunction 1
-  0006    | Destructure 0: [1, 2, 3]
+  0006    | DestructurePlan 0: [eq 1, eq 2, eq 3]
   0008    | End
   ========================================
 
@@ -37,7 +37,7 @@
   0006    | GetConstant 0: const
   0008    | GetConstant 1: [1, 2, 3]
   0010    | CallFunction 1
-  0012    | Destructure 0: [A, B, C]
+  0012    | DestructurePlan 0: [bind A, bind B, bind C]
   0014    | End
   ========================================
 
@@ -58,7 +58,7 @@
   0004    | GetConstant 0: const
   0006    | GetConstant 1: [1, 2, 3]
   0008    | CallFunction 1
-  0010    | Destructure 0: [A, B, C]
+  0010    | DestructurePlan 0: [eq 1, bind B, bind C]
   0012    | End
   ========================================
 
@@ -78,7 +78,7 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 2, 3]
   0006    | CallFunction 1
-  0008    | Destructure 0: [A, 2, 3]
+  0008    | DestructurePlan 0: [bind A, eq 2, eq 3]
   0010    | End
   ========================================
 
@@ -103,7 +103,7 @@
   0012    | InsertAtIndex 0
   0014    | InsertAtIndex 1
   0016    | CallFunction 1
-  0018    | Destructure 0: [A, [[B], 3]]
+  0018    | DestructurePlan 0: [bind A, [[bind B], eq 3]]
   0020    | TakeRight 20 -> 25
   0023    | GetBoundLocalMove 1
   0025    | End
@@ -136,7 +136,7 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 2, 3]
   0006    | CallFunction 1
-  0008    | Destructure 0: [A, 2, 3]
+  0008    | DestructurePlan 0: [bind A, eq 2, eq 3]
   0010    | End
   ========================================
 
@@ -187,7 +187,7 @@
   0000    | GetConstant 0: const
   0002    | GetConstant 1: [1, 2]
   0004    | CallFunction 1
-  0006    | Destructure 0: [1, 2]
+  0006    | DestructurePlan 0: [eq 1, eq 2]
   0008    | End
   ========================================
 
@@ -283,7 +283,7 @@
   0000    | GetConstant 0: const
   0002    | GetConstant 1: {"a": 1, "b": 2}
   0004    | CallFunction 1
-  0006    | Destructure 0: {"a": 1, "b": 2}
+  0006    | DestructurePlan 0: {"a": eq 1, "b": eq 2}
   0008    | End
   ========================================
 
@@ -304,7 +304,7 @@
   0004    | GetConstant 0: const
   0006    | GetConstant 1: {"a": 1, "b": 2}
   0008    | CallFunction 1
-  0010    | Destructure 0: {"a": A, "b": B}
+  0010    | DestructurePlan 0: {"a": bind A, "b": bind B}
   0012    | End
   ========================================
 
@@ -324,7 +324,7 @@
   0001    | GetConstant 0: const
   0003    | GetConstant 1: {"a": 1, "b": 2}
   0005    | CallFunction 1
-  0007    | Destructure 0: {"a": _, "b": _}
+  0007    | DestructurePlan 0: {"a": placeholder, "b": placeholder}
   0009    | End
   ========================================
 
@@ -414,7 +414,7 @@
   2 -> 0..5
   ========================================
   0000    | ParseNumberStringChar 2
-  0002    | Destructure 0: 0..5
+  0002    | DestructurePlan 0: 0..5
   0004    | End
   ========================================
 
@@ -431,7 +431,7 @@
   char -> "a".."z"
   ========================================
   0000    | CallFunctionConstant 0: char
-  0002    | Destructure 0: "a".."z"
+  0002    | DestructurePlan 0: "a".."z"
   0004    | End
   ========================================
 
@@ -448,7 +448,7 @@
   char -> .."z"
   ========================================
   0000    | CallFunctionConstant 0: char
-  0002    | Destructure 0: .."z"
+  0002    | DestructurePlan 0: .."z"
   0004    | End
   ========================================
 
@@ -575,7 +575,7 @@
   4 -> (1 + 1 + 2)
   ========================================
   0000    | ParseNumberStringChar 4
-  0002    | Destructure 0: 4
+  0002    | DestructurePlan 0: eq 4
   0004    | End
   ========================================
 
@@ -585,7 +585,7 @@
   5 -> (2 + 3)
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | Destructure 0: 5
+  0002    | DestructurePlan 0: eq 5
   0004    | End
   ========================================
 
@@ -639,7 +639,7 @@
   5 -> (2 - 3)
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | Destructure 0: -1
+  0002    | DestructurePlan 0: eq -1
   0004    | End
   ========================================
 
@@ -675,7 +675,7 @@
   5 -> (1 + 6 + 3 - (2 + 3))
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | Destructure 0: 5
+  0002    | DestructurePlan 0: eq 5
   0004    | End
   ========================================
 
@@ -830,7 +830,7 @@
   "abc" -> "abc"
   ========================================
   0000    | CallFunctionConstant 0: "abc"
-  0002    | Destructure 0: "abc"
+  0002    | DestructurePlan 0: eq "abc"
   0004    | End
   ========================================
 
@@ -878,7 +878,7 @@
   0000    | GetConstant 0: many
   0002    | GetConstant 1: char
   0004    | CallFunction 1
-  0006    | Destructure 0: "\nfoo"
+  0006    | DestructurePlan 0: eq "\nfoo"
   0008    | End
   ========================================
 
@@ -982,7 +982,7 @@
   numerals -> ("3" * 10)
   ========================================
   0000    | CallFunctionConstant 0: numerals
-  0002    | Destructure 0: "3333333333"
+  0002    | DestructurePlan 0: eq "3333333333"
   0004    | End
   ========================================
 
@@ -1089,7 +1089,7 @@
   0002    | PushNumberStringOne
   0003    | PushNumberStringZero
   0004    | CallFunction 2
-  0006    | Destructure 0: true
+  0006    | DestructurePlan 0: eq true
   0008    | End
   ========================================
 
@@ -1224,7 +1224,7 @@
   int -> 5
   ========================================
   0000    | CallFunctionConstant 0: integer
-  0002    | Destructure 0: 5
+  0002    | DestructurePlan 0: eq 5
   0004    | End
   ========================================
 
@@ -1234,7 +1234,7 @@
   5 -> 2..7
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | Destructure 0: 2..7
+  0002    | DestructurePlan 0: 2..7
   0004    | End
   ========================================
 
@@ -1321,7 +1321,7 @@
   0000    | GetConstant 0: array
   0002    | GetConstant 1: digit
   0004    | CallFunction 1
-  0006    | Destructure 0: [1, 2, 3]
+  0006    | DestructurePlan 0: [eq 1, eq 2, eq 3]
   0008    | End
   ========================================
 
@@ -1453,7 +1453,7 @@
   0000    | GetConstant 0: array
   0002    | GetConstant 1: digit
   0004    | CallFunction 1
-  0006    | Destructure 0: [1, 1, 1, 1, 1]
+  0006    | DestructurePlan 0: [eq 1, eq 1, eq 1, eq 1, eq 1]
   0008    | End
   ========================================
 
@@ -1519,7 +1519,7 @@
   0002    | GetConstant 0: array
   0004    | GetConstant 1: digit
   0006    | CallFunction 1
-  0008    | Destructure 0: [A, A, A, A, A]
+  0008    | DestructurePlan 0: [bound_eq A, bound_eq A, bound_eq A, bound_eq A, bound_eq A]
   0010    | End
   ========================================
 
@@ -1722,7 +1722,7 @@
   0003    | GetConstant 0: array
   0005    | GetConstant 1: digit
   0007    | CallFunction 1
-  0009    | Destructure 0: [1, B, _]
+  0009    | DestructurePlan 0: [eq 1, bind B, placeholder]
   0011    | End
   ========================================
 
@@ -1805,7 +1805,7 @@
   0002    | GetConstant 1: alpha
   0004    | GetConstant 2: digit
   0006    | CallFunction 2
-  0008    | Destructure 0: {"a": 1, "b": 2}
+  0008    | DestructurePlan 0: {"a": eq 1, "b": eq 2}
   0010    | End
   ========================================
 
@@ -2228,7 +2228,7 @@
   0005    | GetConstant 1: alpha
   0007    | GetConstant 2: digit
   0009    | CallFunction 2
-  0011    | Destructure 0: {"a": _, "b": B}
+  0011    | DestructurePlan 0: {"a": placeholder, "b": bind B}
   0013    | End
   ========================================
 

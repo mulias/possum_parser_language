@@ -1122,6 +1122,79 @@ test "an object pattern with a variable key falls back to the tree path" {
     }
 }
 
+test "range patterns with constant bounds compile to match plans" {
+    const parser =
+        \\('' $ 3) -> 1..5 & ('' $ 9) -> 5.. & ('' $ 2) -> ..5 & ('' $ 'c') -> 'a'..'f' $ 'ok'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(4, plan_count);
+    }
+}
+
+test "range plan mismatch drives alternation" {
+    const parser =
+        \\(('' $ 9) -> 1..5 $ 'no') | ('' $ 'yes')
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "yes")).dyn.elem(),
+            vm,
+        );
+    }
+}
+
+test "a range bound by a bound local compiles to a match plan" {
+    const parser =
+        \\(('' $ 5) -> N) & (('' $ 3) -> 1..N) $ 'ok'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(2, plan_count);
+    }
+}
+
+test "a range with an unbound local bound falls back to the tree path" {
+    const parser =
+        \\('' $ 3) -> N..5 $ N
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            try Elem.numberStringFromBytes("3", &vm),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(0, plan_count);
+    }
+}
+
 test "a merge pattern falls back to the tree path" {
     const parser =
         \\('' $ 3) -> (1 + N) $ N

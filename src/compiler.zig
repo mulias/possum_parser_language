@@ -1590,9 +1590,10 @@ pub const Compiler = struct {
     // cleanly, before any module or plan state mutation.
     const PlanBuilder = struct {
         nodes: ArrayList(match_plan.Node) = .{},
-        vars: ArrayList(Pattern.PatternVar) = .{},
+        vars: ArrayList(match_plan.LocalVar) = .{},
         elems: ArrayList(Elem) = .{},
         sids: ArrayList(RuntimeStrings.Id) = .{},
+        ranges: ArrayList(match_plan.RangePlan) = .{},
         reads: liveness.SlotSet = liveness.SlotSet.initEmpty(),
 
         fn deinit(self: *PlanBuilder, allocator: std.mem.Allocator) void {
@@ -1600,24 +1601,35 @@ pub const Compiler = struct {
             self.vars.deinit(allocator);
             self.elems.deinit(allocator);
             self.sids.deinit(allocator);
+            self.ranges.deinit(allocator);
         }
 
         fn appendLeaf(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, payload: u32) !void {
             try self.nodes.append(allocator, .{ .tag = tag, .subtree_len = 1, .payload = payload });
         }
 
-        fn appendEquality(self: *PlanBuilder, allocator: std.mem.Allocator, elem: Elem) !void {
+        fn addElem(self: *PlanBuilder, allocator: std.mem.Allocator, elem: Elem) !u32 {
             // The plan holds the elem across matches, like a module
             // constant: shared by construction, never unique.
             if (elem.isType(.Dyn)) elem.asDyn().makeImmortal();
-            try self.appendLeaf(allocator, .equality, @intCast(self.elems.items.len));
+            const idx: u32 = @intCast(self.elems.items.len);
             try self.elems.append(allocator, elem);
+            return idx;
         }
 
-        fn appendVar(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, pattern_var: Pattern.PatternVar) !void {
-            try self.appendLeaf(allocator, tag, @intCast(self.vars.items.len));
-            try self.vars.append(allocator, pattern_var);
-            self.reads.set(pattern_var.idx);
+        fn addVar(self: *PlanBuilder, allocator: std.mem.Allocator, local_var: match_plan.LocalVar) !u32 {
+            const idx: u32 = @intCast(self.vars.items.len);
+            try self.vars.append(allocator, local_var);
+            self.reads.set(local_var.idx);
+            return idx;
+        }
+
+        fn appendEquality(self: *PlanBuilder, allocator: std.mem.Allocator, elem: Elem) !void {
+            try self.appendLeaf(allocator, .equality, try self.addElem(allocator, elem));
+        }
+
+        fn appendVar(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, local_var: match_plan.LocalVar) !void {
+            try self.appendLeaf(allocator, tag, try self.addVar(allocator, local_var));
         }
     };
 
@@ -1649,6 +1661,8 @@ pub const Compiler = struct {
         errdefer allocator.free(elems);
         const sids = try builder.sids.toOwnedSlice(allocator);
         errdefer allocator.free(sids);
+        const ranges = try builder.ranges.toOwnedSlice(allocator);
+        errdefer allocator.free(ranges);
 
         const module = self.vm.getModule(module_id);
         const idx = try module.addMatchPlan(allocator, .{
@@ -1656,6 +1670,7 @@ pub const Compiler = struct {
             .vars = vars,
             .elems = elems,
             .sids = sids,
+            .ranges = ranges,
         });
 
         const gop = try self.plan_reads.getOrPut(allocator, module_id);
@@ -1754,6 +1769,58 @@ pub const Compiler = struct {
                     builder.nodes.items[key_start].subtree_len = @intCast(builder.nodes.items.len - key_start);
                 }
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
+            },
+            .range => |bounds| {
+                std.debug.assert(bounds.lower != null or bounds.upper != null);
+                const lower = try self.lowerRangeLimit(module_id, bounds.lower, builder);
+                const upper = try self.lowerRangeLimit(module_id, bounds.upper, builder);
+                try builder.appendLeaf(allocator, .range, @intCast(builder.ranges.items.len));
+                try builder.ranges.append(allocator, .{ .lower = lower, .upper = upper });
+            },
+            else => return error.UnsupportedPattern,
+        }
+    }
+
+    // A range bound folds when it is absent, a number/string literal, or a
+    // statically-bound local. An unbound local in a bound is matched as a
+    // pattern by the tree path, so it falls back.
+    fn lowerRangeLimit(
+        self: *Compiler,
+        module_id: Module.Id,
+        maybe_rnode: ?*Ast.Pattern.RNode,
+        builder: *PlanBuilder,
+    ) (Error || error{UnsupportedPattern})!match_plan.RangePlan.Limit {
+        const allocator = self.vm.allocator;
+        const rnode = maybe_rnode orelse return .none;
+
+        switch (rnode.node) {
+            .number_float => |f| {
+                return .{ .const_elem = try builder.addElem(allocator, Elem.numberFloat(f)) };
+            },
+            .number_string => |ns| {
+                const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                const number = ns_elem.asNumberString().toNumberFloat(self.vm.strings);
+                return .{ .const_elem = try builder.addElem(allocator, number) };
+            },
+            .string => |s| {
+                const sid = try self.vm.strings.insert(s);
+                return .{ .const_elem = try builder.addElem(allocator, Elem.string(sid)) };
+            },
+            .identifier => |ident| {
+                const name = ident.name;
+                if (std.mem.eql(u8, self.frontend.strings.get(name), "_")) {
+                    return error.UnsupportedPattern;
+                }
+                if (self.resolveGlobal(module_id, name) != null) return error.UnsupportedPattern;
+                const slot = self.localSlot(name) orelse return error.UnsupportedPattern;
+                const bound = self.binding_maps.pattern_local_bound.get(rnode) orelse
+                    return error.UnsupportedPattern;
+                if (!bound) return error.UnsupportedPattern;
+                return .{ .bound_local = try builder.addVar(allocator, .{
+                    .sid = try self.internForRuntime(name),
+                    .idx = slot,
+                    .negation_count = 0,
+                }) };
             },
             else => return error.UnsupportedPattern,
         }
