@@ -1436,7 +1436,7 @@ test "template plan mismatch drives alternation" {
     }
 }
 
-test "a template with a repeat segment falls back to the tree path" {
+test "a template with a repeat segment compiles to a match plan" {
     const parser =
         \\('' $ 'aaa') -> "%('a' * N)" $ N
     ;
@@ -1451,7 +1451,7 @@ test "a template with a repeat segment falls back to the tree path" {
         );
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(0, plan_count);
+        try std.testing.expectEqual(1, plan_count);
     }
 }
 
@@ -3154,6 +3154,168 @@ test "a function-valued local is callable in a pattern" {
         defer vm.deinit();
         try std.testing.expectError(error.RuntimeError, vm.interpret("test", mismatch, ""));
     }
+}
+
+test "('' $ 'abab') -> (A * 2) $ A" {
+    const parser =
+        \\("" $ "abab") -> (A * 2) $ A
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "ab")).dyn.elem(),
+        vm,
+    );
+}
+
+test "('' $ [1, 1]) -> (A * 2) binds once then compares" {
+    const parser =
+        \\("" $ [1, 1]) -> (A * 2) $ A
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(1),
+            vm,
+        );
+    }
+    {
+        const mismatch =
+            \\("" $ [1, 2]) -> (A * 2) $ A
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", mismatch, ""),
+        );
+    }
+}
+
+test "('' $ [1, 2, 1, 2]) -> ([A, B] * N) matches equal chunks" {
+    const parser =
+        \\("" $ [1, 2, 1, 2]) -> ([A, B] * N) $ "%(A),%(B),%(N)"
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "1,2,2")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        const mismatch =
+            \\("" $ [1, 2, 3, 4]) -> ([A, B] * N) $ N
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", mismatch, ""),
+        );
+    }
+}
+
+test "('' $ [1, 2, 1, 2]) -> ([1, 2] * N) folds the pattern at compile time" {
+    const parser =
+        \\("" $ [1, 2, 1, 2]) -> ([1, 2] * N) $ N
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(2),
+        vm,
+    );
+}
+
+test "'abc' -> ('a'..'z' * N) counts codepoints" {
+    const parser =
+        \\"abc" -> ("a".."z" * N) $ N
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, "abc"),
+            Elem.numberFloat(3),
+            vm,
+        );
+    }
+    {
+        const out_of_range =
+            \\"aBc" -> ("a".."z" * N) $ N
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", out_of_range, "aBc"),
+        );
+    }
+}
+
+test "('' $ {'a': 5}) -> ({'a': A} * N) claims one group" {
+    const parser =
+        \\("" $ {"a": 5}) -> ({"a": A} * N) $ "%(A),%(N)"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "5,1")).dyn.elem(),
+        vm,
+    );
+}
+
+test "an object repeat with a bound count is a structural merge part" {
+    const parser =
+        \\("" $ {"a": 1, "b": 2}) -> ({"a": A} * 1 + _) $ A
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(1),
+            vm,
+        );
+    }
+    {
+        // A second repetition re-probes the same constant key, which the
+        // exclusive claim rejects.
+        const two_reps =
+            \\("" $ {"a": 1, "b": 2}) -> ({"a": A} * 2 + _) $ A
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", two_reps, ""),
+        );
+    }
+}
+
+test "('' $ 10) -> (A * N) errors when neither side evaluates" {
+    const parser =
+        \\("" $ 10) -> (A * N) $ A
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try std.testing.expectError(error.RuntimeError, vm.interpret("test", parser, ""));
 }
 
 const rc_config = VMConfig{

@@ -1596,6 +1596,7 @@ pub const Compiler = struct {
         ranges: ArrayList(match_plan.RangePlan) = .{},
         merges: ArrayList(match_plan.MergePlan) = .{},
         calls: ArrayList(match_plan.CallPlan) = .{},
+        repeats: ArrayList(match_plan.RepeatPlan) = .{},
         reads: liveness.SlotSet = liveness.SlotSet.initEmpty(),
 
         fn deinit(self: *PlanBuilder, allocator: std.mem.Allocator) void {
@@ -1606,6 +1607,7 @@ pub const Compiler = struct {
             self.ranges.deinit(allocator);
             self.merges.deinit(allocator);
             self.calls.deinit(allocator);
+            self.repeats.deinit(allocator);
         }
 
         fn appendLeaf(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, payload: u32) !void {
@@ -1653,7 +1655,7 @@ pub const Compiler = struct {
         var builder = PlanBuilder{};
         defer builder.deinit(allocator);
 
-        try self.lowerPatternNode(module_id, rnode, &builder);
+        try self.lowerPatternNode(module_id, rnode, &builder, false);
 
         try self.emitPatternPreclears(module_id, rnode);
 
@@ -1671,6 +1673,8 @@ pub const Compiler = struct {
         errdefer allocator.free(merges);
         const calls = try builder.calls.toOwnedSlice(allocator);
         errdefer allocator.free(calls);
+        const repeats = try builder.repeats.toOwnedSlice(allocator);
+        errdefer allocator.free(repeats);
 
         const module = self.vm.getModule(module_id);
         const idx = try module.addMatchPlan(allocator, .{
@@ -1681,6 +1685,7 @@ pub const Compiler = struct {
             .ranges = ranges,
             .merges = merges,
             .calls = calls,
+            .repeats = repeats,
         });
 
         const gop = try self.plan_reads.getOrPut(allocator, module_id);
@@ -1695,11 +1700,15 @@ pub const Compiler = struct {
     // identically. Negation falls back: negating a non-number literal is a
     // compile error the tree path reports, and a negated non-number constant
     // is a runtime error that pre-folding would turn into a compile error.
+    //
+    // all_locals_bound lowers a repeat's rebound pattern variant: every
+    // local is treated as bound, because the first repetition bound it.
     fn lowerPatternNode(
         self: *Compiler,
         module_id: Module.Id,
         rnode: *Ast.Pattern.RNode,
         builder: *PlanBuilder,
+        all_locals_bound: bool,
     ) (Error || error{UnsupportedPattern})!void {
         const allocator = self.vm.allocator;
 
@@ -1725,8 +1734,9 @@ pub const Compiler = struct {
                     return builder.appendEquality(allocator, global);
                 }
                 const slot = self.localSlot(name) orelse return error.UnsupportedPattern;
-                const bound = self.binding_maps.pattern_local_bound.get(rnode) orelse
-                    return error.UnsupportedPattern;
+                const bound = all_locals_bound or
+                    (self.binding_maps.pattern_local_bound.get(rnode) orelse
+                        return error.UnsupportedPattern);
                 return builder.appendVar(allocator, if (bound) .bound_eq else .bind, .{
                     .sid = try self.internForRuntime(name),
                     .idx = slot,
@@ -1756,7 +1766,7 @@ pub const Compiler = struct {
                     .payload = @intCast(elements.items.len),
                 });
                 for (elements.items) |element| {
-                    try self.lowerPatternNode(module_id, element, builder);
+                    try self.lowerPatternNode(module_id, element, builder, all_locals_bound);
                 }
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
@@ -1779,15 +1789,15 @@ pub const Compiler = struct {
                         .payload = @intCast(builder.sids.items.len),
                     });
                     try builder.sids.append(allocator, sid);
-                    try self.lowerPatternNode(module_id, pair.value, builder);
+                    try self.lowerPatternNode(module_id, pair.value, builder, all_locals_bound);
                     builder.nodes.items[key_start].subtree_len = @intCast(builder.nodes.items.len - key_start);
                 }
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
             .range => |bounds| {
                 std.debug.assert(bounds.lower != null or bounds.upper != null);
-                const lower = try self.lowerRangeLimit(module_id, bounds.lower, builder);
-                const upper = try self.lowerRangeLimit(module_id, bounds.upper, builder);
+                const lower = try self.lowerRangeLimit(module_id, bounds.lower, builder, all_locals_bound);
+                const upper = try self.lowerRangeLimit(module_id, bounds.upper, builder, all_locals_bound);
                 try builder.appendLeaf(allocator, .range, @intCast(builder.ranges.items.len));
                 try builder.ranges.append(allocator, .{ .lower = lower, .upper = upper });
             },
@@ -1807,7 +1817,7 @@ pub const Compiler = struct {
                     const unbound = self.binding_maps.merge_part_unbound.get(segment) orelse
                         return error.UnsupportedPattern;
                     const segment_start = builder.nodes.items.len;
-                    try self.lowerPatternNode(module_id, segment, builder);
+                    try self.lowerPatternNode(module_id, segment, builder, all_locals_bound);
                     if (unbound) {
                         builder.merges.items[merge_idx].solvable_index = @intCast(i);
                     } else switch (builder.nodes.items[segment_start].tag) {
@@ -1846,8 +1856,52 @@ pub const Compiler = struct {
                     .solvable_index = null,
                 });
                 var merge_plan = match_plan.MergePlan{ .part_count = 0, .solvable_index = null };
-                try self.lowerMergeParts(module_id, rnode, builder, &merge_plan);
+                try self.lowerMergeParts(module_id, rnode, builder, &merge_plan, all_locals_bound);
                 builder.merges.items[merge_idx] = merge_plan;
+                builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
+            },
+            .repeat => |infix| {
+                const start = builder.nodes.items.len;
+                const repeat_idx: u32 = @intCast(builder.repeats.items.len);
+                try builder.nodes.append(allocator, .{
+                    .tag = .repeat,
+                    .subtree_len = undefined,
+                    .payload = repeat_idx,
+                });
+                try builder.repeats.append(allocator, .{
+                    .pattern = .subtree,
+                    .count = .subtree,
+                    .has_rebound_pattern = false,
+                });
+
+                const pattern_start: u32 = @intCast(builder.nodes.items.len);
+                try self.lowerPatternNode(module_id, infix.left, builder, all_locals_bound);
+                const count_start: u32 = @intCast(builder.nodes.items.len);
+                try self.lowerPatternNode(module_id, infix.right, builder, all_locals_bound);
+
+                const pattern_op = try self.lowerRepeatOperand(builder, pattern_start);
+                const count_op = try self.lowerRepeatOperand(builder, count_start);
+
+                // Array repetitions re-match the pattern per element or
+                // chunk; when it binds locals the later iterations must
+                // compare instead, so emit the pattern again with every
+                // local bound.
+                var has_rebound = false;
+                for (builder.nodes.items[pattern_start..count_start]) |n| {
+                    if (n.tag == .bind) {
+                        has_rebound = true;
+                        break;
+                    }
+                }
+                if (has_rebound) {
+                    try self.lowerPatternNode(module_id, infix.left, builder, true);
+                }
+
+                builder.repeats.items[repeat_idx] = .{
+                    .pattern = pattern_op,
+                    .count = count_op,
+                    .has_rebound_pattern = has_rebound,
+                };
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
             .function_call => |function_call| {
@@ -1957,11 +2011,12 @@ pub const Compiler = struct {
         rnode: *Ast.Pattern.RNode,
         builder: *PlanBuilder,
         merge_plan: *match_plan.MergePlan,
+        all_locals_bound: bool,
     ) (Error || error{UnsupportedPattern})!void {
         switch (rnode.node) {
             .merge => |merge| {
-                try self.lowerMergeParts(module_id, merge.left, builder, merge_plan);
-                try self.lowerMergeParts(module_id, merge.right, builder, merge_plan);
+                try self.lowerMergeParts(module_id, merge.left, builder, merge_plan, all_locals_bound);
+                try self.lowerMergeParts(module_id, merge.right, builder, merge_plan, all_locals_bound);
             },
             else => {
                 // Binding analysis records solvability per part; a part it
@@ -1969,10 +2024,125 @@ pub const Compiler = struct {
                 // analysis walk, so fall back rather than guess.
                 const unbound = self.binding_maps.merge_part_unbound.get(rnode) orelse
                     return error.UnsupportedPattern;
+                if (rnode.node == .repeat) {
+                    // Only an object repeat with a count that cannot fail to
+                    // evaluate is safe as a merge part: the solver decides
+                    // rest-vs-counted-structural by evaluating the count at
+                    // merge entry, and a count that evaluates statically but
+                    // comes up empty at match time (a nested repeat or merge)
+                    // would flip that classification. Rest repeats also
+                    // interact with later parts' boundness. Both stay on the
+                    // tree path.
+                    if (unbound) return error.UnsupportedPattern;
+                    if (rnode.node.repeat.left.node != .object) return error.UnsupportedPattern;
+                }
                 if (unbound) merge_plan.solvable_index = merge_plan.part_count;
-                try self.lowerPatternNode(module_id, rnode, builder);
+                const part_start = builder.nodes.items.len;
+                try self.lowerPatternNode(module_id, rnode, builder, all_locals_bound);
+                if (builder.nodes.items[part_start].tag == .repeat) {
+                    const count_idx = part_start + 1 + builder.nodes.items[part_start + 1].subtree_len;
+                    switch (builder.nodes.items[count_idx].tag) {
+                        .equality, .bound_eq, .const_fn, .call => {},
+                        else => return error.UnsupportedPattern,
+                    }
+                }
                 merge_plan.part_count += 1;
             },
+        }
+    }
+
+    // How a repeat operand subtree is obtained at match time, mirroring what
+    // the solver's attemptEval would discover dynamically. The split between
+    // constant and eval is the compile-time refinement: constants fold here.
+    const SubtreeClass = enum { constant, eval, subtree };
+
+    fn classifyPlanSubtree(self: *Compiler, builder: *PlanBuilder, idx: u32) SubtreeClass {
+        const node = builder.nodes.items[idx];
+        return switch (node.tag) {
+            .equality => .constant,
+            .bound_eq, .const_fn, .call => .eval,
+            .bind, .placeholder, .object, .range, .str_template => .subtree,
+            .array, .merge => blk: {
+                const child_count = if (node.tag == .array)
+                    node.payload
+                else
+                    builder.merges.items[node.payload].part_count;
+                var class = SubtreeClass.constant;
+                var child = idx + 1;
+                for (0..child_count) |_| {
+                    const child_class = self.classifyPlanSubtree(builder, child);
+                    if (@intFromEnum(child_class) > @intFromEnum(class)) class = child_class;
+                    child += builder.nodes.items[child].subtree_len;
+                }
+                break :blk class;
+            },
+            // A nested constant repeat could fold too, but folding it means
+            // running Elem.repeat at compile time for a shape that is rare;
+            // evaluate it per match instead.
+            .repeat => blk: {
+                const repeat_plan = builder.repeats.items[node.payload];
+                const evaluates = repeat_plan.pattern != .subtree and repeat_plan.count != .subtree;
+                break :blk if (evaluates) .eval else .subtree;
+            },
+            .const_key => unreachable,
+        };
+    }
+
+    // Fold a constant-classified subtree to an Elem, mirroring attemptEval.
+    // Null mirrors a merge that does not fold (mismatched part types); the
+    // operand then stays structural, the way attemptEval returns null for it
+    // on every match.
+    fn foldPlanSubtree(self: *Compiler, builder: *PlanBuilder, idx: u32) Error!?Elem {
+        const node = builder.nodes.items[idx];
+        switch (node.tag) {
+            .equality => return builder.elems.items[node.payload],
+            .array => {
+                const dyn_array = try Elem.DynElem.Array.create(self.vm, node.payload);
+                try self.vm.pushTempDyn(&dyn_array.dyn);
+                var child = idx + 1;
+                for (0..node.payload) |_| {
+                    const child_elem = (try self.foldPlanSubtree(builder, child)) orelse return null;
+                    try dyn_array.append(self.vm, child_elem);
+                    child += builder.nodes.items[child].subtree_len;
+                }
+                return dyn_array.dyn.elem();
+            },
+            .merge => {
+                var result: ?Elem = null;
+                var child = idx + 1;
+                for (0..builder.merges.items[node.payload].part_count) |_| {
+                    const part_elem = (try self.foldPlanSubtree(builder, child)) orelse return null;
+                    if (result) |current| {
+                        result = (try current.merge(part_elem, self.vm)) orelse return null;
+                        if (result.?.isType(.Dyn)) try self.vm.pushTempDyn(result.?.asDyn());
+                    } else {
+                        result = part_elem;
+                    }
+                    child += builder.nodes.items[child].subtree_len;
+                }
+                return result;
+            },
+            // Only constant-classified subtrees are folded.
+            else => unreachable,
+        }
+    }
+
+    fn lowerRepeatOperand(
+        self: *Compiler,
+        builder: *PlanBuilder,
+        subtree_idx: u32,
+    ) Error!match_plan.RepeatPlan.Operand {
+        switch (self.classifyPlanSubtree(builder, subtree_idx)) {
+            .constant => {
+                const temp_dyns_base = self.vm.temp_dyns.items.len;
+                defer self.vm.clearTempDyns(temp_dyns_base);
+                if (try self.foldPlanSubtree(builder, subtree_idx)) |elem| {
+                    return .{ .constant = try builder.addElem(self.vm.allocator, elem) };
+                }
+                return .subtree;
+            },
+            .eval => return .eval,
+            .subtree => return .subtree,
         }
     }
 
@@ -1984,6 +2154,7 @@ pub const Compiler = struct {
         module_id: Module.Id,
         maybe_rnode: ?*Ast.Pattern.RNode,
         builder: *PlanBuilder,
+        all_locals_bound: bool,
     ) (Error || error{UnsupportedPattern})!match_plan.RangePlan.Limit {
         const allocator = self.vm.allocator;
         const rnode = maybe_rnode orelse return .none;
@@ -2008,8 +2179,9 @@ pub const Compiler = struct {
                 }
                 if (self.resolveGlobal(module_id, name) != null) return error.UnsupportedPattern;
                 const slot = self.localSlot(name) orelse return error.UnsupportedPattern;
-                const bound = self.binding_maps.pattern_local_bound.get(rnode) orelse
-                    return error.UnsupportedPattern;
+                const bound = all_locals_bound or
+                    (self.binding_maps.pattern_local_bound.get(rnode) orelse
+                        return error.UnsupportedPattern);
                 if (!bound) return error.UnsupportedPattern;
                 return .{ .bound_local = try builder.addVar(allocator, .{
                     .sid = try self.internForRuntime(name),
