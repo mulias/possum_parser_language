@@ -407,7 +407,7 @@
   ========================================
   0000    | PushVar Str
   0002    | PushEmptyString
-  0003    | Destructure 0: "%(Str)"
+  0003    | DestructurePlan 0: tmpl(bind Str)
   0005    | End
   ========================================
 
@@ -549,7 +549,7 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: "%(0 + N)"
+  0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
   0006    | TakeRight 6 -> 11
   0009    | GetBoundLocalMove 1
   0011    | End

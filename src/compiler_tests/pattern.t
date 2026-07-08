@@ -720,7 +720,7 @@
   "1" -> "%(1)"
   ========================================
   0000    | ParseChar '1'
-  0002    | Destructure 0: "%(1)"
+  0002    | DestructurePlan 0: tmpl(eq "1")
   0004    | End
   ========================================
 
@@ -730,7 +730,7 @@
   "2" -> "%(1 + 1)"
   ========================================
   0000    | ParseChar '2'
-  0002    | Destructure 0: "%(2)"
+  0002    | DestructurePlan 0: tmpl(eq "2")
   0004    | End
   ========================================
 
@@ -741,7 +741,7 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "50"
-  0004    | Destructure 0: "%(0 + N)"
+  0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
   0006    | TakeRight 6 -> 11
   0009    | GetBoundLocalMove 0
   0011    | End
@@ -927,7 +927,7 @@
   0001    | GetConstant 0: many
   0003    | GetConstant 1: char
   0005    | CallFunction 1
-  0007    | Destructure 0: "%("a".."z")%(_)"
+  0007    | DestructurePlan 0: tmpl("a".."z", placeholder)
   0009    | End
   ========================================
 
@@ -1202,7 +1202,7 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionLocal 0
-  0004    | Destructure 0: "%(0 + N)"
+  0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
   0006    | TakeRight 6 -> 11
   0009    | GetBoundLocalMove 1
   0011    | End
@@ -2389,7 +2389,7 @@
   ========================================
   0000    | PushVar S
   0002    | CallFunctionConstant 0: "abc"
-  0004    | Destructure 0: "%(S)"
+  0004    | DestructurePlan 0: tmpl(bind S)
   0006    | End
   ========================================
 
@@ -2399,7 +2399,7 @@
   "null" -> "%(null)"
   ========================================
   0000    | CallFunctionConstant 0: "null"
-  0002    | Destructure 0: "%(null)"
+  0002    | DestructurePlan 0: tmpl(eq "null")
   0004    | End
   ========================================
 
@@ -2410,7 +2410,7 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "null"
-  0004    | Destructure 0: "%(N)"
+  0004    | DestructurePlan 0: tmpl(bind N)
   0006    | TakeRight 6 -> 11
   0009    | GetBoundLocalMove 0
   0011    | End
@@ -2423,7 +2423,7 @@
   ========================================
   0000    | PushVar B
   0002    | CallFunctionConstant 0: "true"
-  0004    | Destructure 0: "%(true + B)"
+  0004    | DestructurePlan 0: tmpl((eq true + bind B))
   0006    | TakeRight 6 -> 11
   0009    | GetBoundLocalMove 0
   0011    | End
@@ -2436,7 +2436,7 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "123"
-  0004    | Destructure 0: "%(0 + N)"
+  0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
   0006    | End
   ========================================
 
@@ -2447,7 +2447,7 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "123"
-  0004    | Destructure 0: "%(N + 1)"
+  0004    | DestructurePlan 0: tmpl((bind N + eq 1))
   0006    | End
   ========================================
 
@@ -2458,7 +2458,7 @@
   ========================================
   0000    | PushVar A
   0002    | CallFunctionConstant 0: "[1,2,3]"
-  0004    | Destructure 0: "%([] + A)"
+  0004    | DestructurePlan 0: tmpl(([] + bind A))
   0006    | End
   ========================================
 
@@ -2469,7 +2469,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | CallFunctionConstant 0: "{"a": 1, "b": 2}"
-  0003    | Destructure 0: "%({} + _)"
+  0003    | DestructurePlan 0: tmpl(({} + placeholder))
   0005    | End
   ========================================
 

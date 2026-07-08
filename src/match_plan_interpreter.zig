@@ -6,6 +6,7 @@ const MatchPlan = match_plan.MatchPlan;
 const LocalVar = match_plan.LocalVar;
 const ResolvedPart = match_plan.ResolvedPart;
 const StringTable = @import("string_table.zig").StringTable(.runtime);
+const isValidNumberString = @import("parsing.zig").isValidNumberString;
 
 pub const Error = error{
     RuntimeError,
@@ -78,40 +79,82 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
             const parts_base = vm.plan_merge_parts.items.len;
             defer vm.plan_merge_parts.shrinkRetainingCapacity(parts_base);
 
-            // Resolve value parts up front, the way the solver simplifies
-            // every part before matching any. The solvable part stays a
-            // subtree even when it is a sequentially-bound local: it is
-            // only bound by an earlier part of this merge, so its slot
-            // must be read at its match position, not here. Bound locals
-            // may run a zero-arity function on the VM here.
+            try resolveMergeParts(vm, plan, idx);
+            const count = merge_plan.part_count;
+            const merge_type = try resolveMergeType(vm, plan, parts_base, count);
+            return matchMergeOfType(vm, plan, value, parts_base, count, merge_type, discardable);
+        },
+        .str_template => {
+            const template_plan = plan.merges[node.payload];
+            const parts_base = vm.plan_merge_parts.items.len;
+            defer vm.plan_merge_parts.shrinkRetainingCapacity(parts_base);
+
+            // Resolve value segments up front, the way the solver
+            // simplifies and toStrings every segment before matching any.
+            // Constant segments were stringified at compile time.
             var child = idx + 1;
-            for (0..merge_plan.part_count) |i| {
+            for (0..template_plan.part_count) |i| {
                 const child_node = plan.nodes[child];
-                const solvable = merge_plan.solvable_index != null and merge_plan.solvable_index.? == i;
+                const solvable = template_plan.solvable_index != null and template_plan.solvable_index.? == i;
                 const part: ResolvedPart = if (solvable)
                     .{ .subtree = child }
                 else switch (child_node.tag) {
                     .equality => .{ .value = plan.elems[child_node.payload] },
-                    .bound_eq => .{ .value = try resolveBoundLocal(vm, plan.vars[child_node.payload]) },
-                    else => .{ .subtree = child },
+                    .bound_eq => .{ .value = try stringifyBoundLocal(vm, plan.vars[child_node.payload]) },
+                    .range => .{ .subtree = child },
+                    // Lowering rejects other non-solvable segment shapes.
+                    else => unreachable,
                 };
                 try vm.plan_merge_parts.append(vm.allocator, part);
                 child += child_node.subtree_len;
             }
 
-            const count = merge_plan.part_count;
-            const merge_type = try resolveMergeType(vm, plan, parts_base, count);
-
-            return switch (merge_type) {
-                .array => matchArrayMerge(vm, plan, value, parts_base, count),
-                .boolean => matchBooleanMerge(vm, plan, value, parts_base, count),
-                .number => matchNumberMerge(vm, plan, value, parts_base, count),
-                .object => matchObjectMerge(vm, plan, value, parts_base, count, discardable),
-                .string => matchStringMerge(vm, plan, value, parts_base, count),
-                .untyped => matchUntypedMerge(vm, plan, value, parts_base, count),
-            };
+            return matchStringTemplate(vm, plan, value, parts_base, template_plan.part_count);
         },
     }
+}
+
+// Resolve the parts of a merge node into vm.plan_merge_parts, the way the
+// solver simplifies every part before matching any. The solvable part
+// stays a subtree even when it is a sequentially-bound local: it is only
+// bound by an earlier part of this merge, so its slot must be read at its
+// match position, not here. Bound locals may run a zero-arity function on
+// the VM here.
+fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
+    const merge_plan = plan.merges[plan.nodes[merge_node_idx].payload];
+    var child = merge_node_idx + 1;
+    for (0..merge_plan.part_count) |i| {
+        const child_node = plan.nodes[child];
+        const solvable = merge_plan.solvable_index != null and merge_plan.solvable_index.? == i;
+        const part: ResolvedPart = if (solvable)
+            .{ .subtree = child }
+        else switch (child_node.tag) {
+            .equality => .{ .value = plan.elems[child_node.payload] },
+            .bound_eq => .{ .value = try resolveBoundLocal(vm, plan.vars[child_node.payload]) },
+            else => .{ .subtree = child },
+        };
+        try vm.plan_merge_parts.append(vm.allocator, part);
+        child += child_node.subtree_len;
+    }
+}
+
+fn matchMergeOfType(
+    vm: *VM,
+    plan: MatchPlan,
+    value: Elem,
+    base: usize,
+    count: u32,
+    merge_type: MergeType,
+    discardable: ?*Elem.DynElem,
+) Error!bool {
+    return switch (merge_type) {
+        .array => matchArrayMerge(vm, plan, value, base, count),
+        .boolean => matchBooleanMerge(vm, plan, value, base, count),
+        .number => matchNumberMerge(vm, plan, value, base, count),
+        .object => matchObjectMerge(vm, plan, value, base, count, discardable),
+        .string => matchStringMerge(vm, plan, value, base, count),
+        .untyped => matchUntypedMerge(vm, plan, value, base, count),
+    };
 }
 
 // Match consecutive element subtrees of an array node against a value
@@ -193,6 +236,7 @@ fn mergePartType(plan: MatchPlan, part: ResolvedPart) Error!MergeType {
         .subtree => |idx| switch (plan.nodes[idx].tag) {
             .array => .array,
             .object => .object,
+            .str_template => .string,
             // A bound_eq subtree is the solvable part: a local this merge
             // binds before its position. The solver's simplify sees it
             // unbound, so its type contribution is untyped.
@@ -697,6 +741,253 @@ fn matchUntypedMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: 
         return matchNode(vm, value, plan, mergePart(vm, base, ui).subtree, null);
     }
     return value.isEql(Elem.nullConst, vm.*);
+}
+
+fn matchStringTemplate(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u32) Error!bool {
+    var before_unbound_length: usize = 0;
+    var after_unbound_length: usize = 0;
+    var unbound_index: ?usize = null;
+
+    // Calculate lengths and find the unbound segment. Character ranges
+    // always match exactly one character.
+    for (0..count) |i| {
+        switch (mergePart(vm, base, i)) {
+            .value => |elem| {
+                if (try elem.stringBytes(vm)) |part_str| {
+                    if (unbound_index == null) {
+                        before_unbound_length += part_str.len;
+                    } else {
+                        after_unbound_length += part_str.len;
+                    }
+                } else {
+                    @panic("Internal Error");
+                }
+            },
+            .subtree => |n| {
+                if (plan.nodes[n].tag == .range) {
+                    if (unbound_index == null) {
+                        before_unbound_length += 1;
+                    } else {
+                        after_unbound_length += 1;
+                    }
+                } else if (unbound_index == null) {
+                    unbound_index = i;
+                } else {
+                    // String merge can only have one unbound part
+                    return error.RuntimeError;
+                }
+            },
+        }
+    }
+
+    const value_str = (try value.stringBytes(vm)) orelse return false;
+    if (value_str.len < before_unbound_length + after_unbound_length) return false;
+
+    var value_index: usize = 0;
+
+    // Match the before segments
+    for (0..count) |i| {
+        if (unbound_index != null and unbound_index.? == i) break;
+        if (!(try matchTemplateFixedSegment(vm, plan, value_str, &value_index, mergePart(vm, base, i)))) {
+            return false;
+        }
+    }
+
+    // Handle the unbound segment if it exists
+    if (unbound_index) |ui| {
+        const unbound_start = value_index;
+        const unbound_end = value_str.len - after_unbound_length;
+
+        std.debug.assert(unbound_start <= unbound_end);
+
+        if (!(try matchTemplateUnboundSegment(
+            vm,
+            plan,
+            value,
+            value_str,
+            unbound_start,
+            unbound_end,
+            mergePart(vm, base, ui).subtree,
+        ))) {
+            return false;
+        }
+
+        value_index = unbound_end;
+
+        // Match the after segments
+        for (ui + 1..count) |i| {
+            if (!(try matchTemplateFixedSegment(vm, plan, value_str, &value_index, mergePart(vm, base, i)))) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+// A constant segment compared bytewise or a character range matching
+// exactly one character.
+fn matchTemplateFixedSegment(
+    vm: *VM,
+    plan: MatchPlan,
+    value_str: []const u8,
+    value_index: *usize,
+    part: ResolvedPart,
+) Error!bool {
+    switch (part) {
+        .value => |elem| {
+            if (try elem.stringBytes(vm)) |part_str| {
+                const end_index = value_index.* + part_str.len;
+                if (end_index > value_str.len) return false;
+
+                if (!std.mem.eql(u8, value_str[value_index.*..end_index], part_str)) {
+                    return false;
+                }
+                value_index.* = end_index;
+            } else {
+                @panic("Internal Error");
+            }
+        },
+        .subtree => |n| {
+            std.debug.assert(plan.nodes[n].tag == .range);
+            if (value_index.* >= value_str.len) return false;
+            const char_byte = value_str[value_index.*];
+            const char_elem = Elem.string(try vm.strings.insert(&[_]u8{char_byte}));
+            if (!(try matchNode(vm, char_elem, plan, n, null))) return false;
+            value_index.* += 1;
+        },
+    }
+    return true;
+}
+
+// Cast the unbound byte range by the solvable segment's pattern kind, the
+// way matchStringTemplate does, then match the cast value against it.
+fn matchTemplateUnboundSegment(
+    vm: *VM,
+    plan: MatchPlan,
+    value: Elem,
+    value_str: []const u8,
+    unbound_start: usize,
+    unbound_end: usize,
+    sub: u32,
+) Error!bool {
+    const unbound_bytes = value_str[unbound_start..unbound_end];
+
+    var unbound_elem: ?Elem = null;
+    var merge_cast: ?struct { base: usize, count: u32, merge_type: MergeType } = null;
+
+    const scratch_base = vm.plan_merge_parts.items.len;
+    defer vm.plan_merge_parts.shrinkRetainingCapacity(scratch_base);
+
+    if (unbound_bytes.len == 0) {
+        // If the unbound part is empty then the pattern must match an
+        // empty string.
+        unbound_elem = Elem.string(try vm.strings.insert(""));
+    } else switch (plan.nodes[sub].tag) {
+        .array => if (unbound_bytes[0] == '[') {
+            unbound_elem = try parseBytesAsJsonElem(vm, unbound_bytes);
+        },
+        .object => if (unbound_bytes[0] == '{') {
+            unbound_elem = try parseBytesAsJsonElem(vm, unbound_bytes);
+        },
+        .merge => {
+            const merge_plan = plan.merges[plan.nodes[sub].payload];
+            try resolveMergeParts(vm, plan, sub);
+            const merge_type = try resolveMergeType(vm, plan, scratch_base, merge_plan.part_count);
+            merge_cast = .{
+                .base = scratch_base,
+                .count = merge_plan.part_count,
+                .merge_type = merge_type,
+            };
+
+            switch (merge_type) {
+                .array => if (unbound_bytes[0] == '[') {
+                    unbound_elem = try parseBytesAsJsonElem(vm, unbound_bytes);
+                },
+                .object => if (unbound_bytes[0] == '{') {
+                    unbound_elem = try parseBytesAsJsonElem(vm, unbound_bytes);
+                },
+                .boolean => if (std.mem.eql(u8, unbound_bytes, "true")) {
+                    unbound_elem = Elem.boolean(true);
+                } else if (std.mem.eql(u8, unbound_bytes, "false")) {
+                    unbound_elem = Elem.boolean(false);
+                },
+                .number => if (isValidNumberString(unbound_bytes)) {
+                    unbound_elem = try Elem.numberStringFromBytes(unbound_bytes, vm);
+                },
+                .string, .untyped => {
+                    var all_null = true;
+                    for (0..merge_plan.part_count) |i| {
+                        const part = mergePart(vm, scratch_base, i);
+                        if (part == .value and !part.value.isConst(.Null)) {
+                            all_null = false;
+                        }
+                    }
+
+                    if (all_null and std.mem.eql(u8, unbound_bytes, "null")) {
+                        unbound_elem = Elem.nullConst;
+                    } else {
+                        unbound_elem = try substringElem(vm, value, value_str, unbound_start, unbound_end);
+                    }
+                },
+            }
+        },
+        // When the pattern is an unbound local default to string. Try to
+        // use a subset of an existing substring if possible.
+        .bind, .bound_eq, .placeholder, .str_template => {
+            unbound_elem = try substringElem(vm, value, value_str, unbound_start, unbound_end);
+        },
+        // Constants evaluate to value segments, ranges are fixed-length
+        // segments, and const_key only appears under an object.
+        .equality, .const_key, .range => unreachable,
+    }
+
+    if (unbound_elem) |cast_elem| {
+        if (merge_cast) |mc| {
+            return matchMergeOfType(vm, plan, cast_elem, mc.base, mc.count, mc.merge_type, null);
+        }
+        return matchNode(vm, cast_elem, plan, sub, null);
+    }
+    return false;
+}
+
+fn substringElem(vm: *VM, value: Elem, value_str: []const u8, start: usize, end: usize) Error!Elem {
+    if (value.isType(.InputSubstring)) {
+        const value_start = value.asInputSubstring().start;
+        if (try Elem.inputSubstringFromRange(value_start + start, value_start + end)) |elem| {
+            return elem;
+        }
+    }
+    const str = try Elem.DynElem.String.copy(vm, value_str[start..end]);
+    try vm.pushTempDyn(&str.dyn);
+    return str.dyn.elem();
+}
+
+fn parseBytesAsJsonElem(vm: *VM, bytes: []const u8) Error!?Elem {
+    const json_parsed = std.json.parseFromSlice(
+        std.json.Value,
+        vm.allocator,
+        bytes,
+        .{ .parse_numbers = false },
+    ) catch |e| switch (e) {
+        error.OutOfMemory => |oom| return oom,
+        else => return null,
+    };
+    defer json_parsed.deinit();
+
+    const elem = try Elem.fromJson(json_parsed.value, vm);
+    if (elem.isType(.Dyn)) try vm.pushTempDyn(elem.asDyn());
+
+    return elem;
+}
+
+// Read a bound local and render it to a string, the way the solver
+// toStrings every simplified template segment.
+fn stringifyBoundLocal(vm: *VM, local_var: LocalVar) Error!Elem {
+    const resolved = try resolveBoundLocal(vm, local_var);
+    const str = try resolved.toString(vm);
+    if (str.isType(.Dyn)) try vm.pushTempDyn(str.asDyn());
+    return str;
 }
 
 fn keyMatched(vm: *VM, base: usize, sid: StringTable.Id) bool {

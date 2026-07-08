@@ -1325,6 +1325,136 @@ test "a merge with a negated part falls back to the tree path" {
     }
 }
 
+test "a string template pattern compiles to a match plan" {
+    const parser =
+        \\('' $ 'a3b') -> "a%(N)b" $ N
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "3")).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "a template with a merge segment casts to the merge type" {
+    const parser =
+        \\('' $ '12') -> "%(0 + N)" $ N
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(12),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "a template with an array segment casts to json" {
+    const parser =
+        \\('' $ '[1,2]') -> "%([1, A])" $ A
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            try Elem.numberStringFromBytes("2", &vm),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "a template with a range segment matches one character" {
+    const parser =
+        \\('' $ 'xb') -> "%('a'..'z')b" $ 'ok'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(1, plan_count);
+    }
+}
+
+test "a template with a bound local segment compiles to a match plan" {
+    const parser =
+        \\(('' $ 'x') -> X) & (('' $ 'axb') -> "a%(X)b") $ 'ok'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(2, plan_count);
+    }
+}
+
+test "template plan mismatch drives alternation" {
+    const parser =
+        \\(('' $ 'zzz') -> "a%(R)" $ 'no') | ('' $ 'yes')
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "yes")).dyn.elem(),
+            vm,
+        );
+    }
+}
+
+test "a template with a repeat segment falls back to the tree path" {
+    const parser =
+        \\('' $ 'aaa') -> "%('a' * N)" $ N
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(3),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expectEqual(0, plan_count);
+    }
+}
+
 test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
     const parser =
         \\last(a, b, c) = a > b > c

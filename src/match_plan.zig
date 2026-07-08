@@ -84,6 +84,16 @@ pub const MatchPlan = struct {
                 try writer.print(")", .{});
                 return part;
             },
+            .str_template => {
+                try writer.print("tmpl(", .{});
+                var segment = idx + 1;
+                for (0..self.merges[node.payload].part_count) |i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    segment = try self.printNode(vm, writer, segment);
+                }
+                try writer.print(")", .{});
+                return segment;
+            },
         }
         return idx + 1;
     }
@@ -131,8 +141,15 @@ pub const Tag = enum(u8) {
     // bound_eq) and derives the merge type from the resolved parts,
     // mirroring the solver's getMergeType.
     merge,
+    // A string template: merges[payload], segment subtrees follow in
+    // preorder. Constant segments are stringified at compile time; bound
+    // locals stringify at match time; ranges match one character; the
+    // solvable segment casts the unbound byte range by its pattern kind.
+    str_template,
 };
 
+// Shared by merge and str_template nodes: both are a part list with at
+// most one solvable part.
 pub const MergePlan = struct {
     part_count: u32,
     // Index of the one part the solver has to solve for: the part that is

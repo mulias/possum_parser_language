@@ -1782,6 +1782,46 @@ pub const Compiler = struct {
                 try builder.appendLeaf(allocator, .range, @intCast(builder.ranges.items.len));
                 try builder.ranges.append(allocator, .{ .lower = lower, .upper = upper });
             },
+            .string_template => |segments| {
+                const start = builder.nodes.items.len;
+                const merge_idx: u32 = @intCast(builder.merges.items.len);
+                try builder.nodes.append(allocator, .{
+                    .tag = .str_template,
+                    .subtree_len = undefined,
+                    .payload = merge_idx,
+                });
+                try builder.merges.append(allocator, .{
+                    .part_count = @intCast(segments.items.len),
+                    .solvable_index = null,
+                });
+                for (segments.items, 0..) |segment, i| {
+                    const unbound = self.binding_maps.merge_part_unbound.get(segment) orelse
+                        return error.UnsupportedPattern;
+                    const segment_start = builder.nodes.items.len;
+                    try self.lowerPatternNode(module_id, segment, builder);
+                    if (unbound) {
+                        builder.merges.items[merge_idx].solvable_index = @intCast(i);
+                    } else switch (builder.nodes.items[segment_start].tag) {
+                        // Constant segments fold to their string rendering
+                        // at compile time, the way the solver toStrings
+                        // every simplified segment per match.
+                        .equality => {
+                            const elem_idx = builder.nodes.items[segment_start].payload;
+                            const stringified = try builder.elems.items[elem_idx].toString(self.vm);
+                            if (stringified.isType(.Dyn)) stringified.asDyn().makeImmortal();
+                            builder.elems.items[elem_idx] = stringified;
+                        },
+                        // Bound locals stringify at match time; ranges
+                        // match one character.
+                        .bound_eq, .range => {},
+                        // An evaluable compound segment (an array or merge
+                        // of bound values) would need runtime evaluation;
+                        // keep those on the tree path.
+                        else => return error.UnsupportedPattern,
+                    }
+                }
+                builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
+            },
             .merge => {
                 // Nested merges flatten into one part list, the way
                 // collectPatternMergeElements flattens the Pattern tree.
