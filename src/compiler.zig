@@ -1800,8 +1800,6 @@ pub const Compiler = struct {
             },
             .object => |pairs| {
                 if (negation_count != 0) return error.UnsupportedPattern;
-                // Constant string keys only: any other key form keeps the
-                // tree path's unbound-key linear search and backtracking.
                 const start = builder.nodes.items.len;
                 try builder.nodes.append(allocator, .{
                     .tag = .object,
@@ -1809,17 +1807,56 @@ pub const Compiler = struct {
                     .payload = @intCast(pairs.items.len),
                 });
                 for (pairs.items) |pair| {
-                    if (pair.key.node != .string) return error.UnsupportedPattern;
-                    const sid = try self.vm.strings.insert(pair.key.node.string);
-                    const key_start = builder.nodes.items.len;
+                    const pair_start = builder.nodes.items.len;
                     try builder.nodes.append(allocator, .{
-                        .tag = .const_key,
+                        .tag = .pattern_key,
                         .subtree_len = undefined,
-                        .payload = @intCast(builder.sids.items.len),
+                        .payload = 0,
                     });
-                    try builder.sids.append(allocator, sid);
+                    if (pair.key.node == .string) {
+                        // Constant string keys carry their interned sid; no
+                        // key subtree, no per-match evaluation.
+                        builder.nodes.items[pair_start] = .{
+                            .tag = .const_key,
+                            .subtree_len = undefined,
+                            .payload = @intCast(builder.sids.items.len),
+                        };
+                        try builder.sids.append(allocator, try self.vm.strings.insert(pair.key.node.string));
+                    } else {
+                        const key_start = builder.nodes.items.len;
+                        try self.lowerPatternNode(module_id, pair.key, builder, all_locals_bound, 0);
+                        const key_node = builder.nodes.items[key_start];
+                        switch (key_node.tag) {
+                            // A key folded to an interned string (a string
+                            // global) is a const_key: both sid-resolution
+                            // contexts agree on interned strings, so the
+                            // per-match evaluation folds away.
+                            .equality => if (builder.elems.items[key_node.payload].isType(.String)) {
+                                builder.nodes.items[pair_start] = .{
+                                    .tag = .const_key,
+                                    .subtree_len = undefined,
+                                    .payload = @intCast(builder.sids.items.len),
+                                };
+                                try builder.sids.append(allocator, builder.elems.items[key_node.payload].asString());
+                                // The key lowered to a single fresh leaf;
+                                // drop both the node and its elem.
+                                std.debug.assert(key_node.payload == builder.elems.items.len - 1);
+                                builder.nodes.shrinkRetainingCapacity(key_start);
+                                _ = builder.elems.pop();
+                            } else {
+                                builder.nodes.items[pair_start].tag = .eval_key;
+                            },
+                            // Leaf evaluations cannot come up empty at match
+                            // time; everything else keeps attemptEval's
+                            // runtime eval-or-search dispatch.
+                            .bound_eq, .const_fn, .call => {
+                                builder.nodes.items[pair_start].tag = .eval_key;
+                            },
+                            else => {},
+                        }
+                    }
                     try self.lowerPatternNode(module_id, pair.value, builder, all_locals_bound, 0);
-                    builder.nodes.items[key_start].subtree_len = @intCast(builder.nodes.items.len - key_start);
+                    builder.nodes.items[pair_start].subtree_len = @intCast(builder.nodes.items.len - pair_start);
                 }
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
@@ -2163,7 +2200,7 @@ pub const Compiler = struct {
                 const evaluates = repeat_plan.pattern != .subtree and repeat_plan.count != .subtree;
                 break :blk if (evaluates) .eval else .subtree;
             },
-            .const_key => unreachable,
+            .const_key, .eval_key, .pattern_key => unreachable,
         };
     }
 

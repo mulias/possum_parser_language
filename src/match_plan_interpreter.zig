@@ -78,10 +78,10 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
             if (!value.isDynType(.Object)) return false;
             const value_object = value.asDyn().asObject();
             if (value_object.members.count() != node.payload) return false;
-            return matchObjectPairs(vm, plan, idx, value_object, null);
+            return matchObjectNode(vm, plan, idx, value_object);
         },
-        // Only reachable through its object node.
-        .const_key => unreachable,
+        // Only reachable through their object node.
+        .const_key, .eval_key, .pattern_key => unreachable,
         .range => {
             const range = plan.ranges[node.payload];
             if (try resolveRangeLimit(vm, plan, range.lower)) |lower| {
@@ -353,7 +353,7 @@ fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
             const matched_base = vm.plan_matched_keys.items.len;
             defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
 
-            return matchObjectRepeat(vm, plan, pattern_idx, value_object, count, matched_base);
+            return matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, count, matched_base);
         }
 
         // Number pattern matching (pattern * count = value)
@@ -402,7 +402,7 @@ fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
             const matched_base = vm.plan_matched_keys.items.len;
             defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
 
-            if (!(try matchObjectRepeat(vm, plan, pattern_idx, value_object, count, matched_base))) {
+            if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, count, matched_base))) {
                 return false;
             }
 
@@ -519,7 +519,7 @@ fn evalNode(vm: *VM, plan: MatchPlan, idx: u32) Error!?Elem {
             }
             return result;
         },
-        .const_key => unreachable,
+        .const_key, .eval_key, .pattern_key => unreachable,
     }
 }
 
@@ -599,29 +599,29 @@ fn rangeLimitCodepoint(vm: *VM, plan: MatchPlan, limit: match_plan.RangePlan.Lim
 }
 
 // Claim `count` repetitions of an object pattern from the value object's
-// members. Pattern variables bound by one repetition stay bound for the
-// rest, so every repetition must match equal keys and values; with constant
-// keys a second repetition always fails the exclusive claim.
+// members, with exclusive claims: each repetition must claim members of its
+// own. Repetitions after the first match the rebound variant, the way the
+// solver's runtime boundness flip turns a searched key or bound value into
+// an evaluated comparison on later repetitions (a rebound constant key
+// always fails the exclusive claim; only placeholders match fresh members
+// each time).
 fn matchObjectRepeat(
     vm: *VM,
     plan: MatchPlan,
-    object_node_idx: u32,
+    pattern_idx: u32,
+    later_pattern_idx: u32,
     value_object: *Elem.DynElem.Object,
     count: usize,
     matched_base: usize,
 ) Error!bool {
-    for (0..count) |_| {
-        var pair = object_node_idx + 1;
-        for (0..plan.nodes[object_node_idx].payload) |_| {
-            const key_node = plan.nodes[pair];
-            std.debug.assert(key_node.tag == .const_key);
-            const sid = plan.sids[key_node.payload];
-            // Each repetition must claim members of its own.
-            if (keyMatched(vm, matched_base, sid)) return false;
-            const member = value_object.members.get(sid) orelse return false;
-            if (!(try matchNode(vm, member, plan, pair + 1, null))) return false;
-            try markKeyMatched(vm, matched_base, sid);
-            pair += key_node.subtree_len;
+    for (0..count) |rep| {
+        const object_idx = if (rep == 0) pattern_idx else later_pattern_idx;
+        var pair = object_idx + 1;
+        for (0..plan.nodes[object_idx].payload) |_| {
+            if (!(try matchMergeObjectPair(vm, plan, pair, value_object, matched_base, .exclusive))) {
+                return false;
+            }
+            pair += plan.nodes[pair].subtree_len;
         }
     }
     return true;
@@ -700,28 +700,200 @@ fn matchArrayElems(vm: *VM, plan: MatchPlan, array_node_idx: u32, value_slice: [
     return true;
 }
 
-// Match the const_key pairs of an object node against a value object,
-// without the node's own member-count check. When matched_base is set, each
-// matched key is recorded for the enclosing object merge's rest.
+// Match the pairs of a plain (non-merge) object node, mirroring
+// matchObject: evaluated keys must be interned strings, and pattern keys
+// search the unmatched members in order. Matched keys are only tracked
+// when a pattern key will read them, keeping the all-constant-key path
+// free of scratch bookkeeping (the marks are unobservable without a
+// search).
+fn matchObjectNode(
+    vm: *VM,
+    plan: MatchPlan,
+    object_node_idx: u32,
+    value_object: *Elem.DynElem.Object,
+) Error!bool {
+    const pair_count = plan.nodes[object_node_idx].payload;
+
+    var has_search_key = false;
+    var scan = object_node_idx + 1;
+    for (0..pair_count) |_| {
+        if (plan.nodes[scan].tag == .pattern_key) {
+            has_search_key = true;
+            break;
+        }
+        scan += plan.nodes[scan].subtree_len;
+    }
+
+    const matched_base = vm.plan_matched_keys.items.len;
+    defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
+    const mark_base: ?usize = if (has_search_key) matched_base else null;
+
+    var pair = object_node_idx + 1;
+    for (0..pair_count) |_| {
+        const pair_node = plan.nodes[pair];
+        const matched = switch (pair_node.tag) {
+            .const_key => try matchResolvedKeyPair(
+                vm,
+                plan,
+                plan.sids[pair_node.payload],
+                pair + 1,
+                value_object,
+                mark_base,
+                .shared,
+            ),
+            .eval_key => blk: {
+                const key_value = (try evalNode(vm, plan, pair + 1)).?;
+                const value_idx = pair + 1 + plan.nodes[pair + 1].subtree_len;
+                break :blk try matchResolvedKeyPair(
+                    vm,
+                    plan,
+                    try plainObjectKeySid(key_value),
+                    value_idx,
+                    value_object,
+                    mark_base,
+                    .shared,
+                );
+            },
+            .pattern_key => blk: {
+                const key_idx = pair + 1;
+                const value_idx = key_idx + plan.nodes[key_idx].subtree_len;
+                if (try evalNode(vm, plan, key_idx)) |key_value| {
+                    break :blk try matchResolvedKeyPair(
+                        vm,
+                        plan,
+                        try plainObjectKeySid(key_value),
+                        value_idx,
+                        value_object,
+                        mark_base,
+                        .shared,
+                    );
+                }
+                break :blk try searchObjectPair(vm, plan, key_idx, value_idx, value_object, matched_base);
+            },
+            else => unreachable,
+        };
+        if (!matched) return false;
+        pair += pair_node.subtree_len;
+    }
+    return true;
+}
+
+// matchObject only accepts interned strings as evaluated keys; anything
+// else — including dynamic strings — is a runtime error. Merge and repeat
+// pairs are more lenient (getOrPutSid).
+fn plainObjectKeySid(key_value: Elem) Error!StringTable.Id {
+    if (!key_value.isType(.String)) return error.RuntimeError;
+    return key_value.asString();
+}
+
+// Whether a resolved key may re-match a member an earlier pair already
+// matched. Pairs of a plain object or a single merge share members; each
+// repetition of a repeat pattern must claim members of its own.
+const KeyClaim = enum { shared, exclusive };
+
+// Match a pair whose key resolved to a sid: probe the member and match the
+// value subtree. A null matched_base skips the bookkeeping (a plain object
+// with no pattern keys).
+fn matchResolvedKeyPair(
+    vm: *VM,
+    plan: MatchPlan,
+    sid: StringTable.Id,
+    value_idx: u32,
+    value_object: *Elem.DynElem.Object,
+    matched_base: ?usize,
+    claim: KeyClaim,
+) Error!bool {
+    if (claim == .exclusive and keyMatched(vm, matched_base.?, sid)) return false;
+    const member = value_object.members.get(sid) orelse return false;
+    if (!(try matchNode(vm, member, plan, value_idx, null))) return false;
+    if (matched_base) |base| try markKeyMatched(vm, base, sid);
+    return true;
+}
+
+// One pair of an object merge part or object repeat, mirroring
+// matchObjectPair: evaluated keys intern any stringable (getOrPutSid),
+// pattern keys that fail to evaluate fall back to the linear search.
+fn matchMergeObjectPair(
+    vm: *VM,
+    plan: MatchPlan,
+    pair_idx: u32,
+    value_object: *Elem.DynElem.Object,
+    matched_base: usize,
+    claim: KeyClaim,
+) Error!bool {
+    const pair_node = plan.nodes[pair_idx];
+    switch (pair_node.tag) {
+        .const_key => return matchResolvedKeyPair(
+            vm,
+            plan,
+            plan.sids[pair_node.payload],
+            pair_idx + 1,
+            value_object,
+            matched_base,
+            claim,
+        ),
+        .eval_key => {
+            const key_value = (try evalNode(vm, plan, pair_idx + 1)).?;
+            const sid = (try key_value.getOrPutSid(vm)) orelse return error.RuntimeError;
+            const value_idx = pair_idx + 1 + plan.nodes[pair_idx + 1].subtree_len;
+            return matchResolvedKeyPair(vm, plan, sid, value_idx, value_object, matched_base, claim);
+        },
+        .pattern_key => {
+            const key_idx = pair_idx + 1;
+            const value_idx = key_idx + plan.nodes[key_idx].subtree_len;
+            if (try evalNode(vm, plan, key_idx)) |key_value| {
+                const sid = (try key_value.getOrPutSid(vm)) orelse return error.RuntimeError;
+                return matchResolvedKeyPair(vm, plan, sid, value_idx, value_object, matched_base, claim);
+            }
+            return searchObjectPair(vm, plan, key_idx, value_idx, value_object, matched_base);
+        },
+        else => unreachable,
+    }
+}
+
+// Search the value object's members in order for one that matches the key
+// pattern then the value pattern, skipping members already claimed. No
+// reset between attempts, unlike the solver: every retry re-runs both
+// subtrees from the top and bind nodes overwrite (see the file header).
+fn searchObjectPair(
+    vm: *VM,
+    plan: MatchPlan,
+    key_idx: u32,
+    value_idx: u32,
+    value_object: *Elem.DynElem.Object,
+    matched_base: usize,
+) Error!bool {
+    var iterator = value_object.members.iterator();
+    while (iterator.next()) |entry| {
+        const obj_key_sid = entry.key_ptr.*;
+        if (keyMatched(vm, matched_base, obj_key_sid)) continue;
+        const key_elem = Elem.string(obj_key_sid);
+        if (try matchNode(vm, key_elem, plan, key_idx, null)) {
+            if (try matchNode(vm, entry.value_ptr.*, plan, value_idx, null)) {
+                try markKeyMatched(vm, matched_base, obj_key_sid);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Match the pairs of an object node as a structural part of an object
+// merge: parts of a single merge share members, and each matched key is
+// recorded for the merge's rest.
 fn matchObjectPairs(
     vm: *VM,
     plan: MatchPlan,
     object_node_idx: u32,
     value_object: *Elem.DynElem.Object,
-    matched_base: ?usize,
+    matched_base: usize,
 ) Error!bool {
     var pair = object_node_idx + 1;
     for (0..plan.nodes[object_node_idx].payload) |_| {
-        const key_node = plan.nodes[pair];
-        std.debug.assert(key_node.tag == .const_key);
-        const sid = plan.sids[key_node.payload];
-        // No matched-key claim check: parts of a single merge share
-        // members, and duplicate literal keys just re-probe, the same
-        // members the tree path tolerates re-matching.
-        const member = value_object.members.get(sid) orelse return false;
-        if (!(try matchNode(vm, member, plan, pair + 1, null))) return false;
-        if (matched_base) |base| try markKeyMatched(vm, base, sid);
-        pair += key_node.subtree_len;
+        if (!(try matchMergeObjectPair(vm, plan, pair, value_object, matched_base, .shared))) {
+            return false;
+        }
+        pair += plan.nodes[pair].subtree_len;
     }
     return true;
 }
@@ -779,8 +951,8 @@ fn mergePartType(plan: MatchPlan, part: ResolvedPart) Error!MergeType {
             .range => error.RuntimeError,
             // Value parts (including calls, which always evaluate) were
             // resolved, nested merges were flattened at compile time, and
-            // const_key only appears under an object.
-            .equality, .const_fn, .call, .const_key, .merge => unreachable,
+            // pair nodes only appear under an object.
+            .equality, .const_fn, .call, .const_key, .eval_key, .pattern_key, .merge => unreachable,
         },
     };
 }
@@ -1054,10 +1226,14 @@ fn matchObjectMerge(
                     const repeat_plan = plan.repeats[plan.nodes[part_idx].payload];
                     const pattern_idx = part_idx + 1;
                     const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
+                    const later_pattern_idx = if (repeat_plan.has_rebound_pattern)
+                        count_idx + plan.nodes[count_idx].subtree_len
+                    else
+                        pattern_idx;
                     std.debug.assert(plan.nodes[pattern_idx].tag == .object);
                     const count_elem = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)).?;
                     const repetitions = (try repeatCount(vm, count_elem)) orelse return false;
-                    if (!(try matchObjectRepeat(vm, plan, pattern_idx, value_object, repetitions, matched_base))) {
+                    if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, repetitions, matched_base))) {
                         return false;
                     }
                 },
@@ -1492,8 +1668,8 @@ fn matchTemplateUnboundSegment(
             unbound_elem = try substringElem(vm, value, value_str, unbound_start, unbound_end);
         },
         // Constants and calls evaluate to value segments, ranges are
-        // fixed-length segments, and const_key only appears under an object.
-        .equality, .const_fn, .call, .const_key, .range => unreachable,
+        // fixed-length segments, and pair nodes only appear under an object.
+        .equality, .const_fn, .call, .const_key, .eval_key, .pattern_key, .range => unreachable,
     }
 
     if (unbound_elem) |cast_elem| {

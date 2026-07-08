@@ -107,6 +107,11 @@ pub const MatchPlan = struct {
                 try writer.print("\"{s}\": ", .{vm.strings.get(self.sids[node.payload])});
                 return self.printNode(vm, writer, idx + 1);
             },
+            .eval_key, .pattern_key => {
+                const value_idx = try self.printNode(vm, writer, idx + 1);
+                try writer.print(": ", .{});
+                return self.printNode(vm, writer, value_idx);
+            },
             .range => {
                 const range = self.ranges[node.payload];
                 try self.printLimit(vm, writer, range.lower);
@@ -187,12 +192,25 @@ pub const Tag = enum(u8) {
     // A fixed-length array: payload = element count, element subtrees follow
     // in preorder.
     array,
-    // An object with all-constant keys: payload = pair count, const_key
+    // An object: payload = pair count; const_key/eval_key/pattern_key pair
     // subtrees follow in preorder.
     object,
     // One object pair: payload = the key's sids index, the value subtree
     // follows. subtree_len covers the value, so skipping a pair is O(1).
     const_key,
+    // An object pair whose key evaluates at match time: the key subtree (a
+    // leaf that cannot fail to evaluate — equality, bound_eq, const_fn, or
+    // call) precedes the value subtree. The key value's sid resolution is
+    // context-dependent, mirroring the solver: a plain object accepts only
+    // interned strings (matchObject), a merge or repeat pair interns any
+    // stringable (matchObjectPair's getOrPutSid).
+    eval_key,
+    // An object pair whose key is matched structurally: the key subtree
+    // precedes the value subtree. The interpreter first attempts to
+    // evaluate the key (a compound key of bound values evaluates, the way
+    // attemptEval discovers) and otherwise searches the value object's
+    // unmatched members in order, matching key then value per member.
+    pattern_key,
     // A range with statically-resolvable bounds. ranges[payload].
     range,
     // A merge, flattened at compile time: merges[payload], part subtrees

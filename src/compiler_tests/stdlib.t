@@ -2549,7 +2549,7 @@
   0017    | GetBoundLocal 0
   0019    | CallFunctionConstant 181: _Toml.Doc.Empty
   0021    | CallFunction 2
-  0023    | DestructurePlan 75: bind NewDoc
+  0023    | DestructurePlan 77: bind NewDoc
   0025    | TakeRight 25 -> 36
   0028    | GetConstant 183: _toml.tables
   0030    | GetBoundLocalMove 0
@@ -2579,7 +2579,7 @@
   0023    | GetBoundLocal 0
   0025    | GetBoundLocal 1
   0027    | CallFunction 2
-  0029    | DestructurePlan 69: bind NewDoc
+  0029    | DestructurePlan 71: bind NewDoc
   0031    | ConditionalThen 31 -> 45
   0034    | GetConstant 183: _toml.tables
   0036    | GetBoundLocalMove 0
@@ -2601,7 +2601,7 @@
   ========================================
   0000    | PushVar2 HeaderPath
   0003    | CallFunctionConstant 228: _toml.table_header
-  0005    | DestructurePlan 70: bind HeaderPath
+  0005    | DestructurePlan 72: bind HeaderPath
   0007    | TakeRight 7 -> 12
   0010    | CallFunctionConstant 186: _toml.ws_newline
   0012    | TakeRight 12 -> 41
@@ -2630,7 +2630,7 @@
   0000    | PushVar2 HeaderPath
   0003    | PushVar2 InnerDoc
   0006    | CallFunctionConstant 232: _toml.array_of_tables_header
-  0008    | DestructurePlan 71: bind HeaderPath
+  0008    | DestructurePlan 73: bind HeaderPath
   0010    | TakeRight 10 -> 15
   0013    | CallFunctionConstant 186: _toml.ws_newline
   0015    | TakeRight 15 -> 49
@@ -2640,7 +2640,7 @@
   0024    | CaptureLocal 0
   0026    | CallFunctionConstant 181: _Toml.Doc.Empty
   0028    | CallFunction 2
-  0030    | DestructurePlan 72: bind InnerDoc
+  0030    | DestructurePlan 74: bind InnerDoc
   0032    | TakeRight 32 -> 49
   0035    | GetConstant 234: _Toml.Doc.AppendAtPath
   0037    | GetBoundLocalMove 1
@@ -2949,7 +2949,7 @@
   ========================================
   0000    | PushVar2 Value
   0003    | CallFunctionLocal 2
-  0005    | DestructurePlan 84: bind Value
+  0005    | DestructurePlan 86: bind Value
   0007    | TakeRight 7 -> 34
   0010    | GetConstantMutable2 324: {_0_, _1_, _2_}
   0013    | PushString2 "type"
@@ -3084,7 +3084,7 @@
   0010    | GetConstant2 319: _toml.nonempty_inline_table
   0013    | GetBoundLocalMove 0
   0015    | CallFunction 1
-  0017    | DestructurePlan 79: bind InlineDoc
+  0017    | DestructurePlan 81: bind InlineDoc
   0019    | TakeRight 19 -> 28
   0022    | GetConstant 176: _Toml.Doc.Value
   0024    | GetBoundLocalMove 1
@@ -3126,7 +3126,7 @@
   0020    | GetBoundLocal 0
   0022    | CallFunctionConstant 181: _Toml.Doc.Empty
   0024    | CallFunction 2
-  0026    | DestructurePlan 80: bind DocWithFirstPair
+  0026    | DestructurePlan 82: bind DocWithFirstPair
   0028    | TakeRight 28 -> 56
   0031    | GetConstant2 321: _toml.inline_table_body
   0034    | GetBoundLocalMove 0
@@ -3157,7 +3157,7 @@
   0012    | GetBoundLocal 0
   0014    | GetBoundLocal 1
   0016    | CallFunction 2
-  0018    | DestructurePlan 83: bind NewDoc
+  0018    | DestructurePlan 85: bind NewDoc
   0020    | ConditionalThen 20 -> 35
   0023    | GetConstant2 321: _toml.inline_table_body
   0026    | GetBoundLocalMove 0
@@ -3186,7 +3186,7 @@
   0010    | CallFunction 1
   0012    | TakeRight 12 -> 19
   0015    | CallFunctionConstant 189: _toml.path
-  0017    | DestructurePlan 81: bind Key
+  0017    | DestructurePlan 83: bind Key
   0019    | TakeRight 19 -> 28
   0022    | GetConstant 34: maybe
   0024    | GetConstant 205: spaces
@@ -3199,7 +3199,7 @@
   0040    | CallFunction 1
   0042    | TakeRight 42 -> 49
   0045    | CallFunctionLocal 0
-  0047    | DestructurePlan 82: bind Val
+  0047    | DestructurePlan 84: bind Val
   0049    | TakeRight 49 -> 71
   0052    | GetConstant 34: maybe
   0054    | GetConstant 205: spaces
@@ -3833,7 +3833,7 @@
   0012    | GetConstant2 281: @fn71
   0015    | GetConstant2 282: @fn74
   0018    | CallFunction 2
-  0020    | DestructurePlan 76: bind Digits
+  0020    | DestructurePlan 78: bind Digits
   0022    | TakeRight 22 -> 31
   0025    | GetConstant 50: Num.FromBinaryDigits
   0027    | GetBoundLocalMove 0
@@ -3856,7 +3856,7 @@
   0012    | GetConstant2 288: @fn76
   0015    | GetConstant2 289: @fn79
   0018    | CallFunction 2
-  0020    | DestructurePlan 77: bind Digits
+  0020    | DestructurePlan 79: bind Digits
   0022    | TakeRight 22 -> 31
   0025    | GetConstant 58: Num.FromOctalDigits
   0027    | GetBoundLocalMove 0
@@ -3879,7 +3879,7 @@
   0012    | GetConstant2 295: @fn81
   0015    | GetConstant2 296: @fn84
   0018    | CallFunction 2
-  0020    | DestructurePlan 78: bind Digits
+  0020    | DestructurePlan 80: bind Digits
   0022    | TakeRight 22 -> 31
   0025    | GetConstant 61: Num.FromHexDigits
   0027    | GetBoundLocalMove 0
@@ -4007,7 +4007,7 @@
   0005    | GetBoundLocal 0
   0007    | GetBoundLocal 1
   0009    | CallFunction 2
-  0011    | DestructurePlan 74: {"value": bind AoT, "type": eq "array_of_tables"}
+  0011    | DestructurePlan 76: {"value": bind AoT, "type": eq "array_of_tables"}
   0013    | TakeRight 13 -> 44
   0016    | GetConstant 215: _Toml.Doc.Insert
   0018    | GetBoundLocalMove 0
@@ -4213,7 +4213,7 @@
   0026    | PushEmptyArray
   0027    | PushString2 "array_of_tables"
   0030    | CallFunction 4
-  0032    | DestructurePlan 73: bind DocWithKey
+  0032    | DestructurePlan 75: bind DocWithKey
   0034    | TakeRight 34 -> 47
   0037    | GetConstant 239: _Toml.Doc.AppendToArrayOfTables
   0039    | GetBoundLocalMove 3
@@ -4263,7 +4263,7 @@
   0006    | PushVar2 Node
   0009    | SetInputMark
   0010    | CallFunctionLocal 1
-  0012    | DestructurePlan 85: ({"power": bind PrefixBindingPower} + bind PrefixNode)
+  0012    | DestructurePlan 87: ({"power": bind PrefixBindingPower} + bind PrefixNode)
   0014    | ConditionalThen 14 -> 89
   0017    | GetConstant2 325: _ast.with_precedence_start
   0020    | GetBoundLocal 0
@@ -4272,7 +4272,7 @@
   0026    | GetBoundLocal 3
   0028    | GetBoundLocalMove 5
   0030    | CallFunction 5
-  0032    | DestructurePlan 86: bind Node
+  0032    | DestructurePlan 88: bind Node
   0034    | TakeRight 34 -> 86
   0037    | GetConstant2 326: _ast.with_precedence_rest
   0040    | GetBoundLocalMove 0
@@ -4299,7 +4299,7 @@
   0084    | CallTailFunction 6
   0086    | Jump 86 -> 113
   0089    | CallFunctionLocal 0
-  0091    | DestructurePlan 87: bind Node
+  0091    | DestructurePlan 89: bind Node
   0093    | TakeRight 93 -> 113
   0096    | GetConstant2 326: _ast.with_precedence_rest
   0099    | GetBoundLocalMove 0
@@ -4343,7 +4343,7 @@
   0012    | PushVar2 RightNode
   0015    | SetInputMark
   0016    | CallFunctionLocal 3
-  0018    | DestructurePlan 88: ({"power": bind RightBindingPower} + bind PostfixNode)
+  0018    | DestructurePlan 90: ({"power": bind RightBindingPower} + bind PostfixNode)
   0020    | TakeRight 20 -> 36
   0023    | GetConstant 31: const
   0025    | GetConstant2 329: Is.LessThan
@@ -4380,7 +4380,7 @@
   0092    | CallFunctionLocal 2
   0094    | PushVar2 RightBindingPower
   0097    | SetLocal 6
-  0099    | DestructurePlan 89: ({"power": [bind RightBindingPower, bind NextLeftBindingPower]} + bind InfixNode)
+  0099    | DestructurePlan 91: ({"power": [bind RightBindingPower, bind NextLeftBindingPower]} + bind InfixNode)
   0101    | TakeRight 101 -> 117
   0104    | GetConstant 31: const
   0106    | GetConstant2 329: Is.LessThan
@@ -4396,7 +4396,7 @@
   0129    | GetBoundLocal 3
   0131    | GetBoundLocalMove 8
   0133    | CallFunction 5
-  0135    | DestructurePlan 90: bind RightNode
+  0135    | DestructurePlan 92: bind RightNode
   0137    | TakeRight 137 -> 196
   0140    | GetConstant2 326: _ast.with_precedence_rest
   0143    | GetBoundLocalMove 0
@@ -4437,7 +4437,7 @@
   ========================================
   0000    | PushVar2 Value
   0003    | CallFunctionLocal 0
-  0005    | DestructurePlan 95: bind Value
+  0005    | DestructurePlan 97: bind Value
   0007    | TakeRight 7 -> 27
   0010    | GetConstantMutable2 334: {_0_, _1_}
   0013    | PushString2 "type"
@@ -4512,13 +4512,13 @@
   0003    | PushVar2 Node
   0006    | PushVar2 EndOffset
   0009    | CallFunctionConstant 27: @input.offset
-  0011    | DestructurePlan 96: bind StartOffset
+  0011    | DestructurePlan 98: bind StartOffset
   0013    | TakeRight 13 -> 20
   0016    | CallFunctionLocal 0
-  0018    | DestructurePlan 97: bind Node
+  0018    | DestructurePlan 99: bind Node
   0020    | TakeRight 20 -> 58
   0023    | CallFunctionConstant 27: @input.offset
-  0025    | DestructurePlan 98: bind EndOffset
+  0025    | DestructurePlan 100: bind EndOffset
   0027    | TakeRight 27 -> 58
   0030    | PushEmptyObject
   0031    | JumpIfFailure 31 -> 37
@@ -4555,19 +4555,19 @@
   0009    | PushVar2 EndLine
   0012    | PushVar2 EndLineOffset
   0015    | CallFunctionConstant2 340: @input.line
-  0018    | DestructurePlan 99: bind StartLine
+  0018    | DestructurePlan 101: bind StartLine
   0020    | TakeRight 20 -> 28
   0023    | CallFunctionConstant2 341: @input.line_offset
-  0026    | DestructurePlan 100: bind StartLineOffset
+  0026    | DestructurePlan 102: bind StartLineOffset
   0028    | TakeRight 28 -> 35
   0031    | CallFunctionLocal 0
-  0033    | DestructurePlan 101: bind Node
+  0033    | DestructurePlan 103: bind Node
   0035    | TakeRight 35 -> 43
   0038    | CallFunctionConstant2 340: @input.line
-  0041    | DestructurePlan 102: bind EndLine
+  0041    | DestructurePlan 104: bind EndLine
   0043    | TakeRight 43 -> 112
   0046    | CallFunctionConstant2 341: @input.line_offset
-  0049    | DestructurePlan 103: bind EndLineOffset
+  0049    | DestructurePlan 105: bind EndLineOffset
   0051    | TakeRight 51 -> 112
   0054    | PushEmptyObject
   0055    | JumpIfFailure 55 -> 61
@@ -4602,7 +4602,7 @@
   ========================================
   0000    | PushVar2 L
   0003    | GetBoundLocalMove 0
-  0005    | DestructurePlan 104: (_0_.. * bind L)
+  0005    | DestructurePlan 106: (_0_.. * bind L)
   0007    | TakeRight 7 -> 12
   0010    | GetBoundLocalMove 1
   0012    | End
@@ -4687,7 +4687,7 @@
   ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
-  0003    | DestructurePlan 105: 0..
+  0003    | DestructurePlan 107: 0..
   0005    | Or 5 -> 11
   0008    | GetBoundLocalMove 0
   0010    | NegateNumber
@@ -4712,7 +4712,7 @@
   ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
-  0003    | DestructurePlan 106: ..B
+  0003    | DestructurePlan 108: ..B
   0005    | ConditionalThen 5 -> 13
   0008    | GetBoundLocalMove 0
   0010    | Jump 10 -> 15
@@ -4921,7 +4921,7 @@
   0000    | PushVar F
   0002    | PushUnderscoreVar
   0003    | GetBoundLocalMove 0
-  0005    | DestructurePlan 107: ([bind F] + placeholder)
+  0005    | DestructurePlan 109: ([bind F] + placeholder)
   0007    | TakeRight 7 -> 12
   0010    | GetBoundLocalMove 1
   0012    | End
@@ -4933,7 +4933,7 @@
   0000    | PushUnderscoreVar
   0001    | PushVar2 R
   0004    | GetBoundLocalMove 0
-  0006    | DestructurePlan 108: ([placeholder] + bind R)
+  0006    | DestructurePlan 110: ([placeholder] + bind R)
   0008    | TakeRight 8 -> 13
   0011    | GetBoundLocalMove 2
   0013    | End
@@ -4969,7 +4969,7 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
-  0009    | DestructurePlan 109: ([bind First] + bind Rest)
+  0009    | DestructurePlan 111: ([bind First] + bind Rest)
   0011    | ConditionalThen 11 -> 37
   0014    | GetConstant2 346: _Array.Reverse
   0017    | GetBoundLocalMove 3
@@ -5004,7 +5004,7 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
-  0009    | DestructurePlan 110: ([bind First] + bind Rest)
+  0009    | DestructurePlan 112: ([bind First] + bind Rest)
   0011    | ConditionalThen 11 -> 48
   0014    | GetConstant2 348: _Array.Map
   0017    | GetBoundLocalMove 4
@@ -5047,7 +5047,7 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
-  0009    | DestructurePlan 111: ([bind First] + bind Rest)
+  0009    | DestructurePlan 113: ([bind First] + bind Rest)
   0011    | ConditionalThen 11 -> 59
   0014    | GetConstant2 350: _Array.Filter
   0017    | GetBoundLocalMove 4
@@ -5095,7 +5095,7 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
-  0009    | DestructurePlan 112: ([bind First] + bind Rest)
+  0009    | DestructurePlan 114: ([bind First] + bind Rest)
   0011    | ConditionalThen 11 -> 59
   0014    | GetConstant2 352: _Array.Reject
   0017    | GetBoundLocalMove 4
@@ -5140,7 +5140,7 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
-  0009    | DestructurePlan 113: ([bind First] + bind Rest)
+  0009    | DestructurePlan 115: ([bind First] + bind Rest)
   0011    | ConditionalThen 11 -> 32
   0014    | GetConstant2 354: _Array.Merge
   0017    | GetBoundLocalMove 3
@@ -5173,7 +5173,7 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
-  0009    | DestructurePlan 114: ([bind First] + bind Rest)
+  0009    | DestructurePlan 116: ([bind First] + bind Rest)
   0011    | ConditionalThen 11 -> 38
   0014    | GetConstant2 355: _Array.MapMerge
   0017    | GetBoundLocalMove 4
@@ -5198,7 +5198,7 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetBoundLocalMove 0
-  0009    | DestructurePlan 115: ([bind First] + bind Rest)
+  0009    | DestructurePlan 117: ([bind First] + bind Rest)
   0011    | ConditionalThen 11 -> 34
   0014    | GetConstant2 356: Array.Reduce
   0017    | GetBoundLocalMove 4
@@ -5236,10 +5236,10 @@
   0009    | PushVar2 VsRest
   0012    | SetInputMark
   0013    | GetBoundLocalMove 0
-  0015    | DestructurePlan 116: ([bind K] + bind KsRest)
+  0015    | DestructurePlan 118: ([bind K] + bind KsRest)
   0017    | TakeRight 17 -> 24
   0020    | GetBoundLocalMove 1
-  0022    | DestructurePlan 117: ([bind V] + bind VsRest)
+  0022    | DestructurePlan 119: ([bind V] + bind VsRest)
   0024    | ConditionalThen 24 -> 59
   0027    | GetConstant2 357: _Array.ZipObject
   0030    | GetBoundLocalMove 4
@@ -5283,10 +5283,10 @@
   0009    | PushVar2 Rest2
   0012    | SetInputMark
   0013    | GetBoundLocalMove 0
-  0015    | DestructurePlan 118: ([bind First1] + bind Rest1)
+  0015    | DestructurePlan 120: ([bind First1] + bind Rest1)
   0017    | TakeRight 17 -> 24
   0020    | GetBoundLocalMove 1
-  0022    | DestructurePlan 119: ([bind First2] + bind Rest2)
+  0022    | DestructurePlan 121: ([bind First2] + bind Rest2)
   0024    | ConditionalThen 24 -> 66
   0027    | GetConstant2 359: _Array.ZipPairs
   0030    | GetBoundLocalMove 4
@@ -5532,7 +5532,7 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetBoundLocalMove 1
-  0009    | DestructurePlan 120: ([bind Row] + bind Rest)
+  0009    | DestructurePlan 122: ([bind Row] + bind Rest)
   0011    | ConditionalThen 11 -> 51
   0014    | GetConstant2 364: _Table.ZipObjects
   0017    | GetBoundLocal 0
@@ -5560,7 +5560,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | Destructure 0: ({K: _} + _)
+  0003    | DestructurePlan 68: ({bound_eq K: placeholder} + placeholder)
   0005    | End
   ========================================
   
@@ -5570,7 +5570,7 @@
   0000    | PushVar2 V
   0003    | PushUnderscoreVar
   0004    | GetBoundLocalMove 0
-  0006    | Destructure 1: ({K: V} + _)
+  0006    | DestructurePlan 69: ({bound_eq K: bind V} + placeholder)
   0008    | TakeRight 8 -> 13
   0011    | GetBoundLocalMove 2
   0013    | End
@@ -5598,7 +5598,7 @@
   0000    | PushUnderscoreVar
   0001    | PushVar2 S
   0004    | GetBoundLocalMove 0
-  0006    | Destructure 2: ({_: _} * S)
+  0006    | DestructurePlan 123: ({placeholder: placeholder} * bind S)
   0008    | TakeRight 8 -> 13
   0011    | GetBoundLocalMove 2
   0013    | End
@@ -5622,7 +5622,7 @@
   0004    | PushVar2 Rest
   0007    | SetInputMark
   0008    | GetBoundLocalMove 0
-  0010    | Destructure 3: ({K: _} + Rest)
+  0010    | DestructurePlan 124: ({bind K: placeholder} + bind Rest)
   0012    | ConditionalThen 12 -> 43
   0015    | GetConstant2 367: _Obj.Keys
   0018    | GetBoundLocalMove 4
@@ -5659,7 +5659,7 @@
   0004    | PushVar2 Rest
   0007    | SetInputMark
   0008    | GetBoundLocalMove 0
-  0010    | Destructure 4: ({_: V} + Rest)
+  0010    | DestructurePlan 125: ({placeholder: bind V} + bind Rest)
   0012    | ConditionalThen 12 -> 43
   0015    | GetConstant2 369: _Obj.Values
   0018    | GetBoundLocalMove 4
@@ -5691,7 +5691,7 @@
   0008    | JumpIfFailure 8 -> 34
   0011    | SetInputMark
   0012    | GetBoundLocalMove 0
-  0014    | DestructurePlan 93: ({"startpos": bind StartPos} + placeholder)
+  0014    | DestructurePlan 95: ({"startpos": bind StartPos} + placeholder)
   0016    | ConditionalThen 16 -> 32
   0019    | GetConstantMutable2 332: {_0_}
   0022    | PushString2 "startpos"
@@ -5703,7 +5703,7 @@
   0034    | JumpIfFailure 34 -> 60
   0037    | SetInputMark
   0038    | GetBoundLocalMove 1
-  0040    | DestructurePlan 94: ({"endpos": bind EndPos} + placeholder)
+  0040    | DestructurePlan 96: ({"endpos": bind EndPos} + placeholder)
   0042    | ConditionalThen 42 -> 58
   0045    | GetConstantMutable2 333: {_0_}
   0048    | PushString2 "endpos"
@@ -5720,7 +5720,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 121: (eq "" + placeholder)
+  0003    | DestructurePlan 126: (eq "" + placeholder)
   0005    | End
   ========================================
   
@@ -5729,7 +5729,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 122: (eq 0 + placeholder)
+  0003    | DestructurePlan 127: (eq 0 + placeholder)
   0005    | End
   ========================================
   
@@ -5738,7 +5738,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 123: (eq false + placeholder)
+  0003    | DestructurePlan 128: (eq false + placeholder)
   0005    | End
   ========================================
   
@@ -5746,7 +5746,7 @@
   Is.Null(V) = V -> null
   ========================================
   0000    | GetBoundLocalMove 0
-  0002    | DestructurePlan 124: eq null
+  0002    | DestructurePlan 129: eq null
   0004    | End
   ========================================
   
@@ -5755,7 +5755,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 125: ([] + placeholder)
+  0003    | DestructurePlan 130: ([] + placeholder)
   0005    | End
   ========================================
   
@@ -5764,7 +5764,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 68: ({} + placeholder)
+  0003    | DestructurePlan 70: ({} + placeholder)
   0005    | End
   ========================================
   
@@ -5772,7 +5772,7 @@
   Is.Equal(A, B) = A -> B
   ========================================
   0000    | GetBoundLocalMove 0
-  0002    | DestructurePlan 126: bound_eq B
+  0002    | DestructurePlan 131: bound_eq B
   0004    | End
   ========================================
   
@@ -5781,12 +5781,12 @@
   ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
-  0003    | DestructurePlan 91: bound_eq B
+  0003    | DestructurePlan 93: bound_eq B
   0005    | ConditionalThen 5 -> 13
   0008    | CallTailFunctionConstant 225: @Fail
   0010    | Jump 10 -> 17
   0013    | GetBoundLocalMove 0
-  0015    | DestructurePlan 92: ..B
+  0015    | DestructurePlan 94: ..B
   0017    | End
   ========================================
   
@@ -5794,7 +5794,7 @@
   Is.LessThanOrEqual(A, B) = A -> ..B
   ========================================
   0000    | GetBoundLocalMove 0
-  0002    | DestructurePlan 127: ..B
+  0002    | DestructurePlan 132: ..B
   0004    | End
   ========================================
   
@@ -5803,12 +5803,12 @@
   ========================================
   0000    | SetInputMark
   0001    | GetBoundLocal 0
-  0003    | DestructurePlan 128: bound_eq B
+  0003    | DestructurePlan 133: bound_eq B
   0005    | ConditionalThen 5 -> 13
   0008    | CallTailFunctionConstant 225: @Fail
   0010    | Jump 10 -> 17
   0013    | GetBoundLocalMove 0
-  0015    | DestructurePlan 129: B..
+  0015    | DestructurePlan 134: B..
   0017    | End
   ========================================
   
@@ -5816,7 +5816,7 @@
   Is.GreaterThanOrEqual(A, B) = A -> B..
   ========================================
   0000    | GetBoundLocalMove 0
-  0002    | DestructurePlan 130: B..
+  0002    | DestructurePlan 135: B..
   0004    | End
   ========================================
   
@@ -5830,7 +5830,7 @@
   0009    | CallFunction 1
   0011    | Or 11 -> 23
   0014    | GetBoundLocalMove 0
-  0016    | DestructurePlan 131: tmpl((eq 0 + bind N))
+  0016    | DestructurePlan 136: tmpl((eq 0 + bind N))
   0018    | TakeRight 18 -> 23
   0021    | GetBoundLocalMove 1
   0023    | End

@@ -556,7 +556,7 @@
   0000    | PushVar V
   0002    | PushUnderscoreVar
   0003    | GetBoundLocalMove 0
-  0005    | Destructure 0: ({K: V} + _)
+  0005    | DestructurePlan 0: ({bound_eq K: bind V} + placeholder)
   0007    | TakeRight 7 -> 12
   0010    | GetBoundLocalMove 2
   0012    | End
@@ -1973,7 +1973,7 @@
   0003    | GetConstant 1: alpha
   0005    | GetConstant 2: digit
   0007    | CallFunction 2
-  0009    | Destructure 0: ({_: 1} + _)
+  0009    | DestructurePlan 0: ({placeholder: eq 1} + placeholder)
   0011    | End
   ========================================
 
