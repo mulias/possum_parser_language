@@ -311,7 +311,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | CallFunctionConstant 6: passport
-  0003    | DestructurePlan 0: ({"byr": placeholder, "iyr": placeholder, "eyr": placeholder, "hgt": placeholder, "hcl": placeholder, "ecl": placeholder, "pid": placeholder} + placeholder)
+  0003    | DestructurePlan 0: ({"byr": _, "iyr": _, "eyr": _, "hgt": _, "hcl": _, "ecl": _, "pid": _} + _)
   0005    | End
   ========================================
   

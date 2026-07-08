@@ -324,7 +324,7 @@
   0001    | GetConstant 0: const
   0003    | GetConstant 1: {"a": 1, "b": 2}
   0005    | CallFunction 1
-  0007    | DestructurePlan 0: {"a": placeholder, "b": placeholder}
+  0007    | DestructurePlan 0: {"a": _, "b": _}
   0009    | End
   ========================================
 
@@ -466,7 +466,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 0: ([] + placeholder)
+  0003    | DestructurePlan 0: ([] + _)
   0005    | End
   ========================================
   
@@ -511,7 +511,7 @@
   0012    | ConditionalThen 12 -> 71
   0015    | SetInputMark
   0016    | GetBoundLocalMove 2
-  0018    | DestructurePlan 1: ([placeholder] + bind RowRest)
+  0018    | DestructurePlan 1: ([_] + bind RowRest)
   0020    | ConditionalThen 20 -> 49
   0023    | GetConstant 0: __Table.RestPerRow
   0025    | GetBoundLocalMove 3
@@ -556,7 +556,7 @@
   0000    | PushVar V
   0002    | PushUnderscoreVar
   0003    | GetBoundLocalMove 0
-  0005    | DestructurePlan 0: ({bound_eq K: bind V} + placeholder)
+  0005    | DestructurePlan 0: ({bound_eq K: bind V} + _)
   0007    | TakeRight 7 -> 12
   0010    | GetBoundLocalMove 2
   0012    | End
@@ -927,7 +927,7 @@
   0001    | GetConstant 0: many
   0003    | GetConstant 1: char
   0005    | CallFunction 1
-  0007    | DestructurePlan 0: tmpl("a".."z", placeholder)
+  0007    | DestructurePlan 0: tmpl("a".."z", _)
   0009    | End
   ========================================
 
@@ -1388,7 +1388,7 @@
   0003    | GetConstant 0: array
   0005    | GetConstant 1: digit
   0007    | CallFunction 1
-  0009    | DestructurePlan 0: ([bind A] + placeholder)
+  0009    | DestructurePlan 0: ([bind A] + _)
   0011    | End
   ========================================
 
@@ -1655,7 +1655,7 @@
   0005    | GetConstant 0: array
   0007    | GetConstant 1: digit
   0009    | CallFunction 1
-  0011    | DestructurePlan 0: ([bind A] + placeholder + [bind Z])
+  0011    | DestructurePlan 0: ([bind A] + _ + [bind Z])
   0013    | End
   ========================================
 
@@ -1722,7 +1722,7 @@
   0003    | GetConstant 0: array
   0005    | GetConstant 1: digit
   0007    | CallFunction 1
-  0009    | DestructurePlan 0: [eq 1, bind B, placeholder]
+  0009    | DestructurePlan 0: [eq 1, bind B, _]
   0011    | End
   ========================================
 
@@ -1889,7 +1889,7 @@
   0003    | GetConstant 1: alpha
   0005    | GetConstant 2: digit
   0007    | CallFunction 2
-  0009    | DestructurePlan 0: ({"a": eq 1} + placeholder)
+  0009    | DestructurePlan 0: ({"a": eq 1} + _)
   0011    | End
   ========================================
 
@@ -1973,7 +1973,7 @@
   0003    | GetConstant 1: alpha
   0005    | GetConstant 2: digit
   0007    | CallFunction 2
-  0009    | DestructurePlan 0: ({placeholder: eq 1} + placeholder)
+  0009    | DestructurePlan 0: ({_: eq 1} + _)
   0011    | End
   ========================================
 
@@ -2058,7 +2058,7 @@
   0005    | GetConstant 1: alpha
   0007    | GetConstant 2: digit
   0009    | CallFunction 2
-  0011    | DestructurePlan 0: ({"a": bind A} + placeholder)
+  0011    | DestructurePlan 0: ({"a": bind A} + _)
   0013    | End
   ========================================
 
@@ -2143,7 +2143,7 @@
   0005    | GetConstant 1: alpha
   0007    | GetConstant 2: digit
   0009    | CallFunction 2
-  0011    | DestructurePlan 0: ({} + placeholder + {"a": bind A})
+  0011    | DestructurePlan 0: ({} + _ + {"a": bind A})
   0013    | End
   ========================================
 
@@ -2228,7 +2228,7 @@
   0005    | GetConstant 1: alpha
   0007    | GetConstant 2: digit
   0009    | CallFunction 2
-  0011    | DestructurePlan 0: {"a": placeholder, "b": bind B}
+  0011    | DestructurePlan 0: {"a": _, "b": bind B}
   0013    | End
   ========================================
 
@@ -2469,7 +2469,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | CallFunctionConstant 0: "{"a": 1, "b": 2}"
-  0003    | DestructurePlan 0: tmpl(({} + placeholder))
+  0003    | DestructurePlan 0: tmpl(({} + _))
   0005    | End
   ========================================
 
