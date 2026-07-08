@@ -7,6 +7,7 @@ const MatchPlan = match_plan.MatchPlan;
 const LocalVar = match_plan.LocalVar;
 const ResolvedPart = match_plan.ResolvedPart;
 const StringTable = @import("string_table.zig").StringTable(.runtime);
+const explain = @import("explain.zig");
 const parsing = @import("parsing.zig");
 const isValidNumberString = parsing.isValidNumberString;
 const unicode = std.unicode;
@@ -21,6 +22,11 @@ pub const Error = error{
 // The flag is config-derived and constant for the run.
 inline fn printSteps(vm: *VM) bool {
     return vm.config.printVM or vm.config.printDestructure;
+}
+
+// --explain records a step/bind event per match node instead of printing.
+inline fn tracing(vm: *VM) bool {
+    return vm.config.explain;
 }
 
 fn printIndentation(vm: *VM) Error!void {
@@ -173,7 +179,28 @@ fn matchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Ele
 
     if (printSteps(vm)) try emitStep(vm, value, plan, idx);
 
+    if (tracing(vm)) return matchNodeTraced(vm, value, plan, idx, discardable);
+
     return dispatchNode(vm, value, plan, idx, discardable);
+}
+
+// Emit the step before dispatch so nested steps order after it, then patch
+// the result in. Nested matching may grow the event list, so re-index at
+// patch time rather than holding a pointer. Mirrors matchPatternTraced.
+noinline fn matchNodeTraced(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Elem.DynElem) Error!bool {
+    try vm.explain_events.append(vm.allocator, .{ .step = .{
+        .depth = vm.plan_debug_depth,
+        .value = explain.snapshot(vm, value),
+        .pattern = explain.snapshot(vm, match_plan.SubtreePrintable{ .plan = &plan, .idx = idx }),
+        .matched = false,
+    } });
+    const step_idx = vm.explain_events.items.len - 1;
+
+    const result = try dispatchNode(vm, value, plan, idx, discardable);
+
+    vm.explain_events.items[step_idx].step.matched = result;
+
+    return result;
 }
 
 fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*Elem.DynElem) Error!bool {
@@ -211,7 +238,7 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
                 value.negateNumber() catch return error.RuntimeError
             else
                 value;
-            bindLocal(vm, local_var, bound_value);
+            try bindLocal(vm, local_var, bound_value);
             return true;
         },
         .bound_eq => {
@@ -1457,7 +1484,7 @@ fn matchObjectMerge(
                     const removed = value_object.members.fetchOrderedRemove(sid);
                     removed.?.value.release();
                 }
-                bindLocal(vm, plan.vars[sub_node.payload], value);
+                try bindLocal(vm, plan.vars[sub_node.payload], value);
             } else {
                 // Create an object with only the unmatched keys, preserving
                 // the value object's member order
@@ -1934,11 +1961,21 @@ fn markKeyMatched(vm: *VM, base: usize, sid: StringTable.Id) !void {
 // The slot takes a second handle; the value also stays on the stack. The
 // slot's previous handle dies: usually a placeholder var, but possibly a
 // stale value left by an earlier failed match.
-fn bindLocal(vm: *VM, local_var: LocalVar, value: Elem) void {
+fn bindLocal(vm: *VM, local_var: LocalVar, value: Elem) Error!void {
     const previous = vm.getLocal(local_var.idx);
     value.retain();
     vm.setLocal(local_var.idx, value);
     previous.release();
+    if (tracing(vm)) try emitBind(vm, local_var, value);
+}
+
+// The solver emits its bind event from setLocal, which the bind tag and the
+// rest binds all route through here; mirror that single site.
+noinline fn emitBind(vm: *VM, local_var: LocalVar, value: Elem) Error!void {
+    try vm.explain_events.append(vm.allocator, .{ .bind = .{
+        .name = local_var.sid,
+        .value = explain.snapshot(vm, value),
+    } });
 }
 
 fn resolveRangeLimit(vm: *VM, plan: MatchPlan, limit: match_plan.RangePlan.Limit) Error!?Elem {
