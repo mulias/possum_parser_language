@@ -41,7 +41,7 @@ pub const MatchPlan = struct {
     fn printNode(self: MatchPlan, vm: VM, writer: *Writer, idx: u32) Writer.Error!u32 {
         const node = self.nodes[idx];
         switch (node.tag) {
-            .placeholder => try writer.print("{s}placeholder", .{negativeSigns(@intCast(node.payload))}),
+            .placeholder => try writer.print("{s}_", .{negativeSigns(@intCast(node.payload))}),
             .bind => try writer.print("bind {s}{s}", .{
                 negativeSigns(self.vars[node.payload].negation_count),
                 vm.strings.get(self.vars[node.payload].sid),

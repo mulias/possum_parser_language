@@ -1122,7 +1122,7 @@
   0015    | CaptureLocal 1
   0017    | CaptureLocal 2
   0019    | CallFunction 1
-  0021    | DestructurePlan 26: [bind MaxRowLen, placeholder]
+  0021    | DestructurePlan 26: [bind MaxRowLen, _]
   0023    | TakeRight 23 -> 30
   0026    | CallFunctionLocal 0
   0028    | DestructurePlan 27: bind First
@@ -4921,7 +4921,7 @@
   0000    | PushVar F
   0002    | PushUnderscoreVar
   0003    | GetBoundLocalMove 0
-  0005    | DestructurePlan 109: ([bind F] + placeholder)
+  0005    | DestructurePlan 109: ([bind F] + _)
   0007    | TakeRight 7 -> 12
   0010    | GetBoundLocalMove 1
   0012    | End
@@ -4933,7 +4933,7 @@
   0000    | PushUnderscoreVar
   0001    | PushVar2 R
   0004    | GetBoundLocalMove 0
-  0006    | DestructurePlan 110: ([placeholder] + bind R)
+  0006    | DestructurePlan 110: ([_] + bind R)
   0008    | TakeRight 8 -> 13
   0011    | GetBoundLocalMove 2
   0013    | End
@@ -4945,7 +4945,7 @@
   0000    | PushUnderscoreVar
   0001    | PushVar2 L
   0004    | GetBoundLocalMove 0
-  0006    | DestructurePlan 5: ([placeholder] * bind L)
+  0006    | DestructurePlan 5: ([_] * bind L)
   0008    | TakeRight 8 -> 13
   0011    | GetBoundLocalMove 2
   0013    | End
@@ -5384,7 +5384,7 @@
   0012    | DestructurePlan 34: ([bind Row] + bind Rest)
   0014    | TakeRight 14 -> 21
   0017    | GetBoundLocalMove 1
-  0019    | DestructurePlan 35: ([bind VeryFirst] + placeholder)
+  0019    | DestructurePlan 35: ([bind VeryFirst] + _)
   0021    | TakeRight 21 -> 36
   0024    | GetConstant 99: __Table.FirstPerRow
   0026    | GetBoundLocalMove 2
@@ -5410,7 +5410,7 @@
   0013    | DestructurePlan 36: ([bind Row] + bind Rest)
   0015    | TakeRight 15 -> 22
   0018    | GetBoundLocalMove 2
-  0020    | DestructurePlan 37: ([bind First] + placeholder)
+  0020    | DestructurePlan 37: ([bind First] + _)
   0022    | ConditionalThen 22 -> 51
   0025    | GetConstant 99: __Table.FirstPerRow
   0027    | GetBoundLocalMove 3
@@ -5458,7 +5458,7 @@
   0015    | ConditionalThen 15 -> 74
   0018    | SetInputMark
   0019    | GetBoundLocalMove 2
-  0021    | DestructurePlan 39: ([placeholder] + bind RowRest)
+  0021    | DestructurePlan 39: ([_] + bind RowRest)
   0023    | ConditionalThen 23 -> 52
   0026    | GetConstant 102: __Table.RestPerRow
   0028    | GetBoundLocalMove 3
@@ -5560,7 +5560,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 68: ({bound_eq K: placeholder} + placeholder)
+  0003    | DestructurePlan 68: ({bound_eq K: _} + _)
   0005    | End
   ========================================
   
@@ -5570,7 +5570,7 @@
   0000    | PushVar2 V
   0003    | PushUnderscoreVar
   0004    | GetBoundLocalMove 0
-  0006    | DestructurePlan 69: ({bound_eq K: bind V} + placeholder)
+  0006    | DestructurePlan 69: ({bound_eq K: bind V} + _)
   0008    | TakeRight 8 -> 13
   0011    | GetBoundLocalMove 2
   0013    | End
@@ -5598,7 +5598,7 @@
   0000    | PushUnderscoreVar
   0001    | PushVar2 S
   0004    | GetBoundLocalMove 0
-  0006    | DestructurePlan 123: ({placeholder: placeholder} * bind S)
+  0006    | DestructurePlan 123: ({_: _} * bind S)
   0008    | TakeRight 8 -> 13
   0011    | GetBoundLocalMove 2
   0013    | End
@@ -5622,7 +5622,7 @@
   0004    | PushVar2 Rest
   0007    | SetInputMark
   0008    | GetBoundLocalMove 0
-  0010    | DestructurePlan 124: ({bind K: placeholder} + bind Rest)
+  0010    | DestructurePlan 124: ({bind K: _} + bind Rest)
   0012    | ConditionalThen 12 -> 43
   0015    | GetConstant2 367: _Obj.Keys
   0018    | GetBoundLocalMove 4
@@ -5659,7 +5659,7 @@
   0004    | PushVar2 Rest
   0007    | SetInputMark
   0008    | GetBoundLocalMove 0
-  0010    | DestructurePlan 125: ({placeholder: bind V} + bind Rest)
+  0010    | DestructurePlan 125: ({_: bind V} + bind Rest)
   0012    | ConditionalThen 12 -> 43
   0015    | GetConstant2 369: _Obj.Values
   0018    | GetBoundLocalMove 4
@@ -5691,7 +5691,7 @@
   0008    | JumpIfFailure 8 -> 34
   0011    | SetInputMark
   0012    | GetBoundLocalMove 0
-  0014    | DestructurePlan 95: ({"startpos": bind StartPos} + placeholder)
+  0014    | DestructurePlan 95: ({"startpos": bind StartPos} + _)
   0016    | ConditionalThen 16 -> 32
   0019    | GetConstantMutable2 332: {_0_}
   0022    | PushString2 "startpos"
@@ -5703,7 +5703,7 @@
   0034    | JumpIfFailure 34 -> 60
   0037    | SetInputMark
   0038    | GetBoundLocalMove 1
-  0040    | DestructurePlan 96: ({"endpos": bind EndPos} + placeholder)
+  0040    | DestructurePlan 96: ({"endpos": bind EndPos} + _)
   0042    | ConditionalThen 42 -> 58
   0045    | GetConstantMutable2 333: {_0_}
   0048    | PushString2 "endpos"
@@ -5720,7 +5720,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 126: (eq "" + placeholder)
+  0003    | DestructurePlan 126: (eq "" + _)
   0005    | End
   ========================================
   
@@ -5729,7 +5729,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 127: (eq 0 + placeholder)
+  0003    | DestructurePlan 127: (eq 0 + _)
   0005    | End
   ========================================
   
@@ -5738,7 +5738,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 128: (eq false + placeholder)
+  0003    | DestructurePlan 128: (eq false + _)
   0005    | End
   ========================================
   
@@ -5755,7 +5755,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 130: ([] + placeholder)
+  0003    | DestructurePlan 130: ([] + _)
   0005    | End
   ========================================
   
@@ -5764,7 +5764,7 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | GetBoundLocalMove 0
-  0003    | DestructurePlan 70: ({} + placeholder)
+  0003    | DestructurePlan 70: ({} + _)
   0005    | End
   ========================================
   
