@@ -645,8 +645,17 @@ pub const VM = struct {
                 const next_op: OpCode = @enumFromInt(self.cur_code[self.cur_frame.ip]);
                 const value_discarded = next_op == .ConditionalThen or next_op == .TakeRight;
 
+                const trace_match = self.config.explain and value.isSuccess();
+                if (trace_match) {
+                    try self.emitExplainDestructureBegin(value, match_plan.SubtreePrintable{ .plan = &plan, .idx = 0 });
+                }
+
                 const matched = value.isSuccess() and
                     (try match_plan_interpreter.match(self, value, plan, value_discarded));
+
+                if (trace_match) {
+                    try self.emitExplainDestructureEnd(!matched);
+                }
 
                 if (matched) {
                     // value is already on the stack
@@ -1972,7 +1981,7 @@ pub const VM = struct {
         } });
     }
 
-    noinline fn emitExplainDestructureBegin(self: *VM, value: Elem, pattern: Pattern) !void {
+    noinline fn emitExplainDestructureBegin(self: *VM, value: Elem, pattern: anytype) !void {
         try self.explain_events.append(self.allocator, .{ .destructure_begin = .{
             .region = self.cur_frame.function.chunk.regions.items[self.cur_frame.ip - 1],
             .module_id = self.cur_frame.function.mid,

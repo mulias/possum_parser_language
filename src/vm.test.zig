@@ -960,6 +960,27 @@ test "a pattern still compiles to a match plan under PRINT_DESTRUCTURE" {
     }
 }
 
+test "a pattern still compiles to a match plan under --explain" {
+    const parser =
+        \\'foo' -> Foo $ Foo
+    ;
+    {
+        var explain_config = config;
+        explain_config.explain = true;
+        var vm = VM.create();
+        try vm.init(allocator, writers, explain_config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, "foo"),
+            Elem.inputSubstring(0, 3),
+            vm,
+        );
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        try std.testing.expect(plan_count > 0);
+    }
+}
+
 test "constant literal patterns compile to match plans" {
     const parser =
         \\('' $ 42) -> 42 & ('' $ 'abc') -> 'abc' & ('' $ true) -> true & ('' $ null) -> null $ 'ok'

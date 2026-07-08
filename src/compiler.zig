@@ -1639,18 +1639,13 @@ pub const Compiler = struct {
         }
     };
 
-    // Lower a pattern to a MatchPlan. Unsupported patterns (and the explain
-    // and destructure-printing modes, which report through the Pattern tree)
-    // return UnsupportedPattern so the caller falls back to createPattern.
+    // Lower a pattern to a MatchPlan. Unsupported patterns return
+    // UnsupportedPattern so the caller falls back to createPattern.
     fn tryCreateMatchPlan(
         self: *Compiler,
         module_id: Module.Id,
         rnode: *Ast.Pattern.RNode,
     ) (Error || error{UnsupportedPattern})!u24 {
-        if (self.vm.config.explain) {
-            return error.UnsupportedPattern;
-        }
-
         const allocator = self.vm.allocator;
         var builder = PlanBuilder{};
         defer builder.deinit(allocator);
