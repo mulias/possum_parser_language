@@ -3234,7 +3234,7 @@ pub const Compiler = struct {
     // recorded the target module.
     // Resolve an identifier written in source. Anonymous functions are in
     // the globals map but can't be invoked by name, so they are hidden here.
-    pub fn resolveGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
+    fn resolveGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
         if (self.findGlobal(module_id, sid)) |elem| {
             return visibleGlobal(elem);
         }
@@ -3273,7 +3273,7 @@ pub const Compiler = struct {
         );
     }
 
-    pub fn localSlot(self: *Compiler, name: FrontendStrings.Id) ?u8 {
+    fn localSlot(self: *Compiler, name: FrontendStrings.Id) ?u8 {
         const scope = self.currentScope();
         for (scope.locals(), 0..) |local, i| {
             if (local == name) return @intCast(i);
