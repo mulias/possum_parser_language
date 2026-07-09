@@ -1,6 +1,7 @@
 const std = @import("std");
 const allocator = std.testing.allocator;
 const Frontend = @import("frontend.zig").Frontend;
+const VM = @import("vm.zig").VM;
 const DependencyGraph = @import("frontend/dependency_graph.zig");
 const Module = @import("module.zig").Module;
 const StringTable = @import("string_table.zig").StringTable(.frontend);
@@ -32,7 +33,10 @@ fn captures(frontend: *Frontend, anon: NodeKey, parent_name: StringTable.Id, loc
 }
 
 test "single module with main parser" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const source =
@@ -52,7 +56,10 @@ test "single module with main parser" {
 }
 
 test "module with declarations" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const source =
@@ -84,7 +91,10 @@ test "module with declarations" {
 }
 
 test "multiple modules with dependencies" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     // Module 0: utility functions
@@ -154,7 +164,10 @@ test "multiple modules with dependencies" {
 }
 
 test "later import shadows earlier import" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const util_a_module = Module{ .id = 0, .name = "util_a", .source = "shared = \"a\"" };
@@ -188,7 +201,10 @@ test "later import shadows earlier import" {
 }
 
 test "identifier resolves through transitive dependency" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const base_module = Module{ .id = 0, .name = "base", .source = "base_val = \"x\"" };
@@ -221,7 +237,10 @@ test "identifier resolves through transitive dependency" {
 }
 
 test "empty module" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const module = Module{
@@ -238,7 +257,10 @@ test "empty module" {
 }
 
 test "declaration with value function" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const source =
@@ -268,7 +290,10 @@ test "declaration with value function" {
 }
 
 test "dependency graph population" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const source =
@@ -298,7 +323,10 @@ test "dependency graph population" {
 }
 
 test "anonymous functions" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const source =
@@ -330,7 +358,10 @@ test "anonymous functions" {
 }
 
 test "nested anonymous functions" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const source =
@@ -360,7 +391,10 @@ test "nested anonymous functions" {
 }
 
 test "nested anonymous functions with multiple captures" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const source =
@@ -397,7 +431,10 @@ test "nested anonymous functions with multiple captures" {
 }
 
 test "circular deps" {
-    var frontend = try Frontend.init(allocator, writers);
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
     const source =

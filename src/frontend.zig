@@ -8,9 +8,13 @@ const DependencyResolver = @import("frontend/dependency_resolver.zig");
 const Module = @import("module.zig").Module;
 const Parser = @import("frontend/parser.zig").Parser;
 const StringTable = @import("string_table.zig").StringTable(.frontend);
+const VM = @import("vm.zig").VM;
 const Writers = @import("writer.zig").Writers;
+const Region = @import("region.zig").Region;
 const std = @import("std");
+const binding = @import("frontend/binding.zig");
 
+vm: *VM,
 allocator: Allocator,
 arena: ArenaAllocator,
 writers: Writers,
@@ -18,6 +22,7 @@ strings: StringTable,
 target_module_id: ?Module.Id = null,
 resolver: DependencyResolver.Resolver,
 main: ?*Ast.RNode(Ast.Parser.AnonymousFunction) = null,
+binding_maps: binding.Maps = .{},
 
 pub const AddModuleOpts = struct {
     printScanner: bool = false,
@@ -35,19 +40,27 @@ pub const DependencyGraphNode = DependencyGraph.Node;
 
 pub const ClosureCapture = DependencyGraph.ClosureCapture;
 
-pub fn init(allocator: Allocator, writers: Writers) !*Frontend {
+pub const Error = error{
+    UnboundVariable,
+};
+
+pub fn init(vm: *VM) !*Frontend {
+    const allocator = vm.allocator;
     const frontend = try allocator.create(Frontend);
+    frontend.vm = vm;
     frontend.allocator = allocator;
     frontend.arena = ArenaAllocator.init(allocator);
-    frontend.writers = writers;
+    frontend.writers = vm.writers;
     frontend.strings = StringTable.init(allocator);
     frontend.target_module_id = null;
     frontend.main = null;
+    frontend.binding_maps = .{};
     frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena);
     return frontend;
 }
 
 pub fn deinit(self: *Frontend) void {
+    self.binding_maps.deinit(self.allocator);
     self.strings.deinit();
     self.arena.deinit();
     self.allocator.destroy(self);
@@ -92,6 +105,9 @@ pub fn addModuleDependency(
 
 pub fn finalize(self: *Frontend) !void {
     try self.resolver.resolve();
+    // try self.resolver.prune();
+    try self.analyzeBindings();
+    // try self.analyzeLiveness();
 }
 
 pub fn getNode(self: *Frontend, key: GlobalKey) *DependencyGraph.Node {
@@ -135,4 +151,122 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !Ast {
     }
 
     return can.ast;
+}
+
+fn analyzeBindings(self: *Frontend) !void {
+    var iter = self.dependenciesIterator();
+
+    while (iter.next()) |entry| {
+        const key = entry.key_ptr.*;
+        const node = entry.value_ptr.*;
+        switch (node.*) {
+            .precompiled => {},
+            .declaration => |*decl_node| switch (decl_node.ast) {
+                .parser => |p| try self.analyzeParserBindings(
+                    key.module_id,
+                    node,
+                    p.node.body,
+                    p.node.params.items.len,
+                    &.{},
+                ),
+                .value => |v| try self.analyzeValueBindings(
+                    key.module_id,
+                    node,
+                    v.node.body,
+                    v.node.params.items.len,
+                ),
+            },
+            .anonymous_function => |*anon| try self.analyzeParserBindings(
+                key.module_id,
+                node,
+                anon.ast.node.body,
+                0,
+                anon.closure_captures.items,
+            ),
+        }
+    }
+}
+
+fn analyzeParserBindings(
+    self: *Frontend,
+    module_id: Module.Id,
+    node: *DependencyGraphNode,
+    body: *Ast.Parser.RNode,
+    arity: usize,
+    captures: []const Frontend.ClosureCapture,
+) !void {
+    var result = try binding.analyzeParserFunction(self, module_id, node, body, arity, captures);
+    defer result.deinit(self.vm.allocator);
+    try self.reportBindingDiagnostics(module_id, result.diagnostics.items);
+}
+
+fn analyzeValueBindings(
+    self: *Frontend,
+    module_id: Module.Id,
+    node: *DependencyGraphNode,
+    body: *Ast.Value.RNode,
+    arity: usize,
+) !void {
+    var result = try binding.analyzeValueFunction(self, module_id, node, body, arity);
+    defer result.deinit(self.vm.allocator);
+    try self.reportBindingDiagnostics(module_id, result.diagnostics.items);
+}
+
+fn reportBindingDiagnostics(self: *Frontend, module_id: Module.Id, diagnostics: []const binding.Diagnostic) !void {
+    for (diagnostics) |diagnostic| {
+        switch (diagnostic.kind) {
+            .unbound => try self.printError(
+                module_id,
+                diagnostic.region,
+                "variable '{s}' is unbound here",
+                .{self.strings.get(diagnostic.name.?)},
+            ),
+            .out_of_scope => try self.printError(
+                module_id,
+                diagnostic.region,
+                "variable '{s}' is unbound here: its binding is out of scope",
+                .{self.strings.get(diagnostic.name.?)},
+            ),
+            .split => try self.printError(
+                module_id,
+                diagnostic.region,
+                "variable '{s}' may be unbound here: it is not bound on every path",
+                .{self.strings.get(diagnostic.name.?)},
+            ),
+            .unbound_function_var => try self.printError(
+                module_id,
+                diagnostic.region,
+                "variable '{s}' is unbound here: variables in pattern function calls must be bound",
+                .{self.strings.get(diagnostic.name.?)},
+            ),
+            .extra_unbound_part => if (diagnostic.name) |name| try self.printError(
+                module_id,
+                diagnostic.region,
+                "variable '{s}' is unbound here: a merge can solve at most one unbound part",
+                .{self.strings.get(name)},
+            ) else try self.printError(
+                module_id,
+                diagnostic.region,
+                "pattern part is unbound here: a merge can solve at most one unbound part",
+                .{},
+            ),
+        }
+    }
+
+    if (diagnostics.len > 0) return Error.UnboundVariable;
+}
+
+fn printError(self: *Frontend, module_id: Module.Id, region: Region, comptime message: []const u8, args: anytype) !void {
+    const module = self.vm.getModule(module_id);
+
+    try self.writers.err.print("\nProgram Error: ", .{});
+    try self.writers.err.print(message, args);
+    try self.writers.err.print("\n\n", .{});
+
+    try self.writers.err.print("{s}:", .{module.name});
+    try region.printLineRelative(module.source, self.writers.err);
+    try self.writers.err.print(":\n", .{});
+
+    try module.highlight(region, self.writers.err);
+    try self.writers.err.print("\n", .{});
 }
