@@ -11,7 +11,6 @@ const liveness = @import("liveness.zig");
 const Module = @import("module.zig").Module;
 const match_plan = @import("match_plan.zig");
 const OpCode = @import("op_code.zig").OpCode;
-const Pattern = @import("pattern.zig").Pattern;
 const Region = @import("region.zig").Region;
 const FrontendStrings = @import("string_table.zig").StringTable(.frontend);
 const RuntimeStrings = @import("string_table.zig").StringTable(.runtime);
@@ -78,6 +77,7 @@ pub const Compiler = struct {
         RangeCodepointsUnordered,
         RangeIntegersUnordered,
         RangeInvalidNumberFormat,
+        UnsupportedPattern,
     } || Writer.Error;
 
     pub fn init(vm: *VM) !Compiler {
@@ -1114,8 +1114,7 @@ pub const Compiler = struct {
         try self.emitOp(.ResetInput, parser.region);
         try self.emitOp(.Drop, parser.region);
         try self.emitOp(.Swap, count.region);
-        const patternId = try self.createPattern(module_id, count);
-        try self.emitPattern(patternId, repeat_region);
+        try self.writeDestructurePattern(module_id, count);
 
         // Cleanup: drop the counter
         try self.emitOp(.Drop, parser.region);
@@ -1260,8 +1259,7 @@ pub const Compiler = struct {
             try self.emitOp(.Swap, upper.region);
             try self.writePatternAsBoundRepeatValue(module_id, lower);
             try self.emitOp(.Merge, parser.region);
-            const patternId = try self.createPattern(module_id, upper);
-            try self.emitPattern(patternId, upper.region);
+            try self.writeDestructurePattern(module_id, upper);
             try self.emitOp(.Swap, region);
         }
 
@@ -1311,8 +1309,7 @@ pub const Compiler = struct {
             try self.emitOp(.NegateNumber, region);
             try self.writePatternAsBoundRepeatValue(module_id, upper);
             try self.emitOp(.Merge, region);
-            const patternId = try self.createPattern(module_id, lower);
-            try self.emitPattern(patternId, lower.region);
+            try self.writeDestructurePattern(module_id, lower);
         }
 
         try self.emitOp(.Drop, region);
@@ -1491,15 +1488,8 @@ pub const Compiler = struct {
     // Compile a destructure's pattern, preferring the match plan IR. Lowering
     // supports a subset of patterns; the rest fall back to the Pattern tree.
     fn writeDestructurePattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) Error!void {
-        if (self.tryCreateMatchPlan(module_id, rnode)) |planId| {
-            try self.emitMatchPlan(planId, rnode.region);
-        } else |err| switch (err) {
-            error.UnsupportedPattern => {
-                const patternId = try self.createPattern(module_id, rnode);
-                try self.emitPattern(patternId, rnode.region);
-            },
-            else => |e| return e,
-        }
+        const planId = try self.tryCreateMatchPlan(module_id, rnode);
+        try self.emitMatchPlan(planId, rnode.region);
     }
 
     // Scratch state for lowering one pattern to a MatchPlan. Everything
@@ -2229,19 +2219,6 @@ pub const Compiler = struct {
         }
     }
 
-    fn createPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) Error!u24 {
-        try self.emitPatternPreclears(module_id, rnode);
-        const patternElem = try self.astToPattern(module_id, rnode, 0);
-        const module = self.vm.getModule(module_id);
-        const idx = try module.addPattern(self.vm.allocator, patternElem);
-
-        const gop = try self.pattern_reads.getOrPut(self.vm.allocator, module_id);
-        if (!gop.found_existing) gop.value_ptr.* = .{};
-        try gop.value_ptr.append(self.vm.allocator, liveness.patternReads(patternElem));
-
-        return @intCast(idx);
-    }
-
     // The binding analysis lists slots this pattern may bind while the slot
     // still holds a value whose binding is out of scope. Restore their
     // placeholders so the solver's bind-if-unbound check sees them as
@@ -2255,280 +2232,6 @@ pub const Compiler = struct {
             const placeholder = Elem.valueVar(try self.internForRuntime(preclear.name), underscored);
             try self.writeConstant(module_id, placeholder, rnode.region);
             try self.emitUnaryOp(.SetLocal, preclear.slot, rnode.region);
-        }
-    }
-
-    fn astToPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode, negation_count: u2) Error!Pattern {
-        const node = rnode.node;
-        const region = rnode.region;
-
-        switch (node) {
-            .false => {
-                if (negation_count > 0) {
-                    try self.printError(module_id, region, "Invalid pattern - unable to negate boolean", .{});
-                    return Error.InvalidAst;
-                }
-                return Pattern{ .Boolean = false };
-            },
-            .true => {
-                if (negation_count > 0) {
-                    try self.printError(module_id, region, "Invalid pattern - unable to negate boolean", .{});
-                    return Error.InvalidAst;
-                }
-                return Pattern{ .Boolean = true };
-            },
-            .null => {
-                if (negation_count > 0) {
-                    try self.printError(module_id, region, "Invalid pattern - unable to negate null", .{});
-                    return Error.InvalidAst;
-                }
-                return Pattern{ .Null = {} };
-            },
-            .number_float => |f| {
-                if (negation_count % 2 == 1) {
-                    return Pattern{ .Number = -f };
-                } else {
-                    return Pattern{ .Number = f };
-                }
-            },
-            .number_string => |ns| {
-                const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                const maybe_negated = if (negation_count % 2 == 1) ns_elem.asNumberString().negate() else ns_elem.asNumberString();
-                const number = maybe_negated.toNumberFloat(self.vm.strings);
-                return Pattern{ .Number = number.asFloat() };
-            },
-            .string => |s| {
-                if (negation_count > 0) {
-                    try self.printError(module_id, region, "Invalid pattern - unable to negate string", .{});
-                    return Error.InvalidAst;
-                }
-                const sid = try self.vm.strings.insert(s);
-                return Pattern{ .String = sid };
-            },
-            .identifier => |ident| {
-                const name = ident.name;
-                if (self.resolveGlobal(module_id, name)) |globalElem| {
-                    const constId = try self.makeConstant(module_id, globalElem);
-                    return Pattern{ .Constant = .{
-                        .sid = try self.internForRuntime(name),
-                        .idx = constId,
-                        .negation_count = negation_count,
-                    } };
-                } else {
-                    const slot = self.localSlot(name).?;
-                    return Pattern{ .Local = .{
-                        .sid = try self.internForRuntime(name),
-                        .idx = slot,
-                        .negation_count = negation_count,
-                    } };
-                }
-            },
-            .array => |elements| {
-                if (negation_count > 0) {
-                    try self.printError(module_id, region, "Invalid pattern - unable to negate array", .{});
-                    return Error.InvalidAst;
-                }
-
-                var patternElems = ArrayList(Pattern){};
-                try patternElems.ensureTotalCapacity(self.vm.allocator, elements.items.len);
-
-                for (elements.items) |elementNode| {
-                    const elementPattern = try self.astToPattern(module_id, elementNode, 0);
-                    try patternElems.append(self.vm.allocator, elementPattern);
-                }
-
-                return Pattern{ .Array = patternElems };
-            },
-            .object => |pairs| {
-                if (negation_count > 0) {
-                    try self.printError(module_id, region, "Invalid pattern - unable to negate object", .{});
-                    return Error.InvalidAst;
-                }
-
-                var objectPairs = ArrayList(Pattern.ObjectPair){};
-                try objectPairs.ensureTotalCapacity(self.vm.allocator, pairs.items.len);
-
-                for (pairs.items) |pair| {
-                    try objectPairs.append(self.vm.allocator, .{
-                        .key = try self.astToPattern(module_id, pair.key, 0),
-                        .value = try self.astToPattern(module_id, pair.value, 0),
-                    });
-                }
-
-                return Pattern{ .Object = objectPairs };
-            },
-            .string_template => |segments| {
-                if (negation_count > 0) {
-                    try self.printError(module_id, region, "Invalid pattern - unable to negate string", .{});
-                    return Error.InvalidAst;
-                }
-
-                var templateElems = ArrayList(Pattern){};
-                try templateElems.ensureTotalCapacity(self.vm.allocator, segments.items.len);
-
-                for (segments.items) |segmentNode| {
-                    const segmentPattern = try self.astToPattern(module_id, segmentNode, 0);
-                    try templateElems.append(self.vm.allocator, segmentPattern);
-                }
-
-                return Pattern{ .StringTemplate = templateElems };
-            },
-            .range => |bounds| {
-                var lowerPattern: ?*Pattern = null;
-                var upperPattern: ?*Pattern = null;
-
-                if (bounds.lower) |lower| {
-                    lowerPattern = try self.vm.allocator.create(Pattern);
-                    lowerPattern.?.* = try self.astToPattern(module_id, lower, negation_count);
-                }
-
-                if (bounds.upper) |upper| {
-                    upperPattern = try self.vm.allocator.create(Pattern);
-                    upperPattern.?.* = try self.astToPattern(module_id, upper, negation_count);
-                }
-
-                return Pattern{ .Range = .{
-                    .lower = lowerPattern,
-                    .upper = upperPattern,
-                } };
-            },
-            .negation => |inner| {
-                const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
-                return self.astToPattern(module_id, inner, new_negation_count);
-            },
-            .function_call => |function_call| {
-                const nameNode = function_call.function.node;
-
-                const function_ident = if (nameNode == .identifier and !nameNode.identifier.underscored)
-                    nameNode.identifier
-                else {
-                    try self.printError(module_id, region, "Parser is not valid in pattern", .{});
-                    return Error.InvalidAst;
-                };
-
-                const globalFunctionElem = self.resolveGlobal(module_id, function_ident.name);
-
-                const functionVar: Pattern.PatternVar = if (globalFunctionElem) |globalElem|
-                    .{
-                        .sid = try self.internForRuntime(function_ident.name),
-                        .idx = try self.makeConstant(module_id, globalElem),
-                        .negation_count = negation_count,
-                    }
-                else if (self.localSlot(function_ident.name)) |slot|
-                    .{
-                        .sid = try self.internForRuntime(function_ident.name),
-                        .idx = slot,
-                        .negation_count = negation_count,
-                    }
-                else {
-                    try self.printError(module_id, function_call.function.region, "Unknown function in pattern", .{});
-                    return Error.InvalidAst;
-                };
-
-                var args = ArrayList(Pattern){};
-                for (function_call.args.items) |arg| {
-                    const argPattern = try self.astToValueInPattern(module_id, arg, 0);
-                    try args.append(self.vm.allocator, argPattern);
-                }
-
-                return Pattern{ .FunctionCall = .{
-                    .function = functionVar,
-                    .kind = if (globalFunctionElem != null) .Constant else .Local,
-                    .args = args,
-                } };
-            },
-            .merge => {
-                var mergeElems = ArrayList(Pattern){};
-                try self.collectPatternMergeElements(module_id, rnode, &mergeElems, negation_count);
-                return Pattern{ .Merge = mergeElems };
-            },
-            .repeat => |infix| {
-                const pattern = try self.vm.allocator.create(Pattern);
-                pattern.* = try self.astToPattern(module_id, infix.left, negation_count);
-
-                const count = try self.vm.allocator.create(Pattern);
-                count.* = try self.astToPattern(module_id, infix.right, 0);
-                return Pattern{ .Repeat = .{ .pattern = pattern, .count = count } };
-            },
-        }
-    }
-
-    fn collectPatternMergeElements(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode, elements: *ArrayList(Pattern), negation_count: u2) Error!void {
-        const node = rnode.node;
-
-        switch (node) {
-            .merge => |merge| {
-                try self.collectPatternMergeElements(module_id, merge.left, elements, negation_count);
-                try self.collectPatternMergeElements(module_id, merge.right, elements, negation_count);
-                return;
-            },
-            else => {},
-        }
-
-        // Merge pattern part
-        const pattern = try self.astToPattern(module_id, rnode, negation_count);
-        try elements.append(self.vm.allocator, pattern);
-    }
-
-    fn astToValueInPattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Value.RNode, negation_count: u2) Error!Pattern {
-        const node = rnode.node;
-        const region = rnode.region;
-
-        switch (node) {
-            .false => {
-                return Pattern{ .Boolean = false };
-            },
-            .true => {
-                return Pattern{ .Boolean = true };
-            },
-            .null => {
-                return Pattern{ .Null = {} };
-            },
-            .number_float => |f| {
-                if (negation_count % 2 == 1) {
-                    return Pattern{ .Number = -f };
-                } else {
-                    return Pattern{ .Number = f };
-                }
-            },
-            .number_string => |ns| {
-                const ns_elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                const maybe_negated = if (negation_count % 2 == 1) ns_elem.asNumberString().negate() else ns_elem.asNumberString();
-                const number = maybe_negated.toNumberFloat(self.vm.strings);
-                return Pattern{ .Number = number.asFloat() };
-            },
-            .string => |s| {
-                if (negation_count > 0) {
-                    try self.printError(module_id, region, "Invalid pattern - unable to negate string", .{});
-                    return Error.InvalidAst;
-                }
-                const sid = try self.vm.strings.insert(s);
-                return Pattern{ .String = sid };
-            },
-            .negation => |inner| {
-                const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
-                return self.astToValueInPattern(module_id, inner, new_negation_count);
-            },
-            .identifier => |ident| {
-                if (self.resolveGlobal(module_id, ident.name)) |elem| {
-                    return Pattern{ .Constant = .{
-                        .sid = try self.internForRuntime(ident.name),
-                        .idx = try self.makeConstant(module_id, elem),
-                        .negation_count = negation_count,
-                    } };
-                } else {
-                    const slot = self.localSlot(ident.name).?;
-                    return Pattern{ .Local = .{
-                        .sid = try self.internForRuntime(ident.name),
-                        .idx = slot,
-                        .negation_count = negation_count,
-                    } };
-                }
-            },
-            else => {
-                try self.printError(module_id, region, "Unsupported value node in pattern", .{});
-                return Error.InvalidAst;
-            },
         }
     }
 
@@ -3190,17 +2893,10 @@ pub const Compiler = struct {
     // case for params and pattern bindings) stay unique and eligible for
     // in-place mutation.
     fn rewriteLastReadsAsMoves(self: *Compiler, module_id: Module.Id, function_ir: *Ir) !void {
-        const pattern_reads: []const liveness.SlotSet =
-            if (self.pattern_reads.get(module_id)) |list| list.items else &.{};
         const plan_reads: []const liveness.SlotSet =
             if (self.plan_reads.get(module_id)) |list| list.items else &.{};
 
-        var last_reads = try liveness.Liveness.analyze(
-            self.vm.allocator,
-            function_ir,
-            pattern_reads,
-            plan_reads,
-        );
+        var last_reads = try liveness.Liveness.analyze(self.vm.allocator, function_ir, plan_reads);
         defer last_reads.deinit(self.vm.allocator);
 
         for (function_ir.instructions.items, 0..) |*insn, i| {

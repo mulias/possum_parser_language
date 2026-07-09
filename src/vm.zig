@@ -15,7 +15,6 @@ const match_plan_interpreter = @import("match_plan_interpreter.zig");
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable(.runtime);
-const Pattern = @import("pattern.zig").Pattern;
 const PatternSolver = @import("pattern_solver.zig");
 const Region = @import("region.zig").Region;
 const LineRelativeRegion = @import("region.zig").LineRelativeRegion;
@@ -598,42 +597,6 @@ pub const VM = struct {
                     @panic("Internal Error");
                 }
             },
-            .Destructure, .Destructure2, .Destructure3 => {
-                const patternIdx = self.readIndex(opCode);
-                const pattern = self.getPattern(patternIdx);
-                const value = self.peek(0);
-
-                // ConditionalThen and TakeRight pop a successful result
-                // without looking inside it, so on those paths the value's
-                // stack handle dies unobserved and the solver may consume a
-                // uniquely-referenced value while matching.
-                const next_op: OpCode = @enumFromInt(self.cur_code[self.cur_frame.ip]);
-                const value_discarded = next_op == .ConditionalThen or next_op == .TakeRight;
-
-                const trace_match = self.config.explain and value.isSuccess();
-                if (trace_match) {
-                    try self.emitExplainDestructureBegin(value, pattern);
-                }
-
-                const matched = value.isSuccess() and (try self.pattern_solver.match(value, pattern, value_discarded));
-
-                if (trace_match) {
-                    try self.emitExplainDestructureEnd(!matched);
-                }
-
-                if (matched) {
-                    // value is already on the stack
-                } else {
-                    // Snapshot before popConsumed reclaims the value. A
-                    // propagated failure is not a pattern mismatch and was
-                    // already recorded where it happened.
-                    if (value.isSuccess()) self.recordPatternFailure(value);
-                    // This should technically match `opCode`, but the RC
-                    // semantics are the same for all destructure ops
-                    _ = self.popConsumed(.Destructure);
-                    try self.pushFailure();
-                }
-            },
             .DestructurePlan, .DestructurePlan2, .DestructurePlan3 => {
                 const planIdx = self.readIndex(opCode);
                 const plan = self.getMatchPlan(planIdx);
@@ -662,7 +625,7 @@ pub const VM = struct {
                 } else {
                     if (value.isSuccess()) self.recordPatternFailure(value);
                     // RC semantics are the same for all destructure ops
-                    _ = self.popConsumed(.Destructure);
+                    _ = self.popConsumed(.DestructurePlan);
                     try self.pushFailure();
                 }
             },
@@ -1706,10 +1669,6 @@ pub const VM = struct {
         try self.push(closure.dyn.elem());
     }
 
-    pub fn getPattern(self: *VM, idx: usize) Pattern {
-        return self.currentFunctionModule().getPattern(idx);
-    }
-
     pub fn getMatchPlan(self: *VM, idx: usize) MatchPlan {
         return self.currentFunctionModule().getMatchPlan(idx);
     }
@@ -1784,21 +1743,18 @@ pub const VM = struct {
             .CallTailFunctionConstant,
             .GetConstant,
             .GetConstantMutable,
-            .Destructure,
             .DestructurePlan,
             => self.readByte(),
             .CallFunctionConstant2,
             .CallTailFunctionConstant2,
             .GetConstant2,
             .GetConstantMutable2,
-            .Destructure2,
             .DestructurePlan2,
             => self.readShort(),
             .CallFunctionConstant3,
             .CallTailFunctionConstant3,
             .GetConstant3,
             .GetConstantMutable3,
-            .Destructure3,
             .DestructurePlan3,
             => self.readMedium(),
             else => unreachable,

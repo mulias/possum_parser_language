@@ -40,7 +40,6 @@ pub const Ir = struct {
         push_var: StringTable.Id,
         call_function_constant: u24,
         call_tail_function_constant: u24,
-        destructure: u24,
         destructure_plan: u24,
         jump: struct { op: OpCode, target: Index },
         jump_back: struct { op: OpCode, target: Index },
@@ -164,7 +163,6 @@ pub const Ir = struct {
                 .push_var => |sid| try writeSid(chunk, allocator, sid, .PushVar, .PushVar2, .PushVar3, .PushVar4, region),
                 .call_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallFunctionConstant, .CallFunctionConstant2, .CallFunctionConstant3, region),
                 .call_tail_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallTailFunctionConstant, .CallTailFunctionConstant2, .CallTailFunctionConstant3, region),
-                .destructure => |idx| try writeIndexed(chunk, allocator, idx, .Destructure, .Destructure2, .Destructure3, region),
                 .destructure_plan => |idx| try writeIndexed(chunk, allocator, idx, .DestructurePlan, .DestructurePlan2, .DestructurePlan3, region),
                 .jump => |j| {
                     std.debug.assert(j.target != unpatched_jump);
@@ -230,7 +228,6 @@ pub const Ir = struct {
             .get_constant_mutable,
             .call_function_constant,
             .call_tail_function_constant,
-            .destructure,
             .destructure_plan,
             => |idx| indexedByteLength(idx),
             .push_string, .push_var => |sid| sidByteLength(sid),
@@ -367,7 +364,6 @@ pub const Ir = struct {
             .push_var => .PushVar,
             .call_function_constant => .CallFunctionConstant,
             .call_tail_function_constant => .CallTailFunctionConstant,
-            .destructure => .Destructure,
             .destructure_plan => .DestructurePlan,
             .jump => |j| j.op,
             .jump_back => |j| j.op,
@@ -444,7 +440,7 @@ test "indexed operands choose the shortest encoding" {
     _ = try ir.push(allocator, .{ .get_constant = 0x05 }, testRegion(0));
     _ = try ir.push(allocator, .{ .get_constant = 0x1234 }, testRegion(1));
     _ = try ir.push(allocator, .{ .get_constant = 0x123456 }, testRegion(2));
-    _ = try ir.push(allocator, .{ .destructure = 0x1234 }, testRegion(3));
+    _ = try ir.push(allocator, .{ .destructure_plan = 0x1234 }, testRegion(3));
     _ = try ir.push(allocator, .{ .call_function_constant = 0x02 }, testRegion(4));
     _ = try ir.push(allocator, .{ .call_tail_function_constant = 0x123456 }, testRegion(5));
 
@@ -462,7 +458,7 @@ test "indexed operands choose the shortest encoding" {
         0x12,
         0x34,
         0x56,
-        @intFromEnum(OpCode.Destructure2),
+        @intFromEnum(OpCode.DestructurePlan2),
         0x12,
         0x34,
         @intFromEnum(OpCode.CallFunctionConstant),

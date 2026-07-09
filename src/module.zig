@@ -4,7 +4,6 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const MatchPlan = @import("match_plan.zig").MatchPlan;
-const Pattern = @import("pattern.zig").Pattern;
 const hl = @import("highlight.zig");
 const Region = @import("region.zig").Region;
 
@@ -13,17 +12,12 @@ pub const Module = struct {
     name: []const u8,
     source: []const u8,
     constants: ArrayList(Elem) = ArrayList(Elem){},
-    patterns: ArrayList(Pattern) = ArrayList(Pattern){},
     match_plans: ArrayList(MatchPlan) = ArrayList(MatchPlan){},
 
     pub const Id = u16;
 
     pub fn deinit(self: *Module, allocator: Allocator) void {
         self.constants.deinit(allocator);
-        for (self.patterns.items) |*pattern| {
-            pattern.deinit(allocator);
-        }
-        self.patterns.deinit(allocator);
         for (self.match_plans.items) |*plan| {
             plan.deinit(allocator);
         }
@@ -41,16 +35,6 @@ pub const Module = struct {
 
     pub fn getConstant(self: Module, idx: usize) Elem {
         return self.constants.items[idx];
-    }
-
-    pub fn addPattern(self: *Module, allocator: Allocator, pattern: Pattern) !usize {
-        const idx = self.patterns.items.len;
-        try self.patterns.append(allocator, pattern);
-        return idx;
-    }
-
-    pub fn getPattern(self: Module, idx: usize) Pattern {
-        return self.patterns.items[idx];
     }
 
     pub fn addMatchPlan(self: *Module, allocator: Allocator, plan: MatchPlan) !usize {
