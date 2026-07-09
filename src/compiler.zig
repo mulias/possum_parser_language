@@ -41,8 +41,6 @@ pub const Compiler = struct {
     // Same, for match plans, indexed to match the module's `match_plans`.
     plan_reads: AutoHashMap(Module.Id, ArrayList(liveness.SlotSet)) = .{},
     main: ?*Elem.DynElem.Function = null,
-    // Memoizes internForRuntime so repeated names hash their bytes once.
-    sid_map: AutoHashMap(FrontendStrings.Id, RuntimeStrings.Id) = .{},
 
     const ConstantMapKey = struct {
         module_id: u32,
@@ -96,11 +94,7 @@ pub const Compiler = struct {
     // only place strings cross from the frontend table to the runtime table,
     // so the VM only holds strings that compiled code references.
     fn internForRuntime(self: *Compiler, sid: FrontendStrings.Id) !RuntimeStrings.Id {
-        const gop = try self.sid_map.getOrPut(self.vm.allocator, sid);
-        if (!gop.found_existing) {
-            gop.value_ptr.* = try self.vm.strings.insert(self.frontend.strings.get(sid));
-        }
-        return gop.value_ptr.*;
+        return self.vm.strings.insert(self.frontend.strings.get(sid));
     }
 
     pub fn deinit(self: *Compiler) void {
@@ -113,7 +107,6 @@ pub const Compiler = struct {
         var plan_reads = self.plan_reads.valueIterator();
         while (plan_reads.next()) |list| list.deinit(self.vm.allocator);
         self.plan_reads.deinit(self.vm.allocator);
-        self.sid_map.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
         self.scopes.deinit(self.vm.allocator);
         for (self.irs.items) |*function_ir| function_ir.deinit(self.vm.allocator);
