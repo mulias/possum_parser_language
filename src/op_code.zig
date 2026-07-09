@@ -31,8 +31,6 @@ pub const OpCode = enum(u8) {
     DestructurePlan3,
     Drop,
     End,
-    GetBoundLocal,
-    GetBoundLocalMove,
     GetConstant,
     GetConstant2,
     GetConstant3,
@@ -138,8 +136,6 @@ pub const OpCode = enum(u8) {
             .CallTailFunctionConstant2,
             .CallTailFunctionConstant3,
             .CallTailFunctionLocal,
-            .GetBoundLocal,
-            .GetBoundLocalMove,
             .GetConstant,
             .GetConstant2,
             .GetConstant3,
@@ -334,14 +330,12 @@ pub const OpCode = enum(u8) {
             // Push a second handle to a local slot's value.
             .CallFunctionLocal,
             .CallTailFunctionLocal,
-            .GetBoundLocal,
             .GetLocal,
             => .{ .operands = .none, .result = .derived },
 
             // Push a local slot's value at its last read: the slot's
             // handle transfers to the stack (no increment) and the slot
             // is nulled so End's frame release can't count it again.
-            .GetBoundLocalMove,
             .GetLocalMove,
             => .{ .operands = .none, .result = .transferred },
 
@@ -564,8 +558,6 @@ pub const OpCode = enum(u8) {
             .CallTailFunctionLocal,
             .CaptureLocal,
             .CreateClosure,
-            .GetBoundLocal,
-            .GetBoundLocalMove,
             .GetLocal,
             .GetLocalMove,
             .InsertAtIndex,

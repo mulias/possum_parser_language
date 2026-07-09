@@ -5,7 +5,7 @@
   =================2:foo==================
   foo(p) = p(1, 2, 3, 4, 5)
   ========================================
-  0000    | GetBoundLocalMove 0
+  0000    | GetLocalMove 0
   0002    | AssertFunctionArity 5
   0004    | AssertParamTypes 00000000
   0006    | PushNumberStringOne
@@ -22,7 +22,7 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 7
-  0005    | GetBoundLocalMove 1
+  0005    | GetLocalMove 1
   0007    | End
   ========================================
   
@@ -40,7 +40,7 @@
   =================2:foo==================
   foo(p) = p($1, 2, 3, $4, 5)
   ========================================
-  0000    | GetBoundLocalMove 0
+  0000    | GetLocalMove 0
   0002    | AssertFunctionArity 5
   0004    | AssertParamTypes 00001001
   0006    | PushInteger 1
@@ -57,7 +57,7 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 7
-  0005    | GetBoundLocalMove 1
+  0005    | GetLocalMove 1
   0007    | End
   ========================================
   
@@ -76,7 +76,7 @@
   =================2:foo==================
   foo(p) = p(1, $2)
   ========================================
-  0000    | GetBoundLocalMove 0
+  0000    | GetLocalMove 0
   0002    | AssertFunctionArity 2
   0004    | AssertParamTypes 00000010
   0006    | PushNumberStringOne
@@ -90,7 +90,7 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 7
-  0005    | GetBoundLocalMove 1
+  0005    | GetLocalMove 1
   0007    | End
   ========================================
   
@@ -108,7 +108,7 @@
   =================2:foo==================
   foo(p) = p($1, 2, 3, $4, 5, 6, 7, 8, [], 10, $"a", 12, 13, 14, 15, $true, 17)
   ========================================
-  0000    | GetBoundLocalMove 0
+  0000    | GetLocalMove 0
   0002    | AssertFunctionArity 17
   0004    | AssertParamTypes4 00000000000000001000010100001001
   0009    | PushInteger 1
@@ -137,7 +137,7 @@
   ========================================
   0000    | CallFunctionLocal 0
   0002    | TakeRight 2 -> 7
-  0005    | GetBoundLocalMove 1
+  0005    | GetLocalMove 1
   0007    | End
   ========================================
   
