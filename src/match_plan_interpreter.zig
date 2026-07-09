@@ -1,5 +1,4 @@
 const std = @import("std");
-const Writer = std.Io.Writer;
 const Elem = @import("elem.zig").Elem;
 const VM = @import("vm.zig").VM;
 const match_plan = @import("match_plan.zig");
