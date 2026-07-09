@@ -20,7 +20,7 @@
   0002    | ParseNumberStringChar 1
   0004    | DestructurePlan 0: bind A
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 0
+  0009    | GetLocalMove 0
   0011    | End
   ========================================
 
@@ -34,7 +34,7 @@
   0004    | DestructurePlan 0: bind A
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 0: [_]
-  0011    | GetBoundLocalMove 0
+  0011    | GetLocalMove 0
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -74,7 +74,7 @@
   0006    | TakeRight 6 -> 19
   0009    | GetConstantMutable 0: [_]
   0011    | GetConstantMutable 1: [_]
-  0013    | GetBoundLocalMove 0
+  0013    | GetLocalMove 0
   0015    | InsertAtIndex 0
   0017    | InsertAtIndex 0
   0019    | End
@@ -89,9 +89,9 @@
   0002    | PushInteger 1
   0004    | DestructurePlan 0: bind A
   0006    | TakeRight 6 -> 17
-  0009    | GetBoundLocal 0
+  0009    | GetLocal 0
   0011    | JumpIfFailure 11 -> 17
-  0014    | GetBoundLocalMove 0
+  0014    | GetLocalMove 0
   0016    | Merge
   0017    | End
   ========================================
@@ -110,7 +110,7 @@
   ================1:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocalMove 0
+  0000    | GetLocalMove 0
   0002    | End
   ========================================
   
@@ -151,10 +151,10 @@
   0015    | TakeRight 15 -> 32
   0018    | GetConstantMutable 0: {_0_, _1_}
   0020    | PushString "a"
-  0022    | GetBoundLocalMove 0
+  0022    | GetLocalMove 0
   0024    | InsertKeyVal 0
   0026    | PushString "b"
-  0028    | GetBoundLocalMove 1
+  0028    | GetLocalMove 1
   0030    | InsertKeyVal 1
   0032    | End
   ========================================
@@ -164,7 +164,7 @@
   ================1:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocalMove 0
+  0000    | GetLocalMove 0
   0002    | End
   ========================================
   
@@ -182,7 +182,7 @@
   ================1:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocalMove 0
+  0000    | GetLocalMove 0
   0002    | End
   ========================================
   
@@ -218,12 +218,12 @@
   ========================================
   0000    | PushEmptyObject
   0001    | JumpIfFailure 1 -> 7
-  0004    | GetBoundLocalMove 0
+  0004    | GetLocalMove 0
   0006    | Merge
   0007    | JumpIfFailure 7 -> 19
   0010    | GetConstantMutable 0: {_0_}
-  0012    | GetBoundLocalMove 1
-  0014    | GetBoundLocalMove 2
+  0012    | GetLocalMove 1
+  0014    | GetLocalMove 2
   0016    | InsertKeyVal 0
   0018    | Merge
   0019    | End
@@ -361,7 +361,7 @@
   =================2:Foo==================
   Foo(X) = X
   ========================================
-  0000    | GetBoundLocalMove 0
+  0000    | GetLocalMove 0
   0002    | End
   ========================================
   

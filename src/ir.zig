@@ -379,8 +379,6 @@ pub const Ir = struct {
             .CallFunctionLocal,
             .CallTailFunctionLocal,
             .CaptureLocal,
-            .GetBoundLocal,
-            .GetBoundLocalMove,
             .GetLocal,
             .GetLocalMove,
             => switch (operand) {
@@ -524,7 +522,7 @@ test "markTailCalls rewrites calls that fall through to End" {
     var ir = Ir{};
     defer ir.deinit(allocator);
 
-    _ = try ir.push(allocator, .{ .byte = .{ .op = .GetBoundLocal, .byte = 0 } }, testRegion(0));
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .GetLocal, .byte = 0 } }, testRegion(0));
     _ = try ir.push(allocator, .{ .byte = .{ .op = .CallFunction, .byte = 1 } }, testRegion(1));
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(2));
 

@@ -129,9 +129,9 @@
     ((sep > pair_sep(key, kv_sep, value)) * 0..)
   ========================================
   0000    | GetConstant 0: pair_sep
-  0002    | GetBoundLocal 0
-  0004    | GetBoundLocal 1
-  0006    | GetBoundLocal 2
+  0002    | GetLocal 0
+  0004    | GetLocal 1
+  0006    | GetLocal 2
   0008    | CallFunction 3
   0010    | JumpIfFailure 10 -> 78
   0013    | PushNull
@@ -142,9 +142,9 @@
   0021    | CallFunctionLocal 3
   0023    | TakeRight 23 -> 36
   0026    | GetConstant 0: pair_sep
-  0028    | GetBoundLocal 0
-  0030    | GetBoundLocal 1
-  0032    | GetBoundLocal 2
+  0028    | GetLocal 0
+  0030    | GetLocal 1
+  0032    | GetLocal 2
   0034    | CallFunction 3
   0036    | Merge
   0037    | JumpIfFailure 37 -> 75
@@ -157,9 +157,9 @@
   0050    | CallFunctionLocal 3
   0052    | TakeRight 52 -> 65
   0055    | GetConstant 0: pair_sep
-  0057    | GetBoundLocal 0
-  0059    | GetBoundLocal 1
-  0061    | GetBoundLocal 2
+  0057    | GetLocal 0
+  0059    | GetLocal 1
+  0061    | GetLocal 2
   0063    | CallFunction 3
   0065    | JumpIfFailure 65 -> 73
   0068    | PopInputMark
@@ -187,8 +187,8 @@
   0018    | DestructurePlan 1: bind V
   0020    | TakeRight 20 -> 31
   0023    | GetConstantMutable 1: {_0_}
-  0025    | GetBoundLocalMove 3
-  0027    | GetBoundLocalMove 4
+  0025    | GetLocalMove 3
+  0027    | GetLocalMove 4
   0029    | InsertKeyVal 0
   0031    | End
   ========================================

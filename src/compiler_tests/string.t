@@ -540,7 +540,7 @@
   ================1:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetBoundLocalMove 0
+  0000    | GetLocalMove 0
   0002    | End
   ========================================
   
@@ -551,7 +551,7 @@
   0002    | CallFunctionLocal 0
   0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
   0006    | TakeRight 6 -> 11
-  0009    | GetBoundLocalMove 1
+  0009    | GetLocalMove 1
   0011    | End
   ========================================
   

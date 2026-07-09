@@ -660,7 +660,7 @@ pub const Compiler = struct {
         // param to another function, in which case we would only now the exact
         // elem at runtime.
         if (self.localSlot(function_id)) |slot| {
-            try self.emitUnaryOp(.GetBoundLocal, slot, function.region);
+            try self.emitUnaryOp(.GetLocal, slot, function.region);
         } else if (self.resolveGlobal(module_id, function_id)) |global| {
             function_elem = global.asDyn().asFunction();
             try self.writeConstant(module_id, global, function.region);
@@ -1408,7 +1408,7 @@ pub const Compiler = struct {
 
     fn writeGetVar(self: *Compiler, module_id: Module.Id, name: FrontendStrings.Id, region: Region) !void {
         if (self.localSlot(name)) |slot| {
-            try self.emitUnaryOp(.GetBoundLocal, slot, region);
+            try self.emitUnaryOp(.GetLocal, slot, region);
         } else {
             if (self.resolveGlobal(module_id, name)) |globalElem| {
                 try self.writeConstant(module_id, globalElem, region);
@@ -2554,7 +2554,7 @@ pub const Compiler = struct {
             },
             .identifier => |ident| {
                 if (self.localSlot(ident.name)) |slot| {
-                    try self.emitUnaryOp(.GetBoundLocal, slot, region);
+                    try self.emitUnaryOp(.GetLocal, slot, region);
                 } else {
                     const global = self.resolveGlobal(module_id, ident.name).?;
                     try self.writeConstant(module_id, global, region);
@@ -2675,7 +2675,7 @@ pub const Compiler = struct {
                     // an arg then the value function will be called before
                     // the outer function, and the value used when calling
                     // the outer function will be concrete.
-                    try self.emitUnaryOp(.GetBoundLocal, slot, region);
+                    try self.emitUnaryOp(.GetLocal, slot, region);
                 } else {
                     const globalElem = self.resolveGlobal(module_id, ident.name).?;
                     if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
@@ -2727,7 +2727,7 @@ pub const Compiler = struct {
         var function: ?*Elem.DynElem.Function = null;
 
         if (self.localSlot(functionName)) |slot| {
-            try self.emitUnaryOp(.GetBoundLocal, slot, function_region);
+            try self.emitUnaryOp(.GetLocal, slot, function_region);
         } else {
             if (self.resolveGlobal(module_id, functionName)) |global| {
                 function = global.asDyn().asFunction();
@@ -3215,7 +3215,6 @@ pub const Compiler = struct {
                 .byte => |*b| {
                     const move_op: OpCode = switch (b.op) {
                         .GetLocal => .GetLocalMove,
-                        .GetBoundLocal => .GetBoundLocalMove,
                         else => continue,
                     };
                     if (last_reads.diesAt(@intCast(i), b.byte)) b.op = move_op;

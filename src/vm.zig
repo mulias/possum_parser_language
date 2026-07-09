@@ -700,7 +700,8 @@ pub const VM = struct {
             },
             .GetLocal => {
                 const slot = self.readByte();
-                try self.pushDerived(.GetLocal, self.getLocal(slot));
+                const local = try self.getBoundLocal(slot);
+                try self.pushDerived(.GetLocal, local);
             },
             .SetLocal => {
                 // The popped handle moves into the slot; the slot's previous
@@ -716,20 +717,9 @@ pub const VM = struct {
                 // increment. The slot is nulled so End's frame release
                 // doesn't count the stale handle a second time.
                 const slot = self.readByte();
-                const local = self.getLocal(slot);
-                self.setLocal(slot, Elem.nullConst);
+                const local = try self.getBoundLocal(slot);
+                self.setLocal(slot, self.singleton_underscore_var);
                 try self.pushTransferred(.GetLocalMove, local);
-            },
-            .GetBoundLocal => {
-                const slot = self.readByte();
-                const local = try self.getBoundLocal(slot);
-                try self.pushDerived(.GetBoundLocal, local);
-            },
-            .GetBoundLocalMove => {
-                const slot = self.readByte();
-                const local = try self.getBoundLocal(slot);
-                self.setLocal(slot, Elem.nullConst);
-                try self.pushTransferred(.GetBoundLocalMove, local);
             },
             .Increment => {
                 const elem = self.peek(0);
