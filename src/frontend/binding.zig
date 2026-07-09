@@ -2,13 +2,12 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const AutoHashMap = std.AutoHashMapUnmanaged;
-const Compiler = @import("compiler.zig").Compiler;
-const Frontend = @import("frontend.zig");
+const Frontend = @import("../frontend.zig");
 const Ast = Frontend.Ast;
 const ClosureCapture = Frontend.ClosureCapture;
-const Module = @import("module.zig").Module;
-const Region = @import("region.zig").Region;
-const Strings = @import("string_table.zig").StringTable(.frontend);
+const Module = @import("../module.zig").Module;
+const Region = @import("../region.zig").Region;
+const Strings = @import("../string_table.zig").StringTable(.frontend);
 
 // Compile-time analysis of local value variables. A forward walk over a
 // function body's AST tracks, for every local slot, whether the local is
@@ -28,7 +27,7 @@ const Strings = @import("string_table.zig").StringTable(.frontend);
 //   check on the other.
 // - A pattern may bind a local whose slot still physically holds a value
 //   from an out-of-scope binding. Those slots are recorded in
-//   Maps.preclears so the compiler restores their placeholder before the
+//   Maps.preclears so the frontend restores their placeholder before the
 //   destructure; the pattern solver's bind-if-unbound behavior is then
 //   correct as-is.
 // - Repeat counts that are a bare local are recorded in
@@ -90,7 +89,7 @@ pub const PreClear = struct {
     name: Strings.Id,
 };
 
-// Analysis results the compiler consults while emitting bytecode, keyed by
+// Analysis results the frontend consults while emitting bytecode, keyed by
 // AST pattern nodes (each destructure site has a distinct pattern node).
 pub const Maps = struct {
     preclears: AutoHashMap(*const Ast.Pattern.RNode, ArrayList(PreClear)) = .{},
@@ -125,42 +124,66 @@ pub const Result = struct {
 };
 
 pub fn analyzeParserFunction(
-    compiler: *Compiler,
+    frontend: *Frontend,
     module_id: Module.Id,
+    node: *Frontend.DependencyGraphNode,
     body: *Ast.Parser.RNode,
     arity: usize,
     captures: []const ClosureCapture,
 ) Allocator.Error!Result {
-    var analyzer = Analyzer.init(compiler, module_id);
+    var analyzer = Analyzer.init(frontend, module_id, node);
     var env = analyzer.entryEnv(arity, captures);
     try analyzer.analyzeParser(&env, body);
     return .{ .diagnostics = analyzer.diagnostics };
 }
 
 pub fn analyzeValueFunction(
-    compiler: *Compiler,
+    frontend: *Frontend,
     module_id: Module.Id,
+    node: *Frontend.DependencyGraphNode,
     body: *Ast.Value.RNode,
     arity: usize,
 ) Allocator.Error!Result {
-    var analyzer = Analyzer.init(compiler, module_id);
+    var analyzer = Analyzer.init(frontend, module_id, node);
     var env = analyzer.entryEnv(arity, &.{});
     try analyzer.analyzeValue(&env, body);
     return .{ .diagnostics = analyzer.diagnostics };
 }
 
 const Analyzer = struct {
-    compiler: *Compiler,
+    frontend: *Frontend,
     module_id: Module.Id,
+    // The dependency-graph node whose body is being analyzed. Its locals and
+    // dependencies stand in for the compiler's per-function scope stack.
+    node: *Frontend.DependencyGraphNode,
     allocator: Allocator,
     diagnostics: ArrayList(Diagnostic) = .{},
 
-    fn init(compiler: *Compiler, module_id: Module.Id) Analyzer {
+    fn init(frontend: *Frontend, module_id: Module.Id, node: *Frontend.DependencyGraphNode) Analyzer {
         return .{
-            .compiler = compiler,
+            .frontend = frontend,
             .module_id = module_id,
-            .allocator = compiler.vm.allocator,
+            .node = node,
+            .allocator = frontend.vm.allocator,
         };
+    }
+
+    // The frame slot of a local by name, resolved against the node being
+    // analyzed. Replaces the compiler's scope-stack localSlot.
+    fn localSlot(self: *const Analyzer, name: Strings.Id) ?u8 {
+        for (self.node.locals(), 0..) |local, i| {
+            if (local == name) return @intCast(i);
+        }
+        return null;
+    }
+
+    // Whether a name resolves to a global rather than a local. The resolver
+    // records a dependency edge for every identifier that resolves to a
+    // global, so a matching dependency is equivalent to the compiler's
+    // resolveGlobal for the local-vs-global test. User-written names never
+    // resolve to anonymous-function nodes, matching visibleGlobal.
+    fn resolvesToGlobal(self: *const Analyzer, name: Strings.Id) bool {
+        return self.node.dependencyNamed(name) != null;
     }
 
     fn entryEnv(self: *Analyzer, arity: usize, captures: []const ClosureCapture) Env {
@@ -171,7 +194,7 @@ const Analyzer = struct {
         }
 
         for (captures) |capture| {
-            if (self.compiler.localSlot(capture.local)) |slot| {
+            if (self.localSlot(capture.local)) |slot| {
                 env.slots[slot].state = .bound;
             }
         }
@@ -188,7 +211,7 @@ const Analyzer = struct {
     }
 
     fn isPlaceholder(self: *Analyzer, name: Strings.Id) bool {
-        return std.mem.eql(u8, self.compiler.frontend.strings.get(name), "_");
+        return std.mem.eql(u8, self.frontend.strings.get(name), "_");
     }
 
     // Whether an identifier in pattern position is a local occurrence.
@@ -196,8 +219,8 @@ const Analyzer = struct {
     // wins over a local.
     fn patternLocalSlot(self: *Analyzer, name: Strings.Id) ?u8 {
         if (self.isPlaceholder(name)) return null;
-        if (self.compiler.resolveGlobal(self.module_id, name) != null) return null;
-        return self.compiler.localSlot(name);
+        if (self.resolvesToGlobal(name)) return null;
+        return self.localSlot(name);
     }
 
     fn readLocal(self: *Analyzer, env: *Env, slot: u8, name: Strings.Id, region: Region) !void {
@@ -216,7 +239,7 @@ const Analyzer = struct {
     // resolve them: local slot first, then global.
     fn readIdentifier(self: *Analyzer, env: *Env, name: Strings.Id, region: Region) !void {
         if (self.isPlaceholder(name)) return;
-        if (self.compiler.localSlot(name)) |slot| {
+        if (self.localSlot(name)) |slot| {
             try self.readLocal(env, slot, name, region);
         }
     }
@@ -380,7 +403,7 @@ const Analyzer = struct {
         }
     }
 
-    // Flatten a chain of merges into its parts, the way the compiler and
+    // Flatten a chain of merges into its parts, the way the frontend and
     // the solver flatten nested Merge patterns into a single part list.
     fn collectMergeChain(
         self: *Analyzer,
@@ -419,7 +442,7 @@ const Analyzer = struct {
                 .merge_parts => self.mergePartIsUnbound(env, part),
                 .template_segments => self.templateSegmentIsUnbound(env, part),
             };
-            try self.compiler.binding_maps.merge_part_unbound.put(self.allocator, part, unbound);
+            try self.frontend.binding_maps.merge_part_unbound.put(self.allocator, part, unbound);
             if (!unbound) continue;
             if (solvable_part_found) {
                 try self.diagnose(part.region, self.firstUnboundLocal(env, part), .extra_unbound_part);
@@ -460,8 +483,8 @@ const Analyzer = struct {
         return switch (rnode.node) {
             .identifier => |ident| blk: {
                 if (self.isPlaceholder(ident.name)) break :blk false;
-                if (self.compiler.resolveGlobal(self.module_id, ident.name) != null) break :blk true;
-                const slot = self.compiler.localSlot(ident.name) orelse break :blk true;
+                if (self.resolvesToGlobal(ident.name)) break :blk true;
+                const slot = self.localSlot(ident.name) orelse break :blk true;
                 break :blk env.slots[slot].state == .bound;
             },
             .negation => |inner| self.patternEvaluates(env, inner),
@@ -534,7 +557,7 @@ const Analyzer = struct {
         // with one `A` node). This map is keyed by node pointer, so record the
         // first occurrence's boundness; lowering forces later copies to
         // rebind (see the array case in lowerPatternNode).
-        const gop = try self.compiler.binding_maps.pattern_local_bound.getOrPut(
+        const gop = try self.frontend.binding_maps.pattern_local_bound.getOrPut(
             self.allocator,
             rnode,
         );
@@ -557,7 +580,7 @@ const Analyzer = struct {
     }
 
     fn addPreclear(self: *Analyzer, root: *const Ast.Pattern.RNode, slot: u8, name: Strings.Id) !void {
-        const gop = try self.compiler.binding_maps.preclears.getOrPut(self.allocator, root);
+        const gop = try self.frontend.binding_maps.preclears.getOrPut(self.allocator, root);
         if (!gop.found_existing) gop.value_ptr.* = .{};
         try gop.value_ptr.append(self.allocator, .{ .slot = slot, .name = name });
     }
@@ -671,13 +694,13 @@ const Analyzer = struct {
     }
 
     fn captureSite(self: *Analyzer, env: *Env, anon: Ast.Parser.AnonymousFunction, region: Region) !void {
-        const node = self.compiler.frontend.getNode(.{
+        const node = self.frontend.getNode(.{
             .module_id = self.module_id,
             .name = anon.name,
         });
 
         for (node.anonymous_function.closure_captures.items) |capture| {
-            if (self.compiler.localSlot(capture.local)) |slot| {
+            if (self.localSlot(capture.local)) |slot| {
                 try self.readLocal(env, slot, capture.local, region);
             }
         }
@@ -724,7 +747,7 @@ const Analyzer = struct {
         switch (rnode.node) {
             .identifier => |ident| {
                 const slot = self.patternLocalSlot(ident.name) orelse return;
-                try self.compiler.binding_maps.repeat_count_bound.put(
+                try self.frontend.binding_maps.repeat_count_bound.put(
                     self.allocator,
                     rnode,
                     env.slots[slot].state == .bound,

@@ -18,7 +18,6 @@ const RuntimeStrings = @import("string_table.zig").StringTable(.runtime);
 const VM = @import("vm.zig").VM;
 const Writer = std.Io.Writer;
 const Writers = @import("writer.zig").Writers;
-const binding = @import("binding.zig");
 const builtin = @import("builtin");
 const builtins = @import("builtin.zig");
 const parsing = @import("parsing.zig");
@@ -44,9 +43,6 @@ pub const Compiler = struct {
     main: ?*Elem.DynElem.Function = null,
     // Memoizes internForRuntime so repeated names hash their bytes once.
     sid_map: AutoHashMap(FrontendStrings.Id, RuntimeStrings.Id) = .{},
-    // Per-function binding analysis results, populated before each function
-    // body is emitted and consulted during emission.
-    binding_maps: binding.Maps = .{},
 
     const ConstantMapKey = struct {
         module_id: u32,
@@ -76,7 +72,6 @@ pub const Compiler = struct {
         TooManyPatterns,
         ShortOverflow,
         AliasCycle,
-        UnboundVariable,
         UndefinedVariable,
         FunctionCallTooManyArgs,
         FunctionCallTooFewArgs,
@@ -90,7 +85,7 @@ pub const Compiler = struct {
     pub fn init(vm: *VM) !Compiler {
         return Compiler{
             .vm = vm,
-            .frontend = try Frontend.init(vm.allocator, vm.writers),
+            .frontend = try Frontend.init(vm),
             .writers = vm.writers,
             .printBytecode = vm.config.printCompiledBytecode,
             .constant_map = .{},
@@ -118,7 +113,6 @@ pub const Compiler = struct {
         var plan_reads = self.plan_reads.valueIterator();
         while (plan_reads.next()) |list| list.deinit(self.vm.allocator);
         self.plan_reads.deinit(self.vm.allocator);
-        self.binding_maps.deinit(self.vm.allocator);
         self.sid_map.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
         self.scopes.deinit(self.vm.allocator);
@@ -221,12 +215,6 @@ pub const Compiler = struct {
             try self.emitOp(.SetClosureCaptures, region);
         }
 
-        try self.analyzeParserBindings(
-            module_id,
-            body,
-            function.arity,
-            node.anonymous_function.closure_captures.items,
-        );
         try self.writeParser(module_id, body);
         try self.finishFunctionIr(module_id);
 
@@ -500,11 +488,9 @@ pub const Compiler = struct {
 
         switch (decl) {
             .parser => |p| {
-                try self.analyzeParserBindings(module_id, p.node.body, function.arity, &.{});
                 try self.writeParser(module_id, p.node.body);
             },
             .value => |v| {
-                try self.analyzeValueBindings(module_id, v.node.body, function.arity);
                 try self.writeValue(module_id, v.node.body);
             },
         }
@@ -513,68 +499,6 @@ pub const Compiler = struct {
 
         _ = self.functions.pop();
         _ = self.scopes.pop();
-    }
-
-    fn analyzeParserBindings(
-        self: *Compiler,
-        module_id: Module.Id,
-        body: *Ast.Parser.RNode,
-        arity: usize,
-        captures: []const Frontend.ClosureCapture,
-    ) !void {
-        var result = try binding.analyzeParserFunction(self, module_id, body, arity, captures);
-        defer result.deinit(self.vm.allocator);
-        try self.reportBindingDiagnostics(module_id, result.diagnostics.items);
-    }
-
-    fn analyzeValueBindings(self: *Compiler, module_id: Module.Id, body: *Ast.Value.RNode, arity: usize) !void {
-        var result = try binding.analyzeValueFunction(self, module_id, body, arity);
-        defer result.deinit(self.vm.allocator);
-        try self.reportBindingDiagnostics(module_id, result.diagnostics.items);
-    }
-
-    fn reportBindingDiagnostics(self: *Compiler, module_id: Module.Id, diagnostics: []const binding.Diagnostic) !void {
-        for (diagnostics) |diagnostic| {
-            switch (diagnostic.kind) {
-                .unbound => try self.printError(
-                    module_id,
-                    diagnostic.region,
-                    "variable '{s}' is unbound here",
-                    .{self.frontend.strings.get(diagnostic.name.?)},
-                ),
-                .out_of_scope => try self.printError(
-                    module_id,
-                    diagnostic.region,
-                    "variable '{s}' is unbound here: its binding is out of scope",
-                    .{self.frontend.strings.get(diagnostic.name.?)},
-                ),
-                .split => try self.printError(
-                    module_id,
-                    diagnostic.region,
-                    "variable '{s}' may be unbound here: it is not bound on every path",
-                    .{self.frontend.strings.get(diagnostic.name.?)},
-                ),
-                .unbound_function_var => try self.printError(
-                    module_id,
-                    diagnostic.region,
-                    "variable '{s}' is unbound here: variables in pattern function calls must be bound",
-                    .{self.frontend.strings.get(diagnostic.name.?)},
-                ),
-                .extra_unbound_part => if (diagnostic.name) |name| try self.printError(
-                    module_id,
-                    diagnostic.region,
-                    "variable '{s}' is unbound here: a merge can solve at most one unbound part",
-                    .{self.frontend.strings.get(name)},
-                ) else try self.printError(
-                    module_id,
-                    diagnostic.region,
-                    "pattern part is unbound here: a merge can solve at most one unbound part",
-                    .{},
-                ),
-            }
-        }
-
-        if (diagnostics.len > 0) return Error.UnboundVariable;
     }
 
     // Function params get stack slots from the arguments pushed by the
@@ -1449,7 +1373,7 @@ pub const Compiler = struct {
     // analysis. Falls back to the param check for identifiers the analysis
     // does not classify (builtins).
     fn repeatCountIsBound(self: *Compiler, rnode: *Ast.Pattern.RNode) bool {
-        if (self.binding_maps.repeat_count_bound.get(rnode)) |bound| {
+        if (self.frontend.binding_maps.repeat_count_bound.get(rnode)) |bound| {
             return bound;
         }
         const slot = self.localSlot(rnode.node.identifier.name) orelse return false;
@@ -1743,7 +1667,7 @@ pub const Compiler = struct {
                 }
                 const slot = self.localSlot(name) orelse return error.UnsupportedPattern;
                 const bound = all_locals_bound or
-                    (self.binding_maps.pattern_local_bound.get(rnode) orelse
+                    (self.frontend.binding_maps.pattern_local_bound.get(rnode) orelse
                         return error.UnsupportedPattern);
                 return builder.appendVar(allocator, if (bound) .bound_eq else .bind, .{
                     .sid = try self.internForRuntime(name),
@@ -1889,7 +1813,7 @@ pub const Compiler = struct {
                     .solvable_index = null,
                 });
                 for (segments.items, 0..) |segment, i| {
-                    const unbound = self.binding_maps.merge_part_unbound.get(segment) orelse
+                    const unbound = self.frontend.binding_maps.merge_part_unbound.get(segment) orelse
                         return error.UnsupportedPattern;
                     const segment_start = builder.nodes.items.len;
                     try self.lowerPatternNode(module_id, segment, builder, all_locals_bound, 0);
@@ -2140,7 +2064,7 @@ pub const Compiler = struct {
         // Binding analysis records solvability per part; a part it
         // never visited means the pattern shape diverged from the
         // analysis walk, so fall back rather than guess.
-        const unbound = self.binding_maps.merge_part_unbound.get(rnode) orelse
+        const unbound = self.frontend.binding_maps.merge_part_unbound.get(rnode) orelse
             return error.UnsupportedPattern;
         // The part may carry one .negation wrapper (collectMergeChain keeps
         // it); look through it for the repeat guard.
@@ -2299,7 +2223,7 @@ pub const Compiler = struct {
                 if (self.resolveGlobal(module_id, name) != null) return error.UnsupportedPattern;
                 const slot = self.localSlot(name) orelse return error.UnsupportedPattern;
                 const bound = all_locals_bound or
-                    (self.binding_maps.pattern_local_bound.get(rnode) orelse
+                    (self.frontend.binding_maps.pattern_local_bound.get(rnode) orelse
                         return error.UnsupportedPattern);
                 if (!bound) return error.UnsupportedPattern;
                 return .{ .bound_local = try builder.addVar(allocator, .{
@@ -2330,7 +2254,7 @@ pub const Compiler = struct {
     // placeholders so the solver's bind-if-unbound check sees them as
     // unbound. Stack-neutral, so it can run any time before the Destructure.
     fn emitPatternPreclears(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) !void {
-        const preclears = self.binding_maps.preclears.get(rnode) orelse return;
+        const preclears = self.frontend.binding_maps.preclears.get(rnode) orelse return;
 
         for (preclears.items) |preclear| {
             const bytes = self.frontend.strings.get(preclear.name);
