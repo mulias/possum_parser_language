@@ -41,13 +41,11 @@ pub const MatchPlan = struct {
     fn printNode(self: MatchPlan, vm: VM, writer: *Writer, idx: u32) Writer.Error!u32 {
         const node = self.nodes[idx];
         switch (node.tag) {
-            .placeholder => try writer.print("{s}_", .{negativeSigns(@intCast(node.payload))}),
-            .bind => try writer.print("bind {s}{s}", .{
-                negativeSigns(self.vars[node.payload].negation_count),
+            .placeholder => try writer.print("_", .{}),
+            .bind => try writer.print("bind {s}", .{
                 vm.strings.get(self.vars[node.payload].sid),
             }),
-            .bound_eq => try writer.print("bound_eq {s}{s}", .{
-                negativeSigns(self.vars[node.payload].negation_count),
+            .bound_eq => try writer.print("bound_eq {s}", .{
                 vm.strings.get(self.vars[node.payload].sid),
             }),
             .equality => {
@@ -146,6 +144,14 @@ pub const MatchPlan = struct {
                 try writer.print(")", .{});
                 return segment;
             },
+            .negated => {
+                if (node.payload == 1) {
+                    try writer.print("negated ", .{});
+                } else {
+                    try writer.print("negated({d}) ", .{node.payload});
+                }
+                return self.printNode(vm, writer, idx + 1);
+            },
         }
         return idx + 1;
     }
@@ -179,9 +185,8 @@ pub const MatchPlan = struct {
     pub fn printPatternSubtree(self: MatchPlan, vm: VM, writer: *Writer, idx: u32) Writer.Error!u32 {
         const node = self.nodes[idx];
         switch (node.tag) {
-            .placeholder => try writer.print("{s}_", .{negativeSigns(@intCast(node.payload))}),
-            .bind, .bound_eq => try writer.print("{s}{s}", .{
-                negativeSigns(self.vars[node.payload].negation_count),
+            .placeholder => try writer.print("_", .{}),
+            .bind, .bound_eq => try writer.print("{s}", .{
                 vm.strings.get(self.vars[node.payload].sid),
             }),
             .equality, .const_fn => try self.elems[node.payload].print(vm, writer),
@@ -287,6 +292,18 @@ pub const MatchPlan = struct {
                 // Skip the rebound pattern variant, if any.
                 return idx + node.subtree_len;
             },
+            .negated => {
+                try writer.print("{s}", .{negativeSigns(@intCast(node.payload))});
+                // A range renders without its own parens, so add them:
+                // `-(..5)`, not `-..5`.
+                if (self.nodes[idx + 1].tag == .range) {
+                    try writer.print("(", .{});
+                    const end = try self.printPatternSubtree(vm, writer, idx + 1);
+                    try writer.print(")", .{});
+                    return end;
+                }
+                return self.printPatternSubtree(vm, writer, idx + 1);
+            },
         }
         return idx + 1;
     }
@@ -338,9 +355,7 @@ pub const Tag = enum(u8) {
     // preorder. The callee and arguments are evaluated, not matched; the
     // call result is compared against the value.
     call,
-    // `_`: always matches, binds nothing. payload = negation count; a
-    // negated placeholder only matches numbers, mirroring matchLocal's
-    // negation-before-placeholder check order.
+    // `_`: always matches, binds nothing. No payload.
     placeholder,
     // A fixed-length array: payload = element count, element subtrees follow
     // in preorder.
@@ -383,6 +398,13 @@ pub const Tag = enum(u8) {
     // the solver's runtime boundness probe turns second-iteration binds
     // into equality checks.
     repeat,
+    // Negation applied at match time; the sole carrier of runtime
+    // negation. payload = negation count; the inner subtree follows. An
+    // evaluable inner (call, const_fn, bound_eq) is evaluated and its
+    // result negated (a non-number result is a runtime error); a
+    // structural inner (bind, placeholder, range) matches against the
+    // negated value, which must be a number.
+    negated,
 };
 
 // Shared by merge and str_template nodes: both are a part list with at
@@ -448,15 +470,6 @@ pub const ResolvedPart = union(enum) {
 pub const LocalVar = struct {
     sid: StringTable.Id,
     idx: u24, // stack index/module constant id
-    negation_count: u2,
-
-    pub fn isNegated(self: LocalVar) bool {
-        return self.negation_count % 2 == 1;
-    }
-
-    pub fn hasBeenNegated(self: LocalVar) bool {
-        return self.negation_count != 0;
-    }
 };
 
 pub const RangePlan = struct {

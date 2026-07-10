@@ -663,7 +663,7 @@
   ========================================
   0000    | PushVar X
   0002    | ParseNumberStringChar 6
-  0004    | DestructurePlan 0: (eq 1 + bind -X + eq 3)
+  0004    | DestructurePlan 0: (eq 1 + negated bind X + eq 3)
   0006    | TakeRight 6 -> 11
   0009    | GetLocalMove 0
   0011    | End
@@ -686,7 +686,7 @@
   ========================================
   0000    | PushVar X
   0002    | ParseNumberStringChar 5
-  0004    | DestructurePlan 0: (bind -X + eq -1)
+  0004    | DestructurePlan 0: (negated bind X + eq -1)
   0006    | TakeRight 6 -> 11
   0009    | GetLocalMove 0
   0011    | End
@@ -708,7 +708,7 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 5, 2]
   0006    | CallFunction 1
-  0008    | DestructurePlan 0: [eq 1, (bind -X + eq -1), eq 2]
+  0008    | DestructurePlan 0: [eq 1, (negated bind X + eq -1), eq 2]
   0010    | TakeRight 10 -> 15
   0013    | GetLocalMove 0
   0015    | End

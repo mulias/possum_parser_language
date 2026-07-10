@@ -156,14 +156,11 @@ pub fn createMatchPlan(
 // astToPattern's constant conversions exactly so plan and tree compare
 // identically.
 //
-// negation_count mirrors astToPattern's: number literals pre-fold their
-// negation, locals carry it into their LocalVar, and shapes the tree
-// path rejects at compile time (negated non-number literals and
-// compounds) fall back so astToPattern reports them. Negated globals and
-// calls also fall back: matchConstant/matchFunctionCall apply negation
-// to the match-time value but evalConstant/evalFunctionCall ignore it
-// when the same pattern is a merge part or repeat operand, and a plan
-// node cannot express that context split.
+// negation_count threads negation down to where it resolves: number
+// literals and globals pre-fold it, non-number literals and compounds
+// reject it at compile time, and everything that only resolves at match
+// time (locals, placeholders, calls, function globals, ranges) wraps in
+// a .negated node that applies it per match.
 //
 // all_locals_bound lowers a repeat's rebound pattern variant: every
 // local is treated as bound, because the first repetition bound it.
@@ -185,38 +182,33 @@ fn lowerPatternNode(
         .identifier => |ident| {
             const name = ident.name;
             if (std.mem.eql(u8, self.frontend.strings.get(name), "_")) {
-                return builder.appendLeaf(allocator, .placeholder, negation_count);
+                if (negation_count != 0) {
+                    return lowerNegated(self, module_id, rnode, builder, all_locals_bound, negation_count);
+                }
+                return builder.appendLeaf(allocator, .placeholder, 0);
             }
             if (self.resolver.resolveGlobal(module_id, name)) |global| {
                 // A zero-arity Function global is executed per match and
                 // its result compared. The solver never executes native
                 // code or closures here (matchConstant only runs
                 // Functions), so those compare directly. A Function with
-                // nonzero arity is a runtime error on every match; keep
-                // it on the tree path. Negating a function global would
-                // negate its per-match result, which no plan node folds.
+                // nonzero arity is a runtime error on every match. A
+                // negated function global negates its per-match result.
                 if (global.isDynType(.Function)) {
-                    // TODO: at runtime we should call the funciton and then negate/assert number
-                    if (negation_count != 0) return error.UnsupportedPattern;
                     if (global.asDyn().asFunction().arity != 0) {
                         return error.UnsupportedPattern;
+                    }
+                    if (negation_count != 0) {
+                        return lowerNegated(self, module_id, rnode, builder, all_locals_bound, negation_count);
                     }
                     return builder.appendLeaf(allocator, .const_fn, try builder.addElem(allocator, global));
                 }
                 // A non-function global's value is known now, so negation
-                // folds at compile time, mirroring matchConstant: a negated
-                // non-number is a match-time error there and stays
-                // unsupported; an even negation count cancels; an odd one
-                // flips the sign.
-                const folded = if (negation_count == 0)
-                    global
-                else if (!global.isNumber())
-                    return Error.NegatedNonNumber
-                else if (negation_count % 2 == 1)
-                    global.negateNumber() catch return Error.NegatedNonNumber
-                else
-                    global;
-                return builder.appendEquality(allocator, folded);
+                // folds at compile time.
+                return builder.appendEquality(allocator, try foldNegatedGlobal(global, negation_count));
+            }
+            if (negation_count != 0) {
+                return lowerNegated(self, module_id, rnode, builder, all_locals_bound, negation_count);
             }
             const slot = self.resolver.localSlot(name) orelse @panic("Internal error");
             const bound = all_locals_bound or
@@ -225,7 +217,6 @@ fn lowerPatternNode(
             return builder.appendVar(allocator, if (bound) .bound_eq else .bind, .{
                 .sid = try self.internForRuntime(name),
                 .idx = slot,
-                .negation_count = negation_count,
             });
         },
         .number_float => |f| {
@@ -341,9 +332,9 @@ fn lowerPatternNode(
             builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
         },
         .range => |bounds| {
-            // TODO: Negation should swap a range, for example
-            // n -> -(..5) ==> n -> -5..
-            if (negation_count != 0) return error.UnsupportedPattern;
+            if (negation_count != 0) {
+                return lowerNegated(self, module_id, rnode, builder, all_locals_bound, negation_count);
+            }
             std.debug.assert(bounds.lower != null or bounds.upper != null);
             // Append the range node before its limits so an evaluable
             // compound limit's subtree lands as a child, in
@@ -390,9 +381,16 @@ fn lowerPatternNode(
                     // Bound locals and evaluated calls stringify at
                     // match time; ranges match one character.
                     .bound_eq, .const_fn, .call, .range => {},
+                    // A negated evaluable segment (a negated call)
+                    // stringifies its negated result at match time; a
+                    // negated range segment could never match a
+                    // character, so it stays unsupported.
+                    .negated => if (classifyPlanSubtree(self, builder, @intCast(segment_start)) != .eval) {
+                        return error.UnsupportedPattern;
+                    },
                     // An evaluable compound segment (an array or merge
                     // of bound values) would need runtime evaluation;
-                    // keep those on the tree path.
+                    // those stay unsupported.
                     else => return error.UnsupportedPattern,
                 }
             }
@@ -462,13 +460,13 @@ fn lowerPatternNode(
             builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
         },
         .function_call => |function_call| {
-            // TODO: negate at match time
-            if (negation_count != 0) return error.UnsupportedPattern;
+            if (negation_count != 0) {
+                return lowerNegated(self, module_id, rnode, builder, all_locals_bound, negation_count);
+            }
             // A call is evaluated at match time and its result compared.
-            // Non-identifier callees are a compile error and a constant
-            // callee that is not a function or takes a different number
-            // of arguments always errors at match; both stay on the tree
-            // path, which reports them.
+            // Non-identifier callees and constant callees that are not
+            // functions or take a different number of arguments are
+            // compile errors.
             const nameNode = function_call.function.node;
             if (nameNode != .identifier or nameNode.identifier.underscored) {
                 return error.UnsupportedPattern;
@@ -487,7 +485,6 @@ fn lowerPatternNode(
                 .{ .local = try builder.addVar(allocator, .{
                     .sid = try self.internForRuntime(name),
                     .idx = slot,
-                    .negation_count = 0,
                 }, .read) }
             else
                 return error.UnsupportedPattern;
@@ -510,13 +507,43 @@ fn lowerPatternNode(
     }
 }
 
+// Fold negation into a global whose value is known at compile time: a
+// negated non-number is an error, an even negation count cancels, an odd
+// one flips the sign.
+fn foldNegatedGlobal(global: Elem, negation_count: u2) Error!Elem {
+    if (negation_count == 0) return global;
+    if (!global.isNumber()) return Error.NegatedNonNumber;
+    if (negation_count % 2 == 0) return global;
+    return global.negateNumber() catch Error.NegatedNonNumber;
+}
+
+// Wrap a subtree whose value only resolves at match time (a local,
+// placeholder, call, function global, or range) in a .negated node, then
+// lower the same pattern node without the negation.
+fn lowerNegated(
+    self: *Lowerer,
+    module_id: Module.Id,
+    rnode: *Ast.Pattern.RNode,
+    builder: *PlanBuilder,
+    all_locals_bound: bool,
+    negation_count: u2,
+) Error!void {
+    const start = builder.nodes.items.len;
+    try builder.nodes.append(self.vm.allocator, .{
+        .tag = .negated,
+        .subtree_len = undefined,
+        .payload = negation_count,
+    });
+    try lowerPatternNode(self, module_id, rnode, builder, all_locals_bound, 0);
+    builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
+}
+
 // Lower one function-call argument. Arguments are evaluated, not
 // matched: constants fold to elems here, mirroring attemptEval's
 // results; locals and function constants resolve at match time.
-// Negation mirrors astToValueInPattern and the eval path: number
-// literals pre-fold, booleans, null, and identifiers ignore it
-// (evalConstant/evalLocal never apply negation), and a negated string
-// is a compile error the tree path reports.
+// Negation folds into literals and globals at compile time and wraps
+// locals and function globals in a .negated node; a negated non-number
+// literal is a compile error.
 fn lowerCallArg(
     self: *Lowerer,
     module_id: Module.Id,
@@ -531,9 +558,18 @@ fn lowerCallArg(
             const new_negation_count = if (negation_count == 3) (negation_count - 1) else (negation_count + 1);
             return lowerCallArg(self,module_id, inner, builder, new_negation_count);
         },
-        .true => return builder.appendEquality(allocator, Elem.boolean(true)),
-        .false => return builder.appendEquality(allocator, Elem.boolean(false)),
-        .null => return builder.appendEquality(allocator, Elem.nullConst),
+        .true => {
+            if (negation_count != 0) return Error.NegatedNonNumber;
+            return builder.appendEquality(allocator, Elem.boolean(true));
+        },
+        .false => {
+            if (negation_count != 0) return Error.NegatedNonNumber;
+            return builder.appendEquality(allocator, Elem.boolean(false));
+        },
+        .null => {
+            if (negation_count != 0) return Error.NegatedNonNumber;
+            return builder.appendEquality(allocator, Elem.nullConst);
+        },
         .number_float => |f| {
             const number = if (negation_count % 2 == 1) -f else f;
             return builder.appendEquality(allocator, Elem.numberFloat(number));
@@ -545,36 +581,59 @@ fn lowerCallArg(
             return builder.appendEquality(allocator, number);
         },
         .string => |s| {
-            if (negation_count != 0) return error.UnsupportedPattern;
+            if (negation_count != 0) return Error.NegatedNonNumber;
             const sid = try self.vm.strings.insert(s);
             return builder.appendEquality(allocator, Elem.string(sid));
         },
         .identifier => |ident| {
             if (self.resolver.resolveGlobal(module_id, ident.name)) |global| {
-                // evalConstant executes zero-arity Function arguments
-                // per match; a nonzero arity always errors at match, so
-                // it stays on the tree path.
+                // A zero-arity Function argument is executed per match; a
+                // nonzero arity always errors at match, so it stays
+                // unsupported. Negation applies to the per-match result.
                 if (global.isDynType(.Function)) {
                     if (global.asDyn().asFunction().arity != 0) {
                         return error.UnsupportedPattern;
                     }
+                    if (negation_count != 0) {
+                        return lowerNegatedCallArg(self, module_id, rnode, builder, negation_count);
+                    }
                     return builder.appendLeaf(allocator, .const_fn, try builder.addElem(allocator, global));
                 }
-                return builder.appendEquality(allocator, global);
+                return builder.appendEquality(allocator, try foldNegatedGlobal(global, negation_count));
             }
             // A local argument reads its slot at match time: it may be
             // bound by an earlier part of this same pattern, so there is
-            // no static boundness to record. Negation is carried but
-            // never applied, like Pattern.Local under evalLocal.
+            // no static boundness to record. Negation applies to the
+            // value read from the slot.
             const slot = self.resolver.localSlot(ident.name) orelse return error.UnsupportedPattern;
+            if (negation_count != 0) {
+                return lowerNegatedCallArg(self, module_id, rnode, builder, negation_count);
+            }
             return builder.appendVar(allocator, .bound_eq, .{
                 .sid = try self.internForRuntime(ident.name),
                 .idx = slot,
-                .negation_count = negation_count,
             });
         },
         else => return error.UnsupportedPattern,
     }
+}
+
+// The call-argument counterpart of lowerNegated.
+fn lowerNegatedCallArg(
+    self: *Lowerer,
+    module_id: Module.Id,
+    rnode: *Ast.Value.RNode,
+    builder: *PlanBuilder,
+    negation_count: u2,
+) Error!void {
+    const start = builder.nodes.items.len;
+    try builder.nodes.append(self.vm.allocator, .{
+        .tag = .negated,
+        .subtree_len = undefined,
+        .payload = negation_count,
+    });
+    try lowerCallArg(self, module_id, rnode, builder, 0);
+    builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
 }
 
 // Negation distributes over merge parts the way astToPattern threads
@@ -647,6 +706,9 @@ fn lowerMergePart(
             if (count_tag != .bind) return error.UnsupportedPattern;
         } else switch (count_tag) {
             .equality, .bound_eq, .const_fn, .call => {},
+            .negated => if (classifyPlanSubtree(self, builder, @intCast(count_idx)) != .eval) {
+                return error.UnsupportedPattern;
+            },
             else => return error.UnsupportedPattern,
         }
     }
@@ -685,6 +747,13 @@ fn classifyPlanSubtree(self: *Lowerer, builder: *PlanBuilder, idx: u32) SubtreeC
             const repeat_plan = builder.repeats.items[node.payload];
             const evaluates = repeat_plan.pattern != .subtree and repeat_plan.count != .subtree;
             break :blk if (evaluates) .eval else .subtree;
+        },
+        // The negation applies to the evaluated inner value; a constant
+        // inner cannot occur (constants fold before a wrapper is emitted)
+        // but would still evaluate.
+        .negated => blk: {
+            const inner = classifyPlanSubtree(self, builder, idx + 1);
+            break :blk if (inner == .subtree) .subtree else .eval;
         },
         .const_key, .eval_key, .pattern_key => unreachable,
     };
@@ -787,7 +856,6 @@ fn lowerRangeLimit(
             const var_idx = try builder.addVar(allocator, .{
                 .sid = try self.internForRuntime(name),
                 .idx = slot,
-                .negation_count = 0,
             }, if (bound) .read else .bind);
             // An unbound limit binds the matched value, the way the solver
             // matches an unbound limit as a pattern.

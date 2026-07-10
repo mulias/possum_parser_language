@@ -65,21 +65,9 @@ noinline fn emitEvalBanner(vm: *VM, banner: EvalBanner) Error!void {
     try vm.writers.debug.print("\nEval Pattern Function: ", .{});
     switch (banner) {
         .subtree => |s| _ = try s.plan.printPatternSubtree(vm.*, vm.writers.debug, s.idx),
-        .local => |lv| try vm.writers.debug.print("{s}{s}", .{
-            negativeSigns(lv.negation_count),
-            vm.strings.get(lv.sid),
-        }),
+        .local => |lv| try vm.writers.debug.print("{s}", .{vm.strings.get(lv.sid)}),
     }
     try vm.writers.debug.print("\n", .{});
-}
-
-fn negativeSigns(count: u2) []const u8 {
-    return switch (count) {
-        0 => "",
-        1 => "-",
-        2 => "--",
-        3 => "-",
-    };
 }
 
 // A byte-slice comparison printed as `"value" -> "pattern"` with its own
@@ -207,13 +195,7 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
     const node = plan.nodes[idx];
 
     switch (node.tag) {
-        .placeholder => {
-            // matchLocal checks negation before its placeholder check: a
-            // negated `_` only matches numbers, and matches them without
-            // binding or negating anything.
-            if (node.payload != 0 and !value.isNumber()) return false;
-            return true;
-        },
+        .placeholder => return true,
         .equality => {
             const pattern_value = plan.elems[node.payload];
             if (printSteps(vm)) try emitEquality(vm, value, pattern_value);
@@ -230,15 +212,7 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
             return value.isEql(pattern_value, vm.*);
         },
         .bind => {
-            const local_var = plan.vars[node.payload];
-            // A negated bind of a non-number fails the match (not an
-            // error), mirroring matchLocal's unbound branch.
-            if (local_var.hasBeenNegated() and !value.isNumber()) return false;
-            const bound_value = if (local_var.isNegated())
-                value.negateNumber() catch return error.RuntimeError
-            else
-                value;
-            try bindLocal(vm, local_var, bound_value);
+            try bindLocal(vm, plan.vars[node.payload], value);
             return true;
         },
         .bound_eq => {
@@ -322,6 +296,9 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
                     .bound_eq => .{ .value = try stringifyBoundLocal(vm, plan.vars[child_node.payload]) },
                     .const_fn => .{ .value = try stringifyElem(vm, try evalConstFn(vm, plan, child)) },
                     .call => .{ .value = try stringifyElem(vm, try evalCall(vm, plan, child)) },
+                    // Lowering only accepts eval-class negated segments,
+                    // so the evaluation cannot come up empty.
+                    .negated => .{ .value = try stringifyElem(vm, (try evalNode(vm, plan, child)).?) },
                     .range => .{ .subtree = child },
                     // Lowering rejects other non-solvable segment shapes.
                     else => unreachable,
@@ -333,7 +310,36 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
             return matchStringTemplate(vm, plan, value, parts_base, template_plan.part_count);
         },
         .repeat => return matchRepeat(vm, plan, value, idx),
+        .negated => {
+            // An evaluable inner (call, const_fn) negates its per-match
+            // result, erroring on a non-number the way negating a
+            // non-number literal errors at compile time. A structural
+            // inner (a range) matches the negated value instead, so
+            // -(a..b) behaves as -b..-a; a non-number value fails the
+            // match, mirroring the bind and placeholder checks.
+            if (try evalNode(vm, plan, idx + 1)) |pattern_value| {
+                const negated = try negateEvaluated(pattern_value, node.payload);
+                if (printSteps(vm)) try emitEquality(vm, value, negated);
+                return value.isEql(negated, vm.*);
+            }
+            if (node.payload != 0 and !value.isNumber()) return false;
+            const inner_value = if (node.payload % 2 == 1)
+                value.negateNumber() catch return error.RuntimeError
+            else
+                value;
+            return matchNode(vm, inner_value, plan, idx + 1, null);
+        },
     }
+}
+
+// Negate a pattern-side value resolved at match time. Negation of a
+// non-number is an error, mirroring the compile-time NegatedNonNumber;
+// even negation counts cancel but still require a number.
+fn negateEvaluated(pattern_value: Elem, negation_count: u32) Error!Elem {
+    if (negation_count == 0) return pattern_value;
+    if (!pattern_value.isNumber()) return error.RuntimeError;
+    if (negation_count % 2 == 0) return pattern_value;
+    return pattern_value.negateNumber() catch error.RuntimeError;
 }
 
 // Port of the solver's matchRepeat. The three-way dispatch — pattern
@@ -722,6 +728,10 @@ fn evalNode(vm: *VM, plan: MatchPlan, idx: u32) Error!?Elem {
             }
             return result;
         },
+        .negated => {
+            const inner = (try evalNode(vm, plan, idx + 1)) orelse return null;
+            return try negateEvaluated(inner, node.payload);
+        },
         .const_key, .eval_key, .pattern_key => unreachable,
     }
 }
@@ -880,6 +890,12 @@ fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
             .bound_eq => .{ .value = try resolveBoundLocal(vm, plan.vars[child_node.payload]) },
             .const_fn => .{ .value = try evalConstFn(vm, plan, child) },
             .call => .{ .value = try evalCall(vm, plan, child) },
+            // A negated call resolves to its negated result; a negated
+            // range stays structural.
+            .negated => if (try evalNode(vm, plan, child)) |part_value|
+                ResolvedPart{ .value = part_value }
+            else
+                ResolvedPart{ .subtree = child },
             else => .{ .subtree = child },
         };
         try vm.plan_merge_parts.append(vm.allocator, part);
@@ -1168,6 +1184,11 @@ fn mergePartType(plan: MatchPlan, part: ResolvedPart) Error!MergeType {
             // A repeat contributes its pattern's type, mirroring
             // mergePatternType's recursion into the raw repeat pattern.
             .repeat => try repeatPatternType(plan, idx + 1),
+            // A structural negated part contributes its inner's type
+            // (evaluable inners were resolved to values), so a negated
+            // bind or placeholder stays untyped and fails the match
+            // rather than the merge's type resolution.
+            .negated => try mergePartType(plan, .{ .subtree = idx + 1 }),
             // Ranges are not mergeable; mirrors mergePatternType.
             .range => error.RuntimeError,
             // Value parts (including calls, which always evaluate) were
@@ -1211,6 +1232,9 @@ fn repeatPatternType(plan: MatchPlan, pattern_idx: u32) Error!MergeType {
         .array => .array,
         .object => .object,
         .str_template => .string,
+        // A negated pattern contributes its inner's type; see
+        // mergePartType.
+        .negated => repeatPatternType(plan, pattern_idx + 1),
         .range => error.RuntimeError,
         .repeat => repeatPatternType(plan, pattern_idx + 1),
         .merge, .const_key, .eval_key, .pattern_key => unreachable,
@@ -1279,9 +1303,9 @@ fn matchArrayMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u3
 
         const sub = mergePart(vm, base, ui).subtree;
         // A bare `_` rest matches any range without binding; skip
-        // materializing it. A negated `-_` (payload != 0) still needs the
-        // materialized rest so the match applies its number check.
-        if (printSteps(vm) or plan.nodes[sub].tag != .placeholder or plan.nodes[sub].payload != 0) {
+        // materializing it. A negated `-_` (a .negated node) still needs
+        // the materialized rest so the match applies its number check.
+        if (printSteps(vm) or plan.nodes[sub].tag != .placeholder) {
             const unbound_elems = value_array.elems.items[unbound_start..unbound_end];
             const unbound_array = try Elem.DynElem.Array.create(vm, unbound_elems.len);
             try vm.pushTempDyn(&unbound_array.dyn);
@@ -1526,10 +1550,10 @@ fn matchObjectMerge(
         const sub = mergePart(vm, base, ui).subtree;
         const sub_node = plan.nodes[sub];
         // A bare `_` rest matches any remaining members without binding, so
-        // the rest object is never observed. A negated `-_` (payload != 0)
-        // still needs the materialized rest for the match's number check.
-        if (printSteps(vm) or sub_node.tag != .placeholder or sub_node.payload != 0) {
-            if (canBindRestInPlace(vm, plan, value, sub_node, discardable)) {
+        // the rest object is never observed. A negated `-_` (a .negated
+        // node) still needs the materialized rest for its number check.
+        if (printSteps(vm) or sub_node.tag != .placeholder) {
+            if (canBindRestInPlace(vm, value, sub_node, discardable)) {
                 // Every part before the rest has matched and binding an
                 // unbound var cannot fail, so the match is already a
                 // success. Give up the matched members and bind the rest
@@ -1580,7 +1604,6 @@ fn matchObjectMerge(
 // released by the bind either way.
 fn canBindRestInPlace(
     vm: *VM,
-    plan: MatchPlan,
     value: Elem,
     rest_node: match_plan.Node,
     discardable: ?*Elem.DynElem,
@@ -1591,8 +1614,7 @@ fn canBindRestInPlace(
     if (!vm.config.rc_fast_paths) return false;
     if (discardable == null or discardable.? != value.asDyn()) return false;
     if (!value.asDyn().isUnique()) return false;
-    if (rest_node.tag != .bind) return false;
-    return !plan.vars[rest_node.payload].hasBeenNegated();
+    return rest_node.tag == .bind;
 }
 
 fn matchStringMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u32) Error!bool {
@@ -1649,9 +1671,9 @@ fn matchStringMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u
 
         const sub = mergePart(vm, base, ui).subtree;
         // A bare `_` rest matches any substring without binding; skip
-        // materializing it. A negated `-_` (payload != 0) still needs the
-        // materialized rest so the match applies its number check.
-        if (printSteps(vm) or plan.nodes[sub].tag != .placeholder or plan.nodes[sub].payload != 0) {
+        // materializing it. A negated `-_` (a .negated node) still needs
+        // the materialized rest so the match applies its number check.
+        if (printSteps(vm) or plan.nodes[sub].tag != .placeholder) {
             const unbound_value = value_str[unbound_start..unbound_end];
             const unbound_elem = if (value.isType(.InputSubstring)) blk: {
                 const start = value.asInputSubstring().start;
@@ -1942,6 +1964,11 @@ fn matchTemplateUnboundSegment(
         .bind, .bound_eq, .placeholder, .str_template, .repeat => {
             unbound_elem = try substringElem(vm, value, value_str, unbound_start, unbound_end);
         },
+        // A negated pattern only matches numbers, so cast number-shaped
+        // bytes, mirroring the number-merge cast.
+        .negated => if (isValidNumberString(unbound_bytes)) {
+            unbound_elem = try Elem.numberStringFromBytes(unbound_bytes, vm);
+        },
         // Constants and calls evaluate to value segments, ranges are
         // fixed-length segments, and pair nodes only appear under an object.
         .equality, .const_fn, .call, .const_key, .eval_key, .pattern_key, .range => unreachable,
@@ -2047,7 +2074,9 @@ fn resolveRangeLimit(vm: *VM, plan: MatchPlan, limit: match_plan.RangePlan.Limit
 }
 
 // Read a statically-bound local for comparison, evaluating a zero-arity
-// function value the way the tree path's attemptEval does.
+// function value the way the tree path's attemptEval does. A negated
+// occurrence wraps in a .negated node, which negates the value this
+// returns.
 fn resolveBoundLocal(vm: *VM, local_var: LocalVar) Error!Elem {
     var pattern_value = vm.getLocal(local_var.idx);
 
@@ -2106,6 +2135,8 @@ fn evalCall(vm: *VM, plan: MatchPlan, call_node_idx: u32) Error!Elem {
             .equality => plan.elems[child_node.payload],
             .bound_eq => try evalArgLocal(vm, plan.vars[child_node.payload]),
             .const_fn => try evalConstFn(vm, plan, child),
+            // A negated zero-arity function argument; always evaluates.
+            .negated => (try evalNode(vm, plan, child)).?,
             // Lowering rejects other argument shapes.
             else => unreachable,
         };

@@ -3499,6 +3499,214 @@ test "a negated global compiles to a match plan" {
     try std.testing.expectEqual(1, plan_count);
 }
 
+test "('' $ -6) -> -Inc(5) compares the negated call result" {
+    {
+        const parser =
+            \\Inc(A) = "" $ A + 1 ; ("" $ -6) -> -Inc(5) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        const unnegated_value =
+            \\Inc(A) = "" $ A + 1 ; ("" $ 6) -> -Inc(5) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", unnegated_value, ""),
+        );
+    }
+    {
+        // A non-number value fails equality against the negated result
+        // without erroring.
+        const non_number_value =
+            \\Inc(A) = "" $ A + 1 ; ("" $ "x") -> -Inc(5) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", non_number_value, ""),
+        );
+    }
+}
+
+test "('' $ 6) -> --Inc(5) cancels the double negation" {
+    const parser =
+        \\Inc(A) = "" $ A + 1 ; ("" $ 6) -> --Inc(5) $ "ok"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+        vm,
+    );
+}
+
+test "a negated call with a non-number result errors" {
+    const parser =
+        \\Id(A) = "" $ A ; ("" $ 5) -> -Id("x") $ "ok"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try std.testing.expectError(error.RuntimeError, vm.interpret("test", parser, ""));
+}
+
+test "a negated function global negates its per-match result" {
+    const parser =
+        \\Five = "" $ 5 ; ("" $ -5) -> -Five $ "ok"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+        vm,
+    );
+}
+
+test "a negated range matches the negated value" {
+    // -(..5) behaves as -5.. and -(2..5) as -5..-2.
+    {
+        const parser =
+            \\("" $ 6) -> -(..5) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        const below_lower =
+            \\("" $ -6) -> -(..5) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", below_lower, ""),
+        );
+    }
+    {
+        const bounded =
+            \\("" $ -3) -> -(2..5) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", bounded, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        const unnegated_value =
+            \\("" $ 3) -> -(2..5) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", unnegated_value, ""),
+        );
+    }
+    {
+        // A negated range fails a non-number without erroring.
+        const non_number =
+            \\("" $ "x") -> -(..5) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", non_number, ""),
+        );
+    }
+}
+
+test "a negated range binds its unbound limit to the negated value" {
+    const parser =
+        \\("" $ -6) -> -(N..) $ N
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(6),
+        vm,
+    );
+}
+
+test "('' $ [3, -3]) -> [N, -N] negates the bound comparison" {
+    {
+        const parser =
+            \\("" $ [3, -3]) -> [N, -N] $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        const unnegated_value =
+            \\("" $ [3, 3]) -> [N, -N] $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", unnegated_value, ""),
+        );
+    }
+    {
+        // Negating a bound non-number is an error, mirroring the
+        // compile-time NegatedNonNumber.
+        const non_number =
+            \\("" $ ["x", "x"]) -> [N, -N] $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try std.testing.expectError(error.RuntimeError, vm.interpret("test", non_number, ""));
+    }
+}
+
+test "negation distributes over a merge containing a call" {
+    const parser =
+        \\Inc(A) = "" $ A + 1 ; ("" $ 5) -> -(Inc(2) + N) $ N
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(-8),
+        vm,
+    );
+}
+
 test "('' $ {'a': 1}) -> {K: V} binds key and value" {
     const parser =
         \\("" $ {"a": 1}) -> {K: V} $ "%(K),%(V)"
@@ -3625,7 +3833,7 @@ test "a binding-key repeat fails its second repetition's exclusive claim" {
     );
 }
 
-test "call arguments fold literal negation but ignore identifier negation" {
+test "call arguments apply negation to literals, globals, and locals" {
     {
         // -5 folds to a value, so the call computes Double(-5) = -10.
         const parser =
@@ -3641,10 +3849,25 @@ test "call arguments fold literal negation but ignore identifier negation" {
         );
     }
     {
-        // evalLocal never applies negation, so Double(-A) evaluates as
-        // Double(A); the tree path shares this asymmetry.
+        // A negated global argument folds at compile time, so Double(-A)
+        // computes Double(-3) = -6.
         const parser =
-            \\Double(B) = "" $ B + B ; A = 3 ; ("" $ 6) -> Double(-A) $ "ok"
+            \\Double(B) = "" $ B + B ; A = 3 ; ("" $ -6) -> Double(-A) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        // A negated local argument negates the slot's value when the
+        // call reads it at match time.
+        const parser =
+            \\Double(B) = "" $ B + B ; ("" $ [3, -6]) -> [N, Double(-N)] $ "ok"
         ;
         var vm = VM.create();
         try vm.init(allocator, writers, config);
