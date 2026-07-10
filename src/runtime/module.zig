@@ -4,8 +4,8 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
 const MatchPlan = @import("match_plan.zig").MatchPlan;
-const hl = @import("highlight.zig");
-const Region = @import("region.zig").Region;
+const hl = @import("../highlight.zig");
+const Region = @import("../region.zig").Region;
 
 pub const Module = struct {
     id: Id,

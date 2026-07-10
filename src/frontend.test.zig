@@ -1,15 +1,14 @@
 const std = @import("std");
 const allocator = std.testing.allocator;
 const Frontend = @import("frontend.zig").Frontend;
-const VM = @import("vm.zig").VM;
-const DependencyGraph = @import("frontend/dependency_graph.zig");
-const Module = @import("module.zig").Module;
+const VM = @import("runtime.zig").VM;
+const NodeKey = @import("frontend.zig").GlobalKey;
+const Module = @import("runtime.zig").Module;
 const StringTable = @import("string_table.zig").StringTable(.frontend);
 const writers = @import("testing.zig").writers;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
-const NodeKey = DependencyGraph.NodeKey;
 
 fn key(module_id: Module.Id, name: StringTable.Id) NodeKey {
     return .{ .module_id = module_id, .name = name };
@@ -81,8 +80,8 @@ test "module with declarations" {
     const foo_id = try frontend.strings.insert("foo");
     const bar_id = try frontend.strings.insert("bar");
 
-    const foo_key = DependencyGraph.NodeKey{ .module_id = 0, .name = foo_id };
-    const bar_key = DependencyGraph.NodeKey{ .module_id = 0, .name = bar_id };
+    const foo_key = NodeKey{ .module_id = 0, .name = foo_id };
+    const bar_key = NodeKey{ .module_id = 0, .name = bar_id };
 
     try std.testing.expect(frontend.resolver.graph.nodes.contains(foo_key));
     try std.testing.expect(frontend.resolver.graph.nodes.contains(bar_key));
@@ -139,10 +138,10 @@ test "multiple modules with dependencies" {
     const number_id = try frontend.strings.insert("number");
     const word_id = try frontend.strings.insert("word");
 
-    const digit_key = DependencyGraph.NodeKey{ .module_id = 0, .name = digit_id };
-    const letter_key = DependencyGraph.NodeKey{ .module_id = 0, .name = letter_id };
-    const number_key = DependencyGraph.NodeKey{ .module_id = 1, .name = number_id };
-    const word_key = DependencyGraph.NodeKey{ .module_id = 1, .name = word_id };
+    const digit_key = NodeKey{ .module_id = 0, .name = digit_id };
+    const letter_key = NodeKey{ .module_id = 0, .name = letter_id };
+    const number_key = NodeKey{ .module_id = 1, .name = number_id };
+    const word_key = NodeKey{ .module_id = 1, .name = word_id };
 
     try std.testing.expect(frontend.resolver.graph.nodes.contains(digit_key));
     try std.testing.expect(frontend.resolver.graph.nodes.contains(letter_key));
@@ -282,8 +281,8 @@ test "declaration with value function" {
     const add_id = try frontend.strings.insert("add");
     const result_id = try frontend.strings.insert("result");
 
-    const add_key = DependencyGraph.NodeKey{ .module_id = 0, .name = add_id };
-    const result_key = DependencyGraph.NodeKey{ .module_id = 0, .name = result_id };
+    const add_key = NodeKey{ .module_id = 0, .name = add_id };
+    const result_key = NodeKey{ .module_id = 0, .name = result_id };
 
     try std.testing.expect(frontend.resolver.graph.nodes.contains(add_key));
     try std.testing.expect(frontend.resolver.graph.nodes.contains(result_key));

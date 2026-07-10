@@ -4,7 +4,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.AutoHashMapUnmanaged;
 const StringTable = @import("../string_table.zig").StringTable(.frontend);
 const Ast = @import("can_ast.zig");
-const Module = @import("../module.zig").Module;
+const Module = @import("../runtime.zig").Module;
 const DependencyGraph = @import("dependency_graph.zig");
 
 arena: *ArenaAllocator,

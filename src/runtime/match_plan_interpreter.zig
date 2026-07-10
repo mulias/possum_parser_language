@@ -5,9 +5,9 @@ const match_plan = @import("match_plan.zig");
 const MatchPlan = match_plan.MatchPlan;
 const LocalVar = match_plan.LocalVar;
 const ResolvedPart = match_plan.ResolvedPart;
-const StringTable = @import("string_table.zig").StringTable(.runtime);
+const StringTable = @import("../string_table.zig").StringTable(.runtime);
 const explain = @import("explain.zig");
-const parsing = @import("parsing.zig");
+const parsing = @import("../parsing.zig");
 const isValidNumberString = parsing.isValidNumberString;
 const unicode = std.unicode;
 

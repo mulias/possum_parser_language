@@ -5,7 +5,7 @@ const HashMap = std.AutoArrayHashMapUnmanaged;
 const StringTable = @import("../string_table.zig").StringTable(.frontend);
 const Ast = @import("can_ast.zig");
 const Writer = std.Io.Writer;
-const Module = @import("../module.zig").Module;
+const Module = @import("../runtime.zig").Module;
 
 nodes: HashMap(NodeKey, *Node) = .{},
 

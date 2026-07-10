@@ -5,7 +5,7 @@ const AutoHashMap = std.AutoHashMapUnmanaged;
 const Frontend = @import("../frontend.zig");
 const Ast = Frontend.Ast;
 const ClosureCapture = Frontend.ClosureCapture;
-const Module = @import("../module.zig").Module;
+const Module = @import("../runtime.zig").Module;
 const Region = @import("../region.zig").Region;
 const Strings = @import("../string_table.zig").StringTable(.frontend);
 

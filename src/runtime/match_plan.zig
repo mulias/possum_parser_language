@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Writer = std.Io.Writer;
 const Elem = @import("elem.zig").Elem;
-const StringTable = @import("string_table.zig").StringTable(.runtime);
+const StringTable = @import("../string_table.zig").StringTable(.runtime);
 const VM = @import("vm.zig").VM;
 
 // Compiled destructure plan: a flat preorder node array plus interned side
