@@ -25,7 +25,7 @@ pub const Lowerer = struct {
     vm: *VM,
     frontend: *Frontend,
     resolver: NameResolver,
-    plan_reads: *AutoHashMap(Module.Id, ArrayList(liveness.SlotSet)),
+    plan_slots: *AutoHashMap(Module.Id, ArrayList(liveness.PlanSlots)),
 
     fn internForRuntime(self: *const Lowerer, sid: FrontendStrings.Id) !RuntimeStrings.Id {
         return self.vm.strings.insert(self.frontend.strings.get(sid));
@@ -54,6 +54,7 @@ const PlanBuilder = struct {
     calls: ArrayList(match_plan.CallPlan) = .{},
     repeats: ArrayList(match_plan.RepeatPlan) = .{},
     reads: liveness.SlotSet = liveness.SlotSet.initEmpty(),
+    defs: liveness.SlotSet = liveness.SlotSet.initEmpty(),
 
     fn deinit(self: *PlanBuilder, allocator: std.mem.Allocator) void {
         self.nodes.deinit(allocator);
@@ -79,10 +80,18 @@ const PlanBuilder = struct {
         return idx;
     }
 
-    fn addVar(self: *PlanBuilder, allocator: std.mem.Allocator, local_var: match_plan.LocalVar) !u32 {
+    // A compare/eval occurrence reads the slot at match time; a bind
+    // occurrence overwrites it without reading, which liveness uses to end
+    // the previous value's live range.
+    const VarAccess = enum { read, bind };
+
+    fn addVar(self: *PlanBuilder, allocator: std.mem.Allocator, local_var: match_plan.LocalVar, access: VarAccess) !u32 {
         const idx: u32 = @intCast(self.vars.items.len);
         try self.vars.append(allocator, local_var);
-        self.reads.set(local_var.idx);
+        switch (access) {
+            .read => self.reads.set(local_var.idx),
+            .bind => self.defs.set(local_var.idx),
+        }
         return idx;
     }
 
@@ -91,7 +100,8 @@ const PlanBuilder = struct {
     }
 
     fn appendVar(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, local_var: match_plan.LocalVar) !void {
-        try self.appendLeaf(allocator, tag, try self.addVar(allocator, local_var));
+        const access: VarAccess = if (tag == .bind) .bind else .read;
+        try self.appendLeaf(allocator, tag, try self.addVar(allocator, local_var, access));
     }
 };
 
@@ -135,9 +145,9 @@ pub fn createMatchPlan(
         .repeats = repeats,
     });
 
-    const gop = try self.plan_reads.getOrPut(allocator, module_id);
+    const gop = try self.plan_slots.getOrPut(allocator, module_id);
     if (!gop.found_existing) gop.value_ptr.* = .{};
-    try gop.value_ptr.append(allocator, builder.reads);
+    try gop.value_ptr.append(allocator, .{ .reads = builder.reads, .defs = builder.defs });
 
     return @intCast(idx);
 }
@@ -478,7 +488,7 @@ fn lowerPatternNode(
                     .sid = try self.internForRuntime(name),
                     .idx = slot,
                     .negation_count = 0,
-                }) }
+                }, .read) }
             else
                 return error.UnsupportedPattern;
 
@@ -778,7 +788,7 @@ fn lowerRangeLimit(
                 .sid = try self.internForRuntime(name),
                 .idx = slot,
                 .negation_count = 0,
-            });
+            }, if (bound) .read else .bind);
             // An unbound limit binds the matched value, the way the solver
             // matches an unbound limit as a pattern.
             return if (bound) .{ .bound_local = var_idx } else .{ .bind_local = var_idx };
