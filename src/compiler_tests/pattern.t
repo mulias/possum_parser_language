@@ -2493,7 +2493,7 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "prefix123123suffix"
-  0004    | Destructure 0: "%("prefix" + ("123" * N) + "suffix")"
+  0004    | DestructurePlan 0: tmpl((eq "prefix" + (eq "123" * bind N) + eq "suffix"))
   0006    | TakeRight 6 -> 11
   0009    | GetLocalMove 0
   0011    | End

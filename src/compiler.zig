@@ -32,12 +32,9 @@ pub const Compiler = struct {
     printBytecode: bool = false,
     global_map: AutoHashMap(GlobalKey, Elem) = .{},
     constant_map: AutoHashMap(ConstantMapKey, usize) = .{},
-    // The slots each module pattern references, computed once when the
-    // pattern is created and indexed to match the module's `patterns`.
-    // Compile-time only (feeds liveness), so it lives here rather than on
-    // the runtime Module.
-    pattern_reads: AutoHashMap(Module.Id, ArrayList(liveness.SlotSet)) = .{},
-    // Same, for match plans, indexed to match the module's `match_plans`.
+    // The slots each module match plan references, computed once at lowering
+    // and indexed to match the module's `match_plans`. Compile-time only
+    // (feeds liveness), so it lives here rather than on the runtime Module.
     plan_reads: AutoHashMap(Module.Id, ArrayList(liveness.SlotSet)) = .{},
     main: ?*Elem.DynElem.Function = null,
 
@@ -101,9 +98,6 @@ pub const Compiler = struct {
         self.frontend.deinit();
         self.constant_map.deinit(self.vm.allocator);
         self.global_map.deinit(self.vm.allocator);
-        var pattern_reads = self.pattern_reads.valueIterator();
-        while (pattern_reads.next()) |list| list.deinit(self.vm.allocator);
-        self.pattern_reads.deinit(self.vm.allocator);
         var plan_reads = self.plan_reads.valueIterator();
         while (plan_reads.next()) |list| list.deinit(self.vm.allocator);
         self.plan_reads.deinit(self.vm.allocator);
@@ -1633,20 +1627,34 @@ pub const Compiler = struct {
                     return builder.appendLeaf(allocator, .placeholder, negation_count);
                 }
                 if (self.resolveGlobal(module_id, name)) |global| {
-                    if (negation_count != 0) return error.UnsupportedPattern;
                     // A zero-arity Function global is executed per match and
                     // its result compared. The solver never executes native
                     // code or closures here (matchConstant only runs
                     // Functions), so those compare directly. A Function with
                     // nonzero arity is a runtime error on every match; keep
-                    // it on the tree path.
+                    // it on the tree path. Negating a function global would
+                    // negate its per-match result, which no plan node folds.
                     if (global.isDynType(.Function)) {
+                        if (negation_count != 0) return error.UnsupportedPattern;
                         if (global.asDyn().asFunction().arity != 0) {
                             return error.UnsupportedPattern;
                         }
                         return builder.appendLeaf(allocator, .const_fn, try builder.addElem(allocator, global));
                     }
-                    return builder.appendEquality(allocator, global);
+                    // A non-function global's value is known now, so negation
+                    // folds at compile time, mirroring matchConstant: a negated
+                    // non-number is a match-time error there and stays
+                    // unsupported; an even negation count cancels; an odd one
+                    // flips the sign.
+                    const folded = if (negation_count == 0)
+                        global
+                    else if (!global.isNumber())
+                        return error.UnsupportedPattern
+                    else if (negation_count % 2 == 1)
+                        global.negateNumber() catch unreachable
+                    else
+                        global;
+                    return builder.appendEquality(allocator, folded);
                 }
                 const slot = self.localSlot(name) orelse return error.UnsupportedPattern;
                 const bound = all_locals_bound or
@@ -1771,16 +1779,19 @@ pub const Compiler = struct {
                 builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
             .range => |bounds| {
-                // astToPattern distributes negation into the limits, where
-                // the solver ignores it for evaluable limits but applies it
-                // when a limit is matched as a pattern; keep that split on
-                // the tree path.
                 if (negation_count != 0) return error.UnsupportedPattern;
                 std.debug.assert(bounds.lower != null or bounds.upper != null);
+                // Append the range node before its limits so an evaluable
+                // compound limit's subtree lands as a child, in
+                // lower-before-upper order.
+                const start = builder.nodes.items.len;
+                const range_idx: u32 = @intCast(builder.ranges.items.len);
+                try builder.nodes.append(allocator, .{ .tag = .range, .subtree_len = 1, .payload = range_idx });
+                try builder.ranges.append(allocator, .{ .lower = .none, .upper = .none });
                 const lower = try self.lowerRangeLimit(module_id, bounds.lower, builder, all_locals_bound);
                 const upper = try self.lowerRangeLimit(module_id, bounds.upper, builder, all_locals_bound);
-                try builder.appendLeaf(allocator, .range, @intCast(builder.ranges.items.len));
-                try builder.ranges.append(allocator, .{ .lower = lower, .upper = upper });
+                builder.ranges.items[range_idx] = .{ .lower = lower, .upper = upper };
+                builder.nodes.items[start].subtree_len = @intCast(builder.nodes.items.len - start);
             },
             .string_template => |segments| {
                 if (negation_count != 0) return error.UnsupportedPattern;
@@ -2052,24 +2063,28 @@ pub const Compiler = struct {
         // The part may carry one .negation wrapper (collectMergeChain keeps
         // it); look through it for the repeat guard.
         const part_node = if (rnode.node == .negation) rnode.node.negation.node else rnode.node;
-        if (part_node == .repeat) {
-            // Only an object repeat with a count that cannot fail to
-            // evaluate is safe as a merge part: the solver decides
-            // rest-vs-counted-structural by evaluating the count at
-            // merge entry, and a count that evaluates statically but
-            // comes up empty at match time (a nested repeat or merge)
-            // would flip that classification. Rest repeats also
-            // interact with later parts' boundness. Both stay on the
-            // tree path.
-            if (unbound) return error.UnsupportedPattern;
-            if (part_node.repeat.left.node != .object) return error.UnsupportedPattern;
+        // A counted-structural repeat merge part (bound count) is matched in
+        // place and only supported for object patterns. An unbound-count
+        // repeat is the solvable rest: its count is solved from the leftover
+        // value, so the pattern may be any shape the interpreter can derive a
+        // count from.
+        if (part_node == .repeat and !unbound and part_node.repeat.left.node != .object) {
+            return error.UnsupportedPattern;
         }
         if (unbound) merge_plan.solvable_index = merge_plan.part_count;
         const part_start = builder.nodes.items.len;
         try self.lowerPatternNode(module_id, rnode, builder, all_locals_bound, negation_count);
         if (builder.nodes.items[part_start].tag == .repeat) {
             const count_idx = part_start + 1 + builder.nodes.items[part_start + 1].subtree_len;
-            switch (builder.nodes.items[count_idx].tag) {
+            const count_tag = builder.nodes.items[count_idx].tag;
+            if (unbound) {
+                // The solvable repeat solves for its count, which must be a
+                // bare unbound local. A count that instead evaluates but can
+                // come up empty at match time (a nested repeat or merge)
+                // would flip the rest-vs-structural classification, so keep
+                // those unsupported.
+                if (count_tag != .bind) return error.UnsupportedPattern;
+            } else switch (count_tag) {
                 .equality, .bound_eq, .const_fn, .call => {},
                 else => return error.UnsupportedPattern,
             }
@@ -2208,14 +2223,27 @@ pub const Compiler = struct {
                 const bound = all_locals_bound or
                     (self.frontend.binding_maps.pattern_local_bound.get(rnode) orelse
                         return error.UnsupportedPattern);
-                if (!bound) return error.UnsupportedPattern;
-                return .{ .bound_local = try builder.addVar(allocator, .{
+                const var_idx = try builder.addVar(allocator, .{
                     .sid = try self.internForRuntime(name),
                     .idx = slot,
                     .negation_count = 0,
-                }) };
+                });
+                // An unbound limit binds the matched value, the way the solver
+                // matches an unbound limit as a pattern.
+                return if (bound) .{ .bound_local = var_idx } else .{ .bind_local = var_idx };
             },
-            else => return error.UnsupportedPattern,
+            else => {
+                // A compound limit (e.g. arithmetic on bound locals) lowers
+                // to a child subtree evaluated at match time. Only evaluable
+                // shapes are supported; a structural or unbound compound
+                // limit is a runtime error the tree path reports.
+                const child_start: u32 = @intCast(builder.nodes.items.len);
+                try self.lowerPatternNode(module_id, rnode, builder, all_locals_bound, 0);
+                switch (self.classifyPlanSubtree(builder, child_start)) {
+                    .constant, .eval => return .eval,
+                    .subtree => return error.UnsupportedPattern,
+                }
+            },
         }
     }
 
@@ -3060,10 +3088,6 @@ pub const Compiler = struct {
 
     fn emitCallFunctionConstant(self: *Compiler, idx: u24, region: Region) !void {
         _ = try self.ir().push(self.vm.allocator, .{ .call_function_constant = idx }, region);
-    }
-
-    fn emitPattern(self: *Compiler, idx: u24, region: Region) !void {
-        _ = try self.ir().push(self.vm.allocator, .{ .destructure = idx }, region);
     }
 
     fn emitMatchPlan(self: *Compiler, idx: u24, region: Region) !void {
