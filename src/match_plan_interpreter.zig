@@ -127,8 +127,9 @@ noinline fn emitObjectSearchAttempt(vm: *VM, plan: MatchPlan, obj_key: Elem, obj
 // Interpreter for compiled match plans. Runs directly against the VM with no
 // PatternSolver bookkeeping: bind-vs-equality is decided statically, so there
 // is no runtime boundness probing, and a failed match leaves its binds in
-// place. Binding analysis guarantees stale slots are never read and emits
-// preclears before any pattern that may re-bind them.
+// place. Binding analysis guarantees stale slots are never read, and a bind
+// releases whatever the slot held (a placeholder or a stale value) as it
+// overwrites it.
 //
 // value_discarded: the VM will pop the match result without looking inside
 // it, so an object rest may take over a uniquely-referenced value in place.
