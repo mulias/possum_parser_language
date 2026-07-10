@@ -3466,7 +3466,7 @@
   0033    | DestructurePlan 63: bind U
   0035    | TakeRight 35 -> 44
   0038    | GetConstant 160: @Codepoint
-  0040    | GetLocal 0
+  0040    | GetLocalMove 0
   0042    | CallFunction 1
   0044    | Or 44 -> 87
   0047    | CallFunctionConstant 201: "\U"
@@ -4344,7 +4344,7 @@
   0023    | GetConstant 31: const
   0025    | GetConstant2 329: Is.LessThan
   0028    | GetLocal 4
-  0030    | GetLocal 6
+  0030    | GetLocalMove 6
   0032    | CallFunction 2
   0034    | CallFunction 1
   0036    | ConditionalThen 36 -> 91

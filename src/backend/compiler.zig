@@ -38,7 +38,7 @@ pub const Compiler = struct {
     // The slots each module match plan references, computed once at lowering
     // and indexed to match the module's `match_plans`. Compile-time only
     // (feeds liveness), so it lives here rather than on the runtime Module.
-    plan_reads: AutoHashMap(Module.Id, ArrayList(liveness.SlotSet)) = .{},
+    plan_slots: AutoHashMap(Module.Id, ArrayList(liveness.PlanSlots)) = .{},
     main: ?*Elem.DynElem.Function = null,
 
     const ConstantMapKey = struct {
@@ -100,9 +100,9 @@ pub const Compiler = struct {
         self.frontend.deinit();
         self.constant_map.deinit(self.vm.allocator);
         self.global_map.deinit(self.vm.allocator);
-        var plan_reads = self.plan_reads.valueIterator();
-        while (plan_reads.next()) |list| list.deinit(self.vm.allocator);
-        self.plan_reads.deinit(self.vm.allocator);
+        var plan_slots = self.plan_slots.valueIterator();
+        while (plan_slots.next()) |list| list.deinit(self.vm.allocator);
+        self.plan_slots.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
         self.scopes.deinit(self.vm.allocator);
         for (self.irs.items) |*function_ir| function_ir.deinit(self.vm.allocator);
@@ -1488,7 +1488,7 @@ pub const Compiler = struct {
             .vm = self.vm,
             .frontend = self.frontend,
             .resolver = self.resolver(),
-            .plan_reads = &self.plan_reads,
+            .plan_slots = &self.plan_slots,
         };
         const planId = try pattern.createMatchPlan(&lowerer, module_id, rnode);
         try self.emitMatchPlan(planId, rnode.region);
@@ -2152,10 +2152,10 @@ pub const Compiler = struct {
     // case for params and pattern bindings) stay unique and eligible for
     // in-place mutation.
     fn rewriteLastReadsAsMoves(self: *Compiler, module_id: Module.Id, function_ir: *Ir) !void {
-        const plan_reads: []const liveness.SlotSet =
-            if (self.plan_reads.get(module_id)) |list| list.items else &.{};
+        const plan_slots: []const liveness.PlanSlots =
+            if (self.plan_slots.get(module_id)) |list| list.items else &.{};
 
-        var last_reads = try liveness.Liveness.analyze(self.vm.allocator, function_ir, plan_reads);
+        var last_reads = try liveness.Liveness.analyze(self.vm.allocator, function_ir, plan_slots);
         defer last_reads.deinit(self.vm.allocator);
 
         for (function_ir.instructions.items, 0..) |*insn, i| {

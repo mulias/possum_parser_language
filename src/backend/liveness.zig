@@ -7,12 +7,24 @@ pub const max_locals = 256;
 
 pub const SlotSet = std.bit_set.StaticBitSet(max_locals);
 
+// The slots a match plan touches, recorded when the plan is lowered: a
+// compare/eval occurrence reads its slot, a bind occurrence defines it. A
+// slot both bound and compared within one plan appears in both sets.
+pub const PlanSlots = struct {
+    reads: SlotSet,
+    defs: SlotSet,
+};
+
 // Last-use information for a function's local slots, computed by a backward
 // dataflow walk over its IR. A slot is read by the local-slot ops (GetLocal,
-// GetBoundLocal, CallFunctionLocal, CallTailFunctionLocal, CaptureLocal) and
-// by DestructurePlan for every slot its match plan references: whether a
-// plan variable compares against the slot or binds it is only known at
-// runtime, so both count as reads.
+// CallFunctionLocal, CallTailFunctionLocal, CaptureLocal) and by
+// DestructurePlan for every slot its match plan compares against or
+// evaluates. A slot is defined — overwritten without reading — by SetLocal
+// and by DestructurePlan for every slot its plan binds; a definition kills
+// the slot's liveness above it. The plan kill is sound because binding
+// analysis admits a bind occurrence only where the slot is unbound or out
+// of scope on every reaching path, so nothing reachable from above can read
+// the value the bind replaces, even when the plan fails partway.
 //
 // Deaths are recorded at read sites only: a slot dies at the instruction
 // that reads it last on every path. A slot whose remaining reads are all on
@@ -24,16 +36,19 @@ pub const Liveness = struct {
     // reachable after it.
     deaths: []SlotSet,
 
-    // Requires an IR that passes verify. `plan_reads` maps each match plan
-    // id to the slots the plan references; entries for ids not used by this
-    // function's DestructurePlan instructions are ignored.
-    pub fn analyze(allocator: Allocator, ir: *const Ir, plan_reads: []const SlotSet) Allocator.Error!Liveness {
+    // Requires an IR that passes verify. `plan_slots` maps each match plan
+    // id to the slots the plan reads and defines; entries for ids not used
+    // by this function's DestructurePlan instructions are ignored.
+    pub fn analyze(allocator: Allocator, ir: *const Ir, plan_slots: []const PlanSlots) Allocator.Error!Liveness {
         const insns = ir.instructions.items;
 
         const reads = try allocator.alloc(SlotSet, insns.len);
         defer allocator.free(reads);
+        const defs = try allocator.alloc(SlotSet, insns.len);
+        defer allocator.free(defs);
         for (insns, 0..) |insn, i| {
-            reads[i] = instructionReads(insn.operand, plan_reads);
+            reads[i] = instructionReads(insn.operand, plan_slots);
+            defs[i] = instructionDefs(insn.operand, plan_slots);
         }
 
         const live_in = try allocator.alloc(SlotSet, insns.len);
@@ -50,7 +65,7 @@ pub const Liveness = struct {
             var i = insns.len;
             while (i > 0) {
                 i -= 1;
-                const in = liveOut(insns, live_in, i).unionWith(reads[i]);
+                const in = liveOut(insns, live_in, i).differenceWith(defs[i]).unionWith(reads[i]);
                 if (!in.eql(live_in[i])) {
                     live_in[i] = in;
                     changed = true;
@@ -76,14 +91,26 @@ pub const Liveness = struct {
     }
 };
 
-fn instructionReads(operand: Ir.Operand, plan_reads: []const SlotSet) SlotSet {
+fn instructionReads(operand: Ir.Operand, plan_slots: []const PlanSlots) SlotSet {
     switch (operand) {
-        .destructure_plan => |idx| return plan_reads[idx],
+        .destructure_plan => |idx| return plan_slots[idx].reads,
         else => {
             var reads = SlotSet.initEmpty();
             const op = Ir.operandOp(operand);
             if (Ir.localSlotOperand(op, operand)) |slot| reads.set(slot);
             return reads;
+        },
+    }
+}
+
+fn instructionDefs(operand: Ir.Operand, plan_slots: []const PlanSlots) SlotSet {
+    switch (operand) {
+        .destructure_plan => |idx| return plan_slots[idx].defs,
+        else => {
+            var defs = SlotSet.initEmpty();
+            const op = Ir.operandOp(operand);
+            if (Ir.localSlotDefOperand(op, operand)) |slot| defs.set(slot);
+            return defs;
         },
     }
 }
@@ -206,9 +233,56 @@ test "destructure plan reads its plan's slots" {
     _ = try ir.push(allocator, .{ .destructure_plan = 0 }, testRegion(1));
     _ = try ir.push(allocator, .{ .none = .End }, testRegion(2));
 
-    var liveness = try Liveness.analyze(allocator, &ir, &.{slots(&.{ 0, 1 })});
+    var liveness = try Liveness.analyze(allocator, &ir, &.{
+        .{ .reads = slots(&.{ 0, 1 }), .defs = slots(&.{}) },
+    });
     defer liveness.deinit(allocator);
 
     try testing.expectEqual(slots(&.{}), liveness.deaths[0]);
     try testing.expectEqual(slots(&.{ 0, 1 }), liveness.deaths[1]);
+}
+
+test "a plan bind kills liveness across a loop back-edge" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    const loop_start = ir.nextIndex();
+    _ = try ir.push(allocator, .{ .destructure_plan = 0 }, testRegion(0));
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .GetLocal, .byte = 0 } }, testRegion(1));
+    const done = try ir.push(allocator, .{ .jump = .{ .op = .JumpIfFailure, .target = Ir.unpatched_jump } }, testRegion(2));
+    _ = try ir.push(allocator, .{ .none = .Drop }, testRegion(3));
+    _ = try ir.push(allocator, .{ .jump_back = .{ .op = .JumpBack, .target = loop_start } }, testRegion(4));
+    ir.patchJumpTarget(done);
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(5));
+
+    var liveness = try Liveness.analyze(allocator, &ir, &.{
+        .{ .reads = slots(&.{}), .defs = slots(&.{0}) },
+    });
+    defer liveness.deinit(allocator);
+
+    // The bind at the loop head overwrites slot 0 without reading it, so
+    // the back-edge carries no liveness and the read below the bind is the
+    // slot's last on every path.
+    try testing.expectEqual(slots(&.{0}), liveness.deaths[1]);
+}
+
+test "a SetLocal definition ends the previous value's live range" {
+    const allocator = testing.allocator;
+    var ir = Ir{};
+    defer ir.deinit(allocator);
+
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .GetLocal, .byte = 0 } }, testRegion(0));
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .SetLocal, .byte = 0 } }, testRegion(1));
+    _ = try ir.push(allocator, .{ .byte = .{ .op = .GetLocal, .byte = 0 } }, testRegion(2));
+    _ = try ir.push(allocator, .{ .none = .End }, testRegion(3));
+
+    var liveness = try Liveness.analyze(allocator, &ir, &.{});
+    defer liveness.deinit(allocator);
+
+    // The value read at 0 dies there: SetLocal replaces it without reading.
+    // The rebound value's last read is at 2.
+    try testing.expectEqual(slots(&.{0}), liveness.deaths[0]);
+    try testing.expectEqual(slots(&.{}), liveness.deaths[1]);
+    try testing.expectEqual(slots(&.{0}), liveness.deaths[2]);
 }

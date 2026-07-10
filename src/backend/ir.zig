@@ -385,6 +385,18 @@ pub const Ir = struct {
             else => null,
         };
     }
+
+    // The local slot an instruction overwrites without reading its previous
+    // value, if any.
+    pub fn localSlotDefOperand(op: OpCode, operand: Operand) ?u32 {
+        return switch (op) {
+            .SetLocal => switch (operand) {
+                .byte => |b| b.byte,
+                else => null,
+            },
+            else => null,
+        };
+    }
 };
 
 const testing = std.testing;
