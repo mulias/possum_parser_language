@@ -149,6 +149,7 @@
   Destructure:
       5 -> (10 + -X + -3)
           -2 -> -X
+              2 -> X
   Destructure Success: 5 -> (10 + -X + -3)
   2
 
@@ -159,6 +160,7 @@
           1 -> 1
           1 -> 1
           2 -> -X
+              -2 -> X
           3 -> 3
           3 -> 3
   Destructure Success: [1, 2, 3] -> [1, -X, 3]
@@ -168,6 +170,7 @@
   
   Destructure:
       5 -> -X
+          -5 -> X
   Destructure Success: 5 -> -X
   -5
 
@@ -175,6 +178,7 @@
   
   Destructure:
       5 -> --X
+          5 -> X
   Destructure Success: 5 -> --X
   5
 
@@ -183,6 +187,7 @@
   Destructure:
       5 -> (-X + -1)
           6 -> -X
+              -6 -> X
   Destructure Success: 5 -> (-X + -1)
   -6
 
