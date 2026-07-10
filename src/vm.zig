@@ -15,7 +15,6 @@ const match_plan_interpreter = @import("match_plan_interpreter.zig");
 const Module = @import("module.zig").Module;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").StringTable(.runtime);
-const PatternSolver = @import("pattern_solver.zig");
 const Region = @import("region.zig").Region;
 const LineRelativeRegion = @import("region.zig").LineRelativeRegion;
 const hl = @import("highlight.zig");
@@ -197,7 +196,6 @@ pub const VM = struct {
     explain_events: ArrayList(explain.Event),
     uniqueIdCount: u64,
     rc_stats: RcStats,
-    pattern_solver: PatternSolver,
     // Scratch state for the match plan interpreter, base/shrink managed per
     // merge so nested matches (VM re-entry, nested merges) compose.
     plan_merge_parts: ArrayList(match_plan.ResolvedPart),
@@ -260,7 +258,6 @@ pub const VM = struct {
             .explain_events = undefined,
             .uniqueIdCount = undefined,
             .rc_stats = undefined,
-            .pattern_solver = undefined,
             .plan_merge_parts = undefined,
             .plan_matched_keys = undefined,
             .plan_debug_depth = undefined,
@@ -301,7 +298,6 @@ pub const VM = struct {
         self.explain_events = ArrayList(explain.Event){};
         self.uniqueIdCount = 0;
         self.rc_stats = RcStats{};
-        self.pattern_solver = PatternSolver.init(self);
         self.plan_merge_parts = ArrayList(match_plan.ResolvedPart){};
         self.plan_matched_keys = ArrayList(StringTable.Id){};
         self.plan_debug_depth = 0;
@@ -330,7 +326,6 @@ pub const VM = struct {
         self.temp_dyns.deinit(self.allocator);
         self.inputMarks.deinit(self.allocator);
         self.explain_events.deinit(self.allocator);
-        self.pattern_solver.deinit();
         self.plan_merge_parts.deinit(self.allocator);
         self.plan_matched_keys.deinit(self.allocator);
     }
