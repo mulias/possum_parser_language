@@ -211,9 +211,11 @@ fn lowerPatternNode(
                 return lowerNegated(self, module_id, rnode, builder, all_locals_bound, negation_count);
             }
             const slot = self.resolver.localSlot(name) orelse @panic("Internal error");
+            // Binding analysis visits every pattern local occurrence; a
+            // miss is a compiler bug.
             const bound = all_locals_bound or
                 (self.frontend.binding_maps.pattern_local_bound.get(rnode) orelse
-                    return error.UnsupportedPattern);
+                    @panic("Internal error"));
             return builder.appendVar(allocator, if (bound) .bound_eq else .bind, .{
                 .sid = try self.internForRuntime(name),
                 .idx = slot,
@@ -362,8 +364,10 @@ fn lowerPatternNode(
                 .solvable_index = null,
             });
             for (segments.items, 0..) |segment, i| {
+                // Binding analysis records solvability for every template
+                // segment; a miss is a compiler bug.
                 const unbound = self.frontend.binding_maps.merge_part_unbound.get(segment) orelse
-                    return error.UnsupportedPattern;
+                    @panic("Internal error");
                 const segment_start = builder.nodes.items.len;
                 try lowerPatternNode(self,module_id, segment, builder, all_locals_bound, 0);
                 if (unbound) {
@@ -487,7 +491,10 @@ fn lowerPatternNode(
                     .idx = slot,
                 }, .read) }
             else
-                return error.UnsupportedPattern;
+                // Validation rejects parser identifiers in patterns and
+                // binding analysis rejects unbound callees, so the name
+                // always resolves.
+                @panic("Internal error");
 
             const start = builder.nodes.items.len;
             try builder.nodes.append(allocator, .{
@@ -604,8 +611,9 @@ fn lowerCallArg(
             // A local argument reads its slot at match time: it may be
             // bound by an earlier part of this same pattern, so there is
             // no static boundness to record. Negation applies to the
-            // value read from the slot.
-            const slot = self.resolver.localSlot(ident.name) orelse return error.UnsupportedPattern;
+            // value read from the slot. Validation rejects parser
+            // identifiers in value context, so the name always resolves.
+            const slot = self.resolver.localSlot(ident.name) orelse @panic("Internal error");
             if (negation_count != 0) {
                 return lowerNegatedCallArg(self, module_id, rnode, builder, negation_count);
             }
@@ -675,11 +683,10 @@ fn lowerMergePart(
     all_locals_bound: bool,
     negation_count: u2,
 ) Error!void {
-    // Binding analysis records solvability per part; a part it
-    // never visited means the pattern shape diverged from the
-    // analysis walk, so fall back rather than guess.
+    // Binding analysis records solvability for every merge part; a miss
+    // is a compiler bug.
     const unbound = self.frontend.binding_maps.merge_part_unbound.get(rnode) orelse
-        return error.UnsupportedPattern;
+        @panic("Internal error");
     // The part may carry one .negation wrapper (collectMergeChain keeps
     // it); look through it for the repeat guard.
     const part_node = if (rnode.node == .negation) rnode.node.negation.node else rnode.node;
@@ -849,10 +856,13 @@ fn lowerRangeLimit(
                 return error.UnsupportedPattern;
             }
             if (self.resolver.resolveGlobal(module_id, name) != null) return error.UnsupportedPattern;
-            const slot = self.resolver.localSlot(name) orelse return error.UnsupportedPattern;
+            // Validation rejects parser identifiers in patterns, so a
+            // non-global name is always a local, and binding analysis
+            // visits every range-limit local.
+            const slot = self.resolver.localSlot(name) orelse @panic("Internal error");
             const bound = all_locals_bound or
                 (self.frontend.binding_maps.pattern_local_bound.get(rnode) orelse
-                    return error.UnsupportedPattern);
+                    @panic("Internal error"));
             const var_idx = try builder.addVar(allocator, .{
                 .sid = try self.internForRuntime(name),
                 .idx = slot,
