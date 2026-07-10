@@ -629,36 +629,6 @@ pub const OpCode = enum(u8) {
         return offset + 4;
     }
 
-    fn patternInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
-        const patternIdx = chunk.read(offset + 1);
-        var pattern = module.getPattern(patternIdx);
-        try writer.print("{s} {}: ", .{ @tagName(self), patternIdx });
-        try pattern.print(vm, writer);
-        try writer.print("\n", .{});
-        return offset + 2;
-    }
-
-    fn pattern2Instruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
-        var patternIdx = @as(usize, @intCast(chunk.read(offset + 1))) << 8;
-        patternIdx |= chunk.read(offset + 2);
-        var pattern = module.getPattern(patternIdx);
-        try writer.print("{s} {}: ", .{ @tagName(self), patternIdx });
-        try pattern.print(vm, writer);
-        try writer.print("\n", .{});
-        return offset + 3;
-    }
-
-    fn pattern3Instruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
-        var patternIdx = @as(usize, @intCast(chunk.read(offset + 1))) << 16;
-        patternIdx |= @as(usize, @intCast(chunk.read(offset + 2))) << 8;
-        patternIdx |= chunk.read(offset + 3);
-        var pattern = module.getPattern(patternIdx);
-        try writer.print("{s} {}: ", .{ @tagName(self), patternIdx });
-        try pattern.print(vm, writer);
-        try writer.print("\n", .{});
-        return offset + 4;
-    }
-
     fn matchPlanInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         const planIdx = chunk.read(offset + 1);
         const plan = module.getMatchPlan(planIdx);

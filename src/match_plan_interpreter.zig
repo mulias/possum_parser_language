@@ -261,11 +261,34 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
         .const_key, .eval_key, .pattern_key => unreachable,
         .range => {
             const range = plan.ranges[node.payload];
-            if (try resolveRangeLimit(vm, plan, range.lower)) |lower| {
-                if (!(try lower.isLessThanOrEqualInRangePattern(value, vm.*))) return false;
+            // Evaluable limits are child subtrees in lower-before-upper
+            // preorder; track the child index across both.
+            var child = idx + 1;
+            switch (range.lower) {
+                .none => {},
+                .bind_local => |vi| try bindLocal(vm, plan.vars[vi], value),
+                .eval => {
+                    const limit = (try evalNode(vm, plan, child)) orelse return error.RuntimeError;
+                    child += plan.nodes[child].subtree_len;
+                    if (!(try limit.isLessThanOrEqualInRangePattern(value, vm.*))) return false;
+                },
+                .const_elem, .bound_local => {
+                    const limit = (try resolveRangeLimit(vm, plan, range.lower)).?;
+                    if (!(try limit.isLessThanOrEqualInRangePattern(value, vm.*))) return false;
+                },
             }
-            if (try resolveRangeLimit(vm, plan, range.upper)) |upper| {
-                if (!(try value.isLessThanOrEqualInRangePattern(upper, vm.*))) return false;
+            switch (range.upper) {
+                .none => {},
+                .bind_local => |vi| try bindLocal(vm, plan.vars[vi], value),
+                .eval => {
+                    const limit = (try evalNode(vm, plan, child)) orelse return error.RuntimeError;
+                    child += plan.nodes[child].subtree_len;
+                    if (!(try value.isLessThanOrEqualInRangePattern(limit, vm.*))) return false;
+                },
+                .const_elem, .bound_local => {
+                    const limit = (try resolveRangeLimit(vm, plan, range.upper)).?;
+                    if (!(try value.isLessThanOrEqualInRangePattern(limit, vm.*))) return false;
+                },
             }
             return true;
         },
@@ -1132,21 +1155,7 @@ fn resolveMergeType(vm: *VM, plan: MatchPlan, base: usize, count: u32) Error!Mer
 
 fn mergePartType(plan: MatchPlan, part: ResolvedPart) Error!MergeType {
     return switch (part) {
-        .value => |elem| switch (elem.getType()) {
-            .String, .InputSubstring => .string,
-            .NumberString, .NumberFloat => .number,
-            .Const => switch (elem.asConst()) {
-                .True, .False => .boolean,
-                .Null, .Failure => .untyped,
-            },
-            .ValueVar => .untyped,
-            .Dyn => switch (elem.asDyn().dynType) {
-                .String => .string,
-                .Array => .array,
-                .Object => .object,
-                .Function, .NativeCode, .Closure => .untyped,
-            },
-        },
+        .value => |elem| elemMergeType(elem),
         .subtree => |idx| switch (plan.nodes[idx].tag) {
             .array => .array,
             .object => .object,
@@ -1157,7 +1166,7 @@ fn mergePartType(plan: MatchPlan, part: ResolvedPart) Error!MergeType {
             .bind, .bound_eq, .placeholder => .untyped,
             // A repeat contributes its pattern's type, mirroring
             // mergePatternType's recursion into the raw repeat pattern.
-            .repeat => try mergePartType(plan, .{ .subtree = idx + 1 }),
+            .repeat => try repeatPatternType(plan, idx + 1),
             // Ranges are not mergeable; mirrors mergePatternType.
             .range => error.RuntimeError,
             // Value parts (including calls, which always evaluate) were
@@ -1165,6 +1174,45 @@ fn mergePartType(plan: MatchPlan, part: ResolvedPart) Error!MergeType {
             // pair nodes only appear under an object.
             .equality, .const_fn, .call, .const_key, .eval_key, .pattern_key, .merge => unreachable,
         },
+    };
+}
+
+fn elemMergeType(elem: Elem) MergeType {
+    return switch (elem.getType()) {
+        .String, .InputSubstring => .string,
+        .NumberString, .NumberFloat => .number,
+        .Const => switch (elem.asConst()) {
+            .True, .False => .boolean,
+            .Null, .Failure => .untyped,
+        },
+        .ValueVar => .untyped,
+        .Dyn => switch (elem.asDyn().dynType) {
+            .String => .string,
+            .Array => .array,
+            .Object => .object,
+            .Function, .NativeCode, .Closure => .untyped,
+        },
+    };
+}
+
+// The merge type a repeat merge part contributes is its pattern's type,
+// mirroring the tree solver's mergePatternType recursion into the raw
+// repeat pattern. Unlike a resolved merge part, the repeat's pattern may be
+// a value folded at compile time (an equality/const_fn/call node), so type
+// those from their elem the way the solver types the raw pattern.
+fn repeatPatternType(plan: MatchPlan, pattern_idx: u32) Error!MergeType {
+    const node = plan.nodes[pattern_idx];
+    return switch (node.tag) {
+        .equality => elemMergeType(plan.elems[node.payload]),
+        // Constant functions and calls evaluate at match time; the solver
+        // types Constant and FunctionCall patterns as untyped.
+        .const_fn, .call, .bind, .bound_eq, .placeholder => .untyped,
+        .array => .array,
+        .object => .object,
+        .str_template => .string,
+        .range => error.RuntimeError,
+        .repeat => repeatPatternType(plan, pattern_idx + 1),
+        .merge, .const_key, .eval_key, .pattern_key => unreachable,
     };
 }
 
@@ -1435,22 +1483,29 @@ fn matchObjectMerge(
                     }
                 },
                 .repeat => {
-                    // Lowering only admits object repeats with counts that
-                    // cannot fail to evaluate as structural merge parts;
-                    // repeats with unbound counts (the solver's rest case)
-                    // stay on the tree path.
+                    // A bound-count object repeat is counted-structural:
+                    // claim exactly that many disjoint groups here. An
+                    // unbound count is the solvable rest, deferred to the
+                    // unbound handling below where the count is solved from
+                    // the leftover members.
                     const repeat_plan = plan.repeats[plan.nodes[part_idx].payload];
                     const pattern_idx = part_idx + 1;
                     const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
-                    const later_pattern_idx = if (repeat_plan.has_rebound_pattern)
-                        count_idx + plan.nodes[count_idx].subtree_len
-                    else
-                        pattern_idx;
                     std.debug.assert(plan.nodes[pattern_idx].tag == .object);
-                    const count_elem = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)).?;
-                    const repetitions = (try repeatCount(vm, count_elem)) orelse return false;
-                    if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, repetitions, matched_base))) {
-                        return false;
+                    if (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)) |count_elem| {
+                        const later_pattern_idx = if (repeat_plan.has_rebound_pattern)
+                            count_idx + plan.nodes[count_idx].subtree_len
+                        else
+                            pattern_idx;
+                        const repetitions = (try repeatCount(vm, count_elem)) orelse return false;
+                        if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, repetitions, matched_base))) {
+                            return false;
+                        }
+                    } else if (unbound_index == null) {
+                        unbound_index = i;
+                    } else {
+                        // Object merge can only have one unbound part
+                        return error.RuntimeError;
                     }
                 },
                 else => {
@@ -1977,11 +2032,16 @@ noinline fn emitBind(vm: *VM, local_var: LocalVar, value: Elem) Error!void {
     } });
 }
 
+// Resolve a limit to a value for the codepoint-scan path, which only ever
+// sees constant or bound-local character-range limits. A binding or
+// evaluable limit cannot be resolved without the value or the range node's
+// child index, neither available here.
 fn resolveRangeLimit(vm: *VM, plan: MatchPlan, limit: match_plan.RangePlan.Limit) Error!?Elem {
     return switch (limit) {
         .none => null,
         .const_elem => |idx| plan.elems[idx],
         .bound_local => |idx| try resolveBoundLocal(vm, plan.vars[idx]),
+        .bind_local, .eval => error.RuntimeError,
     };
 }
 

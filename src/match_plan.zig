@@ -114,9 +114,17 @@ pub const MatchPlan = struct {
             },
             .range => {
                 const range = self.ranges[node.payload];
-                try self.printLimit(vm, writer, range.lower);
+                var child = idx + 1;
+                switch (range.lower) {
+                    .eval => child = try self.printNode(vm, writer, child),
+                    else => try self.printLimit(vm, writer, range.lower),
+                }
                 try writer.print("..", .{});
-                try self.printLimit(vm, writer, range.upper);
+                switch (range.upper) {
+                    .eval => child = try self.printNode(vm, writer, child),
+                    else => try self.printLimit(vm, writer, range.upper),
+                }
+                return child;
             },
             .merge => {
                 try writer.print("(", .{});
@@ -146,7 +154,9 @@ pub const MatchPlan = struct {
         switch (limit) {
             .none => {},
             .const_elem => |i| try self.elems[i].print(vm, writer),
-            .bound_local => |i| try writer.print("{s}", .{vm.strings.get(self.vars[i].sid)}),
+            .bound_local, .bind_local => |i| try writer.print("{s}", .{vm.strings.get(self.vars[i].sid)}),
+            // Rendered by the caller, which holds the child subtree index.
+            .eval => unreachable,
         }
     }
 
@@ -221,9 +231,17 @@ pub const MatchPlan = struct {
             },
             .range => {
                 const range = self.ranges[node.payload];
-                try self.printLimit(vm, writer, range.lower);
+                var child = idx + 1;
+                switch (range.lower) {
+                    .eval => child = try self.printPatternSubtree(vm, writer, child),
+                    else => try self.printLimit(vm, writer, range.lower),
+                }
                 try writer.print("..", .{});
-                try self.printLimit(vm, writer, range.upper);
+                switch (range.upper) {
+                    .eval => child = try self.printPatternSubtree(vm, writer, child),
+                    else => try self.printLimit(vm, writer, range.upper),
+                }
+                return child;
             },
             .merge => {
                 try writer.print("(", .{});
@@ -451,5 +469,15 @@ pub const RangePlan = struct {
         const_elem: u32,
         // vars index; the local is statically bound.
         bound_local: u32,
+        // vars index; a statically-unbound local. The matched value is bound
+        // to the slot and the limit imposes no comparison, mirroring the
+        // solver matching an unbound limit as a pattern.
+        bind_local: u32,
+        // A compound limit expression (e.g. arithmetic on bound locals)
+        // evaluated at match time. Its subtree is a child of the range node,
+        // in lower-before-upper preorder; the interpreter derives the child
+        // index from the limits' presence. Mirrors the solver's attemptEval
+        // of a non-trivial limit.
+        eval,
     };
 };

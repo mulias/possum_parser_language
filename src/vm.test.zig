@@ -1218,7 +1218,7 @@ test "a range bound by a bound local compiles to a match plan" {
     }
 }
 
-test "a range with an unbound local bound falls back to the tree path" {
+test "a range with an unbound local bound compiles to a match plan" {
     const parser =
         \\('' $ 3) -> N..5 $ N
     ;
@@ -1233,7 +1233,7 @@ test "a range with an unbound local bound falls back to the tree path" {
         );
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(0, plan_count);
+        try std.testing.expectEqual(1, plan_count);
     }
 }
 
@@ -3482,7 +3482,7 @@ test "('' $ 4) -> (-2 * N) folds the negated repeat pattern" {
     );
 }
 
-test "a negated global falls back to the tree path" {
+test "a negated global compiles to a match plan" {
     const parser =
         \\Two = 2 ; ("" $ -2) -> -Two $ "ok"
     ;
@@ -3496,7 +3496,7 @@ test "a negated global falls back to the tree path" {
     );
     var plan_count: usize = 0;
     for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-    try std.testing.expectEqual(0, plan_count);
+    try std.testing.expectEqual(1, plan_count);
 }
 
 test "('' $ {'a': 1}) -> {K: V} binds key and value" {
