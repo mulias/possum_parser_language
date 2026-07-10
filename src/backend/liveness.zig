@@ -123,7 +123,7 @@ fn liveOut(insns: []const Ir.Insn, live_in: []const SlotSet, i: usize) SlotSet {
 }
 
 const testing = std.testing;
-const Region = @import("region.zig").Region;
+const Region = @import("../region.zig").Region;
 
 fn testRegion(n: usize) Region {
     return Region.new(n, n + 1);

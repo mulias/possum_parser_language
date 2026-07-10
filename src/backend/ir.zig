@@ -1,11 +1,12 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
-const Chunk = @import("chunk.zig").Chunk;
-const ChunkError = @import("chunk.zig").ChunkError;
-const OpCode = @import("op_code.zig").OpCode;
-const Region = @import("region.zig").Region;
-const StringTable = @import("string_table.zig").StringTable(.runtime);
+const runtime = @import("../runtime.zig");
+const Chunk = runtime.Chunk;
+const ChunkError = runtime.ChunkError;
+const OpCode = runtime.OpCode;
+const Region = @import("../region.zig").Region;
+const StringTable = @import("../string_table.zig").StringTable(.runtime);
 
 // Linear instruction list emitted by the compiler for a single function.
 // Jumps reference instruction indices. Byte offsets, jump distances, and

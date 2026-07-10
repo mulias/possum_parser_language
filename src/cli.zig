@@ -2,12 +2,13 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const Env = @import("env.zig").Env;
-const VM = @import("vm.zig").VM;
-const VMConfig = @import("vm.zig").Config;
+const runtime = @import("runtime.zig");
+const VM = runtime.VM;
+const VMConfig = runtime.Config;
 const Writers = @import("writer.zig").Writers;
 const build_options = @import("build_options");
 const cli_config = @import("cli_config.zig");
-const explain = @import("explain.zig");
+const explain = runtime.explain;
 const maxInt = std.math.maxInt;
 
 pub fn main() void {

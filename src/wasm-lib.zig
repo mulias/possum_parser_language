@@ -1,8 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const ExternalWriter = @import("writer.zig").ExternalWriter;
-const VM = @import("vm.zig").VM;
-const VMConfig = @import("vm.zig").Config;
+const runtime = @import("runtime.zig");
+const VM = runtime.VM;
+const VMConfig = runtime.VMConfig;
 const Writers = @import("writer.zig").Writers;
 
 const allocator = switch (builtin.mode) {

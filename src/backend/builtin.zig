@@ -1,13 +1,14 @@
 const std = @import("std");
 const unicode = std.unicode;
-const Elem = @import("elem.zig").Elem;
-const Function = @import("elem.zig").Elem.DynElem.Function;
-const NativeCode = @import("elem.zig").Elem.DynElem.NativeCode;
-const Region = @import("region.zig").Region;
-const StringTable = @import("string_table.zig").StringTable(.runtime);
-const VM = @import("vm.zig").VM;
-const Module = @import("module.zig").Module;
-const parsing = @import("parsing.zig");
+const runtime = @import("../runtime.zig");
+const Elem = runtime.Elem;
+const Function = runtime.Function;
+const NativeCode = runtime.NativeCode;
+const Region = @import("../region.zig").Region;
+const StringTable = @import("../string_table.zig").StringTable(.runtime);
+const VM = runtime.VM;
+const Module = runtime.Module;
+const parsing = @import("../parsing.zig");
 
 pub const CreateError = error{ OutOfMemory, ShortOverflow };
 

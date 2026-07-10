@@ -5,8 +5,8 @@ set -e
 zig build test
 
 ./bin/test-snapshot ./examples/
-./bin/test-snapshot ./src/parser_tests/
-./bin/test-snapshot ./src/compiler_tests/
-./bin/test-snapshot ./src/runtime_tests/
-./bin/test-snapshot ./src/stdlib_tests/
-./bin/test-snapshot ./src/rc_tests/
+./bin/test-snapshot ./snapshot_tests/parser/
+./bin/test-snapshot ./snapshot_tests/compiler/
+./bin/test-snapshot ./snapshot_tests/runtime/
+./bin/test-snapshot ./snapshot_tests/stdlib/
+./bin/test-snapshot ./snapshot_tests/rc/

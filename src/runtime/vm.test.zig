@@ -1,10 +1,10 @@
 const std = @import("std");
 const allocator = std.testing.allocator;
-const Compiler = @import("compiler.zig").Compiler;
+const Compiler = @import("../backend.zig").Compiler;
 const Elem = @import("elem.zig").Elem;
 const VM = @import("vm.zig").VM;
 const VMConfig = @import("vm.zig").Config;
-const testing = @import("testing.zig");
+const testing = @import("../testing.zig");
 const writers = testing.writers;
 
 const config = VMConfig{

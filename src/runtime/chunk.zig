@@ -3,7 +3,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Writer = std.Io.Writer;
 const Module = @import("module.zig").Module;
-const Region = @import("region.zig").Region;
+const Region = @import("../region.zig").Region;
 const OpCode = @import("op_code.zig").OpCode;
 const VM = @import("vm.zig").VM;
 
