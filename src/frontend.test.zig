@@ -4,7 +4,7 @@ const Frontend = @import("frontend.zig").Frontend;
 const VM = @import("runtime.zig").VM;
 const NodeKey = @import("frontend.zig").GlobalKey;
 const Module = @import("runtime.zig").Module;
-const StringTable = @import("string_table.zig").StringTable(.frontend);
+const StringTable = @import("frontend.zig").StringTable;
 const writers = @import("testing.zig").writers;
 
 const expect = std.testing.expect;

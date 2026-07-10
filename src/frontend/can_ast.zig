@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Region = @import("../region.zig").Region;
-const StringTable = @import("../string_table.zig").StringTable(.frontend);
+const StringTable = @import("string_table.zig").FrontendStringTable;
 
 declarations: ArrayList(Ast.ParserOrValue.Declaration) = .{},
 anonymous_functions: ArrayList(*Ast.RNode(Ast.Parser.AnonymousFunction)) = .{},

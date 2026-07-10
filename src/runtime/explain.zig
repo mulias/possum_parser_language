@@ -19,7 +19,7 @@ const Pos = vm_mod.Pos;
 const Module = @import("module.zig").Module;
 const Region = @import("../region.zig").Region;
 const LineRelativeRegion = @import("../region.zig").LineRelativeRegion;
-const StringTable = @import("../string_table.zig").StringTable(.runtime);
+const StringTable = @import("string_table.zig").RuntimeStringTable;
 
 // Values and patterns are rendered into fixed buffers at emit time: the
 // husk pools reclaim consumed values, so an event can never hold an Elem.

@@ -17,3 +17,4 @@ pub const GC = @import("runtime/gc.zig").GC;
 pub const match_plan = @import("runtime/match_plan.zig");
 pub const match_plan_interpreter = @import("runtime/match_plan_interpreter.zig");
 pub const explain = @import("runtime/explain.zig");
+pub const StringTable = @import("runtime/string_table.zig").RuntimeStringTable;

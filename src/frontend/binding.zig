@@ -7,7 +7,7 @@ const Ast = Frontend.Ast;
 const ClosureCapture = Frontend.ClosureCapture;
 const Module = @import("../runtime.zig").Module;
 const Region = @import("../region.zig").Region;
-const Strings = @import("../string_table.zig").StringTable(.frontend);
+const Strings = @import("string_table.zig").FrontendStringTable;
 
 // Compile-time analysis of local value variables. A forward walk over a
 // function body's AST tracks, for every local slot, whether the local is
