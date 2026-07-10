@@ -2,12 +2,12 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const HashMap = std.AutoArrayHashMapUnmanaged;
 const Can = @import("frontend/can.zig");
-const CanAst = @import("frontend/can_ast.zig");
+pub const Ast = @import("frontend/can_ast.zig");
 const DependencyGraph = @import("frontend/dependency_graph.zig");
 const DependencyResolver = @import("frontend/dependency_resolver.zig");
 const Module = @import("runtime.zig").Module;
 const Parser = @import("frontend/parser.zig").Parser;
-const StringTable = @import("string_table.zig").StringTable(.frontend);
+pub const StringTable = @import("frontend/string_table.zig").FrontendStringTable;
 const VM = @import("runtime.zig").VM;
 const Writers = @import("writer.zig").Writers;
 const Region = @import("region.zig").Region;
@@ -31,8 +31,6 @@ pub const AddModuleOpts = struct {
 };
 
 pub const Frontend = @This();
-
-pub const Ast = CanAst;
 
 pub const GlobalKey = DependencyGraph.NodeKey;
 

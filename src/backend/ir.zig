@@ -6,7 +6,7 @@ const Chunk = runtime.Chunk;
 const ChunkError = runtime.ChunkError;
 const OpCode = runtime.OpCode;
 const Region = @import("../region.zig").Region;
-const StringTable = @import("../string_table.zig").StringTable(.runtime);
+const StringTable = runtime.StringTable;
 
 // Linear instruction list emitted by the compiler for a single function.
 // Jumps reference instruction indices. Byte offsets, jump distances, and
