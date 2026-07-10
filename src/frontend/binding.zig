@@ -25,11 +25,6 @@ const Strings = @import("../string_table.zig").StringTable(.frontend);
 // - A pattern occurrence of a local bound on only some paths is a compile
 //   error: it would have to be a fresh binding on one path and an equality
 //   check on the other.
-// - A pattern may bind a local whose slot still physically holds a value
-//   from an out-of-scope binding. Those slots are recorded in
-//   Maps.preclears so the frontend restores their placeholder before the
-//   destructure; the pattern solver's bind-if-unbound behavior is then
-//   correct as-is.
 // - Repeat counts that are a bare local are recorded in
 //   Maps.repeat_count_bound so codegen picks the bound or count-collecting
 //   loop without a runtime bound check.
@@ -84,15 +79,9 @@ pub const Diagnostic = struct {
     };
 };
 
-pub const PreClear = struct {
-    slot: u8,
-    name: Strings.Id,
-};
-
 // Analysis results the frontend consults while emitting bytecode, keyed by
 // AST pattern nodes (each destructure site has a distinct pattern node).
 pub const Maps = struct {
-    preclears: AutoHashMap(*const Ast.Pattern.RNode, ArrayList(PreClear)) = .{},
     repeat_count_bound: AutoHashMap(*const Ast.Pattern.RNode, bool) = .{},
     // Whether each pattern-local occurrence is bound on the paths reaching
     // its destructure, keyed by the identifier node. Lets codegen lower an
@@ -106,9 +95,6 @@ pub const Maps = struct {
     merge_part_unbound: AutoHashMap(*const Ast.Pattern.RNode, bool) = .{},
 
     pub fn deinit(self: *Maps, allocator: Allocator) void {
-        var preclears = self.preclears.valueIterator();
-        while (preclears.next()) |list| list.deinit(allocator);
-        self.preclears.deinit(allocator);
         self.repeat_count_bound.deinit(allocator);
         self.pattern_local_bound.deinit(allocator);
         self.merge_part_unbound.deinit(allocator);
@@ -252,29 +238,28 @@ const Analyzer = struct {
     fn destructureSite(self: *Analyzer, env: *Env, pattern: *const Ast.Pattern.RNode) Allocator.Error!void {
         var bindable = SlotSet.initEmpty();
         self.collectBindingOccurrences(pattern, &bindable);
-        try self.visitPatternLocals(env, &bindable, pattern, pattern);
+        try self.visitPatternLocals(env, &bindable, pattern);
     }
 
     fn visitPatternLocals(
         self: *Analyzer,
         env: *Env,
         bindable: *const SlotSet,
-        root: *const Ast.Pattern.RNode,
         rnode: *const Ast.Pattern.RNode,
     ) Allocator.Error!void {
         switch (rnode.node) {
-            .identifier => |ident| try self.patternLocalOccurrence(env, root, rnode, ident.name, rnode.region),
+            .identifier => |ident| try self.patternLocalOccurrence(env, rnode, ident.name, rnode.region),
             .array => |elems| for (elems.items) |elem| {
-                try self.visitPatternLocals(env, bindable, root, elem);
+                try self.visitPatternLocals(env, bindable, elem);
             },
             .object => |pairs| for (pairs.items) |pair| {
-                try self.visitPatternLocals(env, bindable, root, pair.key);
-                try self.visitPatternLocals(env, bindable, root, pair.value);
+                try self.visitPatternLocals(env, bindable, pair.key);
+                try self.visitPatternLocals(env, bindable, pair.value);
             },
             .string_template => |segments| {
                 try self.checkOneUnboundPart(env, segments.items, .template_segments);
                 for (segments.items) |segment| {
-                    try self.visitPatternLocals(env, bindable, root, segment);
+                    try self.visitPatternLocals(env, bindable, segment);
                 }
             },
             .merge => {
@@ -284,25 +269,25 @@ const Analyzer = struct {
 
                 try self.checkOneUnboundPart(env, parts.items, .merge_parts);
                 for (parts.items) |part| {
-                    try self.visitPatternLocals(env, bindable, root, part);
+                    try self.visitPatternLocals(env, bindable, part);
                 }
             },
-            .negation => |inner| try self.visitPatternLocals(env, bindable, root, inner),
+            .negation => |inner| try self.visitPatternLocals(env, bindable, inner),
             .range => |bounds| {
-                if (bounds.lower) |lower| try self.visitPatternLocals(env, bindable, root, lower);
-                if (bounds.upper) |upper| try self.visitPatternLocals(env, bindable, root, upper);
+                if (bounds.lower) |lower| try self.visitPatternLocals(env, bindable, lower);
+                if (bounds.upper) |upper| try self.visitPatternLocals(env, bindable, upper);
             },
             .repeat => |repeat| {
-                try self.visitPatternLocals(env, bindable, root, repeat.left);
-                try self.visitPatternLocals(env, bindable, root, repeat.right);
+                try self.visitPatternLocals(env, bindable, repeat.left);
+                try self.visitPatternLocals(env, bindable, repeat.right);
             },
             .function_call => |function_call| {
                 if (function_call.function.node == .identifier) {
                     const ident = function_call.function.node.identifier;
-                    try self.functionVarOccurrence(env, bindable, root, ident.name, function_call.function.region);
+                    try self.functionVarOccurrence(env, bindable, ident.name, function_call.function.region);
                 }
                 for (function_call.args.items) |arg| {
-                    try self.visitValueInPatternLocals(env, bindable, root, arg);
+                    try self.visitValueInPatternLocals(env, bindable, arg);
                 }
             },
             .false, .true, .null, .number_float, .number_string, .string => {},
@@ -313,12 +298,11 @@ const Analyzer = struct {
         self: *Analyzer,
         env: *Env,
         bindable: *const SlotSet,
-        root: *const Ast.Pattern.RNode,
         rnode: *const Ast.Value.RNode,
     ) Allocator.Error!void {
         switch (rnode.node) {
-            .identifier => |ident| try self.functionVarOccurrence(env, bindable, root, ident.name, rnode.region),
-            .negation => |inner| try self.visitValueInPatternLocals(env, bindable, root, inner),
+            .identifier => |ident| try self.functionVarOccurrence(env, bindable, ident.name, rnode.region),
+            .negation => |inner| try self.visitValueInPatternLocals(env, bindable, inner),
             // astToValueInPattern rejects every other compound node.
             else => {},
         }
@@ -334,7 +318,6 @@ const Analyzer = struct {
         self: *Analyzer,
         env: *Env,
         bindable: *const SlotSet,
-        root: *const Ast.Pattern.RNode,
         name: Strings.Id,
         region: Region,
     ) !void {
@@ -349,9 +332,6 @@ const Analyzer = struct {
             .unbound => {
                 if (!bindable.isSet(slot)) {
                     try self.diagnose(region, name, .unbound_function_var);
-                }
-                if (state.stale) {
-                    try self.addPreclear(root, slot, name);
                 }
             },
             .split => if (bindable.isSet(slot)) {
@@ -544,7 +524,6 @@ const Analyzer = struct {
     fn patternLocalOccurrence(
         self: *Analyzer,
         env: *Env,
-        root: *const Ast.Pattern.RNode,
         rnode: *const Ast.Pattern.RNode,
         name: Strings.Id,
         region: Region,
@@ -566,9 +545,6 @@ const Analyzer = struct {
         switch (state.state) {
             .bound => {},
             .unbound => {
-                if (state.stale) {
-                    try self.addPreclear(root, slot, name);
-                }
                 state.* = .{ .state = .bound, .stale = false };
             },
             .split => {
@@ -577,12 +553,6 @@ const Analyzer = struct {
                 state.* = .{ .state = .bound, .stale = false };
             },
         }
-    }
-
-    fn addPreclear(self: *Analyzer, root: *const Ast.Pattern.RNode, slot: u8, name: Strings.Id) !void {
-        const gop = try self.frontend.binding_maps.preclears.getOrPut(self.allocator, root);
-        if (!gop.found_existing) gop.value_ptr.* = .{};
-        try gop.value_ptr.append(self.allocator, .{ .slot = slot, .name = name });
     }
 
     // Mark slots that `after` may have bound or dirtied relative to `base`

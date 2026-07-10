@@ -1553,8 +1553,6 @@ pub const Compiler = struct {
 
         try self.lowerPatternNode(module_id, rnode, &builder, false, 0);
 
-        try self.emitPatternPreclears(module_id, rnode);
-
         const nodes = try builder.nodes.toOwnedSlice(allocator);
         errdefer allocator.free(nodes);
         const vars = try builder.vars.toOwnedSlice(allocator);
@@ -2244,22 +2242,6 @@ pub const Compiler = struct {
                     .subtree => return error.UnsupportedPattern,
                 }
             },
-        }
-    }
-
-    // The binding analysis lists slots this pattern may bind while the slot
-    // still holds a value whose binding is out of scope. Restore their
-    // placeholders so the solver's bind-if-unbound check sees them as
-    // unbound. Stack-neutral, so it can run any time before the Destructure.
-    fn emitPatternPreclears(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) !void {
-        const preclears = self.frontend.binding_maps.preclears.get(rnode) orelse return;
-
-        for (preclears.items) |preclear| {
-            const bytes = self.frontend.strings.get(preclear.name);
-            const underscored = bytes.len > 0 and bytes[0] == '_';
-            const placeholder = Elem.valueVar(try self.internForRuntime(preclear.name), underscored);
-            try self.writeConstant(module_id, placeholder, rnode.region);
-            try self.emitUnaryOp(.SetLocal, preclear.slot, rnode.region);
         }
     }
 
