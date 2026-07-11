@@ -33,6 +33,25 @@ pub const MatchPlan = struct {
         allocator.free(self.repeats);
     }
 
+    // Iterate the direct children of a preorder node: next() returns a
+    // child's index and skips past its subtree.
+    pub fn children(self: MatchPlan, node_idx: u32) ChildIterator {
+        return .{ .nodes = self.nodes, .next_idx = node_idx + 1 };
+    }
+
+    pub const ChildIterator = struct {
+        nodes: []const Node,
+        next_idx: u32,
+
+        // The parent node's tag and payload bound the child count; the
+        // iterator trusts the caller to stop in time.
+        pub fn next(self: *ChildIterator) u32 {
+            const idx = self.next_idx;
+            self.next_idx += self.nodes[idx].subtree_len;
+            return idx;
+        }
+    };
+
     pub fn print(self: MatchPlan, vm: VM, writer: *Writer) Writer.Error!void {
         _ = try self.printNode(vm, writer, 0);
     }
