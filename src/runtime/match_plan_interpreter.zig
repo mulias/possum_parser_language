@@ -1744,41 +1744,12 @@ fn matchUntypedMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: 
 }
 
 fn matchStringTemplate(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u32) Error!bool {
-    var before_rest_length: usize = 0;
-    var after_rest_length: usize = 0;
     var rest_index: ?usize = null;
-
-    // Calculate lengths and find the rest segment. Character ranges
-    // always match exactly one character.
     for (0..count) |i| {
-        const part_len = switch (mergePart(vm, base, i)) {
-            .value => |elem| ((try elem.stringBytes(vm)) orelse @panic("Internal Error")).len,
-            .subtree => |n| blk: {
-                // The only structural template segment is a character
-                // range; everything else evaluates or is the rest.
-                std.debug.assert(plan.nodes[n].tag == .range);
-                break :blk 1;
-            },
-            .rest => {
-                rest_index = i;
-                continue;
-            },
-        };
-        if (rest_index == null) {
-            before_rest_length += part_len;
-        } else {
-            after_rest_length += part_len;
-        }
+        if (mergePart(vm, base, i) == .rest) rest_index = i;
     }
 
     const value_str = (try value.stringBytes(vm)) orelse return false;
-    if (rest_index == null) {
-        // No rest to absorb slack: the segments must cover the value
-        // exactly.
-        if (value_str.len != before_rest_length) return false;
-    } else if (value_str.len < before_rest_length + after_rest_length) {
-        return false;
-    }
 
     var value_index: usize = 0;
 
@@ -1790,19 +1761,26 @@ fn matchStringTemplate(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count
         }
     }
 
-    // Handle the rest segment if it exists
     if (rest_index) |ui| {
-        const rest_start = value_index;
-        const rest_end = value_str.len - after_rest_length;
-
-        std.debug.assert(rest_start <= rest_end);
+        // Position the after segments flush against the end of the value
+        // by walking backward, segment by segment: fixed strings by their
+        // byte length, character ranges by one codepoint. Whatever remains
+        // between the before and after segments is the rest.
+        var rest_end = value_str.len;
+        var after = count;
+        while (after > ui + 1) {
+            after -= 1;
+            rest_end = (try segmentStart(vm, plan, value_str, rest_end, value_index, mergePart(vm, base, after))) orelse
+                return false;
+        }
+        std.debug.assert(value_index <= rest_end);
 
         if (!(try matchTemplateRestSegment(
             vm,
             plan,
             value,
             value_str,
-            rest_start,
+            value_index,
             rest_end,
             mergePart(vm, base, ui).rest,
         ))) {
@@ -1819,11 +1797,49 @@ fn matchStringTemplate(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count
         }
     }
 
-    return true;
+    // The segments (and rest) must cover the value exactly.
+    return value_index == value_str.len;
+}
+
+// The byte offset where a fixed after-segment starts, given that it ends
+// at `end` and cannot start before `min_start`. A range segment is one
+// codepoint: step back over continuation bytes to a lead byte whose
+// sequence length must land exactly on `end`, so malformed UTF-8 fails
+// the match. Null means the segment does not fit.
+fn segmentStart(
+    vm: *VM,
+    plan: MatchPlan,
+    value_str: []const u8,
+    end: usize,
+    min_start: usize,
+    part: ResolvedPart,
+) Error!?usize {
+    switch (part) {
+        .value => |elem| {
+            const part_str = (try elem.stringBytes(vm)) orelse @panic("Internal Error");
+            if (part_str.len > end - min_start) return null;
+            return end - part_str.len;
+        },
+        .subtree => |n| {
+            std.debug.assert(plan.nodes[n].tag == .range);
+            var start = end;
+            while (start > min_start and end - start < 4) {
+                start -= 1;
+                const byte = value_str[start];
+                if (byte & 0b1100_0000 != 0b1000_0000) {
+                    const len = unicode.utf8ByteSequenceLength(byte) catch return null;
+                    return if (start + len == end) start else null;
+                }
+            }
+            return null;
+        },
+        // The caller stops at the rest segment.
+        .rest => unreachable,
+    }
 }
 
 // A constant segment compared bytewise or a character range matching
-// exactly one character.
+// exactly one codepoint.
 fn matchTemplateFixedSegment(
     vm: *VM,
     plan: MatchPlan,
@@ -1848,10 +1864,14 @@ fn matchTemplateFixedSegment(
         .subtree => |n| {
             std.debug.assert(plan.nodes[n].tag == .range);
             if (value_index.* >= value_str.len) return false;
-            const char_byte = value_str[value_index.*];
-            const char_elem = Elem.string(try vm.strings.insert(&[_]u8{char_byte}));
+            const byte_len = unicode.utf8ByteSequenceLength(value_str[value_index.*]) catch return false;
+            const end_index = value_index.* + byte_len;
+            if (end_index > value_str.len) return false;
+            const char_bytes = value_str[value_index.*..end_index];
+            if (parsing.utf8Decode(char_bytes) == null) return false;
+            const char_elem = Elem.string(try vm.strings.insert(char_bytes));
             if (!(try matchNode(vm, char_elem, plan, n, null))) return false;
-            value_index.* += 1;
+            value_index.* = end_index;
         },
         // The callers stop at the rest segment.
         .rest => unreachable,

@@ -1302,3 +1302,34 @@ exactly.
   
   [ParserFailure]
   [1]
+
+A template range segment matches one codepoint, not one byte, so
+multi-byte characters work on both sides of the rest segment.
+
+  $ possum -p '"aéb" -> "a%("à".."ö")b" $ "ok"' -i 'aéb'
+  "ok"
+
+  $ possum -p '"aÿb" -> "a%("à".."ö")b" $ "ok"' -i 'aÿb'
+  
+  Parse Failure: value "a\xc3\xbfb" did not match pattern "a%("\xc3\xa0".."\xc3\xb6")b" (esc)
+  
+  input:1:4:
+  
+  1 \xe2\x96\x8f a\xc3\xbfb (esc)
+    \xe2\x96\x8f     ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:10-27:
+  
+  1 \xe2\x96\x8f "a\xc3\xbfb" -> "a%("\xc3\xa0".."\xc3\xb6")b" $ "ok" (esc)
+    \xe2\x96\x8f           ^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p '"a😀b" -> "a%("😀".."😃")b" $ "ok"' -i 'a😀b'
+  "ok"
+
+  $ possum -p '"xyzéb" -> "%(R)%("à".."ö")b" $ R' -i 'xyzéb'
+  "xyz"
