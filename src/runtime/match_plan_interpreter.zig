@@ -488,13 +488,7 @@ fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
         return false;
     } else if (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)) |count_elem| {
         // The count is a value: match by iterating.
-        if (!count_elem.isNumber()) return error.RuntimeError;
-
-        const count_float = numberAsFloat(count_elem, vm);
-
-        // Count must be a non-negative integer
-        if (count_float < 0 or count_float != @floor(count_float)) return false;
-        const count = @as(usize, @intFromFloat(count_float));
+        const count = (try repeatCount(vm, count_elem)) orelse return false;
 
         if (try value.stringBytes(vm)) |value_str| {
             // Special case: count is 0
@@ -567,10 +561,10 @@ fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
 
         // Number pattern matching (pattern * count = value)
         if (value.isNumber()) {
-            if (count_float == 0) return false;
+            if (count == 0) return false;
 
             const value_float = numberAsFloat(value, vm);
-            const computed_pattern = Elem.numberFloat(value_float / count_float);
+            const computed_pattern = Elem.numberFloat(value_float / @as(f64, @floatFromInt(count)));
             return matchNode(vm, computed_pattern, plan, pattern_idx, null);
         }
 
