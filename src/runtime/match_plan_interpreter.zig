@@ -2133,8 +2133,12 @@ fn evalCall(vm: *VM, plan: MatchPlan, call_node_idx: u32) Error!Elem {
         .constant => |elem_idx| plan.elems[elem_idx],
     };
 
-    const args = try vm.allocator.alloc(Elem, call.arg_count);
-    defer vm.allocator.free(args);
+    var stack_args: [8]Elem = undefined;
+    const args = if (call.arg_count <= stack_args.len)
+        stack_args[0..call.arg_count]
+    else
+        try vm.allocator.alloc(Elem, call.arg_count);
+    defer if (call.arg_count > stack_args.len) vm.allocator.free(args);
 
     var children = plan.children(call_node_idx);
     for (args) |*arg| {
