@@ -330,293 +330,304 @@ fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
     const later_pattern_idx = laterPatternIdx(plan, repeat_plan, pattern_idx, count_idx);
 
     if (try resolveRepeatOperand(vm, plan, repeat_plan.pattern, pattern_idx)) |pattern_value| {
-        // The pattern is a value: derive the count from the value.
-
-        if (try pattern_value.stringBytes(vm)) |pattern_str| {
-            const value_str = (try value.stringBytes(vm)) orelse return false;
-
-            // Special case: empty string (identity element)
-            if (pattern_str.len == 0) {
-                if (value_str.len == 0) {
-                    // "" * N = "" for any N >= 1
-                    // Choose N = 1 as the canonical answer
-                    return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
-                } else {
-                    // Non-empty value can't be made from repeating empty pattern
-                    return false;
-                }
-            }
-
-            // Check if value length is divisible by pattern length
-            if (value_str.len % pattern_str.len != 0) return false;
-
-            const count = value_str.len / pattern_str.len;
-
-            // Verify value is pattern repeated count times
-            var i: usize = 0;
-            while (i < count) : (i += 1) {
-                const start = i * pattern_str.len;
-                const end = start + pattern_str.len;
-                if (!std.mem.eql(u8, value_str[start..end], pattern_str)) {
-                    return false;
-                }
-            }
-
-            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
-            return matchNode(vm, count_elem, plan, count_idx, null);
-        }
-
-        if (pattern_value.isDynType(.Array)) {
-            if (!value.isDynType(.Array)) return false;
-
-            const pattern_array = pattern_value.asDyn().asArray();
-            const value_array = value.asDyn().asArray();
-
-            const pattern_len = pattern_array.len();
-            if (pattern_len == 0) return false;
-            if (value_array.len() % pattern_len != 0) return false;
-
-            const count = value_array.len() / pattern_len;
-
-            // Verify value is pattern array repeated count times
-            var i: usize = 0;
-            while (i < count) : (i += 1) {
-                const start = i * pattern_len;
-                for (0..pattern_len) |j| {
-                    const value_elem = value_array.elems.items[start + j];
-                    const pattern_elem_at_j = pattern_array.elems.items[j];
-                    if (printSteps(vm)) try emitEquality(vm, value_elem, pattern_elem_at_j);
-                    if (!value_elem.isEql(pattern_elem_at_j, vm.*)) {
-                        return false;
-                    }
-                }
-            }
-
-            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
-            return matchNode(vm, count_elem, plan, count_idx, null);
-        }
-
-        // Object repetition: merging an object with itself is the
-        // identity, so like booleans the canonical count is 1
-        if (pattern_value.isDynType(.Object)) {
-            if (!value.isDynType(.Object)) return false;
-
-            const pattern_members = pattern_value.asDyn().asObject().members.count();
-            const value_members = value.asDyn().asObject().members.count();
-
-            if (value_members == 0) {
-                // {} is P * 0 for non-empty P, and {} * N for any N >= 1
-                const count_elem = Elem.numberFloat(if (pattern_members == 0) 1 else 0);
-                return matchNode(vm, count_elem, plan, count_idx, null);
-            }
-
-            if (printSteps(vm)) try emitEquality(vm, value, pattern_value);
-            if (!value.isEql(pattern_value, vm.*)) return false;
-            return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
-        }
-
-        // Number repetition (multiplication)
-        if (pattern_value.isNumber() and value.isNumber()) {
-            const pattern_float = numberAsFloat(pattern_value, vm);
-            const value_float = numberAsFloat(value, vm);
-
-            // Special case: zero (identity element)
-            if (pattern_float == 0) {
-                if (value_float == 0) {
-                    // 0 * N = 0 for any N >= 1
-                    // Choose N = 1 as the canonical answer
-                    return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
-                } else {
-                    // Non-zero value can't be made from repeating zero
-                    return false;
-                }
-            }
-
-            const count_elem = Elem.numberFloat(value_float / pattern_float);
-            return matchNode(vm, count_elem, plan, count_idx, null);
-        }
-
-        // Boolean repetition (OR)
-        if (pattern_value.isType(.Const)) {
-            const pattern_const = pattern_value.asConst();
-            if (pattern_const == .True or pattern_const == .False) {
-                if (!value.isType(.Const)) return false;
-                const value_const = value.asConst();
-                if (value_const != .True and value_const != .False) return false;
-
-                if (pattern_value.isEql(value, vm.*)) {
-                    // true * N = true and false * N = false for any N >= 1
-                    // Choose N = 1 as the canonical answer
-                    return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
-                } else {
-                    // false can't produce true, and true can't produce false
-                    return false;
-                }
-            }
-        }
-
-        // Other types not supported
-        return false;
+        return matchRepeatValuePattern(vm, plan, value, pattern_value, count_idx);
     } else if (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)) |count_elem| {
-        // The count is a value: match by iterating.
-        const count = (try repeatCount(vm, count_elem)) orelse return false;
+        return matchRepeatValueCount(vm, plan, value, count_elem, pattern_idx, later_pattern_idx);
+    } else {
+        return matchRepeatUnresolved(vm, plan, value, pattern_idx, count_idx, later_pattern_idx);
+    }
+}
 
-        if (try value.stringBytes(vm)) |value_str| {
-            // Special case: count is 0
-            if (count == 0) {
-                // Pattern * 0 = "" for any pattern (empty string identity)
-                return value_str.len == 0;
+// The pattern is a value: derive the count from the value.
+fn matchRepeatValuePattern(vm: *VM, plan: MatchPlan, value: Elem, pattern_value: Elem, count_idx: u32) Error!bool {
+    if (try pattern_value.stringBytes(vm)) |pattern_str| {
+        const value_str = (try value.stringBytes(vm)) orelse return false;
+
+        // Special case: empty string (identity element)
+        if (pattern_str.len == 0) {
+            if (value_str.len == 0) {
+                // "" * N = "" for any N >= 1
+                // Choose N = 1 as the canonical answer
+                return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+            } else {
+                // Non-empty value can't be made from repeating empty pattern
+                return false;
             }
+        }
 
-            // Range patterns match codepoint-by-codepoint
-            if (plan.nodes[pattern_idx].tag == .range) {
-                const codepoint_count = (try countRangeCodepoints(vm, plan, pattern_idx, value_str)) orelse
-                    return false;
-                return codepoint_count == count;
+        // Check if value length is divisible by pattern length
+        if (value_str.len % pattern_str.len != 0) return false;
+
+        const count = value_str.len / pattern_str.len;
+
+        // Verify value is pattern repeated count times
+        var i: usize = 0;
+        while (i < count) : (i += 1) {
+            const start = i * pattern_str.len;
+            const end = start + pattern_str.len;
+            if (!std.mem.eql(u8, value_str[start..end], pattern_str)) {
+                return false;
             }
+        }
 
-            // For other patterns (like unbound variables), compute repeated
-            // chunks. Check if value length is divisible by count.
-            if (value_str.len % count != 0) return false;
+        const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+        return matchNode(vm, count_elem, plan, count_idx, null);
+    }
 
-            const chunk_len = value_str.len / count;
+    if (pattern_value.isDynType(.Array)) {
+        if (!value.isDynType(.Array)) return false;
 
-            // Verify all chunks are equal
-            var i: usize = 1;
-            while (i < count) : (i += 1) {
-                const start = i * chunk_len;
-                const end = start + chunk_len;
-                if (!std.mem.eql(u8, value_str[0..chunk_len], value_str[start..end])) {
+        const pattern_array = pattern_value.asDyn().asArray();
+        const value_array = value.asDyn().asArray();
+
+        const pattern_len = pattern_array.len();
+        if (pattern_len == 0) return false;
+        if (value_array.len() % pattern_len != 0) return false;
+
+        const count = value_array.len() / pattern_len;
+
+        // Verify value is pattern array repeated count times
+        var i: usize = 0;
+        while (i < count) : (i += 1) {
+            const start = i * pattern_len;
+            for (0..pattern_len) |j| {
+                const value_elem = value_array.elems.items[start + j];
+                const pattern_elem_at_j = pattern_array.elems.items[j];
+                if (printSteps(vm)) try emitEquality(vm, value_elem, pattern_elem_at_j);
+                if (!value_elem.isEql(pattern_elem_at_j, vm.*)) {
                     return false;
                 }
             }
-
-            // Match the first chunk against the pattern to bind variables
-            const chunk_elem = try substringElem(vm, value, value_str, 0, chunk_len);
-            return matchNode(vm, chunk_elem, plan, pattern_idx, null);
         }
 
-        if (value.isDynType(.Array)) {
-            const value_array = value.asDyn().asArray();
+        const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+        return matchNode(vm, count_elem, plan, count_idx, null);
+    }
 
-            // Value must have exactly count elements
-            if (value_array.len() != count) return false;
+    // Object repetition: merging an object with itself is the
+    // identity, so like booleans the canonical count is 1
+    if (pattern_value.isDynType(.Object)) {
+        if (!value.isDynType(.Object)) return false;
 
-            // Match each element against the pattern
-            for (value_array.elems.items, 0..) |elem, i| {
-                const sub = if (i == 0) pattern_idx else later_pattern_idx;
-                if (!(try matchNode(vm, elem, plan, sub, null))) return false;
+        const pattern_members = pattern_value.asDyn().asObject().members.count();
+        const value_members = value.asDyn().asObject().members.count();
+
+        if (value_members == 0) {
+            // {} is P * 0 for non-empty P, and {} * N for any N >= 1
+            const count_elem = Elem.numberFloat(if (pattern_members == 0) 1 else 0);
+            return matchNode(vm, count_elem, plan, count_idx, null);
+        }
+
+        if (printSteps(vm)) try emitEquality(vm, value, pattern_value);
+        if (!value.isEql(pattern_value, vm.*)) return false;
+        return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+    }
+
+    // Number repetition (multiplication)
+    if (pattern_value.isNumber() and value.isNumber()) {
+        const pattern_float = numberAsFloat(pattern_value, vm);
+        const value_float = numberAsFloat(value, vm);
+
+        // Special case: zero (identity element)
+        if (pattern_float == 0) {
+            if (value_float == 0) {
+                // 0 * N = 0 for any N >= 1
+                // Choose N = 1 as the canonical answer
+                return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+            } else {
+                // Non-zero value can't be made from repeating zero
+                return false;
             }
-            return true;
         }
 
-        // Object pattern matching: the members partition into `count`
-        // disjoint groups, each matching the pattern
-        if (value.isDynType(.Object)) {
-            if (plan.nodes[pattern_idx].tag != .object) return false;
+        const count_elem = Elem.numberFloat(value_float / pattern_float);
+        return matchNode(vm, count_elem, plan, count_idx, null);
+    }
 
-            const pair_count = plan.nodes[pattern_idx].payload;
-            const value_object = value.asDyn().asObject();
-            const member_count = value_object.members.count();
+    // Boolean repetition (OR)
+    if (pattern_value.isType(.Const)) {
+        const pattern_const = pattern_value.asConst();
+        if (pattern_const == .True or pattern_const == .False) {
+            if (!value.isType(.Const)) return false;
+            const value_const = value.asConst();
+            if (value_const != .True and value_const != .False) return false;
 
-            if (count == 0 or pair_count == 0) {
-                return member_count == 0;
+            if (pattern_value.isEql(value, vm.*)) {
+                // true * N = true and false * N = false for any N >= 1
+                // Choose N = 1 as the canonical answer
+                return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+            } else {
+                // false can't produce true, and true can't produce false
+                return false;
             }
-            if (member_count != count * pair_count) return false;
+        }
+    }
 
-            const matched_base = vm.plan_matched_keys.items.len;
-            defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
+    // Other types not supported
+    return false;
+}
 
-            return matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, count, matched_base);
+// The count is a value: match by iterating.
+fn matchRepeatValueCount(vm: *VM, plan: MatchPlan, value: Elem, count_elem: Elem, pattern_idx: u32, later_pattern_idx: u32) Error!bool {
+    const count = (try repeatCount(vm, count_elem)) orelse return false;
+
+    if (try value.stringBytes(vm)) |value_str| {
+        // Special case: count is 0
+        if (count == 0) {
+            // Pattern * 0 = "" for any pattern (empty string identity)
+            return value_str.len == 0;
         }
 
-        // Number pattern matching (pattern * count = value)
-        if (value.isNumber()) {
-            if (count == 0) return false;
-
-            const value_float = numberAsFloat(value, vm);
-            const computed_pattern = Elem.numberFloat(value_float / @as(f64, @floatFromInt(count)));
-            return matchNode(vm, computed_pattern, plan, pattern_idx, null);
-        }
-
-        // Other value types not supported
-        return false;
-    } else {
-        // Neither pattern nor count evaluates.
-        // Special case: Range pattern with unbound count
+        // Range patterns match codepoint-by-codepoint
         if (plan.nodes[pattern_idx].tag == .range) {
-            // This only works for string values
-            const value_str = (try value.stringBytes(vm)) orelse return false;
-
             const codepoint_count = (try countRangeCodepoints(vm, plan, pattern_idx, value_str)) orelse
                 return false;
-
-            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(codepoint_count)));
-            return matchNode(vm, count_elem, plan, count_idx, null);
+            return codepoint_count == count;
         }
 
-        // Object pattern with unbound count: the count is however many
-        // disjoint groups of members the pattern claims
-        if (plan.nodes[pattern_idx].tag == .object) {
-            if (!value.isDynType(.Object)) return false;
+        // For other patterns (like unbound variables), compute repeated
+        // chunks. Check if value length is divisible by count.
+        if (value_str.len % count != 0) return false;
 
-            const pair_count = plan.nodes[pattern_idx].payload;
-            const value_object = value.asDyn().asObject();
-            const member_count = value_object.members.count();
+        const chunk_len = value_str.len / count;
 
-            if (pair_count == 0) {
-                // {} * N = {} for any N >= 1; choose N = 1 as canonical
-                if (member_count != 0) return false;
-                return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
-            }
-            if (member_count % pair_count != 0) return false;
-
-            const count = member_count / pair_count;
-
-            const matched_base = vm.plan_matched_keys.items.len;
-            defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
-
-            if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, count, matched_base))) {
+        // Verify all chunks are equal
+        var i: usize = 1;
+        while (i < count) : (i += 1) {
+            const start = i * chunk_len;
+            const end = start + chunk_len;
+            if (!std.mem.eql(u8, value_str[0..chunk_len], value_str[start..end])) {
                 return false;
             }
-
-            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
-            return matchNode(vm, count_elem, plan, count_idx, null);
         }
 
-        // Array with a fixed-length pattern but unbound elements and count
-        if (try fixedArrayLength(vm, plan, pattern_idx)) |pattern_len| {
-            if (!value.isDynType(.Array)) return false;
+        // Match the first chunk against the pattern to bind variables
+        const chunk_elem = try substringElem(vm, value, value_str, 0, chunk_len);
+        return matchNode(vm, chunk_elem, plan, pattern_idx, null);
+    }
 
-            const value_array = value.asDyn().asArray();
-            if (pattern_len == 0) return false;
-            if (value_array.len() % pattern_len != 0) return false;
+    if (value.isDynType(.Array)) {
+        const value_array = value.asDyn().asArray();
 
-            const count = value_array.len() / pattern_len;
+        // Value must have exactly count elements
+        if (value_array.len() != count) return false;
 
-            // Match each chunk against the pattern
-            var i: usize = 0;
-            while (i < count) : (i += 1) {
-                const start = i * pattern_len;
-                const end = start + pattern_len;
+        // Match each element against the pattern
+        for (value_array.elems.items, 0..) |elem, i| {
+            const sub = if (i == 0) pattern_idx else later_pattern_idx;
+            if (!(try matchNode(vm, elem, plan, sub, null))) return false;
+        }
+        return true;
+    }
 
-                const chunk_array = try Elem.DynElem.Array.create(vm, pattern_len);
-                try vm.pushTempDyn(&chunk_array.dyn);
-                for (value_array.elems.items[start..end]) |chunk_item| chunk_item.retain();
-                try chunk_array.elems.appendSlice(vm.gc.allocator(), value_array.elems.items[start..end]);
+    // Object pattern matching: the members partition into `count`
+    // disjoint groups, each matching the pattern
+    if (value.isDynType(.Object)) {
+        if (plan.nodes[pattern_idx].tag != .object) return false;
 
-                const sub = if (i == 0) pattern_idx else later_pattern_idx;
-                if (!(try matchNode(vm, chunk_array.dyn.elem(), plan, sub, null))) {
-                    return false;
-                }
+        const pair_count = plan.nodes[pattern_idx].payload;
+        const value_object = value.asDyn().asObject();
+        const member_count = value_object.members.count();
+
+        if (count == 0 or pair_count == 0) {
+            return member_count == 0;
+        }
+        if (member_count != count * pair_count) return false;
+
+        const matched_base = vm.plan_matched_keys.items.len;
+        defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
+
+        return matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, count, matched_base);
+    }
+
+    // Number pattern matching (pattern * count = value)
+    if (value.isNumber()) {
+        if (count == 0) return false;
+
+        const value_float = numberAsFloat(value, vm);
+        const computed_pattern = Elem.numberFloat(value_float / @as(f64, @floatFromInt(count)));
+        return matchNode(vm, computed_pattern, plan, pattern_idx, null);
+    }
+
+    // Other value types not supported
+    return false;
+}
+
+// Neither the pattern nor the count evaluates.
+fn matchRepeatUnresolved(vm: *VM, plan: MatchPlan, value: Elem, pattern_idx: u32, count_idx: u32, later_pattern_idx: u32) Error!bool {
+    // Special case: Range pattern with unbound count
+    if (plan.nodes[pattern_idx].tag == .range) {
+        // This only works for string values
+        const value_str = (try value.stringBytes(vm)) orelse return false;
+
+        const codepoint_count = (try countRangeCodepoints(vm, plan, pattern_idx, value_str)) orelse
+            return false;
+
+        const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(codepoint_count)));
+        return matchNode(vm, count_elem, plan, count_idx, null);
+    }
+
+    // Object pattern with unbound count: the count is however many
+    // disjoint groups of members the pattern claims
+    if (plan.nodes[pattern_idx].tag == .object) {
+        if (!value.isDynType(.Object)) return false;
+
+        const pair_count = plan.nodes[pattern_idx].payload;
+        const value_object = value.asDyn().asObject();
+        const member_count = value_object.members.count();
+
+        if (pair_count == 0) {
+            // {} * N = {} for any N >= 1; choose N = 1 as canonical
+            if (member_count != 0) return false;
+            return matchNode(vm, Elem.numberFloat(1), plan, count_idx, null);
+        }
+        if (member_count % pair_count != 0) return false;
+
+        const count = member_count / pair_count;
+
+        const matched_base = vm.plan_matched_keys.items.len;
+        defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
+
+        if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, count, matched_base))) {
+            return false;
+        }
+
+        const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+        return matchNode(vm, count_elem, plan, count_idx, null);
+    }
+
+    // Array with a fixed-length pattern but unbound elements and count
+    if (try fixedArrayLength(vm, plan, pattern_idx)) |pattern_len| {
+        if (!value.isDynType(.Array)) return false;
+
+        const value_array = value.asDyn().asArray();
+        if (pattern_len == 0) return false;
+        if (value_array.len() % pattern_len != 0) return false;
+
+        const count = value_array.len() / pattern_len;
+
+        // Match each chunk against the pattern
+        var i: usize = 0;
+        while (i < count) : (i += 1) {
+            const start = i * pattern_len;
+            const end = start + pattern_len;
+
+            const chunk_array = try Elem.DynElem.Array.create(vm, pattern_len);
+            try vm.pushTempDyn(&chunk_array.dyn);
+            for (value_array.elems.items[start..end]) |chunk_item| chunk_item.retain();
+            try chunk_array.elems.appendSlice(vm.gc.allocator(), value_array.elems.items[start..end]);
+
+            const sub = if (i == 0) pattern_idx else later_pattern_idx;
+            if (!(try matchNode(vm, chunk_array.dyn.elem(), plan, sub, null))) {
+                return false;
             }
-
-            // Bind the count
-            const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
-            return matchNode(vm, count_elem, plan, count_idx, null);
-        } else {
-            return error.RuntimeError;
         }
+
+        // Bind the count
+        const count_elem = Elem.numberFloat(@as(f64, @floatFromInt(count)));
+        return matchNode(vm, count_elem, plan, count_idx, null);
+    } else {
+        return error.RuntimeError;
     }
 }
 
