@@ -664,18 +664,14 @@ fn evalNode(vm: *VM, plan: MatchPlan, idx: u32) Error!?Elem {
         .call => return try evalCall(vm, plan, idx),
         .bind, .placeholder, .object, .range, .str_template => return null,
         .array => {
-            // Try to evaluate all elements first, the way attemptEval does.
-            const elems = try vm.allocator.alloc(Elem, node.payload);
-            defer vm.allocator.free(elems);
-
-            var children = plan.children(idx);
-            for (elems) |*elem| {
-                elem.* = (try evalNode(vm, plan, children.next())) orelse return null;
-            }
-
+            // Append as elements evaluate; a non-evaluating element
+            // abandons the partial array to the temp-dyn cleanup.
             const dyn_array = try Elem.DynElem.Array.create(vm, node.payload);
             try vm.pushTempDyn(&dyn_array.dyn);
-            for (elems) |elem| {
+
+            var children = plan.children(idx);
+            for (0..node.payload) |_| {
+                const elem = (try evalNode(vm, plan, children.next())) orelse return null;
                 try dyn_array.append(vm, elem);
             }
             return dyn_array.dyn.elem();
