@@ -80,7 +80,7 @@ pub const Elem = packed union {
         }
 
         pub fn end(self: InputSubstringElem) usize {
-            return self.start + self.offset;
+            return @as(usize, self.start) + self.offset;
         }
 
         pub fn isContiguous(is1: InputSubstringElem, is2: InputSubstringElem) bool {
