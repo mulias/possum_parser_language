@@ -351,12 +351,7 @@ fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
     const repeat_plan = plan.repeats[plan.nodes[idx].payload];
     const pattern_idx = idx + 1;
     const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
-    // Iterations after the first match the rebound variant: their binds
-    // were bound by the first iteration, so they compare instead.
-    const later_pattern_idx = if (repeat_plan.has_rebound_pattern)
-        count_idx + plan.nodes[count_idx].subtree_len
-    else
-        pattern_idx;
+    const later_pattern_idx = laterPatternIdx(plan, repeat_plan, pattern_idx, count_idx);
 
     if (try resolveRepeatOperand(vm, plan, repeat_plan.pattern, pattern_idx)) |pattern_value| {
         // The pattern is a value: derive the count from the value.
@@ -660,6 +655,15 @@ fn resolveRepeatOperand(
         .eval => try evalNode(vm, plan, subtree_idx),
         .subtree => null,
     };
+}
+
+// Iterations after the first match the rebound variant: their binds
+// were bound by the first iteration, so they compare instead.
+fn laterPatternIdx(plan: MatchPlan, repeat_plan: match_plan.RepeatPlan, pattern_idx: u32, count_idx: u32) u32 {
+    return if (repeat_plan.has_rebound_pattern)
+        count_idx + plan.nodes[count_idx].subtree_len
+    else
+        pattern_idx;
 }
 
 // Evaluate a plan subtree to a value, mirroring the solver's attemptEval.
@@ -1498,10 +1502,7 @@ fn matchObjectMerge(
                     const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
                     std.debug.assert(plan.nodes[pattern_idx].tag == .object);
                     const count_elem = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)).?;
-                    const later_pattern_idx = if (repeat_plan.has_rebound_pattern)
-                        count_idx + plan.nodes[count_idx].subtree_len
-                    else
-                        pattern_idx;
+                    const later_pattern_idx = laterPatternIdx(plan, repeat_plan, pattern_idx, count_idx);
                     const repetitions = (try repeatCount(vm, count_elem)) orelse return false;
                     if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, repetitions, matched_base))) {
                         return false;
