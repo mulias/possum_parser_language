@@ -290,7 +290,7 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
                 const child_node = plan.nodes[child];
                 const solvable = template_plan.solvable_index != null and template_plan.solvable_index.? == i;
                 const part: ResolvedPart = if (solvable)
-                    .{ .subtree = child }
+                    .{ .rest = child }
                 else switch (child_node.tag) {
                     .equality => .{ .value = plan.elems[child_node.payload] },
                     .bound_eq => .{ .value = try stringifyBoundLocal(vm, plan.vars[child_node.payload]) },
@@ -873,10 +873,10 @@ fn repeatCount(vm: *VM, count_elem: Elem) Error!?usize {
 
 // Resolve the parts of a merge node into vm.plan_merge_parts, the way the
 // solver simplifies every part before matching any. The solvable part
-// stays a subtree even when it is a sequentially-bound local: it is only
-// bound by an earlier part of this merge, so its slot must be read at its
-// match position, not here. Bound locals may run a zero-arity function on
-// the VM here.
+// stays a rest subtree even when it is a sequentially-bound local: it is
+// only bound by an earlier part of this merge, so its slot must be read at
+// its match position, not here. Bound locals may run a zero-arity function
+// on the VM here.
 fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
     const merge_plan = plan.merges[plan.nodes[merge_node_idx].payload];
     var child = merge_node_idx + 1;
@@ -884,18 +884,17 @@ fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
         const child_node = plan.nodes[child];
         const solvable = merge_plan.solvable_index != null and merge_plan.solvable_index.? == i;
         const part: ResolvedPart = if (solvable)
-            .{ .subtree = child }
+            .{ .rest = child }
         else switch (child_node.tag) {
             .equality => .{ .value = plan.elems[child_node.payload] },
             .bound_eq => .{ .value = try resolveBoundLocal(vm, plan.vars[child_node.payload]) },
             .const_fn => .{ .value = try evalConstFn(vm, plan, child) },
             .call => .{ .value = try evalCall(vm, plan, child) },
-            // A negated call resolves to its negated result; a negated
-            // range stays structural.
-            .negated => if (try evalNode(vm, plan, child)) |part_value|
-                ResolvedPart{ .value = part_value }
-            else
-                ResolvedPart{ .subtree = child },
+            // A non-solvable negated part always evaluates: negated
+            // structural shapes are either compile errors (arrays,
+            // objects) or classified solvable (binds, placeholders,
+            // ranges) by binding analysis.
+            .negated => .{ .value = (try evalNode(vm, plan, child)).? },
             else => .{ .subtree = child },
         };
         try vm.plan_merge_parts.append(vm.allocator, part);
@@ -1173,13 +1172,13 @@ fn resolveMergeType(vm: *VM, plan: MatchPlan, base: usize, count: u32) Error!Mer
 fn mergePartType(plan: MatchPlan, part: ResolvedPart) Error!MergeType {
     return switch (part) {
         .value => |elem| elemMergeType(elem),
-        .subtree => |idx| switch (plan.nodes[idx].tag) {
+        .subtree, .rest => |idx| switch (plan.nodes[idx].tag) {
             .array => .array,
             .object => .object,
             .str_template => .string,
-            // A bound_eq subtree is the solvable part: a local this merge
-            // binds before its position. The solver's simplify sees it
-            // unbound, so its type contribution is untyped.
+            // A bound_eq rest is a local this merge binds before its
+            // position. The solver's simplify sees it unbound, so its
+            // type contribution is untyped.
             .bind, .bound_eq, .placeholder => .untyped,
             // A repeat contributes its pattern's type, mirroring
             // mergePatternType's recursion into the raw repeat pattern.
@@ -1242,87 +1241,83 @@ fn repeatPatternType(plan: MatchPlan, pattern_idx: u32) Error!MergeType {
 }
 
 fn matchArrayMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u32) Error!bool {
-    var before_unbound_range: usize = 0;
-    var after_unbound_range: usize = 0;
-    var unbound_index: ?usize = null;
+    var before_rest_range: usize = 0;
+    var after_rest_range: usize = 0;
+    var rest_index: ?usize = null;
 
     for (0..count) |i| {
-        switch (mergePart(vm, base, i)) {
-            .value => |elem| {
-                if (elem.isDynType(.Array)) {
-                    const array_len = elem.asDyn().asArray().len();
-                    if (unbound_index == null) {
-                        before_unbound_range += array_len;
-                    } else {
-                        after_unbound_range += array_len;
-                    }
-                } else if (elem.isConst(.Null)) {
-                    // Skip null
-                } else {
-                    @panic("Internal Error");
-                }
+        const part_len = switch (mergePart(vm, base, i)) {
+            .value => |elem| blk: {
+                if (elem.isDynType(.Array)) break :blk elem.asDyn().asArray().len();
+                if (elem.isConst(.Null)) break :blk 0;
+                @panic("Internal Error");
             },
-            .subtree => |part_idx| {
-                if (plan.nodes[part_idx].tag == .array) {
-                    const array_len = plan.nodes[part_idx].payload;
-                    if (unbound_index == null) {
-                        before_unbound_range += array_len;
-                    } else {
-                        after_unbound_range += array_len;
-                    }
-                } else if (unbound_index == null) {
-                    unbound_index = i;
-                } else {
-                    // Array merge can only have one unbound part
-                    return error.RuntimeError;
-                }
+            .subtree => |part_idx| blk: {
+                // The only structural array-merge part is a fixed-length
+                // array; everything else is the rest or a compile error.
+                std.debug.assert(plan.nodes[part_idx].tag == .array);
+                break :blk plan.nodes[part_idx].payload;
             },
+            .rest => {
+                rest_index = i;
+                continue;
+            },
+        };
+        if (rest_index == null) {
+            before_rest_range += part_len;
+        } else {
+            after_rest_range += part_len;
         }
     }
 
     if (!value.isDynType(.Array)) return false;
     const value_array = value.asDyn().asArray();
-    if (value_array.elems.items.len < before_unbound_range + after_unbound_range) return false;
+    if (rest_index == null) {
+        // No rest to absorb slack: the parts must cover the value exactly.
+        if (value_array.elems.items.len != before_rest_range) return false;
+    } else if (value_array.elems.items.len < before_rest_range + after_rest_range) {
+        return false;
+    }
 
     var value_index: usize = 0;
 
     // Match the before parts
     for (0..count) |i| {
-        if (unbound_index != null and unbound_index.? == i) break;
+        if (rest_index != null and rest_index.? == i) break;
         if (!(try matchArrayMergeFixedPart(vm, plan, value_array, &value_index, mergePart(vm, base, i)))) {
             return false;
         }
     }
 
-    // Handle the unbound pattern if it exists
-    if (unbound_index) |ui| {
-        const unbound_start = value_index;
-        const unbound_end = value_array.elems.items.len - after_unbound_range;
+    // Handle the rest pattern if it exists
+    if (rest_index) |ui| {
+        const rest_start = value_index;
+        const rest_end = value_array.elems.items.len - after_rest_range;
 
-        std.debug.assert(unbound_start <= unbound_end);
+        std.debug.assert(rest_start <= rest_end);
 
-        const sub = mergePart(vm, base, ui).subtree;
+        const sub = mergePart(vm, base, ui).rest;
         // A bare `_` rest matches any range without binding; skip
         // materializing it. A negated `-_` (a .negated node) still needs
         // the materialized rest so the match applies its number check.
         if (printSteps(vm) or plan.nodes[sub].tag != .placeholder) {
-            const unbound_elems = value_array.elems.items[unbound_start..unbound_end];
-            const unbound_array = try Elem.DynElem.Array.create(vm, unbound_elems.len);
-            try vm.pushTempDyn(&unbound_array.dyn);
+            const rest_elems = value_array.elems.items[rest_start..rest_end];
+            const rest_array = try Elem.DynElem.Array.create(vm, rest_elems.len);
+            try vm.pushTempDyn(&rest_array.dyn);
 
-            for (unbound_elems) |unbound_item| unbound_item.retain();
-            try unbound_array.elems.appendSlice(vm.gc.allocator(), unbound_elems);
+            for (rest_elems) |rest_item| rest_item.retain();
+            try rest_array.elems.appendSlice(vm.gc.allocator(), rest_elems);
 
-            const rest_matched = try matchNode(vm, unbound_array.dyn.elem(), plan, sub, null);
+            const rest_matched = try matchNode(vm, rest_array.dyn.elem(), plan, sub, null);
 
             // Hand the creator handle to whatever the match bound; see
             // matchObjectMerge.
-            unbound_array.dyn.release();
+            rest_array.dyn.release();
 
             if (!rest_matched) return false;
         }
 
-        value_index = unbound_end;
+        value_index = rest_end;
 
         // Match the after parts
         for (ui + 1..count) |i| {
@@ -1367,8 +1362,6 @@ fn matchArrayMergeFixedPart(
             }
         },
         .subtree => |part_idx| {
-            // The callers stop at the unbound part, so only structural
-            // array parts reach here.
             std.debug.assert(plan.nodes[part_idx].tag == .array);
             const end_index = value_index.* + plan.nodes[part_idx].payload;
             if (end_index > value_array.elems.items.len) return false;
@@ -1378,13 +1371,15 @@ fn matchArrayMergeFixedPart(
             }
             value_index.* = end_index;
         },
+        // The callers stop at the rest part.
+        .rest => unreachable,
     }
     return true;
 }
 
 fn matchBooleanMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u32) Error!bool {
     var bound_truth = Elem.boolean(false);
-    var unbound_index: ?usize = null;
+    var rest_index: ?usize = null;
 
     for (0..count) |i| {
         switch (mergePart(vm, base, i)) {
@@ -1395,19 +1390,15 @@ fn matchBooleanMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: 
                     @panic("Internal Error");
                 }
             },
-            .subtree => {
-                if (unbound_index == null) {
-                    unbound_index = i;
-                } else {
-                    // Boolean merge can only have one unbound part
-                    return error.RuntimeError;
-                }
-            },
+            // Booleans have no structural pattern shape, so a subtree
+            // part would have typed the merge as something else.
+            .subtree => unreachable,
+            .rest => rest_index = i,
         }
     }
 
-    if (unbound_index) |ui| {
-        const sub = mergePart(vm, base, ui).subtree;
+    if (rest_index) |ui| {
+        const sub = mergePart(vm, base, ui).rest;
         if (bound_truth.isConst(.True)) {
             if (value.isEql(bound_truth, vm.*)) {
                 // `true -> (true + X)`
@@ -1429,7 +1420,7 @@ fn matchBooleanMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: 
 
 fn matchNumberMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u32) Error!bool {
     var bound_sum = Elem.numberFloat(0);
-    var unbound_index: ?usize = null;
+    var rest_index: ?usize = null;
 
     for (0..count) |i| {
         switch (mergePart(vm, base, i)) {
@@ -1440,22 +1431,18 @@ fn matchNumberMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u
                     @panic("Internal Error");
                 }
             },
-            .subtree => {
-                if (unbound_index == null) {
-                    unbound_index = i;
-                } else {
-                    // Number merge can only have one unbound part
-                    return error.RuntimeError;
-                }
-            },
+            // Numbers have no structural pattern shape, so a subtree
+            // part would have typed the merge as something else.
+            .subtree => unreachable,
+            .rest => rest_index = i,
         }
     }
 
     if (!value.isNumber()) {
         return false;
-    } else if (unbound_index) |ui| {
+    } else if (rest_index) |ui| {
         const diff = (try value.merge(try bound_sum.negateNumber(), vm)).?;
-        return matchNode(vm, diff, plan, mergePart(vm, base, ui).subtree, null);
+        return matchNode(vm, diff, plan, mergePart(vm, base, ui).rest, null);
     } else {
         if (printSteps(vm)) try emitEquality(vm, value, bound_sum);
         return value.isEql(bound_sum, vm.*);
@@ -1476,7 +1463,7 @@ fn matchObjectMerge(
     const matched_base = vm.plan_matched_keys.items.len;
     defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
 
-    var unbound_index: ?usize = null;
+    var rest_index: ?usize = null;
 
     for (0..count) |i| {
         switch (mergePart(vm, base, i)) {
@@ -1508,87 +1495,78 @@ fn matchObjectMerge(
                     }
                 },
                 .repeat => {
-                    // A bound-count object repeat is counted-structural:
-                    // claim exactly that many disjoint groups here. An
-                    // unbound count is the solvable rest, deferred to the
-                    // unbound handling below where the count is solved from
-                    // the leftover members.
+                    // A structural object repeat is counted: claim exactly
+                    // that many disjoint groups here. Lowering guarantees
+                    // its count resolves; a repeat whose count is solved
+                    // from the leftover members is the rest part instead.
                     const repeat_plan = plan.repeats[plan.nodes[part_idx].payload];
                     const pattern_idx = part_idx + 1;
                     const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
                     std.debug.assert(plan.nodes[pattern_idx].tag == .object);
-                    if (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)) |count_elem| {
-                        const later_pattern_idx = if (repeat_plan.has_rebound_pattern)
-                            count_idx + plan.nodes[count_idx].subtree_len
-                        else
-                            pattern_idx;
-                        const repetitions = (try repeatCount(vm, count_elem)) orelse return false;
-                        if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, repetitions, matched_base))) {
-                            return false;
-                        }
-                    } else if (unbound_index == null) {
-                        unbound_index = i;
-                    } else {
-                        // Object merge can only have one unbound part
-                        return error.RuntimeError;
+                    const count_elem = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)).?;
+                    const later_pattern_idx = if (repeat_plan.has_rebound_pattern)
+                        count_idx + plan.nodes[count_idx].subtree_len
+                    else
+                        pattern_idx;
+                    const repetitions = (try repeatCount(vm, count_elem)) orelse return false;
+                    if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, repetitions, matched_base))) {
+                        return false;
                     }
                 },
-                else => {
-                    if (unbound_index == null) {
-                        unbound_index = i;
-                    } else {
-                        // Object merge can only have one unbound part
-                        return error.RuntimeError;
-                    }
-                },
+                else => unreachable,
             },
+            .rest => rest_index = i,
         }
     }
 
-    // Handle the unbound pattern if it exists
-    if (unbound_index) |ui| {
-        const sub = mergePart(vm, base, ui).subtree;
-        const sub_node = plan.nodes[sub];
-        // A bare `_` rest matches any remaining members without binding, so
-        // the rest object is never observed. A negated `-_` (a .negated
-        // node) still needs the materialized rest for its number check.
-        if (printSteps(vm) or sub_node.tag != .placeholder) {
-            if (canBindRestInPlace(vm, value, sub_node, discardable)) {
-                // Every part before the rest has matched and binding an
-                // unbound var cannot fail, so the match is already a
-                // success. Give up the matched members and bind the rest
-                // var to the value object itself instead of copying the
-                // remaining members into a fresh object.
-                for (vm.plan_matched_keys.items[matched_base..]) |sid| {
-                    const removed = value_object.members.fetchOrderedRemove(sid);
-                    removed.?.value.release();
-                }
-                try bindLocal(vm, plan.vars[sub_node.payload], value);
-            } else {
-                // Create an object with only the unmatched keys, preserving
-                // the value object's member order
-                const matched_count = vm.plan_matched_keys.items.len - matched_base;
-                const unbound_object = try Elem.DynElem.Object.create(vm, value_object.members.count() - matched_count);
-                try vm.pushTempDyn(&unbound_object.dyn);
+    const ui = rest_index orelse {
+        // No rest to claim the leftover members: the parts must have
+        // matched every member. Marked keys are distinct and always
+        // present in the value, so counting them checks coverage.
+        return vm.plan_matched_keys.items.len - matched_base == value_object.members.count();
+    };
 
-                var member_iterator = value_object.members.iterator();
-                while (member_iterator.next()) |entry| {
-                    const key_sid = entry.key_ptr.*;
-                    if (keyMatched(vm, matched_base, key_sid)) continue;
-                    try unbound_object.put(vm, key_sid, entry.value_ptr.*);
-                }
-
-                const rest_matched = try matchNode(vm, unbound_object.dyn.elem(), plan, sub, null);
-
-                // Hand the creator handle over: after this the object is
-                // owned by the local slot the match bound (or by no one, if
-                // the rest matched against an already-bound value). Keeping
-                // the extra count would make every rest binding look shared
-                // and defeat downstream unique-value fast paths.
-                unbound_object.dyn.release();
-
-                if (!rest_matched) return false;
+    const sub = mergePart(vm, base, ui).rest;
+    const sub_node = plan.nodes[sub];
+    // A bare `_` rest matches any remaining members without binding, so
+    // the rest object is never observed. A negated `-_` (a .negated
+    // node) still needs the materialized rest for its number check.
+    if (printSteps(vm) or sub_node.tag != .placeholder) {
+        if (canBindRestInPlace(vm, value, sub_node, discardable)) {
+            // Every part before the rest has matched and binding an
+            // unbound var cannot fail, so the match is already a
+            // success. Give up the matched members and bind the rest
+            // var to the value object itself instead of copying the
+            // remaining members into a fresh object.
+            for (vm.plan_matched_keys.items[matched_base..]) |sid| {
+                const removed = value_object.members.fetchOrderedRemove(sid);
+                removed.?.value.release();
             }
+            try bindLocal(vm, plan.vars[sub_node.payload], value);
+        } else {
+            // Create an object with only the unmatched keys, preserving
+            // the value object's member order
+            const matched_count = vm.plan_matched_keys.items.len - matched_base;
+            const rest_object = try Elem.DynElem.Object.create(vm, value_object.members.count() - matched_count);
+            try vm.pushTempDyn(&rest_object.dyn);
+
+            var member_iterator = value_object.members.iterator();
+            while (member_iterator.next()) |entry| {
+                const key_sid = entry.key_ptr.*;
+                if (keyMatched(vm, matched_base, key_sid)) continue;
+                try rest_object.put(vm, key_sid, entry.value_ptr.*);
+            }
+
+            const rest_matched = try matchNode(vm, rest_object.dyn.elem(), plan, sub, null);
+
+            // Hand the creator handle over: after this the object is
+            // owned by the local slot the match bound (or by no one, if
+            // the rest matched against an already-bound value). Keeping
+            // the extra count would make every rest binding look shared
+            // and defeat downstream unique-value fast paths.
+            rest_object.dyn.release();
+
+            if (!rest_matched) return false;
         }
     }
 
@@ -1618,19 +1596,19 @@ fn canBindRestInPlace(
 }
 
 fn matchStringMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u32) Error!bool {
-    var before_unbound_length: usize = 0;
-    var after_unbound_length: usize = 0;
-    var unbound_index: ?usize = null;
+    var before_rest_length: usize = 0;
+    var after_rest_length: usize = 0;
+    var rest_index: ?usize = null;
 
-    // Calculate lengths and find the unbound part
+    // Calculate lengths and find the rest part
     for (0..count) |i| {
         switch (mergePart(vm, base, i)) {
             .value => |elem| {
                 if (try elem.stringBytes(vm)) |part_str| {
-                    if (unbound_index == null) {
-                        before_unbound_length += part_str.len;
+                    if (rest_index == null) {
+                        before_rest_length += part_str.len;
                     } else {
-                        after_unbound_length += part_str.len;
+                        after_rest_length += part_str.len;
                     }
                 } else if (elem.isConst(.Null)) {
                     // Skip null
@@ -1638,72 +1616,73 @@ fn matchStringMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u
                     @panic("Internal Error");
                 }
             },
-            .subtree => {
-                if (unbound_index == null) {
-                    unbound_index = i;
-                } else {
-                    // String merge can only have one unbound part
-                    return error.RuntimeError;
-                }
-            },
+            // Strings have no structural pattern shape, so a subtree
+            // part would have typed the merge as something else.
+            .subtree => unreachable,
+            .rest => rest_index = i,
         }
     }
 
     const value_str = (try value.stringBytes(vm)) orelse return false;
-    if (value_str.len < before_unbound_length + after_unbound_length) return false;
+    if (rest_index == null) {
+        // No rest to absorb slack: the parts must cover the value exactly.
+        if (value_str.len != before_rest_length) return false;
+    } else if (value_str.len < before_rest_length + after_rest_length) {
+        return false;
+    }
 
     var value_index: usize = 0;
 
     // Match the before parts
     for (0..count) |i| {
-        if (unbound_index != null and unbound_index.? == i) break;
+        if (rest_index != null and rest_index.? == i) break;
         if (!(try matchStringMergeFixedPart(vm, value_str, &value_index, mergePart(vm, base, i)))) {
             return false;
         }
     }
 
-    // Handle the unbound pattern if it exists
-    if (unbound_index) |ui| {
-        const unbound_start = value_index;
-        const unbound_end = value_str.len - after_unbound_length;
+    // Handle the rest pattern if it exists
+    if (rest_index) |ui| {
+        const rest_start = value_index;
+        const rest_end = value_str.len - after_rest_length;
 
-        std.debug.assert(unbound_start <= unbound_end);
+        std.debug.assert(rest_start <= rest_end);
 
-        const sub = mergePart(vm, base, ui).subtree;
+        const sub = mergePart(vm, base, ui).rest;
         // A bare `_` rest matches any substring without binding; skip
         // materializing it. A negated `-_` (a .negated node) still needs
         // the materialized rest so the match applies its number check.
         if (printSteps(vm) or plan.nodes[sub].tag != .placeholder) {
-            const unbound_value = value_str[unbound_start..unbound_end];
-            const unbound_elem = if (value.isType(.InputSubstring)) blk: {
+            const rest_value = value_str[rest_start..rest_end];
+            const rest_elem = if (value.isType(.InputSubstring)) blk: {
                 const start = value.asInputSubstring().start;
-                if (try Elem.inputSubstringFromRange(start + unbound_start, start + unbound_end)) |elem| {
+                if (try Elem.inputSubstringFromRange(start + rest_start, start + rest_end)) |elem| {
                     break :blk elem;
                 } else {
-                    const str = try Elem.DynElem.String.copy(vm, unbound_value);
+                    const str = try Elem.DynElem.String.copy(vm, rest_value);
                     try vm.pushTempDyn(&str.dyn);
                     break :blk str.dyn.elem();
                 }
             } else blk: {
                 // Allocate a dynamic string
-                const dyn_str = try Elem.DynElem.String.create(vm, unbound_value.len);
+                const dyn_str = try Elem.DynElem.String.create(vm, rest_value.len);
                 try vm.pushTempDyn(&dyn_str.dyn);
-                try dyn_str.concatBytes(unbound_value);
+                try dyn_str.concatBytes(rest_value);
                 break :blk dyn_str.dyn.elem();
             };
 
-            const rest_matched = try matchNode(vm, unbound_elem, plan, sub, null);
+            const rest_matched = try matchNode(vm, rest_elem, plan, sub, null);
 
             // Hand the creator handle to whatever the match bound; see
             // matchObjectMerge.
-            if (unbound_elem.isType(.Dyn)) unbound_elem.asDyn().release();
+            if (rest_elem.isType(.Dyn)) rest_elem.asDyn().release();
 
             if (!rest_matched) return false;
         }
 
-        value_index = unbound_end;
+        value_index = rest_end;
 
-        // Match the after parts. Only value parts can follow the unbound
+        // Match the after parts. Only value parts can follow the rest
         // part: range parts fail merge type resolution.
         for (ui + 1..count) |i| {
             if (!(try matchStringMergeFixedPart(vm, value_str, &value_index, mergePart(vm, base, i)))) {
@@ -1737,108 +1716,100 @@ fn matchStringMergeFixedPart(
                 return false;
             }
         },
-        // The callers stop at the unbound part and range parts fail merge
-        // type resolution.
-        .subtree => unreachable,
+        // The callers stop at the rest part, and no structural part is a
+        // string.
+        .subtree, .rest => unreachable,
     }
     return true;
 }
 
 fn matchUntypedMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u32) Error!bool {
-    var unbound_index: ?usize = null;
+    var rest_index: ?usize = null;
 
     for (0..count) |i| {
         switch (mergePart(vm, base, i)) {
             .value => |elem| {
                 std.debug.assert(elem.isConst(.Null));
             },
-            .subtree => {
-                if (unbound_index == null) {
-                    unbound_index = i;
-                } else {
-                    // More than one unbound part
-                    return error.RuntimeError;
-                }
-            },
+            // A structural part would have typed the merge.
+            .subtree => unreachable,
+            .rest => rest_index = i,
         }
     }
 
-    if (unbound_index) |ui| {
-        return matchNode(vm, value, plan, mergePart(vm, base, ui).subtree, null);
+    if (rest_index) |ui| {
+        return matchNode(vm, value, plan, mergePart(vm, base, ui).rest, null);
     }
     return value.isEql(Elem.nullConst, vm.*);
 }
 
 fn matchStringTemplate(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u32) Error!bool {
-    var before_unbound_length: usize = 0;
-    var after_unbound_length: usize = 0;
-    var unbound_index: ?usize = null;
+    var before_rest_length: usize = 0;
+    var after_rest_length: usize = 0;
+    var rest_index: ?usize = null;
 
-    // Calculate lengths and find the unbound segment. Character ranges
+    // Calculate lengths and find the rest segment. Character ranges
     // always match exactly one character.
     for (0..count) |i| {
-        switch (mergePart(vm, base, i)) {
-            .value => |elem| {
-                if (try elem.stringBytes(vm)) |part_str| {
-                    if (unbound_index == null) {
-                        before_unbound_length += part_str.len;
-                    } else {
-                        after_unbound_length += part_str.len;
-                    }
-                } else {
-                    @panic("Internal Error");
-                }
+        const part_len = switch (mergePart(vm, base, i)) {
+            .value => |elem| ((try elem.stringBytes(vm)) orelse @panic("Internal Error")).len,
+            .subtree => |n| blk: {
+                // The only structural template segment is a character
+                // range; everything else evaluates or is the rest.
+                std.debug.assert(plan.nodes[n].tag == .range);
+                break :blk 1;
             },
-            .subtree => |n| {
-                if (plan.nodes[n].tag == .range) {
-                    if (unbound_index == null) {
-                        before_unbound_length += 1;
-                    } else {
-                        after_unbound_length += 1;
-                    }
-                } else if (unbound_index == null) {
-                    unbound_index = i;
-                } else {
-                    // String merge can only have one unbound part
-                    return error.RuntimeError;
-                }
+            .rest => {
+                rest_index = i;
+                continue;
             },
+        };
+        if (rest_index == null) {
+            before_rest_length += part_len;
+        } else {
+            after_rest_length += part_len;
         }
     }
 
     const value_str = (try value.stringBytes(vm)) orelse return false;
-    if (value_str.len < before_unbound_length + after_unbound_length) return false;
+    if (rest_index == null) {
+        // No rest to absorb slack: the segments must cover the value
+        // exactly.
+        if (value_str.len != before_rest_length) return false;
+    } else if (value_str.len < before_rest_length + after_rest_length) {
+        return false;
+    }
 
     var value_index: usize = 0;
 
     // Match the before segments
     for (0..count) |i| {
-        if (unbound_index != null and unbound_index.? == i) break;
+        if (rest_index != null and rest_index.? == i) break;
         if (!(try matchTemplateFixedSegment(vm, plan, value_str, &value_index, mergePart(vm, base, i)))) {
             return false;
         }
     }
 
-    // Handle the unbound segment if it exists
-    if (unbound_index) |ui| {
-        const unbound_start = value_index;
-        const unbound_end = value_str.len - after_unbound_length;
+    // Handle the rest segment if it exists
+    if (rest_index) |ui| {
+        const rest_start = value_index;
+        const rest_end = value_str.len - after_rest_length;
 
-        std.debug.assert(unbound_start <= unbound_end);
+        std.debug.assert(rest_start <= rest_end);
 
-        if (!(try matchTemplateUnboundSegment(
+        if (!(try matchTemplateRestSegment(
             vm,
             plan,
             value,
             value_str,
-            unbound_start,
-            unbound_end,
-            mergePart(vm, base, ui).subtree,
+            rest_start,
+            rest_end,
+            mergePart(vm, base, ui).rest,
         ))) {
             return false;
         }
 
-        value_index = unbound_end;
+        value_index = rest_end;
 
         // Match the after segments
         for (ui + 1..count) |i| {
@@ -1882,39 +1853,41 @@ fn matchTemplateFixedSegment(
             if (!(try matchNode(vm, char_elem, plan, n, null))) return false;
             value_index.* += 1;
         },
+        // The callers stop at the rest segment.
+        .rest => unreachable,
     }
     return true;
 }
 
-// Cast the unbound byte range by the solvable segment's pattern kind, the
-// way matchStringTemplate does, then match the cast value against it.
-fn matchTemplateUnboundSegment(
+// Cast the rest byte range by the rest segment's pattern kind, the way
+// matchStringTemplate does, then match the cast value against it.
+fn matchTemplateRestSegment(
     vm: *VM,
     plan: MatchPlan,
     value: Elem,
     value_str: []const u8,
-    unbound_start: usize,
-    unbound_end: usize,
+    rest_start: usize,
+    rest_end: usize,
     sub: u32,
 ) Error!bool {
-    const unbound_bytes = value_str[unbound_start..unbound_end];
+    const rest_bytes = value_str[rest_start..rest_end];
 
-    var unbound_elem: ?Elem = null;
+    var rest_elem: ?Elem = null;
     var merge_cast: ?struct { base: usize, count: u32, merge_type: MergeType } = null;
 
     const scratch_base = vm.plan_merge_parts.items.len;
     defer vm.plan_merge_parts.shrinkRetainingCapacity(scratch_base);
 
-    if (unbound_bytes.len == 0) {
-        // If the unbound part is empty then the pattern must match an
-        // empty string.
-        unbound_elem = Elem.string(try vm.strings.insert(""));
+    if (rest_bytes.len == 0) {
+        // If the rest is empty then the pattern must match an empty
+        // string.
+        rest_elem = Elem.string(try vm.strings.insert(""));
     } else switch (plan.nodes[sub].tag) {
-        .array => if (unbound_bytes[0] == '[') {
-            unbound_elem = try parseBytesAsJsonElem(vm, unbound_bytes);
+        .array => if (rest_bytes[0] == '[') {
+            rest_elem = try parseBytesAsJsonElem(vm, rest_bytes);
         },
-        .object => if (unbound_bytes[0] == '{') {
-            unbound_elem = try parseBytesAsJsonElem(vm, unbound_bytes);
+        .object => if (rest_bytes[0] == '{') {
+            rest_elem = try parseBytesAsJsonElem(vm, rest_bytes);
         },
         .merge => {
             const merge_plan = plan.merges[plan.nodes[sub].payload];
@@ -1927,19 +1900,19 @@ fn matchTemplateUnboundSegment(
             };
 
             switch (merge_type) {
-                .array => if (unbound_bytes[0] == '[') {
-                    unbound_elem = try parseBytesAsJsonElem(vm, unbound_bytes);
+                .array => if (rest_bytes[0] == '[') {
+                    rest_elem = try parseBytesAsJsonElem(vm, rest_bytes);
                 },
-                .object => if (unbound_bytes[0] == '{') {
-                    unbound_elem = try parseBytesAsJsonElem(vm, unbound_bytes);
+                .object => if (rest_bytes[0] == '{') {
+                    rest_elem = try parseBytesAsJsonElem(vm, rest_bytes);
                 },
-                .boolean => if (std.mem.eql(u8, unbound_bytes, "true")) {
-                    unbound_elem = Elem.boolean(true);
-                } else if (std.mem.eql(u8, unbound_bytes, "false")) {
-                    unbound_elem = Elem.boolean(false);
+                .boolean => if (std.mem.eql(u8, rest_bytes, "true")) {
+                    rest_elem = Elem.boolean(true);
+                } else if (std.mem.eql(u8, rest_bytes, "false")) {
+                    rest_elem = Elem.boolean(false);
                 },
-                .number => if (isValidNumberString(unbound_bytes)) {
-                    unbound_elem = try Elem.numberStringFromBytes(unbound_bytes, vm);
+                .number => if (isValidNumberString(rest_bytes)) {
+                    rest_elem = try Elem.numberStringFromBytes(rest_bytes, vm);
                 },
                 .string, .untyped => {
                     var all_null = true;
@@ -1950,10 +1923,10 @@ fn matchTemplateUnboundSegment(
                         }
                     }
 
-                    if (all_null and std.mem.eql(u8, unbound_bytes, "null")) {
-                        unbound_elem = Elem.nullConst;
+                    if (all_null and std.mem.eql(u8, rest_bytes, "null")) {
+                        rest_elem = Elem.nullConst;
                     } else {
-                        unbound_elem = try substringElem(vm, value, value_str, unbound_start, unbound_end);
+                        rest_elem = try substringElem(vm, value, value_str, rest_start, rest_end);
                     }
                 },
             }
@@ -1962,19 +1935,19 @@ fn matchTemplateUnboundSegment(
         // also cast to string, mirroring matchStringTemplate's .Repeat
         // case. Try to use a subset of an existing substring if possible.
         .bind, .bound_eq, .placeholder, .str_template, .repeat => {
-            unbound_elem = try substringElem(vm, value, value_str, unbound_start, unbound_end);
+            rest_elem = try substringElem(vm, value, value_str, rest_start, rest_end);
         },
         // A negated pattern only matches numbers, so cast number-shaped
         // bytes, mirroring the number-merge cast.
-        .negated => if (isValidNumberString(unbound_bytes)) {
-            unbound_elem = try Elem.numberStringFromBytes(unbound_bytes, vm);
+        .negated => if (isValidNumberString(rest_bytes)) {
+            rest_elem = try Elem.numberStringFromBytes(rest_bytes, vm);
         },
         // Constants and calls evaluate to value segments, ranges are
         // fixed-length segments, and pair nodes only appear under an object.
         .equality, .const_fn, .call, .const_key, .eval_key, .pattern_key, .range => unreachable,
     }
 
-    if (unbound_elem) |cast_elem| {
+    if (rest_elem) |cast_elem| {
         if (merge_cast) |mc| {
             // The merge cast matches through matchMergeOfType directly, so
             // emit the merge segment's step here, mirroring the solver's

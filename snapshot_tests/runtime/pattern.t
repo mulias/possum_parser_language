@@ -1207,3 +1207,98 @@ Repeating an object value merges it with itself, which is the identity.
 
   $ possum -p 'O = {"a": 5} ; const({}) -> (O * N) $ N' -i ''
   0
+
+A merge with no rest part must cover the value exactly: a string, array,
+or object with content left over after all parts match is a failure, not
+a prefix match.
+
+  $ possum -p '"a" -> A & "b" -> B & "ab" -> (A + B) $ "ok"' -i 'abab'
+  "ok"
+
+  $ possum -p '("" $ "a" -> A) & ("" $ "b" -> B) & ("abc" -> (A + B)) $ "ok"' -i 'abc'
+  
+  Parse Failure: value "abc" did not match pattern (A + B)
+  
+  input:1:3:
+  
+  1 \xe2\x96\x8f abc (esc)
+    \xe2\x96\x8f    ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:46-53:
+  
+  1 \xe2\x96\x8f ("" $ "a" -> A) & ("" $ "b" -> B) & ("abc" -> (A + B)) $ "ok" (esc)
+    \xe2\x96\x8f                                               ^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p '("" $ [1] -> A) & ("" $ [2] -> B) & (json -> (A + B)) $ "ok"' -i '[1,2]'
+  "ok"
+
+  $ possum -p '("" $ [1] -> A) & ("" $ [2] -> B) & (json -> (A + B)) $ "ok"' -i '[1,2,3]'
+  
+  Parse Failure: value [1, 2, 3] did not match pattern (A + B)
+  
+  input:1:7:
+  
+  1 \xe2\x96\x8f [1,2,3] (esc)
+    \xe2\x96\x8f        ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:45-52:
+  
+  1 \xe2\x96\x8f ("" $ [1] -> A) & ("" $ [2] -> B) & (json -> (A + B)) $ "ok" (esc)
+    \xe2\x96\x8f                                              ^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p '("" $ {"a": 1} -> A) & ("" $ {"b": 2} -> B) & (json -> (A + B)) $ "ok"' -i '{"a": 1, "b": 2}'
+  "ok"
+
+  $ possum -p '("" $ {"a": 1} -> A) & ("" $ {} -> B) & (json -> (A + B)) $ "ok"' -i '{"a": 1, "b": 2}'
+  
+  Parse Failure: value {"a": 1, "b": 2} did not match pattern (A + B)
+  
+  input:1:16:
+  
+  1 \xe2\x96\x8f {"a": 1, "b": 2} (esc)
+    \xe2\x96\x8f                 ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:49-56:
+  
+  1 \xe2\x96\x8f ("" $ {"a": 1} -> A) & ("" $ {} -> B) & (json -> (A + B)) $ "ok" (esc)
+    \xe2\x96\x8f                                                  ^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+A string template with every segment bound must also cover the value
+exactly.
+
+  $ possum -p '("" $ "b" -> A) & ("abc" -> "a%(A)c") $ "ok"' -i 'abc'
+  "ok"
+
+  $ possum -p '("" $ "b" -> A) & ("abcd" -> "a%(A)c") $ "ok"' -i 'abcd'
+  
+  Parse Failure: value "abcd" did not match pattern "a%(A)c"
+  
+  input:1:4:
+  
+  1 \xe2\x96\x8f abcd (esc)
+    \xe2\x96\x8f     ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:29-37:
+  
+  1 \xe2\x96\x8f ("" $ "b" -> A) & ("abcd" -> "a%(A)c") $ "ok" (esc)
+    \xe2\x96\x8f                              ^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
