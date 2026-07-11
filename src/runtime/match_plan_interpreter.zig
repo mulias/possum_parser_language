@@ -237,14 +237,13 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
         .range => {
             const range = plan.ranges[node.payload];
             // Evaluable limits are child subtrees in lower-before-upper
-            // preorder; track the child index across both.
-            var child = idx + 1;
+            // preorder.
+            var limits = plan.children(idx);
             switch (range.lower) {
                 .none => {},
                 .bind_local => |vi| try bindLocal(vm, plan.vars[vi], value),
                 .eval => {
-                    const limit = (try evalNode(vm, plan, child)) orelse return error.RuntimeError;
-                    child += plan.nodes[child].subtree_len;
+                    const limit = (try evalNode(vm, plan, limits.next())) orelse return error.RuntimeError;
                     if (!(try limit.isLessThanOrEqualInRangePattern(value, vm.*))) return false;
                 },
                 .const_elem, .bound_local => {
@@ -256,8 +255,7 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
                 .none => {},
                 .bind_local => |vi| try bindLocal(vm, plan.vars[vi], value),
                 .eval => {
-                    const limit = (try evalNode(vm, plan, child)) orelse return error.RuntimeError;
-                    child += plan.nodes[child].subtree_len;
+                    const limit = (try evalNode(vm, plan, limits.next())) orelse return error.RuntimeError;
                     if (!(try value.isLessThanOrEqualInRangePattern(limit, vm.*))) return false;
                 },
                 .const_elem, .bound_local => {
@@ -325,8 +323,9 @@ fn negateEvaluated(pattern_value: Elem, negation_count: u32) Error!Elem {
 // the same way attemptEval returning null does.
 fn matchRepeat(vm: *VM, plan: MatchPlan, value: Elem, idx: u32) Error!bool {
     const repeat_plan = plan.repeats[plan.nodes[idx].payload];
-    const pattern_idx = idx + 1;
-    const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
+    var operands = plan.children(idx);
+    const pattern_idx = operands.next();
+    const count_idx = operands.next();
     const later_pattern_idx = laterPatternIdx(plan, repeat_plan, pattern_idx, count_idx);
 
     if (try resolveRepeatOperand(vm, plan, repeat_plan.pattern, pattern_idx)) |pattern_value| {
@@ -669,10 +668,9 @@ fn evalNode(vm: *VM, plan: MatchPlan, idx: u32) Error!?Elem {
             const elems = try vm.allocator.alloc(Elem, node.payload);
             defer vm.allocator.free(elems);
 
-            var child = idx + 1;
+            var children = plan.children(idx);
             for (elems) |*elem| {
-                elem.* = (try evalNode(vm, plan, child)) orelse return null;
-                child += plan.nodes[child].subtree_len;
+                elem.* = (try evalNode(vm, plan, children.next())) orelse return null;
             }
 
             const dyn_array = try Elem.DynElem.Array.create(vm, node.payload);
@@ -684,9 +682,9 @@ fn evalNode(vm: *VM, plan: MatchPlan, idx: u32) Error!?Elem {
         },
         .merge => {
             var result: ?Elem = null;
-            var child = idx + 1;
+            var children = plan.children(idx);
             for (0..plan.merges[node.payload].part_count) |_| {
-                const part_value = (try evalNode(vm, plan, child)) orelse return null;
+                const part_value = (try evalNode(vm, plan, children.next())) orelse return null;
                 if (result) |current| {
                     result = (try current.merge(part_value, vm)) orelse return null;
                     // Root the intermediate across the next part's
@@ -695,14 +693,14 @@ fn evalNode(vm: *VM, plan: MatchPlan, idx: u32) Error!?Elem {
                 } else {
                     result = part_value;
                 }
-                child += plan.nodes[child].subtree_len;
             }
             return result;
         },
         .repeat => {
             const repeat_plan = plan.repeats[node.payload];
-            const pattern_idx = idx + 1;
-            const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
+            var operands = plan.children(idx);
+            const pattern_idx = operands.next();
+            const count_idx = operands.next();
             const pattern_value = (try resolveRepeatOperand(vm, plan, repeat_plan.pattern, pattern_idx)) orelse
                 return null;
             const count_value = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)) orelse
@@ -730,8 +728,9 @@ fn fixedArrayLength(vm: *VM, plan: MatchPlan, idx: u32) Error!?usize {
         .array => return node.payload,
         .merge => {
             var total_length: usize = 0;
-            var child = idx + 1;
+            var children = plan.children(idx);
             for (0..plan.merges[node.payload].part_count) |_| {
+                const child = children.next();
                 if (try evalNode(vm, plan, child)) |elem| {
                     if (elem.isDynType(.Array)) {
                         total_length += elem.asDyn().asArray().len();
@@ -747,7 +746,6 @@ fn fixedArrayLength(vm: *VM, plan: MatchPlan, idx: u32) Error!?usize {
                     // Part has unknown length
                     return null;
                 }
-                child += plan.nodes[child].subtree_len;
             }
             return total_length;
         },
@@ -829,12 +827,11 @@ fn matchObjectRepeat(
 ) Error!bool {
     for (0..count) |rep| {
         const object_idx = if (rep == 0) pattern_idx else later_pattern_idx;
-        var pair = object_idx + 1;
+        var pairs = plan.children(object_idx);
         for (0..plan.nodes[object_idx].payload) |_| {
-            if (!(try matchMergeObjectPair(vm, plan, pair, value_object, matched_base, .exclusive))) {
+            if (!(try matchMergeObjectPair(vm, plan, pairs.next(), value_object, matched_base, .exclusive))) {
                 return false;
             }
-            pair += plan.nodes[pair].subtree_len;
         }
     }
     return true;
@@ -864,8 +861,9 @@ fn repeatCount(vm: *VM, count_elem: Elem) Error!?usize {
 // on the VM here.
 fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
     const merge_plan = plan.merges[plan.nodes[merge_node_idx].payload];
-    var child = merge_node_idx + 1;
+    var children = plan.children(merge_node_idx);
     for (0..merge_plan.part_count) |i| {
+        const child = children.next();
         const child_node = plan.nodes[child];
         const solvable = merge_plan.solvable_index != null and merge_plan.solvable_index.? == i;
         const part: ResolvedPart = if (solvable)
@@ -883,7 +881,6 @@ fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
             else => .{ .subtree = child },
         };
         try vm.plan_merge_parts.append(vm.allocator, part);
-        child += child_node.subtree_len;
     }
 }
 
@@ -892,8 +889,9 @@ fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
 // matching any. Constant segments were stringified at compile time.
 fn resolveTemplateParts(vm: *VM, plan: MatchPlan, template_node_idx: u32) Error!void {
     const template_plan = plan.merges[plan.nodes[template_node_idx].payload];
-    var child = template_node_idx + 1;
+    var children = plan.children(template_node_idx);
     for (0..template_plan.part_count) |i| {
+        const child = children.next();
         const child_node = plan.nodes[child];
         const solvable = template_plan.solvable_index != null and template_plan.solvable_index.? == i;
         const part: ResolvedPart = if (solvable)
@@ -911,7 +909,6 @@ fn resolveTemplateParts(vm: *VM, plan: MatchPlan, template_node_idx: u32) Error!
             else => unreachable,
         };
         try vm.plan_merge_parts.append(vm.allocator, part);
-        child += child_node.subtree_len;
     }
 }
 
@@ -938,10 +935,9 @@ fn matchMergeOfType(
 // slice, without the node's own dyn-type or length checks: the merge
 // matchers match structural array parts against a slice of the value.
 fn matchArrayElems(vm: *VM, plan: MatchPlan, array_node_idx: u32, value_slice: []Elem) Error!bool {
-    var child = array_node_idx + 1;
+    var children = plan.children(array_node_idx);
     for (value_slice) |element| {
-        if (!(try matchNode(vm, element, plan, child, null))) return false;
-        child += plan.nodes[child].subtree_len;
+        if (!(try matchNode(vm, element, plan, children.next(), null))) return false;
     }
     return true;
 }
@@ -966,27 +962,26 @@ fn matchObjectNode(
     const pair_count = plan.nodes[object_node_idx].payload;
 
     var has_search_key = false;
-    var scan = object_node_idx + 1;
+    var scan = plan.children(object_node_idx);
     for (0..pair_count) |_| {
-        if (plan.nodes[scan].tag == .pattern_key) {
+        if (plan.nodes[scan.next()].tag == .pattern_key) {
             has_search_key = true;
             break;
         }
-        scan += plan.nodes[scan].subtree_len;
     }
 
     const matched_base = vm.plan_matched_keys.items.len;
     defer vm.plan_matched_keys.shrinkRetainingCapacity(matched_base);
     const mark_base: ?usize = if (has_search_key) matched_base else null;
 
-    var pair = object_node_idx + 1;
+    var pairs = plan.children(object_node_idx);
     for (0..pair_count) |_| {
-        const pair_node = plan.nodes[pair];
-        const matched = switch (pair_node.tag) {
+        const pair = pairs.next();
+        const matched = switch (plan.nodes[pair].tag) {
             .const_key => try matchResolvedKeyPair(
                 vm,
                 plan,
-                plan.sids[pair_node.payload],
+                plan.sids[plan.nodes[pair].payload],
                 pair + 1,
                 value_object,
                 mark_base,
@@ -994,8 +989,10 @@ fn matchObjectNode(
                 true,
             ),
             .eval_key => blk: {
-                const key_value = (try evalNode(vm, plan, pair + 1)).?;
-                const value_idx = pair + 1 + plan.nodes[pair + 1].subtree_len;
+                var kv = plan.children(pair);
+                const key_idx = kv.next();
+                const value_idx = kv.next();
+                const key_value = (try evalNode(vm, plan, key_idx)).?;
                 break :blk try matchResolvedKeyPair(
                     vm,
                     plan,
@@ -1008,8 +1005,9 @@ fn matchObjectNode(
                 );
             },
             .pattern_key => blk: {
-                const key_idx = pair + 1;
-                const value_idx = key_idx + plan.nodes[key_idx].subtree_len;
+                var kv = plan.children(pair);
+                const key_idx = kv.next();
+                const value_idx = kv.next();
                 if (try evalNode(vm, plan, key_idx)) |key_value| {
                     break :blk try matchResolvedKeyPair(
                         vm,
@@ -1027,7 +1025,6 @@ fn matchObjectNode(
             else => unreachable,
         };
         if (!matched) return false;
-        pair += pair_node.subtree_len;
     }
     return true;
 }
@@ -1092,14 +1089,17 @@ fn matchMergeObjectPair(
             false,
         ),
         .eval_key => {
-            const key_value = (try evalNode(vm, plan, pair_idx + 1)).?;
+            var kv = plan.children(pair_idx);
+            const key_idx = kv.next();
+            const value_idx = kv.next();
+            const key_value = (try evalNode(vm, plan, key_idx)).?;
             const sid = (try key_value.getOrPutSid(vm)) orelse return error.RuntimeError;
-            const value_idx = pair_idx + 1 + plan.nodes[pair_idx + 1].subtree_len;
             return matchResolvedKeyPair(vm, plan, sid, value_idx, value_object, matched_base, claim, false);
         },
         .pattern_key => {
-            const key_idx = pair_idx + 1;
-            const value_idx = key_idx + plan.nodes[key_idx].subtree_len;
+            var kv = plan.children(pair_idx);
+            const key_idx = kv.next();
+            const value_idx = kv.next();
             if (try evalNode(vm, plan, key_idx)) |key_value| {
                 const sid = (try key_value.getOrPutSid(vm)) orelse return error.RuntimeError;
                 return matchResolvedKeyPair(vm, plan, sid, value_idx, value_object, matched_base, claim, false);
@@ -1151,12 +1151,11 @@ fn matchObjectPairs(
     value_object: *Elem.DynElem.Object,
     matched_base: usize,
 ) Error!bool {
-    var pair = object_node_idx + 1;
+    var pairs = plan.children(object_node_idx);
     for (0..plan.nodes[object_node_idx].payload) |_| {
-        if (!(try matchMergeObjectPair(vm, plan, pair, value_object, matched_base, .shared))) {
+        if (!(try matchMergeObjectPair(vm, plan, pairs.next(), value_object, matched_base, .shared))) {
             return false;
         }
-        pair += plan.nodes[pair].subtree_len;
     }
     return true;
 }
@@ -1583,8 +1582,9 @@ fn matchObjectMergeRepeatPart(
     matched_base: usize,
 ) Error!bool {
     const repeat_plan = plan.repeats[plan.nodes[part_idx].payload];
-    const pattern_idx = part_idx + 1;
-    const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
+    var operands = plan.children(part_idx);
+    const pattern_idx = operands.next();
+    const count_idx = operands.next();
     std.debug.assert(plan.nodes[pattern_idx].tag == .object);
     const count_elem = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)).?;
     const later_pattern_idx = laterPatternIdx(plan, repeat_plan, pattern_idx, count_idx);
@@ -2140,8 +2140,9 @@ fn evalCall(vm: *VM, plan: MatchPlan, call_node_idx: u32) Error!Elem {
     const args = try vm.allocator.alloc(Elem, call.arg_count);
     defer vm.allocator.free(args);
 
-    var child = call_node_idx + 1;
+    var children = plan.children(call_node_idx);
     for (args) |*arg| {
+        const child = children.next();
         const child_node = plan.nodes[child];
         arg.* = switch (child_node.tag) {
             .equality => plan.elems[child_node.payload],
@@ -2152,7 +2153,6 @@ fn evalCall(vm: *VM, plan: MatchPlan, call_node_idx: u32) Error!Elem {
             // Lowering rejects other argument shapes.
             else => unreachable,
         };
-        child += child_node.subtree_len;
     }
 
     const result = try executeFunctionOnVM(vm, function, args, .{ .subtree = .{ .plan = plan, .idx = call_node_idx } });
