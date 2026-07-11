@@ -1508,18 +1508,7 @@ fn matchObjectMerge(
                     }
                 },
                 .repeat => {
-                    // A structural object repeat is counted: claim exactly
-                    // that many disjoint groups here. Lowering guarantees
-                    // its count resolves; a repeat whose count is solved
-                    // from the leftover members is the rest part instead.
-                    const repeat_plan = plan.repeats[plan.nodes[part_idx].payload];
-                    const pattern_idx = part_idx + 1;
-                    const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
-                    std.debug.assert(plan.nodes[pattern_idx].tag == .object);
-                    const count_elem = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)).?;
-                    const later_pattern_idx = laterPatternIdx(plan, repeat_plan, pattern_idx, count_idx);
-                    const repetitions = (try repeatCount(vm, count_elem)) orelse return false;
-                    if (!(try matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, repetitions, matched_base))) {
+                    if (!(try matchObjectMergeRepeatPart(vm, plan, part_idx, value_object, matched_base))) {
                         return false;
                     }
                 },
@@ -1581,6 +1570,26 @@ fn matchObjectMerge(
     }
 
     return true;
+}
+
+// A structural object repeat part is counted: claim exactly that many
+// disjoint groups. Lowering guarantees its count resolves; a repeat whose
+// count is solved from the leftover members is the rest part instead.
+fn matchObjectMergeRepeatPart(
+    vm: *VM,
+    plan: MatchPlan,
+    part_idx: u32,
+    value_object: *Elem.DynElem.Object,
+    matched_base: usize,
+) Error!bool {
+    const repeat_plan = plan.repeats[plan.nodes[part_idx].payload];
+    const pattern_idx = part_idx + 1;
+    const count_idx = pattern_idx + plan.nodes[pattern_idx].subtree_len;
+    std.debug.assert(plan.nodes[pattern_idx].tag == .object);
+    const count_elem = (try resolveRepeatOperand(vm, plan, repeat_plan.count, count_idx)).?;
+    const later_pattern_idx = laterPatternIdx(plan, repeat_plan, pattern_idx, count_idx);
+    const repetitions = (try repeatCount(vm, count_elem)) orelse return false;
+    return matchObjectRepeat(vm, plan, pattern_idx, later_pattern_idx, value_object, repetitions, matched_base);
 }
 
 // The rest of a root-level object destructure can take over the value
