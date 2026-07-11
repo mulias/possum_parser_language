@@ -463,8 +463,13 @@ pub const ResolvedPart = union(enum) {
     // A folded constant or a bound local read (and possibly evaluated) at
     // match time.
     value: Elem,
-    // A structural or solvable part: the node index of its subtree.
+    // A structural part matched in place: the node index of its subtree.
+    // Always a fixed-shape part (an array, an object, a counted object
+    // repeat, or a fixed-length template range).
     subtree: u32,
+    // The one solvable part (the merge's solvable_index): the node index
+    // of the subtree solved from whatever the other parts leave over.
+    rest: u32,
 };
 
 pub const LocalVar = struct {
