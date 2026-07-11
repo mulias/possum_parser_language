@@ -282,31 +282,7 @@ fn dispatchNode(vm: *VM, value: Elem, plan: MatchPlan, idx: u32, discardable: ?*
             const parts_base = vm.plan_merge_parts.items.len;
             defer vm.plan_merge_parts.shrinkRetainingCapacity(parts_base);
 
-            // Resolve value segments up front, the way the solver
-            // simplifies and toStrings every segment before matching any.
-            // Constant segments were stringified at compile time.
-            var child = idx + 1;
-            for (0..template_plan.part_count) |i| {
-                const child_node = plan.nodes[child];
-                const solvable = template_plan.solvable_index != null and template_plan.solvable_index.? == i;
-                const part: ResolvedPart = if (solvable)
-                    .{ .rest = child }
-                else switch (child_node.tag) {
-                    .equality => .{ .value = plan.elems[child_node.payload] },
-                    .bound_eq => .{ .value = try stringifyBoundLocal(vm, plan.vars[child_node.payload]) },
-                    .const_fn => .{ .value = try stringifyElem(vm, try evalConstFn(vm, plan, child)) },
-                    .call => .{ .value = try stringifyElem(vm, try evalCall(vm, plan, child)) },
-                    // Lowering only accepts eval-class negated segments,
-                    // so the evaluation cannot come up empty.
-                    .negated => .{ .value = try stringifyElem(vm, (try evalNode(vm, plan, child)).?) },
-                    .range => .{ .subtree = child },
-                    // Lowering rejects other non-solvable segment shapes.
-                    else => unreachable,
-                };
-                try vm.plan_merge_parts.append(vm.allocator, part);
-                child += child_node.subtree_len;
-            }
-
+            try resolveTemplateParts(vm, plan, idx);
             return matchStringTemplate(vm, plan, value, parts_base, template_plan.part_count);
         },
         .repeat => return matchRepeat(vm, plan, value, idx),
@@ -894,6 +870,34 @@ fn resolveMergeParts(vm: *VM, plan: MatchPlan, merge_node_idx: u32) Error!void {
             // ranges) by binding analysis.
             .negated => .{ .value = (try evalNode(vm, plan, child)).? },
             else => .{ .subtree = child },
+        };
+        try vm.plan_merge_parts.append(vm.allocator, part);
+        child += child_node.subtree_len;
+    }
+}
+
+// Resolve the segments of a str_template node into vm.plan_merge_parts,
+// the way the solver simplifies and toStrings every segment before
+// matching any. Constant segments were stringified at compile time.
+fn resolveTemplateParts(vm: *VM, plan: MatchPlan, template_node_idx: u32) Error!void {
+    const template_plan = plan.merges[plan.nodes[template_node_idx].payload];
+    var child = template_node_idx + 1;
+    for (0..template_plan.part_count) |i| {
+        const child_node = plan.nodes[child];
+        const solvable = template_plan.solvable_index != null and template_plan.solvable_index.? == i;
+        const part: ResolvedPart = if (solvable)
+            .{ .rest = child }
+        else switch (child_node.tag) {
+            .equality => .{ .value = plan.elems[child_node.payload] },
+            .bound_eq => .{ .value = try stringifyBoundLocal(vm, plan.vars[child_node.payload]) },
+            .const_fn => .{ .value = try stringifyElem(vm, try evalConstFn(vm, plan, child)) },
+            .call => .{ .value = try stringifyElem(vm, try evalCall(vm, plan, child)) },
+            // Lowering only accepts eval-class negated segments,
+            // so the evaluation cannot come up empty.
+            .negated => .{ .value = try stringifyElem(vm, (try evalNode(vm, plan, child)).?) },
+            .range => .{ .subtree = child },
+            // Lowering rejects other non-solvable segment shapes.
+            else => unreachable,
         };
         try vm.plan_merge_parts.append(vm.allocator, part);
         child += child_node.subtree_len;
