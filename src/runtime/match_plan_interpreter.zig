@@ -1667,7 +1667,7 @@ fn matchStringMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: u
                 // Allocate a dynamic string
                 const dyn_str = try Elem.DynElem.String.create(vm, rest_value.len);
                 try vm.pushTempDyn(&dyn_str.dyn);
-                try dyn_str.concatBytes(rest_value);
+                try dyn_str.concatBytes(vm, rest_value);
                 break :blk dyn_str.dyn.elem();
             };
 

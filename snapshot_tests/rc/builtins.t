@@ -32,4 +32,4 @@ instead of carrying the popped copy's count forever.
   husks:             0 parked, 0 reused
   strings interned:  11
   strings size:      41 chars
-  bytes in use:      617
+  bytes in use:      609

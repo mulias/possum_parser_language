@@ -2,7 +2,7 @@ comptime {
     _ = @import("frontend/scanner.test.zig");
     _ = @import("runtime/vm.test.zig");
     _ = @import("runtime/vm.zig");
-    _ = @import("string_buffer.test.zig");
+    _ = @import("string_buffer.zig");
     _ = @import("string_table.zig");
     _ = @import("runtime/elem.zig");
     _ = @import("backend/ir.zig");

@@ -1,80 +1,37 @@
-// Based on https://github.com/JakubSzark/zig-string/blob/master/LICENSE
-//
-// MIT License
-//
-// Copyright (c) 2020 Jakub Szarkowicz (JakubSzark)
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 /// An appendable byte buffer: the owned-bytes storage behind leaf
 /// strings.
 pub const StringBuffer = struct {
     /// The internal character buffer
-    buffer: ?[]u8,
-    /// The allocator used for managing the buffer
-    allocator: std.mem.Allocator,
+    buffer: ?[]u8 = null,
     /// The total size of the StringBuffer
-    size: usize,
-
-    pub const Error = error{
-        OutOfMemory,
-    };
-
-    /// Creates a StringBuffer with an Allocator
-    /// User is responsible for managing the new StringBuffer
-    pub fn init(allocator: std.mem.Allocator) StringBuffer {
-        return .{
-            .buffer = null,
-            .allocator = allocator,
-            .size = 0,
-        };
-    }
+    size: usize = 0,
 
     /// Deallocates the internal buffer
-    pub fn deinit(self: *StringBuffer) void {
-        if (self.buffer) |buffer| self.allocator.free(buffer);
+    pub fn deinit(self: *StringBuffer, gpa: Allocator) void {
+        if (self.buffer) |buffer| gpa.free(buffer);
     }
 
     /// Allocates space for the internal buffer
-    pub fn allocate(self: *StringBuffer, bytes: usize) Error!void {
+    pub fn allocate(self: *StringBuffer, gpa: Allocator, bytes: usize) !void {
         if (self.buffer) |buffer| {
             if (bytes < self.size) self.size = bytes; // Clamp size to capacity
-            self.buffer = self.allocator.realloc(buffer, bytes) catch {
-                return Error.OutOfMemory;
-            };
+            self.buffer = try gpa.realloc(buffer, bytes);
         } else {
-            self.buffer = self.allocator.alloc(u8, bytes) catch {
-                return Error.OutOfMemory;
-            };
+            self.buffer = try gpa.alloc(u8, bytes);
         }
     }
 
     /// Appends bytes onto the end of the StringBuffer
-    pub fn concat(self: *StringBuffer, bytes: []const u8) Error!void {
+    pub fn concat(self: *StringBuffer, gpa: Allocator, bytes: []const u8) !void {
         if (self.buffer) |buffer| {
             if (self.size + bytes.len > buffer.len) {
-                try self.allocate((self.size + bytes.len) * 2);
+                try self.allocate(gpa, (self.size + bytes.len) * 2);
             }
         } else {
-            try self.allocate(bytes.len * 2);
+            try self.allocate(gpa, bytes.len * 2);
         }
 
         std.mem.copyForwards(u8, self.buffer.?[self.size..(self.size + bytes.len)], bytes);
@@ -98,3 +55,32 @@ pub const StringBuffer = struct {
         return "";
     }
 };
+
+test "concat grows the buffer and str returns the contents" {
+    var buffer: StringBuffer = .{};
+    defer buffer.deinit(std.testing.allocator);
+
+    try buffer.concat(std.testing.allocator, "🔥 Hello");
+    try buffer.concat(std.testing.allocator, ", World 🔥");
+
+    try std.testing.expectEqualStrings("🔥 Hello, World 🔥", buffer.str());
+    try std.testing.expectEqual("🔥 Hello, World 🔥".len, buffer.size);
+}
+
+test "allocate pre-sizes so exact fills never regrow" {
+    var buffer: StringBuffer = .{};
+    defer buffer.deinit(std.testing.allocator);
+
+    try buffer.allocate(std.testing.allocator, 10);
+    try buffer.concat(std.testing.allocator, "01234");
+    try buffer.concat(std.testing.allocator, "56789");
+
+    try std.testing.expectEqualStrings("0123456789", buffer.str());
+    try std.testing.expectEqual(@as(usize, 10), buffer.buffer.?.len);
+}
+
+test "str on an unallocated buffer is empty" {
+    var buffer: StringBuffer = .{};
+
+    try std.testing.expectEqualStrings("", buffer.str());
+}

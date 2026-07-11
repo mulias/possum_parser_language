@@ -760,7 +760,7 @@ pub const Elem = packed union {
     // Append a string operand's bytes into a unique leaf.
     fn appendStringBytes(sa: *DynElem.String, e: Elem, vm: *VM) !void {
         var runs = StringRuns.init(e, vm.*);
-        while (runs.next(vm.*)) |run| try sa.concatBytes(run);
+        while (runs.next(vm.*)) |run| try sa.concatBytes(vm, run);
     }
 
     // Append a string operand onto a unique rope: values and leaves
@@ -1240,7 +1240,7 @@ pub const Elem = packed union {
 
             pub fn copy(vm: *VM, source: []const u8) !*String {
                 const str = try create(vm, source.len);
-                try str.concatBytes(source);
+                try str.concatBytes(vm, source);
                 return str;
             }
 
@@ -1248,8 +1248,8 @@ pub const Elem = packed union {
                 if (vm.gc.takeParkedLeaf(size)) |husk| return husk;
 
                 // Allocate buffer before string is added to GC
-                var buffer = StringBuffer.init(vm.gc.allocator());
-                try buffer.allocate(size);
+                var buffer: StringBuffer = .{};
+                try buffer.allocate(vm.gc.allocator(), size);
 
                 const dyn = try vm.gc.createDynElem(String, .String);
                 const str = dyn.asString();
@@ -1285,7 +1285,7 @@ pub const Elem = packed union {
 
             pub fn destroy(self: *String, vm: *VM) void {
                 switch (self.repr) {
-                    .leaf => |*buffer| buffer.deinit(),
+                    .leaf => |*buffer| buffer.deinit(vm.gc.allocator()),
                     .rope => |*rope| rope.segments.deinit(vm.gc.allocator()),
                 }
                 vm.gc.allocator().destroy(self);
@@ -1304,10 +1304,10 @@ pub const Elem = packed union {
                         try vm.pushTempDyn(&self.dyn);
                         defer vm.dropTempDyn();
 
-                        var buffer = StringBuffer.init(vm.gc.allocator());
-                        try buffer.allocate(rope.byte_len);
+                        var buffer: StringBuffer = .{};
+                        try buffer.allocate(vm.gc.allocator(), rope.byte_len);
                         for (rope.segments.items) |seg| {
-                            try buffer.concat(segmentBytes(seg, vm.*));
+                            try buffer.concat(vm.gc.allocator(), segmentBytes(seg, vm.*));
                         }
                         // The swap and releases allocate nothing, so no
                         // collection observes the intermediate state.
@@ -1412,16 +1412,16 @@ pub const Elem = packed union {
                 return eqlStrings(self.dyn.elem(), other.elem(), vm);
             }
 
-            pub fn concat(self: *String, other: *String) !void {
-                try self.repr.leaf.concat(other.bytes());
+            pub fn concat(self: *String, vm: *VM, other: *String) !void {
+                try self.repr.leaf.concat(vm, other.bytes());
             }
 
             pub fn concatByte(self: *String, other: u8) !void {
                 try self.repr.leaf.concat(&[_]u8{other});
             }
 
-            pub fn concatBytes(self: *String, other: []const u8) !void {
-                try self.repr.leaf.concat(other);
+            pub fn concatBytes(self: *String, vm: *VM, other: []const u8) !void {
+                try self.repr.leaf.concat(vm.gc.allocator(), other);
             }
 
             pub fn byteLen(self: *String) usize {
@@ -1889,7 +1889,7 @@ pub const Elem = packed union {
 test "struct size" {
     try std.testing.expectEqual(8, @sizeOf(Elem));
     try std.testing.expectEqual(32, @sizeOf(Elem.DynElem));
-    try std.testing.expectEqual(80, @sizeOf(Elem.DynElem.String));
+    try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.String));
     try std.testing.expectEqual(56, @sizeOf(Elem.DynElem.Array));
     try std.testing.expectEqual(72, @sizeOf(Elem.DynElem.Object));
     try std.testing.expectEqual(112, @sizeOf(Elem.DynElem.Function));
