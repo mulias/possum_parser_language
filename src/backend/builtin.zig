@@ -725,7 +725,7 @@ fn createInputOffset(vm: *VM, module: *Module, name: StringTable.Id) CreateError
 
 fn inputOffsetNative(vm: *VM) VM.Error!void {
     return vm.push(Elem.numberFloat(@as(f64, @floatFromInt(
-        @as(i64, @intCast(vm.inputPos.offset)),
+        @as(i64, @intCast(vm.inputOffset)),
     ))));
 }
 
@@ -754,8 +754,9 @@ fn createInputLine(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*
 }
 
 fn inputLineNative(vm: *VM) VM.Error!void {
+    const pos = vm.materializePos(vm.inputOffset);
     return vm.push(Elem.numberFloat(@as(f64, @floatFromInt(
-        @as(i64, @intCast(vm.inputPos.line)),
+        @as(i64, @intCast(pos.line)),
     ))));
 }
 
@@ -784,9 +785,8 @@ fn createInputLineOffset(vm: *VM, module: *Module, name: StringTable.Id) CreateE
 }
 
 fn inputLineOffsetNative(vm: *VM) VM.Error!void {
-    return vm.push(Elem.numberFloat(
-        @as(f64, @floatFromInt(vm.inputPos.offset)) - @as(f64, @floatFromInt(vm.inputPos.line_start)),
-    ));
+    const pos = vm.materializePos(vm.inputOffset);
+    return vm.push(Elem.numberFloat(@as(f64, @floatFromInt(pos.lineOffset()))));
 }
 
 fn createAt(vm: *VM, module: *Module, name: StringTable.Id) CreateError!*Function {
@@ -840,7 +840,7 @@ fn setInputPositionNative(vm: *VM) VM.Error!void {
             const offset = @as(usize, @intFromFloat(float));
             // offset might be truncated if float is negative
             if (0 <= float and offset <= vm.input.len) {
-                vm.inputPos = .{ .offset = offset };
+                vm.inputOffset = offset;
             } else {
                 return vm.pushFailure();
             }

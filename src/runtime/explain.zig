@@ -15,7 +15,6 @@ const ArrayList = std.ArrayListUnmanaged;
 const Writer = std.Io.Writer;
 const vm_mod = @import("vm.zig");
 const VM = vm_mod.VM;
-const Pos = vm_mod.Pos;
 const Module = @import("module.zig").Module;
 const Region = @import("../region.zig").Region;
 const LineRelativeRegion = @import("../region.zig").LineRelativeRegion;
@@ -62,19 +61,19 @@ pub const Event = union(enum) {
     pub const Call = struct {
         function_name: StringTable.Id,
         module_id: Module.Id,
-        pos: Pos,
+        offset: usize,
         is_tail: bool,
     };
 
     pub const Ret = struct {
         failed: bool,
-        pos: Pos,
+        offset: usize,
     };
 
     pub const DestructureBegin = struct {
         region: Region,
         module_id: Module.Id,
-        pos: Pos,
+        offset: usize,
         value: Snapshot,
         pattern: Snapshot,
     };
@@ -108,16 +107,16 @@ const Child = union(enum) {
 
 const Node = struct {
     labels: ArrayList(Label) = .{},
-    start: Pos,
-    end: Pos,
+    start: usize,
+    end: usize,
     failed: bool = false,
     children: ArrayList(Child) = .{},
     // Farthest input position touched anywhere in the subtree.
-    reach: Pos,
+    reach: usize,
     // Farthest position of any failed attempt in the subtree. A successful
     // node can still contain the decisive failure: a repetition consumes
     // what it can and backtracks the last, failing iteration into success.
-    fail_reach: ?Pos = null,
+    fail_reach: ?usize = null,
 };
 
 const StepEntry = struct {
@@ -132,7 +131,7 @@ const StepEntry = struct {
 const DestructureNode = struct {
     region: Region,
     module_id: Module.Id,
-    pos: Pos,
+    offset: usize,
     value: Snapshot,
     pattern: Snapshot,
     failed: bool = false,
@@ -150,9 +149,9 @@ fn build(allocator: Allocator, events: []const Event) !Tree {
     var tree = Tree{};
 
     try tree.nodes.append(allocator, Node{
-        .start = Pos{},
-        .end = Pos{},
-        .reach = Pos{},
+        .start = 0,
+        .end = 0,
+        .reach = 0,
     });
 
     var open_nodes: ArrayList(usize) = .{};
@@ -175,9 +174,9 @@ fn build(allocator: Allocator, events: []const Event) !Tree {
                 } else {
                     const idx = tree.nodes.items.len;
                     try tree.nodes.append(allocator, Node{
-                        .start = c.pos,
-                        .end = c.pos,
-                        .reach = c.pos,
+                        .start = c.offset,
+                        .end = c.offset,
+                        .reach = c.offset,
                     });
                     try tree.nodes.items[idx].labels.append(allocator, label);
                     try tree.nodes.items[cur].children.append(allocator, .{ .node = idx });
@@ -187,7 +186,7 @@ fn build(allocator: Allocator, events: []const Event) !Tree {
             .ret => |r| {
                 if (open_nodes.items.len > 1) {
                     const idx = open_nodes.pop().?;
-                    tree.nodes.items[idx].end = r.pos;
+                    tree.nodes.items[idx].end = r.offset;
                     tree.nodes.items[idx].failed = r.failed;
                 }
             },
@@ -196,7 +195,7 @@ fn build(allocator: Allocator, events: []const Event) !Tree {
                 try tree.destructures.append(allocator, DestructureNode{
                     .region = d.region,
                     .module_id = d.module_id,
-                    .pos = d.pos,
+                    .offset = d.offset,
                     .value = d.value,
                     .pattern = d.pattern,
                 });
@@ -257,18 +256,18 @@ fn build(allocator: Allocator, events: []const Event) !Tree {
 fn computeReach(tree: *Tree, idx: usize) void {
     const node = &tree.nodes.items[idx];
     var reach = node.end;
-    if (node.start.offset > reach.offset) reach = node.start;
+    if (node.start > reach) reach = node.start;
 
-    var fail_reach: ?Pos = if (node.failed) node.end else null;
+    var fail_reach: ?usize = if (node.failed) node.end else null;
 
     for (node.children.items) |child| {
         switch (child) {
             .node => |n| {
                 computeReach(tree, n);
                 const child_reach = tree.nodes.items[n].reach;
-                if (child_reach.offset > reach.offset) reach = child_reach;
+                if (child_reach > reach) reach = child_reach;
                 if (tree.nodes.items[n].fail_reach) |child_fail| {
-                    if (fail_reach == null or child_fail.offset > fail_reach.?.offset) {
+                    if (fail_reach == null or child_fail > fail_reach.?) {
                         fail_reach = child_fail;
                     }
                 }
@@ -276,8 +275,8 @@ fn computeReach(tree: *Tree, idx: usize) void {
             .destructure => |d| {
                 const dest = tree.destructures.items[d];
                 if (dest.failed) {
-                    if (fail_reach == null or dest.pos.offset > fail_reach.?.offset) {
-                        fail_reach = dest.pos;
+                    if (fail_reach == null or dest.offset > fail_reach.?) {
+                        fail_reach = dest.offset;
                     }
                 }
             },
@@ -299,7 +298,8 @@ const Renderer = struct {
     pruned_successful: usize = 0,
     pruned_failed: usize = 0,
 
-    fn posFmt(pos: Pos) struct { line: usize, col: usize } {
+    fn posFmt(self: *Renderer, offset: usize) struct { line: usize, col: usize } {
+        const pos = self.vm.materializePos(offset);
         return .{ .line = pos.line, .col = pos.lineOffset() };
     }
 
@@ -325,13 +325,13 @@ const Renderer = struct {
         // reached the farthest position — successful nodes included, since
         // a repetition backtracks its decisive failing iteration away.
         const expand = node.fail_reach != null and
-            node.fail_reach.?.offset >= self.farthest and
+            node.fail_reach.? >= self.farthest and
             node.children.items.len > 0 and
             depth < max_render_depth;
 
         if (!node.failed) {
-            const a = posFmt(node.start);
-            const b = posFmt(node.end);
+            const a = self.posFmt(node.start);
+            const b = self.posFmt(node.end);
             try self.writer.print("  \u{2713} consumed {d}:{d}..{d}:{d}\n", .{ a.line, a.col, b.line, b.col });
             if (expand) {
                 try self.renderChildren(node, child_prefix, depth);
@@ -341,12 +341,12 @@ const Renderer = struct {
             return;
         }
 
-        const at_farthest = node.fail_reach != null and node.fail_reach.?.offset >= self.farthest;
+        const at_farthest = node.fail_reach != null and node.fail_reach.? >= self.farthest;
 
         if (at_farthest) {
             // The frame's return position reflects backtracking resets;
             // the deepest failed attempt is where the node really died.
-            const at = posFmt(node.fail_reach.?);
+            const at = self.posFmt(node.fail_reach.?);
             try self.writer.print("  \u{2717} at {d}:{d}\n", .{ at.line, at.col });
             if (expand) {
                 try self.renderChildren(node, child_prefix, depth);
@@ -354,7 +354,7 @@ const Renderer = struct {
                 self.pruned_failed += 1;
             }
         } else {
-            const reach = posFmt(node.reach);
+            const reach = self.posFmt(node.reach);
             try self.writer.print("  \u{2717} reached {d}:{d}\n", .{ reach.line, reach.col });
             if (node.children.items.len > 0) self.pruned_failed += 1;
         }
@@ -477,7 +477,8 @@ pub fn render(vm: *VM, writer: *Writer) !void {
 
     var tree = try build(allocator, vm.explain_events.items);
 
-    const farthest_pos = if (vm.farthest) |record| record.pos else vm.inputPos;
+    const farthest_offset = if (vm.farthest) |record| record.offset else vm.inputOffset;
+    const farthest_pos = vm.materializePos(farthest_offset);
 
     try writer.print("\nParse trace (pruned to attempts reaching {d}:{d}):\n\n", .{
         farthest_pos.line,
@@ -488,7 +489,7 @@ pub fn render(vm: *VM, writer: *Writer) !void {
         .vm = vm,
         .tree = &tree,
         .writer = writer,
-        .farthest = farthest_pos.offset,
+        .farthest = farthest_offset,
     };
 
     const root = &tree.nodes.items[Tree.root];
