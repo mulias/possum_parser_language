@@ -22,6 +22,8 @@ const explain = @import("explain.zig");
 const Writers = @import("../writer.zig").Writers;
 const parsing = @import("../parsing.zig");
 
+const max_codepoint: u21 = 0x10FFFF;
+
 pub const Config = struct {
     printScanner: bool = false,
     printParser: bool = false,
@@ -58,6 +60,9 @@ pub const Config = struct {
     }
 };
 
+// A materialized input position. The VM tracks only a byte offset while
+// parsing; line data is derived on demand by materializePos, so the hot
+// parse loops never scan for newlines.
 pub const Pos = struct {
     offset: usize = 0,
     line: usize = 1,
@@ -72,7 +77,7 @@ pub const Pos = struct {
 // and values only — the record outlives backtracking and GC, so it must
 // not hold anything that can dangle.
 pub const FarthestFailure = struct {
-    pos: Pos,
+    offset: usize,
     region: Region,
     function_name: StringTable.Id,
     module_id: Module.Id,
@@ -189,8 +194,8 @@ pub const VM = struct {
     cur_code: []const u8,
     temp_dyns: ArrayList(*Elem.DynElem),
     input: []const u8,
-    inputMarks: ArrayList(Pos),
-    inputPos: Pos,
+    inputMarks: ArrayList(usize),
+    inputOffset: usize,
     farthest: ?FarthestFailure,
     expected: ExpectedSet,
     explain_events: ArrayList(explain.Event),
@@ -215,6 +220,10 @@ pub const VM = struct {
     singleton_one: Elem,
     singleton_two: Elem,
     singleton_three: Elem,
+    // Last materialized position; materializePos scans from here so
+    // repeated line queries are incremental. Valid for the current input.
+    // Cold: read only when line info is reported, never while parsing.
+    pos_memo: Pos,
 
     const CallFrame = struct {
         function: *Elem.DynElem.Function,
@@ -252,7 +261,7 @@ pub const VM = struct {
             .temp_dyns = undefined,
             .input = undefined,
             .inputMarks = undefined,
-            .inputPos = undefined,
+            .inputOffset = undefined,
             .farthest = null,
             .expected = ExpectedSet.empty,
             .explain_events = undefined,
@@ -272,6 +281,7 @@ pub const VM = struct {
             .singleton_one = undefined,
             .singleton_two = undefined,
             .singleton_three = undefined,
+            .pos_memo = undefined,
         };
 
         return self;
@@ -291,8 +301,9 @@ pub const VM = struct {
         self.cur_code = undefined;
         self.temp_dyns = ArrayList(*Elem.DynElem){};
         self.input = undefined;
-        self.inputMarks = ArrayList(Pos){};
-        self.inputPos = Pos{};
+        self.inputMarks = ArrayList(usize){};
+        self.inputOffset = 0;
+        self.pos_memo = Pos{};
         self.farthest = null;
         self.expected = ExpectedSet.empty;
         self.explain_events = ArrayList(explain.Event){};
@@ -334,6 +345,7 @@ pub const VM = struct {
         if (input.len > std.math.maxInt(u32)) return error.InputTooLong;
 
         self.input = input;
+        self.pos_memo = Pos{};
         self.farthest = null;
         self.expected = ExpectedSet.empty;
         try self.compile(module_name, source);
@@ -389,7 +401,7 @@ pub const VM = struct {
                 try self.explain_events.append(self.allocator, .{ .call = .{
                     .function_name = main.name,
                     .module_id = main.mid,
-                    .pos = self.inputPos,
+                    .offset = self.inputOffset,
                     .is_tail = false,
                 } });
             }
@@ -562,7 +574,7 @@ pub const VM = struct {
                 const resetPos = self.popInputMark();
                 const condition = self.popConsumed(.ConditionalThen);
                 if (condition.isFailure()) {
-                    self.inputPos = resetPos;
+                    self.inputOffset = resetPos;
                     self.cur_frame.ip += offset;
                 }
             },
@@ -958,7 +970,7 @@ pub const VM = struct {
                     self.cur_frame.ip += offset;
                 } else {
                     _ = self.popConsumed(.Or);
-                    self.inputPos = resetPos;
+                    self.inputOffset = resetPos;
                 }
             },
             .ParseNumberStringChar => {
@@ -970,24 +982,14 @@ pub const VM = struct {
                 try self.parseCharacter(char);
             },
             .ParseCodepoint => {
-                const start = self.inputPos.offset;
+                const start = self.inputOffset;
 
                 if (start < self.input.len) {
                     const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
                     const end = start + bytes_length;
 
-                    self.inputPos.offset = end;
-                    if (self.isNewlineChar(start, bytes_length)) {
-                        self.inputPos.line += 1;
-                        self.inputPos.line_start = end;
-                    }
-
-                    if (try Elem.inputSubstringFromRange(start, end)) |elem| {
-                        try self.push(elem);
-                    } else {
-                        const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
-                        try self.push(str.dyn.elem());
-                    }
+                    self.inputOffset = end;
+                    try self.pushInputSubstring(start, end);
                 } else {
                     try self.pushFailure();
                 }
@@ -1011,7 +1013,7 @@ pub const VM = struct {
 
                     if (parsing.utf8Decode(bytes)) |codepoint| {
                         self.drop(1);
-                        try self.parseCodepointLowerBounded(codepoint);
+                        try self.parseCodepointRange(codepoint, max_codepoint);
                     } else {
                         return self.runtimeError("Range parser lower bound string must be a single valid codepoint", .{});
                     }
@@ -1066,7 +1068,7 @@ pub const VM = struct {
 
                     if (parsing.utf8Decode(bytes)) |codepoint| {
                         self.drop(1);
-                        try self.parseCodepointUpperBounded(codepoint);
+                        try self.parseCodepointRange(0, codepoint);
                     } else {
                         return self.runtimeError("Range parser upper bound string must be a single valid codepoint", .{});
                     }
@@ -1098,7 +1100,7 @@ pub const VM = struct {
             },
             .ResetInput => {
                 const resetPos = self.popInputMark();
-                self.inputPos = resetPos;
+                self.inputOffset = resetPos;
             },
             .TakeLeft => {
                 // Postfix, lhs and rhs on stack.
@@ -1321,31 +1323,11 @@ pub const VM = struct {
 
     pub fn parseString(self: *VM, sid: StringTable.Id) Error!void {
         const str = self.strings.get(sid);
-        const start = self.inputPos.offset;
+        const start = self.inputOffset;
         const end = start + str.len;
 
-        var newlines: usize = 0;
-        var line_start = self.inputPos.line_start;
-
-        if (self.input.len >= end) {
-            for (str, self.input[start..end], 0..) |sc, ic, idx| {
-                if (self.isNewlineChar(start + idx, 1) or
-                    (str[idx..].len >= 2 and self.isNewlineChar(start + idx, 2)) or
-                    (str[idx..].len >= 3 and self.isNewlineChar(start + idx, 3)))
-                {
-                    newlines += 1;
-                    line_start = start + idx;
-                }
-
-                if (sc != ic) {
-                    try self.pushFailure();
-                    return;
-                }
-            }
-
-            self.inputPos.offset = end;
-            self.inputPos.line += newlines;
-            self.inputPos.line_start = line_start;
+        if (self.input.len >= end and std.mem.eql(u8, str, self.input[start..end])) {
+            self.inputOffset = end;
 
             if (try Elem.inputSubstringFromRange(start, end)) |elem| {
                 try self.push(elem);
@@ -1361,11 +1343,11 @@ pub const VM = struct {
 
     fn parseNumberString(self: *VM, number_string: Elem.NumberStringElem) Error!void {
         const bytes = number_string.toBytes(self.strings);
-        const start = self.inputPos.offset;
+        const start = self.inputOffset;
         const end = start + bytes.len;
 
         if (self.input.len >= end and std.mem.eql(u8, bytes, self.input[start..end])) {
-            self.inputPos.offset = end;
+            self.inputOffset = end;
             try self.push(number_string.elem());
             return;
         }
@@ -1373,16 +1355,12 @@ pub const VM = struct {
     }
 
     fn parseCharacter(self: *VM, char: u8) !void {
-        const start = self.inputPos.offset;
+        const start = self.inputOffset;
 
         if (start < self.input.len and self.input[start] == char) {
             const end = start + 1;
 
-            if (self.isNewlineChar(start, 1)) {
-                self.inputPos.line += 1;
-                self.inputPos.line_start = end;
-            }
-            self.inputPos.offset = end;
+            self.inputOffset = end;
 
             if (try Elem.inputSubstringFromRange(start, end)) |elem| {
                 try self.push(elem);
@@ -1396,10 +1374,10 @@ pub const VM = struct {
     }
 
     fn parseNumberStringCharacter(self: *VM, char: u8) !void {
-        const start = self.inputPos.offset;
+        const start = self.inputOffset;
 
         if (start < self.input.len and self.input[start] == char) {
-            self.inputPos.offset = start + 1;
+            self.inputOffset = start + 1;
             const ns = try Elem.numberStringFromBytes(&[_]u8{char}, self);
             try self.push(ns);
 
@@ -1411,7 +1389,7 @@ pub const VM = struct {
     fn parseCodepointRange(self: *VM, low: u21, high: u21) !void {
         const low_length = unicode.utf8CodepointSequenceLength(low) catch 1;
         const high_length = unicode.utf8CodepointSequenceLength(high) catch 1;
-        const start = self.inputPos.offset;
+        const start = self.inputOffset;
 
         if (start < self.input.len) {
             const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
@@ -1420,19 +1398,8 @@ pub const VM = struct {
             if (low_length <= bytes_length and bytes_length <= high_length and end <= self.input.len) {
                 const codepoint = try unicode.utf8Decode(self.input[start..end]);
                 if (low <= codepoint and codepoint <= high) {
-                    if (self.isNewlineChar(start, bytes_length)) {
-                        self.inputPos.line += 1;
-                        self.inputPos.line_start = end;
-                    }
-                    self.inputPos.offset = end;
-
-                    if (try Elem.inputSubstringFromRange(start, end)) |elem| {
-                        try self.push(elem);
-                    } else {
-                        const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
-                        try self.push(str.dyn.elem());
-                    }
-
+                    self.inputOffset = end;
+                    try self.pushInputSubstring(start, end);
                     return;
                 }
             }
@@ -1440,73 +1407,21 @@ pub const VM = struct {
         try self.pushFailure();
     }
 
-    fn parseCodepointLowerBounded(self: *VM, low: u21) !void {
-        const low_length = unicode.utf8CodepointSequenceLength(low) catch @panic("Internal Error");
-        const start = self.inputPos.offset;
-
-        if (start < self.input.len) {
-            const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
-            const end = start + bytes_length;
-
-            if (low_length <= bytes_length and end <= self.input.len) {
-                const codepoint = try unicode.utf8Decode(self.input[start..end]);
-                if (low <= codepoint) {
-                    self.inputPos.offset = end;
-                    if (self.isNewlineChar(start, bytes_length)) {
-                        self.inputPos.line += 1;
-                        self.inputPos.line_start = end;
-                    }
-
-                    if (try Elem.inputSubstringFromRange(start, end)) |elem| {
-                        try self.push(elem);
-                    } else {
-                        const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
-                        try self.push(str.dyn.elem());
-                    }
-
-                    return;
-                }
-            }
+    // Push the matched input range, as a packed substring elem when it
+    // fits and a heap string otherwise.
+    fn pushInputSubstring(self: *VM, start: usize, end: usize) !void {
+        if (try Elem.inputSubstringFromRange(start, end)) |elem| {
+            try self.push(elem);
+        } else {
+            const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
+            try self.push(str.dyn.elem());
         }
-        try self.pushFailure();
-    }
-
-    fn parseCodepointUpperBounded(self: *VM, high: u21) !void {
-        const high_length = unicode.utf8CodepointSequenceLength(high) catch @panic("Internal Error");
-        const start = self.inputPos.offset;
-
-        if (start < self.input.len) {
-            const bytes_length = unicode.utf8ByteSequenceLength(self.input[start]) catch 1;
-            const end = start + bytes_length;
-
-            if (bytes_length <= high_length and end <= self.input.len) {
-                const codepoint = try unicode.utf8Decode(self.input[start..end]);
-                if (codepoint <= high) {
-                    self.inputPos.offset = end;
-
-                    if (self.isNewlineChar(start, bytes_length)) {
-                        self.inputPos.line += 1;
-                        self.inputPos.line_start = end;
-                    }
-
-                    if (try Elem.inputSubstringFromRange(start, end)) |elem| {
-                        try self.push(elem);
-                    } else {
-                        const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
-                        try self.push(str.dyn.elem());
-                    }
-
-                    return;
-                }
-            }
-        }
-        try self.pushFailure();
     }
 
     fn parseIntegerRange(self: *VM, low: i64, high: i64) !void {
         const lowIntLen = parsing.intAsStringLen(low);
         const highIntLen = parsing.intAsStringLen(high);
-        const start = self.inputPos.offset;
+        const start = self.inputOffset;
         const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
         const longestMatchEnd = @min(start + highIntLen, self.input.len);
 
@@ -1519,7 +1434,7 @@ pub const VM = struct {
             const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
 
             if (inputInt) |i| if (low <= i and i <= high) {
-                self.inputPos.offset = end;
+                self.inputOffset = end;
                 const int = Elem.numberFloat(@as(f64, @floatFromInt(i)));
                 try self.push(int);
                 return;
@@ -1531,7 +1446,7 @@ pub const VM = struct {
 
     fn parseIntegerLowerBounded(self: *VM, low: i64) !void {
         const lowIntLen = parsing.intAsStringLen(low);
-        const start = self.inputPos.offset;
+        const start = self.inputOffset;
         const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
 
         var end = shortestMatchEnd;
@@ -1544,7 +1459,7 @@ pub const VM = struct {
         const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
 
         if (inputInt) |i| if (low <= i) {
-            self.inputPos.offset = end;
+            self.inputOffset = end;
             const int = Elem.numberFloat(@as(f64, @floatFromInt(i)));
             try self.push(int);
             return;
@@ -1554,10 +1469,10 @@ pub const VM = struct {
     }
 
     fn parseIntegerUpperBounded(self: *VM, high: i64) !void {
-        if (self.input[self.inputPos.offset] == '-') {
+        if (self.inputOffset < self.input.len and self.input[self.inputOffset] == '-') {
             // If it's a negative integer then the max number of digits is unbounded
             const lowIntLen = 2;
-            const start = self.inputPos.offset;
+            const start = self.inputOffset;
             const shortestMatchEnd = @min(start + lowIntLen, self.input.len);
 
             var end = shortestMatchEnd;
@@ -1570,7 +1485,7 @@ pub const VM = struct {
             const inputInt = std.fmt.parseInt(i64, self.input[start..end], 10) catch null;
 
             if (inputInt) |i| if (i <= high) {
-                self.inputPos.offset = end;
+                self.inputOffset = end;
                 const int = Elem.numberFloat(@as(f64, @floatFromInt(i)));
                 try self.push(int);
                 return;
@@ -1832,7 +1747,7 @@ pub const VM = struct {
     }
 
     fn failureReachesFarthest(self: *VM) bool {
-        return self.farthest == null or self.inputPos.offset >= self.farthest.?.pos.offset;
+        return self.farthest == null or self.inputOffset >= self.farthest.?.offset;
     }
 
     fn recordPatternFailure(self: *VM, value: Elem) void {
@@ -1858,11 +1773,11 @@ pub const VM = struct {
 
         const function = target_frame.function;
         const region = function.chunk.regions.items[target_frame.ip - 1];
-        const advanced = self.farthest == null or self.inputPos.offset > self.farthest.?.pos.offset;
+        const advanced = self.farthest == null or self.inputOffset > self.farthest.?.offset;
 
         if (advanced or kind == .pattern_mismatch) {
             var record = FarthestFailure{
-                .pos = self.inputPos,
+                .offset = self.inputOffset,
                 .region = region,
                 .function_name = function.name,
                 .module_id = function.mid,
@@ -1910,7 +1825,7 @@ pub const VM = struct {
         try self.explain_events.append(self.allocator, .{ .call = .{
             .function_name = function.name,
             .module_id = function.mid,
-            .pos = self.inputPos,
+            .offset = self.inputOffset,
             .is_tail = is_tail,
         } });
     }
@@ -1918,7 +1833,7 @@ pub const VM = struct {
     noinline fn emitExplainRet(self: *VM, failed: bool) !void {
         try self.explain_events.append(self.allocator, .{ .ret = .{
             .failed = failed,
-            .pos = self.inputPos,
+            .offset = self.inputOffset,
         } });
     }
 
@@ -1926,7 +1841,7 @@ pub const VM = struct {
         try self.explain_events.append(self.allocator, .{ .destructure_begin = .{
             .region = self.cur_frame.function.chunk.regions.items[self.cur_frame.ip - 1],
             .module_id = self.cur_frame.function.mid,
-            .pos = self.inputPos,
+            .offset = self.inputOffset,
             .value = explain.snapshot(self, value),
             .pattern = explain.snapshot(self, pattern),
         } });
@@ -1971,19 +1886,24 @@ pub const VM = struct {
     }
 
     fn pushInputMark(self: *VM) !void {
-        try self.inputMarks.append(self.allocator, self.inputPos);
+        if (self.inputMarks.items.len < self.inputMarks.capacity) {
+            self.inputMarks.appendAssumeCapacity(self.inputOffset);
+        } else {
+            try self.inputMarks.append(self.allocator, self.inputOffset);
+        }
     }
 
-    fn popInputMark(self: *VM) Pos {
+    fn popInputMark(self: *VM) usize {
         return self.inputMarks.pop().?;
     }
 
     fn printInput(self: *VM) !void {
+        const pos = self.materializePos(self.inputOffset);
         try self.writers.debug.print("input   | ", .{});
         try self.writers.debug.print("{s} @ Line {d} byte {d}\n", .{
-            self.inputLine(),
-            self.inputPos.line,
-            self.inputPos.lineOffset(),
+            self.inputLine(pos.line_start),
+            pos.line,
+            pos.lineOffset(),
         });
     }
 
@@ -2005,8 +1925,7 @@ pub const VM = struct {
         try self.writers.debug.print("\n", .{});
     }
 
-    fn inputLine(self: VM) []const u8 {
-        const line_start = self.inputPos.line_start;
+    fn inputLine(self: VM, line_start: usize) []const u8 {
         var line_end = line_start;
         while (true) {
             if (self.input.len == line_end or
@@ -2052,7 +1971,7 @@ pub const VM = struct {
 
         const record = self.farthest orelse {
             try writer.print("\nParse Failure\n\n", .{});
-            try self.printInputContext(self.inputPos, input_name, writer);
+            try self.printInputContext(self.inputOffset, input_name, writer);
             return;
         };
 
@@ -2063,9 +1982,10 @@ pub const VM = struct {
             .input_mismatch => if (multiple_expected) {
                 // The expected list below names every attempted site, so
                 // the headline carries only the position.
+                const pos = self.materializePos(record.offset);
                 try writer.print("\nParse Failure at input {d}:{d}\n\n", .{
-                    record.pos.line,
-                    record.pos.lineOffset(),
+                    pos.line,
+                    pos.lineOffset(),
                 });
             } else {
                 try writer.print("\nParse Failure: expected ", .{});
@@ -2081,7 +2001,7 @@ pub const VM = struct {
             },
         }
 
-        try self.printInputContext(record.pos, input_name, writer);
+        try self.printInputContext(record.offset, input_name, writer);
 
         if (multiple_expected) {
             try self.printExpectedSet(writer);
@@ -2132,16 +2052,79 @@ pub const VM = struct {
         }
     }
 
-    fn printInputContext(self: *VM, pos: Pos, input_name: []const u8, writer: *Writer) !void {
+    fn printInputContext(self: *VM, offset: usize, input_name: []const u8, writer: *Writer) !void {
+        const pos = self.materializePos(offset);
         try writer.print("{s}:{d}:{d}:\n\n", .{ input_name, pos.line, pos.lineOffset() });
-        if (pos.offset >= self.input.len) {
+        if (offset >= self.input.len) {
             try hl.highlightEndPosition(self.input, writer, .{});
             // The empty-source path of highlightEndPosition omits the
             // trailing newline the other paths print.
             if (self.input.len == 0) try writer.print("\n", .{});
         } else {
-            try hl.highlightRegion(self.input, Region.new(pos.offset, pos.offset + 1), writer, .{});
+            try hl.highlightRegion(self.input, Region.new(offset, offset + 1), writer, .{});
         }
+    }
+
+    // Derive full position info for an offset by counting newlines between
+    // the memoized position and the target, then advance the memo. Parsing
+    // maintains only inputOffset; everything that needs a line number pays
+    // for it here, proportional to the distance from the last query.
+    pub fn materializePos(self: *VM, offset: usize) Pos {
+        var memo = self.pos_memo;
+
+        if (offset > memo.offset) {
+            var i = memo.offset;
+            while (i < offset) {
+                const len = self.newlineSeqLen(i) orelse {
+                    i += 1;
+                    continue;
+                };
+                // A sequence straddling the target offset is not yet past.
+                if (i + len > offset) break;
+                memo.line += 1;
+                memo.line_start = i + len;
+                i += len;
+            }
+        } else if (offset < memo.offset) {
+            var newlines: usize = 0;
+            var i = offset;
+            while (i < memo.offset) {
+                const len = self.newlineSeqLen(i) orelse {
+                    i += 1;
+                    continue;
+                };
+                // Mirror the forward guard so counts stay symmetric.
+                if (i + len > memo.offset) break;
+                newlines += 1;
+                i += len;
+            }
+            memo.line -= newlines;
+            memo.line_start = self.lineStartBefore(offset);
+        }
+
+        memo.offset = offset;
+        self.pos_memo = memo;
+        return memo;
+    }
+
+    // Byte length of the newline sequence at offset, or null if none.
+    fn newlineSeqLen(self: *const VM, offset: usize) ?usize {
+        const remaining = self.input.len - offset;
+        if (remaining >= 1 and self.isNewlineChar(offset, 1)) return 1;
+        if (remaining >= 2 and self.isNewlineChar(offset, 2)) return 2;
+        if (remaining >= 3 and self.isNewlineChar(offset, 3)) return 3;
+        return null;
+    }
+
+    // Offset just past the last newline sequence ending at or before offset.
+    fn lineStartBefore(self: *const VM, offset: usize) usize {
+        var j = offset;
+        while (j > 0) : (j -= 1) {
+            if (self.isNewlineChar(j - 1, 1)) return j;
+            if (j >= 2 and self.isNewlineChar(j - 2, 2)) return j;
+            if (j >= 3 and self.isNewlineChar(j - 3, 3)) return j;
+        }
+        return 0;
     }
 
     fn isNewlineChar(self: VM, offset: usize, bytes_length: u3) bool {

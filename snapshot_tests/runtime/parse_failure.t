@@ -331,3 +331,24 @@ The expected set is capped; overflow is marked rather than silently dropped:
     \xe2\x80\xa6 and others (esc)
   [ParserFailure]
   [1]
+
+Upper-bounded integer range at end of input (previously an out-of-bounds read):
+
+  $ possum -p '..5' -i ''
+  
+  Parse Failure: expected ..5
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:0-3:
+  
+  1 \xe2\x96\x8f ..5 (esc)
+    \xe2\x96\x8f ^^^ (esc)
+  
+  [ParserFailure]
+  [1]
