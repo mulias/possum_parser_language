@@ -1408,10 +1408,22 @@ pub const VM = struct {
     }
 
     // Push the matched input range, as a packed substring elem when it
-    // fits and a heap string otherwise.
+    // fits, a rope of packed segments when only the length overflows,
+    // and a heap string otherwise.
     fn pushInputSubstring(self: *VM, start: usize, end: usize) !void {
         if (try Elem.inputSubstringFromRange(start, end)) |elem| {
             try self.push(elem);
+        } else if (end <= std.math.maxInt(u32)) {
+            const max_segment = std.math.maxInt(u16);
+            const segment_count = std.math.divCeil(usize, end - start, max_segment) catch unreachable;
+            const rope = try Elem.DynElem.String.createRope(self, segment_count);
+            var pos = start;
+            while (pos < end) {
+                const seg_end = @min(pos + max_segment, end);
+                try rope.appendSegment(self, Elem.inputSubstring(@intCast(pos), @intCast(seg_end - pos)));
+                pos = seg_end;
+            }
+            try self.push(rope.dyn.elem());
         } else {
             const str = try Elem.DynElem.String.copy(self, self.input[start..end]);
             try self.push(str.dyn.elem());
