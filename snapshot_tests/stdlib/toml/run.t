@@ -74,7 +74,24 @@
   [[fruits.varieties]]
   name = "plantain"
   --------
-  [ParserFailure]
+  {
+    "fruits": [
+      {
+        "name": "apple",
+        "physical": {"color": "red", "shape": "round"},
+        "varieties": [
+          {"name": "red delicious"},
+          {"name": "granny smith"}
+        ]
+      },
+      {
+        "name": "banana",
+        "varieties": [
+          {"name": "plantain"}
+        ]
+      }
+    ]
+  }
   
   y_array_trailing_comma.toml
   integers1 = [1, 2, 3,  ]
