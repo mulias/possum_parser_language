@@ -9,3 +9,5 @@ zig-out/
 /build/
 /build-*/
 /docgen_tmp/
+/profiling/
+/local-docs/
