@@ -412,7 +412,7 @@ _toml.table(value, Doc) =
 _toml.array_of_tables(value, Doc) =
   _toml.array_of_tables_header -> HeaderPath & _toml.ws_newline &
   default(_toml.table_body(value, [], _Toml.Doc.Empty), _Toml.Doc.Empty) -> InnerDoc $
-  _Toml.Doc.AppendAtPath(Doc, HeaderPath, _Toml.Doc.Value(InnerDoc))
+  _Toml.Doc.AppendAtPath(Doc, HeaderPath, InnerDoc)
 
 _toml.ws = maybe_many(ws | _toml.comment)
 
@@ -429,7 +429,7 @@ _toml.array_of_tables_header =
 
 _toml.table_body(value, HeaderPath, Doc) =
   _toml.table_pair(value) -> [KeyPath, Val] & _toml.ws_newline &
-  const(_Toml.Doc.InsertAtPath(Doc, HeaderPath + KeyPath, Val)) -> NewDoc &
+  const(_Toml.Doc.InsertPairAtHeaderPath(Doc, HeaderPath, KeyPath, Val)) -> NewDoc &
   _toml.table_body(value, HeaderPath, NewDoc) | const(NewDoc)
 
 _toml.table_pair(value) =
@@ -666,18 +666,23 @@ _Toml.Doc.Insert(Doc, Key, Val, Type) =
     "type": Obj.Put(_Toml.Doc.Type(Doc), Key, Type),
   }
 
-_Toml.Doc.AppendToArrayOfTables(Doc, Key, Val) =
-  _Toml.Doc.Get(Doc, Key) -> {"value": AoT, "type": "array_of_tables"} &
-  _Toml.Doc.Insert(Doc, Key, [...AoT, Val], "array_of_tables")
+_Toml.Doc.AppendToArrayOfTables(Doc, Key, ElementDoc) =
+  _Toml.Doc.Get(Doc, Key) -> {"value": Vs, "type": ["array_of_tables", Ts]} &
+  _Toml.Doc.Insert(
+    Doc,
+    Key,
+    [...Vs, _Toml.Doc.Value(ElementDoc)],
+    ["array_of_tables", [...Ts, _Toml.Doc.Type(ElementDoc)]],
+  )
 
 _Toml.Doc.InsertAtPath(Doc, Path, Val) =
   _Toml.Doc.UpdateAtPath(Doc, Path, Val, _Toml.Doc.ValueUpdater)
 
 _Toml.Doc.EnsureTableAtPath(Doc, Path) =
-  _Toml.Doc.UpdateAtPath(Doc, Path, {}, _Toml.Doc.MissingTableUpdater)
+  _Toml.Doc.UpdateAtHeaderPath(Doc, Path, {}, _Toml.Doc.MissingTableUpdater)
 
-_Toml.Doc.AppendAtPath(Doc, Path, Val) =
-  _Toml.Doc.UpdateAtPath(Doc, Path, Val, _Toml.Doc.AppendUpdater)
+_Toml.Doc.AppendAtPath(Doc, Path, ElementDoc) =
+  _Toml.Doc.UpdateAtHeaderPath(Doc, Path, ElementDoc, _Toml.Doc.AppendUpdater)
 
 _Toml.Doc.UpdateAtPath(Doc, Path, Val, Updater) =
   Path -> [Key] ? Updater(Doc, Key, Val) :
@@ -697,15 +702,59 @@ _Toml.Doc.ValueUpdater(Doc, Key, Val) =
   _Toml.Doc.Has(Doc, Key) ? @Fail : _Toml.Doc.Insert(Doc, Key, Val, "value")
 
 _Toml.Doc.MissingTableUpdater(Doc, Key, _Val) =
-  _Toml.Doc.IsTable(_Toml.Doc.Get(Doc, Key)) ? Doc :
+  _Toml.Doc.Has(Doc, Key) ?
+  (_Toml.Doc.IsTable(_Toml.Doc.Get(Doc, Key)) & Doc) :
   _Toml.Doc.Insert(Doc, Key, {}, {})
 
-_Toml.Doc.AppendUpdater(Doc, Key, Val) =
+_Toml.Doc.AppendUpdater(Doc, Key, ElementDoc) =
   (
     _Toml.Doc.Has(Doc, Key) ? Doc :
-    _Toml.Doc.Insert(Doc, Key, [], "array_of_tables")
+    _Toml.Doc.Insert(Doc, Key, [], ["array_of_tables", []])
   ) -> DocWithKey &
-  _Toml.Doc.AppendToArrayOfTables(DocWithKey, Key, Val)
+  _Toml.Doc.AppendToArrayOfTables(DocWithKey, Key, ElementDoc)
+
+_Toml.Doc.InsertPairAtHeaderPath(Doc, HeaderPath, KeyPath, Val) =
+  HeaderPath -> [] ? _Toml.Doc.InsertAtPath(Doc, KeyPath, Val) :
+  _Toml.Doc.UpdateAtHeaderPath(Doc, HeaderPath, [KeyPath, Val], _Toml.Doc.PairUpdater)
+
+_Toml.Doc.PairUpdater(Doc, Key, KeyPathAndVal) =
+  KeyPathAndVal -> [KeyPath, Val] &
+  (_Toml.Doc.Has(Doc, Key) ? _Toml.Doc.Get(Doc, Key) : _Toml.Doc.Empty) -> SubDoc &
+  _Toml.Doc.IsTable(SubDoc) &
+  _Toml.Doc.InsertAtPath(SubDoc, KeyPath, Val) -> NewSubDoc &
+  _Toml.Doc.Insert(Doc, Key, _Toml.Doc.Value(NewSubDoc), _Toml.Doc.Type(NewSubDoc))
+
+_Toml.Doc.UpdateAtHeaderPath(Doc, Path, Val, Updater) =
+  Path -> [Key] ? Updater(Doc, Key, Val) :
+  Path -> [Key, ...PathRest] ?
+  _Toml.Doc.DescendHeaderKey(Doc, Key, PathRest, Val, Updater) :
+  Doc
+
+_Toml.Doc.DescendHeaderKey(Doc, Key, PathRest, Val, Updater) =
+  _Toml.Doc.Has(Doc, Key) ? (
+    _Toml.Doc.Get(Doc, Key) -> Current &
+    (
+      _Toml.Doc.Type(Current) -> ["array_of_tables", ..._] ?
+      _Toml.Doc.UpdateAtLastAoTElement(Current, PathRest, Val, Updater) :
+      _Toml.Doc.IsTable(Current) &
+      _Toml.Doc.UpdateAtHeaderPath(Current, PathRest, Val, Updater)
+    ) -> Updated &
+    _Toml.Doc.Insert(Doc, Key, _Toml.Doc.Value(Updated), _Toml.Doc.Type(Updated))
+  ) : (
+    _Toml.Doc.UpdateAtHeaderPath(_Toml.Doc.Empty, PathRest, Val, Updater) -> InnerDoc &
+    _Toml.Doc.Insert(Doc, Key, _Toml.Doc.Value(InnerDoc), _Toml.Doc.Type(InnerDoc))
+  )
+
+_Toml.Doc.UpdateAtLastAoTElement(AoTDoc, PathRest, Val, Updater) =
+  _Toml.Doc.Value(AoTDoc) -> [...VsInit, VLast] &
+  _Toml.Doc.Type(AoTDoc) -> ["array_of_tables", [...TsInit, TLast]] &
+  _Toml.Doc.UpdateAtHeaderPath(
+    {"value": VLast, "type": TLast}, PathRest, Val, Updater
+  ) -> UpdatedLast &
+  {
+    "value": [...VsInit, _Toml.Doc.Value(UpdatedLast)],
+    "type": ["array_of_tables", [...TsInit, _Toml.Doc.Type(UpdatedLast)]],
+  }
 
 
 ## Abstract Syntax Trees
