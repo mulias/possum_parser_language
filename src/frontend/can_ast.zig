@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Region = @import("../region.zig").Region;
 const StringTable = @import("string_table.zig").FrontendStringTable;
+const PathTable = @import("path_table.zig").PathTable;
 
 declarations: ArrayList(Ast.ParserOrValue.Declaration) = .{},
 anonymous_functions: ArrayList(*Ast.RNode(Ast.Parser.AnonymousFunction)) = .{},
@@ -50,7 +51,7 @@ pub const ParserOrValue = struct {
         parser: *Ast.RNode(Parser.Identifier),
         value: *Ast.RNode(Value.Identifier),
 
-        pub fn name(self: ParserOrValue.Identifier) StringTable.Id {
+        pub fn name(self: ParserOrValue.Identifier) PathTable.Id {
             return switch (self) {
                 .parser => |p| p.node.name,
                 .value => |v| v.node.name,
@@ -69,7 +70,7 @@ pub const ParserOrValue = struct {
         parser: *Ast.RNode(Parser.Declaration),
         value: *Ast.RNode(Value.Declaration),
 
-        pub fn identName(self: ParserOrValue.Declaration) StringTable.Id {
+        pub fn identName(self: ParserOrValue.Declaration) PathTable.Id {
             return switch (self) {
                 .parser => |p| p.node.ident.node.name,
                 .value => |v| v.node.ident.node.name,
@@ -148,8 +149,8 @@ pub const Parser = struct {
     };
 
     pub const AnonymousFunction = struct {
-        parent_name: ?StringTable.Id,
-        name: StringTable.Id,
+        parent_name: ?PathTable.Id,
+        name: PathTable.Id,
         body: *Parser.RNode,
     };
 
@@ -186,7 +187,7 @@ pub const Parser = struct {
     };
 
     pub const Identifier = struct {
-        name: StringTable.Id,
+        name: PathTable.Id,
         builtin: bool,
         underscored: bool,
     };
@@ -305,7 +306,7 @@ pub const Value = struct {
     };
 
     pub const Identifier = struct {
-        name: StringTable.Id,
+        name: PathTable.Id,
         builtin: bool,
         underscored: bool,
     };
@@ -488,7 +489,7 @@ pub const Pattern = struct {
     };
 
     pub const Identifier = struct {
-        name: StringTable.Id,
+        name: PathTable.Id,
         builtin: bool,
         underscored: bool,
     };

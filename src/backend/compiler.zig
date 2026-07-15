@@ -56,7 +56,7 @@ pub const Compiler = struct {
     // own bytecode. Computed once by classifyDecl and reused.
     const DeclKind = union(enum) {
         alias_value: Elem,
-        alias_ident: FrontendStrings.Id,
+        alias_ident: Frontend.PathTable.Id,
         function,
     };
 
@@ -94,6 +94,10 @@ pub const Compiler = struct {
     // so the VM only holds strings that compiled code references.
     fn internForRuntime(self: *Compiler, sid: FrontendStrings.Id) !RuntimeStrings.Id {
         return self.vm.strings.insert(self.frontend.strings.get(sid));
+    }
+
+    fn internPathForRuntime(self: *Compiler, name: Frontend.PathTable.Id) !RuntimeStrings.Id {
+        return self.internForRuntime(self.frontend.paths.flat(name));
     }
 
     pub fn deinit(self: *Compiler) void {
@@ -296,7 +300,7 @@ pub const Compiler = struct {
 
         const function = try Elem.DynElem.Function.create(self.vm, .{
             .module_id = key.module_id,
-            .name = try self.internForRuntime(key.name),
+            .name = try self.internPathForRuntime(key.name),
             .arity = 0,
             .region = ast.region,
             .is_anonymous = true,
@@ -310,7 +314,7 @@ pub const Compiler = struct {
     fn createBuiltin(self: *Compiler, key: GlobalKey) !void {
         if (self.findGlobal(key.module_id, key.name) != null) return;
 
-        const name = self.frontend.strings.get(key.name);
+        const name = self.frontend.pathString(key.name);
         const module = self.vm.getModule(key.module_id);
         const maybe_function = try builtins.create(self.vm, module, name);
         const function = maybe_function orelse
@@ -347,7 +351,7 @@ pub const Compiler = struct {
 
         var function = try Elem.DynElem.Function.create(self.vm, .{
             .module_id = module_id,
-            .name = try self.internForRuntime(function_name),
+            .name = try self.internPathForRuntime(function_name),
             .arity = 0,
             .region = decl.region(),
             .is_anonymous = false,
@@ -399,7 +403,7 @@ pub const Compiler = struct {
             }
 
             if (path.contains(target_key)) {
-                try self.printError(decl_key.module_id, decl.region(), "Circular alias dependency detected for '{s}'", .{self.frontend.strings.get(decl_key.name)});
+                try self.printError(decl_key.module_id, decl.region(), "Circular alias dependency detected for '{s}'", .{self.frontend.pathString(decl_key.name)});
                 return Error.AliasCycle;
             }
             try path.put(self.vm.allocator, target_key, undefined);
@@ -428,7 +432,7 @@ pub const Compiler = struct {
             // resolver recorded no dependency edge for it, so that identifier
             // names nothing.
             if (self.getAliasChainName(target_decl)) |unresolved_name| {
-                try self.printError(target_key.module_id, target_decl.region(), "undefined variable '{s}'", .{self.frontend.strings.get(unresolved_name)});
+                try self.printError(target_key.module_id, target_decl.region(), "undefined variable '{s}'", .{self.frontend.pathString(unresolved_name)});
                 return Error.UndefinedVariable;
             }
 
@@ -578,7 +582,7 @@ pub const Compiler = struct {
                     if (self.resolveGlobal(module_id, ident.name)) |globalElem| {
                         try self.writeCallFunctionConstant(module_id, globalElem, region);
                     } else {
-                        try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.strings.get(ident.name)});
+                        try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(ident.name)});
                         return Error.UndefinedVariable;
                     }
                 }
@@ -654,7 +658,7 @@ pub const Compiler = struct {
             function_elem = global.asDyn().asFunction();
             try self.writeConstant(module_id, global, function.region);
         } else {
-            const function_name = self.frontend.strings.get(function_id);
+            const function_name = self.frontend.pathString(function_id);
             try self.printError(module_id, function.region, "Undefined function '{s}'", .{function_name});
             return Error.UndefinedVariable;
         }
@@ -1392,14 +1396,14 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGetVar(self: *Compiler, module_id: Module.Id, name: FrontendStrings.Id, region: Region) !void {
+    fn writeGetVar(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id, region: Region) !void {
         if (self.localSlot(name)) |slot| {
             try self.emitUnaryOp(.GetLocal, slot, region);
         } else {
             if (self.resolveGlobal(module_id, name)) |globalElem| {
                 try self.writeConstant(module_id, globalElem, region);
             } else {
-                try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.strings.get(name)});
+                try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
                 return Error.UndefinedVariable;
             }
         }
@@ -1476,7 +1480,7 @@ pub const Compiler = struct {
             // The resolver guarantees the enclosing scope holds every
             // captured local. A miss here would misalign later
             // captures with SetClosureCaptures slots.
-            const fromSlot = self.localSlot(capture.local) orelse unreachable;
+            const fromSlot = self.resolver().localSlotSid(capture.local) orelse unreachable;
             try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
         }
     }
@@ -1688,7 +1692,7 @@ pub const Compiler = struct {
                 function = global.asDyn().asFunction();
                 try self.writeConstant(module_id, global, function_region);
             } else {
-                const functionNameStr = self.frontend.strings.get(functionName);
+                const functionNameStr = self.frontend.pathString(functionName);
                 try self.printError(module_id, function_region, "Undefined function '{s}'", .{functionNameStr});
                 return Error.UndefinedVariable;
             }
@@ -2082,7 +2086,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?FrontendStrings.Id {
+    fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?Frontend.PathTable.Id {
         if (self.declHasNoParams(decl)) {
             return switch (decl) {
                 .parser => |p_decl| if (p_decl.node.body.node == .identifier)
@@ -2173,11 +2177,15 @@ pub const Compiler = struct {
     }
 
     fn resolver(self: *const Compiler) NameResolver {
-        return .{ .scope = self.currentScope(), .global_map = &self.global_map };
+        return .{
+            .scope = self.currentScope(),
+            .global_map = &self.global_map,
+            .paths = &self.frontend.paths,
+        };
     }
 
-    fn findGlobal(self: *const Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
-        return self.global_map.get(.{ .module_id = module_id, .name = sid });
+    fn findGlobal(self: *const Compiler, module_id: Module.Id, name: Frontend.PathTable.Id) ?Elem {
+        return self.global_map.get(.{ .module_id = module_id, .name = name });
     }
 
     fn getGlobal(self: *Compiler, key: GlobalKey) Elem {
@@ -2190,8 +2198,8 @@ pub const Compiler = struct {
     // recorded the target module.
     // Resolve an identifier written in source. Anonymous functions are in
     // the globals map but can't be invoked by name, so they are hidden here.
-    fn resolveGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
-        return self.resolver().resolveGlobal(module_id, sid);
+    fn resolveGlobal(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id) ?Elem {
+        return self.resolver().resolveGlobal(module_id, name);
     }
 
     fn currentScope(self: *const Compiler) Scope {
@@ -2202,15 +2210,15 @@ pub const Compiler = struct {
         try self.scopes.append(self.vm.allocator, node);
     }
 
-    fn addGlobal(self: *Compiler, module_id: Module.Id, sid: FrontendStrings.Id, elem: Elem) !void {
+    fn addGlobal(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id, elem: Elem) !void {
         try self.global_map.put(
             self.vm.allocator,
-            .{ .module_id = module_id, .name = sid },
+            .{ .module_id = module_id, .name = name },
             elem,
         );
     }
 
-    fn localSlot(self: *Compiler, name: FrontendStrings.Id) ?u8 {
+    fn localSlot(self: *Compiler, name: Frontend.PathTable.Id) ?u8 {
         return self.resolver().localSlot(name);
     }
 

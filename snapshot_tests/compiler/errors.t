@@ -136,3 +136,41 @@ Underscored names are usable within their own module:
 
   $ possum -p '_five = "5" ; _five' -i '5'
   "5"
+
+Function parameters cannot be namespaced:
+
+  $ possum -p 'foo(a.b) = a.b ; foo("x")' -i 'x'
+  
+  Validation Error: Invalid function param, '.' is reserved for namespaces
+  
+  program:1:4-7:
+  1 \xe2\x96\x8f foo(a.b) = a.b ; foo("x") (esc)
+    \xe2\x96\x8f     ^^^ (esc)
+  
+  [NamespacedParameterName]
+  [1]
+
+Local variables cannot be namespaced:
+
+  $ possum -p 'int -> N.MyInt $ N.MyInt' -i '5'
+  
+  Program Error: 'N.MyInt' is undefined: namespaced names cannot be local variables
+  
+  program:1:7-14:
+  1 \xe2\x96\x8f int -> N.MyInt $ N.MyInt (esc)
+    \xe2\x96\x8f        ^^^^^^^ (esc)
+  
+  
+  Program Error: 'N.MyInt' is undefined: namespaced names cannot be local variables
+  
+  program:1:17-24:
+  1 \xe2\x96\x8f int -> N.MyInt $ N.MyInt (esc)
+    \xe2\x96\x8f                  ^^^^^^^ (esc)
+  
+  [NamespacedLocal]
+  [1]
+
+Namespaced declarations still work:
+
+  $ possum -p 'a.b = "x" ; a.b' -i 'x'
+  "x"

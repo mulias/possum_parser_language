@@ -5,12 +5,13 @@ const VM = @import("runtime.zig").VM;
 const NodeKey = @import("frontend.zig").GlobalKey;
 const Module = @import("runtime.zig").Module;
 const StringTable = @import("frontend.zig").StringTable;
+const PathTable = @import("frontend.zig").PathTable;
 const writers = @import("testing.zig").writers;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 
-fn key(module_id: Module.Id, name: StringTable.Id) NodeKey {
+fn key(module_id: Module.Id, name: PathTable.Id) NodeKey {
     return .{ .module_id = module_id, .name = name };
 }
 
@@ -22,7 +23,7 @@ fn dependsOn(frontend: *Frontend, from: NodeKey, to: NodeKey) bool {
     return false;
 }
 
-fn captures(frontend: *Frontend, anon: NodeKey, parent_name: StringTable.Id, local: StringTable.Id) bool {
+fn captures(frontend: *Frontend, anon: NodeKey, parent_name: PathTable.Id, local: StringTable.Id) bool {
     const node = frontend.findNode(anon.module_id, anon.name) orelse return false;
     if (node.* != .anonymous_function) return false;
     for (node.anonymous_function.closure_captures.items) |capture| {
@@ -77,8 +78,8 @@ test "module with declarations" {
     try frontend.finalize();
 
     // Check that declarations were found
-    const foo_id = try frontend.strings.insert("foo");
-    const bar_id = try frontend.strings.insert("bar");
+    const foo_id = try frontend.paths.insert(&frontend.strings, "foo");
+    const bar_id = try frontend.paths.insert(&frontend.strings, "bar");
 
     const foo_key = NodeKey{ .module_id = 0, .name = foo_id };
     const bar_key = NodeKey{ .module_id = 0, .name = bar_id };
@@ -133,10 +134,10 @@ test "multiple modules with dependencies" {
     try frontend.finalize();
 
     // Check that declarations exist in both modules
-    const digit_id = try frontend.strings.insert("digit");
-    const letter_id = try frontend.strings.insert("letter");
-    const number_id = try frontend.strings.insert("number");
-    const word_id = try frontend.strings.insert("word");
+    const digit_id = try frontend.paths.insert(&frontend.strings, "digit");
+    const letter_id = try frontend.paths.insert(&frontend.strings, "letter");
+    const number_id = try frontend.paths.insert(&frontend.strings, "number");
+    const word_id = try frontend.paths.insert(&frontend.strings, "word");
 
     const digit_key = NodeKey{ .module_id = 0, .name = digit_id };
     const letter_key = NodeKey{ .module_id = 0, .name = letter_id };
@@ -190,8 +191,8 @@ test "later import shadows earlier import" {
 
     try frontend.finalize();
 
-    const shared_id = try frontend.strings.insert("shared");
-    const use_it_id = try frontend.strings.insert("use_it");
+    const shared_id = try frontend.paths.insert(&frontend.strings, "shared");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
     const use_it_key = key(2, use_it_id);
 
     // The later import (util_b, module 1) shadows the earlier (util_a, module 0).
@@ -227,8 +228,8 @@ test "identifier resolves through transitive dependency" {
 
     try frontend.finalize();
 
-    const base_val_id = try frontend.strings.insert("base_val");
-    const use_it_id = try frontend.strings.insert("use_it");
+    const base_val_id = try frontend.paths.insert(&frontend.strings, "base_val");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
     const use_it_key = key(2, use_it_id);
 
     // base_val is reachable only through the transitive dependency mid -> base.
@@ -278,8 +279,8 @@ test "declaration with value function" {
     try frontend.finalize();
 
     // Check that value declarations were found
-    const add_id = try frontend.strings.insert("add");
-    const result_id = try frontend.strings.insert("result");
+    const add_id = try frontend.paths.insert(&frontend.strings, "add");
+    const result_id = try frontend.paths.insert(&frontend.strings, "result");
 
     const add_key = NodeKey{ .module_id = 0, .name = add_id };
     const result_key = NodeKey{ .module_id = 0, .name = result_id };
@@ -311,9 +312,9 @@ test "dependency graph population" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    const foo = try frontend.strings.insert("foo");
-    const bar = try frontend.strings.insert("bar");
-    const baz = try frontend.strings.insert("baz");
+    const foo = try frontend.paths.insert(&frontend.strings, "foo");
+    const bar = try frontend.paths.insert(&frontend.strings, "bar");
+    const baz = try frontend.paths.insert(&frontend.strings, "baz");
 
     // foo() -> bar() -> baz() -> (leaf)
     try expect(dependsOn(frontend, key(0, foo), key(0, bar)));
@@ -343,11 +344,11 @@ test "anonymous functions" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    const foo = try frontend.strings.insert("foo");
-    const bar = try frontend.strings.insert("bar");
+    const foo = try frontend.paths.insert(&frontend.strings, "foo");
+    const bar = try frontend.paths.insert(&frontend.strings, "bar");
     const a = try frontend.strings.insert("a");
     // The parser argument `a + a` is lifted into an anonymous function.
-    const fn0 = try frontend.strings.insert("@fn0");
+    const fn0 = try frontend.paths.insert(&frontend.strings, "@fn0");
 
     try expect(dependsOn(frontend, key(0, foo), key(0, bar)));
     try expect(dependsOn(frontend, key(0, foo), key(0, fn0)));
@@ -378,10 +379,10 @@ test "nested anonymous functions" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    const foo = try frontend.strings.insert("foo");
+    const foo = try frontend.paths.insert(&frontend.strings, "foo");
     const a = try frontend.strings.insert("a");
-    const fn0 = try frontend.strings.insert("@fn0");
-    const fn1 = try frontend.strings.insert("@fn1");
+    const fn0 = try frontend.paths.insert(&frontend.strings, "@fn0");
+    const fn1 = try frontend.paths.insert(&frontend.strings, "@fn1");
 
     // @fn1 is nested inside @fn0, which is nested inside foo. Each level
     // captures `a` from its immediate parent's frame.
@@ -413,8 +414,8 @@ test "nested anonymous functions with multiple captures" {
 
     const a = try frontend.strings.insert("a");
     const n = try frontend.strings.insert("N");
-    const fn0 = try frontend.strings.insert("@fn0");
-    const fn1 = try frontend.strings.insert("@fn1");
+    const fn0 = try frontend.paths.insert(&frontend.strings, "@fn0");
+    const fn1 = try frontend.paths.insert(&frontend.strings, "@fn1");
 
     // The innermost function `foo(a * N)` captures both `a` and `N` from @fn0
     try expect(captures(frontend, key(0, fn1), fn0, a));
@@ -451,8 +452,8 @@ test "circular deps" {
     try frontend.addTargetModule(module, .{});
     try frontend.finalize();
 
-    const foo = try frontend.strings.insert("foo");
-    const bar = try frontend.strings.insert("bar");
+    const foo = try frontend.paths.insert(&frontend.strings, "foo");
+    const bar = try frontend.paths.insert(&frontend.strings, "bar");
 
     // The resolver records edges without rejecting cycles: foo and bar depend
     // on each other. Breaking the cycle is left to the compiler.
