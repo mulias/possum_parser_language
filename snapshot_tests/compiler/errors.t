@@ -118,3 +118,21 @@
   
   [InvalidAst]
   [1]
+
+Underscored stdlib names are private to the stdlib module:
+
+  $ possum -p '_number_integer_part' -i '5'
+  
+  Program Error: undefined variable '_number_integer_part'
+  
+  program:1:0-20:
+  1 \xe2\x96\x8f _number_integer_part (esc)
+    \xe2\x96\x8f ^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [UndefinedVariable]
+  [1]
+
+Underscored names are usable within their own module:
+
+  $ possum -p '_five = "5" ; _five' -i '5'
+  "5"

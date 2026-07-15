@@ -14,6 +14,8 @@ graph: DependencyGraph = .{},
 // completion before the next identifier is resolved and never re-enters
 // itself, so a single buffer is safe and avoids a per-identifier allocation.
 scoped_name_chain: ArrayList(*DependencyGraph.Node) = .{},
+// Scratch space reused by every findDeclaration call, same reasoning.
+visited_modules: ArrayList(Module.Id) = .{},
 
 pub const Resolver = @This();
 
@@ -468,13 +470,16 @@ fn addDependency(self: *Resolver, node: *DependencyGraph.Node, dep: DependencyGr
 // Find the declaration or precompiled function an identifier refers to, first
 // in its own module and then in the modules it depends on. Anonymous function
 // names (`@main`, `@fn0`, ...) are internal and can't be referenced by
-// identifier.
+// identifier. A module sees its own private (underscored) declarations but
+// only the public exports of its dependencies.
 //
 // When two dependencies declare the same name, the later import shadows the
 // earlier one, so dependencies are searched in reverse insertion order. The
-// search recurses into transitive dependencies, so callers only need to
-// record each module's direct dependencies rather than a flattened closure.
-fn findDeclaration(self: *Resolver, module_id: Module.Id, name: StringTable.Id) ?DependencyGraph.NodeKey {
+// search recurses into transitive dependencies (every import is re-exported),
+// so callers only need to record each module's direct dependencies rather
+// than a flattened closure. Module dependencies may be cyclic; the visited
+// list keeps the recursion finite.
+fn findDeclaration(self: *Resolver, module_id: Module.Id, name: StringTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
     const own_key = DependencyGraph.NodeKey{
         .module_id = module_id,
         .name = name,
@@ -484,17 +489,42 @@ fn findDeclaration(self: *Resolver, module_id: Module.Id, name: StringTable.Id) 
         if (found.* != .anonymous_function) return own_key;
     }
 
-    if (self.module_dependencies.get(module_id)) |dependencies| {
-        var i = dependencies.items.len;
-        while (i > 0) {
-            i -= 1;
-            if (self.findDeclaration(dependencies.items[i], name)) |dep_key| {
-                return dep_key;
-            }
+    self.visited_modules.clearRetainingCapacity();
+    try self.visited_modules.append(self.arena.allocator(), module_id);
+
+    return self.findExportedInDependencies(module_id, name);
+}
+
+fn findExportedInDependencies(self: *Resolver, module_id: Module.Id, name: StringTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
+    const dependencies = self.module_dependencies.get(module_id) orelse return null;
+
+    var i = dependencies.items.len;
+    while (i > 0) {
+        i -= 1;
+        if (try self.findExported(dependencies.items[i], name)) |dep_key| {
+            return dep_key;
         }
     }
 
     return null;
+}
+
+fn findExported(self: *Resolver, module_id: Module.Id, name: StringTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
+    for (self.visited_modules.items) |visited| {
+        if (visited == module_id) return null;
+    }
+    try self.visited_modules.append(self.arena.allocator(), module_id);
+
+    const key = DependencyGraph.NodeKey{
+        .module_id = module_id,
+        .name = name,
+    };
+
+    if (self.graph.nodes.get(key)) |found| {
+        if (found.* != .anonymous_function and !found.isPrivate()) return key;
+    }
+
+    return self.findExportedInDependencies(module_id, name);
 }
 
 fn resolveParserIdentifier(
@@ -505,7 +535,7 @@ fn resolveParserIdentifier(
 ) error{OutOfMemory}!void {
     if (try self.resolveScopedName(key, node, name)) return;
 
-    if (self.findDeclaration(key.module_id, name)) |dep_key| {
+    if (try self.findDeclaration(key.module_id, name)) |dep_key| {
         try self.addDependency(node, dep_key);
     }
 }
@@ -518,7 +548,7 @@ fn resolveValueIdentifier(
 ) error{OutOfMemory}!void {
     if (try self.resolveScopedName(key, node, name)) return;
 
-    if (self.findDeclaration(key.module_id, name)) |dep_key| {
+    if (try self.findDeclaration(key.module_id, name)) |dep_key| {
         try self.addDependency(node, dep_key);
         return;
     }

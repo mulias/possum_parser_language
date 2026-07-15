@@ -49,6 +49,17 @@ pub const Node = union(enum) {
         return null;
     }
 
+    // Whether the declaration is private to its module: an underscored name
+    // is never visible through an import. Precompiled builtins are public;
+    // anonymous functions are unreachable by name regardless.
+    pub fn isPrivate(self: *const Node) bool {
+        return switch (self.*) {
+            .precompiled => false,
+            .declaration => |*n| n.ast.identUnderscored(),
+            .anonymous_function => false,
+        };
+    }
+
     pub fn localsList(self: *Node) *ArrayList(StringTable.Id) {
         return switch (self.*) {
             .precompiled => unreachable,

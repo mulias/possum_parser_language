@@ -76,6 +76,13 @@ pub const ParserOrValue = struct {
             };
         }
 
+        pub fn identUnderscored(self: ParserOrValue.Declaration) bool {
+            return switch (self) {
+                .parser => |p| p.node.ident.node.underscored,
+                .value => |v| v.node.ident.node.underscored,
+            };
+        }
+
         pub fn identRegion(self: ParserOrValue.Declaration) Region {
             return switch (self) {
                 .parser => |p| p.node.ident.region,
