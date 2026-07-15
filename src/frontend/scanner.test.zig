@@ -198,3 +198,37 @@ test "lexer modes: nested parentheses in template" {
     scanner.setNormalMode();
     try expectToken(&scanner, Token.new(.Eof, "", .{ .start = 26, .end = 26 }));
 }
+
+test "lone dot and slash" {
+    var scanner = init("!stdlib/json.string");
+
+    try expectToken(&scanner, Token.new(.Bang, "!", .{ .start = 0, .end = 1 }));
+    try expectToken(&scanner, Token.new(.LowercaseIdentifier, "stdlib", .{ .start = 1, .end = 7 }));
+    try expectToken(&scanner, Token.new(.Slash, "/", .{ .start = 7, .end = 8 }));
+    try expectToken(&scanner, Token.new(.LowercaseIdentifier, "json.string", .{ .start = 8, .end = 19 }));
+    try expectToken(&scanner, Token.new(.Eof, "", .{ .start = 19, .end = 19 }));
+}
+
+test "dot after string end" {
+    var scanner = init("\"f\".a.b");
+
+    try expectToken(&scanner, Token.new(.DoubleQuoteStringStart, "\"", .{ .start = 0, .end = 1 }));
+    scanner.setStringMode(.DoubleQuoteStringStart);
+    try expectToken(&scanner, Token.new(.StringContent, "f", .{ .start = 1, .end = 2 }));
+    try expectToken(&scanner, Token.new(.StringEnd, "\"", .{ .start = 2, .end = 3 }));
+    scanner.setNormalMode();
+    try expectToken(&scanner, Token.new(.Dot, ".", .{ .start = 3, .end = 4 }));
+    try expectToken(&scanner, Token.new(.LowercaseIdentifier, "a.b", .{ .start = 4, .end = 7 }));
+    try expectToken(&scanner, Token.new(.Eof, "", .{ .start = 7, .end = 7 }));
+}
+
+test "dot dot is still a range" {
+    var scanner = init("1..2 .");
+
+    try expectToken(&scanner, Token.new(.Number, "1", .{ .start = 0, .end = 1 }));
+    try expectToken(&scanner, Token.new(.DotDot, "..", .{ .start = 1, .end = 3 }));
+    try expectToken(&scanner, Token.new(.Number, "2", .{ .start = 3, .end = 4 }));
+    try expectToken(&scanner, Token.new(.Whitespace, " ", .{ .start = 4, .end = 5 }));
+    try expectToken(&scanner, Token.new(.Dot, ".", .{ .start = 5, .end = 6 }));
+    try expectToken(&scanner, Token.new(.Eof, "", .{ .start = 6, .end = 6 }));
+}

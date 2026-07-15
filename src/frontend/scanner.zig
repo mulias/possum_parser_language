@@ -113,9 +113,10 @@ pub const Scanner = struct {
             '.' => if (self.match('.'))
                 if (self.match('.')) self.makeToken(.DotDotDot) else self.makeToken(.DotDot)
             else
-                return self.makeToken(.UnexpectedCharacter),
+                self.makeToken(.Dot),
             '+' => self.makeToken(.Plus),
             '*' => self.makeToken(.Star),
+            '/' => self.makeToken(.Slash),
             ';' => self.makeToken(.Semicolon),
             '!' => self.makeToken(.Bang),
             '$' => self.makeToken(.DollarSign),
