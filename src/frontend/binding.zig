@@ -8,6 +8,7 @@ const ClosureCapture = Frontend.ClosureCapture;
 const Module = @import("../runtime.zig").Module;
 const Region = @import("../region.zig").Region;
 const Strings = @import("string_table.zig").FrontendStringTable;
+const Paths = @import("path_table.zig").PathTable;
 
 // Compile-time analysis of local value variables. A forward walk over a
 // function body's AST tracks, for every local slot, whether the local is
@@ -60,7 +61,8 @@ const Env = struct {
 pub const Diagnostic = struct {
     region: Region,
     // Null only for extra_unbound_part, when the part contains no local
-    // to name (a placeholder or a fully bound template segment).
+    // to name (a placeholder or a fully bound template segment). Always a
+    // local, so a segment rather than a path.
     name: ?Strings.Id,
     kind: Kind,
 
@@ -154,13 +156,19 @@ const Analyzer = struct {
         };
     }
 
-    // The frame slot of a local by name, resolved against the node being
-    // analyzed. Replaces the compiler's scope-stack localSlot.
-    fn localSlot(self: *const Analyzer, name: Strings.Id) ?u8 {
+    // The frame slot of a local by segment, resolved against the node
+    // being analyzed. Replaces the compiler's scope-stack localSlot.
+    fn localSlot(self: *const Analyzer, segment: Strings.Id) ?u8 {
         for (self.node.locals(), 0..) |local, i| {
-            if (local == name) return @intCast(i);
+            if (local == segment) return @intCast(i);
         }
         return null;
+    }
+
+    // The frame slot of an identifier. Dotted names are never locals.
+    fn pathLocalSlot(self: *const Analyzer, name: Paths.Id) ?u8 {
+        const segment = self.frontend.paths.single(name) orelse return null;
+        return self.localSlot(segment);
     }
 
     // Whether a name resolves to a global rather than a local. The resolver
@@ -168,7 +176,7 @@ const Analyzer = struct {
     // global, so a matching dependency is equivalent to the compiler's
     // resolveGlobal for the local-vs-global test. User-written names never
     // resolve to anonymous-function nodes, matching visibleGlobal.
-    fn resolvesToGlobal(self: *const Analyzer, name: Strings.Id) bool {
+    fn resolvesToGlobal(self: *const Analyzer, name: Paths.Id) bool {
         return self.node.dependencyNamed(name) != null;
     }
 
@@ -196,17 +204,17 @@ const Analyzer = struct {
         });
     }
 
-    fn isPlaceholder(self: *Analyzer, name: Strings.Id) bool {
-        return std.mem.eql(u8, self.frontend.strings.get(name), "_");
+    fn isPlaceholder(self: *Analyzer, name: Paths.Id) bool {
+        return std.mem.eql(u8, self.frontend.pathString(name), "_");
     }
 
     // Whether an identifier in pattern position is a local occurrence.
     // Mirrors astToPattern/astToValueInPattern: a global with the same name
     // wins over a local.
-    fn patternLocalSlot(self: *Analyzer, name: Strings.Id) ?u8 {
+    fn patternLocalSlot(self: *Analyzer, name: Paths.Id) ?u8 {
         if (self.isPlaceholder(name)) return null;
         if (self.resolvesToGlobal(name)) return null;
-        return self.localSlot(name);
+        return self.pathLocalSlot(name);
     }
 
     fn readLocal(self: *Analyzer, env: *Env, slot: u8, name: Strings.Id, region: Region) !void {
@@ -223,10 +231,11 @@ const Analyzer = struct {
 
     // A read of an identifier resolved the way writeParser/writeValue
     // resolve them: local slot first, then global.
-    fn readIdentifier(self: *Analyzer, env: *Env, name: Strings.Id, region: Region) !void {
+    fn readIdentifier(self: *Analyzer, env: *Env, name: Paths.Id, region: Region) !void {
         if (self.isPlaceholder(name)) return;
-        if (self.localSlot(name)) |slot| {
-            try self.readLocal(env, slot, name, region);
+        const segment = self.frontend.paths.single(name) orelse return;
+        if (self.localSlot(segment)) |slot| {
+            try self.readLocal(env, slot, segment, region);
         }
     }
 
@@ -318,28 +327,29 @@ const Analyzer = struct {
         self: *Analyzer,
         env: *Env,
         bindable: *const SlotSet,
-        name: Strings.Id,
+        name: Paths.Id,
         region: Region,
     ) !void {
         if (self.isPlaceholder(name)) {
-            return self.diagnose(region, name, .unbound_function_var);
+            return self.diagnose(region, self.frontend.paths.single(name), .unbound_function_var);
         }
         const slot = self.patternLocalSlot(name) orelse return;
+        const segment = self.frontend.paths.single(name).?;
         const state = &env.slots[slot];
 
         switch (state.state) {
             .bound => return,
             .unbound => {
                 if (!bindable.isSet(slot)) {
-                    try self.diagnose(region, name, .unbound_function_var);
+                    try self.diagnose(region, segment, .unbound_function_var);
                 }
             },
             .split => if (bindable.isSet(slot)) {
                 // The binding occurrence of a split variable is an error;
                 // report it here in case this call is visited first.
-                try self.diagnose(region, name, .split);
+                try self.diagnose(region, segment, .split);
             } else {
-                try self.diagnose(region, name, .unbound_function_var);
+                try self.diagnose(region, segment, .unbound_function_var);
             },
         }
 
@@ -464,7 +474,7 @@ const Analyzer = struct {
             .identifier => |ident| blk: {
                 if (self.isPlaceholder(ident.name)) break :blk false;
                 if (self.resolvesToGlobal(ident.name)) break :blk true;
-                const slot = self.localSlot(ident.name) orelse break :blk true;
+                const slot = self.pathLocalSlot(ident.name) orelse break :blk true;
                 break :blk env.slots[slot].state == .bound;
             },
             .negation => |inner| self.patternEvaluates(env, inner),
@@ -487,7 +497,7 @@ const Analyzer = struct {
         switch (rnode.node) {
             .identifier => |ident| {
                 const slot = self.patternLocalSlot(ident.name) orelse return null;
-                return if (env.slots[slot].state == .bound) null else ident.name;
+                return if (env.slots[slot].state == .bound) null else self.frontend.paths.single(ident.name);
             },
             .negation => |inner| return self.firstUnboundLocal(env, inner),
             .array => |elems| for (elems.items) |elem| {
@@ -525,7 +535,7 @@ const Analyzer = struct {
         self: *Analyzer,
         env: *Env,
         rnode: *const Ast.Pattern.RNode,
-        name: Strings.Id,
+        name: Paths.Id,
         region: Region,
     ) !void {
         const slot = self.patternLocalSlot(name) orelse return;
@@ -548,7 +558,7 @@ const Analyzer = struct {
                 state.* = .{ .state = .bound, .stale = false };
             },
             .split => {
-                try self.diagnose(region, name, .split);
+                try self.diagnose(region, self.frontend.paths.single(name), .split);
                 // Treat as bound afterward to avoid cascading diagnostics.
                 state.* = .{ .state = .bound, .stale = false };
             },

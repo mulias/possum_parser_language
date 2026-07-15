@@ -27,8 +27,8 @@ pub const Lowerer = struct {
     resolver: NameResolver,
     plan_slots: *AutoHashMap(Module.Id, ArrayList(liveness.PlanSlots)),
 
-    fn internForRuntime(self: *const Lowerer, sid: FrontendStrings.Id) !RuntimeStrings.Id {
-        return self.vm.strings.insert(self.frontend.strings.get(sid));
+    fn internForRuntime(self: *const Lowerer, name: Frontend.PathTable.Id) !RuntimeStrings.Id {
+        return self.vm.strings.insert(self.frontend.pathString(name));
     }
 
     fn numberStringNodeToElem(self: *const Lowerer, number: []const u8, negated: bool) !Elem {
@@ -181,7 +181,7 @@ fn lowerPatternNode(
         },
         .identifier => |ident| {
             const name = ident.name;
-            if (std.mem.eql(u8, self.frontend.strings.get(name), "_")) {
+            if (std.mem.eql(u8, self.frontend.pathString(name), "_")) {
                 if (negation_count != 0) {
                     return lowerNegated(self, module_id, rnode, builder, all_locals_bound, negation_count);
                 }
@@ -852,7 +852,7 @@ fn lowerRangeLimit(
         },
         .identifier => |ident| {
             const name = ident.name;
-            if (std.mem.eql(u8, self.frontend.strings.get(name), "_")) {
+            if (std.mem.eql(u8, self.frontend.pathString(name), "_")) {
                 return error.UnsupportedPattern;
             }
             if (self.resolver.resolveGlobal(module_id, name) != null) return error.UnsupportedPattern;

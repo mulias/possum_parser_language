@@ -3,13 +3,17 @@ const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.AutoHashMapUnmanaged;
 const StringTable = @import("string_table.zig").FrontendStringTable;
+const PathTable = @import("path_table.zig").PathTable;
 const Ast = @import("can_ast.zig");
 const Module = @import("../runtime.zig").Module;
 const DependencyGraph = @import("dependency_graph.zig");
+const Region = @import("../region.zig").Region;
 
 arena: *ArenaAllocator,
+paths: *const PathTable,
 module_dependencies: HashMap(Module.Id, ArrayList(Module.Id)) = .{},
 graph: DependencyGraph = .{},
+diagnostics: ArrayList(Diagnostic) = .{},
 // Scratch space reused by every resolveScopedName call. The function runs to
 // completion before the next identifier is resolved and never re-enters
 // itself, so a single buffer is safe and avoids a per-identifier allocation.
@@ -19,9 +23,18 @@ visited_modules: ArrayList(Module.Id) = .{},
 
 pub const Resolver = @This();
 
-pub fn init(arena: *ArenaAllocator) Resolver {
+// A namespaced (dotted) value identifier that resolves to no declaration:
+// it would otherwise become a local, and locals can't be namespaced.
+pub const Diagnostic = struct {
+    module_id: Module.Id,
+    region: Region,
+    name: PathTable.Id,
+};
+
+pub fn init(arena: *ArenaAllocator, paths: *const PathTable) Resolver {
     return Resolver{
         .arena = arena,
+        .paths = paths,
     };
 }
 
@@ -124,7 +137,8 @@ fn resolveDeclaration(
                     .value => |value_ident| value_ident.node.name,
                 };
                 const decl_node = &node.declaration;
-                try decl_node.locals.append(allocator, param_name);
+                // The canonicalizer rejects namespaced params.
+                try decl_node.locals.append(allocator, self.paths.single(param_name).?);
             }
 
             try self.walkParser(key, node, p.node.body);
@@ -132,7 +146,8 @@ fn resolveDeclaration(
         .value => |v| {
             for (v.node.params.items) |param| {
                 const decl_node = &node.declaration;
-                try decl_node.locals.append(allocator, param.node.name);
+                // The canonicalizer rejects namespaced params.
+                try decl_node.locals.append(allocator, self.paths.single(param.node.name).?);
             }
 
             try self.walkValue(key, node, v.node.body);
@@ -264,7 +279,7 @@ fn walkValue(
 ) error{OutOfMemory}!void {
     switch (rnode.node) {
         .identifier => |ident| {
-            try self.resolveValueIdentifier(key, node, ident.name);
+            try self.resolveValueIdentifier(key, node, ident.name, rnode.region);
         },
         .@"or" => |infix| {
             try self.walkValue(key, node, infix.left);
@@ -336,7 +351,7 @@ fn walkPattern(
 ) error{OutOfMemory}!void {
     switch (rnode.node) {
         .identifier => |ident| {
-            try self.resolveValueIdentifier(key, node, ident.name);
+            try self.resolveValueIdentifier(key, node, ident.name, rnode.region);
         },
         .array => |arr| {
             for (arr.items) |item| {
@@ -396,10 +411,13 @@ fn resolveScopedName(
     self: *Resolver,
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
-    name: StringTable.Id,
+    name: PathTable.Id,
 ) error{OutOfMemory}!bool {
+    // Dotted names are never locals, only declarations.
+    const segment = self.paths.single(name) orelse return false;
+
     for (node.locals()) |local| {
-        if (local == name) return true;
+        if (local == segment) return true;
     }
 
     if (node.* != .anonymous_function) {
@@ -419,7 +437,7 @@ fn resolveScopedName(
 
         var found = false;
         for (parent_node.locals()) |local| {
-            if (local == name) {
+            if (local == segment) {
                 found = true;
                 break;
             }
@@ -427,7 +445,7 @@ fn resolveScopedName(
 
         if (!found and parent_node.* == .anonymous_function) {
             for (parent_node.anonymous_function.closure_captures.items) |capture| {
-                if (capture.local == name) {
+                if (capture.local == segment) {
                     found = true;
                     break;
                 }
@@ -439,7 +457,7 @@ fn resolveScopedName(
                 const anon = &chain_node.anonymous_function;
                 try self.addCapture(anon, .{
                     .parent_name = anon.parent().?,
-                    .local = name,
+                    .local = segment,
                 });
             }
             return true;
@@ -479,7 +497,7 @@ fn addDependency(self: *Resolver, node: *DependencyGraph.Node, dep: DependencyGr
 // so callers only need to record each module's direct dependencies rather
 // than a flattened closure. Module dependencies may be cyclic; the visited
 // list keeps the recursion finite.
-fn findDeclaration(self: *Resolver, module_id: Module.Id, name: StringTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
+fn findDeclaration(self: *Resolver, module_id: Module.Id, name: PathTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
     const own_key = DependencyGraph.NodeKey{
         .module_id = module_id,
         .name = name,
@@ -495,7 +513,7 @@ fn findDeclaration(self: *Resolver, module_id: Module.Id, name: StringTable.Id) 
     return self.findExportedInDependencies(module_id, name);
 }
 
-fn findExportedInDependencies(self: *Resolver, module_id: Module.Id, name: StringTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
+fn findExportedInDependencies(self: *Resolver, module_id: Module.Id, name: PathTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
     const dependencies = self.module_dependencies.get(module_id) orelse return null;
 
     var i = dependencies.items.len;
@@ -509,7 +527,7 @@ fn findExportedInDependencies(self: *Resolver, module_id: Module.Id, name: Strin
     return null;
 }
 
-fn findExported(self: *Resolver, module_id: Module.Id, name: StringTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
+fn findExported(self: *Resolver, module_id: Module.Id, name: PathTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
     for (self.visited_modules.items) |visited| {
         if (visited == module_id) return null;
     }
@@ -531,7 +549,7 @@ fn resolveParserIdentifier(
     self: *Resolver,
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
-    name: StringTable.Id,
+    name: PathTable.Id,
 ) error{OutOfMemory}!void {
     if (try self.resolveScopedName(key, node, name)) return;
 
@@ -544,7 +562,8 @@ fn resolveValueIdentifier(
     self: *Resolver,
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
-    name: StringTable.Id,
+    name: PathTable.Id,
+    region: Region,
 ) error{OutOfMemory}!void {
     if (try self.resolveScopedName(key, node, name)) return;
 
@@ -553,9 +572,20 @@ fn resolveValueIdentifier(
         return;
     }
 
+    // An unresolved value identifier becomes a local, and locals can't be
+    // namespaced.
+    const segment = self.paths.single(name) orelse {
+        try self.diagnostics.append(self.arena.allocator(), .{
+            .module_id = key.module_id,
+            .region = region,
+            .name = name,
+        });
+        return;
+    };
+
     const unbound_locals = node.localsList();
     for (unbound_locals.items) |local| {
-        if (local == name) return;
+        if (local == segment) return;
     }
-    try unbound_locals.append(self.arena.allocator(), name);
+    try unbound_locals.append(self.arena.allocator(), segment);
 }

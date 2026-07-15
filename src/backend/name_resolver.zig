@@ -3,6 +3,7 @@ const Frontend = @import("../frontend.zig");
 const GlobalKey = Frontend.GlobalKey;
 const DependencyGraphNode = Frontend.DependencyGraphNode;
 const FrontendStrings = Frontend.StringTable;
+const Paths = Frontend.PathTable;
 const runtime = @import("../runtime.zig");
 const Elem = runtime.Elem;
 const Module = runtime.Module;
@@ -15,9 +16,10 @@ pub const GlobalMap = std.AutoHashMapUnmanaged(GlobalKey, Elem);
 pub const NameResolver = struct {
     scope: *const DependencyGraphNode,
     global_map: *const GlobalMap,
+    paths: *const Paths,
 
-    pub fn findGlobal(self: NameResolver, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
-        if (self.global_map.get(.{ .module_id = module_id, .name = sid })) |elem| {
+    pub fn findGlobal(self: NameResolver, module_id: Module.Id, name: Paths.Id) ?Elem {
+        if (self.global_map.get(.{ .module_id = module_id, .name = name })) |elem| {
             return elem;
         }
         return null;
@@ -28,13 +30,13 @@ pub const NameResolver = struct {
     // through the function's dependency graph node, where the resolver
     // recorded the target module. Anonymous functions are in the globals map
     // but can't be invoked by name, so they are hidden here.
-    pub fn resolveGlobal(self: NameResolver, module_id: Module.Id, sid: FrontendStrings.Id) ?Elem {
-        if (self.findGlobal(module_id, sid)) |elem| {
+    pub fn resolveGlobal(self: NameResolver, module_id: Module.Id, name: Paths.Id) ?Elem {
+        if (self.findGlobal(module_id, name)) |elem| {
             return visibleGlobal(elem);
         }
 
         for (self.scope.dependencies()) |dep_key| {
-            if (dep_key.name == sid) {
+            if (dep_key.name == name) {
                 const elem = self.findGlobal(dep_key.module_id, dep_key.name) orelse return null;
                 return visibleGlobal(elem);
             }
@@ -43,9 +45,15 @@ pub const NameResolver = struct {
         return null;
     }
 
-    pub fn localSlot(self: NameResolver, name: FrontendStrings.Id) ?u8 {
+    // The frame slot of an identifier. Dotted names are never locals.
+    pub fn localSlot(self: NameResolver, name: Paths.Id) ?u8 {
+        const segment = self.paths.single(name) orelse return null;
+        return self.localSlotSid(segment);
+    }
+
+    pub fn localSlotSid(self: NameResolver, segment: FrontendStrings.Id) ?u8 {
         for (self.scope.locals(), 0..) |local, i| {
-            if (local == name) return @intCast(i);
+            if (local == segment) return @intCast(i);
         }
         return null;
     }

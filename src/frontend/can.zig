@@ -3,6 +3,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const Ast = @import("can_ast.zig");
 const Module = @import("../runtime.zig").Module;
 const ParsedAst = @import("parsed_ast.zig").Ast;
+const PathTable = @import("path_table.zig").PathTable;
 const Region = @import("../region.zig").Region;
 const StringTable = @import("string_table.zig").FrontendStringTable;
 const Writer = std.Io.Writer;
@@ -13,10 +14,11 @@ arena: *ArenaAllocator,
 writers: Writers,
 module: Module,
 strings: *StringTable,
+paths: *PathTable,
 ast: Ast = .{},
-declared_names: std.AutoHashMapUnmanaged(StringTable.Id, void) = .{},
+declared_names: std.AutoHashMapUnmanaged(PathTable.Id, void) = .{},
 anonymous_function_count: u64 = 0,
-current_parent_function_name: ?StringTable.Id = null,
+current_parent_function_name: ?PathTable.Id = null,
 
 pub const Can = @This();
 
@@ -30,6 +32,7 @@ const Error = error{
     InvalidPatternNode,
     MultipleMainParsers,
     DuplicateParameterName,
+    NamespacedParameterName,
     DuplicateDeclaration,
     ReservedBuiltinName,
 } || Writer.Error;
@@ -38,12 +41,14 @@ pub fn init(
     arena: *ArenaAllocator,
     writers: Writers,
     strings: *StringTable,
+    paths: *PathTable,
     module: Module,
 ) Can {
     return Can{
         .arena = arena,
         .writers = writers,
         .strings = strings,
+        .paths = paths,
         .module = module,
     };
 }
@@ -67,10 +72,10 @@ fn addValueDeclaration(self: *Can, decl: *Ast.RNode(Ast.Value.Declaration)) !voi
     try self.ast.declarations.append(self.arena.allocator(), .{ .value = decl });
 }
 
-fn checkDuplicateDeclaration(self: *Can, name: StringTable.Id, region: Region) !void {
+fn checkDuplicateDeclaration(self: *Can, name: PathTable.Id, region: Region) !void {
     const gop = try self.declared_names.getOrPut(self.arena.allocator(), name);
     if (gop.found_existing) {
-        try self.printError(region, "'{s}' is already declared in this module", .{self.strings.get(name)});
+        try self.printError(region, "'{s}' is already declared in this module", .{self.strings.get(self.paths.flat(name))});
         return Error.DuplicateDeclaration;
     }
 }
@@ -146,7 +151,7 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
         }
     } else {
         if (self.ast.main == null) {
-            const name = try self.strings.insert("@main");
+            const name = try self.paths.insert(self.strings, "@main");
 
             self.current_parent_function_name = name;
             const function_body = try self.convertParser(root);
@@ -252,17 +257,17 @@ fn convertParser(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Parser.RNode {
             return Error.InvalidAst;
         },
         .False => Ast.Parser.Node{ .identifier = .{
-            .name = try self.strings.insert("false"),
+            .name = try self.paths.insert(self.strings, "false"),
             .builtin = false,
             .underscored = false,
         } },
         .True => Ast.Parser.Node{ .identifier = .{
-            .name = try self.strings.insert("true"),
+            .name = try self.paths.insert(self.strings, "true"),
             .builtin = false,
             .underscored = false,
         } },
         .Null => Ast.Parser.Node{ .identifier = .{
-            .name = try self.strings.insert("null"),
+            .name = try self.paths.insert(self.strings, "null"),
             .builtin = false,
             .underscored = false,
         } },
@@ -281,7 +286,7 @@ fn convertParser(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Parser.RNode {
                 return Error.InvalidGlobalParser;
             }
             break :blk Ast.Parser.Node{ .identifier = .{
-                .name = try self.strings.insert(ident.name),
+                .name = try self.paths.insert(self.strings, ident.name),
                 .builtin = ident.builtin,
                 .underscored = ident.underscored,
             } };
@@ -392,7 +397,7 @@ fn convertValue(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Value.RNode {
                 return Error.InvalidAst;
             }
             break :blk Ast.Value.Node{ .identifier = .{
-                .name = try self.strings.insert(ident.name),
+                .name = try self.paths.insert(self.strings, ident.name),
                 .builtin = ident.builtin,
                 .underscored = ident.underscored,
             } };
@@ -528,7 +533,7 @@ fn convertPattern(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Pattern.RNode 
                 return Error.InvalidPatternNode;
             }
             break :blk Ast.Pattern.Node{ .identifier = .{
-                .name = try self.strings.insert(ident.name),
+                .name = try self.paths.insert(self.strings, ident.name),
                 .builtin = ident.builtin,
                 .underscored = ident.underscored,
             } };
@@ -650,7 +655,7 @@ fn convertParserDecl(
     region: Region,
 ) !*Ast.RNode(Ast.Parser.Declaration) {
     const can_name_ident = Ast.Parser.Identifier{
-        .name = try self.strings.insert(name_ident.name),
+        .name = try self.paths.insert(self.strings, name_ident.name),
         .builtin = name_ident.builtin,
         .underscored = name_ident.underscored,
     };
@@ -671,11 +676,13 @@ fn convertParserDecl(
             return Error.ReservedBuiltinName;
         }
 
+        try self.checkParamNotNamespaced(param_ident.name, param.region);
+
         const pov_ident = if (param_ident.kind == .Parser)
             Ast.ParserOrValue.Identifier{ .parser = try Ast.Parser.createIdent(
                 self.arena.allocator(),
                 .{
-                    .name = try self.strings.insert(param_ident.name),
+                    .name = try self.paths.insert(self.strings, param_ident.name),
                     .builtin = param_ident.builtin,
                     .underscored = param_ident.underscored,
                 },
@@ -685,7 +692,7 @@ fn convertParserDecl(
             Ast.ParserOrValue.Identifier{ .value = try Ast.Value.createIdent(
                 self.arena.allocator(),
                 .{
-                    .name = try self.strings.insert(param_ident.name),
+                    .name = try self.paths.insert(self.strings, param_ident.name),
                     .builtin = param_ident.builtin,
                     .underscored = param_ident.underscored,
                 },
@@ -720,7 +727,7 @@ fn convertValueDecl(
     region: Region,
 ) !*Ast.RNode(Ast.Value.Declaration) {
     const can_name_ident = Ast.Value.Identifier{
-        .name = try self.strings.insert(name_ident.name),
+        .name = try self.paths.insert(self.strings, name_ident.name),
         .builtin = name_ident.builtin,
         .underscored = name_ident.underscored,
     };
@@ -739,10 +746,12 @@ fn convertValueDecl(
             return Error.ReservedBuiltinName;
         }
 
+        try self.checkParamNotNamespaced(param_ident.name, param.region);
+
         const value_ident = try Ast.Value.createIdent(
             self.arena.allocator(),
             .{
-                .name = try self.strings.insert(param_ident.name),
+                .name = try self.paths.insert(self.strings, param_ident.name),
                 .builtin = param_ident.builtin,
                 .underscored = param_ident.underscored,
             },
@@ -1013,12 +1022,19 @@ fn printError(self: *Can, region: Region, comptime format: []const u8, args: any
     try self.writers.err.print("\n", .{});
 }
 
-fn nextAnonymousFunctionName(self: *Can) !StringTable.Id {
+fn nextAnonymousFunctionName(self: *Can) !PathTable.Id {
     const name_str = try std.fmt.allocPrint(
         self.arena.allocator(),
         "@fn{d}",
         .{self.anonymous_function_count},
     );
     self.anonymous_function_count += 1;
-    return try self.strings.insert(name_str);
+    return try self.paths.insert(self.strings, name_str);
+}
+
+fn checkParamNotNamespaced(self: *Can, name: []const u8, region: Region) !void {
+    if (std.mem.indexOfScalar(u8, name, '.') != null) {
+        try self.printError(region, "Invalid function param, '.' is reserved for namespaces", .{});
+        return Error.NamespacedParameterName;
+    }
 }

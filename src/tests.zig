@@ -1,5 +1,6 @@
 comptime {
     _ = @import("frontend/scanner.test.zig");
+    _ = @import("frontend/path_table.zig");
     _ = @import("runtime/vm.test.zig");
     _ = @import("runtime/vm.zig");
     _ = @import("string_buffer.zig");

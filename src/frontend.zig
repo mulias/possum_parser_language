@@ -8,6 +8,7 @@ const DependencyResolver = @import("frontend/dependency_resolver.zig");
 const Module = @import("runtime.zig").Module;
 const Parser = @import("frontend/parser.zig").Parser;
 pub const StringTable = @import("frontend/string_table.zig").FrontendStringTable;
+pub const PathTable = @import("frontend/path_table.zig").PathTable;
 const VM = @import("runtime.zig").VM;
 const Writers = @import("writer.zig").Writers;
 const Region = @import("region.zig").Region;
@@ -19,6 +20,7 @@ allocator: Allocator,
 arena: ArenaAllocator,
 writers: Writers,
 strings: StringTable,
+paths: PathTable,
 target_module_id: ?Module.Id = null,
 resolver: DependencyResolver.Resolver,
 main: ?*Ast.RNode(Ast.Parser.AnonymousFunction) = null,
@@ -40,6 +42,7 @@ pub const ClosureCapture = DependencyGraph.ClosureCapture;
 
 pub const Error = error{
     UnboundVariable,
+    NamespacedLocal,
 };
 
 pub fn init(vm: *VM) !*Frontend {
@@ -50,15 +53,17 @@ pub fn init(vm: *VM) !*Frontend {
     frontend.arena = ArenaAllocator.init(allocator);
     frontend.writers = vm.writers;
     frontend.strings = StringTable.init(allocator);
+    frontend.paths = PathTable.init(allocator);
     frontend.target_module_id = null;
     frontend.main = null;
     frontend.binding_maps = .{};
-    frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena);
+    frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena, &frontend.paths);
     return frontend;
 }
 
 pub fn deinit(self: *Frontend) void {
     self.binding_maps.deinit(self.allocator);
+    self.paths.deinit();
     self.strings.deinit();
     self.arena.deinit();
     self.allocator.destroy(self);
@@ -89,8 +94,13 @@ pub fn addModule(self: *Frontend, module: Module, opts: AddModuleOpts) !void {
 // source declaration. The name becomes a precompiled node in the dependency
 // graph so that identifiers can resolve to it.
 pub fn addPrecompiled(self: *Frontend, module_id: Module.Id, name: []const u8) !void {
-    const sid = try self.strings.insert(name);
-    try self.resolver.graph.addPrecompiled(self.arena.allocator(), module_id, sid);
+    const path_id = try self.paths.insert(&self.strings, name);
+    try self.resolver.graph.addPrecompiled(self.arena.allocator(), module_id, path_id);
+}
+
+// The flat dotted spelling of a path, for messages and runtime interning.
+pub fn pathString(self: *const Frontend, path: PathTable.Id) [:0]const u8 {
+    return self.strings.get(self.paths.flat(path));
 }
 
 pub fn addModuleDependency(
@@ -103,9 +113,23 @@ pub fn addModuleDependency(
 
 pub fn finalize(self: *Frontend) !void {
     try self.resolver.resolve();
+    try self.reportResolverDiagnostics();
     // try self.resolver.prune();
     try self.analyzeBindings();
     // try self.analyzeLiveness();
+}
+
+fn reportResolverDiagnostics(self: *Frontend) !void {
+    for (self.resolver.diagnostics.items) |diagnostic| {
+        try self.printError(
+            diagnostic.module_id,
+            diagnostic.region,
+            "'{s}' is undefined: namespaced names cannot be local variables",
+            .{self.pathString(diagnostic.name)},
+        );
+    }
+
+    if (self.resolver.diagnostics.items.len > 0) return Error.NamespacedLocal;
 }
 
 pub fn getNode(self: *Frontend, key: GlobalKey) *DependencyGraph.Node {
@@ -116,7 +140,7 @@ pub fn getDeclaration(self: *Frontend, key: GlobalKey) Ast.ParserOrValue.Declara
     return self.getNode(key).declaration.ast;
 }
 
-pub fn findNode(self: *Frontend, module_id: Module.Id, name: StringTable.Id) ?*DependencyGraph.Node {
+pub fn findNode(self: *Frontend, module_id: Module.Id, name: PathTable.Id) ?*DependencyGraph.Node {
     const key = DependencyGraph.NodeKey{
         .module_id = module_id,
         .name = name,
@@ -129,7 +153,7 @@ pub fn dependenciesIterator(self: *Frontend) HashMap(DependencyGraph.NodeKey, *D
 }
 
 fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !Ast {
-    var can = Can.init(&self.arena, self.writers, &self.strings, module);
+    var can = Can.init(&self.arena, self.writers, &self.strings, &self.paths, module);
 
     if (module.source.len > 0) {
         var parser = Parser.init(&self.arena, module, self.writers, .{

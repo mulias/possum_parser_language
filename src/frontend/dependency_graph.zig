@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.AutoArrayHashMapUnmanaged;
 const StringTable = @import("string_table.zig").FrontendStringTable;
+const PathTable = @import("path_table.zig").PathTable;
 const Ast = @import("can_ast.zig");
 const Writer = std.Io.Writer;
 const Module = @import("../runtime.zig").Module;
@@ -13,11 +14,11 @@ const Graph = @This();
 
 pub const NodeKey = struct {
     module_id: Module.Id,
-    name: StringTable.Id,
+    name: PathTable.Id,
 };
 
 pub const ClosureCapture = struct {
-    parent_name: StringTable.Id,
+    parent_name: PathTable.Id,
     local: StringTable.Id,
 };
 
@@ -42,7 +43,7 @@ pub const Node = union(enum) {
         };
     }
 
-    pub fn dependencyNamed(self: *const Node, name: StringTable.Id) ?NodeKey {
+    pub fn dependencyNamed(self: *const Node, name: PathTable.Id) ?NodeKey {
         for (self.dependencies()) |dep| {
             if (dep.name == name) return dep;
         }
@@ -89,7 +90,7 @@ pub const AnonymousFunctionNode = struct {
     locals: ArrayList(StringTable.Id) = .{},
     closure_captures: ArrayList(ClosureCapture) = .{},
 
-    pub fn parent(self: *const AnonymousFunctionNode) ?StringTable.Id {
+    pub fn parent(self: *const AnonymousFunctionNode) ?PathTable.Id {
         return self.ast.node.parent_name;
     }
 };
@@ -121,11 +122,11 @@ pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: Ast) !
     }
 }
 
-pub fn addPrecompiled(self: *Graph, allocator: Allocator, module_id: Module.Id, name: StringTable.Id) !void {
+pub fn addPrecompiled(self: *Graph, allocator: Allocator, module_id: Module.Id, name: PathTable.Id) !void {
     try self.addNode(allocator, module_id, name, .precompiled);
 }
 
-fn addNode(self: *Graph, allocator: Allocator, module_id: Module.Id, name: StringTable.Id, fields: Node) !void {
+fn addNode(self: *Graph, allocator: Allocator, module_id: Module.Id, name: PathTable.Id, fields: Node) !void {
     const key = NodeKey{ .module_id = module_id, .name = name };
 
     const node = try allocator.create(Node);
@@ -139,7 +140,7 @@ fn addNode(self: *Graph, allocator: Allocator, module_id: Module.Id, name: Strin
     entry.value_ptr.* = node;
 }
 
-pub fn print(self: *const Graph, strings: StringTable, writer: *Writer) !void {
+pub fn print(self: *const Graph, strings: StringTable, paths: PathTable, writer: *Writer) !void {
     try writer.print("\n=== Dependency Graph ===\n", .{});
     try writer.print("Total nodes: {}\n\n", .{self.nodes.count()});
 
@@ -147,7 +148,7 @@ pub fn print(self: *const Graph, strings: StringTable, writer: *Writer) !void {
     while (iter.next()) |entry| {
         const key = entry.key_ptr.*;
         const node = entry.value_ptr.*;
-        const name_str = strings.get(key.name);
+        const name_str = strings.get(paths.flat(key.name));
         try writer.print("{}:{s}", .{ key.module_id, name_str });
 
         try writer.print(" locals=[", .{});
@@ -160,7 +161,7 @@ pub fn print(self: *const Graph, strings: StringTable, writer: *Writer) !void {
 
         try writer.print(" deps=[", .{});
         for (node.dependencies(), 0..) |dep, i| {
-            const dep_name = strings.get(dep.name);
+            const dep_name = strings.get(paths.flat(dep.name));
             if (i > 0) try writer.print(", ", .{});
             try writer.print("{}:{s}", .{ dep.module_id, dep_name });
         }
@@ -172,7 +173,7 @@ pub fn print(self: *const Graph, strings: StringTable, writer: *Writer) !void {
             try writer.print(" captures=[", .{});
             for (anon.closure_captures.items, 0..) |capture, i| {
                 if (i > 0) try writer.print(", ", .{});
-                const parent_name = strings.get(capture.parent_name);
+                const parent_name = strings.get(paths.flat(capture.parent_name));
                 const local_name = strings.get(capture.local);
                 try writer.print("{}:{s}:{s}", .{ key.module_id, parent_name, local_name });
             }
@@ -180,7 +181,7 @@ pub fn print(self: *const Graph, strings: StringTable, writer: *Writer) !void {
 
             try writer.print(" parent=", .{});
             if (anon.parent()) |parent_name| {
-                const parent_name_str = strings.get(parent_name);
+                const parent_name_str = strings.get(paths.flat(parent_name));
                 try writer.print("{}:{s}", .{ key.module_id, parent_name_str });
             } else {
                 try writer.print("null", .{});
