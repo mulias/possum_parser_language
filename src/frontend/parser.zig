@@ -23,7 +23,7 @@ pub const Parser = struct {
     printDebug: bool,
     printScanner: bool,
 
-    const Error = error{
+    pub const Error = error{
         OutOfMemory,
         UnexpectedInput,
         CodepointTooLarge,

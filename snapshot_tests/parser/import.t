@@ -1,7 +1,7 @@
   $ export PRINT_AST=true RUN_VM=false
 
-An unqualified dump of a file module. No module loader exists yet, so
-every import fails to resolve after printing its AST.
+An unqualified dump of a file module. The file paths in these tests do
+not exist, so each import fails to resolve after printing its AST.
 
   $ possum -p '!"json.possum"' -i ''
   (Import 1:0-14 "json.possum")
@@ -117,19 +117,11 @@ A member expression called with arguments.
   [UnknownModule]
   [1]
 
-Bare stdlib paths.
+Bare stdlib paths. '!stdlib' resolves in the embedded module map;
+submodules only exist once the stdlib is split across files.
 
   $ possum -p '!stdlib' -i ''
   (Import 1:0-7 stdlib)
-  
-  Program Error: cannot find module 'stdlib'
-  
-  program:1:0-7:
-  1 \xe2\x96\x8f !stdlib (esc)
-    \xe2\x96\x8f ^^^^^^^ (esc)
-  
-  [UnknownModule]
-  [1]
 
   $ possum -p '!stdlib/json' -i ''
   (Import 1:0-12 stdlib/json)

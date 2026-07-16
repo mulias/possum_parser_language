@@ -2119,6 +2119,7 @@ fn runWithImportSyntax(vm: *VM, util_source: []const u8, main_source: []const u8
     vm.input = input;
 
     const util_module = try vm.createModule("util.possum", util_source);
+    try vm.loader.registerFileModule("util.possum", util_module.id);
     const main_module = try vm.createModule("main", main_source);
 
     var compiler = try Compiler.init(vm);

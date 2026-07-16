@@ -75,6 +75,7 @@ pub const CLI = struct {
 
         var module_name: []const u8 = undefined;
         var source: []const u8 = undefined;
+        var parser_path: ?[]const u8 = null;
 
         switch (args.parser) {
             .String => |str| {
@@ -83,6 +84,7 @@ pub const CLI = struct {
             },
             .Path => |path| {
                 module_name = path;
+                parser_path = path;
                 source = try self.readFile(path);
             },
             .Stdin => {
@@ -103,6 +105,7 @@ pub const CLI = struct {
 
         var vm = VM.create();
         try vm.init(self.allocator, self.writers, config);
+        vm.main_module_path = parser_path;
 
         if (config.runVM) {
             const parsed = try vm.interpret(module_name, source, input);

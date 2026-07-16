@@ -25,6 +25,9 @@ target_module_id: ?Module.Id = null,
 resolver: DependencyResolver.Resolver,
 main: ?*Ast.RNode(Ast.Parser.AnonymousFunction) = null,
 binding_maps: binding.Maps = .{},
+// Modules every added module implicitly dumps (builtins, then stdlib).
+// Registered before a module's own imports so user imports shadow them.
+implicit_dumps: std.ArrayListUnmanaged(Module.Id) = .{},
 
 pub const AddModuleOpts = struct {
     printScanner: bool = false,
@@ -47,6 +50,12 @@ pub const Error = error{
     UnknownModule,
 };
 
+// Spelled out (not inferred) because module loading recurses through
+// addModule -> registerImports -> addModule. InvalidCharacter and
+// Overflow surface from number parsing during canonicalization.
+pub const AddModuleError = Error || Can.Error || Parser.Error ||
+    error{ InvalidCharacter, Overflow };
+
 pub fn init(vm: *VM) !*Frontend {
     const allocator = vm.allocator;
     const frontend = try allocator.create(Frontend);
@@ -59,6 +68,7 @@ pub fn init(vm: *VM) !*Frontend {
     frontend.target_module_id = null;
     frontend.main = null;
     frontend.binding_maps = .{};
+    frontend.implicit_dumps = .{};
     frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena, &frontend.paths, &frontend.strings);
     return frontend;
 }
@@ -71,7 +81,7 @@ pub fn deinit(self: *Frontend) void {
     self.allocator.destroy(self);
 }
 
-pub fn addTargetModule(self: *Frontend, module: Module, opts: AddModuleOpts) !void {
+pub fn addTargetModule(self: *Frontend, module: Module, opts: AddModuleOpts) AddModuleError!void {
     if (self.target_module_id == null) {
         self.target_module_id = module.id;
     } else {
@@ -81,6 +91,7 @@ pub fn addTargetModule(self: *Frontend, module: Module, opts: AddModuleOpts) !vo
     const ast = try self.parse(module, opts);
 
     try self.resolver.addModule(module, ast);
+    try self.applyImplicitDumps(module.id);
     try self.registerImports(module, ast);
 
     if (ast.main) |main_ast| {
@@ -88,30 +99,58 @@ pub fn addTargetModule(self: *Frontend, module: Module, opts: AddModuleOpts) !vo
     }
 }
 
-pub fn addModule(self: *Frontend, module: Module, opts: AddModuleOpts) !void {
+pub fn addModule(self: *Frontend, module: Module, opts: AddModuleOpts) AddModuleError!void {
     const ast = try self.parse(module, opts);
     try self.resolver.addModule(module, ast);
+    try self.applyImplicitDumps(module.id);
     try self.registerImports(module, ast);
 }
 
-// Wire the module's import declarations into the resolver. Import paths
-// resolve against modules the embedder has already created; the module
-// loader will later create modules on demand.
-fn registerImports(self: *Frontend, module: Module, ast: Ast) !void {
+// Every module added from here on implicitly dumps `module_id`, before
+// its own imports so that user imports shadow the implicit dumps.
+pub fn addImplicitDump(self: *Frontend, module_id: Module.Id) !void {
+    try self.implicit_dumps.append(self.arena.allocator(), module_id);
+}
+
+fn applyImplicitDumps(self: *Frontend, module_id: Module.Id) !void {
+    for (self.implicit_dumps.items) |dump_id| {
+        try self.resolver.addDump(module_id, dump_id);
+    }
+}
+
+// Load each imported module and wire the import into the resolver. A
+// newly loaded module is parsed and registered recursively, depth-first,
+// so its own imports load before the importer's next import.
+fn registerImports(self: *Frontend, module: Module, ast: Ast) AddModuleError!void {
     for (ast.imports.items) |import| {
-        const path = switch (import.path) {
-            .file, .stdlib => |p| p,
+        const result = switch (import.path) {
+            .file => |p| self.vm.loader.getOrLoadFile(p, module.id),
+            .stdlib => |p| self.vm.loader.getOrLoadEmbedded(p),
+        } catch |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            error.FileImportUnsupported => {
+                try self.printError(module.id, import.region, "file imports are not supported in this build", .{});
+                return Error.UnknownModule;
+            },
+            error.ModuleNotFound => {
+                const path = switch (import.path) {
+                    .file, .stdlib => |p| p,
+                };
+                try self.printError(module.id, import.region, "cannot find module '{s}'", .{path});
+                return Error.UnknownModule;
+            },
         };
-        const target = self.vm.findModule(path) orelse {
-            try self.printError(module.id, import.region, "cannot find module '{s}'", .{path});
-            return Error.UnknownModule;
-        };
+
+        if (result.newly_loaded) {
+            try self.addModule(result.module.*, .{});
+        }
+
         switch (import.target) {
-            .dump => try self.resolver.addDump(module.id, target.id),
+            .dump => try self.resolver.addDump(module.id, result.module.id),
             .alias => |alias| try self.resolver.addAlias(
                 module.id,
                 alias.name,
-                target.id,
+                result.module.id,
                 alias.selector,
                 import.region,
             ),

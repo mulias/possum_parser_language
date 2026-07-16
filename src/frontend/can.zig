@@ -23,7 +23,7 @@ current_parent_function_name: ?PathTable.Id = null,
 
 pub const Can = @This();
 
-const Error = error{
+pub const Error = error{
     OutOfMemory,
     InvalidGlobalParser,
     RangeNotValidInMergePattern,
