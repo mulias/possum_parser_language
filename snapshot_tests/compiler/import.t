@@ -1,5 +1,4 @@
-Import paths resolve only to modules the embedder registered; a CLI
-program has none, so a well-formed import fails module lookup.
+A well-formed import of a file that does not exist fails module lookup.
 
   $ possum -p '!"json.possum"' -i ''
   

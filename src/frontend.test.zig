@@ -856,6 +856,7 @@ test "import syntax registers an unqualified dump" {
     defer frontend.deinit();
 
     const util_module = try vm.createModule("util.possum", "digit = \"0\"..\"9\"");
+    try vm.loader.registerFileModule("util.possum", util_module.id);
     const main_module = try vm.createModule("main",
         \\ !"util.possum"
         \\ digit
@@ -883,6 +884,7 @@ test "import syntax binds an alias namespace and its root" {
         \\ x = "x"
         \\ "u"
     );
+    try vm.loader.registerFileModule("util.possum", util_module.id);
     const main_module = try vm.createModule("main",
         \\ u = !"util.possum"
         \\ use_member = u.x
@@ -910,6 +912,7 @@ test "import syntax mounts a selector alias" {
     defer frontend.deinit();
 
     const util_module = try vm.createModule("util.possum", "sub.x = \"x\"");
+    try vm.loader.registerFileModule("util.possum", util_module.id);
     const main_module = try vm.createModule("main",
         \\ n = !"util.possum".sub
         \\ n.x
@@ -934,6 +937,7 @@ test "import expression synthesizes a private alias" {
     defer frontend.deinit();
 
     const util_module = try vm.createModule("util.possum", "x = \"x\"");
+    try vm.loader.registerFileModule("util.possum", util_module.id);
     const main_module = try vm.createModule("main",
         \\ use_it = !"util.possum".x & "y"
         \\ use_it
@@ -962,6 +966,7 @@ test "value import expression in value context" {
     defer frontend.deinit();
 
     const util_module = try vm.createModule("util.possum", "Val = 1");
+    try vm.loader.registerFileModule("util.possum", util_module.id);
     const main_module = try vm.createModule("main",
         \\ Use = 1 + !"util.possum".Val
         \\ "x" $ Use
@@ -986,6 +991,7 @@ test "selector-less import is not an expression" {
     defer frontend.deinit();
 
     const util_module = try vm.createModule("util.possum", "x = \"x\"");
+    try vm.loader.registerFileModule("util.possum", util_module.id);
     const main_module = try vm.createModule("main", "!\"util.possum\" > \"x\"");
 
     try frontend.addModule(util_module.*, .{});
@@ -1015,6 +1021,7 @@ test "repeated import alias is a duplicate declaration" {
     defer frontend.deinit();
 
     const util_module = try vm.createModule("util.possum", "x = \"x\"");
+    try vm.loader.registerFileModule("util.possum", util_module.id);
     const main_module = try vm.createModule("main",
         \\ j = !"util.possum"
         \\ j = !"util.possum"

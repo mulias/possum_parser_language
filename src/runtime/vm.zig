@@ -189,6 +189,12 @@ pub const VM = struct {
     strings: StringTable,
     modules: ArrayList(*Module),
     loader: ModuleLoader,
+    // Disk path of the target module's source when it came from a file.
+    // Seeds the loader so imports naming the same file dedup against the
+    // target module and its relative imports resolve against its
+    // directory; null (a string or stdin parser) resolves against the
+    // working directory.
+    main_module_path: ?[]const u8,
     compiler: ?*const Compiler,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
@@ -256,6 +262,7 @@ pub const VM = struct {
             .strings = undefined,
             .modules = undefined,
             .loader = undefined,
+            .main_module_path = null,
             .compiler = undefined,
             .stack = undefined,
             .frames = undefined,
@@ -364,17 +371,16 @@ pub const VM = struct {
     pub fn compile(self: *VM, module_name: []const u8, source: []const u8) !void {
         const builtin_module = try self.createModule("builtins", "");
 
-        var maybe_stdlib_module: ?Module = null;
+        var maybe_stdlib_module: ?*Module = null;
         if (self.config.includeStdlib) {
-            const filename = "stdlib/core.possum";
-            const stdlib_module = try self.createModule(
-                filename,
-                @embedFile(filename),
-            );
-            maybe_stdlib_module = stdlib_module.*;
+            const loaded = try self.loader.getOrLoadEmbedded("stdlib");
+            maybe_stdlib_module = loaded.module;
         }
 
         const main_module = try self.createModule(module_name, source);
+        if (self.main_module_path) |path| {
+            try self.loader.registerFileModule(path, main_module.id);
+        }
 
         var compiler = try Compiler.init(self);
         defer compiler.deinit();
@@ -383,11 +389,10 @@ pub const VM = struct {
 
         // The implicit dumps are registered before the target module is
         // added so that every import written in the program shadows them.
-        try compiler.addModuleDump(main_module.id, builtin_module.id);
+        try compiler.addImplicitDump(builtin_module.id);
         if (maybe_stdlib_module) |stdlib_module| {
-            try compiler.addModule(stdlib_module, .{});
-            try compiler.addModuleDump(stdlib_module.id, builtin_module.id);
-            try compiler.addModuleDump(main_module.id, stdlib_module.id);
+            try compiler.addModule(stdlib_module.*, .{});
+            try compiler.addImplicitDump(stdlib_module.id);
         }
 
         try compiler.addTargetModule(main_module.*, .{
@@ -433,15 +438,6 @@ pub const VM = struct {
 
     pub fn getModule(self: VM, mid: Module.Id) *Module {
         return self.modules.items[mid];
-    }
-
-    // Import paths resolve only to already-created modules until the module
-    // loader lands.
-    pub fn findModule(self: VM, name: []const u8) ?*Module {
-        for (self.modules.items) |module| {
-            if (std.mem.eql(u8, module.name, name)) return module;
-        }
-        return null;
     }
 
     pub fn currentFunctionModule(self: *VM) *Module {

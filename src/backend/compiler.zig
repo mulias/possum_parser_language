@@ -134,6 +134,10 @@ pub const Compiler = struct {
         try self.frontend.addModuleDump(module_id, target_module);
     }
 
+    pub fn addImplicitDump(self: *Compiler, module_id: Module.Id) !void {
+        try self.frontend.addImplicitDump(module_id);
+    }
+
     pub fn addModuleAlias(
         self: *Compiler,
         module_id: Module.Id,
