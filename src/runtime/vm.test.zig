@@ -6,6 +6,7 @@ const VM = @import("vm.zig").VM;
 const VMConfig = @import("vm.zig").Config;
 const testing = @import("../testing.zig");
 const writers = testing.writers;
+const Region = @import("../region.zig").Region;
 
 const config = VMConfig{
     .includeStdlib = false,
@@ -2045,6 +2046,68 @@ test "undefined alias in another module is fine when never compiled" {
         try testing.expectSuccess(
             try runWithUtilModule(&vm, util_source, "greet", "hi"),
             Elem.inputSubstring(0, 2),
+            vm,
+        );
+    }
+}
+
+// Compile and run with the `util` module bound under the alias `util`
+// instead of dumped.
+fn runWithUtilAlias(vm: *VM, util_source: []const u8, main_source: []const u8, input: []const u8) !Elem {
+    vm.input = input;
+
+    const util_module = try vm.createModule("util", util_source);
+    const main_module = try vm.createModule("main", main_source);
+
+    var compiler = try Compiler.init(vm);
+    defer compiler.deinit();
+
+    try compiler.addModule(util_module.*, .{});
+    try compiler.addTargetModule(main_module.*, .{});
+
+    try compiler.addModuleAlias(main_module.id, "util", util_module.id, null, Region.new(0, 0));
+
+    vm.compiler = &compiler;
+    defer vm.compiler = null;
+
+    try compiler.compile();
+
+    const main = compiler.main.?;
+    try vm.push(main.dyn.elem());
+    try vm.pushFrame(main);
+    try vm.run();
+
+    return vm.peek(0);
+}
+
+test "a qualified import member runs" {
+    const util_source =
+        \\greeting = 'hello'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try runWithUtilAlias(&vm, util_source, "util.greeting + '!'", "hello!"),
+            Elem.inputSubstring(0, 6),
+            vm,
+        );
+    }
+}
+
+test "a bare alias runs the target module's main parser" {
+    const util_source =
+        \\greeting = 'hello'
+        \\greeting + ' world'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try runWithUtilAlias(&vm, util_source, "util + '!'", "hello world!"),
+            Elem.inputSubstring(0, 12),
             vm,
         );
     }

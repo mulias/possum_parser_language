@@ -29,7 +29,9 @@ pub const NameResolver = struct {
     // compiled. Names that refer to declarations in other modules are found
     // through the function's dependency graph node, where the resolver
     // recorded the target module. Anonymous functions are in the globals map
-    // but can't be invoked by name, so they are hidden here.
+    // but can't be invoked by name, so a direct hit hides them; a dependency
+    // edge is exempt, because the resolver only records one for a legitimate
+    // reference — an alias root edge targets another module's @main.
     pub fn resolveGlobal(self: NameResolver, module_id: Module.Id, name: Paths.Id) ?Elem {
         if (self.findGlobal(module_id, name)) |elem| {
             return visibleGlobal(elem);
@@ -37,8 +39,7 @@ pub const NameResolver = struct {
 
         for (self.scope.dependencies()) |edge| {
             if (edge.ref == name) {
-                const elem = self.findGlobal(edge.target.module_id, edge.target.name) orelse return null;
-                return visibleGlobal(elem);
+                return self.findGlobal(edge.target.module_id, edge.target.name);
             }
         }
 

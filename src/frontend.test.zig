@@ -630,6 +630,110 @@ test "alias chains through re-exports" {
     try expect(dependsOn(frontend, key(2, use_it_id), key(0, x_id)));
 }
 
+test "bare alias binds the target module's main parser" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const json_module = Module{
+        .id = 0,
+        .name = "json",
+        .source =
+        \\ bool = "true" | "false"
+        \\ bool | "null"
+        ,
+    };
+    const main_module = Module{
+        .id = 1,
+        .name = "main",
+        .source =
+        \\ use_it = json
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(json_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    try frontend.addModuleAlias(1, "json", 0, null, Region.new(0, 0));
+
+    try frontend.finalize();
+
+    const main_id = try frontend.paths.insert(&frontend.strings, "@main");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
+
+    try expect(dependsOn(frontend, key(1, use_it_id), key(0, main_id)));
+}
+
+test "alias root binding chains through re-exports" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const d_module = Module{
+        .id = 0,
+        .name = "d",
+        .source =
+        \\ x = "x"
+        \\ "d"
+        ,
+    };
+    const b_module = Module{ .id = 1, .name = "b", .source = "" };
+    const main_module = Module{
+        .id = 2,
+        .name = "main",
+        .source =
+        \\ use_root = a.c
+        \\ use_member = a.c.x
+        \\ use_root | use_member
+        ,
+    };
+
+    try frontend.addModule(d_module, .{});
+    try frontend.addModule(b_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    try frontend.addModuleAlias(1, "c", 0, null, Region.new(0, 0));
+    try frontend.addModuleAlias(2, "a", 1, null, Region.new(0, 0));
+
+    try frontend.finalize();
+
+    const main_id = try frontend.paths.insert(&frontend.strings, "@main");
+    const x_id = try frontend.paths.insert(&frontend.strings, "x");
+    const use_root_id = try frontend.paths.insert(&frontend.strings, "use_root");
+    const use_member_id = try frontend.paths.insert(&frontend.strings, "use_member");
+
+    // a.c is d's main parser and a.c.x is d's export x.
+    try expect(dependsOn(frontend, key(2, use_root_id), key(0, main_id)));
+    try expect(dependsOn(frontend, key(2, use_member_id), key(0, x_id)));
+}
+
+test "uppercase alias binds no root" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    // Created through the VM so that diagnostic reporting can look the
+    // module up when finalize fails.
+    const util_module = try vm.createModule("util", "\"u\"");
+    const main_module = try vm.createModule("main",
+        \\ Found = Util
+        \\ "x" $ Found
+    );
+
+    try frontend.addModule(util_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+    try frontend.addModuleAlias(main_module.id, "Util", util_module.id, null, Region.new(0, 0));
+
+    // The main parser is a parser, so a value alias has no root; the bare
+    // Util falls through to an unbound local.
+    try std.testing.expectError(Frontend.Error.UnboundVariable, frontend.finalize());
+}
+
 test "cyclic selector aliases terminate" {
     var vm: VM = undefined;
     try vm.init(allocator, writers, .{});

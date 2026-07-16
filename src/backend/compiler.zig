@@ -134,6 +134,17 @@ pub const Compiler = struct {
         try self.frontend.addModuleDump(module_id, target_module);
     }
 
+    pub fn addModuleAlias(
+        self: *Compiler,
+        module_id: Module.Id,
+        alias: []const u8,
+        target_module: Module.Id,
+        selector: ?[]const u8,
+        region: Region,
+    ) !void {
+        try self.frontend.addModuleAlias(module_id, alias, target_module, selector, region);
+    }
+
     pub fn compile(self: *Compiler) !void {
         try self.frontend.finalize();
 
