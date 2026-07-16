@@ -51,6 +51,22 @@ pub const PathTable = struct {
         return id;
     }
 
+    // Intern a rewritten segment sequence, e.g. an alias prefix spliced onto
+    // a member path. Builds the flat dotted spelling so dedup stays keyed by
+    // the flat sid, exactly like insert.
+    pub fn insertSegments(self: *PathTable, strings: *StringTable, segs: []const StringTable.Id) !Id {
+        std.debug.assert(segs.len > 0);
+
+        var flat_name = ArrayList(u8){};
+        defer flat_name.deinit(self.allocator);
+        for (segs, 0..) |sid, i| {
+            if (i > 0) try flat_name.append(self.allocator, '.');
+            try flat_name.appendSlice(self.allocator, strings.get(sid));
+        }
+
+        return self.insert(strings, flat_name.items);
+    }
+
     pub fn flat(self: PathTable, id: Id) StringTable.Id {
         return self.entry(id).flat;
     }
@@ -92,4 +108,22 @@ test "PathTable interns paths by name" {
     try std.testing.expectEqual(strings.getId("json.array"), paths.flat(a));
     try std.testing.expect(paths.single(a) == null);
     try std.testing.expectEqual(strings.getId("json"), paths.single(c).?);
+}
+
+test "insertSegments interns the same path as insert" {
+    const allocator = std.testing.allocator;
+
+    var strings = StringTable.init(allocator);
+    defer strings.deinit();
+    var paths = PathTable.init(allocator);
+    defer paths.deinit();
+
+    const from_string = try paths.insert(&strings, "json.array");
+    const json = try strings.insert("json");
+    const array = try strings.insert("array");
+    const from_segments = try paths.insertSegments(&strings, &.{ json, array });
+    const single = try paths.insertSegments(&strings, &.{json});
+
+    try std.testing.expect(from_string == from_segments);
+    try std.testing.expectEqual(json, paths.single(single).?);
 }
