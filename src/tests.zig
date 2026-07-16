@@ -3,6 +3,7 @@ comptime {
     _ = @import("frontend/path_table.zig");
     _ = @import("runtime/vm.test.zig");
     _ = @import("runtime/vm.zig");
+    _ = @import("runtime/module_loader.zig");
     _ = @import("string_buffer.zig");
     _ = @import("string_table.zig");
     _ = @import("runtime/elem.zig");
