@@ -375,20 +375,21 @@ pub const VM = struct {
         defer compiler.deinit();
 
         try compiler.addBuiltinsModule(builtin_module.*);
+
+        // The implicit dumps are registered before the target module is
+        // added so that every import written in the program shadows them.
+        try compiler.addModuleDump(main_module.id, builtin_module.id);
         if (maybe_stdlib_module) |stdlib_module| {
             try compiler.addModule(stdlib_module, .{});
+            try compiler.addModuleDump(stdlib_module.id, builtin_module.id);
+            try compiler.addModuleDump(main_module.id, stdlib_module.id);
         }
+
         try compiler.addTargetModule(main_module.*, .{
             .printScanner = self.config.printScanner,
             .printParser = self.config.printParser,
             .printAst = self.config.printAst,
         });
-
-        try compiler.addModuleDump(main_module.id, builtin_module.id);
-        if (maybe_stdlib_module) |stdlib_module| {
-            try compiler.addModuleDump(stdlib_module.id, builtin_module.id);
-            try compiler.addModuleDump(main_module.id, stdlib_module.id);
-        }
 
         self.compiler = &compiler;
         defer self.compiler = null;
@@ -427,6 +428,15 @@ pub const VM = struct {
 
     pub fn getModule(self: VM, mid: Module.Id) *Module {
         return self.modules.items[mid];
+    }
+
+    // Import paths resolve only to already-created modules until the module
+    // loader lands.
+    pub fn findModule(self: VM, name: []const u8) ?*Module {
+        for (self.modules.items) |module| {
+            if (std.mem.eql(u8, module.name, name)) return module;
+        }
+        return null;
     }
 
     pub fn currentFunctionModule(self: *VM) *Module {
