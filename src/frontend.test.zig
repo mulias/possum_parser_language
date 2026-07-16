@@ -502,32 +502,89 @@ test "alias kind filter hides mismatched exports" {
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
-    const util_module = Module{ .id = 0, .name = "util", .source = "Val = 1" };
-    const main_module = Module{
-        .id = 1,
-        .name = "main",
-        .source =
+    const util_module = try vm.createModule("util", "Val = 1");
+    const main_module = try vm.createModule("main",
         \\ hidden = num.Val
         \\ Found = Num.Val
         \\ hidden
-        ,
-    };
+    );
 
-    try frontend.addModule(util_module, .{});
-    try frontend.addTargetModule(main_module, .{});
-    try frontend.addModuleAlias(1, "num", 0, null, Region.new(0, 0));
-    try frontend.addModuleAlias(1, "Num", 0, null, Region.new(0, 0));
+    try frontend.addModule(util_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+    try frontend.addModuleAlias(main_module.id, "num", util_module.id, null, Region.new(0, 0));
+    try frontend.addModuleAlias(main_module.id, "Num", util_module.id, null, Region.new(0, 0));
 
-    try frontend.finalize();
+    // A lowercase alias exposes only parsers, so the value export Val is
+    // invisible through num — a kind mismatch — but visible through Num.
+    try std.testing.expectError(Frontend.Error.ImportResolution, frontend.finalize());
 
     const val_id = try frontend.paths.insert(&frontend.strings, "Val");
     const hidden_id = try frontend.paths.insert(&frontend.strings, "hidden");
     const found_id = try frontend.paths.insert(&frontend.strings, "Found");
 
-    // A lowercase alias exposes only parsers, so the value export Val is
-    // invisible through num but visible through Num.
-    try expect(!dependsOn(frontend, key(1, hidden_id), key(0, val_id)));
-    try expect(dependsOn(frontend, key(1, found_id), key(0, val_id)));
+    try expect(!dependsOn(frontend, key(main_module.id, hidden_id), key(util_module.id, val_id)));
+    try expect(dependsOn(frontend, key(main_module.id, found_id), key(util_module.id, val_id)));
+}
+
+test "alias member that does not exist errors" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const json_module = try vm.createModule("json", "bool = \"true\"");
+    const main_module = try vm.createModule("main",
+        \\ use_it = json.missing
+        \\ use_it
+    );
+
+    try frontend.addModule(json_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+    try frontend.addModuleAlias(main_module.id, "json", json_module.id, null, Region.new(0, 0));
+
+    try std.testing.expectError(Frontend.Error.ImportResolution, frontend.finalize());
+}
+
+test "alias member that is private errors" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const json_module = try vm.createModule("json",
+        \\ _hidden = "x"
+        \\ bool = _hidden
+    );
+    const main_module = try vm.createModule("main",
+        \\ use_it = json._hidden
+        \\ use_it
+    );
+
+    try frontend.addModule(json_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+    try frontend.addModuleAlias(main_module.id, "json", json_module.id, null, Region.new(0, 0));
+
+    try std.testing.expectError(Frontend.Error.ImportResolution, frontend.finalize());
+}
+
+test "alias whose case does not match its selector errors" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = try vm.createModule("util", "Sub.x = 1");
+    const main_module = try vm.createModule("main", "\"x\"");
+
+    try frontend.addModule(util_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+    // A lowercase alias on a value selector misclassifies every use site.
+    try frontend.addModuleAlias(main_module.id, "num", util_module.id, "Sub", Region.new(0, 0));
+
+    try std.testing.expectError(Frontend.Error.ImportResolution, frontend.finalize());
 }
 
 test "alias is re-exported through dumps" {
@@ -741,25 +798,22 @@ test "cyclic selector aliases terminate" {
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
-    const module = Module{
-        .id = 0,
-        .name = "cyclic",
-        .source =
+    const module = try vm.createModule("cyclic",
         \\ foo = x.foo
         \\ foo
-        ,
-    };
+    );
 
-    try frontend.addTargetModule(module, .{});
+    try frontend.addTargetModule(module.*, .{});
     // Each rewrite of x grows the name (x.R -> y.x.R -> x.x.R -> ...), so
-    // resolution can only stop at the rewrite cap.
-    try frontend.addModuleAlias(0, "x", 0, "y.x", Region.new(0, 0));
-    try frontend.addModuleAlias(0, "y", 0, "x", Region.new(0, 0));
+    // resolution can only stop at the rewrite cap, which reports the name
+    // as missing.
+    try frontend.addModuleAlias(module.id, "x", module.id, "y.x", Region.new(0, 0));
+    try frontend.addModuleAlias(module.id, "y", module.id, "x", Region.new(0, 0));
 
-    try frontend.finalize();
+    try std.testing.expectError(Frontend.Error.ImportResolution, frontend.finalize());
 
     const foo_id = try frontend.paths.insert(&frontend.strings, "foo");
-    const foo_node = frontend.findNode(0, foo_id).?;
+    const foo_node = frontend.findNode(module.id, foo_id).?;
     try expectEqual(@as(usize, 0), foo_node.dependencies().len);
 }
 

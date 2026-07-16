@@ -43,6 +43,7 @@ pub const ClosureCapture = DependencyGraph.ClosureCapture;
 pub const Error = error{
     UnboundVariable,
     NamespacedLocal,
+    ImportResolution,
 };
 
 pub fn init(vm: *VM) !*Frontend {
@@ -139,15 +140,47 @@ pub fn finalize(self: *Frontend) !void {
 
 fn reportResolverDiagnostics(self: *Frontend) !void {
     for (self.resolver.diagnostics.items) |diagnostic| {
-        try self.printError(
-            diagnostic.module_id,
-            diagnostic.region,
-            "'{s}' is undefined: namespaced names cannot be local variables",
-            .{self.pathString(diagnostic.name)},
-        );
+        switch (diagnostic.tag) {
+            .namespaced_local => try self.printError(
+                diagnostic.module_id,
+                diagnostic.region,
+                "'{s}' is undefined: namespaced names cannot be local variables",
+                .{self.pathString(diagnostic.name)},
+            ),
+            .alias_kind_mismatch => try self.printError(
+                diagnostic.module_id,
+                diagnostic.region,
+                "alias '{s}' does not match the kind of '{s}': a lowercase alias imports parsers, an uppercase alias imports values",
+                .{ self.pathString(diagnostic.alias.?), self.pathString(diagnostic.name) },
+            ),
+            .member_kind_mismatch => try self.printError(
+                diagnostic.module_id,
+                diagnostic.region,
+                "'{s}' does not match the kind of alias '{s}': a lowercase alias imports parsers, an uppercase alias imports values",
+                .{ self.pathString(diagnostic.name), self.pathString(diagnostic.alias.?) },
+            ),
+            .no_such_member => try self.printError(
+                diagnostic.module_id,
+                diagnostic.region,
+                "'{s}' is not exported by the module imported as '{s}'",
+                .{ self.pathString(diagnostic.name), self.pathString(diagnostic.alias.?) },
+            ),
+            .private_member => try self.printError(
+                diagnostic.module_id,
+                diagnostic.region,
+                "'{s}' is private to the module imported as '{s}'",
+                .{ self.pathString(diagnostic.name), self.pathString(diagnostic.alias.?) },
+            ),
+        }
     }
 
-    if (self.resolver.diagnostics.items.len > 0) return Error.NamespacedLocal;
+    const diagnostics = self.resolver.diagnostics.items;
+    if (diagnostics.len > 0) {
+        return switch (diagnostics[0].tag) {
+            .namespaced_local => Error.NamespacedLocal,
+            else => Error.ImportResolution,
+        };
+    }
 }
 
 pub fn getNode(self: *Frontend, key: GlobalKey) *DependencyGraph.Node {
