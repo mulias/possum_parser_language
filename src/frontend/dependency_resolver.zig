@@ -37,6 +37,10 @@ pub const Resolver = @This();
 // it off resolves the name to nothing.
 const max_alias_rewrites = 64;
 
+// The canonicalizer's name for a module's main parser (its bare parser
+// expression). User-written @-names are rejected, so the name is unambiguous.
+const main_parser_name = "@main";
+
 // Whether a name binds a parser (lowercase) or a value (uppercase).
 pub const Kind = enum { parser, value };
 
@@ -656,8 +660,16 @@ fn resolveThroughAliases(
     const remainder = self.paths.segments(name)[self.paths.segments(alias.alias).len..];
 
     if (remainder.len == 0 and alias.selector_prefix == null) {
-        // A bare alias names the target module's root (its main parser);
-        // root binding is not implemented yet.
+        // A bare alias names the target module's root: its main parser. The
+        // main parser is a parser, so only a lowercase alias binds it; an
+        // uppercase alias yields a namespace of values with no root.
+        if (alias.kind != .parser) return .unresolved;
+
+        const root_key = DependencyGraph.NodeKey{
+            .module_id = alias.target_module,
+            .name = try self.paths.insert(self.strings, main_parser_name),
+        };
+        if (self.graph.nodes.get(root_key) != null) return .{ .resolved = root_key };
         return .unresolved;
     }
 
