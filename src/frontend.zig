@@ -57,7 +57,7 @@ pub fn init(vm: *VM) !*Frontend {
     frontend.target_module_id = null;
     frontend.main = null;
     frontend.binding_maps = .{};
-    frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena, &frontend.paths);
+    frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena, &frontend.paths, &frontend.strings);
     return frontend;
 }
 
@@ -103,12 +103,30 @@ pub fn pathString(self: *const Frontend, path: PathTable.Id) [:0]const u8 {
     return self.strings.get(self.paths.flat(path));
 }
 
-pub fn addModuleDependency(
+// Register an unqualified dump: every public export of the dumped module is
+// visible bare in the dumping module.
+pub fn addModuleDump(
     self: *Frontend,
     module_id: Module.Id,
-    dependency_id: Module.Id,
+    target_module: Module.Id,
 ) !void {
-    try self.resolver.addModuleDependency(module_id, dependency_id);
+    try self.resolver.addDump(module_id, target_module);
+}
+
+// Register a qualified import: names prefixed with the alias resolve among
+// the target module's public exports, optionally re-rooted on a selector
+// path inside the target.
+pub fn addModuleAlias(
+    self: *Frontend,
+    module_id: Module.Id,
+    alias: []const u8,
+    target_module: Module.Id,
+    selector: ?[]const u8,
+    region: Region,
+) !void {
+    const alias_path = try self.paths.insert(&self.strings, alias);
+    const selector_path = if (selector) |s| try self.paths.insert(&self.strings, s) else null;
+    try self.resolver.addAlias(module_id, alias_path, target_module, selector_path, region);
 }
 
 pub fn finalize(self: *Frontend) !void {

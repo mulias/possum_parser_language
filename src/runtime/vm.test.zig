@@ -25,7 +25,7 @@ fn runWithUtilModule(vm: *VM, util_source: []const u8, main_source: []const u8, 
     try compiler.addModule(util_module.*, .{});
     try compiler.addTargetModule(main_module.*, .{});
 
-    try compiler.addModuleDependency(main_module.id, util_module.id);
+    try compiler.addModuleDump(main_module.id, util_module.id);
 
     vm.compiler = &compiler;
     defer vm.compiler = null;

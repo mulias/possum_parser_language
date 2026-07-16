@@ -384,10 +384,10 @@ pub const VM = struct {
             .printAst = self.config.printAst,
         });
 
-        try compiler.addModuleDependency(main_module.id, builtin_module.id);
+        try compiler.addModuleDump(main_module.id, builtin_module.id);
         if (maybe_stdlib_module) |stdlib_module| {
-            try compiler.addModuleDependency(stdlib_module.id, builtin_module.id);
-            try compiler.addModuleDependency(main_module.id, stdlib_module.id);
+            try compiler.addModuleDump(stdlib_module.id, builtin_module.id);
+            try compiler.addModuleDump(main_module.id, stdlib_module.id);
         }
 
         self.compiler = &compiler;

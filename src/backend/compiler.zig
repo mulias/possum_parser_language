@@ -130,8 +130,8 @@ pub const Compiler = struct {
         }
     }
 
-    pub fn addModuleDependency(self: *Compiler, module_id: Module.Id, dependendency_id: Module.Id) !void {
-        try self.frontend.addModuleDependency(module_id, dependendency_id);
+    pub fn addModuleDump(self: *Compiler, module_id: Module.Id, target_module: Module.Id) !void {
+        try self.frontend.addModuleDump(module_id, target_module);
     }
 
     pub fn compile(self: *Compiler) !void {
