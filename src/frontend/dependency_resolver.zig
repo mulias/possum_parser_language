@@ -56,12 +56,31 @@ pub const Alias = struct {
     region: Region,
 };
 
-// A namespaced (dotted) value identifier that resolves to no declaration:
-// it would otherwise become a local, and locals can't be namespaced.
 pub const Diagnostic = struct {
     module_id: Module.Id,
     region: Region,
     name: PathTable.Id,
+    tag: Tag,
+    // The alias through which the name failed to resolve, for alias-aware
+    // messages.
+    alias: ?PathTable.Id = null,
+
+    pub const Tag = enum {
+        // A namespaced (dotted) value identifier that resolves to no
+        // declaration: it would otherwise become a local, and locals can't
+        // be namespaced.
+        namespaced_local,
+        // An alias whose case does not match its selector's kind, e.g. a
+        // lowercase alias on a value selector. Members would misclassify at
+        // every use site.
+        alias_kind_mismatch,
+        // A member whose kind does not match its alias's case.
+        member_kind_mismatch,
+        // A member the aliased module does not export.
+        no_such_member,
+        // A member that is private to the aliased module.
+        private_member,
+    };
 };
 
 pub fn init(arena: *ArenaAllocator, paths: *PathTable, strings: *StringTable) Resolver {
@@ -120,6 +139,8 @@ fn pathIsPrivate(self: *const Resolver, path: PathTable.Id) bool {
 }
 
 pub fn resolve(self: *Resolver) !void {
+    try self.checkAliasSelectorKinds();
+
     // Declarations are resolved first so that their locals are known, then
     // anonymous functions from the outside in, so that each can find the
     // locals and closure captures of its parent chain.
@@ -168,6 +189,27 @@ pub fn resolve(self: *Resolver) !void {
     // resolving an inner function can add captures to its parents.
     for (anons.items) |entry| {
         try self.orderCapturedLocals(entry.node);
+    }
+}
+
+// An alias must match its selector's kind: the alias's case decides how
+// members are classified at use sites, so a lowercase alias on a value
+// selector would misclassify every use.
+fn checkAliasSelectorKinds(self: *Resolver) !void {
+    var iter = self.aliases.iterator();
+    while (iter.next()) |entry| {
+        for (entry.value_ptr.items) |alias| {
+            const selector = alias.selector_prefix orelse continue;
+            if (self.nameKind(selector) != alias.kind) {
+                try self.diagnostics.append(self.arena.allocator(), .{
+                    .module_id = entry.key_ptr.*,
+                    .region = alias.region,
+                    .name = selector,
+                    .tag = .alias_kind_mismatch,
+                    .alias = alias.alias,
+                });
+            }
+        }
     }
 }
 
@@ -273,7 +315,7 @@ fn walkParser(
 ) error{OutOfMemory}!void {
     switch (rnode.node) {
         .identifier => |ident| {
-            try self.resolveParserIdentifier(key, node, ident.name);
+            try self.resolveParserIdentifier(key, node, ident.name, rnode.region);
         },
         .@"or" => |infix| {
             try self.walkParser(key, node, infix.left);
@@ -572,26 +614,38 @@ fn addDependency(self: *Resolver, node: *DependencyGraph.Node, edge: DependencyG
 // into transitive dumps (every import is re-exported), so callers only need
 // to record each module's direct dumps rather than a flattened closure. Dump
 // graphs may be cyclic; the visited list keeps the recursion finite.
-fn findDeclaration(self: *Resolver, module_id: Module.Id, name: PathTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
+const Resolution = union(enum) {
+    found: DependencyGraph.NodeKey,
+    // An alias claimed the name but couldn't resolve it; carries the
+    // specific failure for diagnostics.
+    alias_failure: AliasFailure,
+    none,
+};
+
+fn findDeclaration(self: *Resolver, module_id: Module.Id, name: PathTable.Id) error{OutOfMemory}!Resolution {
     const own_key = DependencyGraph.NodeKey{
         .module_id = module_id,
         .name = name,
     };
 
     if (self.graph.nodes.get(own_key)) |found| {
-        if (found.* != .anonymous_function) return own_key;
+        if (found.* != .anonymous_function) return .{ .found = own_key };
     }
 
     self.visited_exports.clearRetainingCapacity();
     try self.visited_exports.append(self.arena.allocator(), own_key);
 
     switch (try self.resolveThroughAliases(module_id, name, .include_private, 0)) {
-        .resolved => |key| return key,
-        .unresolved => return null,
+        .resolved => |key| return .{ .found = key },
+        .unresolved => |maybe_failure| {
+            if (maybe_failure) |failure| return .{ .alias_failure = failure };
+            return .none;
+        },
         .no_match => {},
     }
 
-    return self.findExportedInDumps(module_id, name, 0);
+    if (try self.findExportedInDumps(module_id, name, 0)) |key| return .{ .found = key };
+    return .none;
 }
 
 fn findExportedInDumps(self: *Resolver, module_id: Module.Id, name: PathTable.Id, rewrite_depth: usize) error{OutOfMemory}!?DependencyGraph.NodeKey {
@@ -625,6 +679,8 @@ fn findExported(self: *Resolver, module_id: Module.Id, name: PathTable.Id, rewri
 
     switch (try self.resolveThroughAliases(module_id, name, .public_only, rewrite_depth)) {
         .resolved => |resolved| return resolved,
+        // The failure isn't diagnosed here: this module simply doesn't
+        // export the name, and the outer search may still find it elsewhere.
         .unresolved => return null,
         .no_match => {},
     }
@@ -632,13 +688,20 @@ fn findExported(self: *Resolver, module_id: Module.Id, name: PathTable.Id, rewri
     return self.findExportedInDumps(module_id, name, rewrite_depth);
 }
 
+const AliasFailure = struct {
+    alias: PathTable.Id,
+    reason: Diagnostic.Tag,
+};
+
 const AliasLookup = union(enum) {
     // No alias prefixes the name; the search continues into dumps.
     no_match,
     // An alias claims the name's prefix but the member doesn't resolve. The
     // alias still shadows the prefix, so the search stops rather than fall
-    // through to dumps.
-    unresolved,
+    // through to dumps. The failure is null when a bare alias names a root
+    // the target doesn't provide, which is not an error: the name simply
+    // resolves to nothing.
+    unresolved: ?AliasFailure,
     resolved: DependencyGraph.NodeKey,
 };
 
@@ -655,7 +718,7 @@ fn resolveThroughAliases(
     rewrite_depth: usize,
 ) error{OutOfMemory}!AliasLookup {
     const alias = self.matchAlias(module_id, name, privacy == .include_private) orelse return .no_match;
-    if (rewrite_depth >= max_alias_rewrites) return .unresolved;
+    if (rewrite_depth >= max_alias_rewrites) return .{ .unresolved = null };
 
     const remainder = self.paths.segments(name)[self.paths.segments(alias.alias).len..];
 
@@ -663,14 +726,14 @@ fn resolveThroughAliases(
         // A bare alias names the target module's root: its main parser. The
         // main parser is a parser, so only a lowercase alias binds it; an
         // uppercase alias yields a namespace of values with no root.
-        if (alias.kind != .parser) return .unresolved;
+        if (alias.kind != .parser) return .{ .unresolved = null };
 
         const root_key = DependencyGraph.NodeKey{
             .module_id = alias.target_module,
             .name = try self.paths.insert(self.strings, main_parser_name),
         };
         if (self.graph.nodes.get(root_key) != null) return .{ .resolved = root_key };
-        return .unresolved;
+        return .{ .unresolved = null };
     }
 
     const allocator = self.arena.allocator();
@@ -684,11 +747,23 @@ fn resolveThroughAliases(
 
     if (try self.findExported(alias.target_module, rewritten, rewrite_depth + 1)) |key| {
         const node = self.graph.nodes.get(key).?;
-        if (self.nodeKind(key, node) != alias.kind) return .unresolved;
+        if (self.nodeKind(key, node) != alias.kind) {
+            return .{ .unresolved = .{ .alias = alias.alias, .reason = .member_kind_mismatch } };
+        }
         return .{ .resolved = key };
     }
 
-    return .unresolved;
+    const target_key = DependencyGraph.NodeKey{
+        .module_id = alias.target_module,
+        .name = rewritten,
+    };
+    if (self.graph.nodes.get(target_key)) |target_node| {
+        if (target_node.* != .anonymous_function and target_node.isPrivate()) {
+            return .{ .unresolved = .{ .alias = alias.alias, .reason = .private_member } };
+        }
+    }
+
+    return .{ .unresolved = .{ .alias = alias.alias, .reason = .no_such_member } };
 }
 
 // The longest alias whose segments prefix the name. A dotted alias mounts a
@@ -730,11 +805,14 @@ fn resolveParserIdentifier(
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
     name: PathTable.Id,
+    region: Region,
 ) error{OutOfMemory}!void {
     if (try self.resolveScopedName(key, node, name)) return;
 
-    if (try self.findDeclaration(key.module_id, name)) |dep_key| {
-        try self.addDependency(node, .{ .ref = name, .target = dep_key });
+    switch (try self.findDeclaration(key.module_id, name)) {
+        .found => |dep_key| try self.addDependency(node, .{ .ref = name, .target = dep_key }),
+        .alias_failure => |failure| try self.diagnoseAliasFailure(key.module_id, region, name, failure),
+        .none => {},
     }
 }
 
@@ -747,9 +825,16 @@ fn resolveValueIdentifier(
 ) error{OutOfMemory}!void {
     if (try self.resolveScopedName(key, node, name)) return;
 
-    if (try self.findDeclaration(key.module_id, name)) |dep_key| {
-        try self.addDependency(node, .{ .ref = name, .target = dep_key });
-        return;
+    switch (try self.findDeclaration(key.module_id, name)) {
+        .found => |dep_key| {
+            try self.addDependency(node, .{ .ref = name, .target = dep_key });
+            return;
+        },
+        .alias_failure => |failure| {
+            try self.diagnoseAliasFailure(key.module_id, region, name, failure);
+            return;
+        },
+        .none => {},
     }
 
     // An unresolved value identifier becomes a local, and locals can't be
@@ -759,6 +844,7 @@ fn resolveValueIdentifier(
             .module_id = key.module_id,
             .region = region,
             .name = name,
+            .tag = .namespaced_local,
         });
         return;
     };
@@ -768,4 +854,20 @@ fn resolveValueIdentifier(
         if (local == segment) return;
     }
     try unbound_locals.append(self.arena.allocator(), segment);
+}
+
+fn diagnoseAliasFailure(
+    self: *Resolver,
+    module_id: Module.Id,
+    region: Region,
+    name: PathTable.Id,
+    failure: AliasFailure,
+) error{OutOfMemory}!void {
+    try self.diagnostics.append(self.arena.allocator(), .{
+        .module_id = module_id,
+        .region = region,
+        .name = name,
+        .tag = failure.reason,
+        .alias = failure.alias,
+    });
 }
