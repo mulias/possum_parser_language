@@ -44,6 +44,7 @@ pub const Error = error{
     UnboundVariable,
     NamespacedLocal,
     ImportResolution,
+    UnknownModule,
 };
 
 pub fn init(vm: *VM) !*Frontend {
@@ -80,6 +81,7 @@ pub fn addTargetModule(self: *Frontend, module: Module, opts: AddModuleOpts) !vo
     const ast = try self.parse(module, opts);
 
     try self.resolver.addModule(module, ast);
+    try self.registerImports(module, ast);
 
     if (ast.main) |main_ast| {
         self.main = main_ast;
@@ -89,6 +91,32 @@ pub fn addTargetModule(self: *Frontend, module: Module, opts: AddModuleOpts) !vo
 pub fn addModule(self: *Frontend, module: Module, opts: AddModuleOpts) !void {
     const ast = try self.parse(module, opts);
     try self.resolver.addModule(module, ast);
+    try self.registerImports(module, ast);
+}
+
+// Wire the module's import declarations into the resolver. Import paths
+// resolve against modules the embedder has already created; the module
+// loader will later create modules on demand.
+fn registerImports(self: *Frontend, module: Module, ast: Ast) !void {
+    for (ast.imports.items) |import| {
+        const path = switch (import.path) {
+            .file, .stdlib => |p| p,
+        };
+        const target = self.vm.findModule(path) orelse {
+            try self.printError(module.id, import.region, "cannot find module '{s}'", .{path});
+            return Error.UnknownModule;
+        };
+        switch (import.target) {
+            .dump => try self.resolver.addDump(module.id, target.id),
+            .alias => |alias| try self.resolver.addAlias(
+                module.id,
+                alias.name,
+                target.id,
+                alias.selector,
+                import.region,
+            ),
+        }
+    }
 }
 
 // Register a function that the backend can compile on demand, without a

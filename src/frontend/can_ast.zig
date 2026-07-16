@@ -7,8 +7,35 @@ const PathTable = @import("path_table.zig").PathTable;
 declarations: ArrayList(Ast.ParserOrValue.Declaration) = .{},
 anonymous_functions: ArrayList(*Ast.RNode(Ast.Parser.AnonymousFunction)) = .{},
 main: ?*Ast.RNode(Ast.Parser.AnonymousFunction) = null,
+imports: ArrayList(Import) = .{},
 
 pub const Ast = @This();
+
+pub const Import = struct {
+    path: Path,
+    target: Target,
+    region: Region,
+
+    pub const Path = union(enum) {
+        // A disk path from a string literal.
+        file: []const u8,
+        // A logical embedded-module name like "stdlib/json".
+        stdlib: []const u8,
+    };
+
+    pub const Target = union(enum) {
+        // Unqualified: every public export of the module is visible bare.
+        dump,
+        // Qualified: names prefixed with the alias resolve among the
+        // module's public exports, optionally re-rooted on a selector.
+        alias: Alias,
+    };
+
+    pub const Alias = struct {
+        name: PathTable.Id,
+        selector: ?PathTable.Id,
+    };
+};
 
 pub fn RNode(comptime Node: type) type {
     return struct {
