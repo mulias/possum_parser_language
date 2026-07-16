@@ -7,6 +7,7 @@ const Module = @import("runtime.zig").Module;
 const StringTable = @import("frontend.zig").StringTable;
 const PathTable = @import("frontend.zig").PathTable;
 const writers = @import("testing.zig").writers;
+const Region = @import("region.zig").Region;
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -129,7 +130,7 @@ test "multiple modules with dependencies" {
     try frontend.addTargetModule(main_module, .{});
 
     // Add dependency: main depends on util
-    try frontend.addModuleDependency(1, 0);
+    try frontend.addModuleDump(1, 0);
 
     try frontend.finalize();
 
@@ -157,7 +158,7 @@ test "multiple modules with dependencies" {
     try std.testing.expect(frontend.main != null);
 
     // Check module dependencies were recorded
-    const main_deps = frontend.resolver.module_dependencies.get(1);
+    const main_deps = frontend.resolver.dumps.get(1);
     try std.testing.expect(main_deps != null);
     try std.testing.expectEqual(@as(usize, 1), main_deps.?.items.len);
     try std.testing.expectEqual(@as(Module.Id, 0), main_deps.?.items[0]);
@@ -186,8 +187,8 @@ test "later import shadows earlier import" {
     try frontend.addTargetModule(main_module, .{});
 
     // main imports util_a first, then util_b
-    try frontend.addModuleDependency(2, 0);
-    try frontend.addModuleDependency(2, 1);
+    try frontend.addModuleDump(2, 0);
+    try frontend.addModuleDump(2, 1);
 
     try frontend.finalize();
 
@@ -223,8 +224,8 @@ test "identifier resolves through transitive dependency" {
     try frontend.addTargetModule(main_module, .{});
 
     // main depends on mid, mid depends on base; main does not depend on base directly.
-    try frontend.addModuleDependency(1, 0);
-    try frontend.addModuleDependency(2, 1);
+    try frontend.addModuleDump(1, 0);
+    try frontend.addModuleDump(2, 1);
 
     try frontend.finalize();
 
@@ -428,6 +429,234 @@ test "nested anonymous functions with multiple captures" {
     try expectEqual(@as(usize, 2), locals.len);
     try expectEqual(a, locals[0]);
     try expectEqual(n, locals[1]);
+}
+
+test "alias resolves qualified names" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const json_module = Module{ .id = 0, .name = "json", .source = "bool = \"true\" | \"false\"" };
+    const main_module = Module{
+        .id = 1,
+        .name = "main",
+        .source =
+        \\ use_it = json.bool
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(json_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    try frontend.addModuleAlias(1, "json", 0, null, Region.new(0, 0));
+
+    try frontend.finalize();
+
+    const bool_id = try frontend.paths.insert(&frontend.strings, "bool");
+    const json_bool_id = try frontend.paths.insert(&frontend.strings, "json.bool");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
+
+    // The edge keeps the use-site spelling but targets the export's own key.
+    try expect(dependsOn(frontend, key(1, use_it_id), key(0, bool_id)));
+    const use_it_node = frontend.findNode(1, use_it_id).?;
+    const target = use_it_node.dependencyNamed(json_bool_id).?;
+    try expectEqual(@as(Module.Id, 0), target.module_id);
+    try expectEqual(bool_id, target.name);
+}
+
+test "alias selector re-roots member paths" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = Module{ .id = 0, .name = "util", .source = "sub.x = \"x\"" };
+    const main_module = Module{
+        .id = 1,
+        .name = "main",
+        .source =
+        \\ use_it = n.x
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(util_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    try frontend.addModuleAlias(1, "n", 0, "sub", Region.new(0, 0));
+
+    try frontend.finalize();
+
+    const sub_x_id = try frontend.paths.insert(&frontend.strings, "sub.x");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
+
+    try expect(dependsOn(frontend, key(1, use_it_id), key(0, sub_x_id)));
+}
+
+test "alias kind filter hides mismatched exports" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = Module{ .id = 0, .name = "util", .source = "Val = 1" };
+    const main_module = Module{
+        .id = 1,
+        .name = "main",
+        .source =
+        \\ hidden = num.Val
+        \\ Found = Num.Val
+        \\ hidden
+        ,
+    };
+
+    try frontend.addModule(util_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    try frontend.addModuleAlias(1, "num", 0, null, Region.new(0, 0));
+    try frontend.addModuleAlias(1, "Num", 0, null, Region.new(0, 0));
+
+    try frontend.finalize();
+
+    const val_id = try frontend.paths.insert(&frontend.strings, "Val");
+    const hidden_id = try frontend.paths.insert(&frontend.strings, "hidden");
+    const found_id = try frontend.paths.insert(&frontend.strings, "Found");
+
+    // A lowercase alias exposes only parsers, so the value export Val is
+    // invisible through num but visible through Num.
+    try expect(!dependsOn(frontend, key(1, hidden_id), key(0, val_id)));
+    try expect(dependsOn(frontend, key(1, found_id), key(0, val_id)));
+}
+
+test "alias is re-exported through dumps" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const json_module = Module{ .id = 0, .name = "json", .source = "bool = \"true\"" };
+    const barrel_module = Module{ .id = 1, .name = "barrel", .source = "" };
+    const main_module = Module{
+        .id = 2,
+        .name = "main",
+        .source =
+        \\ use_it = json.bool
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(json_module, .{});
+    try frontend.addModule(barrel_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    // The barrel imports json under an alias; main only dumps the barrel.
+    try frontend.addModuleAlias(1, "json", 0, null, Region.new(0, 0));
+    try frontend.addModuleDump(2, 1);
+
+    try frontend.finalize();
+
+    const bool_id = try frontend.paths.insert(&frontend.strings, "bool");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
+
+    try expect(dependsOn(frontend, key(2, use_it_id), key(0, bool_id)));
+}
+
+test "private alias is not re-exported" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const json_module = Module{ .id = 0, .name = "json", .source = "bool = \"true\"" };
+    // The barrel uses its own private alias; importers of the barrel can't.
+    const barrel_module = Module{ .id = 1, .name = "barrel", .source = "own_use = _json.bool" };
+    const main_module = Module{
+        .id = 2,
+        .name = "main",
+        .source =
+        \\ use_it = _json.bool
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(json_module, .{});
+    try frontend.addModule(barrel_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    try frontend.addModuleAlias(1, "_json", 0, null, Region.new(0, 0));
+    try frontend.addModuleDump(2, 1);
+
+    try frontend.finalize();
+
+    const bool_id = try frontend.paths.insert(&frontend.strings, "bool");
+    const own_use_id = try frontend.paths.insert(&frontend.strings, "own_use");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
+
+    try expect(dependsOn(frontend, key(1, own_use_id), key(0, bool_id)));
+    try expect(!dependsOn(frontend, key(2, use_it_id), key(0, bool_id)));
+}
+
+test "alias chains through re-exports" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const d_module = Module{ .id = 0, .name = "d", .source = "x = \"x\"" };
+    const b_module = Module{ .id = 1, .name = "b", .source = "" };
+    const main_module = Module{
+        .id = 2,
+        .name = "main",
+        .source =
+        \\ use_it = a.c.x
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(d_module, .{});
+    try frontend.addModule(b_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    try frontend.addModuleAlias(1, "c", 0, null, Region.new(0, 0));
+    try frontend.addModuleAlias(2, "a", 1, null, Region.new(0, 0));
+
+    try frontend.finalize();
+
+    const x_id = try frontend.paths.insert(&frontend.strings, "x");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
+
+    try expect(dependsOn(frontend, key(2, use_it_id), key(0, x_id)));
+}
+
+test "cyclic selector aliases terminate" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const module = Module{
+        .id = 0,
+        .name = "cyclic",
+        .source =
+        \\ foo = x.foo
+        \\ foo
+        ,
+    };
+
+    try frontend.addTargetModule(module, .{});
+    // Each rewrite of x grows the name (x.R -> y.x.R -> x.x.R -> ...), so
+    // resolution can only stop at the rewrite cap.
+    try frontend.addModuleAlias(0, "x", 0, "y.x", Region.new(0, 0));
+    try frontend.addModuleAlias(0, "y", 0, "x", Region.new(0, 0));
+
+    try frontend.finalize();
+
+    const foo_id = try frontend.paths.insert(&frontend.strings, "foo");
+    const foo_node = frontend.findNode(0, foo_id).?;
+    try expectEqual(@as(usize, 0), foo_node.dependencies().len);
 }
 
 test "circular deps" {

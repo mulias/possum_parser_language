@@ -10,18 +10,47 @@ const DependencyGraph = @import("dependency_graph.zig");
 const Region = @import("../region.zig").Region;
 
 arena: *ArenaAllocator,
-paths: *const PathTable,
-module_dependencies: HashMap(Module.Id, ArrayList(Module.Id)) = .{},
+paths: *PathTable,
+strings: *StringTable,
+// Per-module ordered unqualified dumps: every export of a dumped module is
+// visible bare. Implicit stdlib/builtins edges are just early entries, so a
+// later dump shadows an earlier one.
+dumps: HashMap(Module.Id, ArrayList(Module.Id)) = .{},
+// Per-module qualified imports: names starting with the alias resolve in the
+// target module's public exports.
+aliases: HashMap(Module.Id, ArrayList(Alias)) = .{},
 graph: DependencyGraph = .{},
 diagnostics: ArrayList(Diagnostic) = .{},
 // Scratch space reused by every resolveScopedName call. The function runs to
 // completion before the next identifier is resolved and never re-enters
 // itself, so a single buffer is safe and avoids a per-identifier allocation.
 scoped_name_chain: ArrayList(*DependencyGraph.Node) = .{},
-// Scratch space reused by every findDeclaration call, same reasoning.
-visited_modules: ArrayList(Module.Id) = .{},
+// Scratch space reused by every findDeclaration call, same reasoning. Keyed
+// on (module, name), not module alone: alias rewriting can legitimately
+// revisit a module looking for a different name.
+visited_exports: ArrayList(DependencyGraph.NodeKey) = .{},
 
 pub const Resolver = @This();
+
+// Mutually-recursive selector aliases can grow a name on every rewrite and
+// never converge; such a chain can't ground out in a declaration, so cutting
+// it off resolves the name to nothing.
+const max_alias_rewrites = 64;
+
+// Whether a name binds a parser (lowercase) or a value (uppercase).
+pub const Kind = enum { parser, value };
+
+pub const Alias = struct {
+    alias: PathTable.Id,
+    // The alias's case selects which kind of exports the namespace holds, so
+    // first-character kind classification stays correct at every use site.
+    kind: Kind,
+    target_module: Module.Id,
+    // A member or namespace path inside the target module that the alias is
+    // mounted on; null mounts the module root.
+    selector_prefix: ?PathTable.Id,
+    region: Region,
+};
 
 // A namespaced (dotted) value identifier that resolves to no declaration:
 // it would otherwise become a local, and locals can't be namespaced.
@@ -31,10 +60,11 @@ pub const Diagnostic = struct {
     name: PathTable.Id,
 };
 
-pub fn init(arena: *ArenaAllocator, paths: *const PathTable) Resolver {
+pub fn init(arena: *ArenaAllocator, paths: *PathTable, strings: *StringTable) Resolver {
     return Resolver{
         .arena = arena,
         .paths = paths,
+        .strings = strings,
     };
 }
 
@@ -42,12 +72,47 @@ pub fn addModule(self: *Resolver, module: Module, ast: Ast) !void {
     try self.graph.addModule(self.arena.allocator(), module, ast);
 }
 
-pub fn addModuleDependency(self: *Resolver, module_id: Module.Id, dependency_id: Module.Id) !void {
-    const gop = try self.module_dependencies.getOrPut(self.arena.allocator(), module_id);
+pub fn addDump(self: *Resolver, module_id: Module.Id, target_module: Module.Id) !void {
+    const gop = try self.dumps.getOrPut(self.arena.allocator(), module_id);
     if (!gop.found_existing) {
         gop.value_ptr.* = .{};
     }
-    try gop.value_ptr.append(self.arena.allocator(), dependency_id);
+    try gop.value_ptr.append(self.arena.allocator(), target_module);
+}
+
+pub fn addAlias(
+    self: *Resolver,
+    module_id: Module.Id,
+    alias: PathTable.Id,
+    target_module: Module.Id,
+    selector_prefix: ?PathTable.Id,
+    region: Region,
+) !void {
+    const gop = try self.aliases.getOrPut(self.arena.allocator(), module_id);
+    if (!gop.found_existing) {
+        gop.value_ptr.* = .{};
+    }
+    try gop.value_ptr.append(self.arena.allocator(), .{
+        .alias = alias,
+        .kind = self.nameKind(alias),
+        .target_module = target_module,
+        .selector_prefix = selector_prefix,
+        .region = region,
+    });
+}
+
+fn nameKind(self: *const Resolver, path: PathTable.Id) Kind {
+    const first_segment = self.strings.get(self.paths.segments(path)[0]);
+    for (first_segment) |c| {
+        if (c == '_' or c == '@') continue;
+        return if (std.ascii.isUpper(c)) .value else .parser;
+    }
+    return .parser;
+}
+
+fn pathIsPrivate(self: *const Resolver, path: PathTable.Id) bool {
+    const first_segment = self.strings.get(self.paths.segments(path)[0]);
+    return first_segment.len > 0 and first_segment[0] == '_';
 }
 
 pub fn resolve(self: *Resolver) !void {
@@ -492,17 +557,17 @@ fn addDependency(self: *Resolver, node: *DependencyGraph.Node, edge: DependencyG
 }
 
 // Find the declaration or precompiled function an identifier refers to, first
-// in its own module and then in the modules it depends on. Anonymous function
-// names (`@main`, `@fn0`, ...) are internal and can't be referenced by
-// identifier. A module sees its own private (underscored) declarations but
-// only the public exports of its dependencies.
+// in its own module, then through its alias table, then in the modules it
+// dumps. Anonymous function names (`@main`, `@fn0`, ...) are internal and
+// can't be referenced by identifier. A module sees its own private
+// (underscored) declarations and aliases but only the public exports of its
+// dumps.
 //
-// When two dependencies declare the same name, the later import shadows the
-// earlier one, so dependencies are searched in reverse insertion order. The
-// search recurses into transitive dependencies (every import is re-exported),
-// so callers only need to record each module's direct dependencies rather
-// than a flattened closure. Module dependencies may be cyclic; the visited
-// list keeps the recursion finite.
+// When two dumps export the same name, the later import shadows the earlier
+// one, so dumps are searched in reverse insertion order. The search recurses
+// into transitive dumps (every import is re-exported), so callers only need
+// to record each module's direct dumps rather than a flattened closure. Dump
+// graphs may be cyclic; the visited list keeps the recursion finite.
 fn findDeclaration(self: *Resolver, module_id: Module.Id, name: PathTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
     const own_key = DependencyGraph.NodeKey{
         .module_id = module_id,
@@ -513,19 +578,25 @@ fn findDeclaration(self: *Resolver, module_id: Module.Id, name: PathTable.Id) er
         if (found.* != .anonymous_function) return own_key;
     }
 
-    self.visited_modules.clearRetainingCapacity();
-    try self.visited_modules.append(self.arena.allocator(), module_id);
+    self.visited_exports.clearRetainingCapacity();
+    try self.visited_exports.append(self.arena.allocator(), own_key);
 
-    return self.findExportedInDependencies(module_id, name);
+    switch (try self.resolveThroughAliases(module_id, name, .include_private, 0)) {
+        .resolved => |key| return key,
+        .unresolved => return null,
+        .no_match => {},
+    }
+
+    return self.findExportedInDumps(module_id, name, 0);
 }
 
-fn findExportedInDependencies(self: *Resolver, module_id: Module.Id, name: PathTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
-    const dependencies = self.module_dependencies.get(module_id) orelse return null;
+fn findExportedInDumps(self: *Resolver, module_id: Module.Id, name: PathTable.Id, rewrite_depth: usize) error{OutOfMemory}!?DependencyGraph.NodeKey {
+    const dumps = self.dumps.get(module_id) orelse return null;
 
-    var i = dependencies.items.len;
+    var i = dumps.items.len;
     while (i > 0) {
         i -= 1;
-        if (try self.findExported(dependencies.items[i], name)) |dep_key| {
+        if (try self.findExported(dumps.items[i], name, rewrite_depth)) |dep_key| {
             return dep_key;
         }
     }
@@ -533,22 +604,113 @@ fn findExportedInDependencies(self: *Resolver, module_id: Module.Id, name: PathT
     return null;
 }
 
-fn findExported(self: *Resolver, module_id: Module.Id, name: PathTable.Id) error{OutOfMemory}!?DependencyGraph.NodeKey {
-    for (self.visited_modules.items) |visited| {
-        if (visited == module_id) return null;
-    }
-    try self.visited_modules.append(self.arena.allocator(), module_id);
-
+fn findExported(self: *Resolver, module_id: Module.Id, name: PathTable.Id, rewrite_depth: usize) error{OutOfMemory}!?DependencyGraph.NodeKey {
     const key = DependencyGraph.NodeKey{
         .module_id = module_id,
         .name = name,
     };
 
+    for (self.visited_exports.items) |visited| {
+        if (visited.module_id == key.module_id and visited.name == key.name) return null;
+    }
+    try self.visited_exports.append(self.arena.allocator(), key);
+
     if (self.graph.nodes.get(key)) |found| {
         if (found.* != .anonymous_function and !found.isPrivate()) return key;
     }
 
-    return self.findExportedInDependencies(module_id, name);
+    switch (try self.resolveThroughAliases(module_id, name, .public_only, rewrite_depth)) {
+        .resolved => |resolved| return resolved,
+        .unresolved => return null,
+        .no_match => {},
+    }
+
+    return self.findExportedInDumps(module_id, name, rewrite_depth);
+}
+
+const AliasLookup = union(enum) {
+    // No alias prefixes the name; the search continues into dumps.
+    no_match,
+    // An alias claims the name's prefix but the member doesn't resolve. The
+    // alias still shadows the prefix, so the search stops rather than fall
+    // through to dumps.
+    unresolved,
+    resolved: DependencyGraph.NodeKey,
+};
+
+// Resolve a name whose prefix matches one of the module's aliases: splice
+// the alias's selector onto the remaining segments and look the rewritten
+// name up among the target module's public exports. The resolved node must
+// match the alias's kind — a lowercase alias exposes only parsers, an
+// uppercase alias only values.
+fn resolveThroughAliases(
+    self: *Resolver,
+    module_id: Module.Id,
+    name: PathTable.Id,
+    privacy: enum { include_private, public_only },
+    rewrite_depth: usize,
+) error{OutOfMemory}!AliasLookup {
+    const alias = self.matchAlias(module_id, name, privacy == .include_private) orelse return .no_match;
+    if (rewrite_depth >= max_alias_rewrites) return .unresolved;
+
+    const remainder = self.paths.segments(name)[self.paths.segments(alias.alias).len..];
+
+    if (remainder.len == 0 and alias.selector_prefix == null) {
+        // A bare alias names the target module's root (its main parser);
+        // root binding is not implemented yet.
+        return .unresolved;
+    }
+
+    const allocator = self.arena.allocator();
+    var segments = ArrayList(StringTable.Id){};
+    defer segments.deinit(allocator);
+    if (alias.selector_prefix) |prefix| {
+        try segments.appendSlice(allocator, self.paths.segments(prefix));
+    }
+    try segments.appendSlice(allocator, remainder);
+    const rewritten = try self.paths.insertSegments(self.strings, segments.items);
+
+    if (try self.findExported(alias.target_module, rewritten, rewrite_depth + 1)) |key| {
+        const node = self.graph.nodes.get(key).?;
+        if (self.nodeKind(key, node) != alias.kind) return .unresolved;
+        return .{ .resolved = key };
+    }
+
+    return .unresolved;
+}
+
+// The longest alias whose segments prefix the name. A dotted alias mounts a
+// module under a nested namespace, so the most specific mount wins.
+fn matchAlias(self: *const Resolver, module_id: Module.Id, name: PathTable.Id, include_private: bool) ?*const Alias {
+    const list = self.aliases.get(module_id) orelse return null;
+    const name_segments = self.paths.segments(name);
+
+    var best: ?*const Alias = null;
+    var best_len: usize = 0;
+    for (list.items) |*alias| {
+        if (!include_private and self.pathIsPrivate(alias.alias)) continue;
+        const alias_segments = self.paths.segments(alias.alias);
+        if (alias_segments.len > name_segments.len) continue;
+        if (alias_segments.len < best_len) continue;
+        if (!std.mem.eql(StringTable.Id, alias_segments, name_segments[0..alias_segments.len])) continue;
+        best = alias;
+        best_len = alias_segments.len;
+    }
+
+    return best;
+}
+
+fn nodeKind(self: *const Resolver, key: DependencyGraph.NodeKey, node: *const DependencyGraph.Node) Kind {
+    return switch (node.*) {
+        .declaration => |*decl| switch (decl.ast) {
+            .parser => .parser,
+            .value => .value,
+        },
+        // Precompiled builtins carry no declaration; their names follow the
+        // same case convention (`@fail` is a parser, `@Fail` a value).
+        .precompiled => self.nameKind(key.name),
+        .anonymous_function => .parser,
+    };
 }
 
 fn resolveParserIdentifier(
