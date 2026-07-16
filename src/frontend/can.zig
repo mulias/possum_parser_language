@@ -18,6 +18,7 @@ paths: *PathTable,
 ast: Ast = .{},
 declared_names: std.AutoHashMapUnmanaged(PathTable.Id, void) = .{},
 anonymous_function_count: u64 = 0,
+import_alias_count: u64 = 0,
 current_parent_function_name: ?PathTable.Id = null,
 
 pub const Can = @This();
@@ -35,6 +36,7 @@ const Error = error{
     NamespacedParameterName,
     DuplicateDeclaration,
     ReservedBuiltinName,
+    InvalidImport,
 } || Writer.Error;
 
 pub fn init(
@@ -82,6 +84,18 @@ fn checkDuplicateDeclaration(self: *Can, name: PathTable.Id, region: Region) !vo
 
 fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
     self.current_parent_function_name = null;
+
+    if (root.node == .Import and root.node.Import.selector == null) {
+        // An unqualified dump: the module's public exports bind bare. The
+        // main parser is the namespace root, so with no alias it has
+        // nowhere to land and is discarded.
+        try self.ast.imports.append(self.arena.allocator(), .{
+            .path = importPath(root.node.Import.path),
+            .target = .dump,
+            .region = root.region,
+        });
+        return;
+    }
 
     if (root.node == .DeclareGlobal) {
         const global = root.node.DeclareGlobal;
@@ -138,6 +152,10 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
                 return Error.ReservedBuiltinName;
             }
 
+            if (body.node == .Import) {
+                return self.addImportAlias(name_ident, head.region, body.node.Import.*, root.region);
+            }
+
             if (name_ident.kind == .Parser) {
                 const parser_decl = try self.convertParserDecl(name_ident, head.region, .{}, body, root.region);
                 try self.addParserDeclaration(parser_decl);
@@ -173,6 +191,71 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
             return Error.MultipleMainParsers;
         }
     }
+}
+
+fn importPath(path: ParsedAst.ImportNode.Path) Ast.Import.Path {
+    return switch (path) {
+        .file => |p| .{ .file = p },
+        .stdlib => |p| .{ .stdlib = p },
+    };
+}
+
+// Whether a member selector names a parser (lowercase) or a value
+// (uppercase), by the first alpha character of its first segment.
+const ImportKind = enum { parser, value };
+
+fn importSelectorKind(selector: []const u8) ImportKind {
+    for (selector) |c| {
+        if (c == '_' or c == '@') continue;
+        return if (std.ascii.isUpper(c)) .value else .parser;
+    }
+    return .parser;
+}
+
+fn addImportAlias(
+    self: *Can,
+    name_ident: ParsedAst.IdentifierNode,
+    name_region: Region,
+    import: ParsedAst.ImportNode,
+    region: Region,
+) !void {
+    const alias_name = try self.paths.insert(self.strings, name_ident.name);
+    try self.checkDuplicateDeclaration(alias_name, name_region);
+
+    const selector = if (import.selector) |s|
+        try self.paths.insert(self.strings, s)
+    else
+        null;
+
+    try self.ast.imports.append(self.arena.allocator(), .{
+        .path = importPath(import.path),
+        .target = .{ .alias = .{ .name = alias_name, .selector = selector } },
+        .region = region,
+    });
+}
+
+// An import expression reuses the qualified-import machinery: the member is
+// mounted on a synthesized private alias and the expression becomes a bare
+// reference to that alias. The '@' keeps the name out of the user namespace
+// and the '_' keeps the alias from being re-exported.
+fn importExpressionAlias(self: *Can, import: ParsedAst.ImportNode, kind: ImportKind, region: Region) !PathTable.Id {
+    const alias_str = switch (kind) {
+        .parser => try std.fmt.allocPrint(self.arena.allocator(), "_@import{d}", .{self.import_alias_count}),
+        .value => try std.fmt.allocPrint(self.arena.allocator(), "_@Import{d}", .{self.import_alias_count}),
+    };
+    self.import_alias_count += 1;
+
+    const alias_name = try self.paths.insert(self.strings, alias_str);
+    try self.ast.imports.append(self.arena.allocator(), .{
+        .path = importPath(import.path),
+        .target = .{ .alias = .{
+            .name = alias_name,
+            .selector = try self.paths.insert(self.strings, import.selector.?),
+        } },
+        .region = region,
+    });
+
+    return alias_name;
 }
 
 fn convertParser(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Parser.RNode {
@@ -291,6 +374,21 @@ fn convertParser(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Parser.RNode {
                 .underscored = ident.underscored,
             } };
         },
+        .Import => |import| blk: {
+            const selector = import.selector orelse {
+                try self.printError(region, "A module import is not an expression; bind it with 'name = !...' first", .{});
+                return Error.InvalidImport;
+            };
+            if (importSelectorKind(selector) != .parser) {
+                try self.printError(region, "Value member '{s}' is not valid in parser context", .{selector});
+                return Error.InvalidImport;
+            }
+            break :blk Ast.Parser.Node{ .identifier = .{
+                .name = try self.importExpressionAlias(import.*, .parser, region),
+                .builtin = false,
+                .underscored = false,
+            } };
+        },
     };
 
     return Ast.Parser.create(self.arena.allocator(), node, region);
@@ -402,6 +500,21 @@ fn convertValue(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Value.RNode {
                 .underscored = ident.underscored,
             } };
         },
+        .Import => |import| blk: {
+            const selector = import.selector orelse {
+                try self.printError(region, "A module import is not an expression; bind it with 'Name = !...' first", .{});
+                return Error.InvalidImport;
+            };
+            if (importSelectorKind(selector) != .value) {
+                try self.printError(region, "Parser member '{s}' is not valid in value context", .{selector});
+                return Error.InvalidImport;
+            }
+            break :blk Ast.Value.Node{ .identifier = .{
+                .name = try self.importExpressionAlias(import.*, .value, region),
+                .builtin = false,
+                .underscored = false,
+            } };
+        },
     };
 
     return Ast.Value.create(self.arena.allocator(), node, region);
@@ -420,6 +533,7 @@ fn convertLabeledValue(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Value.RNo
         .Function,
         .DeclareGlobal,
         .Identifier,
+        .Import,
         => return self.convertValue(rnode),
         .False => {
             try self.printError(region, "false must be labeled with $ to be treated as a value", .{});
@@ -536,6 +650,21 @@ fn convertPattern(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Pattern.RNode 
                 .name = try self.paths.insert(self.strings, ident.name),
                 .builtin = ident.builtin,
                 .underscored = ident.underscored,
+            } };
+        },
+        .Import => |import| blk: {
+            const selector = import.selector orelse {
+                try self.printError(region, "A module import is not an expression", .{});
+                return Error.InvalidImport;
+            };
+            if (importSelectorKind(selector) != .value) {
+                try self.printError(region, "Parser member '{s}' not allowed in pattern", .{selector});
+                return Error.InvalidPatternNode;
+            }
+            break :blk Ast.Pattern.Node{ .identifier = .{
+                .name = try self.importExpressionAlias(import.*, .value, region),
+                .builtin = false,
+                .underscored = false,
             } };
         },
     };
@@ -1001,6 +1130,12 @@ fn isParserArg(node: ParsedAst.Node) bool {
         .Object,
         => false,
         .Identifier => |ident| ident.kind == .Parser,
+        .Import => |import| if (import.selector) |selector|
+            importSelectorKind(selector) == .parser
+        else
+            // Route selector-less imports to the parser converter for its
+            // module-is-not-an-expression error.
+            true,
         .InfixNode => |infix| isParserArg(infix.left.node),
         .Negation => |inner| isParserArg(inner.node),
         .Conditional => |cond| isParserArg(cond.condition.node),

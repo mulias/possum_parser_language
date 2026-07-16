@@ -37,6 +37,7 @@ pub const Ast = struct {
         String,
         True,
         Identifier,
+        Import,
     };
 
     pub const ObjectPair = struct {
@@ -82,6 +83,18 @@ pub const Ast = struct {
         kind: enum { Parser, Value, Underscore },
     };
 
+    pub const ImportNode = struct {
+        path: Path,
+        selector: ?[]const u8,
+
+        pub const Path = union(enum) {
+            // A disk path from a string literal.
+            file: []const u8,
+            // A logical embedded-module name like "stdlib/json".
+            stdlib: []const u8,
+        };
+    };
+
     pub const Node = union(NodeType) {
         InfixNode: Infix,
         Range: RangeNode,
@@ -100,6 +113,7 @@ pub const Ast = struct {
         String: []const u8,
         True,
         Identifier: IdentifierNode,
+        Import: *ImportNode,
 
         pub fn asInfixOfType(self: Node, t: InfixType) ?Infix {
             return switch (self) {
@@ -632,6 +646,7 @@ pub const Ast = struct {
             .String,
             .True,
             .Identifier,
+            .Import,
             => false,
         };
     }
@@ -842,6 +857,21 @@ pub const Ast = struct {
                     line_relative.relative_end,
                     ident.name,
                 });
+            },
+            .Import => |import| {
+                try writer.print("(Import {}:{}-{}", .{
+                    line_relative.line,
+                    line_relative.relative_start,
+                    line_relative.relative_end,
+                });
+                switch (import.path) {
+                    .file => |file| try writer.print(" \"{s}\"", .{file}),
+                    .stdlib => |name| try writer.print(" {s}", .{name}),
+                }
+                if (import.selector) |selector| {
+                    try writer.print(" .{s}", .{selector});
+                }
+                try writer.print(")", .{});
             },
         }
     }
