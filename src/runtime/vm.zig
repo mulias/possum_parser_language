@@ -13,6 +13,7 @@ const match_plan = @import("match_plan.zig");
 const MatchPlan = match_plan.MatchPlan;
 const match_plan_interpreter = @import("match_plan_interpreter.zig");
 const Module = @import("module.zig").Module;
+const ModuleLoader = @import("module_loader.zig").ModuleLoader;
 const OpCode = @import("op_code.zig").OpCode;
 const StringTable = @import("string_table.zig").RuntimeStringTable;
 const Region = @import("../region.zig").Region;
@@ -187,6 +188,7 @@ pub const VM = struct {
     gc: GC,
     strings: StringTable,
     modules: ArrayList(*Module),
+    loader: ModuleLoader,
     compiler: ?*const Compiler,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
@@ -253,6 +255,7 @@ pub const VM = struct {
             .gc = undefined,
             .strings = undefined,
             .modules = undefined,
+            .loader = undefined,
             .compiler = undefined,
             .stack = undefined,
             .frames = undefined,
@@ -294,6 +297,7 @@ pub const VM = struct {
         self.gc = GC.init(self, allocator);
         self.strings = StringTable.init(allocator);
         self.modules = ArrayList(*Module){};
+        self.loader = ModuleLoader.init(self, allocator);
         self.compiler = null;
         self.stack = ArrayList(Elem){};
         self.frames = ArrayList(CallFrame){};
@@ -332,6 +336,7 @@ pub const VM = struct {
             self.allocator.destroy(module);
         }
         self.modules.deinit(self.allocator);
+        self.loader.deinit();
         self.stack.deinit(self.allocator);
         self.frames.deinit(self.allocator);
         self.temp_dyns.deinit(self.allocator);
