@@ -17,6 +17,14 @@ pub const NodeKey = struct {
     name: PathTable.Id,
 };
 
+// A dependency edge records both the name as written at the use site and the
+// declaration it resolved to. The two differ when resolution rewrites the
+// name, e.g. a qualified import's alias prefix.
+pub const Edge = struct {
+    ref: PathTable.Id,
+    target: NodeKey,
+};
+
 pub const ClosureCapture = struct {
     parent_name: PathTable.Id,
     local: StringTable.Id,
@@ -35,7 +43,7 @@ pub const Node = union(enum) {
         };
     }
 
-    pub fn dependencies(self: *const Node) []const NodeKey {
+    pub fn dependencies(self: *const Node) []const Edge {
         return switch (self.*) {
             .precompiled => &.{},
             .declaration => |*n| n.dependencies.items,
@@ -43,9 +51,9 @@ pub const Node = union(enum) {
         };
     }
 
-    pub fn dependencyNamed(self: *const Node, name: PathTable.Id) ?NodeKey {
-        for (self.dependencies()) |dep| {
-            if (dep.name == name) return dep;
+    pub fn dependencyNamed(self: *const Node, ref: PathTable.Id) ?NodeKey {
+        for (self.dependencies()) |edge| {
+            if (edge.ref == ref) return edge.target;
         }
         return null;
     }
@@ -69,7 +77,7 @@ pub const Node = union(enum) {
         };
     }
 
-    pub fn dependenciesList(self: *Node) *ArrayList(NodeKey) {
+    pub fn dependenciesList(self: *Node) *ArrayList(Edge) {
         return switch (self.*) {
             .precompiled => unreachable,
             .declaration => |*n| &n.dependencies,
@@ -80,13 +88,13 @@ pub const Node = union(enum) {
 
 pub const DeclarationNode = struct {
     ast: Ast.ParserOrValue.Declaration,
-    dependencies: ArrayList(NodeKey) = .{},
+    dependencies: ArrayList(Edge) = .{},
     locals: ArrayList(StringTable.Id) = .{},
 };
 
 pub const AnonymousFunctionNode = struct {
     ast: *Ast.RNode(Ast.Parser.AnonymousFunction),
-    dependencies: ArrayList(NodeKey) = .{},
+    dependencies: ArrayList(Edge) = .{},
     locals: ArrayList(StringTable.Id) = .{},
     closure_captures: ArrayList(ClosureCapture) = .{},
 
@@ -160,10 +168,11 @@ pub fn print(self: *const Graph, strings: StringTable, paths: PathTable, writer:
         try writer.print("]", .{});
 
         try writer.print(" deps=[", .{});
-        for (node.dependencies(), 0..) |dep, i| {
-            const dep_name = strings.get(paths.flat(dep.name));
+        for (node.dependencies(), 0..) |edge, i| {
+            const ref_name = strings.get(paths.flat(edge.ref));
+            const target_name = strings.get(paths.flat(edge.target.name));
             if (i > 0) try writer.print(", ", .{});
-            try writer.print("{}:{s}", .{ dep.module_id, dep_name });
+            try writer.print("{s}->{}:{s}", .{ ref_name, edge.target.module_id, target_name });
         }
         try writer.print("]", .{});
 

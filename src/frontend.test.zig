@@ -17,8 +17,8 @@ fn key(module_id: Module.Id, name: PathTable.Id) NodeKey {
 
 fn dependsOn(frontend: *Frontend, from: NodeKey, to: NodeKey) bool {
     const node = frontend.findNode(from.module_id, from.name) orelse return false;
-    for (node.dependencies()) |dep| {
-        if (dep.module_id == to.module_id and dep.name == to.name) return true;
+    for (node.dependencies()) |edge| {
+        if (edge.target.module_id == to.module_id and edge.target.name == to.name) return true;
     }
     return false;
 }

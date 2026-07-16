@@ -217,8 +217,11 @@ fn walkParser(
         .anonymous_function => |anon| {
             // Add dependency on the anonymous function itself
             try self.addDependency(node, .{
-                .module_id = key.module_id,
-                .name = anon.name,
+                .ref = anon.name,
+                .target = .{
+                    .module_id = key.module_id,
+                    .name = anon.name,
+                },
             });
         },
         .conditional => |cond| {
@@ -475,14 +478,17 @@ fn resolveScopedName(
     return false;
 }
 
-fn addDependency(self: *Resolver, node: *DependencyGraph.Node, dep: DependencyGraph.NodeKey) !void {
+fn addDependency(self: *Resolver, node: *DependencyGraph.Node, edge: DependencyGraph.Edge) !void {
     const deps = node.dependenciesList();
     for (deps.items) |existing| {
-        if (existing.module_id == dep.module_id and existing.name == dep.name) {
+        if (existing.ref == edge.ref and
+            existing.target.module_id == edge.target.module_id and
+            existing.target.name == edge.target.name)
+        {
             return;
         }
     }
-    try deps.append(self.arena.allocator(), dep);
+    try deps.append(self.arena.allocator(), edge);
 }
 
 // Find the declaration or precompiled function an identifier refers to, first
@@ -554,7 +560,7 @@ fn resolveParserIdentifier(
     if (try self.resolveScopedName(key, node, name)) return;
 
     if (try self.findDeclaration(key.module_id, name)) |dep_key| {
-        try self.addDependency(node, dep_key);
+        try self.addDependency(node, .{ .ref = name, .target = dep_key });
     }
 }
 
@@ -568,7 +574,7 @@ fn resolveValueIdentifier(
     if (try self.resolveScopedName(key, node, name)) return;
 
     if (try self.findDeclaration(key.module_id, name)) |dep_key| {
-        try self.addDependency(node, dep_key);
+        try self.addDependency(node, .{ .ref = name, .target = dep_key });
         return;
     }
 

@@ -178,8 +178,8 @@ pub const Compiler = struct {
     fn compileMainParser(self: *Compiler, module_id: Module.Id, main_ast: *Ast.RNode(Ast.Parser.AnonymousFunction)) !void {
         const main_node = self.frontend.getNode(.{ .module_id = module_id, .name = main_ast.node.name });
 
-        for (main_node.dependencies()) |dep_key| {
-            try self.compileDeclaration(dep_key);
+        for (main_node.dependencies()) |edge| {
+            try self.compileDeclaration(edge.target);
         }
 
         const function = try self.declareAnonFunction(.{ .module_id = module_id, .name = main_ast.node.name });
@@ -226,8 +226,8 @@ pub const Compiler = struct {
         const node = self.frontend.getNode(decl_key);
         const dependencies = node.dependencies();
 
-        for (dependencies) |dep_key| {
-            try self.ensureDeclared(dep_key);
+        for (dependencies) |edge| {
+            try self.ensureDeclared(edge.target);
         }
 
         // Only compile if this is actually a declaration
@@ -270,8 +270,8 @@ pub const Compiler = struct {
         }
 
         // Now compile all dependencies
-        for (dependencies) |dep_key| {
-            try self.compileDeclaration(dep_key);
+        for (dependencies) |edge| {
+            try self.compileDeclaration(edge.target);
         }
     }
 
