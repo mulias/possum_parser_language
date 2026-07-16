@@ -2113,6 +2113,93 @@ test "a bare alias runs the target module's main parser" {
     }
 }
 
+// Compile and run without registering any dump or alias by hand: imports
+// written in the source wire themselves up during canonicalization.
+fn runWithImportSyntax(vm: *VM, util_source: []const u8, main_source: []const u8, input: []const u8) !Elem {
+    vm.input = input;
+
+    const util_module = try vm.createModule("util.possum", util_source);
+    const main_module = try vm.createModule("main", main_source);
+
+    var compiler = try Compiler.init(vm);
+    defer compiler.deinit();
+
+    try compiler.addModule(util_module.*, .{});
+    try compiler.addTargetModule(main_module.*, .{});
+
+    vm.compiler = &compiler;
+    defer vm.compiler = null;
+
+    try compiler.compile();
+
+    const main = compiler.main.?;
+    try vm.push(main.dyn.elem());
+    try vm.pushFrame(main);
+    try vm.run();
+
+    return vm.peek(0);
+}
+
+test "an import dump written in source runs" {
+    const util_source =
+        \\greeting = 'hello'
+    ;
+    const main_source =
+        \\!"util.possum"
+        \\greeting + '!'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try runWithImportSyntax(&vm, util_source, main_source, "hello!"),
+            Elem.inputSubstring(0, 6),
+            vm,
+        );
+    }
+}
+
+test "an import alias written in source runs" {
+    const util_source =
+        \\greeting = 'hello'
+        \\greeting + ' world'
+    ;
+    const main_source =
+        \\u = !"util.possum"
+        \\u.greeting + ' ' + u
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try runWithImportSyntax(&vm, util_source, main_source, "hello hello world"),
+            Elem.inputSubstring(0, 17),
+            vm,
+        );
+    }
+}
+
+test "an import expression written in source runs" {
+    const util_source =
+        \\greeting = 'hello'
+    ;
+    const main_source =
+        \\!"util.possum".greeting + '!'
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try runWithImportSyntax(&vm, util_source, main_source, "hello!"),
+            Elem.inputSubstring(0, 6),
+            vm,
+        );
+    }
+}
+
 test "Foo = 1 ; a = Foo ; a" {
     const parser =
         \\Foo = 1 ; a = Foo ; a
