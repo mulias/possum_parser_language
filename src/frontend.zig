@@ -28,6 +28,9 @@ binding_maps: binding.Maps = .{},
 // Modules every added module implicitly dumps (builtins, then stdlib).
 // Registered before a module's own imports so user imports shadow them.
 implicit_dumps: std.ArrayListUnmanaged(Module.Id) = .{},
+// The imports currently being recursed through, outermost first. A load
+// failure reports the failing path literal plus these frames.
+import_chain: std.ArrayListUnmanaged(ImportChainEntry) = .{},
 
 pub const AddModuleOpts = struct {
     printScanner: bool = false,
@@ -50,6 +53,11 @@ pub const Error = error{
     UnknownModule,
 };
 
+const ImportChainEntry = struct {
+    module_id: Module.Id,
+    region: Region,
+};
+
 // Spelled out (not inferred) because module loading recurses through
 // addModule -> registerImports -> addModule. InvalidCharacter and
 // Overflow surface from number parsing during canonicalization.
@@ -69,6 +77,7 @@ pub fn init(vm: *VM) !*Frontend {
     frontend.main = null;
     frontend.binding_maps = .{};
     frontend.implicit_dumps = .{};
+    frontend.import_chain = .{};
     frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena, &frontend.paths, &frontend.strings);
     return frontend;
 }
@@ -130,6 +139,7 @@ fn registerImports(self: *Frontend, module: Module, ast: Ast) AddModuleError!voi
             error.OutOfMemory => return error.OutOfMemory,
             error.FileImportUnsupported => {
                 try self.printError(module.id, import.region, "file imports are not supported in this build", .{});
+                try self.printImportChain();
                 return Error.UnknownModule;
             },
             error.ModuleNotFound => {
@@ -137,12 +147,18 @@ fn registerImports(self: *Frontend, module: Module, ast: Ast) AddModuleError!voi
                     .file, .stdlib => |p| p,
                 };
                 try self.printError(module.id, import.region, "cannot find module '{s}'", .{path});
+                try self.printImportChain();
                 return Error.UnknownModule;
             },
         };
 
         if (result.newly_loaded) {
+            try self.import_chain.append(self.arena.allocator(), .{
+                .module_id = module.id,
+                .region = import.region,
+            });
             try self.addModule(result.module.*, .{});
+            _ = self.import_chain.pop();
         }
 
         switch (import.target) {
@@ -155,6 +171,22 @@ fn registerImports(self: *Frontend, module: Module, ast: Ast) AddModuleError!voi
                 import.region,
             ),
         }
+    }
+}
+
+// Print the imports that led to the failing one, nearest importer first.
+fn printImportChain(self: *Frontend) !void {
+    var i = self.import_chain.items.len;
+    while (i > 0) {
+        i -= 1;
+        const entry = self.import_chain.items[i];
+        const module = self.vm.getModule(entry.module_id);
+
+        try self.writers.err.print("imported from {s}:", .{module.name});
+        try entry.region.printLineRelative(module.source, self.writers.err);
+        try self.writers.err.print(":\n", .{});
+        try module.highlight(entry.region, self.writers.err);
+        try self.writers.err.print("\n", .{});
     }
 }
 

@@ -96,3 +96,35 @@ An alias name collides with a declaration like any other name.
   
   [DuplicateDeclaration]
   [1]
+
+A missing file reached through other imports reports the chain that led
+there, nearest importer first.
+
+  $ mkdir -p nested
+  $ cat > nested/mid.possum <<'MID'
+  > !"missing.possum"
+  > MID
+  $ cat > outer.possum <<'OUTER'
+  > !"nested/mid.possum"
+  > OUTER
+
+  $ possum -p '!"outer.possum" ; "x"' -i 'x'
+  
+  Program Error: cannot find module 'missing.possum'
+  
+  nested/mid.possum:1:0-17:
+  1 \xe2\x96\x8f !"missing.possum" (esc)
+    \xe2\x96\x8f ^^^^^^^^^^^^^^^^^ (esc)
+  2 \xe2\x96\x8f (esc)
+  
+  imported from outer.possum:1:0-20:
+  1 \xe2\x96\x8f !"nested/mid.possum" (esc)
+    \xe2\x96\x8f ^^^^^^^^^^^^^^^^^^^^ (esc)
+  2 \xe2\x96\x8f (esc)
+  
+  imported from program:1:0-15:
+  1 \xe2\x96\x8f !"outer.possum" ; "x" (esc)
+    \xe2\x96\x8f ^^^^^^^^^^^^^^^ (esc)
+  
+  [UnknownModule]
+  [1]
