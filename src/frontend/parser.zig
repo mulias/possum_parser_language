@@ -141,6 +141,7 @@ pub const Parser = struct {
             .True, .False, .Null => self.literal(),
             .DotDot => self.upperBoundedRange(),
             .DollarSign => self.valueLabel(),
+            .Bang => self.importExpr(),
             else => self.errorAtToken("expected expression"),
         };
     }
@@ -423,6 +424,171 @@ pub const Parser = struct {
         try self.advance(); // consume the '$'
         const inner = try self.parseWithPrecedence(.Prefix);
         return self.ast.create(.{ .ValueLabel = inner }, t.region);
+    }
+
+    fn importExpr(self: *Parser) Error!*Ast.RNode {
+        const bang_token = self.token;
+        try self.advance(); // consume the '!'
+
+        if (self.tokenSkippedWhitespace) {
+            return self.errorAtToken("expected import path immediately after '!'");
+        }
+
+        var path: Ast.ImportNode.Path = undefined;
+        var selector: ?[]const u8 = null;
+        var end_region: Region = undefined;
+
+        switch (self.token.tokenType) {
+            .SingleQuoteStringStart,
+            .DoubleQuoteStringStart,
+            .BacktickStringStart,
+            => {
+                const string_node = if (self.check(.BacktickStringStart))
+                    try self.backtickString()
+                else
+                    try self.string();
+
+                if (string_node.node != .String) {
+                    return self.errorAtRegion(string_node.region, "import path cannot contain a template");
+                }
+                if (string_node.node.String.len == 0) {
+                    return self.errorAtRegion(string_node.region, "import path cannot be empty");
+                }
+
+                path = .{ .file = string_node.node.String };
+                end_region = string_node.region;
+            },
+            .LowercaseIdentifier,
+            .UppercaseIdentifier,
+            .UnderscoreIdentifier,
+            => {
+                const bare = try self.importBarePath();
+                path = .{ .stdlib = bare.logical_name };
+                selector = bare.selector;
+                end_region = bare.end_region;
+            },
+            else => return self.errorAtToken("expected a string or stdlib path after '!'"),
+        }
+
+        if (selector == null and self.check(.Dot) and !self.tokenSkippedWhitespace) {
+            const member = try self.importSelector();
+            selector = member.name;
+            end_region = member.region;
+        }
+
+        const import = try self.ast.arena.allocator().create(Ast.ImportNode);
+        import.* = .{ .path = path, .selector = selector };
+        return self.ast.create(.{ .Import = import }, bang_token.region.merge(end_region));
+    }
+
+    const BarePath = struct {
+        logical_name: []const u8,
+        selector: ?[]const u8,
+        end_region: Region,
+    };
+
+    fn importBarePath(self: *Parser) Error!BarePath {
+        const allocator = self.ast.arena.allocator();
+
+        var segment_tokens = ArrayList(Token){};
+        try segment_tokens.append(allocator, self.token);
+        var end_region = self.token.region;
+        try self.advance();
+
+        while (self.check(.Slash) and !self.tokenSkippedWhitespace) {
+            try self.advance(); // consume the '/'
+            if (self.tokenSkippedWhitespace) {
+                return self.errorAtToken("expected a path segment after '/'");
+            }
+            switch (self.token.tokenType) {
+                .LowercaseIdentifier,
+                .UppercaseIdentifier,
+                .UnderscoreIdentifier,
+                => {},
+                else => return self.errorAtToken("expected a path segment after '/'"),
+            }
+            try segment_tokens.append(allocator, self.token);
+            end_region = self.token.region;
+            try self.advance();
+        }
+
+        // Segments before the last are logical module names and must be
+        // dot-free; the first '.' in the final segment begins the member
+        // selector.
+        for (segment_tokens.items[0 .. segment_tokens.items.len - 1]) |token| {
+            if (std.mem.indexOfScalar(u8, token.lexeme, '.') != null) {
+                return self.errorAt(token, "expected '/' between path segments");
+            }
+        }
+
+        const final = segment_tokens.items[segment_tokens.items.len - 1];
+        var final_segment = final.lexeme;
+        var selector: ?[]const u8 = null;
+        if (std.mem.indexOfScalar(u8, final.lexeme, '.')) |dot_index| {
+            final_segment = final.lexeme[0..dot_index];
+            const member = final.lexeme[dot_index + 1 ..];
+            if (!validMemberName(member)) {
+                return self.errorAt(final, "expected a member name after '.'");
+            }
+            selector = member;
+        }
+
+        const root = segment_tokens.items[0];
+        const root_segment = if (segment_tokens.items.len == 1) final_segment else root.lexeme;
+        if (!std.mem.eql(u8, root_segment, "stdlib")) {
+            return self.errorAt(root, "expected a string or stdlib path after '!'");
+        }
+
+        var logical_name = ArrayList(u8){};
+        for (segment_tokens.items[0 .. segment_tokens.items.len - 1]) |token| {
+            try logical_name.appendSlice(allocator, token.lexeme);
+            try logical_name.append(allocator, '/');
+        }
+        try logical_name.appendSlice(allocator, final_segment);
+
+        return .{
+            .logical_name = logical_name.items,
+            .selector = selector,
+            .end_region = end_region,
+        };
+    }
+
+    fn importSelector(self: *Parser) Error!struct { name: []const u8, region: Region } {
+        try self.advance(); // consume the '.'
+
+        if (self.tokenSkippedWhitespace) {
+            return self.errorAtToken("expected a member name after '.'");
+        }
+        switch (self.token.tokenType) {
+            .LowercaseIdentifier,
+            .UppercaseIdentifier,
+            .UnderscoreIdentifier,
+            .True,
+            .False,
+            .Null,
+            => {},
+            else => return self.errorAtToken("expected a member name after '.'"),
+        }
+
+        const token = self.token;
+        if (!validMemberName(token.lexeme)) {
+            return self.errorAt(token, "expected a member name after '.'");
+        }
+        try self.advance();
+
+        return .{ .name = token.lexeme, .region = token.region };
+    }
+
+    // The scanner greedily consumes a trailing '.' into an identifier when
+    // the next character is not another '.', so member lexemes can carry
+    // empty segments that never resolve; reject them at parse time.
+    fn validMemberName(lexeme: []const u8) bool {
+        if (lexeme.len == 0) return false;
+        var parts = std.mem.splitScalar(u8, lexeme, '.');
+        while (parts.next()) |part| {
+            if (part.len == 0) return false;
+        }
+        return true;
     }
 
     fn binaryOp(self: *Parser, left: *Ast.RNode) !*Ast.RNode {
@@ -963,6 +1129,11 @@ pub const Parser = struct {
 
     fn errorAtToken(self: *Parser, message: []const u8) Error {
         return self.errorAt(self.token, message);
+    }
+
+    fn errorAtRegion(self: *Parser, region: Region, message: []const u8) Error {
+        const lexeme = self.module.source[region.start..region.end];
+        return self.errorAt(Token.new(.StringContent, lexeme, region), message);
     }
 
     fn errorAtPrevious(self: *Parser, message: []const u8) Error {

@@ -847,3 +847,180 @@ test "circular deps" {
     try expect(dependsOn(frontend, key(0, foo), key(0, bar)));
     try expect(dependsOn(frontend, key(0, bar), key(0, foo)));
 }
+
+test "import syntax registers an unqualified dump" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = try vm.createModule("util.possum", "digit = \"0\"..\"9\"");
+    const main_module = try vm.createModule("main",
+        \\ !"util.possum"
+        \\ digit
+    );
+
+    try frontend.addModule(util_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+
+    try frontend.finalize();
+
+    const main_id = try frontend.paths.insert(&frontend.strings, "@main");
+    const digit_id = try frontend.paths.insert(&frontend.strings, "digit");
+
+    try expect(dependsOn(frontend, key(main_module.id, main_id), key(util_module.id, digit_id)));
+}
+
+test "import syntax binds an alias namespace and its root" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = try vm.createModule("util.possum",
+        \\ x = "x"
+        \\ "u"
+    );
+    const main_module = try vm.createModule("main",
+        \\ u = !"util.possum"
+        \\ use_member = u.x
+        \\ u
+    );
+
+    try frontend.addModule(util_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+
+    try frontend.finalize();
+
+    const main_id = try frontend.paths.insert(&frontend.strings, "@main");
+    const x_id = try frontend.paths.insert(&frontend.strings, "x");
+    const use_member_id = try frontend.paths.insert(&frontend.strings, "use_member");
+
+    try expect(dependsOn(frontend, key(main_module.id, use_member_id), key(util_module.id, x_id)));
+    try expect(dependsOn(frontend, key(main_module.id, main_id), key(util_module.id, main_id)));
+}
+
+test "import syntax mounts a selector alias" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = try vm.createModule("util.possum", "sub.x = \"x\"");
+    const main_module = try vm.createModule("main",
+        \\ n = !"util.possum".sub
+        \\ n.x
+    );
+
+    try frontend.addModule(util_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+
+    try frontend.finalize();
+
+    const main_id = try frontend.paths.insert(&frontend.strings, "@main");
+    const sub_x_id = try frontend.paths.insert(&frontend.strings, "sub.x");
+
+    try expect(dependsOn(frontend, key(main_module.id, main_id), key(util_module.id, sub_x_id)));
+}
+
+test "import expression synthesizes a private alias" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = try vm.createModule("util.possum", "x = \"x\"");
+    const main_module = try vm.createModule("main",
+        \\ use_it = !"util.possum".x & "y"
+        \\ use_it
+    );
+
+    try frontend.addModule(util_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+
+    try frontend.finalize();
+
+    const x_id = try frontend.paths.insert(&frontend.strings, "x");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
+    const synthesized_id = try frontend.paths.insert(&frontend.strings, "_@import0");
+
+    try expect(dependsOn(frontend, key(main_module.id, use_it_id), key(util_module.id, x_id)));
+    const use_it_node = frontend.findNode(main_module.id, use_it_id).?;
+    const target = use_it_node.dependencyNamed(synthesized_id).?;
+    try expectEqual(x_id, target.name);
+}
+
+test "value import expression in value context" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = try vm.createModule("util.possum", "Val = 1");
+    const main_module = try vm.createModule("main",
+        \\ Use = 1 + !"util.possum".Val
+        \\ "x" $ Use
+    );
+
+    try frontend.addModule(util_module.*, .{});
+    try frontend.addTargetModule(main_module.*, .{});
+
+    try frontend.finalize();
+
+    const val_id = try frontend.paths.insert(&frontend.strings, "Val");
+    const use_id = try frontend.paths.insert(&frontend.strings, "Use");
+
+    try expect(dependsOn(frontend, key(main_module.id, use_id), key(util_module.id, val_id)));
+}
+
+test "selector-less import is not an expression" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = try vm.createModule("util.possum", "x = \"x\"");
+    const main_module = try vm.createModule("main", "!\"util.possum\" > \"x\"");
+
+    try frontend.addModule(util_module.*, .{});
+    try std.testing.expectError(error.InvalidImport, frontend.addTargetModule(main_module.*, .{}));
+}
+
+test "import of an unknown module errors" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const main_module = try vm.createModule("main", "!\"nope.possum\"");
+
+    try std.testing.expectError(
+        Frontend.Error.UnknownModule,
+        frontend.addTargetModule(main_module.*, .{}),
+    );
+}
+
+test "repeated import alias is a duplicate declaration" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const util_module = try vm.createModule("util.possum", "x = \"x\"");
+    const main_module = try vm.createModule("main",
+        \\ j = !"util.possum"
+        \\ j = !"util.possum"
+        \\ j
+    );
+
+    try frontend.addModule(util_module.*, .{});
+    try std.testing.expectError(error.DuplicateDeclaration, frontend.addTargetModule(main_module.*, .{}));
+}
