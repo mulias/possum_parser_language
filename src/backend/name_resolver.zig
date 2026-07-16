@@ -35,9 +35,9 @@ pub const NameResolver = struct {
             return visibleGlobal(elem);
         }
 
-        for (self.scope.dependencies()) |dep_key| {
-            if (dep_key.name == name) {
-                const elem = self.findGlobal(dep_key.module_id, dep_key.name) orelse return null;
+        for (self.scope.dependencies()) |edge| {
+            if (edge.ref == name) {
+                const elem = self.findGlobal(edge.target.module_id, edge.target.name) orelse return null;
                 return visibleGlobal(elem);
             }
         }
