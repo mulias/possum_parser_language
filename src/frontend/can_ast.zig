@@ -2,7 +2,6 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Region = @import("../region.zig").Region;
-const StringTable = @import("string_table.zig").FrontendStringTable;
 const PathTable = @import("path_table.zig").PathTable;
 
 declarations: ArrayList(Ast.ParserOrValue.Declaration) = .{},
