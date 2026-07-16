@@ -6,7 +6,6 @@ const name_resolver = @import("name_resolver.zig");
 const NameResolver = name_resolver.NameResolver;
 const Frontend = @import("../frontend.zig");
 const Ast = Frontend.Ast;
-const FrontendStrings = Frontend.StringTable;
 const ArrayList = std.ArrayListUnmanaged;
 const AutoHashMap = std.AutoHashMapUnmanaged;
 const Elem = runtime.Elem;
