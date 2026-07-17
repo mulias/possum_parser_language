@@ -7,14 +7,14 @@
   0001    | End
   ========================================
   
-  =================1:char=================
+  =================3:char=================
   char = "\u000000"..
   ========================================
   0000    | ParseCodepoint
   0001    | End
   ========================================
   
-  ================1:alpha=================
+  ================3:alpha=================
   alpha = "a".."z" | "A".."Z"
   ========================================
   0000    | SetInputMark
@@ -24,25 +24,25 @@
   0010    | End
   ========================================
   
-  ================1:alphas================
+  ================3:alphas================
   alphas = many(alpha)
   ========================================
-  0000    | GetConstant 2: many
-  0002    | GetConstant 3: alpha
+  0000    | GetConstant 0: many
+  0002    | GetConstant 1: alpha
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  ================1:token=================
+  ================3:token=================
   token = many(unless(char, whitespace))
   ========================================
-  0000    | GetConstant 2: many
-  0002    | GetConstant 4: @fn0
+  0000    | GetConstant 0: many
+  0002    | GetConstant 2: @fn0
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  ================1:space=================
+  ================3:space=================
   space =
     " " | "\t" | "\u0000A0" | "\u002000".."\u00200A" | "\u00202F" | "\u00205F" | "\u003000"
   ========================================
@@ -53,7 +53,7 @@
   0007    | ParseChar '\t' (esc)
   0009    | Or 9 -> 41
   0012    | SetInputMark
-  0013    | CallFunctionConstant 12: "\xc2\xa0" (esc)
+  0013    | CallFunctionConstant 9: "\xc2\xa0" (esc)
   0015    | Or 15 -> 41
   0018    | SetInputMark
   0019    | PushString "\xe2\x80\x80" (esc)
@@ -61,20 +61,20 @@
   0023    | ParseRange
   0024    | Or 24 -> 41
   0027    | SetInputMark
-  0028    | CallFunctionConstant 13: "\xe2\x80\xaf" (esc)
+  0028    | CallFunctionConstant 10: "\xe2\x80\xaf" (esc)
   0030    | Or 30 -> 41
   0033    | SetInputMark
-  0034    | CallFunctionConstant 14: "\xe2\x81\x9f" (esc)
+  0034    | CallFunctionConstant 11: "\xe2\x81\x9f" (esc)
   0036    | Or 36 -> 41
-  0039    | CallTailFunctionConstant 15: "\xe3\x80\x80" (esc)
+  0039    | CallTailFunctionConstant 12: "\xe3\x80\x80" (esc)
   0041    | End
   ========================================
   
-  ===============1:newline================
+  ===============3:newline================
   newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 16: "\r (esc)
+  0001    | CallFunctionConstant 13: "\r (esc)
   "
   0003    | Or 3 -> 27
   0006    | SetInputMark
@@ -83,20 +83,20 @@
   '
   0010    | Or 10 -> 27
   0013    | SetInputMark
-  0014    | CallFunctionConstant 17: "\xc2\x85" (esc)
+  0014    | CallFunctionConstant 14: "\xc2\x85" (esc)
   0016    | Or 16 -> 27
   0019    | SetInputMark
-  0020    | CallFunctionConstant 18: "\xe2\x80\xa8" (esc)
+  0020    | CallFunctionConstant 15: "\xe2\x80\xa8" (esc)
   0022    | Or 22 -> 27
-  0025    | CallTailFunctionConstant 19: "\xe2\x80\xa9" (esc)
+  0025    | CallTailFunctionConstant 16: "\xe2\x80\xa9" (esc)
   0027    | End
   ========================================
   
-  ===============1:newline================
+  ===============3:newline================
   newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 16: "\r (esc)
+  0001    | CallFunctionConstant 13: "\r (esc)
   "
   0003    | Or 3 -> 27
   0006    | SetInputMark
@@ -105,25 +105,122 @@
   '
   0010    | Or 10 -> 27
   0013    | SetInputMark
-  0014    | CallFunctionConstant 17: "\xc2\x85" (esc)
+  0014    | CallFunctionConstant 14: "\xc2\x85" (esc)
   0016    | Or 16 -> 27
   0019    | SetInputMark
-  0020    | CallFunctionConstant 18: "\xe2\x80\xa8" (esc)
+  0020    | CallFunctionConstant 15: "\xe2\x80\xa8" (esc)
   0022    | Or 22 -> 27
-  0025    | CallTailFunctionConstant 19: "\xe2\x80\xa9" (esc)
+  0025    | CallTailFunctionConstant 16: "\xe2\x80\xa9" (esc)
   0027    | End
   ========================================
   
-  ==============1:whitespace==============
+  ==============3:whitespace==============
   whitespace = many(space | newline)
   ========================================
-  0000    | GetConstant 2: many
-  0002    | GetConstant 9: @fn3
+  0000    | GetConstant 0: many
+  0002    | GetConstant 6: @fn3
   0004    | CallTailFunction 1
   0006    | End
   ========================================
   
-  ==============1:object_sep==============
+  =================3:@fn0=================
+  unless(char, whitespace)
+  ========================================
+  0000    | GetConstant 3: unless
+  0002    | GetConstant 4: char
+  0004    | GetConstant 5: whitespace
+  0006    | CallTailFunction 2
+  0008    | End
+  ========================================
+  
+  =================3:@fn3=================
+  space | newline
+  ========================================
+  0000    | SetInputMark
+  0001    | CallFunctionConstant 7: space
+  0003    | Or 3 -> 8
+  0006    | CallTailFunctionConstant 8: newline
+  0008    | End
+  ========================================
+  
+  =================4:many=================
+  many(p) = p * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 22
+  0007    | Swap
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
+  ========================================
+  
+  ===============4:many_sep===============
+  many_sep(p, sep) = p + ((sep > p) * 0..)
+  ========================================
+  0000    | CallFunctionLocal 0
+  0002    | JumpIfFailure 2 -> 54
+  0005    | PushNull
+  0006    | PushInteger 0
+  0008    | ValidateRepeatPattern
+  0009    | JumpIfZero 9 -> 32
+  0012    | Swap
+  0013    | CallFunctionLocal 1
+  0015    | TakeRight 15 -> 20
+  0018    | CallFunctionLocal 0
+  0020    | Merge
+  0021    | JumpIfFailure 21 -> 51
+  0024    | Swap
+  0025    | Decrement
+  0026    | JumpIfZero 26 -> 32
+  0029    | JumpBack 29 -> 12
+  0032    | Swap
+  0033    | SetInputMark
+  0034    | CallFunctionLocal 1
+  0036    | TakeRight 36 -> 41
+  0039    | CallFunctionLocal 0
+  0041    | JumpIfFailure 41 -> 49
+  0044    | PopInputMark
+  0045    | Merge
+  0046    | JumpBack 46 -> 33
+  0049    | ResetInput
+  0050    | Drop
+  0051    | Swap
+  0052    | Drop
+  0053    | Merge
+  0054    | End
+  ========================================
+  
+  ================5:unless================
+  unless(p, excluded) = excluded ? @fail : p
+  ========================================
+  0000    | SetInputMark
+  0001    | CallFunctionLocal 1
+  0003    | ConditionalThen 3 -> 11
+  0006    | CallTailFunctionConstant 0: @fail
+  0008    | Jump 8 -> 13
+  0011    | CallTailFunctionLocal 0
+  0013    | End
+  ========================================
+  
+  =============11:object_sep==============
   object_sep(key, kv_sep, value, sep) =
     pair_sep(key, kv_sep, value) +
     ((sep > pair_sep(key, kv_sep, value)) * 0..)
@@ -173,7 +270,7 @@
   0078    | End
   ========================================
   
-  ===============1:pair_sep===============
+  ==============11:pair_sep===============
   pair_sep(key, sep, value) = key -> K & sep & value -> V $ {K: V}
   ========================================
   0000    | PushVar K
@@ -191,103 +288,6 @@
   0027    | GetLocalMove 4
   0029    | InsertKeyVal 0
   0031    | End
-  ========================================
-  
-  =================1:many=================
-  many(p) = p * 1..
-  ========================================
-  0000    | PushNull
-  0001    | PushInteger 1
-  0003    | ValidateRepeatPattern
-  0004    | JumpIfZero 4 -> 22
-  0007    | Swap
-  0008    | CallFunctionLocal 0
-  0010    | Merge
-  0011    | JumpIfFailure 11 -> 36
-  0014    | Swap
-  0015    | Decrement
-  0016    | JumpIfZero 16 -> 22
-  0019    | JumpBack 19 -> 7
-  0022    | Swap
-  0023    | SetInputMark
-  0024    | CallFunctionLocal 0
-  0026    | JumpIfFailure 26 -> 34
-  0029    | PopInputMark
-  0030    | Merge
-  0031    | JumpBack 31 -> 23
-  0034    | ResetInput
-  0035    | Drop
-  0036    | Swap
-  0037    | Drop
-  0038    | End
-  ========================================
-  
-  ===============1:many_sep===============
-  many_sep(p, sep) = p + ((sep > p) * 0..)
-  ========================================
-  0000    | CallFunctionLocal 0
-  0002    | JumpIfFailure 2 -> 54
-  0005    | PushNull
-  0006    | PushInteger 0
-  0008    | ValidateRepeatPattern
-  0009    | JumpIfZero 9 -> 32
-  0012    | Swap
-  0013    | CallFunctionLocal 1
-  0015    | TakeRight 15 -> 20
-  0018    | CallFunctionLocal 0
-  0020    | Merge
-  0021    | JumpIfFailure 21 -> 51
-  0024    | Swap
-  0025    | Decrement
-  0026    | JumpIfZero 26 -> 32
-  0029    | JumpBack 29 -> 12
-  0032    | Swap
-  0033    | SetInputMark
-  0034    | CallFunctionLocal 1
-  0036    | TakeRight 36 -> 41
-  0039    | CallFunctionLocal 0
-  0041    | JumpIfFailure 41 -> 49
-  0044    | PopInputMark
-  0045    | Merge
-  0046    | JumpBack 46 -> 33
-  0049    | ResetInput
-  0050    | Drop
-  0051    | Swap
-  0052    | Drop
-  0053    | Merge
-  0054    | End
-  ========================================
-  
-  ================1:unless================
-  unless(p, excluded) = excluded ? @fail : p
-  ========================================
-  0000    | SetInputMark
-  0001    | CallFunctionLocal 1
-  0003    | ConditionalThen 3 -> 11
-  0006    | CallTailFunctionConstant 8: @fail
-  0008    | Jump 8 -> 13
-  0011    | CallTailFunctionLocal 0
-  0013    | End
-  ========================================
-  
-  =================1:@fn0=================
-  unless(char, whitespace)
-  ========================================
-  0000    | GetConstant 5: unless
-  0002    | GetConstant 6: char
-  0004    | GetConstant 7: whitespace
-  0006    | CallTailFunction 2
-  0008    | End
-  ========================================
-  
-  =================1:@fn3=================
-  space | newline
-  ========================================
-  0000    | SetInputMark
-  0001    | CallFunctionConstant 10: space
-  0003    | Or 3 -> 8
-  0006    | CallTailFunctionConstant 11: newline
-  0008    | End
   ========================================
   
   ===============2:passport===============
