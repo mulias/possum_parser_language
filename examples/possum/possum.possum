@@ -42,6 +42,8 @@ operand =
   object_node
 
 prefix =
+  ast.prefix_node("_!",  $"import",             $10) |
+  ast.prefix_node("!",   $"import_export",      $10) |
   ast.prefix_node("$",   $"value_label",         $9) |
   ast.prefix_node("...", $"spread",              $8) |
   ast.prefix_node("..",  $"upper_bounded_range", $7) |
@@ -53,7 +55,6 @@ infix =
   ast.infix_node(">",  $"take_right",    $4, $4.5) |
   ast.infix_node("<",  $"take_left",     $4, $4.5) |
   ast.infix_node("+",  $"merge",         $4, $4.5) |
-  ast.infix_node("!",  $"backtrack",     $4, $4.5) |
   ast.infix_node("->", $"destructure",   $4, $4.5) |
   ast.infix_node("$",  $"return",        $4, $4.5) |
   ast.infix_node("-",  $"subtract",      $4, $4.5) |
@@ -126,12 +127,12 @@ variable_node(Type, name_format) =
   peek(tuple2(
     boolean("@", succeed),
     boolean(many("_"), succeed)
-  )) -> [IsMeta, IsUnderscored] &
+  )) -> [IsBuiltin, IsUnderscored] &
   maybe("@") + maybe_many("_") + name_format -> Name $
   {
     "type": Type,
     "name": Name,
-    "is_meta": IsMeta,
+    "is_builtin": IsBuiltin,
     "is_underscored": IsUnderscored,
   }
 

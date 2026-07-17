@@ -43,8 +43,8 @@
           },
           "right": {
             "type": "destructure",
-            "left": {"type": "parser_variable", "name": "num", "is_meta": false, "is_underscored": false},
-            "right": {"type": "value_variable", "name": "N", "is_meta": false, "is_underscored": false}
+            "left": {"type": "parser_variable", "name": "num", "is_builtin": false, "is_underscored": false},
+            "right": {"type": "value_variable", "name": "N", "is_builtin": false, "is_underscored": false}
           }
         }
       }
@@ -85,9 +85,9 @@
         "value": {
           "type": "call_function",
           "args": [
-            {"type": "parser_variable", "name": "int", "is_meta": false, "is_underscored": false}
+            {"type": "parser_variable", "name": "int", "is_builtin": false, "is_underscored": false}
           ],
-          "postfixed": {"type": "parser_variable", "name": "array", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "array", "is_builtin": false, "is_underscored": false}
         }
       }
     ]
@@ -132,14 +132,14 @@
         "value": {
           "type": "call_function",
           "args": [
-            {"type": "parser_variable", "name": "program", "is_meta": false, "is_underscored": false}
+            {"type": "parser_variable", "name": "program", "is_builtin": false, "is_underscored": false}
           ],
-          "postfixed": {"type": "parser_variable", "name": "input", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "input", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "program", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "program", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -150,64 +150,64 @@
                 {
                   "type": "call_function",
                   "args": [
-                    {"type": "parser_variable", "name": "statement", "is_meta": false, "is_underscored": false}
+                    {"type": "parser_variable", "name": "statement", "is_builtin": false, "is_underscored": false}
                   ],
-                  "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+                  "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
                 }
               ],
-              "postfixed": {"type": "parser_variable", "name": "array", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "array", "is_builtin": false, "is_underscored": false}
             },
             {
               "type": "value_label",
               "prefixed": {"type": "string", "value": "program"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "statement", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "statement", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "take_left",
           "left": {
             "type": "or",
-            "left": {"type": "parser_variable", "name": "named_function", "is_meta": false, "is_underscored": false},
-            "right": {"type": "parser_variable", "name": "main_parser", "is_meta": false, "is_underscored": false}
+            "left": {"type": "parser_variable", "name": "named_function", "is_builtin": false, "is_underscored": false},
+            "right": {"type": "parser_variable", "name": "main_parser", "is_builtin": false, "is_underscored": false}
           },
-          "right": {"type": "parser_variable", "name": "statement_sep", "is_meta": false, "is_underscored": false}
+          "right": {"type": "parser_variable", "name": "statement_sep", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "statement_sep", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "statement_sep", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "or",
           "left": {
             "type": "or",
-            "left": {"type": "parser_variable", "name": "nl", "is_meta": false, "is_underscored": false},
+            "left": {"type": "parser_variable", "name": "nl", "is_builtin": false, "is_underscored": false},
             "right": {
               "type": "call_function",
               "args": [
                 {"type": "string", "value": ";"}
               ],
-              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
             }
           },
           "right": {
             "type": "call_function",
             "args": [
-              {"type": "parser_variable", "name": "end", "is_meta": false, "is_underscored": false}
+              {"type": "parser_variable", "name": "end", "is_builtin": false, "is_underscored": false}
             ],
-            "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
           }
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "named_function", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "named_function", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "and",
@@ -221,30 +221,30 @@
                   "type": "destructure",
                   "left": {
                     "type": "or",
-                    "left": {"type": "parser_variable", "name": "parser_variable_node", "is_meta": false, "is_underscored": false},
-                    "right": {"type": "parser_variable", "name": "value_variable_node", "is_meta": false, "is_underscored": false}
+                    "left": {"type": "parser_variable", "name": "parser_variable_node", "is_builtin": false, "is_underscored": false},
+                    "right": {"type": "parser_variable", "name": "value_variable_node", "is_builtin": false, "is_underscored": false}
                   },
-                  "right": {"type": "value_variable", "name": "Ident", "is_meta": false, "is_underscored": false}
+                  "right": {"type": "value_variable", "name": "Ident", "is_builtin": false, "is_underscored": false}
                 },
-                "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
               },
               "right": {
                 "type": "destructure",
                 "left": {
                   "type": "call_function",
                   "args": [
-                    {"type": "parser_variable", "name": "function_args_or_params", "is_meta": false, "is_underscored": false},
+                    {"type": "parser_variable", "name": "function_args_or_params", "is_builtin": false, "is_underscored": false},
                     {
                       "type": "array",
                       "value": []
                     }
                   ],
-                  "postfixed": {"type": "parser_variable", "name": "default", "is_meta": false, "is_underscored": false}
+                  "postfixed": {"type": "parser_variable", "name": "default", "is_builtin": false, "is_underscored": false}
                 },
-                "right": {"type": "value_variable", "name": "Params", "is_meta": false, "is_underscored": false}
+                "right": {"type": "value_variable", "name": "Params", "is_builtin": false, "is_underscored": false}
               }
             },
-            "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+            "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
           },
           "right": {
             "type": "return",
@@ -253,9 +253,9 @@
               "left": {
                 "type": "take_right",
                 "left": {"type": "string", "value": "="},
-                "right": {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false}
               },
-              "right": {"type": "value_variable", "name": "Body", "is_meta": false, "is_underscored": false}
+              "right": {"type": "value_variable", "name": "Body", "is_builtin": false, "is_underscored": false}
             },
             "right": {
               "type": "object",
@@ -266,15 +266,15 @@
                 ],
                 [
                   {"type": "string", "value": "ident"},
-                  {"type": "value_variable", "name": "Ident", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "Ident", "is_builtin": false, "is_underscored": false}
                 ],
                 [
                   {"type": "string", "value": "params"},
-                  {"type": "value_variable", "name": "Params", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "Params", "is_builtin": false, "is_underscored": false}
                 ],
                 [
                   {"type": "string", "value": "body"},
-                  {"type": "value_variable", "name": "Body", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "Body", "is_builtin": false, "is_underscored": false}
                 ]
               ]
             }
@@ -283,23 +283,23 @@
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "main_parser", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "main_parser", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
           "args": [
-            {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false},
+            {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false},
             {
               "type": "value_label",
               "prefixed": {"type": "string", "value": "main_parser"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "comment", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "comment", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "take_right",
@@ -309,83 +309,83 @@
             "args": [
               {
                 "type": "or",
-                "left": {"type": "parser_variable", "name": "nl", "is_meta": false, "is_underscored": false},
-                "right": {"type": "parser_variable", "name": "end", "is_meta": false, "is_underscored": false}
+                "left": {"type": "parser_variable", "name": "nl", "is_builtin": false, "is_underscored": false},
+                "right": {"type": "parser_variable", "name": "end", "is_builtin": false, "is_underscored": false}
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "chars_until", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "chars_until", "is_builtin": false, "is_underscored": false}
           }
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
           "args": [
             {
               "type": "or",
-              "left": {"type": "parser_variable", "name": "comment", "is_meta": false, "is_underscored": false},
-              "right": {"type": "parser_variable", "name": "whitespace", "is_meta": false, "is_underscored": false}
+              "left": {"type": "parser_variable", "name": "comment", "is_builtin": false, "is_underscored": false},
+              "right": {"type": "parser_variable", "name": "whitespace", "is_builtin": false, "is_underscored": false}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false},
         "params": [
-          {"type": "parser_variable", "name": "p", "is_meta": false, "is_underscored": false}
+          {"type": "parser_variable", "name": "p", "is_builtin": false, "is_underscored": false}
         ],
         "body": {
           "type": "call_function",
           "args": [
-            {"type": "parser_variable", "name": "p", "is_meta": false, "is_underscored": false},
-            {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+            {"type": "parser_variable", "name": "p", "is_builtin": false, "is_underscored": false},
+            {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
           ],
-          "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "surround", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
           "args": [
             {
               "type": "take_right",
-              "left": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false},
-              "right": {"type": "parser_variable", "name": "operand", "is_meta": false, "is_underscored": false}
+              "left": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false},
+              "right": {"type": "parser_variable", "name": "operand", "is_builtin": false, "is_underscored": false}
             },
             {
               "type": "call_function",
               "args": [
-                {"type": "parser_variable", "name": "prefix", "is_meta": false, "is_underscored": false}
+                {"type": "parser_variable", "name": "prefix", "is_builtin": false, "is_underscored": false}
               ],
-              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
             },
             {
               "type": "call_function",
               "args": [
-                {"type": "parser_variable", "name": "infix", "is_meta": false, "is_underscored": false}
+                {"type": "parser_variable", "name": "infix", "is_builtin": false, "is_underscored": false}
               ],
-              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
             },
             {
               "type": "take_right",
-              "left": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false},
-              "right": {"type": "parser_variable", "name": "postfix", "is_meta": false, "is_underscored": false}
+              "left": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false},
+              "right": {"type": "parser_variable", "name": "postfix", "is_builtin": false, "is_underscored": false}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.with_operator_precedence", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.with_operator_precedence", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "operand", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "operand", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "or",
@@ -407,31 +407,31 @@
                           "type": "or",
                           "left": {
                             "type": "or",
-                            "left": {"type": "parser_variable", "name": "grouped_expr", "is_meta": false, "is_underscored": false},
-                            "right": {"type": "parser_variable", "name": "boolean_node", "is_meta": false, "is_underscored": false}
+                            "left": {"type": "parser_variable", "name": "grouped_expr", "is_builtin": false, "is_underscored": false},
+                            "right": {"type": "parser_variable", "name": "boolean_node", "is_builtin": false, "is_underscored": false}
                           },
-                          "right": {"type": "parser_variable", "name": "null_node", "is_meta": false, "is_underscored": false}
+                          "right": {"type": "parser_variable", "name": "null_node", "is_builtin": false, "is_underscored": false}
                         },
-                        "right": {"type": "parser_variable", "name": "string_node", "is_meta": false, "is_underscored": false}
+                        "right": {"type": "parser_variable", "name": "string_node", "is_builtin": false, "is_underscored": false}
                       },
-                      "right": {"type": "parser_variable", "name": "template_string_node", "is_meta": false, "is_underscored": false}
+                      "right": {"type": "parser_variable", "name": "template_string_node", "is_builtin": false, "is_underscored": false}
                     },
-                    "right": {"type": "parser_variable", "name": "number_node", "is_meta": false, "is_underscored": false}
+                    "right": {"type": "parser_variable", "name": "number_node", "is_builtin": false, "is_underscored": false}
                   },
-                  "right": {"type": "parser_variable", "name": "parser_variable_node", "is_meta": false, "is_underscored": false}
+                  "right": {"type": "parser_variable", "name": "parser_variable_node", "is_builtin": false, "is_underscored": false}
                 },
-                "right": {"type": "parser_variable", "name": "value_variable_node", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "value_variable_node", "is_builtin": false, "is_underscored": false}
               },
-              "right": {"type": "parser_variable", "name": "underscore_variable_node", "is_meta": false, "is_underscored": false}
+              "right": {"type": "parser_variable", "name": "underscore_variable_node", "is_builtin": false, "is_underscored": false}
             },
-            "right": {"type": "parser_variable", "name": "array_node", "is_meta": false, "is_underscored": false}
+            "right": {"type": "parser_variable", "name": "array_node", "is_builtin": false, "is_underscored": false}
           },
-          "right": {"type": "parser_variable", "name": "object_node", "is_meta": false, "is_underscored": false}
+          "right": {"type": "parser_variable", "name": "object_node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "prefix", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "prefix", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "or",
@@ -440,19 +440,55 @@
             "left": {
               "type": "or",
               "left": {
-                "type": "call_function",
-                "args": [
-                  {"type": "string", "value": "$"},
-                  {
-                    "type": "value_label",
-                    "prefixed": {"type": "string", "value": "value_label"}
+                "type": "or",
+                "left": {
+                  "type": "or",
+                  "left": {
+                    "type": "call_function",
+                    "args": [
+                      {"type": "string", "value": "_!"},
+                      {
+                        "type": "value_label",
+                        "prefixed": {"type": "string", "value": "import"}
+                      },
+                      {
+                        "type": "value_label",
+                        "prefixed": {"type": "number", "value": 10}
+                      }
+                    ],
+                    "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_builtin": false, "is_underscored": false}
                   },
-                  {
-                    "type": "value_label",
-                    "prefixed": {"type": "number", "value": 9}
+                  "right": {
+                    "type": "call_function",
+                    "args": [
+                      {"type": "string", "value": "!"},
+                      {
+                        "type": "value_label",
+                        "prefixed": {"type": "string", "value": "import_export"}
+                      },
+                      {
+                        "type": "value_label",
+                        "prefixed": {"type": "number", "value": 10}
+                      }
+                    ],
+                    "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_builtin": false, "is_underscored": false}
                   }
-                ],
-                "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_meta": false, "is_underscored": false}
+                },
+                "right": {
+                  "type": "call_function",
+                  "args": [
+                    {"type": "string", "value": "$"},
+                    {
+                      "type": "value_label",
+                      "prefixed": {"type": "string", "value": "value_label"}
+                    },
+                    {
+                      "type": "value_label",
+                      "prefixed": {"type": "number", "value": 9}
+                    }
+                  ],
+                  "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_builtin": false, "is_underscored": false}
+                }
               },
               "right": {
                 "type": "call_function",
@@ -467,7 +503,7 @@
                     "prefixed": {"type": "number", "value": 8}
                   }
                 ],
-                "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_builtin": false, "is_underscored": false}
               }
             },
             "right": {
@@ -483,7 +519,7 @@
                   "prefixed": {"type": "number", "value": 7}
                 }
               ],
-              "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_builtin": false, "is_underscored": false}
             }
           },
           "right": {
@@ -499,13 +535,13 @@
                 "prefixed": {"type": "number", "value": 6}
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "ast.prefix_node", "is_builtin": false, "is_underscored": false}
           }
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "infix", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "infix", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "or",
@@ -530,53 +566,31 @@
                             "left": {
                               "type": "or",
                               "left": {
-                                "type": "or",
-                                "left": {
-                                  "type": "call_function",
-                                  "args": [
-                                    {"type": "string", "value": ".."},
-                                    {
-                                      "type": "value_label",
-                                      "prefixed": {"type": "string", "value": "range"}
-                                    },
-                                    {
-                                      "type": "value_label",
-                                      "prefixed": {"type": "number", "value": 5}
-                                    },
-                                    {
-                                      "type": "value_label",
-                                      "prefixed": {"type": "number", "value": 5.5}
-                                    }
-                                  ],
-                                  "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
-                                },
-                                "right": {
-                                  "type": "call_function",
-                                  "args": [
-                                    {"type": "string", "value": "|"},
-                                    {
-                                      "type": "value_label",
-                                      "prefixed": {"type": "string", "value": "or"}
-                                    },
-                                    {
-                                      "type": "value_label",
-                                      "prefixed": {"type": "number", "value": 4}
-                                    },
-                                    {
-                                      "type": "value_label",
-                                      "prefixed": {"type": "number", "value": 4.5}
-                                    }
-                                  ],
-                                  "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
-                                }
+                                "type": "call_function",
+                                "args": [
+                                  {"type": "string", "value": ".."},
+                                  {
+                                    "type": "value_label",
+                                    "prefixed": {"type": "string", "value": "range"}
+                                  },
+                                  {
+                                    "type": "value_label",
+                                    "prefixed": {"type": "number", "value": 5}
+                                  },
+                                  {
+                                    "type": "value_label",
+                                    "prefixed": {"type": "number", "value": 5.5}
+                                  }
+                                ],
+                                "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
                               },
                               "right": {
                                 "type": "call_function",
                                 "args": [
-                                  {"type": "string", "value": ">"},
+                                  {"type": "string", "value": "|"},
                                   {
                                     "type": "value_label",
-                                    "prefixed": {"type": "string", "value": "take_right"}
+                                    "prefixed": {"type": "string", "value": "or"}
                                   },
                                   {
                                     "type": "value_label",
@@ -587,16 +601,16 @@
                                     "prefixed": {"type": "number", "value": 4.5}
                                   }
                                 ],
-                                "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+                                "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
                               }
                             },
                             "right": {
                               "type": "call_function",
                               "args": [
-                                {"type": "string", "value": "<"},
+                                {"type": "string", "value": ">"},
                                 {
                                   "type": "value_label",
-                                  "prefixed": {"type": "string", "value": "take_left"}
+                                  "prefixed": {"type": "string", "value": "take_right"}
                                 },
                                 {
                                   "type": "value_label",
@@ -607,16 +621,16 @@
                                   "prefixed": {"type": "number", "value": 4.5}
                                 }
                               ],
-                              "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+                              "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
                             }
                           },
                           "right": {
                             "type": "call_function",
                             "args": [
-                              {"type": "string", "value": "+"},
+                              {"type": "string", "value": "<"},
                               {
                                 "type": "value_label",
-                                "prefixed": {"type": "string", "value": "merge"}
+                                "prefixed": {"type": "string", "value": "take_left"}
                               },
                               {
                                 "type": "value_label",
@@ -627,16 +641,16 @@
                                 "prefixed": {"type": "number", "value": 4.5}
                               }
                             ],
-                            "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+                            "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
                           }
                         },
                         "right": {
                           "type": "call_function",
                           "args": [
-                            {"type": "string", "value": "!"},
+                            {"type": "string", "value": "+"},
                             {
                               "type": "value_label",
-                              "prefixed": {"type": "string", "value": "backtrack"}
+                              "prefixed": {"type": "string", "value": "merge"}
                             },
                             {
                               "type": "value_label",
@@ -647,7 +661,7 @@
                               "prefixed": {"type": "number", "value": 4.5}
                             }
                           ],
-                          "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+                          "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
                         }
                       },
                       "right": {
@@ -667,7 +681,7 @@
                             "prefixed": {"type": "number", "value": 4.5}
                           }
                         ],
-                        "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+                        "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
                       }
                     },
                     "right": {
@@ -687,7 +701,7 @@
                           "prefixed": {"type": "number", "value": 4.5}
                         }
                       ],
-                      "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+                      "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
                     }
                   },
                   "right": {
@@ -707,7 +721,7 @@
                         "prefixed": {"type": "number", "value": 4.5}
                       }
                     ],
-                    "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+                    "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
                   }
                 },
                 "right": {
@@ -727,7 +741,7 @@
                       "prefixed": {"type": "number", "value": 4.5}
                     }
                   ],
-                  "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+                  "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
                 }
               },
               "right": {
@@ -747,7 +761,7 @@
                     "prefixed": {"type": "number", "value": 3.5}
                   }
                 ],
-                "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
               }
             },
             "right": {
@@ -766,7 +780,7 @@
                   "prefixed": {"type": "number", "value": 2}
                 }
               ],
-              "postfixed": {"type": "parser_variable", "name": "conditional_infix", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "conditional_infix", "is_builtin": false, "is_underscored": false}
             }
           },
           "right": {
@@ -786,13 +800,13 @@
                 "prefixed": {"type": "number", "value": 1}
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "ast.infix_node", "is_builtin": false, "is_underscored": false}
           }
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "postfix", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "postfix", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "or",
@@ -808,7 +822,7 @@
                 "prefixed": {"type": "number", "value": 11}
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "call_function_postfix", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "call_function_postfix", "is_builtin": false, "is_underscored": false}
           },
           "right": {
             "type": "call_function",
@@ -822,13 +836,13 @@
                 "prefixed": {"type": "number", "value": 10}
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "lower_bounded_range_postfix", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "lower_bounded_range_postfix", "is_builtin": false, "is_underscored": false}
           }
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "grouped_expr", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "grouped_expr", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "take_left",
@@ -839,18 +853,18 @@
               "left": {
                 "type": "take_right",
                 "left": {"type": "string", "value": "("},
-                "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
               },
-              "right": {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
+              "right": {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false}
             },
-            "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+            "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
           },
           "right": {"type": "string", "value": ")"}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "boolean_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "boolean_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -863,7 +877,7 @@
                   "left": {
                     "type": "merge",
                     "left": {"type": "string", "value": "t"},
-                    "right": {"type": "parser_variable", "name": "word", "is_meta": false, "is_underscored": false}
+                    "right": {"type": "parser_variable", "name": "word", "is_builtin": false, "is_underscored": false}
                   },
                   "right": {"type": "string", "value": "true"}
                 },
@@ -872,24 +886,24 @@
                   "left": {
                     "type": "merge",
                     "left": {"type": "string", "value": "f"},
-                    "right": {"type": "parser_variable", "name": "word", "is_meta": false, "is_underscored": false}
+                    "right": {"type": "parser_variable", "name": "word", "is_builtin": false, "is_underscored": false}
                   },
                   "right": {"type": "string", "value": "false"}
                 }
               ],
-              "postfixed": {"type": "parser_variable", "name": "boolean", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "boolean", "is_builtin": false, "is_underscored": false}
             },
             {
               "type": "value_label",
               "prefixed": {"type": "string", "value": "boolean"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "null_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "null_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "return",
@@ -898,7 +912,7 @@
             "left": {
               "type": "merge",
               "left": {"type": "string", "value": "n"},
-              "right": {"type": "parser_variable", "name": "word", "is_meta": false, "is_underscored": false}
+              "right": {"type": "parser_variable", "name": "word", "is_builtin": false, "is_underscored": false}
             },
             "right": {"type": "string", "value": "null"}
           },
@@ -915,7 +929,7 @@
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "string_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "string_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -932,11 +946,11 @@
                       "args": [
                         {"type": "string", "value": "\""}
                       ],
-                      "postfixed": {"type": "parser_variable", "name": "quoted_string_body", "is_meta": false, "is_underscored": false}
+                      "postfixed": {"type": "parser_variable", "name": "quoted_string_body", "is_builtin": false, "is_underscored": false}
                     },
                     {"type": "string", "value": "\""}
                   ],
-                  "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
+                  "postfixed": {"type": "parser_variable", "name": "surround", "is_builtin": false, "is_underscored": false}
                 },
                 "right": {
                   "type": "call_function",
@@ -946,20 +960,20 @@
                       "args": [
                         {"type": "string", "value": "'"}
                       ],
-                      "postfixed": {"type": "parser_variable", "name": "quoted_string_body", "is_meta": false, "is_underscored": false}
+                      "postfixed": {"type": "parser_variable", "name": "quoted_string_body", "is_builtin": false, "is_underscored": false}
                     },
                     {"type": "string", "value": "'"}
                   ],
-                  "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
+                  "postfixed": {"type": "parser_variable", "name": "surround", "is_builtin": false, "is_underscored": false}
                 }
               },
               "right": {
                 "type": "call_function",
                 "args": [
-                  {"type": "parser_variable", "name": "backtick_string_body", "is_meta": false, "is_underscored": false},
+                  {"type": "parser_variable", "name": "backtick_string_body", "is_builtin": false, "is_underscored": false},
                   {"type": "string", "value": "`"}
                 ],
-                "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "surround", "is_builtin": false, "is_underscored": false}
               }
             },
             {
@@ -967,14 +981,14 @@
               "prefixed": {"type": "string", "value": "string"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "quoted_string_body", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "quoted_string_body", "is_builtin": false, "is_underscored": false},
         "params": [
-          {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false}
+          {"type": "parser_variable", "name": "end_quote", "is_builtin": false, "is_underscored": false}
         ],
         "body": {
           "type": "or",
@@ -985,13 +999,13 @@
                 "type": "or",
                 "left": {
                   "type": "or",
-                  "left": {"type": "parser_variable", "name": "string_escape_char", "is_meta": false, "is_underscored": false},
-                  "right": {"type": "parser_variable", "name": "string_escape_unicode", "is_meta": false, "is_underscored": false}
+                  "left": {"type": "parser_variable", "name": "string_escape_char", "is_builtin": false, "is_underscored": false},
+                  "right": {"type": "parser_variable", "name": "string_escape_unicode", "is_builtin": false, "is_underscored": false}
                 },
                 "right": {
                   "type": "call_function",
                   "args": [
-                    {"type": "parser_variable", "name": "char", "is_meta": false, "is_underscored": false},
+                    {"type": "parser_variable", "name": "char", "is_builtin": false, "is_underscored": false},
                     {
                       "type": "or",
                       "left": {
@@ -999,14 +1013,14 @@
                         "left": {"type": "string", "value": "\\"},
                         "right": {"type": "string", "value": "%("}
                       },
-                      "right": {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false}
+                      "right": {"type": "parser_variable", "name": "end_quote", "is_builtin": false, "is_underscored": false}
                     }
                   ],
-                  "postfixed": {"type": "parser_variable", "name": "unless", "is_meta": false, "is_underscored": false}
+                  "postfixed": {"type": "parser_variable", "name": "unless", "is_builtin": false, "is_underscored": false}
                 }
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "many", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "many", "is_builtin": false, "is_underscored": false}
           },
           "right": {
             "type": "call_function",
@@ -1016,13 +1030,13 @@
                 "prefixed": {"type": "string", "value": ""}
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "const", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "const", "is_builtin": false, "is_underscored": false}
           }
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "string_escape_char", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "string_escape_char", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "or",
@@ -1064,21 +1078,21 @@
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "string_escape_unicode", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "string_escape_unicode", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "merge",
           "left": {"type": "string", "value": "\\u"},
           "right": {
             "type": "repeat",
-            "left": {"type": "parser_variable", "name": "hex_numeral", "is_meta": false, "is_underscored": false},
+            "left": {"type": "parser_variable", "name": "hex_numeral", "is_builtin": false, "is_underscored": false},
             "right": {"type": "number", "value": 6}
           }
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "backtick_string_body", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "backtick_string_body", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "or",
@@ -1087,7 +1101,7 @@
             "args": [
               {"type": "string", "value": "`"}
             ],
-            "postfixed": {"type": "parser_variable", "name": "chars_until", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "chars_until", "is_builtin": false, "is_underscored": false}
           },
           "right": {
             "type": "call_function",
@@ -1097,13 +1111,13 @@
                 "prefixed": {"type": "string", "value": ""}
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "const", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "const", "is_builtin": false, "is_underscored": false}
           }
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "template_string_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "template_string_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -1126,11 +1140,11 @@
                         "prefixed": {"type": "string", "value": ""}
                       }
                     ],
-                    "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
+                    "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_builtin": false, "is_underscored": false}
                   },
                   {"type": "string", "value": "\""}
                 ],
-                "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "surround", "is_builtin": false, "is_underscored": false}
               },
               "right": {
                 "type": "call_function",
@@ -1148,11 +1162,11 @@
                         "prefixed": {"type": "string", "value": ""}
                       }
                     ],
-                    "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
+                    "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_builtin": false, "is_underscored": false}
                   },
                   {"type": "string", "value": "'"}
                 ],
-                "postfixed": {"type": "parser_variable", "name": "surround", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "surround", "is_builtin": false, "is_underscored": false}
               }
             },
             {
@@ -1160,16 +1174,16 @@
               "prefixed": {"type": "string", "value": "template_string"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "template_string_body", "is_builtin": false, "is_underscored": false},
         "params": [
-          {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false},
-          {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
-          {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
+          {"type": "parser_variable", "name": "end_quote", "is_builtin": false, "is_underscored": false},
+          {"type": "value_variable", "name": "TemplateParts", "is_builtin": false, "is_underscored": false},
+          {"type": "value_variable", "name": "Str", "is_builtin": false, "is_underscored": false}
         ],
         "body": {
           "type": "conditional",
@@ -1179,38 +1193,38 @@
               {
                 "type": "call_function",
                 "args": [
-                  {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
-                  {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "TemplateParts", "is_builtin": false, "is_underscored": false},
+                  {"type": "value_variable", "name": "Str", "is_builtin": false, "is_underscored": false}
                 ],
-                "postfixed": {"type": "value_variable", "name": "AppendNonEmptyString", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "value_variable", "name": "AppendNonEmptyString", "is_builtin": false, "is_underscored": false}
               }
             ],
-            "postfixed": {"type": "parser_variable", "name": "const", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "const", "is_builtin": false, "is_underscored": false}
           },
           "left": {
             "type": "call_function",
             "args": [
-              {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false}
+              {"type": "parser_variable", "name": "end_quote", "is_builtin": false, "is_underscored": false}
             ],
-            "postfixed": {"type": "parser_variable", "name": "peek", "is_meta": false, "is_underscored": false}
+            "postfixed": {"type": "parser_variable", "name": "peek", "is_builtin": false, "is_underscored": false}
           },
           "right": {
             "type": "conditional",
             "middle": {
               "type": "call_function",
               "args": [
-                {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false},
-                {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
-                {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
+                {"type": "parser_variable", "name": "end_quote", "is_builtin": false, "is_underscored": false},
+                {"type": "value_variable", "name": "TemplateParts", "is_builtin": false, "is_underscored": false},
+                {"type": "value_variable", "name": "Str", "is_builtin": false, "is_underscored": false}
               ],
-              "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_builtin": false, "is_underscored": false}
             },
             "left": {
               "type": "take_left",
               "left": {
                 "type": "take_right",
                 "left": {"type": "string", "value": "%("},
-                "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
               },
               "right": {"type": "string", "value": ")"}
             },
@@ -1225,18 +1239,18 @@
                     "left": {
                       "type": "call_function",
                       "args": [
-                        {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
+                        {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false}
                       ],
-                      "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+                      "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
                     },
-                    "right": {"type": "value_variable", "name": "Expr", "is_meta": false, "is_underscored": false}
+                    "right": {"type": "value_variable", "name": "Expr", "is_builtin": false, "is_underscored": false}
                   },
                   "right": {"type": "string", "value": ")"}
                 },
                 "right": {
                   "type": "call_function",
                   "args": [
-                    {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false},
+                    {"type": "parser_variable", "name": "end_quote", "is_builtin": false, "is_underscored": false},
                     {
                       "type": "array",
                       "value": [
@@ -1245,13 +1259,13 @@
                           "prefixed": {
                             "type": "call_function",
                             "args": [
-                              {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
-                              {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
+                              {"type": "value_variable", "name": "TemplateParts", "is_builtin": false, "is_underscored": false},
+                              {"type": "value_variable", "name": "Str", "is_builtin": false, "is_underscored": false}
                             ],
-                            "postfixed": {"type": "value_variable", "name": "AppendNonEmptyString", "is_meta": false, "is_underscored": false}
+                            "postfixed": {"type": "value_variable", "name": "AppendNonEmptyString", "is_builtin": false, "is_underscored": false}
                           }
                         },
-                        {"type": "value_variable", "name": "Expr", "is_meta": false, "is_underscored": false}
+                        {"type": "value_variable", "name": "Expr", "is_builtin": false, "is_underscored": false}
                       ]
                     },
                     {
@@ -1259,7 +1273,7 @@
                       "prefixed": {"type": "string", "value": ""}
                     }
                   ],
-                  "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
+                  "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_builtin": false, "is_underscored": false}
                 }
               },
               "left": {"type": "string", "value": "%("},
@@ -1271,32 +1285,32 @@
                     "type": "or",
                     "left": {
                       "type": "or",
-                      "left": {"type": "parser_variable", "name": "string_escape_char", "is_meta": false, "is_underscored": false},
-                      "right": {"type": "parser_variable", "name": "string_escape_unicode", "is_meta": false, "is_underscored": false}
+                      "left": {"type": "parser_variable", "name": "string_escape_char", "is_builtin": false, "is_underscored": false},
+                      "right": {"type": "parser_variable", "name": "string_escape_unicode", "is_builtin": false, "is_underscored": false}
                     },
                     "right": {
                       "type": "call_function",
                       "args": [
-                        {"type": "parser_variable", "name": "char", "is_meta": false, "is_underscored": false},
+                        {"type": "parser_variable", "name": "char", "is_builtin": false, "is_underscored": false},
                         {"type": "string", "value": "\\"}
                       ],
-                      "postfixed": {"type": "parser_variable", "name": "unless", "is_meta": false, "is_underscored": false}
+                      "postfixed": {"type": "parser_variable", "name": "unless", "is_builtin": false, "is_underscored": false}
                     }
                   },
-                  "right": {"type": "value_variable", "name": "Next", "is_meta": false, "is_underscored": false}
+                  "right": {"type": "value_variable", "name": "Next", "is_builtin": false, "is_underscored": false}
                 },
                 "right": {
                   "type": "call_function",
                   "args": [
-                    {"type": "parser_variable", "name": "end_quote", "is_meta": false, "is_underscored": false},
-                    {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
+                    {"type": "parser_variable", "name": "end_quote", "is_builtin": false, "is_underscored": false},
+                    {"type": "value_variable", "name": "TemplateParts", "is_builtin": false, "is_underscored": false},
                     {
                       "type": "merge",
-                      "left": {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false},
-                      "right": {"type": "value_variable", "name": "Next", "is_meta": false, "is_underscored": false}
+                      "left": {"type": "value_variable", "name": "Str", "is_builtin": false, "is_underscored": false},
+                      "right": {"type": "value_variable", "name": "Next", "is_builtin": false, "is_underscored": false}
                     }
                   ],
-                  "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_meta": false, "is_underscored": false}
+                  "postfixed": {"type": "parser_variable", "name": "template_string_body", "is_builtin": false, "is_underscored": false}
                 }
               }
             }
@@ -1305,17 +1319,17 @@
       },
       {
         "type": "named_function",
-        "ident": {"type": "value_variable", "name": "AppendNonEmptyString", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "value_variable", "name": "AppendNonEmptyString", "is_builtin": false, "is_underscored": false},
         "params": [
-          {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
-          {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
+          {"type": "value_variable", "name": "TemplateParts", "is_builtin": false, "is_underscored": false},
+          {"type": "value_variable", "name": "Str", "is_builtin": false, "is_underscored": false}
         ],
         "body": {
           "type": "conditional",
-          "middle": {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false},
+          "middle": {"type": "value_variable", "name": "TemplateParts", "is_builtin": false, "is_underscored": false},
           "left": {
             "type": "destructure",
-            "left": {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false},
+            "left": {"type": "value_variable", "name": "Str", "is_builtin": false, "is_underscored": false},
             "right": {"type": "string", "value": ""}
           },
           "right": {
@@ -1323,7 +1337,7 @@
             "value": [
               {
                 "type": "spread",
-                "prefixed": {"type": "value_variable", "name": "TemplateParts", "is_meta": false, "is_underscored": false}
+                "prefixed": {"type": "value_variable", "name": "TemplateParts", "is_builtin": false, "is_underscored": false}
               },
               {
                 "type": "object",
@@ -1334,7 +1348,7 @@
                   ],
                   [
                     {"type": "string", "value": "value"},
-                    {"type": "value_variable", "name": "Str", "is_meta": false, "is_underscored": false}
+                    {"type": "value_variable", "name": "Str", "is_builtin": false, "is_underscored": false}
                   ]
                 ]
               }
@@ -1344,26 +1358,26 @@
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "number_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "number_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
           "args": [
-            {"type": "parser_variable", "name": "number", "is_meta": false, "is_underscored": false},
+            {"type": "parser_variable", "name": "number", "is_builtin": false, "is_underscored": false},
             {
               "type": "value_label",
               "prefixed": {"type": "string", "value": "number"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "variable_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "variable_node", "is_builtin": false, "is_underscored": false},
         "params": [
-          {"type": "value_variable", "name": "Type", "is_meta": false, "is_underscored": false},
-          {"type": "parser_variable", "name": "name_format", "is_meta": false, "is_underscored": false}
+          {"type": "value_variable", "name": "Type", "is_builtin": false, "is_underscored": false},
+          {"type": "parser_variable", "name": "name_format", "is_builtin": false, "is_underscored": false}
         ],
         "body": {
           "type": "and",
@@ -1379,9 +1393,9 @@
                       "type": "call_function",
                       "args": [
                         {"type": "string", "value": "@"},
-                        {"type": "parser_variable", "name": "succeed", "is_meta": false, "is_underscored": false}
+                        {"type": "parser_variable", "name": "succeed", "is_builtin": false, "is_underscored": false}
                       ],
-                      "postfixed": {"type": "parser_variable", "name": "boolean", "is_meta": false, "is_underscored": false}
+                      "postfixed": {"type": "parser_variable", "name": "boolean", "is_builtin": false, "is_underscored": false}
                     },
                     {
                       "type": "call_function",
@@ -1391,23 +1405,23 @@
                           "args": [
                             {"type": "string", "value": "_"}
                           ],
-                          "postfixed": {"type": "parser_variable", "name": "many", "is_meta": false, "is_underscored": false}
+                          "postfixed": {"type": "parser_variable", "name": "many", "is_builtin": false, "is_underscored": false}
                         },
-                        {"type": "parser_variable", "name": "succeed", "is_meta": false, "is_underscored": false}
+                        {"type": "parser_variable", "name": "succeed", "is_builtin": false, "is_underscored": false}
                       ],
-                      "postfixed": {"type": "parser_variable", "name": "boolean", "is_meta": false, "is_underscored": false}
+                      "postfixed": {"type": "parser_variable", "name": "boolean", "is_builtin": false, "is_underscored": false}
                     }
                   ],
-                  "postfixed": {"type": "parser_variable", "name": "tuple2", "is_meta": false, "is_underscored": false}
+                  "postfixed": {"type": "parser_variable", "name": "tuple2", "is_builtin": false, "is_underscored": false}
                 }
               ],
-              "postfixed": {"type": "parser_variable", "name": "peek", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "peek", "is_builtin": false, "is_underscored": false}
             },
             "right": {
               "type": "array",
               "value": [
-                {"type": "value_variable", "name": "IsMeta", "is_meta": false, "is_underscored": false},
-                {"type": "value_variable", "name": "IsUnderscored", "is_meta": false, "is_underscored": false}
+                {"type": "value_variable", "name": "IsBuiltin", "is_builtin": false, "is_underscored": false},
+                {"type": "value_variable", "name": "IsUnderscored", "is_builtin": false, "is_underscored": false}
               ]
             }
           },
@@ -1424,38 +1438,38 @@
                     "args": [
                       {"type": "string", "value": "@"}
                     ],
-                    "postfixed": {"type": "parser_variable", "name": "maybe", "is_meta": false, "is_underscored": false}
+                    "postfixed": {"type": "parser_variable", "name": "maybe", "is_builtin": false, "is_underscored": false}
                   },
                   "right": {
                     "type": "call_function",
                     "args": [
                       {"type": "string", "value": "_"}
                     ],
-                    "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
+                    "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_builtin": false, "is_underscored": false}
                   }
                 },
-                "right": {"type": "parser_variable", "name": "name_format", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "name_format", "is_builtin": false, "is_underscored": false}
               },
-              "right": {"type": "value_variable", "name": "Name", "is_meta": false, "is_underscored": false}
+              "right": {"type": "value_variable", "name": "Name", "is_builtin": false, "is_underscored": false}
             },
             "right": {
               "type": "object",
               "value": [
                 [
                   {"type": "string", "value": "type"},
-                  {"type": "value_variable", "name": "Type", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "Type", "is_builtin": false, "is_underscored": false}
                 ],
                 [
                   {"type": "string", "value": "name"},
-                  {"type": "value_variable", "name": "Name", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "Name", "is_builtin": false, "is_underscored": false}
                 ],
                 [
-                  {"type": "string", "value": "is_meta"},
-                  {"type": "value_variable", "name": "IsMeta", "is_meta": false, "is_underscored": false}
+                  {"type": "string", "value": "is_builtin"},
+                  {"type": "value_variable", "name": "IsBuiltin", "is_builtin": false, "is_underscored": false}
                 ],
                 [
                   {"type": "string", "value": "is_underscored"},
-                  {"type": "value_variable", "name": "IsUnderscored", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "IsUnderscored", "is_builtin": false, "is_underscored": false}
                 ]
               ]
             }
@@ -1464,7 +1478,7 @@
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "parser_variable_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "parser_variable_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -1475,7 +1489,7 @@
             },
             {
               "type": "merge",
-              "left": {"type": "parser_variable", "name": "lower", "is_meta": false, "is_underscored": false},
+              "left": {"type": "parser_variable", "name": "lower", "is_builtin": false, "is_underscored": false},
               "right": {
                 "type": "call_function",
                 "args": [
@@ -1483,22 +1497,22 @@
                     "type": "or",
                     "left": {
                       "type": "or",
-                      "left": {"type": "parser_variable", "name": "alnum", "is_meta": false, "is_underscored": false},
+                      "left": {"type": "parser_variable", "name": "alnum", "is_builtin": false, "is_underscored": false},
                       "right": {"type": "string", "value": "_"}
                     },
                     "right": {"type": "string", "value": "."}
                   }
                 ],
-                "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_builtin": false, "is_underscored": false}
               }
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "variable_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "variable_node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "value_variable_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "value_variable_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -1509,7 +1523,7 @@
             },
             {
               "type": "merge",
-              "left": {"type": "parser_variable", "name": "upper", "is_meta": false, "is_underscored": false},
+              "left": {"type": "parser_variable", "name": "upper", "is_builtin": false, "is_underscored": false},
               "right": {
                 "type": "call_function",
                 "args": [
@@ -1517,22 +1531,22 @@
                     "type": "or",
                     "left": {
                       "type": "or",
-                      "left": {"type": "parser_variable", "name": "alpha", "is_meta": false, "is_underscored": false},
+                      "left": {"type": "parser_variable", "name": "alpha", "is_builtin": false, "is_underscored": false},
                       "right": {"type": "string", "value": "_"}
                     },
                     "right": {"type": "string", "value": "."}
                   }
                 ],
-                "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "maybe_many", "is_builtin": false, "is_underscored": false}
               }
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "variable_node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "variable_node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "underscore_variable_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "underscore_variable_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -1542,19 +1556,19 @@
               "args": [
                 {"type": "string", "value": "_"}
               ],
-              "postfixed": {"type": "parser_variable", "name": "many", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "many", "is_builtin": false, "is_underscored": false}
             },
             {
               "type": "value_label",
               "prefixed": {"type": "string", "value": "underscore_variable"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "array_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "array_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -1568,18 +1582,18 @@
                   "left": {
                     "type": "take_right",
                     "left": {"type": "string", "value": "["},
-                    "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+                    "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
                   },
                   "right": {
                     "type": "call_function",
                     "args": [
-                      {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false},
+                      {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false},
                       {"type": "string", "value": ","}
                     ],
-                    "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
+                    "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_builtin": false, "is_underscored": false}
                   }
                 },
-                "right": {"type": "parser_variable", "name": "trailing_comma", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "trailing_comma", "is_builtin": false, "is_underscored": false}
               },
               "right": {"type": "string", "value": "]"}
             },
@@ -1588,12 +1602,12 @@
               "prefixed": {"type": "string", "value": "array"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "object_node", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "object_node", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -1607,18 +1621,18 @@
                   "left": {
                     "type": "take_right",
                     "left": {"type": "string", "value": "{"},
-                    "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+                    "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
                   },
                   "right": {
                     "type": "call_function",
                     "args": [
-                      {"type": "parser_variable", "name": "object_pair", "is_meta": false, "is_underscored": false},
+                      {"type": "parser_variable", "name": "object_pair", "is_builtin": false, "is_underscored": false},
                       {"type": "string", "value": ","}
                     ],
-                    "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
+                    "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_builtin": false, "is_underscored": false}
                   }
                 },
-                "right": {"type": "parser_variable", "name": "trailing_comma", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "trailing_comma", "is_builtin": false, "is_underscored": false}
               },
               "right": {"type": "string", "value": "}"}
             },
@@ -1627,12 +1641,12 @@
               "prefixed": {"type": "string", "value": "object"}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "ast.node", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "object_pair", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "object_pair", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -1640,25 +1654,25 @@
             {
               "type": "call_function",
               "args": [
-                {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
+                {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false}
               ],
-              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
             },
             {"type": "string", "value": ":"},
             {
               "type": "call_function",
               "args": [
-                {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
+                {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false}
               ],
-              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "tuple2_sep", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "tuple2_sep", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "function_args_or_params", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "function_args_or_params", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "take_left",
@@ -1669,7 +1683,7 @@
               "left": {
                 "type": "take_right",
                 "left": {"type": "string", "value": "("},
-                "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
               },
               "right": {
                 "type": "call_function",
@@ -1677,23 +1691,23 @@
                   {
                     "type": "call_function",
                     "args": [
-                      {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false}
+                      {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false}
                     ],
-                    "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+                    "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
                   },
                   {"type": "string", "value": ","}
                 ],
-                "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_meta": false, "is_underscored": false}
+                "postfixed": {"type": "parser_variable", "name": "maybe_array_sep", "is_builtin": false, "is_underscored": false}
               }
             },
-            "right": {"type": "parser_variable", "name": "trailing_comma", "is_meta": false, "is_underscored": false}
+            "right": {"type": "parser_variable", "name": "trailing_comma", "is_builtin": false, "is_underscored": false}
           },
           "right": {"type": "string", "value": ")"}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "trailing_comma", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "trailing_comma", "is_builtin": false, "is_underscored": false},
         "params": [],
         "body": {
           "type": "call_function",
@@ -1703,19 +1717,19 @@
               "args": [
                 {"type": "string", "value": ","}
               ],
-              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "w_arround", "is_builtin": false, "is_underscored": false}
             }
           ],
-          "postfixed": {"type": "parser_variable", "name": "maybe", "is_meta": false, "is_underscored": false}
+          "postfixed": {"type": "parser_variable", "name": "maybe", "is_builtin": false, "is_underscored": false}
         }
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "conditional_infix", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "conditional_infix", "is_builtin": false, "is_underscored": false},
         "params": [
-          {"type": "value_variable", "name": "Type", "is_meta": false, "is_underscored": false},
-          {"type": "value_variable", "name": "LeftBindingPower", "is_meta": false, "is_underscored": false},
-          {"type": "value_variable", "name": "RightBindingPower", "is_meta": false, "is_underscored": false}
+          {"type": "value_variable", "name": "Type", "is_builtin": false, "is_underscored": false},
+          {"type": "value_variable", "name": "LeftBindingPower", "is_builtin": false, "is_underscored": false},
+          {"type": "value_variable", "name": "RightBindingPower", "is_builtin": false, "is_underscored": false}
         ],
         "body": {
           "type": "and",
@@ -1726,15 +1740,15 @@
               "left": {
                 "type": "and",
                 "left": {"type": "string", "value": "?"},
-                "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+                "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
               },
               "right": {
                 "type": "destructure",
-                "left": {"type": "parser_variable", "name": "expr", "is_meta": false, "is_underscored": false},
-                "right": {"type": "value_variable", "name": "Middle", "is_meta": false, "is_underscored": false}
+                "left": {"type": "parser_variable", "name": "expr", "is_builtin": false, "is_underscored": false},
+                "right": {"type": "value_variable", "name": "Middle", "is_builtin": false, "is_underscored": false}
               }
             },
-            "right": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false}
+            "right": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false}
           },
           "right": {
             "type": "return",
@@ -1744,19 +1758,19 @@
               "value": [
                 [
                   {"type": "string", "value": "type"},
-                  {"type": "value_variable", "name": "Type", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "Type", "is_builtin": false, "is_underscored": false}
                 ],
                 [
                   {"type": "string", "value": "middle"},
-                  {"type": "value_variable", "name": "Middle", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "Middle", "is_builtin": false, "is_underscored": false}
                 ],
                 [
                   {"type": "string", "value": "power"},
                   {
                     "type": "array",
                     "value": [
-                      {"type": "value_variable", "name": "LeftBindingPower", "is_meta": false, "is_underscored": false},
-                      {"type": "value_variable", "name": "RightBindingPower", "is_meta": false, "is_underscored": false}
+                      {"type": "value_variable", "name": "LeftBindingPower", "is_builtin": false, "is_underscored": false},
+                      {"type": "value_variable", "name": "RightBindingPower", "is_builtin": false, "is_underscored": false}
                     ]
                   }
                 ]
@@ -1767,10 +1781,10 @@
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "lower_bounded_range_postfix", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "lower_bounded_range_postfix", "is_builtin": false, "is_underscored": false},
         "params": [
-          {"type": "value_variable", "name": "Type", "is_meta": false, "is_underscored": false},
-          {"type": "value_variable", "name": "BindingPower", "is_meta": false, "is_underscored": false}
+          {"type": "value_variable", "name": "Type", "is_builtin": false, "is_underscored": false},
+          {"type": "value_variable", "name": "BindingPower", "is_builtin": false, "is_underscored": false}
         ],
         "body": {
           "type": "and",
@@ -1782,30 +1796,30 @@
               "args": [
                 {
                   "type": "take_right",
-                  "left": {"type": "parser_variable", "name": "w", "is_meta": false, "is_underscored": false},
+                  "left": {"type": "parser_variable", "name": "w", "is_builtin": false, "is_underscored": false},
                   "right": {
                     "type": "or",
                     "left": {
                       "type": "or",
-                      "left": {"type": "parser_variable", "name": "postfix", "is_meta": false, "is_underscored": false},
-                      "right": {"type": "parser_variable", "name": "infix", "is_meta": false, "is_underscored": false}
+                      "left": {"type": "parser_variable", "name": "postfix", "is_builtin": false, "is_underscored": false},
+                      "right": {"type": "parser_variable", "name": "infix", "is_builtin": false, "is_underscored": false}
                     },
-                    "right": {"type": "parser_variable", "name": "end", "is_meta": false, "is_underscored": false}
+                    "right": {"type": "parser_variable", "name": "end", "is_builtin": false, "is_underscored": false}
                   }
                 }
               ],
-              "postfixed": {"type": "parser_variable", "name": "peek", "is_meta": false, "is_underscored": false}
+              "postfixed": {"type": "parser_variable", "name": "peek", "is_builtin": false, "is_underscored": false}
             },
             "right": {
               "type": "object",
               "value": [
                 [
                   {"type": "string", "value": "type"},
-                  {"type": "value_variable", "name": "Type", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "Type", "is_builtin": false, "is_underscored": false}
                 ],
                 [
                   {"type": "string", "value": "power"},
-                  {"type": "value_variable", "name": "BindingPower", "is_meta": false, "is_underscored": false}
+                  {"type": "value_variable", "name": "BindingPower", "is_builtin": false, "is_underscored": false}
                 ]
               ]
             }
@@ -1814,32 +1828,32 @@
       },
       {
         "type": "named_function",
-        "ident": {"type": "parser_variable", "name": "call_function_postfix", "is_meta": false, "is_underscored": false},
+        "ident": {"type": "parser_variable", "name": "call_function_postfix", "is_builtin": false, "is_underscored": false},
         "params": [
-          {"type": "value_variable", "name": "Type", "is_meta": false, "is_underscored": false},
-          {"type": "value_variable", "name": "BindingPower", "is_meta": false, "is_underscored": false}
+          {"type": "value_variable", "name": "Type", "is_builtin": false, "is_underscored": false},
+          {"type": "value_variable", "name": "BindingPower", "is_builtin": false, "is_underscored": false}
         ],
         "body": {
           "type": "return",
           "left": {
             "type": "destructure",
-            "left": {"type": "parser_variable", "name": "function_args_or_params", "is_meta": false, "is_underscored": false},
-            "right": {"type": "value_variable", "name": "Args", "is_meta": false, "is_underscored": false}
+            "left": {"type": "parser_variable", "name": "function_args_or_params", "is_builtin": false, "is_underscored": false},
+            "right": {"type": "value_variable", "name": "Args", "is_builtin": false, "is_underscored": false}
           },
           "right": {
             "type": "object",
             "value": [
               [
                 {"type": "string", "value": "type"},
-                {"type": "value_variable", "name": "Type", "is_meta": false, "is_underscored": false}
+                {"type": "value_variable", "name": "Type", "is_builtin": false, "is_underscored": false}
               ],
               [
                 {"type": "string", "value": "args"},
-                {"type": "value_variable", "name": "Args", "is_meta": false, "is_underscored": false}
+                {"type": "value_variable", "name": "Args", "is_builtin": false, "is_underscored": false}
               ],
               [
                 {"type": "string", "value": "power"},
-                {"type": "value_variable", "name": "BindingPower", "is_meta": false, "is_underscored": false}
+                {"type": "value_variable", "name": "BindingPower", "is_builtin": false, "is_underscored": false}
               ]
             ]
           }
