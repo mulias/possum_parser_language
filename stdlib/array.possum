@@ -1,4 +1,5 @@
-_!stdlib/util
+_!stdlib/combinator
+_!stdlib/Array
 _!stdlib/Number
 
 array(elem) = tuple1(elem) * 1..

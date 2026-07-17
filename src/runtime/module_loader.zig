@@ -75,14 +75,9 @@ pub const ModuleLoader = struct {
             .source = @embedFile("stdlib/object.possum"),
         },
         .{
-            .logical_name = "stdlib/repeat",
-            .display_name = "stdlib/repeat.possum",
-            .source = @embedFile("stdlib/repeat.possum"),
-        },
-        .{
-            .logical_name = "stdlib/util",
-            .display_name = "stdlib/util.possum",
-            .source = @embedFile("stdlib/util.possum"),
+            .logical_name = "stdlib/combinator",
+            .display_name = "stdlib/combinator.possum",
+            .source = @embedFile("stdlib/combinator.possum"),
         },
         .{
             .logical_name = "stdlib/json",

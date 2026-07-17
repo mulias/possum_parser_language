@@ -1,4 +1,4 @@
-_!stdlib/util
+_!stdlib/combinator
 _!stdlib/Predicate
 
 with_operator_precedence(operand, prefix, infix, postfix) =

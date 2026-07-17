@@ -55,14 +55,14 @@ inside them:
     t (parser `true`, stdlib/const.possum:1:10)
     f (parser `false`, stdlib/const.possum:3:11)
     n (parser `null`, stdlib/const.possum:9:10)
-    p (parser `maybe`, stdlib/util.possum:6:11)
-    "9" (parser `_number_integer_part`, stdlib/number.possum:52:29)
+    p (parser `maybe`, stdlib/combinator.possum:16:11)
+    "9" (parser `_number_integer_part`, stdlib/number.possum:53:29)
     "9" (parser `numeral`, stdlib/string.possum:19:15)
-    "%(0 + N)" (parser `as_number`, stdlib/util.possum:26:20)
-    '"' (parser `string`, stdlib/json.possum:21:9)
-    "[" (parser `array`, stdlib/json.possum:57:14)
-    "{" (parser `object`, stdlib/json.possum:60:2)
-    Elem (parser `tuple1`, stdlib/array.possum:14:24)
+    "%(0 + N)" (parser `as_number`, stdlib/combinator.possum:36:20)
+    '"' (parser `string`, stdlib/json.possum:20:9)
+    "[" (parser `array`, stdlib/json.possum:56:14)
+    "{" (parser `object`, stdlib/json.possum:59:2)
+    Elem (parser `tuple1`, stdlib/array.possum:15:24)
   
   Parse trace (pruned to attempts reaching 1:4):
   
@@ -177,7 +177,7 @@ A merge pattern mismatch reports the whole value against the whole pattern:
     "z" (parser `alpha`, stdlib/string.possum:7:13)
     "Z" (parser `alpha`, stdlib/string.possum:7:24)
     "9" (parser `numeral`, stdlib/string.possum:19:15)
-    p (parser `many`, stdlib/repeat.possum:3:10)
+    p (parser `many`, stdlib/combinator.possum:4:10)
     ("a" + Rest) (parser `@main`, program:1:8)
   
   Parse trace (pruned to attempts reaching 1:3):
