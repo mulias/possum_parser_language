@@ -143,9 +143,33 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
                 const value_decl = try self.convertValueDecl(name_ident, func.name.region, func.paramsOrArgs, body, root.region);
                 try self.addValueDeclaration(value_decl);
             }
-        } else if (head.node == .Identifier) {
+        } else {
             // Alias, like a function but with no params
-            const name_ident = head.node.Identifier;
+            const name_ident = switch (head.node) {
+                .Identifier => |ident| ident,
+                .False => ParsedAst.IdentifierNode{
+                    .name = "false",
+                    .builtin = false,
+                    .underscored = false,
+                    .kind = .Parser,
+                },
+                .True => ParsedAst.IdentifierNode{
+                    .name = "true",
+                    .builtin = false,
+                    .underscored = false,
+                    .kind = .Parser,
+                },
+                .Null => ParsedAst.IdentifierNode{
+                    .name = "null",
+                    .builtin = false,
+                    .underscored = false,
+                    .kind = .Parser,
+                },
+                else => {
+                    try self.printError(head.region, "Invalid alias name", .{});
+                    return Error.InvalidAst;
+                },
+            };
 
             if (name_ident.builtin) {
                 try self.printError(head.region, "Unable to declare '{s}', '@' is reserved for builtins", .{name_ident.name});
@@ -163,9 +187,6 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
                 const value_decl = try self.convertValueDecl(name_ident, head.region, .{}, body, root.region);
                 try self.addValueDeclaration(value_decl);
             }
-        } else {
-            try self.printError(head.region, "Invalid global declaration head", .{});
-            return Error.InvalidAst;
         }
     } else {
         if (self.ast.main == null) {
