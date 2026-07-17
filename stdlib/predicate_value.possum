@@ -1,0 +1,21 @@
+Is.String(V) = V -> ("" + _)
+
+Is.Number(V) = V -> (0 + _)
+
+Is.Bool(V) = V -> (false + _)
+
+Is.Null(V) = V -> null
+
+Is.Array(V) = V -> [..._]
+
+Is.Object(V) = V -> {..._}
+
+Is.Equal(A, B) = A -> B
+
+Is.LessThan(A, B) = A -> B ? @Fail : A -> ..B
+
+Is.LessThanOrEqual(A, B) = A -> ..B
+
+Is.GreaterThan(A, B) = A -> B ? @Fail : A -> B..
+
+Is.GreaterThanOrEqual(A, B) = A -> B..

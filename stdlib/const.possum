@@ -1,0 +1,9 @@
+true(t) = t $ true
+
+false(f) = f $ false
+
+boolean(t, f) = true(t) | false(f)
+
+bool = boolean
+
+null(n) = n $ null

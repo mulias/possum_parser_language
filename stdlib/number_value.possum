@@ -1,0 +1,73 @@
+_!stdlib/Array
+
+Num.Add = @Add
+
+Num.Sub = @Subtract
+
+Num.Mul = @Multiply
+
+Num.Div = @Divide
+
+Num.Pow = @Power
+
+Num.Mod = @Modulus
+
+Num.Floor = @Floor
+
+Num.Ceil = @Ceiling
+
+Num.Inc(N) = @Add(N, 1)
+
+Num.Dec(N) = @Subtract(N, 1)
+
+Num.Abs(N) = N -> 0.. | -N
+
+Num.Max(A, B) = A -> B.. ? A : B
+
+Num.Min(A, B) = A -> ..B ? A : B
+
+Num.FromBinaryDigits(Bs) =
+  Array.Length(Bs) -> Len &
+  _Num.FromBinaryDigits(Bs, Len - 1, 0)
+
+_Num.FromBinaryDigits(Bs, Pos, Acc) =
+  Bs -> [B, ...Rest] ? (
+    B -> 0..1 &
+    _Num.FromBinaryDigits(
+      Rest,
+      Pos - 1,
+      Acc + Num.Mul(B, Num.Pow(2, Pos)),
+    )
+  ) :
+  Acc
+
+Num.FromOctalDigits(Os) =
+  Array.Length(Os) -> Len &
+  _Num.FromOctalDigits(Os, Len - 1, 0)
+
+_Num.FromOctalDigits(Os, Pos, Acc) =
+  Os -> [O, ...Rest] ? (
+    O -> 0..7 &
+    _Num.FromOctalDigits(
+      Rest,
+      Pos - 1,
+      Acc + Num.Mul(O, Num.Pow(8, Pos)),
+    )
+  ) :
+  Acc
+
+Num.FromHexDigits(Hs) =
+  Array.Length(Hs) -> Len &
+  _Num.FromHexDigits(Hs, Len - 1, 0)
+
+_Num.FromHexDigits(Hs, Pos, Acc) =
+  Hs -> [H, ...Rest] ? (
+    H -> 0..15 &
+    _Num.FromHexDigits(
+      Rest,
+      Pos - 1,
+      Acc + Num.Mul(H, Num.Pow(16, Pos)),
+    )
+  ) :
+  Acc
+

@@ -86,10 +86,23 @@ fn addDocImports(b: *Build, exe: *Build.Step.Compile) void {
     }
 }
 
+// Embed every stdlib file under its "stdlib/<file>" name; the module
+// loader's embedded_sources maps logical import names onto these.
 fn addStdlibImports(b: *Build, exe: *Build.Step.Compile) void {
-    exe.root_module.addAnonymousImport("stdlib/core.possum", .{
-        .root_source_file = b.path("stdlib/core.possum"),
-    });
+    var dir = b.build_root.handle.openDir("stdlib", .{ .iterate = true }) catch
+        @panic("cannot open the stdlib directory");
+    defer dir.close();
+
+    var files = dir.iterate();
+    while (files.next() catch @panic("cannot read the stdlib directory")) |entry| {
+        if (entry.kind != .file) continue;
+        if (!std.mem.endsWith(u8, entry.name, ".possum")) continue;
+
+        const name = b.fmt("stdlib/{s}", .{entry.name});
+        exe.root_module.addAnonymousImport(name, .{
+            .root_source_file = b.path(name),
+        });
+    }
 }
 
 fn addBuildOptions(b: *Build, exe: *Build.Step.Compile) void {

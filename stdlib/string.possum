@@ -1,0 +1,58 @@
+!stdlib/repeat
+
+char = "\u000000"..
+
+ascii = "\u000000".."\u00007F"
+
+alpha = "a".."z" | "A".."Z"
+
+alphas = many(alpha)
+
+lower = "a".."z"
+
+lowers = many(lower)
+
+upper = "A".."Z"
+
+uppers = many(upper)
+
+numeral = "0".."9"
+
+numerals = many(numeral)
+
+binary_numeral = "0" | "1"
+
+octal_numeral = "0".."7"
+
+hex_numeral = numeral | "a".."f" | "A".."F"
+
+alnum = alpha | numeral
+
+alnums = many(alnum)
+
+token = many(unless(char, whitespace))
+
+word = many(alnum | "_" | "-")
+
+line = chars_until(newline | end_of_input)
+
+space =
+  " " | "\t" | "\u0000A0" | "\u002000".."\u00200A" | "\u00202F" | "\u00205F" | "\u003000"
+
+spaces = many(space)
+
+newline = "\r\n" | "\u00000A".."\u00000D" | "\u000085" | "\u002028" | "\u002029"
+
+nl = newline
+
+newlines = many(newline)
+
+nls = newlines
+
+whitespace = many(space | newline)
+
+ws = whitespace
+
+chars_until(stop) = many_until(char, stop)
+
+ctrl_char = "\u000000".."\u00001F"

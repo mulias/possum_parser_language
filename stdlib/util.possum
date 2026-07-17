@@ -1,0 +1,38 @@
+_!stdlib/string
+_!stdlib/const
+
+peek(p) = @input.offset -> Pos & @at(Pos, p)
+
+maybe(p) = p | succeed
+
+unless(p, excluded) = excluded ? @fail : p
+
+skip(p) = null(p)
+
+find(p) = p | (char > find(p))
+
+find_all(p) = !stdlib.array(find(p)) < maybe(many(char))
+
+find_before(p, stop) = stop ? @fail : p | (char > find_before(p, stop))
+
+find_all_before(p, stop) = !stdlib.array(find_before(p, stop)) < maybe(chars_until(stop))
+
+succeed = const($null)
+
+default(p, D) = p | const(D)
+
+const(C) = "" $ C
+
+as_number(p) = p -> "%(0 + N)" $ N
+
+as_string(p) = "%(p)"
+
+surround(p, fill) = fill > p < fill
+
+end_of_input = char ? @fail : succeed
+
+end = end_of_input
+
+input(p) = surround(p, maybe(whitespace)) < end_of_input
+
+one_or_both(a, b) = (a + maybe(b)) | (maybe(a) + b)

@@ -1,0 +1,5 @@
+_!stdlib/Predicate
+
+As.Number(V) = Is.Number(V) | (V -> "%(0 + N)" $ N)
+
+As.String(V) = "%(V)"

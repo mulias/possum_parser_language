@@ -1,10 +1,12 @@
 # Standard Library
 
-These parsers and value functions are always available in Possum programs, unless Possum is ran with the `--no-stdlib` flag.
+These parsers and value functions are always available in Possum programs and are imported by default. Running possum with the `--no-stdlib` flag suppresses the default import, although modules can still be imported by name, for example `!stdlib/array` to import all array parsers.
 
 ## Parsers
 
-### Strings
+### `stdlib/string`
+
+Parse input into a string. The standard library imports this module unqualified.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -39,7 +41,9 @@ These parsers and value functions are always available in Possum programs, unles
 [code point]: https://en.wikipedia.org/wiki/Code_point
 [ascii]: https://en.wikipedia.org/wiki/ASCII
 
-### Numbers
+### `stdlib/number`
+
+Parse input into a number. The standard library imports this module unqualified.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -62,7 +66,9 @@ These parsers and value functions are always available in Possum programs, unles
 | `octal_integer`    | Octal digits, no leading zeros | Integer number converted to base 10 |
 | `hex_integer`      | hexadecimal digits, no leading zeros | Integer number converted to base 10 |
 
-### Constants
+### `stdlib/const`
+
+Parse input into a JSON constant (true/false/null). The standard library imports this module unqualified.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -72,7 +78,9 @@ These parsers and value functions are always available in Possum programs, unles
 | `bool(t, f)`       | Alias for `boolean`        | As above                   |
 | `null(n)`          | `n`                        | `null`                     |
 
-### Arrays
+### `stdlib/array`
+
+Parse input into an array. The standard library imports this module unqualified.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -95,7 +103,9 @@ These parsers and value functions are always available in Possum programs, unles
 | `columns_padded(elem, col_sep, row_sep, Pad)` | One or more `elem`, interspersed with `col_sep` or `row_sep` | Array of arrays of values in each column, short rows are padded with `Pad` to all be the same length |
 | `cols_padded(elem, col_sep, row_sep, Pad)` | Alias for `columns_padded` | As above |
 
-### Objects
+### `stdlib/object`
+
+Parse input into an object. The standard library imports this module unqualified.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -112,7 +122,9 @@ These parsers and value functions are always available in Possum programs, unles
 | `record3(Key1, value1, Key2, value2, Key3, value3)` | three value parsers in order | Object with `Key1` associated to the parsed `value1`, etc |
 | `record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3)` | three value parsers, interspersed with separators | Object with `Key1` associated to the parsed `value1`, etc |
 
-### Repeated
+### `stdlib/repeat`
+
+Run a parser multiple times are merge the resulting values. The standard library imports this module unqualified.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -122,7 +134,9 @@ These parsers and value functions are always available in Possum programs, unles
 | `maybe_many(p)`    | Zero or more `p`           | Merged values parsed by `p`, or `null` if `p` fails |
 | `maybe_many_sep(p, sep)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
 
-### Utility
+### `stdlib/util`
+
+Run a parser multiple times are merge the resulting values. The standard library imports this module unqualified.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -145,50 +159,56 @@ These parsers and value functions are always available in Possum programs, unles
 | `input(p)`         | Strips leading and trailing whitespace, succeeds if `p` parses to end of input | Result of `p` |
 | `one_or_both(a, b)` | `a`, `b`, or `a + b`      | Result of the successful parser, or two results merged |
 
-### JSON
+### `stdlib/json`
+
+Parse aspects of the [JSON] spec. The standard library imports this module under the `json` namespace, with the root `json` parser aliasing `json.value`.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
-| `json`             | Any valid JSON             | Matched JSON               |
-| `json.string`      | Valid JSON string          | Matched string contents, not including quotes |
-| `json.number`      | Alias for `number`         | Number |
-| `json.boolean`     | JSON "true" or "false" keyword | `true` or `false`      |
-| `json.null`        | JSON "null" keyword        | `null`                     |
-| `json.array(elem)` | JSON array containing zero or more `elem`s | Array of values parsed by `elem` |
-| `json.object(value)` | JSON object containing zero or more `value`s | Object with values parsed by `value` |
+| `value`            | Any valid JSON             | Matched JSON               |
+| `string`           | Valid JSON string          | Matched string contents, not including quotes |
+| `number`           | Alias for `number`         | Number |
+| `boolean`          | JSON "true" or "false" keyword | `true` or `false`      |
+| `null`             | JSON "null" keyword        | `null`                     |
+| `array(elem)`      | JSON array containing zero or more `elem`s | Array of values parsed by `elem` |
+| `object(elem)`     | JSON object containing zero or more `elem`s | Object with values parsed by `elem` |
 
-### TOML
+[JSON]: https://www.json.org
+
+### `stdlib/toml`
+
+Parse aspects of the [TOML] spec. The standard library imports this module under the `toml` namespace, with the root `toml` parser aliasing `toml.simple`.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
-| `toml`             | Alias for `toml.simple`    | As below                   |
-| `toml.simple`      | Valid TOML document        | Object with TOML values, unsupported types encoded as strings |
-| `toml.tagged`      | Valid TOML document        | Object with TOML values, unsupported types encoded as strings tagged with type information |
-| `toml.custom(value)` | TOML document with custom `value`s for each key/value pair | Object with parsed values |
-| `toml.simple_value` | Valid TOML value          | Parsed value, unsupported types encoded as strings |
-| `toml.tagged_value` | Valid TOML value          | Parsed value, unsupported types encoded as strings tagged with type information |
-| `toml.string`      | [TOML string]              | String                     |
-| `toml.datetime`    | [TOML date-time]           | String                     |
-| `toml.number`      | [TOML number]              | Integer, float, or string encoding of Infinity/NaN/Binary/Octal/Hex number |
-| `toml.boolean`     | [TOML boolean]             | `true` or `false`          |
-| `toml.array(elem)` | [TOML array] containing zero or more `elem`s | Array of values parsed by `elem` |
-| `toml.inline_table(value)` | [TOML inline table] containing zero or more `value`s | Object with values parsed by `value` |
-| `toml.string.basic` | TOML single-line [basic string] | String               |
-| `toml.string.literal` | TOML single-line [literal string] | String           |
-| `toml.string.multi_line_basic` | TOML multi-line [basic string] | String     |
-| `toml.string.multi_line_literal` | TOML multi-line [literal string] | String |
-| `toml.datetime.offset` | [TOML date-time] with timezone offset | String      |
-| `toml.datetime.local` | [TOML date-time] without timezone offset | String    |
-| `toml.datetime.local_date` | [TOML date] without time or offset | String     |
-| `toml.datetime.local_time` | [TOML time] without date or offset | String     |
-| `toml.number.integer` | [TOML integer]          | Integer number             |
-| `toml.number.float` | [TOML float]              | Float number               |
-| `toml.number.infinity` | TOML infinity          | String                     |
-| `toml.number.not_a_number` | TOML NaN           | String                     |
-| `toml.number.binary_integer` | TOML binary integer | Integer                 |
-| `toml.number.octal_integer` | TOML octal integer | Integer                   |
-| `toml.number.hex_integer` | TOML hexadecimal integer | Integer               |
+| `simple`           | Valid TOML document        | Object with TOML values, unsupported types encoded as strings |
+| `tagged`           | Valid TOML document        | Object with TOML values, unsupported types encoded as strings tagged with type information |
+| `custom(value)`    | TOML document with custom `value`s for each key/value pair | Object with parsed values |
+| `simple_value`     | Valid TOML value          | Parsed value, unsupported types encoded as strings |
+| `tagged_value`     | Valid TOML value          | Parsed value, unsupported types encoded as strings tagged with type information |
+| `string`           | [TOML string]              | String                     |
+| `datetime`         | [TOML date-time]           | String                     |
+| `number`           | [TOML number]              | Integer, float, or string encoding of Infinity/NaN/Binary/Octal/Hex number |
+| `boolean`          | [TOML boolean]             | `true` or `false`          |
+| `array(elem)`      | [TOML array] containing zero or more `elem`s | Array of values parsed by `elem` |
+| `inline_table(value)` | [TOML inline table] containing zero or more `value`s | Object with values parsed by `value` |
+| `string.basic`     | TOML single-line [basic string] | String               |
+| `string.literal`   | TOML single-line [literal string] | String           |
+| `string.multi_line_basic` | TOML multi-line [basic string] | String     |
+| `string.multi_line_literal` | TOML multi-line [literal string] | String |
+| `datetime.offset`  | [TOML date-time] with timezone offset | String      |
+| `datetime.local`   | [TOML date-time] without timezone offset | String    |
+| `datetime.local_date` | [TOML date] without time or offset | String     |
+| `datetime.local_time` | [TOML time] without date or offset | String     |
+| `number.integer`   | [TOML integer]          | Integer number             |
+| `number.float`     | [TOML float]              | Float number               |
+| `number.infinity`  | TOML infinity          | String                     |
+| `number.not_a_number` | TOML NaN           | String                     |
+| `number.binary_integer` | TOML binary integer | Integer                 |
+| `number.octal_integer` | TOML octal integer | Integer                   |
+| `number.hex_integer` | TOML hexadecimal integer | Integer               |
 
+[TOML]: https://toml.io
 [TOML string]: https://toml.io/en/v1.0.0#string
 [TOML date-time]: https://toml.io/en/v1.0.0#offset-date-time
 [TOML date]: https://toml.io/en/v1.0.0#local-date
@@ -202,23 +222,25 @@ These parsers and value functions are always available in Possum programs, unles
 [TOML integer]: https://toml.io/en/v1.0.0#integer
 [TOML float]: https://toml.io/en/v1.0.0#float
 
-### Abstract Syntax Trees
+### `stdlib/ast`
 
-See the `stdlib-ast` docs for detailed documentation.
+Parse an abstract syntax tree. The standard library imports this module under the `ast` namespace, for example `ast.with_operator_precedence`. See the `stdlib-ast` docs for detailed documentation.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
-| `ast.with_operator_precedence(operand, prefix, infix, postfix)` | `operands`s with prefix and postfix operators, composed with infix operators | Abstract syntax tree |
-| `ast.node(value, Type)` | `value`               | Object with `"type"`, `"value"`, `"start"`, and `"end"` fields |
-| `ast.prefix_node(op, Type, BindingPower)` | `op` | Object with `"type"` and `"power"` fields |
-| `ast.infix_node(op, Type, LeftBindingPower, RightBindingPower)` | `op` | Object with `"type"` and `"power"` fields |
-| `ast.postfix_node(op, Type, BindingPower)` | `op` | Object with `"type"` and `"power"` fields |
-| `ast.with_offset_pos(node)` | `node`            | Object produced by `node` with additional `startpos` and `endpos` fields |
-| `ast.with_line_pos(node)` | `node`              | Object produced by `node` with additional `startpos` and `endpos` fields |
+| `with_operator_precedence(operand, prefix, infix, postfix)` | `operands`s with prefix and postfix operators, composed with infix operators | Abstract syntax tree |
+| `node(value, Type)` | `value`               | Object with `"type"`, `"value"`, `"start"`, and `"end"` fields |
+| `prefix_node(op, Type, BindingPower)` | `op` | Object with `"type"` and `"power"` fields |
+| `infix_node(op, Type, LeftBindingPower, RightBindingPower)` | `op` | Object with `"type"` and `"power"` fields |
+| `postfix_node(op, Type, BindingPower)` | `op` | Object with `"type"` and `"power"` fields |
+| `with_offset_pos(node)` | `node`            | Object produced by `node` with additional `startpos` and `endpos` fields |
+| `with_line_pos(node)` | `node`              | Object produced by `node` with additional `startpos` and `endpos` fields |
 
 ## Values
 
-### Numbers
+### `stdlib/Number`
+
+Operate on number values. Scopes all functions under the `Num` namespace.
 
 | Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
@@ -239,7 +261,9 @@ See the `stdlib-ast` docs for detailed documentation.
 | `Num.FromOctalDigits(Os)` | Convert an array of numbers between 0 and 7 to a base 10 integer |
 | `Num.FromHexDigits(Hs)` | Convert an array of numbers between 0 and 15 to a base 10 integer |
 
-### Arrays
+### `stdlib/Array`
+
+Operate on array values. Scopes functions under the `Array` and `Table` namespaces, for one dimensional and two dimensional arrays respectively.
 
 | Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
@@ -250,17 +274,19 @@ See the `stdlib-ast` docs for detailed documentation.
 | `Array.Map(A, Fn)` | Apply the function `Fn` to each element in the array `A` |
 | `Array.Filter(A, Pred)` | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` fails |
 | `Array.Reject(A, Pred)` | Apply the function `Pred` to each element in the array `A`, return an array excluding elements where `Pred` succeeds |
-| `Array.Merge(A)` | Merge all the elements of the array `A` into one value    |
+| `Array.Merge(A)`   | Merge all the elements of the array `A` into one value    |
 | `Array.MapMerge(A, Fn)` | Apply the function `Fn` to each element in the array `A`, merge all results into one value |
 | `Array.Reduce(A, Fn, Init)` | Apply the binary reducer function `Fn` to each element in the array `A`, reducing all results into one value |
 | `Array.ZipObject(Ks, Vs)` | Pair together keys from `Ks` and values from `Vs` into an object |
 | `Array.ZipPairs(Ks, Vs)` | Pair together keys from `Ks` and values from `Vs` into an object |
-| `Table.Transpose(T)` | Swap an array of arrays over the diagonal so that rows become columns |
-| `Table.RotateClockwise(T)` | Rotate an array of arrays 90 degrees clockwise |
-| `Table.RotateCounterClockwise(T)` | Rotate an array of arrays 90 degrees clockwise |
-| `Table.ZipObjects(Ks, Rows)` | Transform an array of `Rows` into an array of objects where each column is paired with its header from `Headers` |
+| `Tabe.Transpose(T)` | Swap an array of arrays over the diagonal so that rows become columns |
+| `Tabe.RotateClockwise(T)` | Rotate an array of arrays 90 degrees clockwise |
+| `Tabe.RotateCounterClockwise(T)` | Rotate an array of arrays 90 degrees clockwise |
+| `Tabe.ZipObjects(Ks, Rows)` | Transform an array of `Rows` into an array of objects where each column is paired with its header from `Headers` |
 
-### Objects
+### `stdlib/Object`
+
+Operate on object values. Scopes all functions under the `Obj` namespace.
 
 | Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
@@ -271,7 +297,9 @@ See the `stdlib-ast` docs for detailed documentation.
 | `Obj.Keys(O)`      | Return an array of all the keys in `O`                  |
 | `Obj.Values(O)`    | Return an array of all the values in `O`                |
 
-### Predicates
+### `stdlib/Predicate`
+
+Test properties of values. Scopes all functions under the `Is` namespace.
 
 | Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |
@@ -287,7 +315,9 @@ See the `stdlib-ast` docs for detailed documentation.
 | `Is.GreaterThan(A, B)` | Return `A` if `A` is strictly greater than `B`, otherwise fail |
 | `Is.GreaterThanOrEqual(A, B)` | Return `A` if `A` is greater than or equal to `B`, otherwise fail |
 
-### Conversion
+### `stdlib/Cast`
+
+Convert between representations of values. Scopes all functions under the `As` namespace.
 
 | Value              | Behavior                                                |
 | ------------------ | ------------------------------------------------------- |

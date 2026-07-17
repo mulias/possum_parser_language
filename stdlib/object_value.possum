@@ -1,0 +1,15 @@
+Obj.Has(O, K) = O -> {K: _, ..._}
+
+Obj.Get(O, K) = O -> {K: V, ..._} & V
+
+Obj.Put(O, K, V) = {...O, K: V}
+
+Obj.Size(O) = O -> ({_: _} * S) & S
+
+Obj.Keys(O) = _Obj.Keys(O, [])
+
+_Obj.Keys(O, Acc) = O -> {K: _, ...Rest} ? _Obj.Keys(Rest, [...Acc, K]) : Acc
+
+Obj.Values(O) = _Obj.Values(O, [])
+
+_Obj.Values(O, Acc) = O -> {_: V, ...Rest} ? _Obj.Values(Rest, [...Acc, V]) : Acc

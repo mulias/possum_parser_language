@@ -1,0 +1,43 @@
+_!stdlib/util
+
+object(key, value) = pair(key, value) * 1..
+
+object_sep(key, kv_sep, value, sep) =
+  pair_sep(key, kv_sep, value) +
+  ((sep > pair_sep(key, kv_sep, value)) * 0..)
+
+object_until(key, value, stop) =
+  unless(pair(key, value), stop) * 1.. < peek(stop)
+
+maybe_object(key, value) = default(object(key, value), {})
+
+maybe_object_sep(key, pair_sep, value, sep) =
+  default(object_sep(key, pair_sep, value, sep), {})
+
+pair(key, value) = key -> K & value -> V $ {K: V}
+
+pair_sep(key, sep, value) = key -> K & sep & value -> V $ {K: V}
+
+record1(Key, value) = value -> Value $ {Key: Value}
+
+record2(Key1, value1, Key2, value2) =
+  value1 -> V1 &
+  value2 -> V2 $
+  {Key1: V1, Key2: V2}
+
+record2_sep(Key1, value1, sep, Key2, value2) =
+  value1 -> V1 & sep &
+  value2 -> V2 $
+  {Key1: V1, Key2: V2}
+
+record3(Key1, value1, Key2, value2, Key3, value3) =
+  value1 -> V1 &
+  value2 -> V2 &
+  value3 -> V3 $
+  {Key1: V1, Key2: V2, Key3: V3}
+
+record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3) =
+  value1 -> V1 & sep1 &
+  value2 -> V2 & sep2 &
+  value3 -> V3 $
+  {Key1: V1, Key2: V2, Key3: V3}

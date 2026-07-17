@@ -1,0 +1,65 @@
+_!stdlib/string
+_!stdlib/repeat
+_!stdlib/util
+
+value
+
+value =
+  boolean |
+  null |
+  number |
+  string |
+  array(value) |
+  object(value)
+
+boolean = !stdlib.boolean("true", "false")
+
+null = !stdlib.null("null")
+
+number = !stdlib.number
+
+string = '"' > _string_body < '"'
+
+_string_body =
+  many(
+    _escaped_ctrl_char |
+    _escaped_unicode |
+    unless(char, ctrl_char | `\` | '"')
+  ) | const($"")
+
+_escaped_ctrl_char =
+  (`\"` $ `"`) |
+  (`\\` $ `\`) |
+  (`\/` $ `/`) |
+  (`\b` $ "\b") |
+  (`\f` $ "\f") |
+  (`\n` $ "\n") |
+  (`\r` $ "\r") |
+  (`\t` $ "\t")
+
+_escaped_unicode = _escaped_surrogate_pair | _escaped_codepoint
+
+_escaped_surrogate_pair = _valid_surrogate_pair | _invalid_surrogate_pair
+
+_valid_surrogate_pair =
+  _high_surrogate -> H & _low_surrogate -> L $ @SurrogatePairCodepoint(H, L)
+
+_invalid_surrogate_pair = _low_surrogate | _high_surrogate $ "\u00FFFD"
+
+_high_surrogate =
+  `\u` > ("D" | "d") + ("8" | "9" | "A" | "B" | "a" | "b") + hex_numeral + hex_numeral
+
+_low_surrogate =
+  `\u` > ("D" | "d") + ("C".."F" | "c".."f") + hex_numeral + hex_numeral
+
+_escaped_codepoint = `\u` > (hex_numeral * 4) -> U $ @Codepoint(U)
+
+array(elem) = "[" > !stdlib.maybe_array_sep( surround(elem, maybe(ws)), ",") < "]"
+
+object(value) =
+  "{" >
+  !stdlib.maybe_object_sep(
+    surround(string, maybe(ws)), ":",
+    surround(value, maybe(ws)), ","
+  )
+  < "}"
