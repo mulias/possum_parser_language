@@ -825,30 +825,7 @@
   0002    | End
   ========================================
   
-  ===============9:Num.Inc================
-  Num.Inc(N) = @Add(N, 1)
-  ========================================
-  0000    | GetConstant 0: @Add
-  0002    | GetLocalMove 0
-  0004    | PushInteger 1
-  0006    | CallTailFunction 2
-  0008    | End
-  ========================================
-  
-  ===============9:Num.Max================
-  Num.Max(A, B) = A -> B.. ? A : B
-  ========================================
-  0000    | SetInputMark
-  0001    | GetLocal 0
-  0003    | DestructurePlan 0: B..
-  0005    | ConditionalThen 5 -> 13
-  0008    | GetLocalMove 0
-  0010    | Jump 10 -> 15
-  0013    | GetLocalMove 1
-  0015    | End
-  ========================================
-  
-  ============10:Array.AppendN============
+  ============8:Array.AppendN=============
   Array.AppendN(A, Val, N) = A + ([Val] * N)
   ========================================
   0000    | GetLocalMove 0
@@ -862,7 +839,7 @@
   0015    | End
   ========================================
   
-  ===========10:Table.Transpose===========
+  ===========8:Table.Transpose============
   Table.Transpose(T) = _Table.Transpose(T, [])
   ========================================
   0000    | GetConstant 1: _Table.Transpose
@@ -872,7 +849,7 @@
   0007    | End
   ========================================
   
-  ==========10:_Table.Transpose===========
+  ===========8:_Table.Transpose===========
   _Table.Transpose(T, Acc) =
     _Table.FirstPerRow(T) -> FirstPerRow &
     _Table.RestPerRow(T) -> RestPerRow ?
@@ -909,7 +886,7 @@
   0057    | End
   ========================================
   
-  =========10:_Table.FirstPerRow==========
+  ==========8:_Table.FirstPerRow==========
   _Table.FirstPerRow(T) =
     T -> [Row, ...Rest] & Row -> [VeryFirst, ..._] &
     __Table.FirstPerRow(Rest, [VeryFirst])
@@ -933,7 +910,7 @@
   0036    | End
   ========================================
   
-  =========10:__Table.FirstPerRow=========
+  =========8:__Table.FirstPerRow==========
   __Table.FirstPerRow(T, Acc) =
     T -> [Row, ...Rest] & Row -> [First, ..._] ?
     __Table.FirstPerRow(Rest, [...Acc, First]) :
@@ -967,7 +944,7 @@
   0053    | End
   ========================================
   
-  ==========10:_Table.RestPerRow==========
+  ==========8:_Table.RestPerRow===========
   _Table.RestPerRow(T) = __Table.RestPerRow(T, [])
   ========================================
   0000    | GetConstant 8: __Table.RestPerRow
@@ -977,7 +954,7 @@
   0007    | End
   ========================================
   
-  =========10:__Table.RestPerRow==========
+  ==========8:__Table.RestPerRow==========
   __Table.RestPerRow(T, Acc) =
     T -> [Row, ...Rest] ? (
       Row -> [_, ...RowRest] ?
@@ -1024,4 +1001,27 @@
   0071    | Jump 71 -> 76
   0074    | GetLocalMove 1
   0076    | End
+  ========================================
+  
+  ===============9:Num.Inc================
+  Num.Inc(N) = @Add(N, 1)
+  ========================================
+  0000    | GetConstant 0: @Add
+  0002    | GetLocalMove 0
+  0004    | PushInteger 1
+  0006    | CallTailFunction 2
+  0008    | End
+  ========================================
+  
+  ===============9:Num.Max================
+  Num.Max(A, B) = A -> B.. ? A : B
+  ========================================
+  0000    | SetInputMark
+  0001    | GetLocal 0
+  0003    | DestructurePlan 0: B..
+  0005    | ConditionalThen 5 -> 13
+  0008    | GetLocalMove 0
+  0010    | Jump 10 -> 15
+  0013    | GetLocalMove 1
+  0015    | End
   ========================================

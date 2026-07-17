@@ -1,4 +1,4 @@
-!stdlib/repeat
+_!stdlib/combinator
 
 char = "\u000000"..
 

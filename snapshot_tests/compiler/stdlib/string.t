@@ -394,7 +394,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
-  0008    | GetConstant 0: unless
+  0008    | GetConstant 1: unless
   0010    | GetLocal 0
   0012    | GetLocal 1
   0014    | CallFunction 2
@@ -406,7 +406,7 @@
   0025    | JumpBack 25 -> 7
   0028    | Swap
   0029    | SetInputMark
-  0030    | GetConstant 0: unless
+  0030    | GetConstant 1: unless
   0032    | GetLocal 0
   0034    | GetLocal 1
   0036    | CallFunction 2
@@ -419,28 +419,28 @@
   0048    | Swap
   0049    | Drop
   0050    | JumpIfFailure 50 -> 60
-  0053    | GetConstant 1: peek
+  0053    | GetConstant 2: peek
   0055    | GetLocalMove 1
   0057    | CallFunction 1
   0059    | TakeLeft
   0060    | End
   ========================================
   
-  =================3:peek=================
+  =================2:peek=================
   peek(p) = @input.offset -> Pos & @at(Pos, p)
   ========================================
   0000    | PushVar2 Pos
-  0003    | CallFunctionConstant 1: @input.offset
+  0003    | CallFunctionConstant 3: @input.offset
   0005    | DestructurePlan 0: bind Pos
   0007    | TakeRight 7 -> 18
-  0010    | GetConstant 2: @at
+  0010    | GetConstant 4: @at
   0012    | GetLocalMove 1
   0014    | GetLocalMove 0
   0016    | CallTailFunction 2
   0018    | End
   ========================================
   
-  ================3:unless================
+  ================2:unless================
   unless(p, excluded) = excluded ? @fail : p
   ========================================
   0000    | SetInputMark
@@ -452,35 +452,35 @@
   0013    | End
   ========================================
   
-  ===============3:succeed================
+  ===============2:succeed================
   succeed = const($null)
   ========================================
-  0000    | GetConstant 5: const
+  0000    | GetConstant 7: const
   0002    | PushNull
   0003    | CallTailFunction 1
   0005    | End
   ========================================
   
-  ================3:const=================
+  ================2:const=================
   const(C) = "" $ C
   ========================================
   0000    | GetLocalMove 0
   0002    | End
   ========================================
   
-  =============3:end_of_input=============
+  =============2:end_of_input=============
   end_of_input = char ? @fail : succeed
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 3: char
+  0001    | CallFunctionConstant 5: char
   0003    | ConditionalThen 3 -> 11
   0006    | CallTailFunctionConstant 0: @fail
   0008    | Jump 8 -> 13
-  0011    | CallTailFunctionConstant 4: succeed
+  0011    | CallTailFunctionConstant 6: succeed
   0013    | End
   ========================================
   
-  =================4:char=================
+  =================3:char=================
   char = "\u000000"..
   ========================================
   0000    | ParseCodepoint

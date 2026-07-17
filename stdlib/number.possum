@@ -1,5 +1,6 @@
+_!stdlib/string
 _!stdlib/array
-_!stdlib/util
+_!stdlib/combinator
 _!stdlib/Number
 
 digit = 0..9

@@ -464,50 +464,49 @@
   0008    | End
   ========================================
   
-  ================2:array=================
-  array(elem) = tuple1(elem) * 1..
+  ===============2:numeral================
+  numeral = "0".."9"
+  ========================================
+  0000    | ParseCodepointRange '0'..'9'
+  0003    | End
+  ========================================
+  
+  ===============2:numerals===============
+  numerals = many(numeral)
+  ========================================
+  0000    | GetConstant 0: many
+  0002    | GetConstant 1: numeral
+  0004    | CallTailFunction 1
+  0006    | End
+  ========================================
+  
+  =================3:many=================
+  many(p) = p * 1..
   ========================================
   0000    | PushNull
   0001    | PushInteger 1
   0003    | ValidateRepeatPattern
-  0004    | JumpIfZero 4 -> 26
+  0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
-  0012    | CallFunction 1
-  0014    | Merge
-  0015    | JumpIfFailure 15 -> 44
-  0018    | Swap
-  0019    | Decrement
-  0020    | JumpIfZero 20 -> 26
-  0023    | JumpBack 23 -> 7
-  0026    | Swap
-  0027    | SetInputMark
-  0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
-  0032    | CallFunction 1
-  0034    | JumpIfFailure 34 -> 42
-  0037    | PopInputMark
-  0038    | Merge
-  0039    | JumpBack 39 -> 27
-  0042    | ResetInput
-  0043    | Drop
-  0044    | Swap
-  0045    | Drop
-  0046    | End
-  ========================================
-  
-  ================2:tuple1================
-  tuple1(elem) =  elem -> Elem $ [Elem]
-  ========================================
-  0000    | PushVar2 Elem
-  0003    | CallFunctionLocal 0
-  0005    | DestructurePlan 0: bind Elem
-  0007    | TakeRight 7 -> 16
-  0010    | GetConstantMutable 1: [_]
-  0012    | GetLocalMove 1
-  0014    | InsertAtIndex 0
-  0016    | End
+  0008    | CallFunctionLocal 0
+  0010    | Merge
+  0011    | JumpIfFailure 11 -> 36
+  0014    | Swap
+  0015    | Decrement
+  0016    | JumpIfZero 16 -> 22
+  0019    | JumpBack 19 -> 7
+  0022    | Swap
+  0023    | SetInputMark
+  0024    | CallFunctionLocal 0
+  0026    | JumpIfFailure 26 -> 34
+  0029    | PopInputMark
+  0030    | Merge
+  0031    | JumpBack 31 -> 23
+  0034    | ResetInput
+  0035    | Drop
+  0036    | Swap
+  0037    | Drop
+  0038    | End
   ========================================
   
   ================3:maybe=================
@@ -547,49 +546,62 @@
   0011    | End
   ========================================
   
-  ===============4:numeral================
-  numeral = "0".."9"
-  ========================================
-  0000    | ParseCodepointRange '0'..'9'
-  0003    | End
-  ========================================
-  
-  ===============4:numerals===============
-  numerals = many(numeral)
-  ========================================
-  0000    | GetConstant 0: many
-  0002    | GetConstant 1: numeral
-  0004    | CallTailFunction 1
-  0006    | End
-  ========================================
-  
-  =================5:many=================
-  many(p) = p * 1..
+  ================7:array=================
+  array(elem) = tuple1(elem) * 1..
   ========================================
   0000    | PushNull
   0001    | PushInteger 1
   0003    | ValidateRepeatPattern
-  0004    | JumpIfZero 4 -> 22
+  0004    | JumpIfZero 4 -> 26
   0007    | Swap
-  0008    | CallFunctionLocal 0
-  0010    | Merge
-  0011    | JumpIfFailure 11 -> 36
-  0014    | Swap
-  0015    | Decrement
-  0016    | JumpIfZero 16 -> 22
-  0019    | JumpBack 19 -> 7
-  0022    | Swap
-  0023    | SetInputMark
-  0024    | CallFunctionLocal 0
-  0026    | JumpIfFailure 26 -> 34
-  0029    | PopInputMark
-  0030    | Merge
-  0031    | JumpBack 31 -> 23
-  0034    | ResetInput
-  0035    | Drop
-  0036    | Swap
-  0037    | Drop
-  0038    | End
+  0008    | GetConstant 0: tuple1
+  0010    | GetLocal 0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetLocal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
+  ========================================
+  
+  ================7:tuple1================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | PushVar2 Elem
+  0003    | CallFunctionLocal 0
+  0005    | DestructurePlan 0: bind Elem
+  0007    | TakeRight 7 -> 16
+  0010    | GetConstantMutable 1: [_]
+  0012    | GetLocalMove 1
+  0014    | InsertAtIndex 0
+  0016    | End
+  ========================================
+  
+  =============8:Array.Length=============
+  Array.Length(A) = A -> ([_] * L) & L
+  ========================================
+  0000    | PushUnderscoreVar
+  0001    | PushVar2 L
+  0004    | GetLocalMove 0
+  0006    | DestructurePlan 0: ([_] * bind L)
+  0008    | TakeRight 8 -> 13
+  0011    | GetLocalMove 2
+  0013    | End
   ========================================
   
   ==============0:@Multiply===============
@@ -799,16 +811,4 @@
   0055    | Jump 55 -> 60
   0058    | GetLocalMove 2
   0060    | End
-  ========================================
-  
-  ============10:Array.Length=============
-  Array.Length(A) = A -> ([_] * L) & L
-  ========================================
-  0000    | PushUnderscoreVar
-  0001    | PushVar2 L
-  0004    | GetLocalMove 0
-  0006    | DestructurePlan 0: ([_] * bind L)
-  0008    | TakeRight 8 -> 13
-  0011    | GetLocalMove 2
-  0013    | End
   ========================================

@@ -1,4 +1,4 @@
-_!stdlib/util
+_!stdlib/combinator
 
 object(key, value) = pair(key, value) * 1..
 

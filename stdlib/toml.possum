@@ -1,7 +1,7 @@
 _!stdlib/string
 _!stdlib/number
 _!stdlib/array
-_!stdlib/util
+_!stdlib/combinator
 _!stdlib/Number
 _!stdlib/Object
 _!stdlib/Predicate

@@ -122,9 +122,9 @@ Parse input into an object. The standard library imports this module unqualified
 | `record3(Key1, value1, Key2, value2, Key3, value3)` | three value parsers in order | Object with `Key1` associated to the parsed `value1`, etc |
 | `record3_sep(Key1, value1, sep1, Key2, value2, sep2, Key3, value3)` | three value parsers, interspersed with separators | Object with `Key1` associated to the parsed `value1`, etc |
 
-### `stdlib/repeat`
+### `stdlib/combinator`
 
-Run a parser multiple times are merge the resulting values. The standard library imports this module unqualified.
+Higher-order parsers and parsers not associated with a data type. The standard library imports this module unqualified.
 
 | Parser             | Parses                     | Returns                    |
 | ------------------ | -------------------------- | -------------------------- |
@@ -133,13 +133,6 @@ Run a parser multiple times are merge the resulting values. The standard library
 | `many_until(p, stop)` | One or more `p`, must be followed by `stop` which is not consumed | Merged values parsed by `p` |
 | `maybe_many(p)`    | Zero or more `p`           | Merged values parsed by `p`, or `null` if `p` fails |
 | `maybe_many_sep(p, sep)` | Zero or more `p`, interspersed with `sep` | Merged values parsed by `p`, or `null` if `p` fails |
-
-### `stdlib/util`
-
-Run a parser multiple times are merge the resulting values. The standard library imports this module unqualified.
-
-| Parser             | Parses                     | Returns                    |
-| ------------------ | -------------------------- | -------------------------- |
 | `peek(p)`          | `p`, consumes no input on success | Result of `p`       |
 | `maybe(p)`         | `p` or succeeds with no match | Result of `p`, or `null` if `p` fails |
 | `unless(p, excluded)` | `p` unless parsing `excluded` instead would succeed | Result of `p` |

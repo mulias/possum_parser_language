@@ -3,8 +3,7 @@
 !stdlib/const
 !stdlib/array
 !stdlib/object
-!stdlib/repeat
-!stdlib/util
+!stdlib/combinator
 json = !stdlib/json
 toml = !stdlib/toml
 ast = !stdlib/ast
