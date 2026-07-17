@@ -333,3 +333,5 @@ The `@` symbol is reserved as a prefix for builtin parsers and value functions. 
 | `@input.line`     | Succeeds with no match                                | Parsing line position |
 | `@input.line_offset` | Succeeds with no match                             | Parsing col position  |
 | `@at(Pos, p)`     | Parse `p` at absolute character offset `Pos` without changing the current parsing position; fail if `Pos` is out of bounds | Result of `p` |
+
+The arithmetic builtins treat a `null` argument in an identity position like the merge operator does: the other argument passes through unchanged, so an all-`null` call returns `null`. Identity positions are both arguments of `@Add` and `@Multiply` and the second argument of `@Subtract`, `@Divide`, and `@Power`; `@Floor` and `@Ceiling` pass `null` through. A `null` anywhere else — either argument of `@Modulus`, or the first argument of `@Subtract`, `@Divide`, and `@Power` — is a runtime error. A failed argument makes the call fail; any other non-number is a runtime error.

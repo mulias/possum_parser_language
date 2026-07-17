@@ -328,8 +328,23 @@ fn addNative(vm: *VM) VM.Error!void {
     defer arg_b.release();
     defer arg_a.release();
 
-    var a = if (arg_a.isConst(.Null)) Elem.numberFloat(0) else arg_a;
-    var b = if (arg_b.isConst(.Null)) Elem.numberFloat(0) else arg_b;
+    if (arg_a.isConst(.Failure) or arg_b.isConst(.Failure)) {
+        return vm.pushFailure();
+    }
+
+    // A null argument is the identity: the other argument passes through
+    // unchanged, and all-null arguments return null.
+    if (arg_b.isConst(.Null)) {
+        if (arg_a.isConst(.Null) or arg_a.isNumber()) return vm.push(arg_a);
+        return vm.runtimeError("@Add expected number or null arguments", .{});
+    }
+    if (arg_a.isConst(.Null)) {
+        if (arg_b.isNumber()) return vm.push(arg_b);
+        return vm.runtimeError("@Add expected number or null arguments", .{});
+    }
+
+    var a = arg_a;
+    var b = arg_b;
 
     if (a.isNumber() and b.isNumber()) {
         if (a.isZero(vm.strings)) {
@@ -343,8 +358,6 @@ fn addNative(vm: *VM) VM.Error!void {
 
         const res = Elem.numberFloat(a.asFloat() + b.asFloat());
         return vm.push(res);
-    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
-        return vm.pushFailure();
     } else {
         return vm.runtimeError("@Add expected number or null arguments", .{});
     }
@@ -384,8 +397,22 @@ fn subtractNative(vm: *VM) VM.Error!void {
     defer arg_b.release();
     defer arg_a.release();
 
-    var a = if (arg_a.isConst(.Null)) Elem.numberFloat(0) else arg_a;
-    var b = if (arg_b.isConst(.Null)) Elem.numberFloat(0) else arg_b;
+    if (arg_a.isConst(.Failure) or arg_b.isConst(.Failure)) {
+        return vm.pushFailure();
+    }
+
+    // Null is only the identity in the second position: `A - null` is `A`,
+    // but null has nothing to subtract `B` from.
+    if (arg_b.isConst(.Null)) {
+        if (arg_a.isConst(.Null) or arg_a.isNumber()) return vm.push(arg_a);
+        return vm.runtimeError("@Subtract expected number or null arguments", .{});
+    }
+    if (arg_a.isConst(.Null)) {
+        return vm.runtimeError("@Subtract cannot subtract from null", .{});
+    }
+
+    var a = arg_a;
+    var b = arg_b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
@@ -393,8 +420,6 @@ fn subtractNative(vm: *VM) VM.Error!void {
 
         const res = Elem.numberFloat(a.asFloat() - b.asFloat());
         return vm.push(res);
-    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
-        return vm.pushFailure();
     } else {
         return vm.runtimeError("@Subtract expected number or null arguments", .{});
     }
@@ -434,8 +459,23 @@ fn multiplyNative(vm: *VM) VM.Error!void {
     defer arg_b.release();
     defer arg_a.release();
 
-    var a = if (arg_a.isConst(.Null)) Elem.numberFloat(1) else arg_a;
-    var b = if (arg_b.isConst(.Null)) Elem.numberFloat(1) else arg_b;
+    if (arg_a.isConst(.Failure) or arg_b.isConst(.Failure)) {
+        return vm.pushFailure();
+    }
+
+    // A null argument is the identity: the other argument passes through
+    // unchanged, and all-null arguments return null.
+    if (arg_b.isConst(.Null)) {
+        if (arg_a.isConst(.Null) or arg_a.isNumber()) return vm.push(arg_a);
+        return vm.runtimeError("@Multiply expected number or null arguments", .{});
+    }
+    if (arg_a.isConst(.Null)) {
+        if (arg_b.isNumber()) return vm.push(arg_b);
+        return vm.runtimeError("@Multiply expected number or null arguments", .{});
+    }
+
+    var a = arg_a;
+    var b = arg_b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
@@ -443,8 +483,6 @@ fn multiplyNative(vm: *VM) VM.Error!void {
 
         const res = Elem.numberFloat(a.asFloat() * b.asFloat());
         return vm.push(res);
-    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
-        return vm.pushFailure();
     } else {
         return vm.runtimeError("@Multiply expected number or null arguments", .{});
     }
@@ -484,8 +522,22 @@ fn divideNative(vm: *VM) VM.Error!void {
     defer arg_b.release();
     defer arg_a.release();
 
-    var a = if (arg_a.isConst(.Null)) Elem.numberFloat(1) else arg_a;
-    var b = if (arg_b.isConst(.Null)) Elem.numberFloat(1) else arg_b;
+    if (arg_a.isConst(.Failure) or arg_b.isConst(.Failure)) {
+        return vm.pushFailure();
+    }
+
+    // Null is only the identity in the second position: `A / null` is `A`,
+    // but null has no quotient.
+    if (arg_b.isConst(.Null)) {
+        if (arg_a.isConst(.Null) or arg_a.isNumber()) return vm.push(arg_a);
+        return vm.runtimeError("@Divide expected number or null arguments", .{});
+    }
+    if (arg_a.isConst(.Null)) {
+        return vm.runtimeError("@Divide cannot divide null", .{});
+    }
+
+    var a = arg_a;
+    var b = arg_b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
@@ -497,8 +549,6 @@ fn divideNative(vm: *VM) VM.Error!void {
 
         const res = Elem.numberFloat(a.asFloat() / b.asFloat());
         return vm.push(res);
-    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
-        return vm.pushFailure();
     } else {
         return vm.runtimeError("@Divide expected number or null arguments", .{});
     }
@@ -538,8 +588,22 @@ fn powerNative(vm: *VM) VM.Error!void {
     defer arg_b.release();
     defer arg_a.release();
 
-    var a = if (arg_a.isConst(.Null)) Elem.numberFloat(1) else arg_a;
-    var b = if (arg_b.isConst(.Null)) Elem.numberFloat(1) else arg_b;
+    if (arg_a.isConst(.Failure) or arg_b.isConst(.Failure)) {
+        return vm.pushFailure();
+    }
+
+    // Null is only the identity in the second position: `A ^ null` is `A`,
+    // but null cannot be raised to a power.
+    if (arg_b.isConst(.Null)) {
+        if (arg_a.isConst(.Null) or arg_a.isNumber()) return vm.push(arg_a);
+        return vm.runtimeError("@Power expected number or null arguments", .{});
+    }
+    if (arg_a.isConst(.Null)) {
+        return vm.runtimeError("@Power cannot raise null to a power", .{});
+    }
+
+    var a = arg_a;
+    var b = arg_b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
@@ -547,8 +611,6 @@ fn powerNative(vm: *VM) VM.Error!void {
 
         const res = Elem.numberFloat(std.math.pow(f64, a.asFloat(), b.asFloat()));
         return vm.push(res);
-    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
-        return vm.pushFailure();
     } else {
         return vm.runtimeError("@Power expected number or null arguments", .{});
     }
@@ -589,23 +651,30 @@ fn modulusNative(vm: *VM) VM.Error!void {
     defer arg_b.release();
     defer arg_a.release();
 
-    var a = if (arg_a.isConst(.Null)) Elem.numberFloat(1) else arg_a;
-    var b = if (arg_b.isConst(.Null)) Elem.numberFloat(1) else arg_b;
+    if (arg_a.isConst(.Failure) or arg_b.isConst(.Failure)) {
+        return vm.pushFailure();
+    }
+
+    // Modulus has no identity in either position, so null is never valid.
+    if (arg_a.isConst(.Null) or arg_b.isConst(.Null)) {
+        return vm.runtimeError("@Modulus arguments cannot be null", .{});
+    }
+
+    var a = arg_a;
+    var b = arg_b;
 
     if (a.isNumber() and b.isNumber()) {
         a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
         b = if (b.isType(.NumberString)) b.asNumberString().toNumberFloat(vm.strings) else b;
 
         const res = std.math.mod(f64, a.asFloat(), b.asFloat()) catch |e| switch (e) {
-            error.DivisionByZero => return vm.runtimeError("@Mod denominator is 0", .{}),
-            error.NegativeDenominator => return vm.runtimeError("@Mod denominator is negative", .{}),
+            error.DivisionByZero => return vm.runtimeError("@Modulus denominator is 0", .{}),
+            error.NegativeDenominator => return vm.runtimeError("@Modulus denominator is negative", .{}),
         };
 
         return vm.push(Elem.numberFloat(res));
-    } else if (a.isConst(.Failure) or b.isConst(.Failure)) {
-        return vm.pushFailure();
     } else {
-        return vm.runtimeError("@Mod expected number or null arguments", .{});
+        return vm.runtimeError("@Modulus expected number arguments", .{});
     }
 }
 
@@ -640,15 +709,22 @@ fn floorNative(vm: *VM) VM.Error!void {
     const arg = vm.popArg();
     defer arg.release();
 
-    var a = if (arg.isConst(.Null)) Elem.numberFloat(0) else arg;
+    if (arg.isConst(.Failure)) {
+        return vm.pushFailure();
+    }
+
+    // Null falls through unchanged.
+    if (arg.isConst(.Null)) {
+        return vm.push(arg);
+    }
+
+    var a = arg;
 
     if (a.isNumber()) {
         a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
 
         const res = Elem.numberFloat(std.math.floor(a.asFloat()));
         return vm.push(res);
-    } else if (a.isConst(.Failure)) {
-        return vm.pushFailure();
     } else {
         return vm.runtimeError("@Floor expected number or null arguments", .{});
     }
@@ -685,15 +761,22 @@ fn ceilingNative(vm: *VM) VM.Error!void {
     const arg = vm.popArg();
     defer arg.release();
 
-    var a = if (arg.isConst(.Null)) Elem.numberFloat(0) else arg;
+    if (arg.isConst(.Failure)) {
+        return vm.pushFailure();
+    }
+
+    // Null falls through unchanged.
+    if (arg.isConst(.Null)) {
+        return vm.push(arg);
+    }
+
+    var a = arg;
 
     if (a.isNumber()) {
         a = if (a.isType(.NumberString)) a.asNumberString().toNumberFloat(vm.strings) else a;
 
         const res = Elem.numberFloat(std.math.ceil(a.asFloat()));
         return vm.push(res);
-    } else if (a.isConst(.Failure)) {
-        return vm.pushFailure();
     } else {
         return vm.runtimeError("@Ceiling expected number or null arguments", .{});
     }
