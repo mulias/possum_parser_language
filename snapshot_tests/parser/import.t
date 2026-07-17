@@ -232,6 +232,23 @@ Only 'stdlib' can follow '!' without quotes.
   [UnexpectedInput]
   [1]
 
+'_!' scans as one token and imports like '!'.
+
+  $ possum -p '_!"json.possum"' -i ''
+  (Import 1:0-15 "json.possum")
+  
+  Program Error: cannot find module 'json.possum'
+  
+  program:1:0-15:
+  1 \xe2\x96\x8f _!"json.possum" (esc)
+    \xe2\x96\x8f ^^^^^^^^^^^^^^^ (esc)
+  
+  [UnknownModule]
+  [1]
+
+  $ possum -p '_!stdlib' -i ''
+  (Import 1:0-8 stdlib)
+
 A trailing dot is not a member name.
 
   $ possum -p '!"f.possum".' -i ''
