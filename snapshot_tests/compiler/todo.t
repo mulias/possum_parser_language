@@ -173,3 +173,43 @@ Expected: 2, solving (A + 1) <= 3.
   $ possum -p 'number -> ((A + 1)..5) $ A' -i '3'
   [UnsupportedPattern]
   [1]
+
+An unresolvable definition cycle through import expressions leaks the
+synthesized alias name. Expected: a message naming 'foo' and the files
+in the cycle, not '_@import0'.
+
+  $ cat > cyc_a.possum <<'CYCA'
+  > foo = !"cyc_b.possum".foo
+  > CYCA
+  $ cat > cyc_b.possum <<'CYCB'
+  > foo = !"cyc_a.possum".foo
+  > CYCB
+
+  $ possum -p '!"cyc_a.possum".foo' -i ''
+  
+  Program Error: '_@import0' is not exported by the module imported as '_@import0'
+  
+  program:1:0-19:
+  1 \xe2\x96\x8f !"cyc_a.possum".foo (esc)
+    \xe2\x96\x8f ^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ImportResolution]
+  [1]
+
+Selecting a private member inline leaks the synthesized alias name the
+same way. Expected: a message naming '_secret' and the module.
+
+  $ cat > priv.possum <<'PRIV'
+  > _secret = "s"
+  > PRIV
+
+  $ possum -p '!"priv.possum"._secret' -i 's'
+  
+  Program Error: '_@import0' is private to the module imported as '_@import0'
+  
+  program:1:0-22:
+  1 \xe2\x96\x8f !"priv.possum"._secret (esc)
+    \xe2\x96\x8f ^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ImportResolution]
+  [1]

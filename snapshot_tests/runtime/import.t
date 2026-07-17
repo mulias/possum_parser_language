@@ -87,3 +87,89 @@ inclusion is disabled.
 
   $ possum -p '!stdlib ; int' -i '5'
   5
+
+A local definition shadows a dumped name.
+
+  $ possum -p '!"util.possum" ; vowel = "z" ; vowel' -i 'z'
+  "z"
+
+Among unqualified dumps, the later import wins.
+
+  $ cat > one.possum <<'EOF'
+  > letter = "a"
+  > EOF
+  $ cat > two.possum <<'EOF'
+  > letter = "b"
+  > EOF
+
+  $ possum -p '!"one.possum" ; !"two.possum" ; letter' -i 'b'
+  "b"
+
+  $ possum -p '!"two.possum" ; !"one.possum" ; letter' -i 'a'
+  "a"
+
+A barrel module re-exports its imports: dumped names bind bare, alias
+namespaces nest.
+
+  $ cat > digits.possum <<'EOF'
+  > zero = "0"
+  > EOF
+  $ cat > barrel.possum <<'EOF'
+  > !"one.possum"
+  > digits = !"digits.possum"
+  > EOF
+
+  $ possum -p '!"barrel.possum" ; letter + digits.zero' -i 'a0'
+  "a0"
+
+  $ possum -p 'bar = !"barrel.possum" ; bar.letter + bar.digits.zero' -i 'a0'
+  "a0"
+
+Root binding chains through re-exports: an alias member that is itself
+an alias reaches the target module's main parser and exports.
+
+  $ cat > word.possum <<'EOF'
+  > bang = "!"
+  > "w" > bang
+  > EOF
+  $ cat > middle.possum <<'EOF'
+  > w = !"word.possum"
+  > EOF
+
+  $ possum -p 'm = !"middle.possum" ; m.w' -i 'w!'
+  "!"
+
+  $ possum -p 'm = !"middle.possum" ; m.w.bang' -i '!'
+  "!"
+
+Mutual namespace aliases are fine when the definitions ground out.
+
+  $ cat > m1.possum <<'EOF'
+  > m2 = !"m2.possum"
+  > aa = "a"
+  > EOF
+  $ cat > m2.possum <<'EOF'
+  > m1 = !"m1.possum"
+  > bb = "b"
+  > EOF
+
+  $ possum -p 'x = !"m1.possum" ; x.m2.m1.aa + x.m2.bb' -i 'ab'
+  "ab"
+
+The expression form works in patterns as a pattern function call.
+
+  $ cat > pairlib.possum <<'EOF'
+  > Pair(A, B) = [A, B]
+  > EOF
+
+  $ possum -p 'array_sep(int, ",") -> !"pairlib.possum".Pair(1, 2) $ "ok"' -i '1,2'
+  "ok"
+
+A stdlib submodule imports individually: a dump binds its exports bare,
+an alias namespaces the same cached module.
+
+  $ possum --no-stdlib -p '!stdlib/json ; string' -i '"hi"'
+  "hi"
+
+  $ possum -p 'j = !stdlib/json ; j.string' -i '"hi"'
+  "hi"
