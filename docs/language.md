@@ -1,6 +1,6 @@
 # Possum Language Documentation
 
-Possum is programming language centered on parsing text into JSON. A Possum program is made up of parsers, functions that define both what text inputs are valid and how to transform valid inputs into structured data. The Possum runtime takes a program and an input string and either successfully parses the input into a JSON encoded value, or fails if the input does not meet the parser requirements.
+Possum is a programming language centered on parsing text into JSON. A Possum program is made up of parsers, functions that define both what text inputs are valid and how to transform valid inputs into structured data. The Possum runtime takes a program and an input string and either successfully parses the input into a JSON encoded value, or fails if the input does not meet the parser requirements.
 
 ## Literal Parsers
 
@@ -43,7 +43,6 @@ Infix operators compose parsers to create more complex parsers.
 | `p1 > p2`      | Take Right  | 3          | Left          | Match `p1` and then `p2`, return the result of `p2` |
 | `p1 < p2`      | Take Left   | 3          | Left          | Match `p1` and then `p2`, return the result of `p1` |
 | `p1 \| p2`     | Or          | 3          | Right         | Match `p1`, if no match is found try `p2` instead |
-| `p1 ! p2`      | Backtrack   | 3          | Right         | Match `p1` and then go back in the input and match `p2` instead, return the result of `p2` |
 | `p1 + p2`      | Merge       | 3          | Left          | Match `p1` and then `p2`, return a merged result |
 | `p $ V`        | Return      | 3          | Left          | Match `p` and then return the value `V` |
 | `p -> P`       | Destructure | 3          | Left          | Match `p`, compare the resulting value against the pattern `P` |
@@ -82,8 +81,6 @@ Constructed values can be any valid JSON data, including arrays, objects, `true`
 | `1 + 2e-4`                 | Number arithmetic                      |
 | `999 - 12`                 | Number arithmetic                      |
 | `3 * 2`                    | Number arithmetic                      |
-| `23 / 11`                  | Number arithmetic                      |
-| `2 ^ 5`                    | Number arithmetic                      |
 | `true`                     | Constant value `true`                  |
 | `false`                    | Constant value `false`                 |
 | `null`                     | Constant value `null`                  |
@@ -157,8 +154,7 @@ A binding made inside a parser that fails is out of scope afterward:
 | `p -> "%({..._})"`      | Match a string encoding any object                        |
 
 This list is not exhaustive. Pattern matching in Possum is intended to be maximally flexible, but with some notable limitations:
-  - No control flow operators except for `|` (no `>`, `<`, `!`, `&`, `?:`)
-     - `p -> (1 | 2 | 3)` desugars to `p -> 1 | p -> 2 | p -> 3`
+  - No control flow operators (`|`, `>`, `<`, `!`, `&`, `?:`)
   - No nested destructuring
   - Only one value may be an unknown subset of a larger structure, guaranteeing that there is only one way to interpret the pattern. Since variable scope is static this is checked at compile time: a merge or string template with a second unbound part is a compile error.
     - `foo -> [[A, B], C, ...D, {...E}, F]` is fine, since despite having many potentially unbound variables only `D` is a subset of the outer array pattern with unknown length, and only `E` is a subset of the second to last array pattern element, which must be an object.
@@ -185,11 +181,11 @@ The pattern may not contain more than one unbound variable.
 
 Variables bound inside the repeated parser are scoped to a single iteration: each iteration binds them fresh, and they are out of scope after the loop.
 
-If the repeated parser succeeds after zero matches the resulting value is `null`. The repeated merging behavior depends on the type of the parsed value, as defined by the `+` merge operator. For example `1..9 * 5` parses the input `12345` as `1 + 2 + 3 + 4 + 5 = 15`, while `1..9 -> D $ [D] * 5` parses the same input as `[1, 2, 3, 4, 5]`.
+If the repeated parser succeeds after zero matches the resulting value is `null`. The repeated merging behavior depends on the type of the parsed value, as defined by the `+` merge operator. For example `1..9 * 3` parses the input `123` as `1 + 2 + 3 = 6`, while `"1".."9" * 3` parses the same input as `"1" + "2" + "3" = "123"`.
 
 ## Parser Programs
 
-A program consists of one main parser statement and zero, one, or many parsers and value functions. Statements may be separated by newlines or semicolons and can be defined in any order. Named parsers and values may be functions that specify parameters, and can reference each other and themselves recursively.
+A program consists of one main parser statement and zero, one, or many parsers, value functions, and imports. Statements may be separated by newlines or semicolons and can be defined in any order. Named parsers and values may be functions that specify parameters, and can reference each other and themselves recursively.
 
 ```
 parser_1(param1, param2, param3) = parser_body_1
@@ -197,7 +193,8 @@ parser_2 = parser_body_2 ; parser_3 = parser_body_3
 main_parser
 Value1 = ValueBody1
 Value2(Param1) = ValueBody2
-_private_parser = proviate_parser_body
+_private_parser = private_parser_body
+!"imported_file.possum"
 ```
 
 ## Named Parsers
@@ -278,6 +275,39 @@ _reverse_array(A, Acc) =
   "" $ Acc
 ```
 
+## Imports
+
+A program can span multiple files. The `!` prefix imports a module: its operand is either a string literal naming a file on disk or a bare `stdlib` path naming an embedded standard library module. Imports are static — the path is resolved at compile time, so it must be a literal with no string template. No whitespace is allowed between `!` and the path, or between the path and a `.member` selector.
+
+| Form | Meaning |
+| ---- | ------- |
+| `!"lib.possum"` | Import the file's named parsers and value functions into the current module |
+| `lib = !"lib.possum"` | Bind the file's parsers as the namespace `lib` |
+| `Lib = !"lib.possum"` | Bind the file's value functions as the namespace `Lib` |
+| `sep = !"lib.possum".array_sep` | Bind one export under a local name |
+| `!"lib.possum".array_sep` | Inline expression referencing one export |
+| `!stdlib/json` | Import an embedded standard library module |
+
+The unqualified form `!"lib.possum"` is a declaration, not an expression: it binds names into the module and cannot be an operand to other operators. The selector form `!"lib.possum".member` is an ordinary expression, usable anywhere a named parser or value is, including calls (`!"lib.possum".array_sep(int, ",")`) and patterns.
+
+### Namespaces
+
+An alias declaration binds the imported module as a namespace, exactly as if the dotted definitions had been written locally. The case of the alias selects which kind of export it binds: a `snake_case` alias binds the module's parsers, an `UpperCamelCase` alias binds its value functions. Binding a member whose case does not match the alias is a compile error.
+
+A module's main parser — its one bare parser statement — lands at the root of the namespace: after `json = !"json.possum"`, `json` is the main parser of the file and `json.bool` its named parser `bool`. Only a `snake_case` alias binds a root, since the main parser is a parser. An unqualified import discards the main parser: named exports bind bare, but there is no name for the root to land on.
+
+### Re-export and privacy
+
+Imports are re-exported: a module's exports are its own named declarations, its aliases, and everything imported by its unqualified imports, minus names that begin with `_`, which stay private to the module that defines them. A file containing only imports therefore acts as a "barrel" that collects several modules into one. An alias spelled with a leading underscore (`_lib = !"lib.possum"`) imports without re-exporting.
+
+### Resolution
+
+A name is looked up first among locals and params, then the module's own declarations and aliases, then its unqualified imports — later imports shadowing earlier ones. The standard library is imported before all user imports, so any user definition or import shadows it. Repeating an alias name is a duplicate declaration error, like any other name.
+
+Relative paths resolve against the importing file's directory; for `-p` and stdin programs they resolve against the working directory. Absolute paths and `~/` work. The same file imported through different spellings compiles once. Import cycles are allowed as long as the definitions ground out somewhere; definitions that only refer to each other in a cycle are an error.
+
+Bare `stdlib` paths never touch the disk: they name modules embedded in the possum binary, listed in the [standard library reference](stdlib.md). `!stdlib` imports the whole library, which is useful under the `--no-stdlib` flag; individual modules like `!stdlib/json` can be imported either way.
+
 ## Builtins
 
 The `@` symbol is reserved as a prefix for builtin parsers and value functions. These functions can't be defined at the program level.
@@ -287,10 +317,19 @@ The `@` symbol is reserved as a prefix for builtin parsers and value functions. 
 | `@fail`           | Fail, attribute the failure to parent parser          | N/A                   |
 | `@Fail`           | Fail, attribute the failure to parent parser or value | N/A                   |
 | `@Crash(Message)` | Halt the program and report the error with `Message`  | N/A                   |
-| `@dbg(p)`         | Parses `p`, prints program state to stderr            | Result of `p`         |
-| `@Dbg(V)`         | Prints program state to stderr                        | Value `V`             |
-| `@dbg_break(p)`   | Parses `p`, pauses execution and prints program state to stderr | Result of `p` |
-| `@DbgBreak(V)`    | Pauses execution and prints program state to stderr   | Value `V`             |
+| `@dbg(p)`         | Parses `p`, prints the parser and its result to stderr | Result of `p`        |
+| `@Dbg(V)`         | Prints the value to stderr                            | Value `V`             |
+| `@Codepoint(Hex)` | Decode a string of hex digits as a unicode code point, fail if it is not one | Single-character string |
+| `@SurrogatePairCodepoint(High, Low)` | Decode two hex strings encoding a UTF-16 surrogate pair, fail if they are not one | Single-character string |
+| `@Add(A, B)`      | Sum                                                   | Number                |
+| `@Subtract(A, B)` | Difference                                            | Number                |
+| `@Multiply(A, B)` | Product                                               | Number                |
+| `@Divide(A, B)`   | Quotient, runtime error if `B` is `0`                 | Number                |
+| `@Power(A, B)`    | `A` raised to the power `B`                           | Number                |
+| `@Modulus(A, B)`  | Remainder of `A / B`, runtime error if `B` is `0` or negative | Number        |
+| `@Floor(N)`       | Round down to an integer                              | Number                |
+| `@Ceiling(N)`     | Round up to an integer                                | Number                |
 | `@input.offset`   | Succeeds with no match                                | Parsing position as a character offset |
 | `@input.line`     | Succeeds with no match                                | Parsing line position |
 | `@input.line_offset` | Succeeds with no match                             | Parsing col position  |
+| `@at(Pos, p)`     | Parse `p` at absolute character offset `Pos` without changing the current parsing position; fail if `Pos` is out of bounds | Result of `p` |
