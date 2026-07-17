@@ -1,19 +1,19 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum $TESTDIR/../../../stdlib/toml.possum -i '' --no-stdlib
-  (Import 1:0-15 stdlib/string)
+  (Import 1:0-15 stdlib/string private)
   
-  (Import 2:0-15 stdlib/number)
+  (Import 2:0-15 stdlib/number private)
   
-  (Import 3:0-14 stdlib/array)
+  (Import 3:0-14 stdlib/array private)
   
-  (Import 4:0-13 stdlib/util)
+  (Import 4:0-19 stdlib/combinator private)
   
-  (Import 5:0-15 stdlib/Number)
+  (Import 5:0-15 stdlib/Number private)
   
-  (Import 6:0-15 stdlib/Object)
+  (Import 6:0-15 stdlib/Object private)
   
-  (Import 7:0-18 stdlib/Predicate)
+  (Import 7:0-18 stdlib/Predicate private)
   
   (Identifier 9:0-6 simple)
   

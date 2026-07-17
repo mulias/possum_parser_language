@@ -86,6 +86,8 @@ pub const Ast = struct {
     pub const ImportNode = struct {
         path: Path,
         selector: ?[]const u8,
+        // '_!': the import is usable in this module but not re-exported.
+        private: bool,
 
         pub const Path = union(enum) {
             // A disk path from a string literal.
@@ -870,6 +872,9 @@ pub const Ast = struct {
                 }
                 if (import.selector) |selector| {
                     try writer.print(" .{s}", .{selector});
+                }
+                if (import.private) {
+                    try writer.print(" private", .{});
                 }
                 try writer.print(")", .{});
             },

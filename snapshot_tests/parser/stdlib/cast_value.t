@@ -1,7 +1,7 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum $TESTDIR/../../../stdlib/cast_value.possum -i '' --no-stdlib
-  (Import 1:0-18 stdlib/Predicate)
+  (Import 1:0-18 stdlib/Predicate private)
   
   (DeclareGlobal 3:0-51
     (Function 3:0-12

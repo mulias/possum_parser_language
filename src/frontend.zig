@@ -116,14 +116,16 @@ pub fn addModule(self: *Frontend, module: Module, opts: AddModuleOpts) AddModule
 }
 
 // Every module added from here on implicitly dumps `module_id`, before
-// its own imports so that user imports shadow the implicit dumps.
+// its own imports so that user imports shadow the implicit dumps. Implicit
+// dumps are private: they grant every module use of builtins and stdlib,
+// not the right to re-export them.
 pub fn addImplicitDump(self: *Frontend, module_id: Module.Id) !void {
     try self.implicit_dumps.append(self.arena.allocator(), module_id);
 }
 
 fn applyImplicitDumps(self: *Frontend, module_id: Module.Id) !void {
     for (self.implicit_dumps.items) |dump_id| {
-        try self.resolver.addDump(module_id, dump_id);
+        try self.resolver.addDump(module_id, dump_id, true);
     }
 }
 
@@ -162,7 +164,7 @@ fn registerImports(self: *Frontend, module: Module, ast: Ast) AddModuleError!voi
         }
 
         switch (import.target) {
-            .dump => try self.resolver.addDump(module.id, result.module.id),
+            .dump => |dump| try self.resolver.addDump(module.id, result.module.id, dump.private),
             .alias => |alias| try self.resolver.addAlias(
                 module.id,
                 alias.name,
@@ -204,13 +206,14 @@ pub fn pathString(self: *const Frontend, path: PathTable.Id) [:0]const u8 {
 }
 
 // Register an unqualified dump: every public export of the dumped module is
-// visible bare in the dumping module.
+// visible bare in the dumping module. A private dump is not re-exported.
 pub fn addModuleDump(
     self: *Frontend,
     module_id: Module.Id,
     target_module: Module.Id,
+    private: bool,
 ) !void {
-    try self.resolver.addDump(module_id, target_module);
+    try self.resolver.addDump(module_id, target_module, private);
 }
 
 // Register a qualified import: names prefixed with the alias resolve among

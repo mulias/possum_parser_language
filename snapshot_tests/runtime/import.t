@@ -173,3 +173,70 @@ an alias namespaces the same cached module.
 
   $ possum -p 'j = !stdlib/json ; j.string' -i '"hi"'
   "hi"
+
+'_!' imports without re-exporting: the dump is usable in its own module,
+but a module dumping the importer cannot reach through it, bare or via
+an alias member.
+
+  $ cat > priv.possum <<'EOF2'
+  > _!"util.possum"
+  > loud = vowel + "!"
+  > EOF2
+
+  $ possum -p '!"priv.possum" ; loud' -i 'a!'
+  "a!"
+
+  $ possum -p '!"priv.possum" ; vowel' -i 'a'
+  
+  Program Error: undefined variable 'vowel'
+  
+  program:1:17-22:
+  1 \xe2\x96\x8f !"priv.possum" ; vowel (esc)
+    \xe2\x96\x8f                  ^^^^^ (esc)
+  
+  [UndefinedVariable]
+  [1]
+
+  $ possum -p 'p = !"priv.possum" ; p.vowel' -i 'a'
+  
+  Program Error: 'p.vowel' is not exported by the module imported as 'p'
+  
+  program:1:21-28:
+  1 \xe2\x96\x8f p = !"priv.possum" ; p.vowel (esc)
+    \xe2\x96\x8f                      ^^^^^^^ (esc)
+  
+  [ImportResolution]
+  [1]
+
+The implicit stdlib dump is private: stdlib is usable in every module
+but not reachable through another module's namespace or re-exports.
+
+  $ possum -p 'u = !"util.possum" ; u.int' -i '5'
+  
+  Program Error: 'u.int' is not exported by the module imported as 'u'
+  
+  program:1:21-26:
+  1 \xe2\x96\x8f u = !"util.possum" ; u.int (esc)
+    \xe2\x96\x8f                      ^^^^^ (esc)
+  
+  [ImportResolution]
+  [1]
+
+The stdlib modules' own private imports do not leak: json privately
+imports the string module.
+
+  $ possum -p 'j = !stdlib/json ; j.alpha' -i 'x'
+  
+  Program Error: 'j.alpha' is not exported by the module imported as 'j'
+  
+  program:1:19-26:
+  1 \xe2\x96\x8f j = !stdlib/json ; j.alpha (esc)
+    \xe2\x96\x8f                    ^^^^^^^ (esc)
+  
+  [ImportResolution]
+  [1]
+
+'--no-stdlib' with an explicit private dump still binds locally.
+
+  $ possum --no-stdlib -p '_!stdlib ; int' -i '5'
+  5

@@ -477,7 +477,11 @@ pub const Parser = struct {
         }
 
         const import = try self.ast.arena.allocator().create(Ast.ImportNode);
-        import.* = .{ .path = path, .selector = selector };
+        import.* = .{
+            .path = path,
+            .selector = selector,
+            .private = bang_token.tokenType == .UnderscoreBang,
+        };
         return self.ast.create(.{ .Import = import }, bang_token.region.merge(end_region));
     }
 

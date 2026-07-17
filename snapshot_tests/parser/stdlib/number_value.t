@@ -1,7 +1,7 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum $TESTDIR/../../../stdlib/number_value.possum -i '' --no-stdlib
-  (Import 1:0-14 stdlib/Array)
+  (Import 1:0-14 stdlib/Array private)
   
   (DeclareGlobal 3:0-14
     (Identifier 3:0-7 Num.Add)

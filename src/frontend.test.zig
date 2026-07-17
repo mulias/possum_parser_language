@@ -130,7 +130,7 @@ test "multiple modules with dependencies" {
     try frontend.addTargetModule(main_module, .{});
 
     // Add dependency: main depends on util
-    try frontend.addModuleDump(1, 0);
+    try frontend.addModuleDump(1, 0, false);
 
     try frontend.finalize();
 
@@ -161,7 +161,7 @@ test "multiple modules with dependencies" {
     const main_deps = frontend.resolver.dumps.get(1);
     try std.testing.expect(main_deps != null);
     try std.testing.expectEqual(@as(usize, 1), main_deps.?.items.len);
-    try std.testing.expectEqual(@as(Module.Id, 0), main_deps.?.items[0]);
+    try std.testing.expectEqual(@as(Module.Id, 0), main_deps.?.items[0].module_id);
 }
 
 test "later import shadows earlier import" {
@@ -187,8 +187,8 @@ test "later import shadows earlier import" {
     try frontend.addTargetModule(main_module, .{});
 
     // main imports util_a first, then util_b
-    try frontend.addModuleDump(2, 0);
-    try frontend.addModuleDump(2, 1);
+    try frontend.addModuleDump(2, 0, false);
+    try frontend.addModuleDump(2, 1, false);
 
     try frontend.finalize();
 
@@ -224,8 +224,8 @@ test "identifier resolves through transitive dependency" {
     try frontend.addTargetModule(main_module, .{});
 
     // main depends on mid, mid depends on base; main does not depend on base directly.
-    try frontend.addModuleDump(1, 0);
-    try frontend.addModuleDump(2, 1);
+    try frontend.addModuleDump(1, 0, false);
+    try frontend.addModuleDump(2, 1, false);
 
     try frontend.finalize();
 
@@ -610,7 +610,7 @@ test "alias is re-exported through dumps" {
     try frontend.addTargetModule(main_module, .{});
     // The barrel imports json under an alias; main only dumps the barrel.
     try frontend.addModuleAlias(1, "json", 0, null, Region.new(0, 0));
-    try frontend.addModuleDump(2, 1);
+    try frontend.addModuleDump(2, 1, false);
 
     try frontend.finalize();
 
@@ -643,7 +643,7 @@ test "private alias is not re-exported" {
     try frontend.addModule(barrel_module, .{});
     try frontend.addTargetModule(main_module, .{});
     try frontend.addModuleAlias(1, "_json", 0, null, Region.new(0, 0));
-    try frontend.addModuleDump(2, 1);
+    try frontend.addModuleDump(2, 1, false);
 
     try frontend.finalize();
 
@@ -653,6 +653,90 @@ test "private alias is not re-exported" {
 
     try expect(dependsOn(frontend, key(1, own_use_id), key(0, bool_id)));
     try expect(!dependsOn(frontend, key(2, use_it_id), key(0, bool_id)));
+}
+
+test "private dump is visible in-module but not re-exported" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const json_module = Module{ .id = 0, .name = "json", .source = "bool = \"json\"" };
+    const fallback_module = Module{ .id = 1, .name = "fallback", .source = "bool = \"fallback\"" };
+    // The barrel uses its private dump; importers of the barrel can't.
+    const barrel_module = Module{ .id = 2, .name = "barrel", .source = "own_use = bool" };
+    const main_module = Module{
+        .id = 3,
+        .name = "main",
+        .source =
+        \\ use_it = bool
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(json_module, .{});
+    try frontend.addModule(fallback_module, .{});
+    try frontend.addModule(barrel_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    try frontend.addModuleDump(2, 0, true);
+    // The barrel dump is later, so it would shadow fallback if it exported
+    // its private dump of json.
+    try frontend.addModuleDump(3, 1, false);
+    try frontend.addModuleDump(3, 2, false);
+
+    try frontend.finalize();
+
+    const bool_id = try frontend.paths.insert(&frontend.strings, "bool");
+    const own_use_id = try frontend.paths.insert(&frontend.strings, "own_use");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
+
+    try expect(dependsOn(frontend, key(2, own_use_id), key(0, bool_id)));
+    try expect(dependsOn(frontend, key(3, use_it_id), key(1, bool_id)));
+    try expect(!dependsOn(frontend, key(3, use_it_id), key(0, bool_id)));
+}
+
+test "private dump is filtered transitively" {
+    var vm: VM = undefined;
+    try vm.init(allocator, writers, .{});
+    defer vm.deinit();
+    var frontend = try Frontend.init(&vm);
+    defer frontend.deinit();
+
+    const base_module = Module{ .id = 0, .name = "base", .source = "x = \"base\"" };
+    const fallback_module = Module{ .id = 1, .name = "fallback", .source = "x = \"fallback\"" };
+    const mid_module = Module{ .id = 2, .name = "mid", .source = "mid_use = x" };
+    const outer_module = Module{ .id = 3, .name = "outer", .source = "" };
+    const main_module = Module{
+        .id = 4,
+        .name = "main",
+        .source =
+        \\ use_it = x
+        \\ use_it
+        ,
+    };
+
+    try frontend.addModule(base_module, .{});
+    try frontend.addModule(fallback_module, .{});
+    try frontend.addModule(mid_module, .{});
+    try frontend.addModule(outer_module, .{});
+    try frontend.addTargetModule(main_module, .{});
+    // mid privately dumps base; outer publicly re-exports mid; main reaches
+    // for x through outer, and must fall back past mid's private dump.
+    try frontend.addModuleDump(2, 0, true);
+    try frontend.addModuleDump(3, 2, false);
+    try frontend.addModuleDump(4, 1, false);
+    try frontend.addModuleDump(4, 3, false);
+
+    try frontend.finalize();
+
+    const x_id = try frontend.paths.insert(&frontend.strings, "x");
+    const mid_use_id = try frontend.paths.insert(&frontend.strings, "mid_use");
+    const use_it_id = try frontend.paths.insert(&frontend.strings, "use_it");
+
+    try expect(dependsOn(frontend, key(2, mid_use_id), key(0, x_id)));
+    try expect(dependsOn(frontend, key(4, use_it_id), key(1, x_id)));
+    try expect(!dependsOn(frontend, key(4, use_it_id), key(0, x_id)));
 }
 
 test "alias chains through re-exports" {

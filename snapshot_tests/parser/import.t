@@ -232,10 +232,10 @@ Only 'stdlib' can follow '!' without quotes.
   [UnexpectedInput]
   [1]
 
-'_!' scans as one token and imports like '!'.
+'_!' scans as one token and dumps without re-exporting.
 
   $ possum -p '_!"json.possum"' -i ''
-  (Import 1:0-15 "json.possum")
+  (Import 1:0-15 "json.possum" private)
   
   Program Error: cannot find module 'json.possum'
   
@@ -247,7 +247,36 @@ Only 'stdlib' can follow '!' without quotes.
   [1]
 
   $ possum -p '_!stdlib' -i ''
-  (Import 1:0-8 stdlib)
+  (Import 1:0-8 stdlib private)
+
+'_!' composes with nothing else: an alias controls privacy through its
+spelling, and an import expression is already private.
+
+  $ possum -p 'j = _!"json.possum"' -i ''
+  (DeclareGlobal 1:0-19
+    (Identifier 1:0-1 j)
+    (Import 1:4-19 "json.possum" private))
+  
+  Validation Error: '_!' cannot be aliased; a '_'-prefixed alias is already private: '_name = !...'
+  
+  program:1:0-19:
+  1 \xe2\x96\x8f j = _!"json.possum" (esc)
+    \xe2\x96\x8f ^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [InvalidImport]
+  [1]
+
+  $ possum -p '_!"json.possum".member' -i ''
+  (Import 1:0-22 "json.possum" .member private)
+  
+  Validation Error: '_!' is not an expression; an import expression is already private: '!...'
+  
+  program:1:0-22:
+  1 \xe2\x96\x8f _!"json.possum".member (esc)
+    \xe2\x96\x8f ^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [InvalidImport]
+  [1]
 
 A trailing dot is not a member name.
 
