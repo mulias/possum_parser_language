@@ -14,8 +14,9 @@ paths: *PathTable,
 strings: *StringTable,
 // Per-module ordered unqualified dumps: every export of a dumped module is
 // visible bare. Implicit stdlib/builtins edges are just early entries, so a
-// later dump shadows an earlier one.
-dumps: HashMap(Module.Id, ArrayList(Module.Id)) = .{},
+// later dump shadows an earlier one. A private dump ('_!', and every
+// implicit dump) is visible only to the dumping module, not re-exported.
+dumps: HashMap(Module.Id, ArrayList(Dump)) = .{},
 // Per-module qualified imports: names starting with the alias resolve in the
 // target module's public exports.
 aliases: HashMap(Module.Id, ArrayList(Alias)) = .{},
@@ -43,6 +44,11 @@ const main_parser_name = "@main";
 
 // Whether a name binds a parser (lowercase) or a value (uppercase).
 pub const Kind = enum { parser, value };
+
+pub const Dump = struct {
+    module_id: Module.Id,
+    private: bool,
+};
 
 pub const Alias = struct {
     alias: PathTable.Id,
@@ -95,12 +101,15 @@ pub fn addModule(self: *Resolver, module: Module, ast: Ast) !void {
     try self.graph.addModule(self.arena.allocator(), module, ast);
 }
 
-pub fn addDump(self: *Resolver, module_id: Module.Id, target_module: Module.Id) !void {
+pub fn addDump(self: *Resolver, module_id: Module.Id, target_module: Module.Id, private: bool) !void {
     const gop = try self.dumps.getOrPut(self.arena.allocator(), module_id);
     if (!gop.found_existing) {
         gop.value_ptr.* = .{};
     }
-    try gop.value_ptr.append(self.arena.allocator(), target_module);
+    try gop.value_ptr.append(self.arena.allocator(), .{
+        .module_id = target_module,
+        .private = private,
+    });
 }
 
 pub fn addAlias(
@@ -611,9 +620,10 @@ fn addDependency(self: *Resolver, node: *DependencyGraph.Node, edge: DependencyG
 //
 // When two dumps export the same name, the later import shadows the earlier
 // one, so dumps are searched in reverse insertion order. The search recurses
-// into transitive dumps (every import is re-exported), so callers only need
-// to record each module's direct dumps rather than a flattened closure. Dump
-// graphs may be cyclic; the visited list keeps the recursion finite.
+// into transitive public dumps (a '!' import is re-exported, a '_!' import is
+// not), so callers only need to record each module's direct dumps rather than
+// a flattened closure. Dump graphs may be cyclic; the visited list keeps the
+// recursion finite.
 const Resolution = union(enum) {
     found: DependencyGraph.NodeKey,
     // An alias claimed the name but couldn't resolve it; carries the
@@ -644,17 +654,23 @@ fn findDeclaration(self: *Resolver, module_id: Module.Id, name: PathTable.Id) er
         .no_match => {},
     }
 
-    if (try self.findExportedInDumps(module_id, name, 0)) |key| return .{ .found = key };
+    if (try self.findExportedInDumps(module_id, name, 0, .all)) |key| return .{ .found = key };
     return .none;
 }
 
-fn findExportedInDumps(self: *Resolver, module_id: Module.Id, name: PathTable.Id, rewrite_depth: usize) error{OutOfMemory}!?DependencyGraph.NodeKey {
+// A module's own view (.all) searches every dump; the cross-module view
+// (.public_only) skips private dumps, which are not re-exported.
+const DumpVisibility = enum { all, public_only };
+
+fn findExportedInDumps(self: *Resolver, module_id: Module.Id, name: PathTable.Id, rewrite_depth: usize, visibility: DumpVisibility) error{OutOfMemory}!?DependencyGraph.NodeKey {
     const dumps = self.dumps.get(module_id) orelse return null;
 
     var i = dumps.items.len;
     while (i > 0) {
         i -= 1;
-        if (try self.findExported(dumps.items[i], name, rewrite_depth)) |dep_key| {
+        const dump = dumps.items[i];
+        if (visibility == .public_only and dump.private) continue;
+        if (try self.findExported(dump.module_id, name, rewrite_depth)) |dep_key| {
             return dep_key;
         }
     }
@@ -685,7 +701,7 @@ fn findExported(self: *Resolver, module_id: Module.Id, name: PathTable.Id, rewri
         .no_match => {},
     }
 
-    return self.findExportedInDumps(module_id, name, rewrite_depth);
+    return self.findExportedInDumps(module_id, name, rewrite_depth, .public_only);
 }
 
 const AliasFailure = struct {

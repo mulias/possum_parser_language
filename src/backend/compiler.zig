@@ -130,8 +130,8 @@ pub const Compiler = struct {
         }
     }
 
-    pub fn addModuleDump(self: *Compiler, module_id: Module.Id, target_module: Module.Id) !void {
-        try self.frontend.addModuleDump(module_id, target_module);
+    pub fn addModuleDump(self: *Compiler, module_id: Module.Id, target_module: Module.Id, private: bool) !void {
+        try self.frontend.addModuleDump(module_id, target_module, private);
     }
 
     pub fn addImplicitDump(self: *Compiler, module_id: Module.Id) !void {

@@ -1,9 +1,9 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum $TESTDIR/../../../stdlib/ast.possum -i '' --no-stdlib
-  (Import 1:0-13 stdlib/util)
+  (Import 1:0-19 stdlib/combinator private)
   
-  (Import 2:0-18 stdlib/Predicate)
+  (Import 2:0-18 stdlib/Predicate private)
   
   (DeclareGlobal 4:0-121
     (Function 4:0-57

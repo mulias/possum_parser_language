@@ -298,7 +298,7 @@ A module's main parser — its one bare parser statement — lands at the root o
 
 ### Re-export and privacy
 
-Imports are re-exported: a module's exports are its own named declarations, its aliases, and everything imported by its unqualified imports, minus names that begin with `_`, which stay private to the module that defines them. A file containing only imports therefore acts as a "barrel" that collects several modules into one. An alias spelled with a leading underscore (`_lib = !"lib.possum"`) imports without re-exporting.
+Imports are re-exported: a module's exports are its own named declarations, its aliases, and everything imported by its unqualified `!` imports. The exception is declarations and imports with a leading underscore. Aliases and function declarations with a leading underscore are private to the module. An unqualified `_!"lib.possum"` import binds the module's exports bare in the importing module without adding them to its own exports. An alias with a leading underscore (`_lib = !"lib.possum"`) does the same for a namespace.
 
 ### Resolution
 

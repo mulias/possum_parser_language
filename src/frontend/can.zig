@@ -91,7 +91,7 @@ fn convertRoot(self: *Can, root: *ParsedAst.RNode) !void {
         // nowhere to land and is discarded.
         try self.ast.imports.append(self.arena.allocator(), .{
             .path = importPath(root.node.Import.path),
-            .target = .dump,
+            .target = .{ .dump = .{ .private = root.node.Import.private } },
             .region = root.region,
         });
         return;
@@ -240,6 +240,11 @@ fn addImportAlias(
     import: ParsedAst.ImportNode,
     region: Region,
 ) !void {
+    if (import.private) {
+        try self.printError(region, "'_!' cannot be aliased; a '_'-prefixed alias is already private: '_name = !...'", .{});
+        return Error.InvalidImport;
+    }
+
     const alias_name = try self.paths.insert(self.strings, name_ident.name);
     try self.checkDuplicateDeclaration(alias_name, name_region);
 
@@ -260,6 +265,11 @@ fn addImportAlias(
 // reference to that alias. The '@' keeps the name out of the user namespace
 // and the '_' keeps the alias from being re-exported.
 fn importExpressionAlias(self: *Can, import: ParsedAst.ImportNode, kind: ImportKind, region: Region) !PathTable.Id {
+    if (import.private) {
+        try self.printError(region, "'_!' is not an expression; an import expression is already private: '!...'", .{});
+        return Error.InvalidImport;
+    }
+
     const alias_str = switch (kind) {
         .parser => try std.fmt.allocPrint(self.arena.allocator(), "_@import{d}", .{self.import_alias_count}),
         .value => try std.fmt.allocPrint(self.arena.allocator(), "_@Import{d}", .{self.import_alias_count}),

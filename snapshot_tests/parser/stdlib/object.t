@@ -1,7 +1,7 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum $TESTDIR/../../../stdlib/object.possum -i '' --no-stdlib
-  (Import 1:0-13 stdlib/util)
+  (Import 1:0-19 stdlib/combinator private)
   
   (DeclareGlobal 3:0-43
     (Function 3:0-18

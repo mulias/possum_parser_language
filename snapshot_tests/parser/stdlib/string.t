@@ -1,7 +1,7 @@
   $ export PRINT_AST=true RUN_VM=false
 
   $ possum $TESTDIR/../../../stdlib/string.possum -i '' --no-stdlib
-  (Import 1:0-14 stdlib/repeat)
+  (Import 1:0-19 stdlib/combinator private)
   
   (DeclareGlobal 3:0-19
     (Identifier 3:0-4 char)

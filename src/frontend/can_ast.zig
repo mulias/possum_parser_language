@@ -25,10 +25,15 @@ pub const Import = struct {
 
     pub const Target = union(enum) {
         // Unqualified: every public export of the module is visible bare.
-        dump,
+        // A private dump ('_!') is not re-exported to importing modules.
+        dump: Dump,
         // Qualified: names prefixed with the alias resolve among the
         // module's public exports, optionally re-rooted on a selector.
         alias: Alias,
+    };
+
+    pub const Dump = struct {
+        private: bool,
     };
 
     pub const Alias = struct {
