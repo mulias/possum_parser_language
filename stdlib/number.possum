@@ -1,0 +1,75 @@
+_!stdlib/array
+_!stdlib/util
+_!stdlib/Number
+
+digit = 0..9
+
+integer = as_number(maybe("-") + _number_integer_part)
+
+int = integer
+
+non_negative_integer = as_number(_number_integer_part)
+
+negative_integer = as_number("-" + _number_integer_part)
+
+float = as_number(maybe("-") + _number_integer_part + _number_fraction_part)
+
+scientific_integer = as_number(
+  maybe("-") +
+  _number_integer_part +
+  _number_exponent_part
+)
+
+scientific_float = as_number(
+  maybe("-") +
+  _number_integer_part +
+  _number_fraction_part +
+  _number_exponent_part
+)
+
+number = as_number(
+  maybe("-") +
+  _number_integer_part +
+  maybe(_number_fraction_part) +
+  maybe(_number_exponent_part)
+)
+
+num = number
+
+non_negative_number = as_number(
+  _number_integer_part +
+  maybe(_number_fraction_part) +
+  maybe(_number_exponent_part)
+)
+
+negative_number = as_number(
+  "-" +
+  _number_integer_part +
+  maybe(_number_fraction_part) +
+  maybe(_number_exponent_part)
+)
+
+_number_integer_part = ("1".."9" + numerals) | numeral
+
+_number_fraction_part = "." + numerals
+
+_number_exponent_part = ("e" | "E") + maybe("-" | "+") + numerals
+
+binary_digit = 0..1
+
+octal_digit = 0..7
+
+hex_digit =
+  digit |
+  ("a" | "A" $ 10) |
+  ("b" | "B" $ 11) |
+  ("c" | "C" $ 12) |
+  ("d" | "D" $ 13) |
+  ("e" | "E" $ 14) |
+  ("f" | "F" $ 15)
+
+binary_integer = array(binary_digit) -> Digits $ Num.FromBinaryDigits(Digits)
+
+octal_integer = array(octal_digit) -> Digits $ Num.FromOctalDigits(Digits)
+
+hex_integer = array(hex_digit) -> Digits $ Num.FromHexDigits(Digits)

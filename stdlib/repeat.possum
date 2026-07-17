@@ -1,0 +1,11 @@
+_!stdlib/util
+
+many(p) = p * 1..
+
+many_sep(p, sep) = p + ((sep > p) * 0..)
+
+many_until(p, stop) = unless(p, stop) * 1.. < peek(stop)
+
+maybe_many(p) = p * 0..
+
+maybe_many_sep(p, sep) = many_sep(p, sep) | succeed

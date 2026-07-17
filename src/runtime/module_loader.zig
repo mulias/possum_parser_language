@@ -46,8 +46,88 @@ pub const ModuleLoader = struct {
     const embedded_sources = [_]EmbeddedSource{
         .{
             .logical_name = "stdlib",
-            .display_name = "stdlib/core.possum",
-            .source = @embedFile("stdlib/core.possum"),
+            .display_name = "stdlib/stdlib.possum",
+            .source = @embedFile("stdlib/stdlib.possum"),
+        },
+        .{
+            .logical_name = "stdlib/string",
+            .display_name = "stdlib/string.possum",
+            .source = @embedFile("stdlib/string.possum"),
+        },
+        .{
+            .logical_name = "stdlib/number",
+            .display_name = "stdlib/number.possum",
+            .source = @embedFile("stdlib/number.possum"),
+        },
+        .{
+            .logical_name = "stdlib/const",
+            .display_name = "stdlib/const.possum",
+            .source = @embedFile("stdlib/const.possum"),
+        },
+        .{
+            .logical_name = "stdlib/array",
+            .display_name = "stdlib/array.possum",
+            .source = @embedFile("stdlib/array.possum"),
+        },
+        .{
+            .logical_name = "stdlib/object",
+            .display_name = "stdlib/object.possum",
+            .source = @embedFile("stdlib/object.possum"),
+        },
+        .{
+            .logical_name = "stdlib/repeat",
+            .display_name = "stdlib/repeat.possum",
+            .source = @embedFile("stdlib/repeat.possum"),
+        },
+        .{
+            .logical_name = "stdlib/util",
+            .display_name = "stdlib/util.possum",
+            .source = @embedFile("stdlib/util.possum"),
+        },
+        .{
+            .logical_name = "stdlib/json",
+            .display_name = "stdlib/json.possum",
+            .source = @embedFile("stdlib/json.possum"),
+        },
+        .{
+            .logical_name = "stdlib/toml",
+            .display_name = "stdlib/toml.possum",
+            .source = @embedFile("stdlib/toml.possum"),
+        },
+        .{
+            .logical_name = "stdlib/ast",
+            .display_name = "stdlib/ast.possum",
+            .source = @embedFile("stdlib/ast.possum"),
+        },
+        .{
+            .logical_name = "stdlib/String",
+            .display_name = "stdlib/string_value.possum",
+            .source = @embedFile("stdlib/string_value.possum"),
+        },
+        .{
+            .logical_name = "stdlib/Number",
+            .display_name = "stdlib/number_value.possum",
+            .source = @embedFile("stdlib/number_value.possum"),
+        },
+        .{
+            .logical_name = "stdlib/Array",
+            .display_name = "stdlib/array_value.possum",
+            .source = @embedFile("stdlib/array_value.possum"),
+        },
+        .{
+            .logical_name = "stdlib/Object",
+            .display_name = "stdlib/object_value.possum",
+            .source = @embedFile("stdlib/object_value.possum"),
+        },
+        .{
+            .logical_name = "stdlib/Predicate",
+            .display_name = "stdlib/predicate_value.possum",
+            .source = @embedFile("stdlib/predicate_value.possum"),
+        },
+        .{
+            .logical_name = "stdlib/Cast",
+            .display_name = "stdlib/cast_value.possum",
+            .source = @embedFile("stdlib/cast_value.possum"),
         },
     };
 
@@ -179,7 +259,7 @@ test "embedded module loads once and is cached" {
 
     const first = try vm.loader.getOrLoadEmbedded("stdlib");
     try std.testing.expect(first.newly_loaded);
-    try std.testing.expectEqualStrings("stdlib/core.possum", first.module.name);
+    try std.testing.expectEqualStrings("stdlib/stdlib.possum", first.module.name);
 
     const second = try vm.loader.getOrLoadEmbedded("stdlib");
     try std.testing.expect(!second.newly_loaded);

@@ -1,0 +1,83 @@
+_!stdlib/util
+_!stdlib/Predicate
+
+with_operator_precedence(operand, prefix, infix, postfix) =
+  _with_precedence_start(operand, prefix, infix, postfix, $0)
+
+_with_precedence_start(operand, prefix, infix, postfix, LeftBindingPower) =
+  prefix -> {"power": PrefixBindingPower, ...PrefixNode} ? (
+    _with_precedence_start(
+      operand, prefix, infix, postfix,
+      PrefixBindingPower
+    ) -> Node &
+    _with_precedence_rest(
+      operand, prefix, infix, postfix,
+      LeftBindingPower,
+      {...PrefixNode, "prefixed": Node, ..._MergePos(PrefixNode, Node)}
+    )
+  ) : (
+    operand -> Node &
+    _with_precedence_rest(
+      operand, prefix, infix, postfix,
+      LeftBindingPower,
+      Node
+    )
+  )
+
+_with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node) =
+  postfix -> {"power": RightBindingPower, ...PostfixNode} &
+  const(Is.LessThan(LeftBindingPower, RightBindingPower)) ? (
+    _with_precedence_rest(
+      operand, prefix, infix, postfix,
+      LeftBindingPower,
+      {...PostfixNode, "postfixed": Node, ..._MergePos(Node, PostfixNode)}
+    )
+  ) :
+  infix -> {"power": [RightBindingPower, NextLeftBindingPower], ...InfixNode} &
+  const(Is.LessThan(LeftBindingPower, RightBindingPower)) ? (
+    _with_precedence_start(
+      operand, prefix, infix, postfix,
+      NextLeftBindingPower
+    ) -> RightNode &
+    _with_precedence_rest(
+      operand, prefix, infix, postfix,
+      LeftBindingPower,
+      {...InfixNode, "left": Node, "right": RightNode, ..._MergePos(Node, RightNode)}
+    )
+  ) :
+  const(Node)
+
+node(value, Type) =
+  value -> Value $ {"type": Type, "value": Value}
+
+prefix_node(op, Type, BindingPower) =
+  op $ {"type": Type, "power": BindingPower}
+
+infix_node(op, Type, LeftBindingPower, RightBindingPower) =
+  op $ {"type": Type, "power": [LeftBindingPower, RightBindingPower]}
+
+postfix_node(op, Type, BindingPower) =
+  op $ {"type": Type, "power": BindingPower}
+
+with_offset_pos(node) =
+  @input.offset -> StartOffset &
+  node -> Node &
+  @input.offset -> EndOffset $
+  {...Node, "startpos": StartOffset, "endpos": EndOffset}
+
+with_line_pos(node) =
+  @input.line -> StartLine &
+  @input.line_offset -> StartLineOffset &
+  node -> Node &
+  @input.line -> EndLine &
+  @input.line_offset -> EndLineOffset $
+  {
+    ...Node,
+    "startpos": {"line": StartLine, "offset": StartLineOffset},
+    "endpos": {"line": EndLine, "offset": EndLineOffset},
+  }
+
+_MergePos(Left, Right) = {
+  ...(Left -> {"startpos": StartPos, ..._} ? {"startpos": StartPos} : {}),
+  ...(Right -> {"endpos": EndPos, ..._} ? {"endpos": EndPos} : {}),
+}

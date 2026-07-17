@@ -1,0 +1,389 @@
+_!stdlib/string
+_!stdlib/number
+_!stdlib/array
+_!stdlib/util
+_!stdlib/Number
+_!stdlib/Object
+_!stdlib/Predicate
+
+simple
+
+simple = custom(simple_value)
+
+tagged = custom(tagged_value)
+
+custom(value) =
+  maybe(_comments + maybe(ws)) &
+  _with_root_table(value) | _no_root_table(value) -> Doc &
+  maybe(maybe(ws) + _comments) $
+  _Doc.Value(Doc)
+
+_with_root_table(value) =
+  _root_table(value, _Doc.Empty) -> RootDoc &
+  (_ws > _tables(value, RootDoc)) | const(RootDoc)
+
+_root_table(value, Doc) =
+  _table_body(value, [], Doc)
+
+_no_root_table(value) =
+  _table(value, _Doc.Empty) | _array_of_tables(value, _Doc.Empty) -> NewDoc &
+  _tables(value, NewDoc)
+
+_tables(value, Doc) =
+  _ws >
+  _table(value, Doc) | _array_of_tables(value, Doc) -> NewDoc ?
+  _tables(value, NewDoc) :
+  const(Doc)
+
+_table(value, Doc) =
+  _table_header -> HeaderPath & _ws_newline & (
+    _table_body(value, HeaderPath, Doc) |
+    const(_Doc.EnsureTableAtPath(Doc, HeaderPath))
+  )
+
+_array_of_tables(value, Doc) =
+  _array_of_tables_header -> HeaderPath & _ws_newline &
+  default(_table_body(value, [], _Doc.Empty), _Doc.Empty) -> InnerDoc $
+  _Doc.AppendAtPath(Doc, HeaderPath, InnerDoc)
+
+_ws = maybe_many(ws | _comment)
+
+_ws_line = maybe_many(spaces | _comment)
+
+_ws_newline = _ws_line + (nl | end) + _ws
+
+_comments = many_sep(_comment, ws)
+
+_table_header = "[" > surround(_path, maybe(ws)) < "]"
+
+_array_of_tables_header =
+  "[[" > surround(_path, maybe(ws)) < "]]"
+
+_table_body(value, HeaderPath, Doc) =
+  _table_pair(value) -> [KeyPath, Val] & _ws_newline &
+  const(_Doc.InsertPairAtHeaderPath(Doc, HeaderPath, KeyPath, Val)) -> NewDoc &
+  _table_body(value, HeaderPath, NewDoc) | const(NewDoc)
+
+_table_pair(value) =
+  tuple2_sep(_path, surround("=", maybe(spaces)), value)
+
+_path = array_sep(_key, surround(".", maybe(ws)))
+
+_key =
+  many(alpha | numeral | "_" | "-") |
+  string.basic |
+  string.literal
+
+_comment = "#" > maybe(line)
+
+simple_value =
+  string |
+  datetime |
+  number |
+  boolean |
+  array(simple_value) |
+  inline_table(simple_value)
+
+tagged_value =
+  string |
+  _tag($"datetime", $"offset", datetime.offset) |
+  _tag($"datetime", $"local", datetime.local) |
+  _tag($"datetime", $"date-local", datetime.local_date) |
+  _tag($"datetime", $"time-local", datetime.local_time) |
+  number.binary_integer |
+  number.octal_integer |
+  number.hex_integer |
+  _tag($"float", $"infinity", number.infinity) |
+  _tag($"float", $"not-a-number", number.not_a_number) |
+  number.float |
+  number.integer |
+  boolean |
+  array(tagged_value) |
+  inline_table(tagged_value)
+
+_tag(Type, Subtype, value) =
+  value -> Value $ {"type": Type, "subtype": Subtype, "value": Value}
+
+string =
+  string.multi_line_basic |
+  string.multi_line_literal |
+  string.basic |
+  string.literal
+
+datetime =
+  datetime.offset |
+  datetime.local |
+  datetime.local_date |
+  datetime.local_time
+
+number =
+  number.binary_integer |
+  number.octal_integer |
+  number.hex_integer |
+  number.infinity |
+  number.not_a_number |
+  number.float |
+  number.integer
+
+boolean = !stdlib.boolean("true", "false")
+
+array(elem) =
+  "[" > _ws > default(
+    array_sep(surround(elem, _ws), ",") < maybe(surround(",", _ws)),
+    []
+  ) < _ws < "]"
+
+inline_table(value) =
+  _empty_inline_table | _nonempty_inline_table(value) -> InlineDoc $
+  _Doc.Value(InlineDoc)
+
+_empty_inline_table = "{" > maybe(spaces) < "}" $ _Doc.Empty
+
+_nonempty_inline_table(value) =
+  "{" > maybe(spaces) >
+  _inline_table_pair(value, _Doc.Empty) -> DocWithFirstPair &
+  _inline_table_body(value, DocWithFirstPair)
+  < maybe(spaces) < "}"
+
+_inline_table_body(value, Doc) =
+  "," > _inline_table_pair(value, Doc) -> NewDoc ?
+  _inline_table_body(value, NewDoc) :
+  const(Doc)
+
+_inline_table_pair(value, Doc) =
+  maybe(spaces) &
+  _path -> Key &
+  maybe(spaces) & "=" & maybe(spaces) &
+  value -> Val &
+  maybe(spaces) $
+  _Doc.InsertAtPath(Doc, Key, Val)
+
+string.multi_line_basic =
+  skip(`"""`) + skip(maybe(nl)) +
+  default(
+    many_until(
+      _escaped_ctrl_char | _escaped_unicode |
+      ws | (`\` + ws > "") | unless(char, ctrl_char | `\`),
+      `"""`
+    ),
+    $""
+  )
+  + skip(`"""`) + (`"` * 0..2)
+
+string.multi_line_literal =
+  skip(`'''`) + skip(maybe(nl)) +
+  default(many_until(char, `'''`), $"")
+  + skip(`'''`) + (`'` * 0..2)
+
+string.basic = '"' > _string.basic_body < '"'
+
+_string.basic_body =
+  many(
+    _escaped_ctrl_char |
+    _escaped_unicode |
+    unless(char, ctrl_char | `\` | '"')
+  ) | const($"")
+
+string.literal = "'" > default(chars_until("'"), $"") < "'"
+
+_escaped_ctrl_char =
+  (`\"` $ `"`) |
+  (`\\` $ `\`) |
+  (`\b` $ "\b") |
+  (`\f` $ "\f") |
+  (`\n` $ "\n") |
+  (`\r` $ "\r") |
+  (`\t` $ "\t")
+
+_escaped_unicode =
+  (`\u` > (hex_numeral * 4) -> U $ @Codepoint(U)) |
+  (`\U` > (hex_numeral * 8) -> U $ @Codepoint(U))
+
+datetime.offset = datetime.local_date + ("T" | "t" | " ") + _datetime.time_offset
+
+datetime.local = datetime.local_date + ("T" | "t" | " ") + datetime.local_time
+
+datetime.local_date =
+  _datetime.year + "-" + _datetime.month + "-" + _datetime.mday
+
+_datetime.year = numeral * 4
+
+_datetime.month = ("0" + "1".."9") | ("1" + "0".."2")
+
+_datetime.mday = ("0".."2" + "1".."9") | "30" | "31"
+
+datetime.local_time =
+  _datetime.hours + ":" +
+  _datetime.minutes + ":" +
+  _datetime.seconds +
+  maybe("." + (numeral * 1..9))
+
+_datetime.time_offset = datetime.local_time + ("Z" | "z" | _datetime.time_numoffset)
+
+_datetime.time_numoffset = ("+" | "-") + _datetime.hours + ":" + _datetime.minutes
+
+_datetime.hours = ("0".."1" + "0".."9") | ("2" + "0".."3")
+
+_datetime.minutes = "0".."5" + "0".."9"
+
+_datetime.seconds = ("0".."5" + "0".."9") | "60"
+
+number.integer = as_number(
+  _number.sign +
+  _number.integer_part
+)
+
+_number.sign = maybe("-" | skip("+"))
+
+_number.integer_part =
+  ("1".."9" + many(maybe("_") > numeral)) | numeral
+
+number.float = as_number(
+  _number.sign +
+  _number.integer_part + (
+    (_number.fraction_part + maybe(_number.exponent_part)) |
+    _number.exponent_part
+  )
+)
+
+_number.fraction_part = "." + many_sep(numerals, maybe("_"))
+
+_number.exponent_part =
+  ("e" | "E") + maybe("-" | "+") + many_sep(numerals, maybe("_"))
+
+number.infinity = maybe("+" | "-") + "inf"
+
+number.not_a_number = maybe("+" | "-") + "nan"
+
+number.binary_integer =
+  "0b" & one_or_both(
+    array_sep(0, maybe("_")) + maybe(skip("_") < peek(binary_numeral)),
+    array_sep(binary_digit, maybe("_"))
+  ) -> Digits $
+  Num.FromBinaryDigits(Digits)
+
+number.octal_integer =
+  "0o" & one_or_both(
+    array_sep(0, maybe("_")) + maybe(skip("_") < peek(octal_numeral)),
+    array_sep(octal_digit, maybe("_"))
+  ) -> Digits $
+  Num.FromOctalDigits(Digits)
+
+number.hex_integer =
+  "0x" & one_or_both(
+    array_sep(0, maybe("_")) + maybe(skip("_") < peek(hex_numeral)),
+    array_sep(hex_digit, maybe("_"))
+  ) -> Digits $
+  Num.FromHexDigits(Digits)
+
+_Doc.Empty = {"value": {}, "type": {}}
+
+_Doc.Value(Doc) = Obj.Get(Doc, "value")
+
+_Doc.Type(Doc) = Obj.Get(Doc, "type")
+
+_Doc.Has(Doc, Key) = Obj.Has(_Doc.Type(Doc), Key)
+
+_Doc.Get(Doc, Key) = {
+  "value": Obj.Get(_Doc.Value(Doc), Key),
+  "type": Obj.Get(_Doc.Type(Doc), Key),
+}
+
+_Doc.IsTable(Doc) = Is.Object(_Doc.Type(Doc))
+
+_Doc.Insert(Doc, Key, Val, Type) =
+  _Doc.IsTable(Doc) &
+  {
+    "value": Obj.Put(_Doc.Value(Doc), Key, Val),
+    "type": Obj.Put(_Doc.Type(Doc), Key, Type),
+  }
+
+_Doc.AppendToArrayOfTables(Doc, Key, ElementDoc) =
+  _Doc.Get(Doc, Key) -> {"value": Vs, "type": ["array_of_tables", Ts]} &
+  _Doc.Insert(
+    Doc,
+    Key,
+    [...Vs, _Doc.Value(ElementDoc)],
+    ["array_of_tables", [...Ts, _Doc.Type(ElementDoc)]],
+  )
+
+_Doc.InsertAtPath(Doc, Path, Val) =
+  _Doc.UpdateAtPath(Doc, Path, Val, _Doc.ValueUpdater)
+
+_Doc.EnsureTableAtPath(Doc, Path) =
+  _Doc.UpdateAtHeaderPath(Doc, Path, {}, _Doc.MissingTableUpdater)
+
+_Doc.AppendAtPath(Doc, Path, ElementDoc) =
+  _Doc.UpdateAtHeaderPath(Doc, Path, ElementDoc, _Doc.AppendUpdater)
+
+_Doc.UpdateAtPath(Doc, Path, Val, Updater) =
+  Path -> [Key] ? Updater(Doc, Key, Val) :
+  Path -> [Key, ...PathRest] ? (
+    (
+      _Doc.Has(Doc, Key) ? (
+        _Doc.IsTable(_Doc.Get(Doc, Key)) &
+        _Doc.UpdateAtPath(_Doc.Get(Doc, Key), PathRest, Val, Updater)
+      ) :
+      _Doc.UpdateAtPath(_Doc.Empty, PathRest, Val, Updater)
+    ) -> InnerDoc &
+    _Doc.Insert(Doc, Key, _Doc.Value(InnerDoc), _Doc.Type(InnerDoc))
+  ) :
+  Doc
+
+_Doc.ValueUpdater(Doc, Key, Val) =
+  _Doc.Has(Doc, Key) ? @Fail : _Doc.Insert(Doc, Key, Val, "value")
+
+_Doc.MissingTableUpdater(Doc, Key, _Val) =
+  _Doc.Has(Doc, Key) ?
+  (_Doc.IsTable(_Doc.Get(Doc, Key)) & Doc) :
+  _Doc.Insert(Doc, Key, {}, {})
+
+_Doc.AppendUpdater(Doc, Key, ElementDoc) =
+  (
+    _Doc.Has(Doc, Key) ? Doc :
+    _Doc.Insert(Doc, Key, [], ["array_of_tables", []])
+  ) -> DocWithKey &
+  _Doc.AppendToArrayOfTables(DocWithKey, Key, ElementDoc)
+
+_Doc.InsertPairAtHeaderPath(Doc, HeaderPath, KeyPath, Val) =
+  HeaderPath -> [] ? _Doc.InsertAtPath(Doc, KeyPath, Val) :
+  _Doc.UpdateAtHeaderPath(Doc, HeaderPath, [KeyPath, Val], _Doc.PairUpdater)
+
+_Doc.PairUpdater(Doc, Key, KeyPathAndVal) =
+  KeyPathAndVal -> [KeyPath, Val] &
+  (_Doc.Has(Doc, Key) ? _Doc.Get(Doc, Key) : _Doc.Empty) -> SubDoc &
+  _Doc.IsTable(SubDoc) &
+  _Doc.InsertAtPath(SubDoc, KeyPath, Val) -> NewSubDoc &
+  _Doc.Insert(Doc, Key, _Doc.Value(NewSubDoc), _Doc.Type(NewSubDoc))
+
+_Doc.UpdateAtHeaderPath(Doc, Path, Val, Updater) =
+  Path -> [Key] ? Updater(Doc, Key, Val) :
+  Path -> [Key, ...PathRest] ?
+  _Doc.DescendHeaderKey(Doc, Key, PathRest, Val, Updater) :
+  Doc
+
+_Doc.DescendHeaderKey(Doc, Key, PathRest, Val, Updater) =
+  _Doc.Has(Doc, Key) ? (
+    _Doc.Get(Doc, Key) -> Current &
+    (
+      _Doc.Type(Current) -> ["array_of_tables", ..._] ?
+      _Doc.UpdateAtLastAoTElement(Current, PathRest, Val, Updater) :
+      _Doc.IsTable(Current) &
+      _Doc.UpdateAtHeaderPath(Current, PathRest, Val, Updater)
+    ) -> Updated &
+    _Doc.Insert(Doc, Key, _Doc.Value(Updated), _Doc.Type(Updated))
+  ) : (
+    _Doc.UpdateAtHeaderPath(_Doc.Empty, PathRest, Val, Updater) -> InnerDoc &
+    _Doc.Insert(Doc, Key, _Doc.Value(InnerDoc), _Doc.Type(InnerDoc))
+  )
+
+_Doc.UpdateAtLastAoTElement(AoTDoc, PathRest, Val, Updater) =
+  _Doc.Value(AoTDoc) -> [...VsInit, VLast] &
+  _Doc.Type(AoTDoc) -> ["array_of_tables", [...TsInit, TLast]] &
+  _Doc.UpdateAtHeaderPath(
+    {"value": VLast, "type": TLast}, PathRest, Val, Updater
+  ) -> UpdatedLast &
+  {
+    "value": [...VsInit, _Doc.Value(UpdatedLast)],
+    "type": ["array_of_tables", [...TsInit, _Doc.Type(UpdatedLast)]],
+  }

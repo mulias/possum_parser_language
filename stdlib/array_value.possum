@@ -1,0 +1,96 @@
+Array.First(A) = A -> [F, ..._] & F
+
+Array.Rest(A) = A -> [_, ...R] & R
+
+Array.Length(A) = A -> ([_] * L) & L
+
+Array.Reverse(A) = _Array.Reverse(A, [])
+
+_Array.Reverse(A, Acc) =
+  A -> [First, ...Rest] ? _Array.Reverse(Rest, [First, ...Acc]) : Acc
+
+Array.Map(A, Fn) = _Array.Map(A, Fn, [])
+
+_Array.Map(A, Fn, Acc) =
+  A -> [First, ...Rest] ? _Array.Map(Rest, Fn, [...Acc, Fn(First)]) : Acc
+
+Array.Filter(A, Pred) = _Array.Filter(A, Pred, [])
+
+_Array.Filter(A, Pred, Acc) =
+  A -> [First, ...Rest] ?
+  _Array.Filter(Rest, Pred, Pred(First) ? [...Acc, First] : Acc) :
+  Acc
+
+Array.Reject(A, Pred) = _Array.Reject(A, Pred, [])
+
+_Array.Reject(A, Pred, Acc) =
+  A -> [First, ...Rest] ?
+  _Array.Reject(Rest, Pred, Pred(First) ? Acc : [...Acc, First]) :
+  Acc
+
+Array.Merge(A) = _Array.Merge(A, null)
+
+_Array.Merge(A, Acc) =
+  A -> [First, ...Rest] ? _Array.Merge(Rest, Acc + First) : Acc
+
+Array.MapMerge(A, Fn) = _Array.MapMerge(A, Fn, null)
+
+_Array.MapMerge(A, Fn, Acc) =
+  A -> [First, ...Rest] ? _Array.MapMerge(Rest, Fn, Acc + Fn(First)) : Acc
+
+Array.Reduce(A, Fn, Acc) =
+  A -> [First, ...Rest] ? Array.Reduce(Rest, Fn, Fn(Acc, First)) : Acc
+
+Array.ZipObject(Ks, Vs) = _Array.ZipObject(Ks, Vs, {})
+
+_Array.ZipObject(Ks, Vs, Acc) =
+  Ks -> [K, ...KsRest] & Vs -> [V, ...VsRest] ?
+  _Array.ZipObject(KsRest, VsRest, {...Acc, K: V}) :
+  Acc
+
+Array.ZipPairs(A1, A2) = _Array.ZipPairs(A1, A2, [])
+
+_Array.ZipPairs(A1, A2, Acc) =
+  A1 -> [First1, ...Rest1] & A2 -> [First2, ...Rest2] ?
+  _Array.ZipPairs(Rest1, Rest2, [...Acc, [First1, First2]]) :
+  Acc
+
+Array.AppendN(A, Val, N) = A + ([Val] * N)
+
+Table.Transpose(T) = _Table.Transpose(T, [])
+
+_Table.Transpose(T, Acc) =
+  _Table.FirstPerRow(T) -> FirstPerRow &
+  _Table.RestPerRow(T) -> RestPerRow ?
+  _Table.Transpose(RestPerRow, [...Acc, FirstPerRow]) :
+  Acc
+
+_Table.FirstPerRow(T) =
+  T -> [Row, ...Rest] & Row -> [VeryFirst, ..._] &
+  __Table.FirstPerRow(Rest, [VeryFirst])
+
+__Table.FirstPerRow(T, Acc) =
+  T -> [Row, ...Rest] & Row -> [First, ..._] ?
+  __Table.FirstPerRow(Rest, [...Acc, First]) :
+  Acc
+
+_Table.RestPerRow(T) = __Table.RestPerRow(T, [])
+
+__Table.RestPerRow(T, Acc) =
+  T -> [Row, ...Rest] ? (
+    Row -> [_, ...RowRest] ?
+    __Table.RestPerRow(Rest, [...Acc, RowRest]) :
+    __Table.RestPerRow(Rest, [...Acc, []])
+  ) :
+  Acc
+
+Table.RotateClockwise(T) = Array.Map(Table.Transpose(T), Array.Reverse)
+
+Table.RotateCounterClockwise(T) = Array.Reverse(Table.Transpose(T))
+
+Table.ZipObjects(Ks, Rows) = _Table.ZipObjects(Ks, Rows, [])
+
+_Table.ZipObjects(Ks, Rows, Acc) =
+  Rows -> [Row, ...Rest] ?
+  _Table.ZipObjects(Ks, Rest, [...Acc, Array.ZipObject(Ks, Row)]) :
+  Acc

@@ -1,0 +1,71 @@
+_!stdlib/util
+_!stdlib/Number
+
+array(elem) = tuple1(elem) * 1..
+
+array_sep(elem, sep) = tuple1(elem) + (tuple1(sep > elem) * 0..)
+
+array_until(elem, stop) = unless(tuple1(elem), stop) * 1.. < peek(stop)
+
+maybe_array(elem) = default(array(elem), [])
+
+maybe_array_sep(elem, sep) = default(array_sep(elem, sep), [])
+
+tuple1(elem) =  elem -> Elem $ [Elem]
+
+tuple2(elem1, elem2) = elem1 -> E1 & elem2 -> E2 $ [E1, E2]
+
+tuple2_sep(elem1, sep, elem2) = elem1 -> E1 & sep & elem2 -> E2 $ [E1, E2]
+
+tuple3(elem1, elem2, elem3) =
+  elem1 -> E1 &
+  elem2 -> E2 &
+  elem3 -> E3 $
+  [E1, E2, E3]
+
+tuple3_sep(elem1, sep1, elem2, sep2, elem3) =
+  elem1 -> E1 & sep1 &
+  elem2 -> E2 & sep2 &
+  elem3 -> E3 $
+  [E1, E2, E3]
+
+tuple(elem, N) = tuple1(elem) * N
+
+tuple_sep(elem, sep, N) = tuple1(elem) + (tuple1(sep > elem) * (N - 1))
+
+rows(elem, col_sep, row_sep) =
+  tuple1(array_sep(elem, col_sep)) +
+  (tuple1(row_sep > array_sep(elem, col_sep)) * 0..)
+
+rows_padded(elem, col_sep, row_sep, Pad) =
+  peek(_dimensions(elem, col_sep, row_sep)) -> [MaxRowLen, _] &
+  elem -> First & _rows_padded(elem, col_sep, row_sep, Pad, $1, MaxRowLen, [First], [])
+
+_rows_padded(elem, col_sep, row_sep, Pad, RowLen, MaxRowLen, AccRow, AccRows) =
+  col_sep > elem -> Elem ?
+  _rows_padded(elem, col_sep, row_sep, Pad, Num.Inc(RowLen), MaxRowLen, [...AccRow, Elem], AccRows) :
+  row_sep > elem -> NextRow ?
+  _rows_padded(elem, col_sep, row_sep, Pad, $1, MaxRowLen, [NextRow], [...AccRows, Array.AppendN(AccRow, Pad, MaxRowLen - RowLen)]) :
+  const([...AccRows, Array.AppendN(AccRow, Pad, MaxRowLen - RowLen)])
+
+_dimensions(elem, col_sep, row_sep) =
+  elem > __dimensions(elem, col_sep, row_sep, $1, $1, $0)
+
+__dimensions(elem, col_sep, row_sep, RowLen, ColLen, MaxRowLen) =
+  col_sep > elem ?
+  __dimensions(elem, col_sep, row_sep, Num.Inc(RowLen), ColLen, MaxRowLen) :
+  row_sep > elem ?
+  __dimensions(elem, col_sep, row_sep, $1, Num.Inc(ColLen), Num.Max(RowLen, MaxRowLen)) :
+  const([Num.Max(RowLen, MaxRowLen), ColLen])
+
+columns(elem, col_sep, row_sep) =
+  rows(elem, col_sep, row_sep) -> Rows $
+  Table.Transpose(Rows)
+
+cols = columns
+
+columns_padded(elem, col_sep, row_sep, Pad) =
+  rows_padded(elem, col_sep, row_sep, Pad) -> Rows $
+  Table.Transpose(Rows)
+
+cols_padded = columns_padded
