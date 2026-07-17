@@ -117,49 +117,21 @@ A member expression called with arguments.
   [UnknownModule]
   [1]
 
-Bare stdlib paths. '!stdlib' resolves in the embedded module map;
-submodules only exist once the stdlib is split across files.
+Bare stdlib paths.
 
   $ possum -p '!stdlib' -i ''
   (Import 1:0-7 stdlib)
 
   $ possum -p '!stdlib/json' -i ''
   (Import 1:0-12 stdlib/json)
-  
-  Program Error: cannot find module 'stdlib/json'
-  
-  program:1:0-12:
-  1 \xe2\x96\x8f !stdlib/json (esc)
-    \xe2\x96\x8f ^^^^^^^^^^^^ (esc)
-  
-  [UnknownModule]
-  [1]
 
   $ possum -p '!stdlib/json.string' -i ''
   (Import 1:0-19 stdlib/json .string)
-  
-  Program Error: cannot find module 'stdlib/json'
-  
-  program:1:0-19:
-  1 \xe2\x96\x8f !stdlib/json.string (esc)
-    \xe2\x96\x8f ^^^^^^^^^^^^^^^^^^^ (esc)
-  
-  [UnknownModule]
-  [1]
 
   $ possum -p 'json = !stdlib/json' -i ''
   (DeclareGlobal 1:0-19
     (Identifier 1:0-4 json)
     (Import 1:7-19 stdlib/json))
-  
-  Program Error: cannot find module 'stdlib/json'
-  
-  program:1:0-19:
-  1 \xe2\x96\x8f json = !stdlib/json (esc)
-    \xe2\x96\x8f ^^^^^^^^^^^^^^^^^^^ (esc)
-  
-  [UnknownModule]
-  [1]
 
 An uppercase member selects a value.
 

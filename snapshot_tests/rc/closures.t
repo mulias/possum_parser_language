@@ -14,7 +14,7 @@ closure.
   inserts:           5 in place, 0 copied
   husks:             9 parked, 6 reused
   strings interned:  26
-  strings size:      107 chars
+  strings size:      106 chars
   bytes in use:      1376
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p 'array_sep(word, ",")' -i 'ab,cd,ef,gh,ij'
@@ -27,7 +27,7 @@ closure.
   inserts:           0 in place, 5 copied
   husks:             0 parked, 0 reused
   strings interned:  26
-  strings size:      107 chars
+  strings size:      106 chars
   bytes in use:      1376
 
 Object closures: object_sep itself takes plain-variable arguments and
@@ -43,15 +43,15 @@ second object on.
     {"c": 3}
   ]
   ===== memory report =====
-  dyns created:      82
-  dyns live:         72 (string 0, array 3, object 5, function 62, native 2, closure 0)
-  live ref counts:   unique 4, shared 0, immortal 68
+  dyns created:      83
+  dyns live:         73 (string 0, array 3, object 5, function 63, native 2, closure 0)
+  live ref counts:   unique 4, shared 0, immortal 69
   merges:            2 in place, 0 copied
   inserts:           6 in place, 0 copied
   husks:             9 parked, 4 reused
-  strings interned:  122
-  strings size:      824 chars
-  bytes in use:      8608
+  strings interned:  114
+  strings size:      738 chars
+  bytes in use:      8720
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p 'json' -i '[{"a": 1}, {"b": 2}, {"c": 3}]'
   [
@@ -60,12 +60,12 @@ second object on.
     {"c": 3}
   ]
   ===== memory report =====
-  dyns created:      88
-  dyns live:         72 (string 0, array 3, object 5, function 62, native 2, closure 0)
-  live ref counts:   unique 4, shared 0, immortal 68
+  dyns created:      89
+  dyns live:         73 (string 0, array 3, object 5, function 63, native 2, closure 0)
+  live ref counts:   unique 4, shared 0, immortal 69
   merges:            0 in place, 2 copied
   inserts:           0 in place, 6 copied
   husks:             0 parked, 0 reused
-  strings interned:  122
-  strings size:      824 chars
-  bytes in use:      8608
+  strings interned:  114
+  strings size:      738 chars
+  bytes in use:      8720
