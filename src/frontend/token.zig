@@ -42,6 +42,7 @@ pub const TokenType = enum {
     TemplateStart,
     TemplateEnd,
     True,
+    UnderscoreBang,
     UnderscoreIdentifier,
     UnexpectedCharacter,
     UppercaseIdentifier,
