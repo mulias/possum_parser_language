@@ -131,7 +131,10 @@ pub const Scanner = struct {
             '"' => self.makeToken(.DoubleQuoteStringStart),
             '`' => self.makeToken(.BacktickStringStart),
             '@' => self.scanAtSignIdentifier(),
-            '_' => self.scanUnderscoreIdentifier(),
+            '_' => if (self.match('!'))
+                self.makeToken(.UnderscoreBang)
+            else
+                self.scanUnderscoreIdentifier(),
             '-' => if (self.match('>'))
                 self.makeToken(.DashGreaterThan)
             else

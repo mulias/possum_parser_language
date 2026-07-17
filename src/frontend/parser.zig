@@ -141,7 +141,7 @@ pub const Parser = struct {
             .True, .False, .Null => self.literal(),
             .DotDot => self.upperBoundedRange(),
             .DollarSign => self.valueLabel(),
-            .Bang => self.importExpr(),
+            .Bang, .UnderscoreBang => self.importExpr(),
             else => self.errorAtToken("expected expression"),
         };
     }
