@@ -29,6 +29,7 @@ pub const Config = struct {
     printScanner: bool = false,
     printParser: bool = false,
     printAst: bool = false,
+    printGoalAst: bool = false,
     printCompiledBytecode: bool = false,
     printExecutedBytecode: bool = false,
     printVM: bool = false,
@@ -49,6 +50,7 @@ pub const Config = struct {
         self.printScanner = env.printScanner;
         self.printParser = env.printParser;
         self.printAst = env.printAst;
+        self.printGoalAst = env.printGoalAst;
         self.printCompiledBytecode = env.printCompiledBytecode;
         self.printExecutedBytecode = env.printExecutedBytecode;
         self.printVM = env.printVM;
@@ -399,6 +401,7 @@ pub const VM = struct {
             .printScanner = self.config.printScanner,
             .printParser = self.config.printParser,
             .printAst = self.config.printAst,
+            .printGoalAst = self.config.printGoalAst,
         });
 
         self.compiler = &compiler;

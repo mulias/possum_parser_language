@@ -1,0 +1,1145 @@
+const std = @import("std");
+const ArenaAllocator = std.heap.ArenaAllocator;
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayListUnmanaged;
+const Writer = std.Io.Writer;
+const Ast = @import("goal_ast.zig");
+const Can = @import("can.zig");
+const CanAst = @import("can_ast.zig");
+const StringTable = @import("string_table.zig").FrontendStringTable;
+const PathTable = @import("path_table.zig").PathTable;
+const Region = @import("../region.zig").Region;
+
+arena: *ArenaAllocator,
+strings: *StringTable,
+paths: *PathTable,
+ast: Ast = .{},
+
+pub const Goal = @This();
+pub const NodeId = Ast.NodeId;
+pub const SetId = Ast.SetId;
+pub const PlaceId = Ast.PlaceId;
+
+// GoalAstGap: a can construct the goal ast cannot express yet.
+pub const Error = error{ OutOfMemory, GoalAstGap };
+
+pub fn init(
+    arena: *ArenaAllocator,
+    strings: *StringTable,
+    paths: *PathTable,
+) Goal {
+    return Goal{
+        .arena = arena,
+        .strings = strings,
+        .paths = paths,
+    };
+}
+
+pub fn actualize(self: *Goal, can: Can) Error!void {
+    for (can.ast.declarations.items) |decl| {
+        switch (decl) {
+            .parser => |p| {
+                var params = ArrayList(PathTable.Id){};
+                try params.ensureTotalCapacity(self.alloc(), p.node.params.items.len);
+                for (p.node.params.items) |param| params.appendAssumeCapacity(param.name());
+                try self.ast.declarations.append(self.alloc(), .{
+                    .name = p.node.ident.node.name,
+                    .underscored = p.node.ident.node.underscored,
+                    .params = params,
+                    .body = try self.convertParser(p.node.body),
+                    .region = p.region,
+                });
+            },
+            .value => |v| {
+                var params = ArrayList(PathTable.Id){};
+                try params.ensureTotalCapacity(self.alloc(), v.node.params.items.len);
+                for (v.node.params.items) |param| params.appendAssumeCapacity(param.node.name);
+                try self.ast.declarations.append(self.alloc(), .{
+                    .name = v.node.ident.node.name,
+                    .underscored = v.node.ident.node.underscored,
+                    .params = params,
+                    .body = try self.convertValue(v.node.body),
+                    .region = v.region,
+                });
+            },
+        }
+    }
+
+    if (can.ast.main) |main_fn| {
+        self.ast.main = try self.convertParser(main_fn.node.body);
+    }
+}
+
+fn alloc(self: *Goal) Allocator {
+    return self.arena.allocator();
+}
+
+fn addGoal(self: *Goal, node: Ast.GoalNode, region: Region) Error!NodeId {
+    const id: NodeId = @intCast(self.ast.goals.items.len);
+    try self.ast.goals.append(self.alloc(), .{ .node = node, .region = region });
+    return id;
+}
+
+fn isPlaceholder(self: *Goal, name: PathTable.Id) bool {
+    return self.strings.equal(self.paths.flat(name), "_");
+}
+
+fn isPlaceholderPattern(self: *Goal, pattern: *CanAst.Pattern.RNode) bool {
+    return switch (pattern.node) {
+        .identifier => |ident| self.isPlaceholder(ident.name),
+        else => false,
+    };
+}
+
+fn seqPair(self: *Goal, first: NodeId, second: NodeId, result: u32, region: Region) Error!NodeId {
+    var goals = ArrayList(NodeId){};
+    try goals.ensureTotalCapacity(self.alloc(), 2);
+    goals.appendAssumeCapacity(first);
+    goals.appendAssumeCapacity(second);
+    return self.addGoal(.{ .seq = .{ .goals = goals, .result = result } }, region);
+}
+
+fn identGoal(self: *Goal, ident: anytype, region: Region) Error!NodeId {
+    return self.addGoal(.{ .ident = .{
+        .name = ident.name,
+        .builtin = ident.builtin,
+        .underscored = ident.underscored,
+    } }, region);
+}
+
+fn invoked(self: *Goal, callee: NodeId, region: Region) Error!NodeId {
+    const args = try self.alloc().alloc(NodeId, 0);
+    return self.addGoal(.{ .call = .{ .callee = callee, .args = args } }, region);
+}
+
+// Operand position: the parser runs here. Bare identifiers and literal
+// parsers are invoked, so they lower to zero-arg calls; their value forms
+// appear only in argument, callee, and range-bound positions
+// (convertParserValue).
+fn convertParser(self: *Goal, rnode: *CanAst.Parser.RNode) Error!NodeId {
+    const region = rnode.region;
+    return switch (rnode.node) {
+        .@"or", .conditional => self.convertParserAlt(rnode),
+        .@"return" => |op| self.seqPair(
+            try self.convertParser(op.left),
+            try self.convertValue(op.right),
+            1,
+            region,
+        ),
+        .take_right => |op| self.seqPair(
+            try self.convertParser(op.left),
+            try self.convertParser(op.right),
+            1,
+            region,
+        ),
+        .take_left => |op| self.seqPair(
+            try self.convertParser(op.left),
+            try self.convertParser(op.right),
+            0,
+            region,
+        ),
+        .merge => |op| self.addGoal(.{ .merge = .{
+            .left = try self.convertParser(op.left),
+            .right = try self.convertParser(op.right),
+        } }, region),
+        .negation => |inner| self.addGoal(.{ .neg = try self.convertParser(inner) }, region),
+        .number_string => |ns| self.invoked(try self.addGoal(.{ .number_string = .{
+            .number = ns.number,
+            .negated = ns.negated,
+        } }, region), region),
+        .string => |s| self.invoked(try self.addGoal(.{ .string = s }, region), region),
+        .range => |r| self.invoked(try self.addGoal(.{ .range = .{
+            .lower = if (r.lower) |lower| try self.convertParserValue(lower) else null,
+            .upper = if (r.upper) |upper| try self.convertParserValue(upper) else null,
+        } }, region), region),
+        .string_template => |parts| self.convertParserTemplate(parts, region),
+        .identifier => |ident| self.invoked(try self.identGoal(ident, region), region),
+        .function_call => |fc| self.convertParserCall(fc, region),
+        .anonymous_function => |anon| self.convertAnonymousFunction(anon, region),
+        .destructure => |op| self.convertDestructure(
+            try self.convertParser(op.left),
+            op.right,
+            region,
+        ),
+        .repeat => |op| self.addGoal(.{ .repeat = .{
+            .body = try self.convertParser(op.left),
+            .cap = try self.repeatCap(op.right),
+            .count_test = try self.patternSet(op.right),
+        } }, region),
+    };
+}
+
+fn convertParserCall(self: *Goal, fc: CanAst.Parser.FunctionCall, region: Region) Error!NodeId {
+    const callee = try self.convertParserValue(fc.function);
+    const args = try self.alloc().alloc(NodeId, fc.args.items.len);
+    for (fc.args.items, 0..) |arg, i| {
+        args[i] = switch (arg) {
+            .parser => |p| try self.convertParserValue(p),
+            .value => |v| try self.convertValue(v),
+        };
+    }
+    return self.addGoal(.{ .call = .{ .callee = callee, .args = args } }, region);
+}
+
+// Value position within a parser context: arguments, callees, range
+// bounds. Parsers are passed, never invoked. Can has already thunked
+// composite arguments into anonymous functions, so what remains is
+// identifiers (pass the function), the thunks themselves, and literals
+// (pass the literal parser elem).
+fn convertParserValue(self: *Goal, rnode: *CanAst.Parser.RNode) Error!NodeId {
+    const region = rnode.region;
+    return switch (rnode.node) {
+        .identifier => |ident| self.identGoal(ident, region),
+        .anonymous_function => |anon| self.convertAnonymousFunction(anon, region),
+        .string => |s| self.addGoal(.{ .string = s }, region),
+        .number_string => |ns| self.addGoal(.{ .number_string = .{
+            .number = ns.number,
+            .negated = ns.negated,
+        } }, region),
+        else => self.convertParser(rnode),
+    };
+}
+
+// "Hello %(name)" as a parser is `call("Hello") + to_string(call(name))`:
+// a merge fold over the segments, stringifying interpolations.
+fn convertParserTemplate(
+    self: *Goal,
+    parts: ArrayList(*CanAst.Parser.RNode),
+    region: Region,
+) Error!NodeId {
+    var acc: ?NodeId = null;
+    for (parts.items) |part| {
+        const parsed = try self.convertParser(part);
+        const segment = switch (part.node) {
+            .string => parsed,
+            else => try self.addGoal(.{ .to_string = parsed }, part.region),
+        };
+        acc = if (acc) |left|
+            try self.addGoal(.{ .merge = .{ .left = left, .right = segment } }, region)
+        else
+            segment;
+    }
+    return acc orelse self.invoked(try self.addGoal(.{ .string = "" }, region), region);
+}
+
+fn convertAnonymousFunction(
+    self: *Goal,
+    anon: CanAst.Parser.AnonymousFunction,
+    region: Region,
+) Error!NodeId {
+    return self.addGoal(.{ .lambda = .{
+        .parent_name = anon.parent_name,
+        .name = anon.name,
+        .body = try self.convertParser(anon.body),
+    } }, region);
+}
+
+fn convertParserAlt(self: *Goal, rnode: *CanAst.Parser.RNode) Error!NodeId {
+    var arms = ArrayList(Ast.AltArm){};
+    try self.collectParserAltArms(rnode, &arms);
+    return self.addGoal(.{ .alt = arms }, rnode.region);
+}
+
+// Flattens `|` and `?:` chains into one ordered arm list. The guard/body
+// split is the commit point: guard failure tries the next arm, body
+// failure fails the whole alt. The final operand is always a body-only
+// arm; nested chains in final position splice, so no pass downstream sees
+// a right-nested alt.
+fn collectParserAltArms(
+    self: *Goal,
+    rnode: *CanAst.Parser.RNode,
+    arms: *ArrayList(Ast.AltArm),
+) Error!void {
+    switch (rnode.node) {
+        .@"or" => |op| {
+            try arms.append(self.alloc(), .{
+                .guard = try self.convertParser(op.left),
+                .body = null,
+            });
+            try self.collectParserAltArms(op.right, arms);
+        },
+        .conditional => |cond| {
+            try arms.append(self.alloc(), .{
+                .guard = try self.convertParser(cond.condition),
+                .body = try self.convertParser(cond.then_branch),
+            });
+            try self.collectParserAltArms(cond.else_branch, arms);
+        },
+        else => try arms.append(self.alloc(), .{
+            .guard = null,
+            .body = try self.convertParser(rnode),
+        }),
+    }
+}
+
+// Value position: everything is eager, arguments included. A bare
+// identifier stays a value; a zero-arg value function is an alias for its
+// value, so no call is inserted.
+fn convertValue(self: *Goal, rnode: *CanAst.Value.RNode) Error!NodeId {
+    const region = rnode.region;
+    return switch (rnode.node) {
+        .@"or", .conditional => self.convertValueAlt(rnode),
+        .@"return" => |op| self.seqPair(
+            try self.convertValue(op.left),
+            try self.convertValue(op.right),
+            1,
+            region,
+        ),
+        .take_right => |op| self.seqPair(
+            try self.convertValue(op.left),
+            try self.convertValue(op.right),
+            1,
+            region,
+        ),
+        .take_left => |op| self.seqPair(
+            try self.convertValue(op.left),
+            try self.convertValue(op.right),
+            0,
+            region,
+        ),
+        .merge => |op| self.addGoal(.{ .merge = .{
+            .left = try self.convertValue(op.left),
+            .right = try self.convertValue(op.right),
+        } }, region),
+        .negation => |inner| self.addGoal(.{ .neg = try self.convertValue(inner) }, region),
+        .true => self.addGoal(.true, region),
+        .false => self.addGoal(.false, region),
+        .null => self.addGoal(.null, region),
+        .number_float => |f| self.addGoal(.{ .number_float = f }, region),
+        .number_string => |ns| self.addGoal(.{ .number_string = .{
+            .number = ns.number,
+            .negated = ns.negated,
+        } }, region),
+        .string => |s| self.addGoal(.{ .string = s }, region),
+        .string_template => |parts| self.convertValueTemplate(parts, region),
+        .array => |items| blk: {
+            var elems = ArrayList(NodeId){};
+            try elems.ensureTotalCapacity(self.alloc(), items.items.len);
+            for (items.items) |item| elems.appendAssumeCapacity(try self.convertValue(item));
+            break :blk self.addGoal(.{ .array = elems }, region);
+        },
+        .object => |pairs| blk: {
+            var converted = ArrayList(Ast.ObjectPair){};
+            try converted.ensureTotalCapacity(self.alloc(), pairs.items.len);
+            for (pairs.items) |pair| converted.appendAssumeCapacity(.{
+                .key = try self.convertValue(pair.key),
+                .value = try self.convertValue(pair.value),
+            });
+            break :blk self.addGoal(.{ .object = converted }, region);
+        },
+        .identifier => |ident| self.identGoal(ident, region),
+        .function_call => |fc| self.convertValueCall(fc, region),
+        .destructure => |op| self.convertDestructure(
+            try self.convertValue(op.left),
+            op.right,
+            region,
+        ),
+        .repeat => |op| blk: {
+            // V1 * V2: merge V1 with itself V2 times. The count is
+            // evaluable, so it is both the loop cap and the exact-count
+            // test.
+            const count = try self.convertValue(op.right);
+            break :blk self.addGoal(.{ .repeat = .{
+                .body = try self.convertValue(op.left),
+                .cap = .{ .expr = count },
+                .count_test = try self.evalEqSet(count, op.right.region),
+            } }, region);
+        },
+    };
+}
+
+fn convertValueCall(self: *Goal, fc: CanAst.Value.FunctionCall, region: Region) Error!NodeId {
+    const callee = try self.convertValue(fc.function);
+    const args = try self.alloc().alloc(NodeId, fc.args.items.len);
+    for (fc.args.items, 0..) |arg, i| args[i] = try self.convertValue(arg);
+    return self.addGoal(.{ .call = .{ .callee = callee, .args = args } }, region);
+}
+
+fn convertValueTemplate(
+    self: *Goal,
+    parts: ArrayList(*CanAst.Value.RNode),
+    region: Region,
+) Error!NodeId {
+    var acc: ?NodeId = null;
+    for (parts.items) |part| {
+        const value = try self.convertValue(part);
+        const segment = switch (part.node) {
+            .string => value,
+            else => try self.addGoal(.{ .to_string = value }, part.region),
+        };
+        acc = if (acc) |left|
+            try self.addGoal(.{ .merge = .{ .left = left, .right = segment } }, region)
+        else
+            segment;
+    }
+    return acc orelse self.addGoal(.{ .string = "" }, region);
+}
+
+fn convertValueAlt(self: *Goal, rnode: *CanAst.Value.RNode) Error!NodeId {
+    var arms = ArrayList(Ast.AltArm){};
+    try self.collectValueAltArms(rnode, &arms);
+    return self.addGoal(.{ .alt = arms }, rnode.region);
+}
+
+fn collectValueAltArms(
+    self: *Goal,
+    rnode: *CanAst.Value.RNode,
+    arms: *ArrayList(Ast.AltArm),
+) Error!void {
+    switch (rnode.node) {
+        .@"or" => |op| {
+            try arms.append(self.alloc(), .{
+                .guard = try self.convertValue(op.left),
+                .body = null,
+            });
+            try self.collectValueAltArms(op.right, arms);
+        },
+        .conditional => |cond| {
+            try arms.append(self.alloc(), .{
+                .guard = try self.convertValue(cond.condition),
+                .body = try self.convertValue(cond.then_branch),
+            });
+            try self.collectValueAltArms(cond.else_branch, arms);
+        },
+        else => try arms.append(self.alloc(), .{
+            .guard = null,
+            .body = try self.convertValue(rnode),
+        }),
+    }
+}
+
+// Pattern decomposition: places + constraints.
+
+fn convertDestructure(
+    self: *Goal,
+    scrutinee: NodeId,
+    pattern: *CanAst.Pattern.RNode,
+    region: Region,
+) Error!NodeId {
+    var match = Ast.Match{
+        .scrutinee = scrutinee,
+        .places = .{},
+        .arms = .{},
+    };
+    try match.places.append(self.alloc(), .scrutinee);
+    var constraints = ArrayList(Ast.Constraint){};
+    try self.lowerPattern(pattern, 0, &match.places, &constraints);
+    try match.arms.append(self.alloc(), .{
+        .constraints = constraints,
+        .guard = null,
+        .body = null,
+        .region = pattern.region,
+    });
+    return self.addGoal(.{ .match = match }, region);
+}
+
+// A ConstraintSet rooted at a synthetic scrutinee: repeat counts and
+// composite sub-patterns.
+fn patternSet(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!SetId {
+    var set = Ast.ConstraintSet{
+        .places = .{},
+        .constraints = .{},
+        .region = pattern.region,
+    };
+    try set.places.append(self.alloc(), .scrutinee);
+    try self.lowerPattern(pattern, 0, &set.places, &set.constraints);
+    return self.addSet(set);
+}
+
+// A ConstraintSet asserting the root equals an evaluated expression: the
+// exact-count test of a value repeat.
+fn evalEqSet(self: *Goal, expr: NodeId, region: Region) Error!SetId {
+    var set = Ast.ConstraintSet{
+        .places = .{},
+        .constraints = .{},
+        .region = region,
+    };
+    try set.places.append(self.alloc(), .scrutinee);
+    try set.constraints.append(self.alloc(), .{
+        .kind = .{ .eval_eq = .{ .place = 0, .expr = expr } },
+        .region = region,
+    });
+    return self.addSet(set);
+}
+
+fn addSet(self: *Goal, set: Ast.ConstraintSet) Error!SetId {
+    const id: SetId = @intCast(self.ast.constraint_sets.items.len);
+    try self.ast.constraint_sets.append(self.alloc(), set);
+    return id;
+}
+
+fn internPlace(
+    self: *Goal,
+    places: *ArrayList(Ast.PlaceDef),
+    def: Ast.PlaceDef,
+) Error!PlaceId {
+    for (places.items, 0..) |existing, i| {
+        if (std.meta.eql(existing, def)) return @intCast(i);
+    }
+    try places.append(self.alloc(), def);
+    return @intCast(places.items.len - 1);
+}
+
+fn pushConstraint(
+    self: *Goal,
+    constraints: *ArrayList(Ast.Constraint),
+    kind: Ast.Constraint.Kind,
+    region: Region,
+) Error!void {
+    try constraints.append(self.alloc(), .{ .kind = kind, .region = region });
+}
+
+fn lowerPattern(
+    self: *Goal,
+    pattern: *CanAst.Pattern.RNode,
+    place: PlaceId,
+    places: *ArrayList(Ast.PlaceDef),
+    constraints: *ArrayList(Ast.Constraint),
+) Error!void {
+    const region = pattern.region;
+    switch (pattern.node) {
+        .true, .false, .null, .number_float, .number_string, .string => {
+            const value = try self.patternLiteralGoal(pattern);
+            try self.pushConstraint(constraints, .{ .eq_const = .{
+                .place = place,
+                .value = value,
+            } }, region);
+        },
+        .identifier => |ident| {
+            if (self.isPlaceholder(ident.name)) return;
+            try self.pushConstraint(constraints, .{ .local = .{
+                .place = place,
+                .name = ident.name,
+            } }, region);
+        },
+        .function_call => |fc| {
+            const expr = try self.patternCallGoal(fc, region);
+            try self.pushConstraint(constraints, .{ .eval_eq = .{
+                .place = place,
+                .expr = expr,
+            } }, region);
+        },
+        .negation => {
+            var count: u32 = 0;
+            var inner = pattern;
+            while (inner.node == .negation) : (inner = inner.node.negation) count += 1;
+            try self.pushConstraint(constraints, .{ .negated = .{
+                .place = place,
+                .count = count,
+                .part = try self.patternPart(inner),
+            } }, region);
+        },
+        .array => |elems| {
+            try self.pushConstraint(constraints, .{ .is_type = .{
+                .place = place,
+                .ty = .array,
+            } }, region);
+            try self.pushConstraint(constraints, .{ .len_eq = .{
+                .place = place,
+                .len = @intCast(elems.items.len),
+            } }, region);
+            for (elems.items, 0..) |elem, i| {
+                if (self.isPlaceholderPattern(elem)) continue;
+                const elem_place = try self.internPlace(places, .{ .elem = .{
+                    .src = place,
+                    .index = @intCast(i),
+                } });
+                try self.lowerPattern(elem, elem_place, places, constraints);
+            }
+        },
+        .object => |pairs| {
+            try self.pushConstraint(constraints, .{ .is_type = .{
+                .place = place,
+                .ty = .object,
+            } }, region);
+            try self.pushConstraint(constraints, .{ .keys_exact = .{
+                .place = place,
+                .count = @intCast(pairs.items.len),
+            } }, region);
+            for (pairs.items) |pair| {
+                switch (pair.key.node) {
+                    .string => |key_str| {
+                        const sid = try self.strings.insert(key_str);
+                        try self.pushConstraint(constraints, .{ .has_key = .{
+                            .place = place,
+                            .sid = sid,
+                        } }, pair.key.region);
+                        if (self.isPlaceholderPattern(pair.value)) continue;
+                        const key_place = try self.internPlace(places, .{ .key = .{
+                            .src = place,
+                            .sid = sid,
+                        } });
+                        try self.lowerPattern(pair.value, key_place, places, constraints);
+                    },
+                    else => {
+                        try self.pushConstraint(constraints, .{ .search_key = .{
+                            .place = place,
+                            .key = try self.patternSet(pair.key),
+                            .value = try self.patternSet(pair.value),
+                        } }, pair.key.region);
+                    },
+                }
+            }
+        },
+        .range => |r| {
+            try self.pushConstraint(constraints, .{ .in_range = .{
+                .place = place,
+                .lower = try self.patternLimit(r.lower),
+                .upper = try self.patternLimit(r.upper),
+            } }, region);
+        },
+        .merge => {
+            var parts = ArrayList(Ast.Part){};
+            try self.collectMergeParts(pattern, &parts);
+            try self.pushConstraint(constraints, .{ .solve_merge = .{
+                .place = place,
+                .parts = parts,
+                .solvable_index = null,
+            } }, region);
+        },
+        .repeat => |op| {
+            try self.pushConstraint(constraints, .{ .solve_repeat = .{
+                .place = place,
+                .pattern = try self.patternPart(op.left),
+                .count = try self.patternPart(op.right),
+            } }, region);
+        },
+        .string_template => |parts| {
+            var segments = ArrayList(Ast.Segment){};
+            try segments.ensureTotalCapacity(self.alloc(), parts.items.len);
+            for (parts.items) |part| {
+                segments.appendAssumeCapacity(switch (part.node) {
+                    .string => |s| .{ .literal = s },
+                    else => .{ .part = try self.patternPart(part) },
+                });
+            }
+            try self.pushConstraint(constraints, .{ .match_template = .{
+                .place = place,
+                .segments = segments,
+            } }, region);
+        },
+    }
+}
+
+fn collectMergeParts(
+    self: *Goal,
+    pattern: *CanAst.Pattern.RNode,
+    parts: *ArrayList(Ast.Part),
+) Error!void {
+    switch (pattern.node) {
+        .merge => |op| {
+            try self.collectMergeParts(op.left, parts);
+            try self.collectMergeParts(op.right, parts);
+        },
+        else => try parts.append(self.alloc(), try self.patternPart(pattern)),
+    }
+}
+
+fn patternPart(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!Ast.Part {
+    return switch (pattern.node) {
+        .identifier => |ident| if (self.isPlaceholder(ident.name))
+            .placeholder
+        else
+            .{ .local = ident.name },
+        .true, .false, .null, .number_float, .number_string, .string => .{
+            .expr = try self.patternLiteralGoal(pattern),
+        },
+        .function_call => |fc| .{
+            .expr = try self.patternCallGoal(fc, pattern.region),
+        },
+        // Structural: array, object, merge, repeat, range, template,
+        // negation. The set is rooted at the part's portion of the value.
+        else => .{ .sub = try self.patternSet(pattern) },
+    };
+}
+
+fn patternLimit(self: *Goal, bound: ?*CanAst.Pattern.RNode) Error!Ast.Limit {
+    const pattern = bound orelse return .none;
+    return switch (pattern.node) {
+        .identifier => |ident| if (self.isPlaceholder(ident.name))
+            .none
+        else
+            .{ .local = ident.name },
+        else => .{ .expr = try self.patternExprGoal(pattern) },
+    };
+}
+
+// The loop cap implied by a repeat count pattern, when one is
+// recognizable at creation: an exact count, a bare local, an upper range
+// limit, or an evaluable expression. Unrecognized shapes impose no cap;
+// binding analysis clears caps whose reads are unbound.
+fn repeatCap(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!Ast.Limit {
+    return switch (pattern.node) {
+        .number_string, .number_float => .{
+            .expr = try self.patternLiteralGoal(pattern),
+        },
+        .identifier => |ident| if (self.isPlaceholder(ident.name))
+            .none
+        else
+            .{ .local = ident.name },
+        .range => |r| self.patternLimit(r.upper),
+        .function_call, .merge, .negation => blk: {
+            const expr = self.patternExprGoal(pattern) catch |err| switch (err) {
+                error.GoalAstGap => break :blk .none,
+                error.OutOfMemory => return error.OutOfMemory,
+            };
+            break :blk .{ .expr = expr };
+        },
+        else => .none,
+    };
+}
+
+fn patternLiteralGoal(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!NodeId {
+    const region = pattern.region;
+    return switch (pattern.node) {
+        .true => self.addGoal(.true, region),
+        .false => self.addGoal(.false, region),
+        .null => self.addGoal(.null, region),
+        .number_float => |f| self.addGoal(.{ .number_float = f }, region),
+        .number_string => |ns| self.addGoal(.{ .number_string = .{
+            .number = ns.number,
+            .negated = ns.negated,
+        } }, region),
+        .string => |s| self.addGoal(.{ .string = s }, region),
+        else => error.GoalAstGap,
+    };
+}
+
+fn patternCallGoal(
+    self: *Goal,
+    fc: CanAst.Value.FunctionCall,
+    region: Region,
+) Error!NodeId {
+    const callee = try self.convertValue(fc.function);
+    const args = try self.alloc().alloc(NodeId, fc.args.items.len);
+    for (fc.args.items, 0..) |arg, i| args[i] = try self.convertValue(arg);
+    return self.addGoal(.{ .call = .{ .callee = callee, .args = args } }, region);
+}
+
+// Evaluable pattern expressions: range limits and other positions where
+// every read must be bound at match time.
+fn patternExprGoal(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!NodeId {
+    const region = pattern.region;
+    return switch (pattern.node) {
+        .true, .false, .null, .number_float, .number_string, .string => self.patternLiteralGoal(pattern),
+        .identifier => |ident| self.identGoal(ident, region),
+        .function_call => |fc| self.patternCallGoal(fc, region),
+        .merge => |op| self.addGoal(.{ .merge = .{
+            .left = try self.patternExprGoal(op.left),
+            .right = try self.patternExprGoal(op.right),
+        } }, region),
+        .negation => |inner| self.addGoal(.{ .neg = try self.patternExprGoal(inner) }, region),
+        else => error.GoalAstGap,
+    };
+}
+
+pub fn print(self: *Goal, writer: *Writer) Writer.Error!void {
+    for (self.ast.declarations.items) |decl| {
+        try writer.print("{s}", .{self.pathName(decl.name)});
+        if (decl.params.items.len > 0) {
+            try writer.writeAll("(");
+            for (decl.params.items, 0..) |param, i| {
+                if (i > 0) try writer.writeAll(", ");
+                try writer.print("{s}", .{self.pathName(param)});
+            }
+            try writer.writeAll(")");
+        }
+        try writer.writeAll(" =\n");
+        try self.printChild(writer, decl.body, 1);
+        try writer.writeAll("\n\n");
+    }
+    if (self.ast.main) |main_id| {
+        try writer.writeAll("main =\n");
+        try self.printChild(writer, main_id, 1);
+        try writer.writeAll("\n");
+    }
+}
+
+fn pathName(self: *Goal, id: PathTable.Id) [:0]const u8 {
+    return self.strings.get(self.paths.flat(id));
+}
+
+fn goalNode(self: *Goal, id: NodeId) Ast.GoalNode {
+    return self.ast.goals.items[id].node;
+}
+
+fn printIndent(writer: *Writer, indent: u32) Writer.Error!void {
+    var i: u32 = 0;
+    while (i < indent * 2) : (i += 1) try writer.writeAll(" ");
+}
+
+fn printChild(self: *Goal, writer: *Writer, id: NodeId, indent: u32) Writer.Error!void {
+    try printIndent(writer, indent);
+    try self.printGoal(writer, id, indent);
+}
+
+fn isInlineGoal(self: *Goal, id: NodeId) bool {
+    return switch (self.goalNode(id)) {
+        .true, .false, .null, .string, .number_string, .number_float, .ident => true,
+        .neg, .to_string => |inner| self.isInlineGoal(inner),
+        .merge => |m| self.isInlineGoal(m.left) and self.isInlineGoal(m.right),
+        .range => |r| (r.lower == null or self.isInlineGoal(r.lower.?)) and
+            (r.upper == null or self.isInlineGoal(r.upper.?)),
+        .call => |c| blk: {
+            if (!self.isInlineGoal(c.callee)) break :blk false;
+            for (c.args) |arg| if (!self.isInlineGoal(arg)) break :blk false;
+            break :blk true;
+        },
+        else => false,
+    };
+}
+
+fn printGoal(self: *Goal, writer: *Writer, id: NodeId, indent: u32) Writer.Error!void {
+    switch (self.goalNode(id)) {
+        .true => try writer.writeAll("true"),
+        .false => try writer.writeAll("false"),
+        .null => try writer.writeAll("null"),
+        .string => |s| try writer.print("\"{s}\"", .{s}),
+        .number_string => |ns| try writer.print("{s}{s}", .{
+            if (ns.negated) "-" else "",
+            ns.number,
+        }),
+        .number_float => |f| try writer.print("{d}", .{f}),
+        .ident => |ident| try writer.print("{s}", .{self.pathName(ident.name)}),
+        .call => |c| try self.printCall(writer, c, indent),
+        .neg => |inner| try self.printUnary(writer, "neg", inner, indent),
+        .to_string => |inner| try self.printUnary(writer, "to_string", inner, indent),
+        .merge => |m| try self.printBinary(writer, "merge", m.left, m.right, indent),
+        .range => |r| {
+            try writer.writeAll("(range ");
+            try self.printOptGoal(writer, r.lower, indent);
+            try writer.writeAll(" ");
+            try self.printOptGoal(writer, r.upper, indent);
+            try writer.writeAll(")");
+        },
+        .seq => |seq| {
+            try writer.print("(seq result={d}", .{seq.result});
+            for (seq.goals.items) |goal| {
+                try writer.writeAll("\n");
+                try self.printChild(writer, goal, indent + 1);
+            }
+            try writer.writeAll(")");
+        },
+        .alt => |arms| {
+            try writer.writeAll("(alt");
+            for (arms.items) |arm| {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try writer.writeAll("(arm");
+                if (arm.guard) |guard| {
+                    try writer.writeAll("\n");
+                    try self.printField(writer, "guard", guard, indent + 2);
+                }
+                if (arm.body) |body| {
+                    try writer.writeAll("\n");
+                    try self.printField(writer, "body", body, indent + 2);
+                }
+                try writer.writeAll(")");
+            }
+            try writer.writeAll(")");
+        },
+        .lambda => |lambda| {
+            try writer.print("(lambda {s}\n", .{self.pathName(lambda.name)});
+            try self.printChild(writer, lambda.body, indent + 1);
+            try writer.writeAll(")");
+        },
+        .array => |elems| {
+            try writer.writeAll("(array [");
+            for (elems.items) |elem| {
+                try writer.writeAll("\n");
+                try self.printChild(writer, elem, indent + 1);
+            }
+            if (elems.items.len > 0) {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent);
+            }
+            try writer.writeAll("])");
+        },
+        .object => |pairs| {
+            try writer.writeAll("(object [");
+            for (pairs.items) |pair| {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try self.printBinary(writer, "pair", pair.key, pair.value, indent + 1);
+            }
+            if (pairs.items.len > 0) {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent);
+            }
+            try writer.writeAll("])");
+        },
+        .repeat => |rep| {
+            try writer.writeAll("(repeat\n");
+            try self.printField(writer, "body", rep.body, indent + 1);
+            if (rep.cap != .none) {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try writer.writeAll("cap: ");
+                try self.printLimit(writer, rep.cap, indent + 1);
+            }
+            if (rep.count_test) |set_id| {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try writer.writeAll("count: ");
+                try self.printSet(writer, set_id, indent + 1);
+            }
+            try writer.writeAll(")");
+        },
+        .match => |match| {
+            try writer.writeAll("(match\n");
+            try self.printField(writer, "scrutinee", match.scrutinee, indent + 1);
+            try self.printPlaces(writer, match.places.items, indent + 1);
+            for (match.arms.items) |arm| {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try writer.writeAll("(arm");
+                try self.printConstraints(writer, arm.constraints.items, indent + 2);
+                if (arm.guard) |guard| {
+                    try writer.writeAll("\n");
+                    try self.printField(writer, "guard", guard, indent + 2);
+                }
+                if (arm.body) |body| {
+                    try writer.writeAll("\n");
+                    try self.printField(writer, "body", body, indent + 2);
+                }
+                try writer.writeAll(")");
+            }
+            try writer.writeAll(")");
+        },
+    }
+}
+
+fn printCall(self: *Goal, writer: *Writer, call: Ast.Call, indent: u32) Writer.Error!void {
+    const inline_args = blk: {
+        if (!self.isInlineGoal(call.callee)) break :blk false;
+        for (call.args) |arg| if (!self.isInlineGoal(arg)) break :blk false;
+        break :blk true;
+    };
+    if (inline_args) {
+        try writer.writeAll("(call ");
+        try self.printGoal(writer, call.callee, indent);
+        if (call.args.len > 0) {
+            try writer.writeAll(" [");
+            for (call.args, 0..) |arg, i| {
+                try self.printGoal(writer, arg, indent);
+                if (i < call.args.len - 1) try writer.writeAll(" ");
+            }
+            try writer.writeAll("]");
+        }
+        try writer.writeAll(")");
+    } else {
+        try writer.writeAll("(call ");
+        try self.printGoal(writer, call.callee, indent);
+        if (call.args.len > 0) {
+            try writer.writeAll(" [\n");
+            for (call.args) |arg| {
+                try self.printChild(writer, arg, indent + 1);
+                try writer.writeAll("\n");
+            }
+            try printIndent(writer, indent);
+            try writer.writeAll("]");
+        }
+        try writer.writeAll(")");
+    }
+}
+
+fn printUnary(
+    self: *Goal,
+    writer: *Writer,
+    tag: []const u8,
+    inner: NodeId,
+    indent: u32,
+) Writer.Error!void {
+    if (self.isInlineGoal(inner)) {
+        try writer.print("({s} ", .{tag});
+        try self.printGoal(writer, inner, indent);
+    } else {
+        try writer.print("({s}\n", .{tag});
+        try self.printChild(writer, inner, indent + 1);
+    }
+    try writer.writeAll(")");
+}
+
+fn printBinary(
+    self: *Goal,
+    writer: *Writer,
+    tag: []const u8,
+    left: NodeId,
+    right: NodeId,
+    indent: u32,
+) Writer.Error!void {
+    if (self.isInlineGoal(left) and self.isInlineGoal(right)) {
+        try writer.print("({s} ", .{tag});
+        try self.printGoal(writer, left, indent);
+        try writer.writeAll(" ");
+        try self.printGoal(writer, right, indent);
+    } else {
+        try writer.print("({s}\n", .{tag});
+        try self.printChild(writer, left, indent + 1);
+        try writer.writeAll("\n");
+        try self.printChild(writer, right, indent + 1);
+    }
+    try writer.writeAll(")");
+}
+
+fn printOptGoal(self: *Goal, writer: *Writer, id: ?NodeId, indent: u32) Writer.Error!void {
+    if (id) |bound| try self.printGoal(writer, bound, indent) else try writer.writeAll("_");
+}
+
+// `label: <goal>`; a block goal continues with children indented one
+// deeper than the label.
+fn printField(
+    self: *Goal,
+    writer: *Writer,
+    label: []const u8,
+    id: NodeId,
+    indent: u32,
+) Writer.Error!void {
+    try printIndent(writer, indent);
+    try writer.print("{s}: ", .{label});
+    try self.printGoal(writer, id, indent);
+}
+
+fn printSet(self: *Goal, writer: *Writer, set_id: SetId, indent: u32) Writer.Error!void {
+    const set = self.ast.constraint_sets.items[set_id];
+    try writer.writeAll("(set");
+    try self.printPlaces(writer, set.places.items, indent + 1);
+    try self.printConstraints(writer, set.constraints.items, indent + 1);
+    try writer.writeAll(")");
+}
+
+fn printPlaces(
+    self: *Goal,
+    writer: *Writer,
+    places: []const Ast.PlaceDef,
+    indent: u32,
+) Writer.Error!void {
+    for (places, 0..) |place, i| {
+        try writer.writeAll("\n");
+        try printIndent(writer, indent);
+        try writer.print("%{d} = ", .{i});
+        switch (place) {
+            .scrutinee => try writer.writeAll("scrutinee"),
+            .elem => |e| try writer.print("elem %{d} {d}", .{ e.src, e.index }),
+            .elem_back => |e| try writer.print("elem_back %{d} {d}", .{ e.src, e.index }),
+            .slice => |s| try writer.print("slice %{d} {d} {d}", .{ s.src, s.front, s.back }),
+            .key => |k| try writer.print("key %{d} \"{s}\"", .{ k.src, self.strings.get(k.sid) }),
+        }
+    }
+}
+
+fn printConstraints(
+    self: *Goal,
+    writer: *Writer,
+    constraints: []const Ast.Constraint,
+    indent: u32,
+) Writer.Error!void {
+    for (constraints) |constraint| {
+        try writer.writeAll("\n");
+        try printIndent(writer, indent);
+        try self.printConstraint(writer, constraint, indent);
+    }
+}
+
+fn printConstraint(
+    self: *Goal,
+    writer: *Writer,
+    constraint: Ast.Constraint,
+    indent: u32,
+) Writer.Error!void {
+    switch (constraint.kind) {
+        .is_type => |c| try writer.print("(is_type %{d} {s})", .{ c.place, @tagName(c.ty) }),
+        .len_eq => |c| try writer.print("(len_eq %{d} {d})", .{ c.place, c.len }),
+        .len_min => |c| try writer.print("(len_min %{d} {d})", .{ c.place, c.len }),
+        .keys_exact => |c| try writer.print("(keys_exact %{d} {d})", .{ c.place, c.count }),
+        .has_key => |c| try writer.print("(has_key %{d} \"{s}\")", .{
+            c.place,
+            self.strings.get(c.sid),
+        }),
+        .eq_const => |c| {
+            try writer.print("(eq_const %{d} ", .{c.place});
+            try self.printGoal(writer, c.value, indent);
+            try writer.writeAll(")");
+        },
+        .eq_places => |c| try writer.print("(eq_places %{d} %{d})", .{ c.a, c.b }),
+        .in_range => |c| {
+            try writer.print("(in_range %{d} ", .{c.place});
+            try self.printLimit(writer, c.lower, indent);
+            try writer.writeAll(" ");
+            try self.printLimit(writer, c.upper, indent);
+            try writer.writeAll(")");
+        },
+        .local => |c| try writer.print("(local %{d} {s})", .{ c.place, self.pathName(c.name) }),
+        .eval_eq => |c| {
+            try writer.print("(eval_eq %{d} ", .{c.place});
+            try self.printGoal(writer, c.expr, indent);
+            try writer.writeAll(")");
+        },
+        .negated => |c| {
+            try writer.print("(negated %{d} {d} ", .{ c.place, c.count });
+            try self.printPart(writer, c.part, indent);
+            try writer.writeAll(")");
+        },
+        .solve_merge => |c| {
+            try writer.print("(solve_merge %{d}", .{c.place});
+            if (c.solvable_index) |index| try writer.print(" solvable={d}", .{index});
+            for (c.parts.items) |part| {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try self.printPart(writer, part, indent + 1);
+            }
+            try writer.writeAll(")");
+        },
+        .match_template => |c| {
+            try writer.print("(match_template %{d}", .{c.place});
+            for (c.segments.items) |segment| {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                switch (segment) {
+                    .literal => |s| try writer.print("\"{s}\"", .{s}),
+                    .part => |part| try self.printPart(writer, part, indent + 1),
+                }
+            }
+            try writer.writeAll(")");
+        },
+        .solve_repeat => |c| {
+            try writer.print("(solve_repeat %{d}\n", .{c.place});
+            try printIndent(writer, indent + 1);
+            try writer.writeAll("pattern: ");
+            try self.printPart(writer, c.pattern, indent + 1);
+            try writer.writeAll("\n");
+            try printIndent(writer, indent + 1);
+            try writer.writeAll("count: ");
+            try self.printPart(writer, c.count, indent + 1);
+            try writer.writeAll(")");
+        },
+        .search_key => |c| {
+            try writer.print("(search_key %{d}\n", .{c.place});
+            try printIndent(writer, indent + 1);
+            try writer.writeAll("key: ");
+            try self.printSet(writer, c.key, indent + 1);
+            try writer.writeAll("\n");
+            try printIndent(writer, indent + 1);
+            try writer.writeAll("value: ");
+            try self.printSet(writer, c.value, indent + 1);
+            try writer.writeAll(")");
+        },
+    }
+}
+
+fn printPart(self: *Goal, writer: *Writer, part: Ast.Part, indent: u32) Writer.Error!void {
+    switch (part) {
+        .placeholder => try writer.writeAll("_"),
+        .local => |name| try writer.print("(local {s})", .{self.pathName(name)}),
+        .expr => |id| try self.printGoal(writer, id, indent),
+        .sub => |set_id| try self.printSet(writer, set_id, indent),
+    }
+}
+
+fn printLimit(self: *Goal, writer: *Writer, limit: Ast.Limit, indent: u32) Writer.Error!void {
+    switch (limit) {
+        .none => try writer.writeAll("_"),
+        .local => |name| try writer.print("(local {s})", .{self.pathName(name)}),
+        .expr => |id| try self.printGoal(writer, id, indent),
+    }
+}

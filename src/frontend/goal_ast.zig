@@ -1,0 +1,269 @@
+const std = @import("std");
+const ArrayList = std.ArrayListUnmanaged;
+const StringTable = @import("string_table.zig").FrontendStringTable;
+const PathTable = @import("path_table.zig").PathTable;
+const Region = @import("../region.zig").Region;
+
+goals: ArrayList(RNode) = .{},
+// Nested constraint scopes referenced by SetId: composite constraint
+// sub-patterns and repeat count tests.
+constraint_sets: ArrayList(ConstraintSet) = .{},
+declarations: ArrayList(Declaration) = .{},
+main: ?NodeId = null,
+
+pub const Goal = @This();
+pub const NodeId = u32;
+pub const SetId = u32;
+
+pub const RNode = struct {
+    region: Region,
+    node: GoalNode,
+};
+
+pub const Declaration = struct {
+    name: PathTable.Id,
+    underscored: bool,
+    params: ArrayList(PathTable.Id) = .{},
+    body: NodeId,
+    region: Region,
+};
+
+pub const GoalType = enum {
+    alt,
+    seq,
+    call,
+    match,
+    ident,
+    neg,
+    merge,
+    to_string,
+    number_string,
+    number_float,
+    array,
+    object,
+    repeat,
+    range,
+    string,
+    true,
+    false,
+    null,
+    lambda,
+};
+
+// `call` is the only invoking construct: functions are applied, literal
+// parser elems parse themselves. A bare `ident` always evaluates to its
+// value, never invokes — the inverse of the surface reading, where a bare
+// parser name in operand position runs. `lambda` is the only deferring
+// construct.
+pub const GoalNode = union(GoalType) {
+    alt: ArrayList(AltArm),
+    seq: Seq,
+    call: Call,
+    match: Match,
+    ident: Ident,
+    neg: NodeId,
+    merge: Merge,
+    // Stringify the result: identity on strings, JSON encoding otherwise.
+    // String templates desugar to merge chains of literal segments and
+    // to_string-wrapped interpolations; there is no template goal node.
+    to_string: NodeId,
+    number_string: NumberString,
+    number_float: f64,
+    array: ArrayList(NodeId),
+    object: ArrayList(ObjectPair),
+    repeat: Repeat,
+    range: Range,
+    string: []const u8,
+    true,
+    false,
+    null,
+    lambda: Lambda,
+};
+
+pub const AltArm = struct {
+    guard: ?NodeId,
+    body: ?NodeId,
+};
+
+// Run goals in order; any failure propagates. The result is
+// goals.items[result]: take-right and `$` use the last index, take-left
+// index 0. Goals after the result position still run (and can still fail)
+// before the seq yields.
+pub const Seq = struct {
+    goals: ArrayList(NodeId),
+    result: u32,
+};
+
+pub const Call = struct {
+    callee: NodeId,
+    args: []NodeId,
+};
+
+pub const Ident = struct {
+    name: PathTable.Id,
+    builtin: bool,
+    underscored: bool,
+};
+
+pub const Match = struct {
+    scrutinee: NodeId,
+    // Interned per match and shared by all arms, so cross-arm factoring is
+    // place-id comparison.
+    places: ArrayList(PlaceDef),
+    arms: ArrayList(MatchArm),
+};
+
+pub const PlaceId = u32; // index into the owning places list; 0 = root
+
+// A compile-time address for a value statically reachable from the root.
+// Values discovered by search or produced by solving are not places; they
+// live in the nested ConstraintSet of the composite that discovers them.
+// Evaluation results are not places either: eval_eq compares in place.
+pub const PlaceDef = union(enum) {
+    // The tested value: a match scrutinee or a ConstraintSet's root.
+    scrutinee,
+    // `First` in `[First, ...Rest]`
+    elem: struct { src: PlaceId, index: u32 },
+    // `Last` in `[...Front, Last]`
+    elem_back: struct { src: PlaceId, index: u32 },
+    // `Middle` in `[First, ...Middle, Last]`
+    slice: struct { src: PlaceId, front: u32, back: u32 },
+    // "foo" in `{"foo": Bar}`
+    key: struct { src: PlaceId, sid: StringTable.Id },
+};
+
+pub const MatchArm = struct {
+    constraints: ArrayList(Constraint),
+    guard: ?NodeId, // residual guard after head-test extraction
+    body: ?NodeId, // null: result is the scrutinee value
+    region: Region,
+};
+
+// A constraint scope rooted at one tested value: place 0 is the value
+// under test. Used wherever a pattern applies to a synthetic scrutinee
+// (repeat counts, composite sub-patterns). Match does not use this: its
+// places list lives at the match level because arms share it.
+pub const ConstraintSet = struct {
+    places: ArrayList(PlaceDef),
+    constraints: ArrayList(Constraint),
+    region: Region,
+};
+
+pub const ValueType = enum {
+    array,
+    object,
+    string,
+    number,
+    boolean,
+    null,
+};
+
+// One part of a solvable composite: a merge part, a template
+// interpolation, or a repeat operand.
+pub const Part = union(enum) {
+    // `_`: constrains nothing, absorbs the leftover.
+    placeholder,
+    // A bare variable; binding analysis decides binder vs read. As a
+    // merge part, an unbound local is the solvable rest.
+    local: PathTable.Id,
+    // A constant or evaluable expression goal, compared by value.
+    expr: NodeId,
+    // A structural sub-pattern; the set is rooted at the part's portion
+    // of the composite value.
+    sub: SetId,
+};
+
+pub const Limit = union(enum) {
+    none,
+    // A bare local: bound compares, unbound binds the matched value and
+    // imposes no limit.
+    local: PathTable.Id,
+    // Evaluated at match time; every read must be bound.
+    expr: NodeId,
+};
+
+pub const Constraint = struct {
+    kind: Kind,
+    region: Region,
+
+    // Semantically a set: execution order is an analysis result, not an
+    // IR property. Only eval_eq order relative to other eval_eq
+    // constraints is preserved from source.
+    pub const Kind = union(enum) {
+        // shape tests
+        is_type: struct { place: PlaceId, ty: ValueType },
+        len_eq: struct { place: PlaceId, len: u32 },
+        len_min: struct { place: PlaceId, len: u32 },
+        keys_exact: struct { place: PlaceId, count: u32 },
+        has_key: struct { place: PlaceId, sid: StringTable.Id },
+        // point tests
+        eq_const: struct { place: PlaceId, value: NodeId },
+        eq_places: struct { a: PlaceId, b: PlaceId },
+        in_range: struct { place: PlaceId, lower: Limit, upper: Limit },
+        // A variable occurrence. Binding analysis classifies each as
+        // binder, bound read, or global reference (a zero-arity function
+        // global evaluates per match, mirroring the solver's const_fn).
+        local: struct { place: PlaceId, name: PathTable.Id },
+        // Evaluate expr (a call or evaluable expression goal) and compare
+        // the result against the place.
+        eval_eq: struct { place: PlaceId, expr: NodeId },
+        // Numeric negation applied count times before matching part.
+        negated: struct { place: PlaceId, count: u32, part: Part },
+        // composites: nested constraint scopes, never factored.
+        // solvable_index is filled by binding analysis; a second
+        // solvable part is the one-unbound-part compile error.
+        solve_merge: struct {
+            place: PlaceId,
+            parts: ArrayList(Part),
+            solvable_index: ?u32,
+        },
+        match_template: struct { place: PlaceId, segments: ArrayList(Segment) },
+        solve_repeat: struct { place: PlaceId, pattern: Part, count: Part },
+        // Search the object's unmatched members for one whose key and
+        // value match the nested scopes; commit to the first success.
+        search_key: struct { place: PlaceId, key: SetId, value: SetId },
+    };
+};
+
+pub const Segment = union(enum) {
+    literal: []const u8,
+    part: Part,
+};
+
+pub const Merge = struct {
+    left: NodeId,
+    right: NodeId,
+};
+
+pub const ObjectPair = struct {
+    key: NodeId,
+    value: NodeId,
+};
+
+pub const Lambda = struct {
+    parent_name: ?PathTable.Id,
+    name: PathTable.Id,
+    body: NodeId,
+};
+
+// Greedy loop up to an optional cap, then an ordinary pattern test of the
+// iteration count. Exactness, minimums, and count binding all live in
+// count_test; cap only bounds how many attempts run. Populated at
+// creation whenever the count pattern implies one (exact counts, bare
+// locals, upper range limits, evaluable expressions); binding analysis
+// keeps a cap whose reads are all bound and clears it otherwise.
+pub const Repeat = struct {
+    body: NodeId,
+    cap: Limit,
+    count_test: ?SetId,
+};
+
+pub const Range = struct {
+    lower: ?NodeId,
+    upper: ?NodeId,
+};
+
+pub const NumberString = struct {
+    number: []const u8,
+    negated: bool,
+};
