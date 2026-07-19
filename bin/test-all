@@ -6,6 +6,7 @@ zig build test
 
 ./bin/test-snapshot ./examples/
 ./bin/test-snapshot ./snapshot_tests/parser/
+./bin/test-snapshot ./snapshot_tests/goal/
 ./bin/test-snapshot ./snapshot_tests/compiler/
 ./bin/test-snapshot ./snapshot_tests/runtime/
 ./bin/test-snapshot ./snapshot_tests/stdlib/

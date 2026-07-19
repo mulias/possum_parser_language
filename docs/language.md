@@ -183,6 +183,22 @@ Variables bound inside the repeated parser are scoped to a single iteration: eac
 
 If the repeated parser succeeds after zero matches the resulting value is `null`. The repeated merging behavior depends on the type of the parsed value, as defined by the `+` merge operator. For example `1..9 * 3` parses the input `123` as `1 + 2 + 3 = 6`, while `"1".."9" * 3` parses the same input as `"1" + "2" + "3" = "123"`.
 
+#### Repeat patterns
+
+A repeat in a destructure, `p -> (P * C)`, matches a value that equals `P` merged with itself `n` times (`P + P + ...`, `n` copies), for some `n` matching the count pattern `C`. It inverts the `*` operator: any value produced by repetition destructures back to its parts, without ever building the repeated value.
+
+| Destructured Value      | Description                                               |
+| ----------------------- | --------------------------------------------------------- |
+| `p -> ("ab" * 3)`       | Match the string `"ababab"`                               |
+| `p -> ("ab" * N)`       | Match `"ab"` repeated any number of times, bind the count to `N` |
+| `p -> (A * 2)`          | Match a string or array that halves into two equal chunks, match or bind one chunk to `A` |
+| `p -> ([A] * 5)`        | Match an array of 5 identical elements, match or bind the repeated element to `A` |
+| `p -> ([A, B] * N)`     | Match an array of identical `[A, B]` chunks, bind `N` to the chunk count |
+| `p -> (("a".."z") * N)` | Match a string of codepoints in the range, bind `N` to the codepoint count |
+| `p -> (5 * N)`          | Match a number, bind `N` to the parsed value divided by 5. |
+
+Identity edge cases: `"" * C` and `0 * C` match only their own identity value, with canonical count 1. A count of 0 matches only the type's empty value (`""`, `[]`, `{}`); a bare variable pattern binds that empty value, while binds inside a structural pattern stay unbound since no iteration runs. A non-number count is a runtime error; a negative or fractional count fails the match for any non-number value.
+
 ## Parser Programs
 
 A program consists of one main parser statement and zero, one, or many parsers, value functions, and imports. Statements may be separated by newlines or semicolons and can be defined in any order. Named parsers and values may be functions that specify parameters, and can reference each other and themselves recursively.

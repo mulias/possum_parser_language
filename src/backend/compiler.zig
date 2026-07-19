@@ -13,7 +13,9 @@ const Module = runtime.Module;
 const name_resolver = @import("name_resolver.zig");
 const NameResolver = name_resolver.NameResolver;
 const OpCode = runtime.OpCode;
-const pattern = @import("pattern.zig");
+const RangeLimitKind = runtime.RangeLimitKind;
+const MatchCmpKind = runtime.MatchCmpKind;
+const MatchCastKind = runtime.MatchCastKind;
 const Region = @import("../region.zig").Region;
 const FrontendStrings = Frontend.StringTable;
 const RuntimeStrings = runtime.StringTable;
@@ -35,11 +37,23 @@ pub const Compiler = struct {
     printBytecode: bool = false,
     global_map: name_resolver.GlobalMap = .{},
     constant_map: AutoHashMap(ConstantMapKey, usize) = .{},
-    // The slots each module match plan references, computed once at lowering
-    // and indexed to match the module's `match_plans`. Compile-time only
-    // (feeds liveness), so it lives here rather than on the runtime Module.
-    plan_slots: AutoHashMap(Module.Id, ArrayList(liveness.PlanSlots)) = .{},
     main: ?*Elem.DynElem.Function = null,
+    // The search-key claim layout for the match arm currently being
+    // stepped. Each object place that a search pair matches against gets a
+    // claim array register holding the keys already taken (seeded with the
+    // place's const keys); ensureGoalPlace reads it to exclude those keys
+    // from a members_rest.
+    arm_search_groups: []ClaimGroup = &.{},
+    // The claim array register of each object place matched by a
+    // claim_members (object-merge repeat) in the arm currently being
+    // stepped. ensureGoalPlace reads it to build the members_rest from the
+    // members the repeat did not claim.
+    arm_claim_members: []ClaimGroup = &.{},
+
+    const ClaimGroup = struct {
+        src: Ast.PlaceId,
+        reg: u8,
+    };
 
     const ConstantMapKey = struct {
         module_id: u32,
@@ -56,11 +70,13 @@ pub const Compiler = struct {
     // own bytecode. Computed once by classifyDecl and reused.
     const DeclKind = union(enum) {
         alias_value: Elem,
-        alias_ident: Frontend.PathTable.Id,
+        alias_ident,
         function,
     };
 
-    const Error = pattern.Error || error{
+    const Error = error{
+        UnsupportedPattern,
+        NegatedNonNumber,
         InvalidAst,
         MaxFunctionArgs,
         MaxFunctionLocals,
@@ -68,11 +84,9 @@ pub const Compiler = struct {
         TooManyConstants,
         TooManyPatterns,
         ShortOverflow,
-        AliasCycle,
         UndefinedVariable,
         FunctionCallTooManyArgs,
         FunctionCallTooFewArgs,
-        FunctionCallTypeMismatch,
         RangeNotSingleCodepoint,
         RangeCodepointsUnordered,
         RangeIntegersUnordered,
@@ -104,9 +118,6 @@ pub const Compiler = struct {
         self.frontend.deinit();
         self.constant_map.deinit(self.vm.allocator);
         self.global_map.deinit(self.vm.allocator);
-        var plan_slots = self.plan_slots.valueIterator();
-        while (plan_slots.next()) |list| list.deinit(self.vm.allocator);
-        self.plan_slots.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
         self.scopes.deinit(self.vm.allocator);
         for (self.irs.items) |*function_ir| function_ir.deinit(self.vm.allocator);
@@ -155,8 +166,8 @@ pub const Compiler = struct {
         if (self.frontend.target_module_id) |target_module_id| {
             try self.compileModule(target_module_id);
 
-            if (self.frontend.main) |main_ast| {
-                try self.compileMainParser(target_module_id, main_ast);
+            if (self.frontend.main) |main_name| {
+                try self.compileMainParser(target_module_id, main_name);
             }
 
             if (self.printBytecode) try self.printCompiled();
@@ -190,16 +201,16 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileMainParser(self: *Compiler, module_id: Module.Id, main_ast: *Ast.RNode(Ast.Parser.AnonymousFunction)) !void {
-        const main_node = self.frontend.getNode(.{ .module_id = module_id, .name = main_ast.node.name });
+    fn compileMainParser(self: *Compiler, module_id: Module.Id, main_name: Frontend.PathTable.Id) !void {
+        const main_node = self.frontend.getNode(.{ .module_id = module_id, .name = main_name });
 
         for (main_node.dependencies()) |edge| {
             try self.compileDeclaration(edge.target);
         }
 
-        const function = try self.declareAnonFunction(.{ .module_id = module_id, .name = main_ast.node.name });
+        const function = try self.declareAnonFunction(.{ .module_id = module_id, .name = main_name });
 
-        try self.emitAnonFunctionBody(module_id, main_node, function, main_ast.node.body, main_ast.region);
+        try self.emitAnonFunctionBody(module_id, main_node, function, main_node.anonymous_function.region);
 
         self.main = function;
     }
@@ -210,24 +221,14 @@ pub const Compiler = struct {
         module_id: Module.Id,
         node: *DependencyGraphNode,
         function: *Elem.DynElem.Function,
-        body: *Ast.Parser.RNode,
         region: Region,
     ) !void {
-        try self.functions.append(self.vm.allocator, function);
-        try self.pushScope(node);
-        try self.irs.append(self.vm.allocator, Ir{});
-
-        try self.pushLocalPlaceholders(module_id, 0, region);
-
-        if (node.anonymous_function.closure_captures.items.len > 0) {
-            try self.emitOp(.SetClosureCaptures, region);
-        }
-
-        try self.writeParser(module_id, body);
-        try self.finishFunctionIr(module_id);
-
-        _ = self.functions.pop();
-        _ = self.scopes.pop();
+        const name = node.anonymous_function.name;
+        const ast = self.goalAst(module_id);
+        const goal_body = goalFunctionBody(ast, name) orelse
+            @panic("Internal Error: no goal body for anonymous function");
+        const captures = goalLambdaCaptures(ast, name);
+        return self.emitGoalFunctionBody(module_id, node, function, ast, goal_body, captures, region);
     }
 
     fn isFullyCompiled(self: *Compiler, decl_key: GlobalKey) bool {
@@ -248,12 +249,13 @@ pub const Compiler = struct {
         // Only compile if this is actually a declaration
         switch (node.*) {
             .precompiled => try self.createBuiltin(decl_key),
-            .declaration => |*n| {
-                const decl = n.ast;
-                const kind = try self.classifyDecl(decl);
+            .declaration => {
+                const ast = self.goalAst(decl_key.module_id);
+                const goal_decl = goalDeclaration(ast, decl_key.name);
+                const kind = try self.classifyDecl(ast, goal_decl);
 
                 if (self.findGlobal(decl_key.module_id, decl_key.name) == null) {
-                    try self.declareFromKind(decl_key, decl, kind);
+                    try self.declareFromKind(decl_key, goal_decl, kind);
                 }
 
                 // Aliases share their target's function elem, whose bytecode is
@@ -263,7 +265,7 @@ pub const Compiler = struct {
                     .function => {
                         if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
                             if (elem.isDynType(.Function) and elem.asDyn().asFunction().hasEmptyBytecode()) {
-                                try self.compileFunction(node, decl_key.module_id, decl);
+                                try self.compileFunction(node, decl_key);
                             }
                         }
                     },
@@ -277,8 +279,7 @@ pub const Compiler = struct {
                         decl_key.module_id,
                         node,
                         function,
-                        anon.ast.node.body,
-                        anon.ast.region,
+                        anon.region,
                     );
                 }
             },
@@ -290,15 +291,17 @@ pub const Compiler = struct {
         }
     }
 
-    fn ensureDeclared(self: *Compiler, dep_key: GlobalKey) !void {
+    fn ensureDeclared(self: *Compiler, dep_key: GlobalKey) Error!void {
         if (self.findGlobal(dep_key.module_id, dep_key.name) != null) {
             return;
         }
 
         switch (self.frontend.getNode(dep_key).*) {
             .precompiled => try self.createBuiltin(dep_key),
-            .declaration => |*n| {
-                try self.declareFromKind(dep_key, n.ast, try self.classifyDecl(n.ast));
+            .declaration => {
+                const ast = self.goalAst(dep_key.module_id);
+                const goal_decl = goalDeclaration(ast, dep_key.name);
+                try self.declareFromKind(dep_key, goal_decl, try self.classifyDecl(ast, goal_decl));
             },
             .anonymous_function => {
                 _ = try self.declareAnonFunction(dep_key);
@@ -311,13 +314,13 @@ pub const Compiler = struct {
             return elem.asDyn().asFunction();
         }
 
-        const ast = self.frontend.getNode(key).anonymous_function.ast;
+        const anon = self.frontend.getNode(key).anonymous_function;
 
         const function = try Elem.DynElem.Function.create(self.vm, .{
             .module_id = key.module_id,
             .name = try self.internPathForRuntime(key.name),
             .arity = 0,
-            .region = ast.region,
+            .region = anon.region,
             .is_anonymous = true,
         });
 
@@ -339,152 +342,72 @@ pub const Compiler = struct {
 
     // A parameterless alias body inlines to a value elem; a bare-identifier
     // body is an alias to another declaration; everything else is a function.
-    fn classifyDecl(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !DeclKind {
-        if (try self.getAliasBody(decl)) |elem| {
+    fn classifyDecl(self: *Compiler, ast: *const Ast, decl: *const Ast.Declaration) !DeclKind {
+        if (try self.getAliasBody(ast, decl)) |elem| {
             return .{ .alias_value = elem };
         }
-        if (self.getAliasChainName(decl)) |name| {
-            return .{ .alias_ident = name };
+        if (ast.aliasTargetName(decl) != null) {
+            return .alias_ident;
         }
         return .function;
     }
 
-    fn declareFromKind(self: *Compiler, key: GlobalKey, decl: Ast.ParserOrValue.Declaration, kind: DeclKind) !void {
+    fn declareFromKind(self: *Compiler, key: GlobalKey, decl: *const Ast.Declaration, kind: DeclKind) Error!void {
         switch (kind) {
             .alias_value => |alias_elem| try self.addGlobal(key.module_id, key.name, alias_elem),
-            .alias_ident => try self.denormalizeAlias(key, decl),
+            // The frontend resolved the chain (and already rejected any
+            // cycle). A terminal shares its elem, whose bytecode fills in
+            // when it compiles; a dangling reference is reported now that
+            // this alias is actually being compiled.
+            .alias_ident => switch (self.frontend.aliasResolution(key).?) {
+                .terminal => |terminal| {
+                    try self.ensureDeclared(terminal);
+                    try self.addGlobal(key.module_id, key.name, self.getGlobal(terminal));
+                },
+                .undefined => |u| {
+                    const link_decl = self.frontend.getNode(u.key).declaration.decl;
+                    try self.printError(u.key.module_id, link_decl.region, "undefined variable '{s}'", .{self.frontend.pathString(u.name)});
+                    return Error.UndefinedVariable;
+                },
+            },
             .function => try self.declareFunction(key.module_id, decl),
         }
     }
 
-    fn declareFunction(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
+    fn declareFunction(self: *Compiler, module_id: Module.Id, decl: *const Ast.Declaration) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
 
-        const function_name = decl.identName();
+        const function_name = decl.name;
 
         var function = try Elem.DynElem.Function.create(self.vm, .{
             .module_id = module_id,
             .name = try self.internPathForRuntime(function_name),
             .arity = 0,
-            .region = decl.region(),
+            .region = decl.region,
             .is_anonymous = false,
         });
 
         try self.addGlobal(module_id, function_name, function.dyn.elem());
 
-        if (decl.param_count() > std.math.maxInt(u5)) {
+        if (decl.params.items.len > std.math.maxInt(u5)) {
             try self.printError(
                 module_id,
-                decl.identRegion(),
+                decl.ident_region,
                 "Can't have more than {} parameters.",
                 .{std.math.maxInt(u5)},
             );
             return Error.MaxFunctionLocals;
         }
 
-        switch (decl) {
-            .parser => |p_decl| {
-                for (p_decl.node.params.items, 0..) |param_ident, i| {
-                    function.param_types.set(
-                        @intCast(i),
-                        if (param_ident == .parser) .Parser else .Value,
-                    );
-                }
-                function.arity = @intCast(p_decl.node.params.items.len);
-            },
-            .value => |v_decl| {
-                for (v_decl.node.params.items, 0..) |param_ident, i| {
-                    _ = param_ident;
-                    function.param_types.set(@intCast(i), .Value);
-                }
-                function.arity = @intCast(v_decl.node.params.items.len);
-            },
-        }
+        function.arity = @intCast(decl.params.items.len);
+        function.param_types.bitset = decl.param_types;
     }
 
-    fn denormalizeAlias(self: *Compiler, decl_key: GlobalKey, decl: Ast.ParserOrValue.Declaration) !void {
-        var path = AutoHashMap(GlobalKey, void){};
-        defer path.deinit(self.vm.allocator);
-
-        var target_key = decl_key;
-        var target_elem: ?Elem = null;
-
-        while (true) {
-            if (self.findGlobal(target_key.module_id, target_key.name)) |elem| {
-                target_elem = elem;
-                break;
-            }
-
-            if (path.contains(target_key)) {
-                try self.printError(decl_key.module_id, decl.region(), "Circular alias dependency detected for '{s}'", .{self.frontend.pathString(decl_key.name)});
-                return Error.AliasCycle;
-            }
-            try path.put(self.vm.allocator, target_key, undefined);
-
-            const target_node = self.frontend.getNode(target_key);
-
-            if (target_node.* == .precompiled) {
-                try self.createBuiltin(target_key);
-                target_elem = self.getGlobal(target_key);
-                break;
-            }
-
-            const target_decl = target_node.declaration.ast;
-
-            if (try self.getAliasDependency(target_key, target_decl)) |next_key| {
-                target_key = next_key;
-                continue;
-            }
-
-            if (try self.getAliasBody(target_decl)) |elem| {
-                target_elem = elem;
-                break;
-            }
-
-            // The target is itself an alias to a bare identifier, but the
-            // resolver recorded no dependency edge for it, so that identifier
-            // names nothing.
-            if (self.getAliasChainName(target_decl)) |unresolved_name| {
-                try self.printError(target_key.module_id, target_decl.region(), "undefined variable '{s}'", .{self.frontend.pathString(unresolved_name)});
-                return Error.UndefinedVariable;
-            }
-
-            // The chain ends at a function declaration that hasn't been
-            // declared yet. Its bytecode is filled in when the target's own
-            // declaration is compiled.
-            try self.declareFunction(target_key.module_id, target_decl);
-            target_elem = self.getGlobal(target_key);
-            break;
-        }
-
-        if (target_elem) |elem| {
-            var key_iter = path.keyIterator();
-            while (key_iter.next()) |key| {
-                try self.addGlobal(key.module_id, key.name, elem);
-            }
-            try self.addGlobal(decl_key.module_id, decl_key.name, elem);
-        } else {
-            unreachable;
-        }
-    }
-
-    fn getAliasDependency(self: *Compiler, decl_key: GlobalKey, decl: Ast.ParserOrValue.Declaration) !?GlobalKey {
-        if (!self.declHasNoParams(decl)) {
-            return null;
-        }
-
-        const ident_name = self.getAliasChainName(decl) orelse return null;
-
-        const node = self.frontend.findNode(decl_key.module_id, decl.identName()) orelse return null;
-
-        return node.dependencyNamed(ident_name);
-    }
-
-    fn compileFunction(self: *Compiler, node: *DependencyGraphNode, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
-        const global_sid = decl.identName();
-        const globalVal = self.getGlobal(.{ .module_id = module_id, .name = global_sid });
+    fn compileFunction(self: *Compiler, node: *DependencyGraphNode, decl_key: GlobalKey) !void {
+        const module_id = decl_key.module_id;
+        const globalVal = self.getGlobal(decl_key);
 
         const function = globalVal.asDyn().asFunction();
 
@@ -492,16 +415,12 @@ pub const Compiler = struct {
         try self.pushScope(node);
         try self.irs.append(self.vm.allocator, Ir{});
 
-        try self.pushLocalPlaceholders(module_id, function.arity, decl.region());
+        const ast = self.goalAst(module_id);
+        const goal_decl = goalDeclaration(ast, decl_key.name);
 
-        switch (decl) {
-            .parser => |p| {
-                try self.writeParser(module_id, p.node.body);
-            },
-            .value => |v| {
-                try self.writeValue(module_id, v.node.body);
-            },
-        }
+        try self.pushLocalPlaceholders(module_id, function.arity, goal_decl.region);
+
+        try self.writeGoal(module_id, ast, goal_decl.body);
 
         try self.finishFunctionIr(module_id);
 
@@ -524,1457 +443,6 @@ pub const Compiler = struct {
             const bytes = self.frontend.strings.get(sid);
             const underscored = bytes.len > 0 and bytes[0] == '_';
             try self.writeConstant(module_id, Elem.valueVar(try self.internForRuntime(sid), underscored), region);
-        }
-    }
-
-    fn writeParser(self: *Compiler, module_id: Module.Id, rnode: *Ast.Parser.RNode) !void {
-        const node = rnode.node;
-        const region = rnode.region;
-
-        switch (node) {
-            .merge => |merge| {
-                try self.writeParser(module_id, merge.left);
-                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeParser(module_id, merge.right);
-                try self.emitOp(.Merge, region);
-                self.patchJump(jumpIndex);
-            },
-            .take_left => |take_left| {
-                try self.writeParser(module_id, take_left.left);
-                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeParser(module_id, take_left.right);
-                try self.emitOp(.TakeLeft, region);
-                self.patchJump(jumpIndex);
-            },
-            .take_right => |take_right| {
-                try self.writeParser(module_id, take_right.left);
-                const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeParser(module_id, take_right.right);
-                self.patchJump(jumpIndex);
-            },
-            .destructure => |destructure| {
-                try self.writeParser(module_id, destructure.left);
-                try self.writeDestructurePattern(module_id, destructure.right);
-            },
-            .@"or" => |or_node| {
-                try self.emitOp(.SetInputMark, region);
-                try self.writeParser(module_id, or_node.left);
-                const jumpIndex = try self.emitJump(.Or, region);
-                try self.writeParser(module_id, or_node.right);
-                self.patchJump(jumpIndex);
-            },
-            .@"return" => |return_node| {
-                // Special case: `"" $ Foo` will always succeed and push `Foo` on the stack
-                if (return_node.left.node == .string and return_node.left.node.string.len == 0) {
-                    try self.writeValue(module_id, return_node.right);
-                } else {
-                    try self.writeParser(module_id, return_node.left);
-                    const jumpIndex = try self.emitJump(.TakeRight, region);
-                    try self.writeValue(module_id, return_node.right);
-                    self.patchJump(jumpIndex);
-                }
-            },
-            .repeat => |repeat| {
-                try self.writeParserRepeat(module_id, repeat.left, repeat.right, region);
-            },
-            .range => |bounds| {
-                if (bounds.lower != null and bounds.upper != null) {
-                    try self.writeRangeParser(module_id, bounds.lower.?, bounds.upper.?, region);
-                } else if (bounds.lower != null) {
-                    try self.writeLowerBoundedRangeParser(module_id, bounds.lower.?, region);
-                } else {
-                    try self.writeUpperBoundedRangeParser(module_id, bounds.upper.?, region);
-                }
-            },
-            .negation => |inner| {
-                try self.writeNegatedParserElem(module_id, inner, region);
-                try self.emitUnaryOp(.CallFunction, 0, region);
-            },
-            .identifier => |ident| {
-                if (self.localSlot(ident.name)) |slot| {
-                    try self.emitUnaryOp(.CallFunctionLocal, slot, region);
-                } else {
-                    if (self.resolveGlobal(module_id, ident.name)) |globalElem| {
-                        try self.writeCallFunctionConstant(module_id, globalElem, region);
-                    } else {
-                        try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(ident.name)});
-                        return Error.UndefinedVariable;
-                    }
-                }
-            },
-            .function_call => |function_call| {
-                try self.writeParserFunctionCall(module_id, function_call.function, function_call.args, region);
-            },
-            .number_string => |ns| {
-                const bytes = ns.number;
-
-                if (bytes.len == 1) {
-                    try self.emitUnaryOp(.ParseNumberStringChar, bytes[0], region);
-                } else {
-                    const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                    try self.writeCallFunctionConstant(module_id, elem, region);
-                }
-            },
-            .string => |string| {
-                if (string.len == 0) {
-                    return try self.emitOp(.PushEmptyString, region);
-                } else if (string.len == 1) {
-                    return try self.emitUnaryOp(.ParseChar, string[0], region);
-                } else {
-                    const sid = try self.vm.strings.insert(string);
-                    const elem = Elem.string(sid);
-                    try self.writeCallFunctionConstant(module_id, elem, region);
-                }
-            },
-            .string_template => |parts| {
-                try self.writeStringTemplateParser(module_id, parts, region);
-            },
-            .conditional => |conditional| {
-                try self.emitOp(.SetInputMark, region);
-                try self.writeParser(module_id, conditional.condition);
-                const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
-                try self.writeParser(module_id, conditional.then_branch);
-                const thenElseJumpIndex = try self.emitJump(.Jump, region);
-                self.patchJump(ifThenJumpIndex);
-                try self.writeParser(module_id, conditional.else_branch);
-                self.patchJump(thenElseJumpIndex);
-            },
-            .anonymous_function => |anon| {
-                try self.writeParserAnonymousFunction(module_id, anon, region);
-            },
-        }
-    }
-
-    fn writeParserFunctionCall(
-        self: *Compiler,
-        module_id: Module.Id,
-        function: *Ast.Parser.RNode,
-        arguments: ArrayList(Ast.ParserOrValue.RNode),
-        call_region: Region,
-    ) !void {
-        const function_ident = switch (function.node) {
-            .identifier => |ident| ident,
-            else => {
-                try self.printError(module_id, function.region, "Only named functions can be called", .{});
-                return Error.InvalidAst;
-            },
-        };
-        const function_id = function_ident.name;
-        const arg_count = arguments.items.len;
-
-        var function_elem: ?*Elem.DynElem.Function = null;
-
-        // Try to get the function elem. The function might be passed in as a
-        // param to another function, in which case we would only now the exact
-        // elem at runtime.
-        if (self.localSlot(function_id)) |slot| {
-            try self.emitUnaryOp(.GetLocal, slot, function.region);
-        } else if (self.resolveGlobal(module_id, function_id)) |global| {
-            function_elem = global.asDyn().asFunction();
-            try self.writeConstant(module_id, global, function.region);
-        } else {
-            const function_name = self.frontend.pathString(function_id);
-            try self.printError(module_id, function.region, "Undefined function '{s}'", .{function_name});
-            return Error.UndefinedVariable;
-        }
-
-        // If we know the function elem now then we can validate that the
-        // function is getting called with the correct number of args and that
-        // the args all match the expected param types. If the function elem is
-        // only runtime known then we need to emit a runtime version of this
-        // check.
-        if (function_elem) |f| {
-            if (f.arity != arg_count) {
-                const function_elem_name = self.vm.strings.get(f.name);
-                const region = if (arguments.items.len > 0) blk: {
-                    const first_arg = arguments.items[0];
-                    const last_arg = arguments.items[arg_count - 1];
-                    break :blk first_arg.region().merge(last_arg.region());
-                } else blk: {
-                    break :blk function.region;
-                };
-
-                if (f.arity < arg_count) {
-                    try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got {d}", .{ function_elem_name, f.arity, arg_count });
-                    return Error.FunctionCallTooManyArgs;
-                } else {
-                    try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got {d}", .{ function_elem_name, f.arity, arg_count });
-                    return Error.FunctionCallTooFewArgs;
-                }
-            }
-
-            for (arguments.items, 0..) |arg, i| {
-                const expected_type = f.param_types.get(@intCast(i));
-                const is_parser_arg = switch (arg) {
-                    .parser => true,
-                    .value => false,
-                };
-
-                const expected_is_parser = expected_type == .Parser;
-                if (is_parser_arg != expected_is_parser) {
-                    if (expected_is_parser) {
-                        try self.printError(module_id, arg.region(), "Expected parser but got value", .{});
-                    } else {
-                        try self.printError(module_id, arg.region(), "Expected value but got parser", .{});
-                    }
-                    return Error.FunctionCallTypeMismatch;
-                }
-            }
-        } else {
-            // No matter what we know the max param count
-            if (arg_count > std.math.maxInt(u5)) {
-                const first_arg = arguments.items[0];
-                const last_arg = arguments.items[arg_count - 1];
-                const region = first_arg.region().merge(last_arg.region());
-
-                try self.printError(
-                    module_id,
-                    region,
-                    "Can't have more than {} arguments.",
-                    .{std.math.maxInt(u5)},
-                );
-                return Error.MaxFunctionArgs;
-            }
-
-            try self.emitUnaryOp(.AssertFunctionArity, @intCast(arg_count), call_region);
-
-            var expected_param_types = Elem.DynElem.Function.ParamTypes{};
-            for (arguments.items, 0..) |arg, i| {
-                switch (arg) {
-                    .parser => expected_param_types.set(@intCast(i), .Parser),
-                    .value => expected_param_types.set(@intCast(i), .Value),
-                }
-            }
-
-            if (arg_count < 8) {
-                // We can fit the expected params in a single byte
-                try self.emitUnaryOp(.AssertParamTypes, @intCast(expected_param_types.bitset & 0x7F), call_region);
-            } else {
-                try self.emitLongOp(.AssertParamTypes4, expected_param_types.bitset, call_region);
-            }
-        }
-
-        for (arguments.items) |arg| {
-            try self.writeParserFunctionArgument(module_id, arg);
-        }
-
-        try self.emitUnaryOp(.CallFunction, @intCast(arg_count), call_region);
-    }
-
-    fn writeRangeParser(self: *Compiler, module_id: Module.Id, low: *Ast.Parser.RNode, high: *Ast.Parser.RNode, region: Region) !void {
-        const low_elem = try self.parserNodeToElem(low.node);
-        const high_elem = try self.parserNodeToElem(high.node);
-
-        if (low.node == .string and high.node == .string) {
-            const low_str = low_elem.?.asString();
-            const high_str = high_elem.?.asString();
-            const low_bytes = self.vm.strings.get(low_str);
-            const high_bytes = self.vm.strings.get(high_str);
-            const low_codepoint = parsing.utf8Decode(low_bytes) orelse {
-                try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
-                return Error.RangeNotSingleCodepoint;
-            };
-            const high_codepoint = parsing.utf8Decode(high_bytes) orelse {
-                try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
-                return Error.RangeNotSingleCodepoint;
-            };
-
-            if (low_codepoint > high_codepoint) {
-                try self.printError(module_id, low.region.merge(high.region), "Range upper bound codepoint is less than the lower bound", .{});
-                return Error.RangeCodepointsUnordered;
-            } else if (low_codepoint == 0 and high_codepoint == 0x10ffff) {
-                try self.emitOp(.ParseCodepoint, region);
-            } else if (low_codepoint <= 255 and high_codepoint <= 255) {
-                try self.emitBytePair(
-                    .ParseCodepointRange,
-                    @as(u8, @intCast(low_codepoint)),
-                    low.region,
-                    @as(u8, @intCast(high_codepoint)),
-                    high.region,
-                    region,
-                );
-            } else {
-                try self.writeConstant(module_id, low_elem.?, low.region);
-                try self.writeConstant(module_id, high_elem.?, high.region);
-                try self.emitOp(.ParseRange, region);
-            }
-        } else if (low.node == .number_string and high.node == .number_string) {
-            const low_ns = low_elem.?.asNumberString();
-            const high_ns = high_elem.?.asNumberString();
-
-            const low_num = low_ns.toNumberFloat(self.vm.strings);
-            const high_num = high_ns.toNumberFloat(self.vm.strings);
-
-            if (!low_num.isInteger(self.vm.strings)) {
-                try self.printError(module_id, low.region, "Range bound must be an integer", .{});
-                return Error.RangeInvalidNumberFormat;
-            }
-            if (!high_num.isInteger(self.vm.strings)) {
-                try self.printError(module_id, high.region, "Range bound must be an integer", .{});
-                return Error.RangeInvalidNumberFormat;
-            }
-
-            const low_int = try low_num.asInteger(self.vm.strings);
-            const high_int = try high_num.asInteger(self.vm.strings);
-
-            if (low_int > high_int) {
-                try self.printError(module_id, low.region.merge(high.region), "Range upper bound is less than the lower bound", .{});
-                return Error.RangeIntegersUnordered;
-            } else if (0 <= low_int and low_int <= 255 and 0 <= high_int and high_int <= 255) {
-                try self.emitBytePair(
-                    .ParseIntegerRange,
-                    @as(u8, @intCast(low_int)),
-                    low.region,
-                    @as(u8, @intCast(high_int)),
-                    high.region,
-                    region,
-                );
-            } else {
-                try self.writeConstant(module_id, low_elem.?, low.region);
-                try self.writeConstant(module_id, high_elem.?, high.region);
-                try self.emitOp(.ParseRange, region);
-            }
-        } else {
-            switch (low.node) {
-                .string => {
-                    const low_str = low_elem.?.asString();
-                    const low_bytes = self.vm.strings.get(low_str);
-                    _ = parsing.utf8Decode(low_bytes) orelse {
-                        try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
-                        return Error.RangeNotSingleCodepoint;
-                    };
-
-                    try self.writeConstant(module_id, low_elem.?, low.region);
-                },
-                .number_string => {
-                    const low_ns = low_elem.?.asNumberString();
-                    const low_num = low_ns.toNumberFloat(self.vm.strings);
-
-                    if (!low_num.isInteger(self.vm.strings)) {
-                        try self.printError(module_id, low.region, "Range bound must be an integer", .{});
-                        return Error.RangeInvalidNumberFormat;
-                    }
-
-                    try self.writeConstant(module_id, low_num, low.region);
-                },
-                .identifier => |ident| {
-                    try self.writeGetVar(module_id, ident.name, low.region);
-                },
-                .negation => |inner| {
-                    try self.writeNegatedParserElem(module_id, inner, region);
-                },
-                else => {
-                    try self.printError(module_id, low.region, "Range bound must be an integer or codepoint", .{});
-                    return Error.InvalidAst;
-                },
-            }
-
-            switch (high.node) {
-                .string => {
-                    const high_str = high_elem.?.asString();
-                    const high_bytes = self.vm.strings.get(high_str);
-                    _ = parsing.utf8Decode(high_bytes) orelse {
-                        try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
-                        return Error.RangeNotSingleCodepoint;
-                    };
-
-                    try self.writeConstant(module_id, high_elem.?, high.region);
-                },
-                .number_string => {
-                    const high_ns = high_elem.?.asNumberString();
-                    const high_num = high_ns.toNumberFloat(self.vm.strings);
-
-                    if (!high_num.isInteger(self.vm.strings)) {
-                        try self.printError(module_id, high.region, "Range bound must be an integer", .{});
-                        return Error.RangeInvalidNumberFormat;
-                    }
-
-                    try self.writeConstant(module_id, high_num, high.region);
-                },
-                .identifier => |ident| {
-                    try self.writeGetVar(module_id, ident.name, high.region);
-                },
-                .negation => |inner| {
-                    try self.writeNegatedParserElem(module_id, inner, region);
-                },
-                else => {
-                    try self.printError(module_id, high.region, "Range bound must be an integer or codepoint", .{});
-                    return Error.InvalidAst;
-                },
-            }
-
-            try self.emitOp(.ParseRange, region);
-        }
-    }
-
-    fn writeLowerBoundedRangeParser(self: *Compiler, module_id: Module.Id, low: *Ast.Parser.RNode, region: Region) !void {
-        const low_elem = try self.parserNodeToElem(low.node);
-        const low_region = low.region;
-
-        switch (low.node) {
-            .string => {
-                const low_str = low_elem.?.asString();
-                const low_bytes = self.vm.strings.get(low_str);
-                const low_codepoint = parsing.utf8Decode(low_bytes) orelse {
-                    try self.printError(module_id, low.region, "Character range bound must be a single codepoint", .{});
-                    return Error.RangeNotSingleCodepoint;
-                };
-
-                if (low_codepoint == 0) {
-                    try self.emitOp(.ParseCodepoint, region);
-                } else {
-                    try self.writeConstant(module_id, low_elem.?, low_region);
-                    try self.emitOp(.ParseLowerBoundedRange, region);
-                }
-            },
-            .number_string => {
-                const low_ns = low_elem.?.asNumberString();
-                const low_num = low_ns.toNumberFloat(self.vm.strings);
-                const low_f = low_num.asFloat();
-
-                if (@trunc(low_f) != low_f) {
-                    try self.printError(module_id, low.region, "Range bound must be an integer", .{});
-                    return Error.RangeInvalidNumberFormat;
-                }
-
-                try self.writeConstant(module_id, low_num, low_region);
-                try self.emitOp(.ParseLowerBoundedRange, region);
-            },
-            .identifier => |ident| {
-                try self.writeGetVar(module_id, ident.name, region);
-                try self.emitOp(.ParseLowerBoundedRange, region);
-            },
-            .negation => |inner| {
-                try self.writeNegatedParserElem(module_id, inner, region);
-                try self.emitOp(.ParseLowerBoundedRange, region);
-            },
-            else => {
-                try self.printError(module_id, low.region, "Range bound must be an integer or codepoint", .{});
-                return Error.InvalidAst;
-            },
-        }
-    }
-
-    fn writeUpperBoundedRangeParser(self: *Compiler, module_id: Module.Id, high: *Ast.Parser.RNode, region: Region) !void {
-        const high_elem = try self.parserNodeToElem(high.node);
-        const high_region = high.region;
-
-        switch (high.node) {
-            .string => {
-                const high_str = high_elem.?.asString();
-                const high_bytes = self.vm.strings.get(high_str);
-                const high_codepoint = parsing.utf8Decode(high_bytes) orelse {
-                    try self.printError(module_id, high.region, "Character range bound must be a single codepoint", .{});
-                    return Error.RangeNotSingleCodepoint;
-                };
-
-                if (high_codepoint == 0x10ffff) {
-                    try self.emitOp(.ParseCodepoint, region);
-                } else {
-                    try self.writeConstant(module_id, high_elem.?, high_region);
-                    try self.emitOp(.ParseUpperBoundedRange, region);
-                }
-            },
-            .number_string => {
-                const high_ns = high_elem.?.asNumberString();
-                const high_num = high_ns.toNumberFloat(self.vm.strings);
-                const high_f = high_num.asFloat();
-
-                if (@trunc(high_f) != high_f) {
-                    try self.printError(module_id, high.region, "Range bound must be an integer", .{});
-                    return Error.RangeInvalidNumberFormat;
-                }
-
-                try self.writeConstant(module_id, high_num, high_region);
-                try self.emitOp(.ParseUpperBoundedRange, region);
-            },
-            .identifier => |ident| {
-                try self.writeGetVar(module_id, ident.name, region);
-                try self.emitOp(.ParseUpperBoundedRange, region);
-            },
-            .negation => |inner| {
-                try self.writeNegatedParserElem(module_id, inner, region);
-                try self.emitOp(.ParseUpperBoundedRange, region);
-            },
-            else => {
-                try self.printError(module_id, high.region, "Range bound must be an integer or codepoint", .{});
-                return Error.InvalidAst;
-            },
-        }
-    }
-
-    fn writeParserRepeat(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, repeat: *Ast.Pattern.RNode, region: Region) !void {
-        switch (repeat.node) {
-            .number_float,
-            .number_string,
-            => {
-                return self.writeParserRepeatCount(module_id, parser, repeat, region);
-            },
-            .range => |bounds| {
-                if (bounds.lower != null and bounds.upper != null) {
-                    const lower = bounds.lower.?;
-                    const upper = bounds.upper.?;
-
-                    if (self.isBoundedRepeatCount(module_id, lower) and self.isBoundedRepeatCount(module_id, upper)) {
-                        // Both bounds: repeat between min and max times
-                        try self.writeParserRepeatRangeBounded(module_id, parser, lower, upper, region);
-                    } else if (self.isBoundedRepeatCount(module_id, lower)) {
-                        // Lower bound number, upper bound pattern
-                        try self.writeParserRepeatRangeLowerBounded(module_id, parser, lower, upper, region);
-                    } else if (self.isBoundedRepeatCount(module_id, upper)) {
-                        // Upper bound number, lower bound pattern
-                        try self.writeParserRepeatRangeUpperBounded(module_id, parser, lower, upper, region);
-                    } else {
-                        // Pattern matching fallback
-                        try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
-                    }
-                } else if (bounds.lower != null and self.isBoundedRepeatCount(module_id, bounds.lower.?)) {
-                    // Lower bound only: repeat at least n times
-                    try self.writeParserRepeatRangeLowerBounded(module_id, parser, bounds.lower.?, null, region);
-                } else if (bounds.upper != null and self.isBoundedRepeatCount(module_id, bounds.upper.?)) {
-                    // Upper bound only: repeat at most n times
-                    try self.writeParserRepeatRangeUpperBounded(module_id, parser, null, bounds.upper.?, region);
-                } else {
-                    // Pattern matching fallback
-                    try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
-                }
-            },
-            .identifier => |ident| {
-                if (self.resolveGlobal(module_id, ident.name) != null) {
-                    // Globals are always bound to a concrete value
-                    try self.writeParserRepeatCount(module_id, parser, repeat, region);
-                } else if (self.repeatCountIsBound(repeat)) {
-                    try self.writeParserRepeatCount(module_id, parser, repeat, region);
-                } else {
-                    try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
-                }
-            },
-            else => {
-                if (self.isBoundedRepeatCount(module_id, repeat)) {
-                    try self.writeParserRepeatCount(module_id, parser, repeat, region);
-                } else {
-                    try self.writeParserRepeatUnknownCount(module_id, parser, repeat, region);
-                }
-            },
-        }
-    }
-
-    fn writeParserRepeatCount(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
-        // Value accumulator
-        try self.writeConstant(module_id, Elem.nullConst, parser.region);
-
-        // Create the counter, validate it, if it starts at zero
-        // then skip to the end and return null
-        try self.writePatternAsBoundRepeatValue(module_id, count);
-        try self.emitOp(.ValidateRepeatPattern, count.region);
-        const nullJump = try self.emitJump(.JumpIfZero, repeat_region);
-
-        // At the start of each loop swap the accumulator back to
-        // the top of the stack
-        const loopStart = self.ir().nextIndex();
-        try self.emitOp(.Swap, repeat_region);
-
-        // Run parser, accumulate, end loop if failure
-        try self.writeParser(module_id, parser);
-        try self.emitOp(.Merge, parser.region);
-        const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
-
-        // If count is zero end loop
-        try self.emitOp(.Swap, repeat_region);
-        try self.emitOp(.Decrement, count.region);
-        const doneJump = try self.emitJump(.JumpIfZero, repeat_region);
-
-        // Otherwise return to loop start
-        try self.emitJumpBack(.JumpBack, loopStart, repeat_region);
-
-        // For the failure case swap up the counter. The
-        // non-failure case already has the counter on top.
-        self.patchJump(failureJump);
-        try self.emitOp(.Swap, repeat_region);
-
-        // Cleanup: drop the counter
-        self.patchJump(nullJump);
-        self.patchJump(doneJump);
-        try self.emitOp(.Drop, count.region);
-    }
-
-    fn writeParserRepeatUnknownCount(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, count: *Ast.Pattern.RNode, repeat_region: Region) Error!void {
-        // Count accumulator
-        try self.writeConstant(module_id, Elem.numberFloat(0), count.region);
-
-        // Value accumulator
-        try self.writeConstant(module_id, Elem.nullConst, parser.region);
-
-        // Start of the parse loop
-        const loopStart = self.ir().nextIndex();
-
-        // Run parser, end loop if failure, otherwise accumulate
-        try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(module_id, parser);
-        const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
-        try self.emitOp(.PopInputMark, parser.region);
-        try self.emitOp(.Merge, parser.region);
-
-        // Increment count
-        try self.emitOp(.Swap, repeat_region);
-        try self.emitOp(.Increment, count.region);
-        try self.emitOp(.Swap, repeat_region);
-
-        // Parse again
-        try self.emitJumpBack(.JumpBack, loopStart, repeat_region);
-
-        // When we fail the stack has [..., count, acc, failure]
-        // Drop the failure, destructure the count, return acc
-        self.patchJump(failureJump);
-        try self.emitOp(.ResetInput, parser.region);
-        try self.emitOp(.Drop, parser.region);
-        try self.emitOp(.Swap, count.region);
-        try self.writeDestructurePattern(module_id, count);
-
-        // Cleanup: drop the counter
-        try self.emitOp(.Drop, parser.region);
-    }
-
-    fn writeParserRepeatRangeBounded(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
-        // Value accumulator
-        try self.writeConstant(module_id, Elem.nullConst, region);
-
-        // Create the counter, validate it, if it starts at zero
-        // then skip the lower bound loop
-        try self.writePatternAsBoundRepeatValue(module_id, lower);
-        try self.emitOp(.ValidateRepeatPattern, lower.region);
-        const skipLowerBoundJump = try self.emitJump(.JumpIfZero, region);
-
-        // At the start of each loop swap the accumulator back to
-        // the top of the stack
-        const loopStartRequired = self.ir().nextIndex();
-        try self.emitOp(.Swap, region);
-
-        // Run parser, accumulate, end loop if failure
-        try self.writeParser(module_id, parser);
-        try self.emitOp(.Merge, parser.region);
-        const failureLowerBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
-
-        // If count is zero end loop
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.Decrement, lower.region);
-        const doneLowerBoundJump = try self.emitJump(.JumpIfZero, region);
-
-        // Otherwise return to loop start
-        try self.emitJumpBack(.JumpBack, loopStartRequired, region);
-
-        self.patchJump(skipLowerBoundJump);
-        self.patchJump(doneLowerBoundJump);
-
-        // Drop the old counter (it's 0), create a new counter to parse up to
-        // to `upper - lower` more times (optional)
-        try self.emitOp(.Drop, region);
-        try self.writePatternAsBoundRepeatValue(module_id, upper);
-        try self.writePatternAsBoundRepeatValue(module_id, lower);
-        try self.emitOp(.NegateNumber, region);
-        try self.emitOp(.Merge, region);
-        try self.emitOp(.ValidateRepeatPattern, upper.region);
-        const skipUpperBoundJump = try self.emitJump(.JumpIfZero, region);
-
-        // Optional iterations
-        const loopStart = self.ir().nextIndex();
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(module_id, parser);
-        const failureUpperBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
-        try self.emitOp(.PopInputMark, parser.region);
-        try self.emitOp(.Merge, parser.region);
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.Decrement, upper.region);
-        const doneJump = try self.emitJump(.JumpIfZero, region);
-        try self.emitJumpBack(.JumpBack, loopStart, region);
-
-        // Parser failed, stack is [..., count, acc, failure]
-        self.patchJump(failureUpperBoundJump);
-        try self.emitOp(.ResetInput, parser.region);
-        try self.emitOp(.Drop, parser.region);
-
-        // Got here by failing before reaching the minimum number of iters. The
-        // stack is [..., count, failure] and we want to return failure
-        self.patchJump(failureLowerBoundJump);
-
-        // Swap up the count
-        try self.emitOp(.Swap, region);
-
-        // Got here by matching against a zero count, stack is [..., acc, count]
-        self.patchJump(skipUpperBoundJump);
-        self.patchJump(doneJump);
-
-        try self.emitOp(.Drop, region);
-    }
-
-    fn writeParserRepeatRangeLowerBounded(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, lower: *Ast.Pattern.RNode, upper_pattern: ?*Ast.Pattern.RNode, region: Region) Error!void {
-        // Value accumulator
-        try self.writeConstant(module_id, Elem.nullConst, region);
-
-        // Create the counter, validate it, if it starts at zero
-        // then skip the lower bound loop
-        try self.writePatternAsBoundRepeatValue(module_id, lower);
-        try self.emitOp(.ValidateRepeatPattern, lower.region);
-        const skipLowerBoundJump = try self.emitJump(.JumpIfZero, region);
-
-        // At the start of each loop swap the accumulator back to
-        // the top of the stack
-        const loopStartRequired = self.ir().nextIndex();
-        try self.emitOp(.Swap, region);
-
-        // Run parser, accumulate, end loop if failure
-        try self.writeParser(module_id, parser);
-        try self.emitOp(.Merge, parser.region);
-        const failureLowerBoundJump = try self.emitJump(.JumpIfFailure, parser.region);
-
-        // If count is zero end loop
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.Decrement, lower.region);
-        const doneLowerBoundJump = try self.emitJump(.JumpIfZero, region);
-
-        // Otherwise return to loop start
-        try self.emitJumpBack(.JumpBack, loopStartRequired, region);
-
-        // Now continue parsing indefinitely (optional iterations)
-        self.patchJump(skipLowerBoundJump);
-        self.patchJump(doneLowerBoundJump);
-
-        // Count under acc
-        try self.emitOp(.Swap, region);
-
-        // Unbounded loop
-        const loopStartOptional = self.ir().nextIndex();
-
-        // Run parser, end loop if failure, otherwise accumulate
-        try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(module_id, parser);
-        const failureJumpOptional = try self.emitJump(.JumpIfFailure, parser.region);
-        try self.emitOp(.PopInputMark, parser.region);
-        try self.emitOp(.Merge, parser.region);
-
-        // If there's an upper bound to pattern match against then count iterations
-        if (upper_pattern) |upper| {
-            try self.emitOp(.Swap, region);
-            try self.emitOp(.Increment, upper.region);
-            try self.emitOp(.Swap, upper.region);
-        }
-
-        // Parse again
-        try self.emitJumpBack(.JumpBack, loopStartOptional, region);
-
-        // When we fail the stack has [..., count, acc, failure]
-        // Drop the failure, maybe destructure the count, return acc
-        self.patchJump(failureJumpOptional);
-        try self.emitOp(.ResetInput, parser.region);
-        try self.emitOp(.Drop, parser.region);
-
-        // Swap up the count, add the lower to get the total number of iters, destructure
-        if (upper_pattern) |upper| {
-            try self.emitOp(.Swap, upper.region);
-            try self.writePatternAsBoundRepeatValue(module_id, lower);
-            try self.emitOp(.Merge, parser.region);
-            try self.writeDestructurePattern(module_id, upper);
-            try self.emitOp(.Swap, region);
-        }
-
-        self.patchJump(failureLowerBoundJump);
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.Drop, region);
-    }
-
-    fn writeParserRepeatRangeUpperBounded(self: *Compiler, module_id: Module.Id, parser: *Ast.Parser.RNode, lower_pattern: ?*Ast.Pattern.RNode, upper: *Ast.Pattern.RNode, region: Region) Error!void {
-        // Value accumulator
-        try self.writeConstant(module_id, Elem.nullConst, region);
-
-        // Create the counter, validate it, if it starts at zero
-        // then skip to end and return null
-        try self.writePatternAsBoundRepeatValue(module_id, upper);
-        try self.emitOp(.ValidateRepeatPattern, upper.region);
-        const nullJump = try self.emitJump(.JumpIfZero, region);
-
-        // Loop for up to `upper` iterations (all optional)
-        const loopStart = self.ir().nextIndex();
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.SetInputMark, parser.region);
-        try self.writeParser(module_id, parser);
-        const failureJump = try self.emitJump(.JumpIfFailure, parser.region);
-        try self.emitOp(.PopInputMark, parser.region);
-        try self.emitOp(.Merge, parser.region);
-        try self.emitOp(.Swap, region);
-        try self.emitOp(.Decrement, upper.region);
-        const doneJump = try self.emitJump(.JumpIfZero, region);
-        try self.emitJumpBack(.JumpBack, loopStart, region);
-
-        // Parser failed, stack is [..., count, acc, failure]
-        // Drop the failure and swap up the count so we can pattern match/cleanup
-        self.patchJump(failureJump);
-        try self.emitOp(.ResetInput, parser.region);
-        try self.emitOp(.Drop, parser.region);
-        try self.emitOp(.Swap, region);
-
-        self.patchJump(nullJump);
-        self.patchJump(doneJump);
-
-        if (lower_pattern) |lower| {
-            // Use the remaining count to figure out the number of successful iters
-            //   upper - count = completed
-            // But since the count is on the stack we do
-            //   -count + upper = completed
-            try self.emitOp(.NegateNumber, region);
-            try self.writePatternAsBoundRepeatValue(module_id, upper);
-            try self.emitOp(.Merge, region);
-            try self.writeDestructurePattern(module_id, lower);
-        }
-
-        try self.emitOp(.Drop, region);
-    }
-
-    fn isBoundedRepeatCount(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) bool {
-        return switch (rnode.node) {
-            .function_call,
-            .false,
-            .null,
-            .number_float,
-            .number_string,
-            .string,
-            .true,
-            => true,
-            .identifier => |ident| {
-                if (ident.builtin) {
-                    return true;
-                } else {
-                    if (self.resolveGlobal(module_id, ident.name) != null) {
-                        return true;
-                    } else if (self.localSlot(ident.name) != null) {
-                        return self.repeatCountIsBound(rnode);
-                    } else {
-                        return false;
-                    }
-                }
-            },
-            .range => |range| {
-                if (range.lower) |lower| {
-                    const lower_good = self.isBoundedRepeatCount(module_id, lower);
-                    if (!lower_good) return false;
-                }
-                if (range.upper) |upper| {
-                    const upper_good = self.isBoundedRepeatCount(module_id, upper);
-                    if (!upper_good) return false;
-                }
-                return true;
-            },
-            .negation => |inner| self.isBoundedRepeatCount(module_id, inner),
-            .merge => |merge| self.isBoundedRepeatCount(module_id, merge.left) and self.isBoundedRepeatCount(module_id, merge.right),
-            .array,
-            .object,
-            .string_template,
-            .repeat,
-            => false,
-        };
-    }
-
-    // Whether a repeat-count local is bound at the repeat, per the binding
-    // analysis. Falls back to the param check for identifiers the analysis
-    // does not classify (builtins).
-    fn repeatCountIsBound(self: *Compiler, rnode: *Ast.Pattern.RNode) bool {
-        if (self.frontend.binding_maps.repeat_count_bound.get(rnode)) |bound| {
-            return bound;
-        }
-        const slot = self.localSlot(rnode.node.identifier.name) orelse return false;
-        return self.currentFunction().arity > slot;
-    }
-
-    fn writeNegatedParserElem(self: *Compiler, module_id: Module.Id, negated: *Ast.Parser.RNode, region: Region) !void {
-        switch (negated.node) {
-            .negation => {
-                try self.printError(module_id, region, "Double-negated parser", .{});
-                return Error.InvalidAst;
-            },
-            .number_string => |ns| {
-                if (ns.negated) {
-                    try self.printError(module_id, region, "Double-negated parser", .{});
-                    return Error.InvalidAst;
-                }
-                const elem = try self.numberStringNodeToElem(ns.number, true);
-                try self.writeConstant(module_id, elem, negated.region);
-            },
-            .identifier => |ident| {
-                // Determine at runtime if negating the parser is valid
-                try self.writeGetVar(module_id, ident.name, region);
-                try self.emitOp(.NegateParser, region);
-            },
-            else => {
-                try self.printError(module_id, region, "Negated parser must be a number or named number parser", .{});
-                return Error.InvalidAst;
-            },
-        }
-    }
-
-    fn writeGetVar(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id, region: Region) !void {
-        if (self.localSlot(name)) |slot| {
-            try self.emitUnaryOp(.GetLocal, slot, region);
-        } else {
-            if (self.resolveGlobal(module_id, name)) |globalElem| {
-                try self.writeConstant(module_id, globalElem, region);
-            } else {
-                try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
-                return Error.UndefinedVariable;
-            }
-        }
-    }
-
-    fn parserNodeToElem(self: *Compiler, node: Ast.Parser.Node) !?Elem {
-        const result = switch (node) {
-            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
-            .string => |s| Elem.string(try self.vm.strings.insert(s)),
-            else => null,
-        };
-
-        return result;
-    }
-
-    fn valueNodeToElem(self: *Compiler, node: Ast.Value.Node) !?Elem {
-        const result = switch (node) {
-            .false => Elem.boolean(false),
-            .null => Elem.nullConst,
-            .number_float => |f| Elem.numberFloat(f),
-            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
-            .string => |s| Elem.string(try self.vm.strings.insert(s)),
-            .true => Elem.boolean(true),
-            else => null,
-        };
-
-        return result;
-    }
-
-    fn writeParserFunctionArgument(self: *Compiler, module_id: Module.Id, rnode: Ast.ParserOrValue.RNode) !void {
-        const region = rnode.region();
-
-        switch (rnode) {
-            .parser => |p| switch (p.node) {
-                .number_string => |ns| {
-                    const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                    try self.writeConstant(module_id, elem, region);
-                },
-                .string => |string| {
-                    const sid = try self.vm.strings.insert(string);
-                    const elem = Elem.string(sid);
-                    try self.writeConstant(module_id, elem, region);
-                },
-                .identifier => |ident| {
-                    try self.writeGetVar(module_id, ident.name, region);
-                },
-                .anonymous_function => |anon| {
-                    try self.writeParserAnonymousFunction(module_id, anon, region);
-                },
-                else => @panic("Internal Error: compound parser in function args must be wrapped in an anonymous function."),
-            },
-            .value => |v| try self.writeValue(module_id, v),
-        }
-    }
-
-    fn writeParserAnonymousFunction(self: *Compiler, module_id: Module.Id, anon: Ast.Parser.AnonymousFunction, region: Region) Error!void {
-        const key = GlobalKey{ .module_id = module_id, .name = anon.name };
-        const function = try self.declareAnonFunction(key);
-
-        const constId = try self.makeConstant(module_id, function.dyn.elem());
-
-        const anon_node = self.frontend.getNode(key).anonymous_function;
-
-        try self.emitConstant(constId, region);
-
-        if (anon_node.closure_captures.items.len == 0) {
-            return;
-        }
-
-        const local_count = @as(u8, @intCast(anon_node.locals.items.len));
-        try self.emitUnaryOp(.CreateClosure, local_count, region);
-
-        for (anon_node.closure_captures.items) |capture| {
-            // The resolver guarantees the enclosing scope holds every
-            // captured local. A miss here would misalign later
-            // captures with SetClosureCaptures slots.
-            const fromSlot = self.resolver().localSlotSid(capture.local) orelse unreachable;
-            try self.emitUnaryOp(.CaptureLocal, @as(u8, @intCast(fromSlot)), region);
-        }
-    }
-
-    // Compile a destructure's pattern, preferring the match plan IR. Lowering
-    // supports a subset of patterns; the rest fall back to the Pattern tree.
-    fn writeDestructurePattern(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) Error!void {
-        var lowerer = pattern.Lowerer{
-            .vm = self.vm,
-            .frontend = self.frontend,
-            .resolver = self.resolver(),
-            .plan_slots = &self.plan_slots,
-        };
-        const planId = try pattern.createMatchPlan(&lowerer, module_id, rnode);
-        try self.emitMatchPlan(planId, rnode.region);
-    }
-
-    fn writePatternAsBoundRepeatValue(self: *Compiler, module_id: Module.Id, rnode: *Ast.Pattern.RNode) !void {
-        const node = rnode.node;
-        const region = rnode.region;
-
-        switch (node) {
-            .number_float => |f| {
-                const elem = Elem.numberFloat(f);
-                try self.writeConstant(module_id, elem, region);
-            },
-            .number_string => |ns| {
-                const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                try self.writeConstant(module_id, elem, region);
-            },
-            .identifier => |ident| {
-                if (self.localSlot(ident.name)) |slot| {
-                    try self.emitUnaryOp(.GetLocal, slot, region);
-                } else {
-                    const global = self.resolveGlobal(module_id, ident.name).?;
-                    try self.writeConstant(module_id, global, region);
-                }
-            },
-            .merge => |merge| {
-                try self.writePatternAsBoundRepeatValue(module_id, merge.left);
-                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writePatternAsBoundRepeatValue(module_id, merge.right);
-                try self.emitOp(.Merge, region);
-                self.patchJump(jumpIndex);
-            },
-            .negation => |inner| {
-                try self.writePatternAsBoundRepeatValue(module_id, inner);
-                try self.emitOp(.NegateNumber, region);
-            },
-            .function_call => |function_call| {
-                try self.writeValueFunctionCall(module_id, function_call.function, function_call.args, region);
-            },
-            .null => {
-                const elem = Elem.numberFloat(0);
-                try self.writeConstant(module_id, elem, region);
-            },
-            .array,
-            .false,
-            .object,
-            .range,
-            .repeat,
-            .string,
-            .string_template,
-            .true,
-            => {
-                try self.printError(module_id, region, "Invalid pattern type for parser repeat", .{});
-                return Error.InvalidAst;
-            },
-        }
-    }
-
-    fn writeValue(self: *Compiler, module_id: Module.Id, rnode: *Ast.Value.RNode) !void {
-        const node = rnode.node;
-        const region = rnode.region;
-
-        switch (node) {
-            .merge => |merge| {
-                try self.writeValue(module_id, merge.left);
-                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeValue(module_id, merge.right);
-                try self.emitOp(.Merge, region);
-                self.patchJump(jumpIndex);
-            },
-            .take_left => |take_left| {
-                try self.writeValue(module_id, take_left.left);
-                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
-                try self.writeValue(module_id, take_left.right);
-                try self.emitOp(.TakeLeft, region);
-                self.patchJump(jumpIndex);
-            },
-            .take_right => |take_right| {
-                try self.writeValue(module_id, take_right.left);
-                const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeValue(module_id, take_right.right);
-                self.patchJump(jumpIndex);
-            },
-            .destructure => |destructure| {
-                try self.writeValue(module_id, destructure.left);
-                try self.writeDestructurePattern(module_id, destructure.right);
-            },
-            .@"or" => |or_node| {
-                try self.emitOp(.SetInputMark, region);
-                try self.writeValue(module_id, or_node.left);
-                const jumpIndex = try self.emitJump(.Or, region);
-                try self.writeValue(module_id, or_node.right);
-                self.patchJump(jumpIndex);
-            },
-            .@"return" => |return_node| {
-                try self.writeValue(module_id, return_node.left);
-                const jumpIndex = try self.emitJump(.TakeRight, region);
-                try self.writeValue(module_id, return_node.right);
-                self.patchJump(jumpIndex);
-            },
-            .repeat => |repeat| {
-                try self.writeValue(module_id, repeat.left);
-                try self.writeValue(module_id, repeat.right);
-                try self.emitOp(.RepeatValue, region);
-            },
-            .negation => |inner| {
-                try self.writeValue(module_id, inner);
-                try self.emitOp(.NegateNumber, region);
-            },
-            .array => |elements| {
-                try self.writeValueArray(module_id, elements, region);
-            },
-            .object => |pairs| {
-                try self.writeValueObject(module_id, pairs, region);
-            },
-            .string_template => |parts| {
-                try self.writeStringTemplateValue(module_id, parts, region);
-            },
-            .conditional => |conditional| {
-                try self.emitOp(.SetInputMark, region);
-                try self.writeValue(module_id, conditional.condition);
-                const ifThenJumpIndex = try self.emitJump(.ConditionalThen, region);
-                try self.writeValue(module_id, conditional.then_branch);
-                const thenElseJumpIndex = try self.emitJump(.Jump, region);
-                self.patchJump(ifThenJumpIndex);
-                try self.writeValue(module_id, conditional.else_branch);
-                self.patchJump(thenElseJumpIndex);
-            },
-            .function_call => |function_call| {
-                try self.writeValueFunctionCall(module_id, function_call.function, function_call.args, region);
-            },
-            .identifier => |ident| {
-                if (self.localSlot(ident.name)) |slot| {
-                    // This local will either be a concrete value or
-                    // unbound, it won't be a function. Value functions are
-                    // all defined globally and called immediately. This
-                    // means that if a function takes a value function as
-                    // an arg then the value function will be called before
-                    // the outer function, and the value used when calling
-                    // the outer function will be concrete.
-                    try self.emitUnaryOp(.GetLocal, slot, region);
-                } else {
-                    const globalElem = self.resolveGlobal(module_id, ident.name).?;
-                    if (globalElem.isDynType(.Function) and globalElem.asDyn().asFunction().arity == 0) {
-                        try self.writeCallFunctionConstant(module_id, globalElem, region);
-                    } else {
-                        try self.writeConstant(module_id, globalElem, region);
-                    }
-                }
-            },
-            .string => |string| {
-                const sid = try self.vm.strings.insert(string);
-                const elem = Elem.string(sid);
-                try self.writeConstant(module_id, elem, region);
-            },
-            .number_string => |ns| {
-                const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
-                try self.writeConstant(module_id, elem, region);
-            },
-            .number_float => |number_float| {
-                const elem = Elem.numberFloat(number_float);
-                try self.writeConstant(module_id, elem, region);
-            },
-            .true => try self.emitOp(.PushTrue, region),
-            .false => try self.emitOp(.PushFalse, region),
-            .null => try self.emitOp(.PushNull, region),
-        }
-    }
-
-    fn writeValueFunctionCall(
-        self: *Compiler,
-        module_id: Module.Id,
-        function_rnode: *Ast.Value.RNode,
-        arguments: ArrayList(*Ast.Value.RNode),
-        call_region: Region,
-    ) !void {
-        // TODO: handle curried function calls like `Foo(A)(B)`
-        // TODO: handle non-function with parens like `X = 1 ; "" $ X()`
-        const function_ident = switch (function_rnode.node) {
-            .identifier => |ident| ident,
-            else => {
-                try self.printError(module_id, function_rnode.region, "Only named functions can be called", .{});
-                return Error.InvalidAst;
-            },
-        };
-        const function_region = function_rnode.region;
-
-        const functionName = function_ident.name;
-
-        var function: ?*Elem.DynElem.Function = null;
-
-        if (self.localSlot(functionName)) |slot| {
-            try self.emitUnaryOp(.GetLocal, slot, function_region);
-        } else {
-            if (self.resolveGlobal(module_id, functionName)) |global| {
-                function = global.asDyn().asFunction();
-                try self.writeConstant(module_id, global, function_region);
-            } else {
-                const functionNameStr = self.frontend.pathString(functionName);
-                try self.printError(module_id, function_region, "Undefined function '{s}'", .{functionNameStr});
-                return Error.UndefinedVariable;
-            }
-        }
-
-        const argCount = try self.writeValueFunctionArguments(module_id, arguments, function);
-
-        try self.emitUnaryOp(.CallFunction, argCount, call_region);
-    }
-
-    fn writeValueFunctionArguments(
-        self: *Compiler,
-        module_id: Module.Id,
-        arguments: ArrayList(*Ast.Value.RNode),
-        function: ?*Elem.DynElem.Function,
-    ) Error!u8 {
-        const arg_count = arguments.items.len;
-
-        if (arg_count > std.math.maxInt(u8)) {
-            const first_arg = arguments.items[0];
-            const last_arg = arguments.items[arg_count - 1];
-            const region = first_arg.region.merge(last_arg.region);
-
-            try self.printError(
-                module_id,
-                region,
-                "Can't have more than {} parameters.",
-                .{std.math.maxInt(u8)},
-            );
-            return Error.MaxFunctionArgs;
-        }
-
-        if (function) |f| {
-            if (f.arity != arg_count) {
-                const functionNameStr = self.vm.strings.get(f.name);
-                const region = if (arguments.items.len > 0) blk: {
-                    const first_arg = arguments.items[0];
-                    const last_arg = arguments.items[arg_count - 1];
-                    break :blk first_arg.region.merge(last_arg.region);
-                } else blk: {
-                    // For zero-argument functions, we don't have argument regions,
-                    // so we'll need to handle this case differently
-                    break :blk Region.new(0, 0);
-                };
-
-                if (f.arity < arg_count) {
-                    try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
-                    return Error.FunctionCallTooManyArgs;
-                } else {
-                    try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got {d}", .{ functionNameStr, f.arity, arg_count });
-                    return Error.FunctionCallTooFewArgs;
-                }
-            }
-        }
-
-        for (arguments.items) |arg| {
-            try self.writeValue(module_id, arg);
-        }
-
-        return @intCast(arg_count);
-    }
-
-    fn writeValueArray(self: *Compiler, module_id: Module.Id, elements: ArrayList(*Ast.Value.RNode), region: Region) Error!void {
-        if (elements.items.len == 0) {
-            return try self.emitOp(.PushEmptyArray, region);
-        }
-
-        var array = try Elem.DynElem.Array.create(self.vm, elements.items.len);
-        const constant_index = self.ir().nextIndex();
-        try self.writeConstant(module_id, array.dyn.elem(), region);
-
-        var mutated = false;
-        for (elements.items, 0..) |element, index| {
-            if (try self.writeArrayElem(module_id, array, element, @intCast(index), region)) {
-                mutated = true;
-            }
-        }
-        if (mutated) self.ir().patchConstantMutable(constant_index);
-    }
-
-    fn appendDynamicValue(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8) !void {
-        try self.writeValue(module_id, rnode);
-        try self.emitUnaryOp(.InsertAtIndex, index, rnode.region);
-        try array.append(self.vm, try self.placeholderVar());
-    }
-
-    fn negateAndAppendDynamicValue(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) !void {
-        try self.writeValue(module_id, rnode);
-        try self.emitOp(.NegateNumber, region);
-        try self.emitUnaryOp(.InsertAtIndex, index, region);
-        try array.append(self.vm, try self.placeholderVar());
-    }
-
-    // Returns true when the element is dynamic: an InsertAtIndex was
-    // emitted for it, so the constant array will be mutated at runtime.
-    fn writeArrayElem(self: *Compiler, module_id: Module.Id, array: *Elem.DynElem.Array, rnode: *Ast.Value.RNode, index: u8, region: Region) Error!bool {
-        switch (rnode.node) {
-            .false => {
-                try array.append(self.vm, Elem.boolean(false));
-                return false;
-            },
-            .true => {
-                try array.append(self.vm, Elem.boolean(true));
-                return false;
-            },
-            .null => {
-                try array.append(self.vm, Elem.nullConst);
-                return false;
-            },
-            .number_float => |f| {
-                try array.append(self.vm, Elem.numberFloat(f));
-                return false;
-            },
-            .number_string => |ns| {
-                try array.append(self.vm, try self.numberStringNodeToElem(ns.number, ns.negated));
-                return false;
-            },
-            .string => |s| {
-                const sid = try self.vm.strings.insert(s);
-                try array.append(self.vm, Elem.string(sid));
-                return false;
-            },
-            .identifier => |ident| {
-                // Try to resolve as a global constant
-                if (self.localSlot(ident.name) == null) {
-                    if (self.resolveGlobal(module_id, ident.name)) |globalElem| {
-                        // If it's not a function, we can inline the constant value
-                        if (!globalElem.isDynType(.Function)) {
-                            try array.append(self.vm, globalElem);
-                            return false;
-                        }
-                    }
-                }
-                // Fall back to dynamic value for locals and functions
-                try self.appendDynamicValue(module_id, array, rnode, index);
-                return true;
-            },
-            .function_call,
-            .merge,
-            .@"or",
-            .@"return",
-            .take_left,
-            .take_right,
-            .repeat,
-            .destructure,
-            => {
-                try self.appendDynamicValue(module_id, array, rnode, index);
-                return true;
-            },
-            .array => |elements| {
-                // Special case: empty arrays should be treated as literals
-                if (elements.items.len == 0) {
-                    var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
-                    try array.append(self.vm, emptyArray.dyn.elem());
-                    return false;
-                } else {
-                    try self.appendDynamicValue(module_id, array, rnode, index);
-                    return true;
-                }
-            },
-            .object => |pairs| {
-                // Special case: empty objects should be treated as literals
-                if (pairs.items.len == 0) {
-                    var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
-                    try array.append(self.vm, emptyObject.dyn.elem());
-                    return false;
-                } else {
-                    try self.appendDynamicValue(module_id, array, rnode, index);
-                    return true;
-                }
-            },
-            .string_template, .conditional => {
-                try self.appendDynamicValue(module_id, array, rnode, index);
-                return true;
-            },
-            .negation => |inner| {
-                try self.negateAndAppendDynamicValue(module_id, array, inner, index, region);
-                return true;
-            },
-        }
-    }
-
-    fn writeValueObject(self: *Compiler, module_id: Module.Id, pairs: ArrayList(Ast.Value.ObjectPair), region: Region) Error!void {
-        if (pairs.items.len == 0) {
-            return try self.emitOp(.PushEmptyObject, region);
-        }
-
-        var object = try Elem.DynElem.Object.create(self.vm, 0);
-        const constant_index = self.ir().nextIndex();
-        try self.writeConstant(module_id, object.dyn.elem(), region);
-
-        var mutated = false;
-        for (pairs.items, 0..) |pair, index| {
-            if (try self.literalPatternToElem(pair.key)) |key_elem| {
-                // Prevent GC before pair is inserted into object. The key
-                // shouldn't be dynamically allocated, but just in case.
-                if (key_elem.isType(.Dyn)) try self.vm.pushTempDyn(key_elem.asDyn());
-                defer if (key_elem.isType(.Dyn)) self.vm.dropTempDyn();
-
-                if (try self.literalPatternToElem(pair.value)) |val_elem| {
-                    // Prevent GC before pair is inserted into object. The vale
-                    // can be dynamically allocated.
-                    if (val_elem.isType(.Dyn)) try self.vm.pushTempDyn(val_elem.asDyn());
-                    defer if (val_elem.isType(.Dyn)) self.vm.dropTempDyn();
-
-                    const key_sid = key_elem.asString();
-                    try object.put(self.vm, key_sid, val_elem);
-                } else {
-                    try self.writeInsertObjectPair(module_id, pair, object, index);
-                    mutated = true;
-                }
-            } else {
-                try self.writeInsertObjectPair(module_id, pair, object, index);
-                mutated = true;
-            }
-        }
-        if (mutated) self.ir().patchConstantMutable(constant_index);
-    }
-
-    fn writeInsertObjectPair(self: *Compiler, module_id: Module.Id, pair: Ast.Value.ObjectPair, object: *Elem.DynElem.Object, index: usize) !void {
-        std.debug.assert(index <= 255);
-        const pos = @as(u8, @intCast(index));
-        try object.putReservedId(self.vm, pos, try self.placeholderVar());
-        try self.writeValue(module_id, pair.key);
-        try self.writeValue(module_id, pair.value);
-        try self.emitUnaryOp(.InsertKeyVal, pos, pair.key.region);
-    }
-
-    fn writeStringTemplateParser(self: *Compiler, module_id: Module.Id, parts: ArrayList(*Ast.Parser.RNode), region: Region) Error!void {
-        // String template should not be empty
-        std.debug.assert(parts.items.len > 0);
-
-        // Check if the first part is a string - if not, we need an empty
-        // string on the stack for `MergeAsString`
-        const firstPart = parts.items[0];
-
-        if (firstPart.node != .string) {
-            try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert("")), region);
-        }
-
-        // Write all parts with MergeAsString between each part after the first two
-        for (parts.items, 0..) |part, i| {
-            try self.writeParser(module_id, part);
-            if (i > 0 or firstPart.node != .string) {
-                try self.emitOp(.MergeAsString, region);
-            }
-        }
-    }
-
-    fn writeStringTemplateValue(self: *Compiler, module_id: Module.Id, parts: ArrayList(*Ast.Value.RNode), region: Region) Error!void {
-        // String template should not be empty
-        std.debug.assert(parts.items.len > 0);
-
-        // Check if the first part is a string - if not, we need an empty
-        // string on the stack for `MergeAsString`
-        const firstPart = parts.items[0];
-
-        if (firstPart.node != .string) {
-            try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert("")), region);
-        }
-
-        // Write all parts with MergeAsString between each part after the first two
-        for (parts.items, 0..) |part, i| {
-            try self.writeValue(module_id, part);
-            if (i > 0 or firstPart.node != .string) {
-                try self.emitOp(.MergeAsString, region);
-            }
         }
     }
 
@@ -2050,6 +518,51 @@ pub const Compiler = struct {
         return try self.emitCallFunctionConstant(constId, region);
     }
 
+    // Compile-time split of an eq_global pattern comparand. A plain value
+    // global compares directly (MatchCmp const). A zero-arity function
+    // global evaluates per match: emit its call, then a MatchEval that
+    // pops the result and compares it against the place register. Returns
+    // the failing semidet step for the caller to patch.
+    fn emitEqGlobalStep(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id, reg: u8, region: Region) Error!Ir.Index {
+        const global = self.resolveGlobal(module_id, name) orelse {
+            try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+            return Error.UndefinedVariable;
+        };
+        if (global.isDynType(.Function)) {
+            if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+            try self.writeCallFunctionConstant(module_id, global, region);
+            return try self.ir().push(self.vm.allocator, .{ .match_test = .{
+                .op = .MatchEval,
+                .byte1 = reg,
+                .byte2 = 0,
+            } }, region);
+        }
+        const constant = try self.makeConstantU16(module_id, global, region);
+        return try self.ir().push(self.vm.allocator, .{ .match_cmp = .{
+            .reg = reg,
+            .kind = .constant,
+            .arg = constant,
+        } }, region);
+    }
+
+    // Push a module global's value onto the value stack for a popping match
+    // op (MatchClaimKey's search key, MatchRepeatValue's pattern). A plain
+    // value global pushes its constant; a zero-arity function global
+    // evaluates per match (its call yields the value). The compile-time
+    // split mirrors emitEqGlobalStep.
+    fn emitGlobalValuePush(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id, region: Region) Error!void {
+        const global = self.resolveGlobal(module_id, name) orelse {
+            try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+            return Error.UndefinedVariable;
+        };
+        if (global.isDynType(.Function)) {
+            if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+            try self.writeCallFunctionConstant(module_id, global, region);
+        } else {
+            try self.writeConstant(module_id, global, region);
+        }
+    }
+
     fn numberStringNodeToElem(self: *Compiler, number: []const u8, negated: bool) !Elem {
         const elem = try Elem.numberStringFromBytes(number, self.vm);
         if (negated) {
@@ -2059,63 +572,28 @@ pub const Compiler = struct {
         }
     }
 
-    fn literalPatternToElem(self: *Compiler, rnode: *Ast.Value.RNode) !?Elem {
-        return switch (rnode.node) {
-            .string => |s| {
-                const sid = try self.vm.strings.insert(s);
-                return Elem.string(sid);
-            },
-            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
-            .number_float => |f| Elem.numberFloat(f),
-            .false => Elem.boolean(false),
+    // A parameterless declaration whose body is a constant literal inlines to
+    // that value elem. Parser-position literals are wrapped in an invoking
+    // call in the goal ast; value-position literals stand bare.
+    fn getAliasBody(self: *Compiler, ast: *const Ast, decl: *const Ast.Declaration) !?Elem {
+        if (decl.params.items.len != 0) return null;
+        return self.goalLiteralElem(ast, decl.body);
+    }
+
+    fn goalLiteralElem(self: *Compiler, ast: *const Ast, id: Ast.NodeId) !?Elem {
+        return switch (ast.goals.items[id].node) {
             .true => Elem.boolean(true),
+            .false => Elem.boolean(false),
             .null => Elem.nullConst,
-            .array => |elements| if (elements.items.len == 0) blk: {
-                var emptyArray = try Elem.DynElem.Array.create(self.vm, 0);
-                break :blk emptyArray.dyn.elem();
-            } else null,
-            .object => |pairs| if (pairs.items.len == 0) blk: {
-                var emptyObject = try Elem.DynElem.Object.create(self.vm, 0);
-                break :blk emptyObject.dyn.elem();
-            } else null,
+            .number_float => |f| Elem.numberFloat(f),
+            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
+            .string => |s| Elem.string(try self.vm.strings.insert(s)),
+            .call => |call| if (call.args.len == 0)
+                try self.goalLiteralElem(ast, call.callee)
+            else
+                null,
             else => null,
         };
-    }
-
-    fn declHasNoParams(self: *Compiler, decl: Ast.ParserOrValue.Declaration) bool {
-        _ = self;
-        return switch (decl) {
-            .parser => |p_decl| p_decl.node.params.items.len == 0,
-            .value => |v_decl| v_decl.node.params.items.len == 0,
-        };
-    }
-
-    fn getAliasBody(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !?Elem {
-        if (self.declHasNoParams(decl)) {
-            return switch (decl) {
-                .parser => |p_decl| self.parserNodeToElem(p_decl.node.body.node),
-                .value => |v_decl| self.valueNodeToElem(v_decl.node.body.node),
-            };
-        } else {
-            return null;
-        }
-    }
-
-    fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?Frontend.PathTable.Id {
-        if (self.declHasNoParams(decl)) {
-            return switch (decl) {
-                .parser => |p_decl| if (p_decl.node.body.node == .identifier)
-                    p_decl.node.body.node.identifier.name
-                else
-                    null,
-                .value => |v_decl| if (v_decl.node.body.node == .identifier)
-                    v_decl.node.body.node.identifier.name
-                else
-                    null,
-            };
-        } else {
-            return null;
-        }
     }
 
     fn placeholderVar(self: *Compiler) !Elem {
@@ -2171,10 +649,8 @@ pub const Compiler = struct {
     // case for params and pattern bindings) stay unique and eligible for
     // in-place mutation.
     fn rewriteLastReadsAsMoves(self: *Compiler, module_id: Module.Id, function_ir: *Ir) !void {
-        const plan_slots: []const liveness.PlanSlots =
-            if (self.plan_slots.get(module_id)) |list| list.items else &.{};
-
-        var last_reads = try liveness.Liveness.analyze(self.vm.allocator, function_ir, plan_slots);
+        _ = module_id;
+        var last_reads = try liveness.Liveness.analyze(self.vm.allocator, function_ir);
         defer last_reads.deinit(self.vm.allocator);
 
         for (function_ir.instructions.items, 0..) |*insn, i| {
@@ -2322,8 +798,4695 @@ pub const Compiler = struct {
         _ = try self.ir().push(self.vm.allocator, .{ .call_function_constant = idx }, region);
     }
 
-    fn emitMatchPlan(self: *Compiler, idx: u24, region: Region) !void {
-        _ = try self.ir().push(self.vm.allocator, .{ .destructure_plan = idx }, region);
+    // ===================================================================
+    // Goal compilation: function bodies emitted from the goal ast. The
+    // driver layers above (declaration ordering, aliases, builtins) are
+    // shared with the can path; binding facts come from the goal (slot
+    // classifications, lambda captures), and the dependency graph is
+    // consulted only for global resolution and frame local layouts.
+    // ===================================================================
+
+    fn goalAst(self: *Compiler, module_id: Module.Id) *const Ast {
+        const goal = self.frontend.goals.get(module_id) orelse
+            @panic("Internal Error: no goal ast for module");
+        return &goal.ast;
+    }
+
+    // The goal declaration matching a dependency graph declaration node.
+    // Callers reach this from a can declaration's key, swapping the can ast
+    // for the goal ast that shares its module and name.
+    fn goalDeclaration(ast: *const Ast, name: Frontend.PathTable.Id) *const Ast.Declaration {
+        for (ast.declarations.items) |*decl| {
+            if (decl.name == name) return decl;
+        }
+        @panic("Internal Error: no goal declaration for name");
+    }
+
+    fn goalFunctionBody(ast: *const Ast, name: Frontend.PathTable.Id) ?Ast.NodeId {
+        if (ast.main_name == name) return ast.main;
+        for (ast.declarations.items) |decl| {
+            if (decl.name == name) return decl.body;
+        }
+        for (ast.goals.items) |rnode| {
+            switch (rnode.node) {
+                .lambda => |lambda| if (lambda.name == name) return lambda.body,
+                else => {},
+            }
+        }
+        return null;
+    }
+
+    fn goalLambdaCaptures(ast: *const Ast, name: Frontend.PathTable.Id) usize {
+        for (ast.goals.items) |rnode| {
+            switch (rnode.node) {
+                .lambda => |lambda| if (lambda.name == name) return lambda.captures.items.len,
+                else => {},
+            }
+        }
+        return 0;
+    }
+
+    fn emitGoalFunctionBody(
+        self: *Compiler,
+        module_id: Module.Id,
+        node: *DependencyGraphNode,
+        function: *Elem.DynElem.Function,
+        ast: *const Ast,
+        body: Ast.NodeId,
+        captures_count: usize,
+        region: Region,
+    ) !void {
+        try self.functions.append(self.vm.allocator, function);
+        try self.pushScope(node);
+        try self.irs.append(self.vm.allocator, Ir{});
+
+        try self.pushLocalPlaceholders(module_id, function.arity, region);
+
+        if (captures_count > 0) {
+            try self.emitOp(.SetClosureCaptures, region);
+        }
+
+        try self.writeGoal(module_id, ast, body);
+        try self.finishFunctionIr(module_id);
+
+        _ = self.functions.pop();
+        _ = self.scopes.pop();
+    }
+
+    // The scratch register count one stepable arm's match steps use:
+    // places, the dead register, one claim array register per searched
+    // place plus a shared key + value + cursor register when the arm
+    // searches at all, a shared repeat block when it repeats at all (the
+    // count register, plus loop base and element registers for array-chunk
+    // repeats), and the cursor-template block (front, end, rest dst, char).
+    // A pure-place arm — no search/repeat/cursor-template pool — is exactly
+    // places.len + 1.
+    fn armStepScratchWidth(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) u32 {
+        var search_groups: u32 = 0;
+        var repeats: u32 = 0;
+        // The span-cursor block (front/end cursors, rest destination, and a
+        // character register for template range segments), shared by cursor
+        // templates and array merges: a template needs all four, an array
+        // merge only the first three.
+        var spans: u32 = 0;
+        // A constrained-pair object repeat's claim block: the claim array,
+        // plus a shared key, value, and cursor register reused across the
+        // group's pairs and iterations, plus a target register holding the
+        // group-loop's member-count exit bound.
+        var object_search: u32 = 0;
+        for (constraints, 0..) |constraint, i| switch (constraint.kind) {
+            // One claim array register per distinct searched place.
+            .search_key => |c| {
+                const first = for (constraints[0..i]) |prior| {
+                    switch (prior.kind) {
+                        .search_key => |p| if (p.place == c.place) break false,
+                        else => {},
+                    }
+                } else true;
+                if (first) search_groups += 1;
+            },
+            .solve_repeat => |c| {
+                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?;
+                repeats = @max(repeats, @as(u32, switch (shape) {
+                    .array => 3,
+                    .object, .object_search => 2,
+                    else => 1,
+                }));
+                if (shape == .object_search) object_search = 5;
+            },
+            // The count register lives in the repeat block; the claim array
+            // plus a shared key/val/cursor use the object_search block.
+            .claim_members => {
+                repeats = @max(repeats, 1);
+                object_search = 5;
+            },
+            .match_template => |c| {
+                if (self.templateStepable(ast, c.segments.items) == .cursor) spans = @max(spans, 4);
+            },
+            .solve_merge => |c| {
+                if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
+                    spans = @max(spans, @as(u32, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3));
+                } else if (self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
+                    object_search = 5;
+                }
+            },
+            else => {},
+        };
+        const extra: u32 = if (search_groups > 0) search_groups + 3 else 0;
+        return @as(u32, @intCast(places.len + 1)) + extra + repeats + spans + object_search;
+    }
+
+    fn writeGoal(self: *Compiler, module_id: Module.Id, ast: *const Ast, id: Ast.NodeId) Error!void {
+        const rnode = ast.goals.items[id];
+        const region = rnode.region;
+        switch (rnode.node) {
+            .true => try self.writeConstant(module_id, Elem.boolean(true), region),
+            .false => try self.writeConstant(module_id, Elem.boolean(false), region),
+            .null => try self.writeConstant(module_id, Elem.nullConst, region),
+            .string => |s| try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert(s)), region),
+            .number_string => |ns| try self.writeConstant(module_id, try self.numberStringNodeToElem(ns.number, ns.negated), region),
+            .number_float => |f| try self.writeConstant(module_id, Elem.numberFloat(f), region),
+            .ident => |ident| try self.writeGoalIdentValue(module_id, ident, true, region),
+            .call => |call| try self.writeGoalCall(module_id, ast, call, region),
+            .lambda => |*lambda| try self.writeGoalLambda(module_id, lambda, region),
+            .seq => |seq| try self.writeGoalSeq(module_id, ast, seq, region),
+            .alt => |arms| try self.writeGoalAlt(module_id, ast, arms.items, region),
+            .merge => |merge| {
+                try self.writeGoal(module_id, ast, merge.left);
+                const jumpIndex = try self.emitJump(.JumpIfFailure, region);
+                try self.writeGoal(module_id, ast, merge.right);
+                try self.emitOp(.Merge, region);
+                self.patchJump(jumpIndex);
+            },
+            .mult => |mult| {
+                try self.writeGoal(module_id, ast, mult.left);
+                try self.writeGoal(module_id, ast, mult.right);
+                try self.emitOp(.RepeatValue, region);
+            },
+            .neg => |inner| {
+                // Negation of a parser invocation negates the parser
+                // itself (a negated number parser matches the negated
+                // literal), matching the can parser path; negation of a
+                // value negates the result.
+                const inner_node = ast.goals.items[inner].node;
+                if (inner_node == .call) {
+                    const callee = ast.goals.items[inner_node.call.callee];
+                    const negatable = switch (callee.node) {
+                        .number_string => true,
+                        .ident => |i| !self.goalNameIsValueCase(i.name),
+                        else => false,
+                    };
+                    if (negatable) {
+                        try self.writeGoalNegatedParser(module_id, ast, inner_node.call.callee, region);
+                        try self.emitUnaryOp(.CallFunction, 0, region);
+                        return;
+                    }
+                }
+                try self.writeGoal(module_id, ast, inner);
+                try self.emitOp(.NegateNumber, region);
+            },
+            .to_string => |inner| {
+                try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert("")), region);
+                try self.writeGoal(module_id, ast, inner);
+                try self.emitOp(.MergeAsString, region);
+            },
+            .array => |elems| try self.writeGoalArray(module_id, ast, elems.items, region),
+            .object => |pairs| try self.writeGoalObject(module_id, ast, pairs.items, region),
+            .repeat => |*repeat| try self.writeGoalRepeat(module_id, ast, repeat, region),
+            .range => @panic("Internal Error: bare range goal outside call position"),
+            .match => |*match| try self.writeGoalMatch(module_id, ast, match, region),
+        }
+    }
+
+    // A bare ident evaluates to its value. Value positions mirror the can
+    // compiler's writeValue: a zero-arity value function global is
+    // invoked. Argument positions for parser params (and unknown callees)
+    // pass the function elem itself.
+    fn writeGoalIdentValue(self: *Compiler, module_id: Module.Id, ident: Ast.Ident, invoke_functions: bool, region: Region) Error!void {
+        switch (ident.resolution) {
+            .local => |slot| try self.emitUnaryOp(.GetLocal, slot, region),
+            .placeholder => try self.emitOp(.PushUnderscoreVar, region),
+            .global => {
+                const global = self.resolveGlobal(module_id, ident.name) orelse {
+                    try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(ident.name)});
+                    return Error.UndefinedVariable;
+                };
+                if (invoke_functions and global.isDynType(.Function) and global.asDyn().asFunction().arity == 0) {
+                    try self.writeCallFunctionConstant(module_id, global, region);
+                } else {
+                    try self.writeConstant(module_id, global, region);
+                }
+            },
+            .unresolved => @panic("Internal Error: unresolved ident survived binding"),
+        }
+    }
+
+    fn writeGoalCall(self: *Compiler, module_id: Module.Id, ast: *const Ast, call: Ast.Call, region: Region) Error!void {
+        const callee = ast.goals.items[call.callee];
+        switch (callee.node) {
+            .ident => |ident| try self.writeGoalFunctionCall(module_id, ast, ident, call, region, callee.region),
+            .string => |string| {
+                std.debug.assert(call.args.len == 0);
+                if (string.len == 0) {
+                    try self.emitOp(.PushEmptyString, region);
+                } else if (string.len == 1) {
+                    try self.emitUnaryOp(.ParseChar, string[0], region);
+                } else {
+                    const sid = try self.vm.strings.insert(string);
+                    try self.writeCallFunctionConstant(module_id, Elem.string(sid), region);
+                }
+            },
+            .number_string => |ns| {
+                std.debug.assert(call.args.len == 0);
+                if (ns.number.len == 1 and !ns.negated) {
+                    try self.emitUnaryOp(.ParseNumberStringChar, ns.number[0], region);
+                } else {
+                    const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                    try self.writeCallFunctionConstant(module_id, elem, region);
+                }
+            },
+            .range => |range| try self.writeGoalRangeParser(module_id, ast, range, region),
+            .neg => |inner| {
+                try self.writeGoalNegatedParser(module_id, ast, inner, region);
+                try self.emitUnaryOp(.CallFunction, 0, region);
+            },
+            else => {
+                // A computed callee: evaluate it, then invoke.
+                try self.writeGoal(module_id, ast, call.callee);
+                try self.emitUnaryOp(.CallFunction, @intCast(call.args.len), region);
+            },
+        }
+    }
+
+    fn writeGoalNegatedParser(self: *Compiler, module_id: Module.Id, ast: *const Ast, inner: Ast.NodeId, region: Region) Error!void {
+        const rnode = ast.goals.items[inner];
+        switch (rnode.node) {
+            .number_string => |ns| {
+                const elem = try self.numberStringNodeToElem(ns.number, !ns.negated);
+                try self.writeConstant(module_id, elem, rnode.region);
+            },
+            .ident => |ident| {
+                try self.writeGoalIdentValue(module_id, ident, false, region);
+                try self.emitOp(.NegateParser, region);
+            },
+            else => {
+                try self.printError(module_id, region, "Negated parser must be a number or named number parser", .{});
+                return Error.InvalidAst;
+            },
+        }
+    }
+
+    fn writeGoalFunctionCall(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        ident: Ast.Ident,
+        call: Ast.Call,
+        call_region: Region,
+        callee_region: Region,
+    ) Error!void {
+        const args = call.args;
+        var function_elem: ?*Elem.DynElem.Function = null;
+
+        switch (ident.resolution) {
+            .local => |slot| {
+                if (args.len == 0) {
+                    try self.emitUnaryOp(.CallFunctionLocal, slot, call_region);
+                    return;
+                }
+                try self.emitUnaryOp(.GetLocal, slot, callee_region);
+            },
+            .global => {
+                const global = self.resolveGlobal(module_id, ident.name) orelse {
+                    if (args.len == 0) {
+                        try self.printError(module_id, callee_region, "undefined variable '{s}'", .{self.frontend.pathString(ident.name)});
+                    } else {
+                        try self.printError(module_id, callee_region, "Undefined function '{s}'", .{self.frontend.pathString(ident.name)});
+                    }
+                    return Error.UndefinedVariable;
+                };
+                if (args.len == 0) {
+                    try self.writeCallFunctionConstant(module_id, global, call_region);
+                    return;
+                }
+                if (!global.isDynType(.Function)) {
+                    try self.printError(module_id, callee_region, "Only named functions can be called", .{});
+                    return Error.InvalidAst;
+                }
+                function_elem = global.asDyn().asFunction();
+                try self.writeConstant(module_id, global, callee_region);
+            },
+            .placeholder, .unresolved => @panic("Internal Error: uncallable ident resolution"),
+        }
+
+        if (function_elem) |f| {
+            if (f.arity != args.len) {
+                const name = self.vm.strings.get(f.name);
+                try self.printError(module_id, call_region, "Function '{s}' expects {d} arguments but got {d}", .{ name, f.arity, args.len });
+                return if (f.arity < args.len) Error.FunctionCallTooManyArgs else Error.FunctionCallTooFewArgs;
+            }
+        } else if (!self.goalNameIsValueCase(ident.name)) {
+            // A parser-named local callee gets the runtime arity and
+            // param-kind asserts the can parser path emits; value-named
+            // local callees mirror the value path, which emits none.
+            if (args.len > std.math.maxInt(u5)) {
+                try self.printError(module_id, call_region, "Can't have more than {} arguments.", .{std.math.maxInt(u5)});
+                return Error.MaxFunctionArgs;
+            }
+            try self.emitUnaryOp(.AssertFunctionArity, @intCast(args.len), call_region);
+
+            if (args.len < 8) {
+                try self.emitUnaryOp(.AssertParamTypes, @intCast(call.value_args & 0x7F), call_region);
+            } else {
+                try self.emitLongOp(.AssertParamTypes4, call.value_args, call_region);
+            }
+        }
+
+        for (args) |arg| {
+            try self.writeGoalArg(module_id, ast, arg);
+        }
+
+        try self.emitUnaryOp(.CallFunction, @intCast(args.len), call_region);
+    }
+
+    // Surface naming determines an identifier's kind: parsers are
+    // lowercase, values uppercase, with `_` and `@` prefixes skipped.
+    // Whether an eval_eq expression lowers to inline steps without risking
+    // a runtime panic. writeGoal compiles a call with the value path's
+    // guards, which omit the function-ness assert for a value-cased local
+    // callee; calling a non-function there panics in callFunction. Reject
+    // any expression that calls such a callee, or that has a shape the
+    // step path does not lower.
+    fn evalExprStepable(self: *Compiler, ast: *const Ast, id: Ast.NodeId) bool {
+        return switch (ast.goals.items[id].node) {
+            .true, .false, .null, .string, .number_string, .number_float, .ident => true,
+            .neg => |inner| self.evalExprStepable(ast, inner),
+            .to_string => |inner| self.evalExprStepable(ast, inner),
+            .merge => |m| self.evalExprStepable(ast, m.left) and self.evalExprStepable(ast, m.right),
+            .mult => |m| self.evalExprStepable(ast, m.left) and self.evalExprStepable(ast, m.right),
+            .array => |elems| {
+                for (elems.items) |elem| if (!self.evalExprStepable(ast, elem)) return false;
+                return true;
+            },
+            .object => |pairs| {
+                for (pairs.items) |pair| {
+                    if (!self.evalExprStepable(ast, pair.key)) return false;
+                    if (!self.evalExprStepable(ast, pair.value)) return false;
+                }
+                return true;
+            },
+            .call => |call| {
+                const callee = ast.goals.items[call.callee].node;
+                if (callee != .ident) return false;
+                if (callee.ident.resolution == .local and self.goalNameIsValueCase(callee.ident.name)) return false;
+                for (call.args) |arg| if (!self.evalExprStepable(ast, arg)) return false;
+                return true;
+            },
+            .alt, .seq, .match, .lambda, .repeat, .range => false,
+        };
+    }
+
+    fn goalNameIsValueCase(self: *Compiler, name: Frontend.PathTable.Id) bool {
+        const bytes = self.frontend.pathString(name);
+        var i: usize = 0;
+        while (i < bytes.len and (bytes[i] == '_' or bytes[i] == '@')) i += 1;
+        return i < bytes.len and std.ascii.isUpper(bytes[i]);
+    }
+
+    // A parser-named ident argument passes its function elem; a
+    // value-named argument evaluates like any value position (invoking a
+    // zero-arity value function), mirroring the can arg-kind split.
+    fn writeGoalArg(self: *Compiler, module_id: Module.Id, ast: *const Ast, id: Ast.NodeId) Error!void {
+        const rnode = ast.goals.items[id];
+        switch (rnode.node) {
+            .ident => |ident| {
+                const invoke = self.goalNameIsValueCase(ident.name);
+                try self.writeGoalIdentValue(module_id, ident, invoke, rnode.region);
+            },
+            else => try self.writeGoal(module_id, ast, id),
+        }
+    }
+
+    fn writeGoalLambda(self: *Compiler, module_id: Module.Id, lambda: *const Ast.Lambda, region: Region) Error!void {
+        const key = GlobalKey{ .module_id = module_id, .name = lambda.name };
+        const function = try self.declareAnonFunction(key);
+
+        const constId = try self.makeConstant(module_id, function.dyn.elem());
+        try self.emitConstant(constId, region);
+
+        const captures = lambda.captures.items;
+        if (captures.len == 0) return;
+
+        const anon_node = self.frontend.getNode(key);
+        const local_count: u8 = @intCast(anon_node.anonymous_function.locals.items.len);
+        try self.emitUnaryOp(.CreateClosure, local_count, region);
+
+        // Capture slots are the lambda frame's first locals; emit
+        // CaptureLocal in that order so SetClosureCaptures fills the
+        // right slots.
+        const lambda_locals = anon_node.locals();
+        for (lambda_locals[0..captures.len]) |sid| {
+            const fromSlot = self.resolver().localSlotSid(sid) orelse
+                @panic("Internal Error: capture source slot missing");
+            try self.emitUnaryOp(.CaptureLocal, @intCast(fromSlot), region);
+        }
+    }
+
+    fn writeGoalSeq(self: *Compiler, module_id: Module.Id, ast: *const Ast, seq: Ast.Seq, region: Region) Error!void {
+        const goals = seq.goals.items;
+        var end_jumps = ArrayList(Ir.Index){};
+        defer end_jumps.deinit(self.vm.allocator);
+
+        for (goals[0..seq.result]) |g| {
+            // `"" $ x` and `"" & x`: the empty-string parse always
+            // succeeds with nothing consumed, so skip it, matching the
+            // can path's `$` special case.
+            const g_node = ast.goals.items[g].node;
+            if (g_node == .call) {
+                const callee = ast.goals.items[g_node.call.callee].node;
+                if (callee == .string and callee.string.len == 0) continue;
+            }
+            try self.writeGoal(module_id, ast, g);
+            try end_jumps.append(self.vm.allocator, try self.emitJump(.TakeRight, region));
+        }
+        try self.writeGoal(module_id, ast, goals[seq.result]);
+        for (goals[seq.result + 1 ..]) |g| {
+            const jumpIndex = try self.emitJump(.JumpIfFailure, region);
+            try self.writeGoal(module_id, ast, g);
+            try self.emitOp(.TakeLeft, region);
+            self.patchJump(jumpIndex);
+        }
+        for (end_jumps.items) |jumpIndex| self.patchJump(jumpIndex);
+    }
+
+    fn writeGoalAlt(self: *Compiler, module_id: Module.Id, ast: *const Ast, arms: []const Ast.AltArm, region: Region) Error!void {
+        var end_jumps = ArrayList(Ir.Index){};
+        defer end_jumps.deinit(self.vm.allocator);
+
+        for (arms, 0..) |arm, i| {
+            const last = i == arms.len - 1;
+            if (arm.guard) |guard| {
+                try self.emitOp(.SetInputMark, region);
+                try self.writeGoal(module_id, ast, guard);
+                if (arm.body) |body| {
+                    const next = try self.emitJump(.ConditionalThen, region);
+                    try self.writeGoal(module_id, ast, body);
+                    if (!last) {
+                        try end_jumps.append(self.vm.allocator, try self.emitJump(.Jump, region));
+                        self.patchJump(next);
+                    } else {
+                        // A guarded last arm has no fallthrough arm: the
+                        // failed guard is the alt's failure.
+                        try end_jumps.append(self.vm.allocator, try self.emitJump(.Jump, region));
+                        self.patchJump(next);
+                        try self.emitOp(.PushFail, region);
+                    }
+                } else {
+                    try end_jumps.append(self.vm.allocator, try self.emitJump(.Or, region));
+                    if (last) try self.emitOp(.PushFail, region);
+                }
+            } else {
+                // A body-only arm commits the alt: success or failure, no
+                // later arm runs.
+                try self.writeGoal(module_id, ast, arm.body.?);
+                if (!last) {
+                    try end_jumps.append(self.vm.allocator, try self.emitJump(.Jump, region));
+                }
+            }
+        }
+        for (end_jumps.items) |jumpIndex| self.patchJump(jumpIndex);
+    }
+
+    fn goalValueToElem(self: *Compiler, ast: *const Ast, id: Ast.NodeId) !?Elem {
+        return switch (ast.goals.items[id].node) {
+            .false => Elem.boolean(false),
+            .true => Elem.boolean(true),
+            .null => Elem.nullConst,
+            .number_float => |f| Elem.numberFloat(f),
+            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
+            .string => |s| Elem.string(try self.vm.strings.insert(s)),
+            .array => |elems| if (elems.items.len == 0) blk: {
+                var empty = try Elem.DynElem.Array.create(self.vm, 0);
+                break :blk empty.dyn.elem();
+            } else null,
+            .object => |pairs| if (pairs.items.len == 0) blk: {
+                var empty = try Elem.DynElem.Object.create(self.vm, 0);
+                break :blk empty.dyn.elem();
+            } else null,
+            else => null,
+        };
+    }
+
+    fn writeGoalArray(self: *Compiler, module_id: Module.Id, ast: *const Ast, elems: []const Ast.NodeId, region: Region) Error!void {
+        if (elems.len == 0) {
+            return try self.emitOp(.PushEmptyArray, region);
+        }
+
+        var array = try Elem.DynElem.Array.create(self.vm, elems.len);
+        const constant_index = self.ir().nextIndex();
+        try self.writeConstant(module_id, array.dyn.elem(), region);
+
+        var mutated = false;
+        for (elems, 0..) |elem_id, index| {
+            var literal = try self.goalValueToElem(ast, elem_id);
+            if (literal == null) {
+                // Global constants inline like literals.
+                const node = ast.goals.items[elem_id].node;
+                if (node == .ident and node.ident.resolution == .global) {
+                    if (self.resolveGlobal(module_id, node.ident.name)) |global| {
+                        if (!global.isDynType(.Function)) literal = global;
+                    }
+                }
+            }
+            if (literal) |elem| {
+                try array.append(self.vm, elem);
+            } else {
+                try self.writeGoal(module_id, ast, elem_id);
+                try self.emitUnaryOp(.InsertAtIndex, @intCast(index), ast.goals.items[elem_id].region);
+                try array.append(self.vm, try self.placeholderVar());
+                mutated = true;
+            }
+        }
+        if (mutated) self.ir().patchConstantMutable(constant_index);
+    }
+
+    fn writeGoalObject(self: *Compiler, module_id: Module.Id, ast: *const Ast, pairs: []const Ast.ObjectPair, region: Region) Error!void {
+        if (pairs.len == 0) {
+            return try self.emitOp(.PushEmptyObject, region);
+        }
+
+        var object = try Elem.DynElem.Object.create(self.vm, 0);
+        const constant_index = self.ir().nextIndex();
+        try self.writeConstant(module_id, object.dyn.elem(), region);
+
+        var mutated = false;
+        for (pairs, 0..) |pair, index| {
+            const key_literal = try self.goalValueToElem(ast, pair.key);
+            const value_literal = try self.goalValueToElem(ast, pair.value);
+            if (key_literal != null and value_literal != null and key_literal.?.isType(.String)) {
+                if (key_literal.?.isType(.Dyn)) try self.vm.pushTempDyn(key_literal.?.asDyn());
+                defer if (key_literal.?.isType(.Dyn)) self.vm.dropTempDyn();
+                if (value_literal.?.isType(.Dyn)) try self.vm.pushTempDyn(value_literal.?.asDyn());
+                defer if (value_literal.?.isType(.Dyn)) self.vm.dropTempDyn();
+
+                try object.put(self.vm, key_literal.?.asString(), value_literal.?);
+            } else {
+                std.debug.assert(index <= 255);
+                const pos: u8 = @intCast(index);
+                try object.putReservedId(self.vm, pos, try self.placeholderVar());
+                try self.writeGoal(module_id, ast, pair.key);
+                try self.writeGoal(module_id, ast, pair.value);
+                try self.emitUnaryOp(.InsertKeyVal, pos, ast.goals.items[pair.key].region);
+                mutated = true;
+            }
+        }
+        if (mutated) self.ir().patchConstantMutable(constant_index);
+    }
+
+    fn writeGoalRangeParser(self: *Compiler, module_id: Module.Id, ast: *const Ast, range: Ast.Range, region: Region) Error!void {
+        if (range.lower != null and range.upper != null) {
+            try self.writeGoalBoundedRange(module_id, ast, range.lower.?, range.upper.?, region);
+        } else if (range.lower) |lower| {
+            try self.writeGoalHalfRange(module_id, ast, lower, .ParseLowerBoundedRange, 0, 0x10ffff, region);
+        } else {
+            try self.writeGoalHalfRange(module_id, ast, range.upper.?, .ParseUpperBoundedRange, 0x10ffff, 0x10ffff, region);
+        }
+    }
+
+    fn writeGoalBoundedRange(self: *Compiler, module_id: Module.Id, ast: *const Ast, low: Ast.NodeId, high: Ast.NodeId, region: Region) Error!void {
+        const low_node = ast.goals.items[low].node;
+        const high_node = ast.goals.items[high].node;
+
+        if (low_node == .string and high_node == .string) {
+            const low_codepoint = parsing.utf8Decode(low_node.string) orelse {
+                try self.printError(module_id, ast.goals.items[low].region, "Character range bound must be a single codepoint", .{});
+                return Error.RangeNotSingleCodepoint;
+            };
+            const high_codepoint = parsing.utf8Decode(high_node.string) orelse {
+                try self.printError(module_id, ast.goals.items[high].region, "Character range bound must be a single codepoint", .{});
+                return Error.RangeNotSingleCodepoint;
+            };
+            if (low_codepoint > high_codepoint) {
+                try self.printError(module_id, region, "Range upper bound codepoint is less than the lower bound", .{});
+                return Error.RangeCodepointsUnordered;
+            } else if (low_codepoint == 0 and high_codepoint == 0x10ffff) {
+                try self.emitOp(.ParseCodepoint, region);
+            } else if (low_codepoint <= 255 and high_codepoint <= 255) {
+                try self.emitBytePair(
+                    .ParseCodepointRange,
+                    @intCast(low_codepoint),
+                    ast.goals.items[low].region,
+                    @intCast(high_codepoint),
+                    ast.goals.items[high].region,
+                    region,
+                );
+            } else {
+                try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert(low_node.string)), ast.goals.items[low].region);
+                try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert(high_node.string)), ast.goals.items[high].region);
+                try self.emitOp(.ParseRange, region);
+            }
+            return;
+        }
+
+        if (low_node == .number_string and high_node == .number_string) {
+            const low_elem = try self.numberStringNodeToElem(low_node.number_string.number, low_node.number_string.negated);
+            const high_elem = try self.numberStringNodeToElem(high_node.number_string.number, high_node.number_string.negated);
+            const low_num = low_elem.asNumberString().toNumberFloat(self.vm.strings);
+            const high_num = high_elem.asNumberString().toNumberFloat(self.vm.strings);
+            if (!low_num.isInteger(self.vm.strings) or !high_num.isInteger(self.vm.strings)) {
+                try self.printError(module_id, region, "Range bound must be an integer", .{});
+                return Error.RangeInvalidNumberFormat;
+            }
+            const low_int = try low_num.asInteger(self.vm.strings);
+            const high_int = try high_num.asInteger(self.vm.strings);
+            if (low_int > high_int) {
+                try self.printError(module_id, region, "Range upper bound is less than the lower bound", .{});
+                return Error.RangeIntegersUnordered;
+            } else if (0 <= low_int and low_int <= 255 and 0 <= high_int and high_int <= 255) {
+                try self.emitBytePair(
+                    .ParseIntegerRange,
+                    @intCast(low_int),
+                    ast.goals.items[low].region,
+                    @intCast(high_int),
+                    ast.goals.items[high].region,
+                    region,
+                );
+            } else {
+                try self.writeConstant(module_id, low_num, ast.goals.items[low].region);
+                try self.writeConstant(module_id, high_num, ast.goals.items[high].region);
+                try self.emitOp(.ParseRange, region);
+            }
+            return;
+        }
+
+        try self.writeGoalRangeBound(module_id, ast, low, region);
+        try self.writeGoalRangeBound(module_id, ast, high, region);
+        try self.emitOp(.ParseRange, region);
+    }
+
+    fn writeGoalRangeBound(self: *Compiler, module_id: Module.Id, ast: *const Ast, id: Ast.NodeId, region: Region) Error!void {
+        const rnode = ast.goals.items[id];
+        switch (rnode.node) {
+            .string => |s| {
+                _ = parsing.utf8Decode(s) orelse {
+                    try self.printError(module_id, rnode.region, "Character range bound must be a single codepoint", .{});
+                    return Error.RangeNotSingleCodepoint;
+                };
+                try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert(s)), rnode.region);
+            },
+            .number_string => |ns| {
+                const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                const num = elem.asNumberString().toNumberFloat(self.vm.strings);
+                if (!num.isInteger(self.vm.strings)) {
+                    try self.printError(module_id, rnode.region, "Range bound must be an integer", .{});
+                    return Error.RangeInvalidNumberFormat;
+                }
+                try self.writeConstant(module_id, num, rnode.region);
+            },
+            .ident => |ident| try self.writeGoalIdentValue(module_id, ident, false, rnode.region),
+            .neg => |inner| try self.writeGoalNegatedParser(module_id, ast, inner, region),
+            else => {
+                try self.printError(module_id, rnode.region, "Range bound must be an integer or codepoint", .{});
+                return Error.InvalidAst;
+            },
+        }
+    }
+
+    fn writeGoalHalfRange(self: *Compiler, module_id: Module.Id, ast: *const Ast, bound: Ast.NodeId, op: OpCode, full_low: u21, full_high: u21, region: Region) Error!void {
+        const rnode = ast.goals.items[bound];
+        switch (rnode.node) {
+            .string => |s| {
+                const codepoint = parsing.utf8Decode(s) orelse {
+                    try self.printError(module_id, rnode.region, "Character range bound must be a single codepoint", .{});
+                    return Error.RangeNotSingleCodepoint;
+                };
+                const full = if (op == .ParseLowerBoundedRange) codepoint == full_low else codepoint == full_high;
+                if (full) {
+                    try self.emitOp(.ParseCodepoint, region);
+                } else {
+                    try self.writeConstant(module_id, Elem.string(try self.vm.strings.insert(s)), rnode.region);
+                    try self.emitOp(op, region);
+                }
+            },
+            .number_string => |ns| {
+                const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                const num = elem.asNumberString().toNumberFloat(self.vm.strings);
+                const f = num.asFloat();
+                if (@trunc(f) != f) {
+                    try self.printError(module_id, rnode.region, "Range bound must be an integer", .{});
+                    return Error.RangeInvalidNumberFormat;
+                }
+                try self.writeConstant(module_id, num, rnode.region);
+                try self.emitOp(op, region);
+            },
+            .ident => |ident| {
+                try self.writeGoalIdentValue(module_id, ident, false, region);
+                try self.emitOp(op, region);
+            },
+            .neg => |inner| {
+                try self.writeGoalNegatedParser(module_id, ast, inner, region);
+                try self.emitOp(op, region);
+            },
+            else => {
+                try self.printError(module_id, rnode.region, "Range bound must be an integer or codepoint", .{});
+                return Error.InvalidAst;
+            },
+        }
+    }
+
+    // How a repeat count test constrains the loop: an exact evaluable
+    // count, a range, a plain binder, or a compound set that only a
+    // count destructure can decide.
+    const CountShape = union(enum) {
+        none,
+        exact,
+        range: Ast.Constraint.Kind,
+        destructure,
+    };
+
+    fn goalCountShape(ast: *const Ast, count_test: ?Ast.SetId) CountShape {
+        const set_id = count_test orelse return .none;
+        const constraints = ast.constraint_sets.items[set_id].constraints.items;
+        if (constraints.len != 1) return .destructure;
+        return switch (constraints[0].kind) {
+            .eq_const, .eq_slot, .eq_global, .eval_eq => .exact,
+            .in_range => .{ .range = constraints[0].kind },
+            else => .destructure,
+        };
+    }
+
+    fn writeGoalLimitValue(self: *Compiler, module_id: Module.Id, ast: *const Ast, limit: Ast.Limit, region: Region) Error!void {
+        switch (limit) {
+            .read => |local| try self.emitUnaryOp(.GetLocal, local.slot, region),
+            .global => |name| {
+                const global = self.resolveGlobal(module_id, name) orelse {
+                    try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+                    return Error.UndefinedVariable;
+                };
+                try self.writeConstant(module_id, global, region);
+            },
+            .expr => |expr| try self.writeGoal(module_id, ast, expr),
+            .none, .bind, .local => @panic("Internal Error: repeat cap is not evaluable"),
+        }
+    }
+
+    fn writeGoalRepeat(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, region: Region) Error!void {
+        switch (goalCountShape(ast, repeat.count_test)) {
+            .exact => {
+                std.debug.assert(repeat.cap != .none);
+                try self.writeGoalRepeatCounted(module_id, ast, repeat, region);
+            },
+            .none => {
+                if (repeat.cap != .none) {
+                    try self.writeGoalRepeatOptional(module_id, ast, repeat, null, region);
+                } else {
+                    try self.writeGoalRepeatGreedy(module_id, ast, repeat.body, region);
+                }
+            },
+            .range => |kind| {
+                const lower = kind.in_range.lower;
+                const lower_evaluable = switch (lower) {
+                    .read, .global, .expr => true,
+                    else => false,
+                };
+                if (lower_evaluable and repeat.cap != .none) {
+                    try self.writeGoalRepeatRangeBounded(module_id, ast, repeat, lower, region);
+                } else if (lower_evaluable) {
+                    try self.writeGoalRepeatRequired(module_id, ast, repeat, lower, region);
+                } else if (repeat.cap != .none) {
+                    try self.writeGoalRepeatOptional(module_id, ast, repeat, repeat.count_test, region);
+                } else {
+                    try self.writeGoalRepeatUnknown(module_id, ast, repeat, region);
+                }
+            },
+            .destructure => {
+                if (repeat.cap != .none) {
+                    try self.writeGoalRepeatOptional(module_id, ast, repeat, repeat.count_test, region);
+                } else {
+                    try self.writeGoalRepeatUnknown(module_id, ast, repeat, region);
+                }
+            },
+        }
+    }
+
+    // Exactly-n repetitions: every iteration is required, failure aborts
+    // the repeat with the failure. Port of writeParserRepeatCount.
+    fn writeGoalRepeatCounted(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, region: Region) Error!void {
+        const count_region: Region = if (repeat.count_test) |set_id|
+            ast.constraint_sets.items[set_id].region
+        else
+            region;
+        try self.writeConstant(module_id, Elem.nullConst, region);
+
+        try self.writeGoalLimitValue(module_id, ast, repeat.cap, count_region);
+        try self.emitOp(.ValidateRepeatPattern, count_region);
+        const nullJump = try self.emitJump(.JumpIfZero, region);
+
+        const loopStart = self.ir().nextIndex();
+        try self.emitOp(.Swap, region);
+        try self.writeGoal(module_id, ast, repeat.body);
+        try self.emitOp(.Merge, region);
+        const failureJump = try self.emitJump(.JumpIfFailure, region);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Decrement, region);
+        const doneJump = try self.emitJump(.JumpIfZero, region);
+        try self.emitJumpBack(.JumpBack, loopStart, region);
+
+        self.patchJump(failureJump);
+        try self.emitOp(.Swap, region);
+
+        self.patchJump(nullJump);
+        self.patchJump(doneJump);
+        try self.emitOp(.Drop, region);
+    }
+
+    // Up-to-cap optional repetitions, optionally destructuring the
+    // achieved count against the count test. Port of
+    // writeParserRepeatRangeUpperBounded.
+    fn writeGoalRepeatOptional(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, count_set: ?Ast.SetId, region: Region) Error!void {
+        try self.writeConstant(module_id, Elem.nullConst, region);
+
+        try self.writeGoalLimitValue(module_id, ast, repeat.cap, region);
+        try self.emitOp(.ValidateRepeatPattern, region);
+        const nullJump = try self.emitJump(.JumpIfZero, region);
+
+        const loopStart = self.ir().nextIndex();
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.SetInputMark, region);
+        try self.writeGoal(module_id, ast, repeat.body);
+        const failureJump = try self.emitJump(.JumpIfFailure, region);
+        try self.emitOp(.PopInputMark, region);
+        try self.emitOp(.Merge, region);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Decrement, region);
+        const doneJump = try self.emitJump(.JumpIfZero, region);
+        try self.emitJumpBack(.JumpBack, loopStart, region);
+
+        self.patchJump(failureJump);
+        try self.emitOp(.ResetInput, region);
+        try self.emitOp(.Drop, region);
+        try self.emitOp(.Swap, region);
+
+        self.patchJump(nullJump);
+        self.patchJump(doneJump);
+
+        if (count_set) |set_id| {
+            // remaining -> achieved: -remaining + cap
+            try self.emitOp(.NegateNumber, region);
+            try self.writeGoalLimitValue(module_id, ast, repeat.cap, region);
+            try self.emitOp(.Merge, region);
+            try self.writeGoalCountDestructure(module_id, ast, set_id, region);
+        }
+
+        try self.emitOp(.Drop, region);
+    }
+
+    // A required lower bound, then greedy optional iterations; the count
+    // test destructures against the total when the range has an upper
+    // binder. Port of writeParserRepeatRangeLowerBounded.
+    fn writeGoalRepeatRequired(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, lower: Ast.Limit, region: Region) Error!void {
+        const count_set = repeat.count_test.?;
+        const upper_binds = blk: {
+            const constraints = ast.constraint_sets.items[count_set].constraints.items;
+            break :blk constraints[0].kind.in_range.upper == .bind;
+        };
+
+        try self.writeConstant(module_id, Elem.nullConst, region);
+
+        try self.writeGoalLimitValue(module_id, ast, lower, region);
+        try self.emitOp(.ValidateRepeatPattern, region);
+        const skipLowerJump = try self.emitJump(.JumpIfZero, region);
+
+        const loopStartRequired = self.ir().nextIndex();
+        try self.emitOp(.Swap, region);
+        try self.writeGoal(module_id, ast, repeat.body);
+        try self.emitOp(.Merge, region);
+        const failureLowerJump = try self.emitJump(.JumpIfFailure, region);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Decrement, region);
+        const doneLowerJump = try self.emitJump(.JumpIfZero, region);
+        try self.emitJumpBack(.JumpBack, loopStartRequired, region);
+
+        self.patchJump(skipLowerJump);
+        self.patchJump(doneLowerJump);
+
+        // Count under acc.
+        try self.emitOp(.Swap, region);
+
+        const loopStartOptional = self.ir().nextIndex();
+        try self.emitOp(.SetInputMark, region);
+        try self.writeGoal(module_id, ast, repeat.body);
+        const failureOptionalJump = try self.emitJump(.JumpIfFailure, region);
+        try self.emitOp(.PopInputMark, region);
+        try self.emitOp(.Merge, region);
+        if (upper_binds) {
+            try self.emitOp(.Swap, region);
+            try self.emitOp(.Increment, region);
+            try self.emitOp(.Swap, region);
+        }
+        try self.emitJumpBack(.JumpBack, loopStartOptional, region);
+
+        self.patchJump(failureOptionalJump);
+        try self.emitOp(.ResetInput, region);
+        try self.emitOp(.Drop, region);
+
+        if (upper_binds) {
+            // optional count -> total: optional + lower
+            try self.emitOp(.Swap, region);
+            try self.writeGoalLimitValue(module_id, ast, lower, region);
+            try self.emitOp(.Merge, region);
+            try self.writeGoalCountDestructure(module_id, ast, count_set, region);
+            try self.emitOp(.Swap, region);
+        }
+
+        self.patchJump(failureLowerJump);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Drop, region);
+    }
+
+    // A required lower bound then up to cap-minus-lower optional
+    // iterations. Port of writeParserRepeatRangeBounded.
+    fn writeGoalRepeatRangeBounded(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, lower: Ast.Limit, region: Region) Error!void {
+        try self.writeConstant(module_id, Elem.nullConst, region);
+
+        try self.writeGoalLimitValue(module_id, ast, lower, region);
+        try self.emitOp(.ValidateRepeatPattern, region);
+        const skipLowerJump = try self.emitJump(.JumpIfZero, region);
+
+        const loopStartRequired = self.ir().nextIndex();
+        try self.emitOp(.Swap, region);
+        try self.writeGoal(module_id, ast, repeat.body);
+        try self.emitOp(.Merge, region);
+        const failureLowerJump = try self.emitJump(.JumpIfFailure, region);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Decrement, region);
+        const doneLowerJump = try self.emitJump(.JumpIfZero, region);
+        try self.emitJumpBack(.JumpBack, loopStartRequired, region);
+
+        self.patchJump(skipLowerJump);
+        self.patchJump(doneLowerJump);
+
+        try self.emitOp(.Drop, region);
+        try self.writeGoalLimitValue(module_id, ast, repeat.cap, region);
+        try self.writeGoalLimitValue(module_id, ast, lower, region);
+        try self.emitOp(.NegateNumber, region);
+        try self.emitOp(.Merge, region);
+        try self.emitOp(.ValidateRepeatPattern, region);
+        const skipUpperJump = try self.emitJump(.JumpIfZero, region);
+
+        const loopStart = self.ir().nextIndex();
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.SetInputMark, region);
+        try self.writeGoal(module_id, ast, repeat.body);
+        const failureUpperJump = try self.emitJump(.JumpIfFailure, region);
+        try self.emitOp(.PopInputMark, region);
+        try self.emitOp(.Merge, region);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Decrement, region);
+        const doneJump = try self.emitJump(.JumpIfZero, region);
+        try self.emitJumpBack(.JumpBack, loopStart, region);
+
+        self.patchJump(failureUpperJump);
+        try self.emitOp(.ResetInput, region);
+        try self.emitOp(.Drop, region);
+
+        self.patchJump(failureLowerJump);
+        try self.emitOp(.Swap, region);
+
+        self.patchJump(skipUpperJump);
+        self.patchJump(doneJump);
+        try self.emitOp(.Drop, region);
+    }
+
+    // Unbounded optional iterations with a counted total destructured
+    // against the count test. Port of writeParserRepeatUnknownCount.
+    fn writeGoalRepeatUnknown(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, region: Region) Error!void {
+        try self.writeConstant(module_id, Elem.numberFloat(0), region);
+        try self.writeConstant(module_id, Elem.nullConst, region);
+
+        const loopStart = self.ir().nextIndex();
+        try self.emitOp(.SetInputMark, region);
+        try self.writeGoal(module_id, ast, repeat.body);
+        const failureJump = try self.emitJump(.JumpIfFailure, region);
+        try self.emitOp(.PopInputMark, region);
+        try self.emitOp(.Merge, region);
+        try self.emitOp(.Swap, region);
+        try self.emitOp(.Increment, region);
+        try self.emitOp(.Swap, region);
+        try self.emitJumpBack(.JumpBack, loopStart, region);
+
+        self.patchJump(failureJump);
+        try self.emitOp(.ResetInput, region);
+        try self.emitOp(.Drop, region);
+        try self.emitOp(.Swap, region);
+        try self.writeGoalCountDestructure(module_id, ast, repeat.count_test.?, region);
+        try self.emitOp(.Drop, region);
+    }
+
+    // Iterate until the body fails; no count constraints at all.
+    fn writeGoalRepeatGreedy(self: *Compiler, module_id: Module.Id, ast: *const Ast, body: Ast.NodeId, region: Region) Error!void {
+        try self.writeConstant(module_id, Elem.nullConst, region);
+
+        const loopStart = self.ir().nextIndex();
+        try self.emitOp(.SetInputMark, region);
+        try self.writeGoal(module_id, ast, body);
+        const failureJump = try self.emitJump(.JumpIfFailure, region);
+        try self.emitOp(.PopInputMark, region);
+        try self.emitOp(.Merge, region);
+        try self.emitJumpBack(.JumpBack, loopStart, region);
+
+        self.patchJump(failureJump);
+        try self.emitOp(.ResetInput, region);
+        try self.emitOp(.Drop, region);
+    }
+
+    fn writeGoalCountDestructure(self: *Compiler, module_id: Module.Id, ast: *const Ast, set_id: Ast.SetId, region: Region) Error!void {
+        const set = &ast.constraint_sets.items[set_id];
+        if (self.constraintsStepable(ast, set.constraints.items)) {
+            try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .input, region);
+            return;
+        }
+        return error.UnsupportedPattern;
+    }
+
+    // ===== Match lowering =====
+
+    fn writeGoalMatch(self: *Compiler, module_id: Module.Id, ast: *const Ast, match: *const Ast.Match, match_region: Region) Error!void {
+        _ = match_region;
+        try self.writeGoal(module_id, ast, match.scrutinee);
+
+        if (match.arms.items.len != 1) @panic("Internal Error: multi-arm match lowering not implemented");
+        const arm = &match.arms.items[0];
+        if (arm.guard != null or arm.body != null) @panic("Internal Error: match arm guard/body lowering not implemented");
+
+        // The pattern's own region drives failure attribution and debug
+        // rendering.
+        const region = arm.region;
+
+        if (self.armStepable(ast, arm)) {
+            try self.writeMatchSteps(module_id, ast, match.places.items, arm.constraints.items, .input, region);
+        } else {
+            return error.UnsupportedPattern;
+        }
+    }
+
+    // Whether every constraint and place lowers to an inline step op.
+    // Everything else is error.UnsupportedPattern.
+    fn armStepable(self: *Compiler, ast: *const Ast, arm: *const Ast.MatchArm) bool {
+        return self.constraintsStepable(ast, arm.constraints.items);
+    }
+
+    // Whether every constraint in a set lowers to inline steps. Serves both
+    // a root arm and a nested sub-pattern's ConstraintSet (both have the
+    // same scrutinee-rooted shape), so it recurses through searchable
+    // structural values.
+    fn constraintsStepable(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) bool {
+        for (constraints) |constraint| switch (constraint.kind) {
+            .is_type => {},
+            .len_eq, .len_min, .keys_exact, .keys_min => {},
+            .has_key, .str_prefix, .str_suffix, .bind, .eq_slot, .eq_global => {},
+            .eq_const => {},
+            .eval_eq => {},
+            .in_range => {},
+            .negated => |c| {
+                if (!self.negatedStepable(ast, c.part)) return false;
+            },
+            // A template lowers either to the static prefix/suffix/slice
+            // layout (path A) or to the cursor-chomp path (path B).
+            .match_template => |c| {
+                if (self.templateStepable(ast, c.segments.items) == null) return false;
+            },
+            // A search pair steps when its key sub-pattern is a shallow
+            // leaf (bind, ignore, or bound-local probe) and its value is
+            // either a shallow leaf or a structural sub-pattern matched in
+            // a nested window. A bound key probes its member directly; an
+            // unbound key scans; either way the value's window is the same.
+            .search_key => |c| {
+                if (!self.searchSetStepable(ast, c.key, true)) return false;
+                if (self.searchSetStepable(ast, c.value, false)) continue;
+                if (!self.searchValueStructuralStepable(ast, c.value)) return false;
+            },
+            .solve_merge => |c| {
+                if (self.classifyNumMergeStep(ast, c.ty, c.parts.items) == null and
+                    self.classifyBoolMergeStep(ast, c.ty, c.parts.items) == null and
+                    !self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) and
+                    !self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) and
+                    !self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) and
+                    !self.untypedMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) return false;
+            },
+            .solve_repeat => |c| {
+                if (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) == null) return false;
+            },
+            .claim_members => |c| {
+                if (!self.claimMembersStepable(ast, constraints, c)) return false;
+            },
+            else => return false,
+        };
+        return true;
+    }
+
+    // Whether an object-merge repeat part lowers to inline claim steps. The
+    // chunk must be an all-placeholder or constrained-pair object (the same
+    // shapes solve_repeat's object repeats accept); the count must step; and
+    // a solvable count is admitted only in the exact (no-rest) shape, where
+    // the object's member count determines it. An inexact (rest) shape needs
+    // a known count product — the surplus over the claimed groups feeds the
+    // rest. Only one claimer may share the claim register block per window.
+    fn claimMembersStepable(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint, c: anytype) bool {
+        if (c.pattern != .sub) return false;
+        const chunk_set_id = c.pattern.sub;
+        if (repeatObjectLen(ast, chunk_set_id) == null and self.repeatObjectSearchLen(ast, chunk_set_id) == null) return false;
+        if (!self.singleClaimer(ast, constraints)) return false;
+        if (c.exact) {
+            return self.repeatCountFactorsStepable(ast, c.count_factors.items, c.solvable_index);
+        }
+        // A rest takes the members past the claimed groups, so the count
+        // cannot be derived from the member total: it must be a known product.
+        if (c.solvable_index != null) return false;
+        return self.repeatCountKnown(ast, c.count_factors.items);
+    }
+
+    // Whether at most one constraint in the set competes for the shared
+    // claim register block: an object-merge repeat's claim array persists
+    // until its members_rest place materializes, so a second claim, an
+    // object_search solve_repeat, or an object solve_merge (each of which
+    // reseeds the array) would alias it.
+    fn singleClaimer(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) bool {
+        var claimers: u32 = 0;
+        for (constraints) |constraint| switch (constraint.kind) {
+            .claim_members => claimers += 1,
+            .solve_repeat => |r| {
+                if (self.repeatShape(ast, r.pattern, r.count_factors.items, r.solvable_index) == .object_search) claimers += 1;
+            },
+            .solve_merge => |m| {
+                if (self.objectMergeStepable(ast, m.ty, m.parts.items, m.solvable_index)) claimers += 1;
+            },
+            else => {},
+        };
+        return claimers <= 1;
+    }
+
+    // A search value that is not a shallow leaf lowers to inline steps when
+    // it is a genuine container destructure (more than the scrutinee place)
+    // whose whole ConstraintSet steps. It matches in a nested window whose
+    // scrutinee is the found member. The scan binds the candidate key
+    // before the value window, so the value may read it — an eval that
+    // reads the key (`{A: Id(A)}`) or an element that compares against it
+    // (`{A: [A, B]}`) both step.
+    fn searchValueStructuralStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len < 2) return false;
+        return self.constraintsStepable(ast, set.constraints.items);
+    }
+
+    const RepeatShape = enum { value, chunk, range, array, object, object_search, identity };
+
+    // How a solve_repeat lowers to inline steps. `value`: the pattern
+    // operand evaluates at match time (a constant, a bound read, a module
+    // global, or any evaluable expression — a call, merge, or literal
+    // container), the count is derived from the scrutinee's value in place,
+    // and the count operand is tested against it. `chunk`: the pattern is a
+    // bare binder or placeholder solved from a known count. `range`: the
+    // pattern is a codepoint range scanned over a string value, the count is
+    // the codepoint count. `array`: the pattern is a fixed-length array of
+    // leaf-tested elements, matched chunk by chunk in a loop. Null rejects
+    // the repeat — deeper structural sub-patterns, non-evaluable pattern
+    // operands (alts, sequences, nested matches, value-cased local callees).
+    // `identity`: a bare-binder pattern with an unbound count claims the whole
+    // scrutinee greedily and binds the count to 1, the repeat's identity (an
+    // under-constrained trailing part with no scrutinee left to claim). A
+    // module global pushes via the eval bridge (constant, or a call for a
+    // zero-arity parser); a non-zero-arity global fails at emit.
+    fn repeatShape(self: *Compiler, ast: *const Ast, pattern_part: Ast.Part, factors: []const Ast.Part, solvable_index: ?u32) ?RepeatShape {
+        switch (pattern_part) {
+            .expr => |id| if (self.evalExprStepable(ast, id) and self.repeatCountFactorsStepable(ast, factors, solvable_index)) {
+                return .value;
+            },
+            .read, .global => if (self.repeatCountFactorsStepable(ast, factors, solvable_index)) return .value,
+            .bind, .placeholder => {
+                if (self.repeatCountKnown(ast, factors)) return .chunk;
+                if (repeatCountBareUnbound(factors)) return .identity;
+            },
+            .sub => |set_id| if (self.repeatCountFactorsStepable(ast, factors, solvable_index)) {
+                if (self.repeatRangeConstraint(ast, set_id) != null) return .range;
+                if (repeatArrayLen(ast, set_id) != null) return .array;
+                if (repeatObjectLen(ast, set_id) != null) return .object;
+                if (self.repeatObjectSearchLen(ast, set_id) != null) return .object_search;
+            },
+            .local => {},
+        }
+        return null;
+    }
+
+    // The chunk element length of a repeat's fixed-length array
+    // sub-pattern, or null when the sub-pattern doesn't lower to the chunk
+    // loop. The root must be a fixed-length array (is_type + len_eq on
+    // place 0); its interior may nest arrays and constant-key objects of
+    // leaf tests and binds, matched per chunk in a nested window. Rests
+    // (variable length), ranges, searches, nested repeats, merges, and
+    // templates inside a chunk are not stepable.
+    fn repeatArrayLen(ast: *const Ast, set_id: Ast.SetId) ?u32 {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len == 0) return null;
+
+        var root_array = false;
+        var len: ?u32 = null;
+        for (set.constraints.items) |constraint| switch (constraint.kind) {
+            .is_type => |c| if (c.place == 0) {
+                if (c.ty != .array) return null;
+                root_array = true;
+            },
+            .len_eq => |c| if (c.place == 0) {
+                if (c.len == 0) return null;
+                len = c.len;
+            },
+            // Interior structure tests and leaf tests/binds; a bind
+            // compares against the first chunk's value in later chunks.
+            // (A range's own bind is not identity-checked across chunks —
+            // a pre-existing limitation carried from the leaf-chunk path.)
+            .keys_exact, .has_key, .bind, .eq_slot, .eq_const, .eq_global, .str_prefix, .str_suffix, .in_range => {},
+            else => return null,
+        };
+        if (!root_array or len == null) return null;
+
+        // Only fixed projections: the materialized chunk slice is
+        // destructured like any array/object pattern. Rests and slices
+        // would make the chunk variable-length.
+        for (set.places.items) |def| switch (def) {
+            .scrutinee, .elem, .key => {},
+            else => return null,
+        };
+        return len;
+    }
+
+    // The member count of a repeat's all-placeholder object sub-pattern, or
+    // null. The chunk must be a fixed-size object ({_: _}, {_: _, _: _}) that
+    // imposes no key or value constraint on its members: the repeat then just
+    // counts members (count = object members / chunk members), with no
+    // per-member matching. A constrained member ({_: 1}) or a rest fails
+    // this shape — matching specific members of an unordered object per
+    // chunk is not a static step sequence; object_search handles the
+    // constrained-pair forms.
+    fn repeatObjectLen(ast: *const Ast, set_id: Ast.SetId) ?u32 {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len != 1) return null;
+
+        var root_object = false;
+        var len: ?u32 = null;
+        for (set.constraints.items) |constraint| switch (constraint.kind) {
+            .is_type => |c| {
+                if (c.place != 0 or c.ty != .object) return null;
+                root_object = true;
+            },
+            .keys_exact => |c| {
+                if (c.place != 0 or c.count == 0) return null;
+                len = c.count;
+            },
+            // Every pair must be a bare placeholder search: no key or value
+            // constraint, so no member is narrowed and order is irrelevant.
+            .search_key => |c| {
+                if (c.place != 0) return null;
+                const key_set = &ast.constraint_sets.items[c.key];
+                const value_set = &ast.constraint_sets.items[c.value];
+                if (key_set.constraints.items.len != 0) return null;
+                if (value_set.constraints.items.len != 0) return null;
+            },
+            else => return null,
+        };
+        if (!root_object or len == null) return null;
+        return len;
+    }
+
+    // The pair count of a repeat's constrained-pair object sub-pattern, or
+    // null. Generalizes repeatObjectLen past bare {_: _} pairs to pairs that
+    // narrow a member: search pairs with a placeholder or binding key and a
+    // stepable value ({K: V}, {_: 1}, {_: 1, _: 2}), and const-key pairs
+    // (has_key) with a leaf value ({"q": _}, {"a": A}). Each group claims
+    // pair_count members exclusively from a claim array; group 0 binds and
+    // later groups compare (the rebound variant), so a binding or constant
+    // key re-probing a claimed member fails a second group. Structural
+    // const-key values are not stepable.
+    fn repeatObjectSearchLen(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) ?u32 {
+        const set = &ast.constraint_sets.items[set_id];
+        // Place 0 is the scrutinee; any others are const-key member
+        // projections (`key %0 "..."`) whose leaf value constraints match
+        // against the claimed member.
+        for (set.places.items, 0..) |def, i| {
+            if (i == 0) {
+                if (def != .scrutinee) return null;
+            } else switch (def) {
+                .key => |k| if (k.src != 0) return null,
+                else => return null,
+            }
+        }
+
+        var root_object = false;
+        var len: ?u32 = null;
+        for (set.constraints.items) |constraint| switch (constraint.kind) {
+            .is_type => |c| {
+                if (c.place == 0) {
+                    if (c.ty != .object) return null;
+                    root_object = true;
+                }
+            },
+            .keys_exact => |c| {
+                if (c.place != 0 or c.count == 0) return null;
+                len = c.count;
+            },
+            .has_key => |c| {
+                if (c.place != 0) return null;
+            },
+            .search_key => |c| {
+                if (c.place != 0) return null;
+                const key_set = &ast.constraint_sets.items[c.key];
+                // The key is a fresh-member selector: a placeholder (no
+                // constraint) or a single bind. A key that already tests
+                // (a known probe) is not the shape this steps.
+                if (key_set.constraints.items.len > 0) {
+                    if (key_set.constraints.items.len != 1) return null;
+                    if (key_set.constraints.items[0].kind != .bind) return null;
+                }
+                const value_set = &ast.constraint_sets.items[c.value];
+                if (value_set.constraints.items.len > 0 and
+                    !self.constraintsStepable(ast, value_set.constraints.items)) return null;
+            },
+            // A const key's leaf value constraint on its projected place;
+            // structural value kinds are not stepable.
+            .bind, .eq_const, .eq_slot, .eq_global, .in_range => {},
+            else => return null,
+        };
+        if (!root_object or len == null) return null;
+        return len;
+    }
+
+    // Whether a repeat chunk constrains anything beyond the root array's
+    // type and length — i.e. needs the per-chunk matching loop. A chunk of
+    // bare placeholders (Array.length's `[_] * L`) does not.
+    fn repeatChunkNeedsLoop(ast: *const Ast, set_id: Ast.SetId) bool {
+        const set = &ast.constraint_sets.items[set_id];
+        for (set.constraints.items) |constraint| {
+            if (constraintPrimaryPlace(constraint.kind)) |place| {
+                if (place != 0) return true;
+            }
+        }
+        return false;
+    }
+
+    // The place a constraint primarily tests or binds, across the kinds a
+    // repeat chunk admits (repeatArrayLen); null for kinds it never
+    // contains.
+    fn constraintPrimaryPlace(kind: Ast.Constraint.Kind) ?Ast.PlaceId {
+        return switch (kind) {
+            .is_type => |c| c.place,
+            .len_eq => |c| c.place,
+            .keys_exact => |c| c.place,
+            .has_key => |c| c.place,
+            .str_prefix => |c| c.place,
+            .str_suffix => |c| c.place,
+            .bind => |c| c.place,
+            .eq_slot => |c| c.place,
+            .eq_const => |c| c.place,
+            .eq_global => |c| c.place,
+            .in_range => |c| c.place,
+            else => null,
+        };
+    }
+
+    // The single range constraint of a repeat's range sub-pattern, or
+    // null: exactly one place constrained by one in_range whose bounds
+    // are open, bound reads, or constants — the kinds the scan op
+    // encodes. Bind and evaluated bounds are not stepable.
+    fn repeatRangeConstraint(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) ?*const Ast.Constraint {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len != 1) return null;
+        if (set.constraints.items.len != 1) return null;
+        const constraint = &set.constraints.items[0];
+        switch (constraint.kind) {
+            .in_range => |c| {
+                if (!self.repeatRangeLimitStepable(ast, c.lower)) return null;
+                if (!self.repeatRangeLimitStepable(ast, c.upper)) return null;
+                return constraint;
+            },
+            else => return null,
+        }
+    }
+
+    fn repeatRangeLimitStepable(self: *Compiler, ast: *const Ast, limit: Ast.Limit) bool {
+        return switch (limit) {
+            .none, .read => true,
+            .expr => |id| self.constPatternNode(ast, id),
+            .bind, .local, .global => false,
+        };
+    }
+
+    // Whether the count factors lower to inline steps against the derived
+    // count register. A single factor keeps the established single-Part
+    // shapes (exact/bound counts, a bind, a placeholder, a range or leaf
+    // count-set) plus a lone evaluable scalar. Multiple factors form a
+    // product: every non-solvable factor must be an evaluable scalar the
+    // derived count divides by, leaving the residual for the one unbound
+    // factor (solvable_index) to bind.
+    fn repeatCountFactorsStepable(self: *Compiler, ast: *const Ast, factors: []const Ast.Part, solvable_index: ?u32) bool {
+        if (factors.len == 1) {
+            return switch (factors[0]) {
+                .placeholder, .bind, .read, .global => true,
+                .expr => |id| self.evalExprStepable(ast, id),
+                .sub => |set_id| repeatCountSetStepable(ast, set_id),
+                .local => false,
+            };
+        }
+        var range_seen = false;
+        for (factors, 0..) |factor, i| {
+            if (solvable_index) |s| if (i == s) continue;
+            switch (factor) {
+                .read, .global => {},
+                .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
+                // At most one range factor; solved as `r` in the count
+                // product (r · U = residual) for a trailing unbound, or
+                // bound-checked against the residual when none follows.
+                .sub => |set_id| {
+                    if (range_seen) return false;
+                    if (self.repeatRangeConstraint(ast, set_id) == null) return false;
+                    range_seen = true;
+                },
+                else => return false,
+            }
+        }
+        return true;
+    }
+
+    // A count sub-set steps when it is a single place constrained by
+    // leaf tests: constant equality, ranges with stepable bounds, binds,
+    // and bound reads. Merges, negations, and nested composites are not
+    // stepable.
+    fn repeatCountSetStepable(ast: *const Ast, set_id: Ast.SetId) bool {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len != 1) return false;
+        for (set.constraints.items) |constraint| switch (constraint.kind) {
+            .eq_const, .bind, .eq_slot => {},
+            .in_range => {},
+            else => return false,
+        };
+        return true;
+    }
+
+    // Whether every count factor is an evaluable scalar (no unbound
+    // solvable, no structural sub-factor): their product is a known value
+    // usable as the chunk-solve input.
+    fn repeatCountKnown(self: *Compiler, ast: *const Ast, factors: []const Ast.Part) bool {
+        for (factors) |factor| switch (factor) {
+            .read, .global => {},
+            .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
+            else => return false,
+        };
+        return true;
+    }
+
+    // A count that is a single unbound binder or placeholder — nothing to
+    // evaluate and nothing to solve against. Paired with a greedy bare-binder
+    // pattern it is the repeat's identity (see repeatShape `.identity`).
+    fn repeatCountBareUnbound(factors: []const Ast.Part) bool {
+        return factors.len == 1 and switch (factors[0]) {
+            .bind, .placeholder => true,
+            else => false,
+        };
+    }
+
+    // Whether a search pair's key or value sub-pattern lowers to inline
+    // steps: exactly one place (the found key or value). A key may bind, be
+    // ignored, probe a known member by a bound local or module global (the
+    // eval bridge pushes it for MatchClaimKey), or be a computed sub-pattern
+    // ({"%(0 + N)": 1}) the scan matches against each candidate key in a
+    // child window when the whole key set steps. A value may also compare
+    // against a constant, a global, or an eval that reads the pair's key
+    // ({A: Id(A)}), which the scan binds before the value window. Const keys
+    // don't arise — a literal key is a has_key place.
+    fn searchSetStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId, is_key: bool) bool {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len != 1) return false;
+        if (set.constraints.items.len == 0) return true;
+        // A key sub-pattern that isn't a shallow leaf — a computed key like
+        // "%(0 + N)" — steps as its own child window: the scan matches each
+        // candidate member key against it, solving any binds. A value that
+        // isn't a leaf takes the structural path (searchValueStructuralStepable)
+        // instead, so only keys reach the constraintsStepable check here.
+        if (set.constraints.items.len > 1)
+            return is_key and self.constraintsStepable(ast, set.constraints.items);
+        return switch (set.constraints.items[0].kind) {
+            .bind, .eq_slot, .eq_global => true,
+            .eq_const, .eval_eq => !is_key,
+            else => is_key and self.constraintsStepable(ast, set.constraints.items),
+        };
+    }
+
+    const NumMergeStep = struct {
+        part_index: usize,
+        negate: bool,
+        kind: enum { bind, read, placeholder },
+        slot: u8,
+        // A non-leftover part evaluates at match time (a bound read,
+        // global, or call) rather than folding to a compile-time constant,
+        // so the residual subtracts it with a MatchSubtractEval step.
+        has_runtime_part: bool,
+    };
+
+    // A number merge steps when exactly one part is the leftover — a bind,
+    // bound read, or placeholder, possibly under negations — and every
+    // other part is a value the residual subtracts: a constant number
+    // (folded), or a bound read, global, or call (evaluated per match). The
+    // leftover is the residual after subtracting the rest. A negated
+    // non-leftover part, a negated leftover paired with a runtime part, two
+    // unknowns, or a non-numeric part is not stepable.
+    fn classifyNumMergeStep(
+        self: *Compiler,
+        ast: *const Ast,
+        ty: ?Ast.ValueType,
+        parts: []const Ast.Part,
+    ) ?NumMergeStep {
+        _ = self;
+        if ((ty orelse return null) != .number) return null;
+        var found: ?NumMergeStep = null;
+        var has_runtime = false;
+        for (parts, 0..) |part, i| {
+            var negate = false;
+            const inner = switch (part) {
+                .sub => |set_id| blk: {
+                    const set = &ast.constraint_sets.items[set_id];
+                    if (set.constraints.items.len != 1) return null;
+                    switch (set.constraints.items[0].kind) {
+                        .negated => |n| {
+                            negate = n.count % 2 == 1;
+                            break :blk n.part;
+                        },
+                        else => return null,
+                    }
+                },
+                else => part,
+            };
+            switch (inner) {
+                // Unbound parts must be the single leftover.
+                .bind, .placeholder => {
+                    if (found) |f| {
+                        // A read already taken as the leftover demotes to a
+                        // summed part when a genuine unbound appears.
+                        if (f.kind != .read or f.negate) return null;
+                        has_runtime = true;
+                    }
+                    found = switch (inner) {
+                        .bind => |l| .{ .part_index = i, .negate = negate, .kind = .bind, .slot = l.slot, .has_runtime_part = false },
+                        .placeholder => .{ .part_index = i, .negate = negate, .kind = .placeholder, .slot = 0, .has_runtime_part = false },
+                        else => unreachable,
+                    };
+                },
+                // A read is the leftover only until a genuine unbound part
+                // claims that role; otherwise it is a summed runtime value.
+                .read => |l| {
+                    if (found == null) {
+                        found = .{ .part_index = i, .negate = negate, .kind = .read, .slot = l.slot, .has_runtime_part = false };
+                    } else {
+                        if (negate) return null;
+                        has_runtime = true;
+                    }
+                },
+                // Summed value parts: constants fold, everything else
+                // (calls, globals) evaluates at match time. Negation of a
+                // summed part is unsupported inline.
+                .expr => |node| {
+                    if (negate) return null;
+                    if (!constNumberNode(ast, node)) has_runtime = true;
+                },
+                .global => {
+                    if (negate) return null;
+                    has_runtime = true;
+                },
+                else => return null,
+            }
+        }
+        var step = found orelse return null;
+        // Negating the leftover flips the residual sign, which the runtime
+        // subtraction chain does not express; reject it.
+        if (step.negate and has_runtime) return null;
+        step.has_runtime_part = has_runtime;
+        return step;
+    }
+
+    fn constNumberNode(ast: *const Ast, id: Ast.NodeId) bool {
+        return switch (ast.goals.items[id].node) {
+            .number_float, .number_string => true,
+            .neg => |inner| constNumberNode(ast, inner),
+            else => false,
+        };
+    }
+
+    // An untyped merge (no part names the type statically) steps when it has
+    // at most one solvable leftover — a bind, bound read, or placeholder —
+    // and every other part is an evaluable value. At match time the parts
+    // merge into one value whose runtime type selects the residual
+    // (MatchMergeEval): number subtract, string/array
+    // prefix/suffix, object key removal, or boolean OR. A structural
+    // leftover is not stepable.
+    fn untypedMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
+        if (ty != null) return false;
+        if (parts.len < 2) return false;
+        const si = solvable_index orelse {
+            // No solvable: every part evaluates, so the merge is just an
+            // equality test — value must equal the parts merged together.
+            for (parts) |part| {
+                if (!self.evaluableMergePart(ast, part)) return false;
+            }
+            return true;
+        };
+        // Exactly one solvable, at any index; every other part evaluates.
+        // The parts before it are a prefix and the parts after a suffix, so
+        // the residual strips both ends (see emitUntypedMergeSolve).
+        switch (parts[si]) {
+            .bind, .read, .placeholder => {},
+            else => return false,
+        }
+        for (parts, 0..) |part, i| {
+            if (i == si) continue;
+            if (!self.evaluableMergePart(ast, part)) return false;
+        }
+        return true;
+    }
+
+    // Whether an object merge lowers to inline claim steps: every
+    // non-solvable part is either a structural object whose set has the
+    // constrained-pair repeat shape (its members probed and claimed one at
+    // a time by the repeat-group steps) or a runtime object value (a bound
+    // read, module global, or evaluable expression, claimed whole by
+    // MatchClaimObject), and the solvable part, if any, is a bind or
+    // placeholder taking the unclaimed rest. Repeat parts (a solve_repeat
+    // inside a sub set) are not claimed yet and reject the merge.
+    fn objectMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
+        if ((ty orelse return false) != .object) return false;
+        for (parts, 0..) |part, i| {
+            if (solvable_index != null and solvable_index.? == i) {
+                switch (part) {
+                    .bind, .placeholder => {},
+                    else => return false,
+                }
+                continue;
+            }
+            switch (part) {
+                .read, .global => {},
+                .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
+                .sub => |set_id| if (self.repeatObjectSearchLen(ast, set_id) == null and
+                    self.objectMergeRepeatPart(ast, set_id) == null) return false,
+                else => return false,
+            }
+        }
+        return true;
+    }
+
+    // A merge part that is itself an object repeat: a sub set holding a
+    // single solve_repeat whose pattern is an object chunk. The count must
+    // be a known product — the merge's solvable takes the unclaimed rest,
+    // so an unbound count would be underdetermined, the same restriction
+    // claim_members places on its rest shape.
+    fn objectMergeRepeatPart(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) ?*const Ast.Constraint {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.constraints.items.len != 1) return null;
+        const constraint = &set.constraints.items[0];
+        switch (constraint.kind) {
+            .solve_repeat => |r| {
+                if (r.pattern != .sub) return null;
+                const chunk = r.pattern.sub;
+                if (repeatObjectLen(ast, chunk) == null and self.repeatObjectSearchLen(ast, chunk) == null) return null;
+                if (!self.repeatCountKnown(ast, r.count_factors.items)) return null;
+                return constraint;
+            },
+            else => return null,
+        }
+    }
+
+    // A merge part the eval bridge can push as a value (emitEvaluablePartValue):
+    // a bound read, a module global, or an evaluable expression. A
+    // non-zero-arity global still fails at emit, matching the number path.
+    fn evaluableMergePart(self: *Compiler, ast: *const Ast, part: Ast.Part) bool {
+        return switch (part) {
+            .read, .global => true,
+            .expr => |id| self.evalExprStepable(ast, id),
+            else => false,
+        };
+    }
+
+    const BoolMergeStep = struct {
+        part_index: usize,
+        kind: enum { bind, read, placeholder },
+        slot: u8,
+        // The logical OR of every literal-bool part but the leftover.
+        static_true: bool,
+    };
+
+    // A boolean merge steps when every part but one is a literal `true` or
+    // `false` and the leftover is a bind, bound read, or placeholder.
+    // Booleans merge by OR, so the leftover claims the residual
+    // `scrutinee AND NOT static` (parts to its left claim first). Evaluated
+    // parts, globals, and second unknowns are not stepable.
+    fn classifyBoolMergeStep(
+        self: *Compiler,
+        ast: *const Ast,
+        ty: ?Ast.ValueType,
+        parts: []const Ast.Part,
+    ) ?BoolMergeStep {
+        _ = self;
+        if ((ty orelse return null) != .boolean) return null;
+        var static_true = false;
+        var found: ?BoolMergeStep = null;
+        for (parts, 0..) |part, i| {
+            switch (part) {
+                .expr => |node| {
+                    if (constBoolNode(ast, node)) |b| {
+                        if (b) static_true = true;
+                    } else return null;
+                },
+                .bind => |l| {
+                    if (found != null) return null;
+                    found = .{ .part_index = i, .kind = .bind, .slot = l.slot, .static_true = false };
+                },
+                .read => |l| {
+                    if (found != null) return null;
+                    found = .{ .part_index = i, .kind = .read, .slot = l.slot, .static_true = false };
+                },
+                .placeholder => {
+                    if (found != null) return null;
+                    found = .{ .part_index = i, .kind = .placeholder, .slot = 0, .static_true = false };
+                },
+                else => return null,
+            }
+        }
+        if (found) |f| {
+            return .{ .part_index = f.part_index, .kind = f.kind, .slot = f.slot, .static_true = static_true };
+        }
+        return null;
+    }
+
+    fn constBoolNode(ast: *const Ast, id: Ast.NodeId) ?bool {
+        return switch (ast.goals.items[id].node) {
+            .true => true,
+            .false => false,
+            else => null,
+        };
+    }
+
+    // Whether any constraint is statically false: a negated part under a
+    // non-number merge. Such an arm lowers to the bare fail tail.
+    fn armAlwaysFails(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) bool {
+        for (constraints) |constraint| switch (constraint.kind) {
+            .solve_merge => |c| {
+                if (self.mergeNegatedNonNumber(ast, c.ty, c.parts.items)) return true;
+            },
+            else => {},
+        };
+        return false;
+    }
+
+    // A negated part under a merge whose static type isn't number can
+    // never match — negation only produces numbers — so the arm lowers
+    // to an unconditional fail step.
+    fn mergeNegatedNonNumber(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part) bool {
+        _ = self;
+        const merge_ty = ty orelse return false;
+        if (merge_ty == .number) return false;
+        for (parts) |part| switch (part) {
+            .sub => |set_id| {
+                const set = &ast.constraint_sets.items[set_id];
+                if (set.constraints.items.len == 1 and set.constraints.items[0].kind == .negated) return true;
+            },
+            else => {},
+        };
+        return false;
+    }
+
+    // Whether an array merge lowers to the span-cursor scheduler: every
+    // non-solvable part is a runtime array value (a bound read or an
+    // evaluable expression, compared element-wise by MatchSpanVal) or a
+    // fixed-length structural array whose interior itself steps (an empty
+    // base chomps nothing; a non-empty one slices a MatchSpanChunk matched
+    // in a child window), and the single solvable part is a bind or
+    // placeholder taking the residual span. Untyped merges keep the plan
+    // path.
+    fn arrayMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
+        if ((ty orelse return false) != .array) return false;
+        for (parts, 0..) |part, i| {
+            if (solvable_index != null and solvable_index.? == i) {
+                switch (part) {
+                    .bind, .placeholder => {},
+                    else => return false,
+                }
+                continue;
+            }
+            switch (part) {
+                .read => {},
+                .expr => |id| if (!self.constPatternNode(ast, id) and !self.evalExprStepable(ast, id)) return false,
+                .sub => |set_id| {
+                    if (arrayMergePartFixedLen(ast, set_id) == null) return false;
+                    if (!self.constraintsStepable(ast, ast.constraint_sets.items[set_id].constraints.items)) return false;
+                },
+                else => return false,
+            }
+        }
+        return true;
+    }
+
+    // A fixed-length structural array merge part's element count, read from
+    // its len_eq constraint (a rest inside makes it len_min, not fixed, so
+    // null rejects the merge).
+    fn arrayMergePartFixedLen(ast: *const Ast, set_id: Ast.SetId) ?u8 {
+        const set = &ast.constraint_sets.items[set_id];
+        var typed = false;
+        var len: ?u8 = null;
+        for (set.constraints.items) |constraint| switch (constraint.kind) {
+            .is_type => |c| if (c.place == 0 and c.ty == .array) {
+                typed = true;
+            },
+            .len_eq => |c| if (c.place == 0) {
+                len = c.len;
+            },
+            else => {},
+        };
+        return if (typed) len else null;
+    }
+
+    // Whether an array merge has a non-empty structural part, which needs
+    // the chunk register (the fourth span-block slot) to materialize the
+    // MatchSpanChunk slice for its child window.
+    fn arrayMergeHasStructural(ast: *const Ast, parts: []const Ast.Part, solvable_index: ?u32) bool {
+        for (parts, 0..) |part, i| {
+            if (solvable_index != null and solvable_index.? == i) continue;
+            switch (part) {
+                .sub => |set_id| if ((arrayMergePartFixedLen(ast, set_id) orelse 0) > 0) return true,
+                else => {},
+            }
+        }
+        return false;
+    }
+
+    // A pattern constant folded for step comparison: numbers fold to
+    // floats the way the can plan lowering folds them.
+    fn goalPatternConstElem(self: *Compiler, ast: *const Ast, id: Ast.NodeId) Error!Elem {
+        return switch (ast.goals.items[id].node) {
+            .string => |s| Elem.string(try self.vm.strings.insert(s)),
+            .number_float => |f| Elem.numberFloat(f),
+            .number_string => |ns| blk: {
+                const elem = try self.numberStringNodeToElem(ns.number, ns.negated);
+                break :blk elem.asNumberString().toNumberFloat(self.vm.strings);
+            },
+            .true => Elem.boolean(true),
+            .false => Elem.boolean(false),
+            .null => Elem.nullConst,
+            .neg => |inner| blk: {
+                const folded = try self.goalPatternConstElem(ast, inner);
+                break :blk folded.negateNumber() catch return Error.NegatedNonNumber;
+            },
+            else => error.UnsupportedPattern,
+        };
+    }
+
+    // A goal node that `goalPatternConstElem` folds to a constant elem.
+    fn constPatternNode(self: *Compiler, ast: *const Ast, id: Ast.NodeId) bool {
+        return switch (ast.goals.items[id].node) {
+            .string, .number_float, .number_string, .true, .false, .null => true,
+            .neg => |inner| self.constPatternNode(ast, inner),
+            else => false,
+        };
+    }
+
+    const TemplateKind = enum {
+        // Path A: literals around exactly one bind/placeholder, ≤255
+        // literal bytes — the static prefix/suffix/slice layout, no cursor
+        // registers.
+        static,
+        // Path B: cursor registers chomp each segment; handles const-fold,
+        // value, range, no-solvable, and structural-cast shapes.
+        cursor,
+    };
+
+    // How one template segment part lowers to cursor-path steps.
+    const TemplatePartKind = enum {
+        // A constant expression: folds into the adjacent literal bytes.
+        literal_fold,
+        // A bound read or an evaluable call: evaluated, stringified, and
+        // byte-compared (MatchSpanVal). Never the solvable.
+        value,
+        // A character range sub-pattern: MatchStrChar + range test. Never
+        // the solvable.
+        char_range,
+        // A bare binder or placeholder: the raw substring solvable.
+        solvable_raw,
+        // A structural sub-pattern cast from the byte range by its root
+        // type. Handled in the cast phase; gated until then.
+        solvable_cast,
+        // Rejects the whole template.
+        gate,
+    };
+
+    fn templatePartKind(self: *Compiler, ast: *const Ast, part: Ast.Part) TemplatePartKind {
+        return switch (part) {
+            .placeholder, .bind => .solvable_raw,
+            .read => .value,
+            .expr => |id| if (self.constPatternNode(ast, id))
+                .literal_fold
+            else if (self.evalExprStepable(ast, id))
+                .value
+            else
+                .gate,
+            .sub => |set_id| if (templateRangeLimits(ast, set_id) != null)
+                // A codepoint range compares one character in place; a
+                // numeric range spans an unknown number of digits (and an
+                // optional sign), so it casts the whole substring — the
+                // solvable's byte range — to a number before the range test.
+                (if (self.templateRangeNumeric(ast, set_id)) .solvable_cast else .char_range)
+            else if (self.templateMergeSolvable(ast, set_id) != null)
+                .solvable_cast
+            else if (self.templateCastStepable(ast, set_id))
+                .solvable_cast
+            else if (self.templateRepeatSolvable(ast, set_id))
+                .solvable_cast
+            else
+                // String-typed and untyped merges are not stepable.
+                .gate,
+            // A global hole evaluates at match time (invoking a zero-arity
+            // function) and compares like a bound read; a multi-arity
+            // function global is rejected at emit.
+            .global => .value,
+            .local => .gate,
+        };
+    }
+
+    // Whether a template solvable sub-pattern is a number or boolean merge
+    // castable to inline steps — a single solve_merge on place 0 accepted
+    // by the merge-step classifier. Structural and untyped merges are null.
+    fn templateMergeSolvable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) ?enum { number, boolean } {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len != 1) return null;
+        if (set.constraints.items.len != 1) return null;
+        switch (set.constraints.items[0].kind) {
+            .solve_merge => |c| {
+                if (self.classifyNumMergeStep(ast, c.ty, c.parts.items) != null) return .number;
+                if (self.classifyBoolMergeStep(ast, c.ty, c.parts.items) != null) return .boolean;
+                return null;
+            },
+            else => return null,
+        }
+    }
+
+    // Whether a template solvable sub-pattern is a repeat that steps. A
+    // repeat segment's span stays a string, so the residual span — the
+    // whole value for a lone segment, or the gap between the fixed cursors —
+    // is matched against the repeat's steps in a child window, no JSON cast.
+    // Any repeat that steps on its own qualifies; a string-incompatible
+    // repeat ([1] * N) fails at runtime.
+    fn templateRepeatSolvable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.constraints.items.len != 1) return false;
+        return switch (set.constraints.items[0].kind) {
+            .solve_repeat => |c| self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) != null,
+            else => false,
+        };
+    }
+
+    // Whether a template solvable sub-pattern is a structural array/object
+    // cast lowerable to inline steps: the byte range parses as JSON by the
+    // pattern's root type — an is_type array/object on place 0, or a
+    // container-typed solve_merge, which fixes the root type the same way —
+    // and the whole ConstraintSet steps. The parsed container feeds a child
+    // window as its scrutinee, so the recursion is exactly a root arm's.
+    // Untyped merges (a runtime string-vs-JSON cast decision), repeats, and
+    // non-stepable interiors stay null.
+    fn templateCastStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
+        const set = &ast.constraint_sets.items[set_id];
+        var root_container = false;
+        for (set.constraints.items) |constraint| switch (constraint.kind) {
+            .is_type => |c| if (c.place == 0 and (c.ty == .array or c.ty == .object)) {
+                root_container = true;
+            },
+            .solve_merge => |c| if (c.place == 0 and (c.ty == .array or c.ty == .object)) {
+                root_container = true;
+            },
+            else => {},
+        };
+        if (!root_container) return false;
+        return self.constraintsStepable(ast, set.constraints.items);
+    }
+
+    // The lower/upper bounds of a template character-range sub-pattern —
+    // exactly one place constrained by one in_range with step-encodable
+    // bounds — or null when the sub-pattern isn't a plain range.
+    fn templateRangeLimits(ast: *const Ast, set_id: Ast.SetId) ?struct { lower: Ast.Limit, upper: Ast.Limit } {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len != 1) return null;
+        if (set.constraints.items.len != 1) return null;
+        switch (set.constraints.items[0].kind) {
+            .in_range => |c| {
+                if (c.place != 0) return null;
+                return .{ .lower = c.lower, .upper = c.upper };
+            },
+            else => return null,
+        }
+    }
+
+    // Whether a template range sub-pattern is a numeric range (integer
+    // bounds) rather than a codepoint range (character bounds). A template
+    // hole is always a substring, so a numeric range casts its decoded
+    // codepoint to a number before the range test; a codepoint range
+    // compares the character directly. Detected from a numeric literal
+    // bound; a range with only runtime-valued bounds defaults to codepoint.
+    fn templateRangeNumeric(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
+        const limits = templateRangeLimits(ast, set_id) orelse return false;
+        return self.limitNumericLiteral(ast, limits.lower) or self.limitNumericLiteral(ast, limits.upper);
+    }
+
+    fn limitNumericLiteral(self: *Compiler, ast: *const Ast, limit: Ast.Limit) bool {
+        const id = switch (limit) {
+            .expr => |id| id,
+            else => return false,
+        };
+        return switch (ast.goals.items[id].node) {
+            .number_float, .number_string => true,
+            .neg => |inner| self.limitNumericLiteral(ast, .{ .expr = inner }),
+            else => false,
+        };
+    }
+
+    // Whether a template destructure lowers to inline steps, and by which
+    // strategy. Null rejects the template.
+    fn templateStepable(self: *Compiler, ast: *const Ast, segments: []const Ast.Segment) ?TemplateKind {
+        // Path A: the static layout — only literals plus exactly one
+        // bind/placeholder, within the 255-byte literal cap.
+        var specials: u32 = 0;
+        var literal_bytes: usize = 0;
+        var only_static = true;
+        for (segments) |segment| switch (segment) {
+            .literal => |s| literal_bytes += s.len,
+            .part => |part| switch (part) {
+                .bind, .placeholder => specials += 1,
+                else => only_static = false,
+            },
+        };
+        if (only_static and specials == 1 and literal_bytes <= 255) return .static;
+
+        // Path B: every segment must be a fixed step or the single
+        // solvable.
+        var solvable_count: u32 = 0;
+        for (segments) |segment| switch (segment) {
+            .literal => {},
+            .part => |part| switch (self.templatePartKind(ast, part)) {
+                .literal_fold, .value, .char_range => {},
+                .solvable_raw, .solvable_cast => solvable_count += 1,
+                .gate => return null,
+            },
+        };
+        if (solvable_count > 1) return null;
+        return .cursor;
+    }
+
+    const RangeDescriptor = struct { kind: u8, arg: u16 };
+
+    // Encode one range bound for the MatchRepeatRange operand. A constant
+    // bound is validated as a range bound at compile time; an evaluable
+    // bound is reported through `eval_out` (its descriptor stays `.none`),
+    // though repeat ranges assert no evaluable bounds occur.
+    fn rangeDescriptor(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        limit: Ast.Limit,
+        region: Region,
+        eval_out: *?Ast.NodeId,
+    ) Error!RangeDescriptor {
+        switch (limit) {
+            .none => return .{ .kind = @intFromEnum(RangeLimitKind.none), .arg = 0 },
+            .bind => |ls| return .{ .kind = @intFromEnum(RangeLimitKind.bind), .arg = ls.slot },
+            .read => |ls| return .{ .kind = @intFromEnum(RangeLimitKind.read), .arg = ls.slot },
+            .global => |name| {
+                const global = self.resolveGlobal(module_id, name) orelse {
+                    try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+                    return Error.UndefinedVariable;
+                };
+                if (global.isDynType(.Function) and global.asDyn().asFunction().arity != 0) {
+                    return error.UnsupportedPattern;
+                }
+                const constant = try self.makeConstantU16(module_id, global, region);
+                return .{ .kind = @intFromEnum(RangeLimitKind.global), .arg = constant };
+            },
+            .local => return error.UnsupportedPattern,
+            .expr => |id| {
+                if (self.constPatternNode(ast, id)) {
+                    const elem = try self.goalPatternConstElem(ast, id);
+                    if (!elem.isRangeBound(self.vm.*)) {
+                        try self.printError(module_id, region, "Range bound must be an integer or codepoint", .{});
+                        return Error.InvalidAst;
+                    }
+                    const constant = try self.makeConstantU16(module_id, elem, region);
+                    return .{ .kind = @intFromEnum(RangeLimitKind.const_elem), .arg = constant };
+                }
+                eval_out.* = id;
+                return .{ .kind = @intFromEnum(RangeLimitKind.none), .arg = 0 };
+            },
+        }
+    }
+
+    fn makeConstantU16(self: *Compiler, module_id: Module.Id, elem: Elem, region: Region) Error!u16 {
+        const idx = try self.makeConstant(module_id, elem);
+        if (idx > std.math.maxInt(u16)) {
+            try self.printError(module_id, region, "Too many constants for match step.", .{});
+            return Error.TooManyConstants;
+        }
+        return @intCast(idx);
+    }
+
+    // How a match's window slot 0 is loaded and where a mismatch goes.
+    const StepScrutinee = union(enum) {
+        // Root arm: the value under test is the value-stack top; an already
+        // failed scrutinee skips the whole match, and a mismatch converges
+        // on the arm's MatchFail tail.
+        input,
+        // Nested sub-pattern: slot 0 is copied from a register in the
+        // enclosing window (MatchSubScrutinee) and matched in its own
+        // window.
+        sub: SubStep,
+    };
+
+    const SubStep = struct {
+        // The enclosing-window register holding the value to match.
+        src_reg: u8,
+        // Where a mismatch goes after the window closes.
+        on_fail: SubFail,
+        // Whether the sub-pattern's binds bind fresh or compare against
+        // already-bound locals (repeat chunks after the first).
+        bind_mode: BindMode = .bind,
+    };
+
+    const SubFail = union(enum) {
+        // Exit the window and loop back to a search's retry point to try
+        // the next candidate.
+        retry: Ir.Index,
+        // Exit the window and cascade failure to the enclosing window via
+        // MatchRefail. The index of that op is appended to the parent's
+        // fail-marker list so the parent window is emitted as fallible.
+        arm: *ArrayList(Ir.Index),
+    };
+
+    const BindMode = enum { bind, compare };
+
+    // Emit inline match steps for a lowered pattern: an already-open
+    // scrutinee in window slot 0, tested and destructured by the
+    // constraints against their places. Keyed on (places, constraints) so
+    // the same code emits a root arm (match.places / arm.constraints) or a
+    // nested sub-pattern's ConstraintSet.
+    fn writeMatchSteps(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        places: []const Ast.PlaceDef,
+        constraints: []const Ast.Constraint,
+        scrutinee: StepScrutinee,
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        // Match scratch is addressed relative to the per-match window: each
+        // place id is its own window slot (base 0), with the search, repeat,
+        // and template pools allocated above.
+        const scratch_base: u8 = 0;
+        const dead_reg: u8 = @intCast(scratch_base + places.len);
+
+        const materialized = try allocator.alloc(bool, places.len);
+        defer allocator.free(materialized);
+        @memset(materialized, false);
+
+        // Lay out the search claim block above the dead register: one claim
+        // array register per object place the arm searches (seeded with the
+        // place's const keys before the steps run), then a shared key,
+        // value, and cursor register reused across pairs.
+        var search_groups = ArrayList(ClaimGroup){};
+        defer search_groups.deinit(allocator);
+        for (constraints) |constraint| switch (constraint.kind) {
+            .search_key => |c| {
+                if (findClaimGroup(search_groups.items, c.place) == null) {
+                    try search_groups.append(allocator, .{ .src = c.place, .reg = 0 });
+                }
+            },
+            else => {},
+        };
+        var claim_next: u8 = dead_reg + 1;
+        for (search_groups.items) |*group| {
+            group.reg = claim_next;
+            claim_next += 1;
+        }
+        const key_reg = claim_next;
+        const value_reg = claim_next + 1;
+        const cursor_reg = claim_next + 2;
+        // The repeat block holds a repeat's derived count or solved chunk
+        // while its tests and binds run, plus the loop base and the
+        // materialized-chunk register for array-chunk repeats; repeats in
+        // one arm reuse it sequentially. It sits above the search block
+        // when one exists.
+        const repeat_reg: u8 = if (search_groups.items.len > 0) cursor_reg + 1 else claim_next;
+        const repeat_base_reg = repeat_reg + 1;
+        const repeat_chunk_reg = repeat_reg + 2;
+        // Save/restore rather than clear: a nested sub-pattern's
+        // writeMatchSteps runs mid-emission of the parent, whose later rest
+        // ops still need the parent's groups.
+        const prev_search_groups = self.arm_search_groups;
+        self.arm_search_groups = search_groups.items;
+        defer self.arm_search_groups = prev_search_groups;
+
+        // The span-cursor block sits above the repeat block: front and end
+        // cursors, the rest destination, and a character register for
+        // template range segments. Cursor templates and array merges share
+        // it; its size mirrors armStepScratchWidth's accounting.
+        var repeat_block: u8 = 0;
+        var span_block: u8 = 0;
+        for (constraints) |constraint| switch (constraint.kind) {
+            .solve_repeat => |c| {
+                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?;
+                repeat_block = @max(repeat_block, @as(u8, switch (shape) {
+                    .array => 3,
+                    .object, .object_search => 2,
+                    else => 1,
+                }));
+            },
+            .claim_members => repeat_block = @max(repeat_block, 1),
+            .match_template => |c| {
+                if (self.templateStepable(ast, c.segments.items) == .cursor) span_block = @max(span_block, 4);
+            },
+            .solve_merge => |c| {
+                if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
+                    span_block = @max(span_block, @as(u8, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3));
+                }
+            },
+            else => {},
+        };
+        const span_front = repeat_reg + repeat_block;
+        const span_end = span_front + 1;
+        const span_rest = span_front + 2;
+        const span_char = span_front + 3;
+        // The object-repeat claim block sits above the span block: the claim
+        // array, then a key, value, and cursor register shared across the
+        // group loop's pairs, then a target register holding the member-count
+        // exit bound. Only reserved when an object_search repeat or a
+        // claim_members merge is present (object_search block == 5).
+        const os_claim = repeat_reg + repeat_block + span_block;
+        const os_key = os_claim + 1;
+        const os_val = os_claim + 2;
+        const os_cursor = os_claim + 3;
+        const os_target = os_claim + 4;
+
+        // Record the claim array register of each object-merge repeat so a
+        // members_rest on the same place subtracts the claim array
+        // (MatchClaimRest) rather than the has_key/search-register sources
+        // (MatchObjectRest). Save/restore across nested writeMatchSteps, as
+        // for arm_search_groups.
+        var claim_groups = ArrayList(ClaimGroup){};
+        defer claim_groups.deinit(allocator);
+        for (constraints) |constraint| switch (constraint.kind) {
+            .claim_members => |c| try claim_groups.append(allocator, .{ .src = c.place, .reg = os_claim }),
+            else => {},
+        };
+        const prev_claim_members = self.arm_claim_members;
+        self.arm_claim_members = claim_groups.items;
+        defer self.arm_claim_members = prev_claim_members;
+
+        // Fallibility markers: each semidet step (and each child window that
+        // cascades failure here) appends an index. A non-empty list means
+        // this window needs a shared fail block, which the MatchWindowEnter
+        // fail target points at. The indices are never patched — every step
+        // fails to the window's fail_ip at runtime, not a per-op target.
+        var fail_jumps = ArrayList(Ir.Index){};
+        defer fail_jumps.deinit(allocator);
+
+        // An already-failed scrutinee skips the steps and stays the result.
+        // Only a root arm sees the
+        // value-stack input; a nested sub-pattern's scrutinee is a member
+        // register that a prior test already accepted.
+        const skipJump: ?Ir.Index = switch (scrutinee) {
+            .input => try self.emitJump(.JumpIfFailure, region),
+            .sub => null,
+        };
+
+        // A statically false constraint is just the fail path; emitting
+        // steps after an unconditional fail jump would leave them
+        // unreachable. No window is open here, so the fail path needs no
+        // window exit.
+        if (self.armAlwaysFails(ast, constraints)) {
+            switch (scrutinee) {
+                .input => {
+                    try self.emitOp(.MatchFail, region);
+                    self.patchJump(skipJump.?);
+                },
+                .sub => |s| switch (s.on_fail) {
+                    .retry => |target| try self.emitJumpBack(.JumpBack, target, region),
+                    // Cascade to the enclosing (still-open) window's fail
+                    // block; the appended index marks the parent fallible.
+                    .arm => |arm_fails| try arm_fails.append(allocator, try self.ir().push(allocator, .{ .none = .MatchRefail }, region)),
+                },
+            }
+            return;
+        }
+
+        // Open the per-match window sized to this arm's scratch. A root
+        // arm's skip path jumps past the whole match, so no window is open
+        // there; success and failure both converge on the MatchWindowExit
+        // emitted after the steps.
+        const width = self.armStepScratchWidth(ast, places, constraints);
+        if (width > 255) {
+            try self.printError(module_id, region, "Pattern too large to compile.", .{});
+            return Error.MaxFunctionLocals;
+        }
+        const enter_idx = try self.ir().push(allocator, .{ .w_enter = .{
+            .op = .MatchWindowEnter,
+            .width = @intCast(width),
+            .target = Ir.unpatched_jump,
+        } }, region);
+
+        switch (scrutinee) {
+            .input => try self.emitUnaryOp(.MatchScrutinee, scratch_base, region),
+            .sub => |s| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchSubScrutinee,
+                .byte1 = scratch_base,
+                .byte2 = s.src_reg,
+            } }, region),
+        }
+        materialized[0] = true;
+
+        // Seed each search group's claim array with its place's const keys
+        // before the steps run: pairs probe and grow it (MatchClaimKey /
+        // MatchClaimScan + MatchClaimAdd) and a members_rest subtracts it.
+        for (search_groups.items) |group| {
+            const seed_constant = try self.hasKeyListConstant(module_id, constraints, group.src, region);
+            _ = try self.ir().push(allocator, .{ .match_const = .{ .op = .MatchClaimSeed, .byte1 = group.reg, .byte2 = 0, .constant = seed_constant } }, region);
+        }
+
+        // In compare mode a bind reuses an already-bound local as a test
+        // (repeat chunks after the first must agree with the first).
+        const bind_mode: BindMode = switch (scrutinee) {
+            .input => .bind,
+            .sub => |s| s.bind_mode,
+        };
+
+        for (constraints) |constraint| {
+            const step_region = constraint.region;
+            switch (constraint.kind) {
+                .is_type => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const ty: u8 = switch (c.ty) {
+                        .array => 0,
+                        .object => 1,
+                        .string => 2,
+                        else => unreachable,
+                    };
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                        .op = .MatchType,
+                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte2 = ty,
+                    } }, step_region));
+                },
+                .len_eq => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .n = @intCast(c.len),
+                        .mode = 0,
+                    } }, step_region));
+                },
+                .len_min => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .n = @intCast(c.len),
+                        .mode = 1,
+                    } }, step_region));
+                },
+                .str_prefix => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const sid = try self.vm.strings.insert(c.literal);
+                    const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                        .op = .MatchStrEnd,
+                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte2 = 0,
+                        .constant = constant,
+                    } }, step_region));
+                },
+                .str_suffix => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const sid = try self.vm.strings.insert(c.literal);
+                    const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                        .op = .MatchStrEnd,
+                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte2 = 1,
+                        .constant = constant,
+                    } }, step_region));
+                },
+                .keys_exact => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .n = @intCast(c.count),
+                        .mode = 0,
+                    } }, step_region));
+                },
+                .keys_min => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .n = @intCast(c.count),
+                        .mode = 1,
+                    } }, step_region));
+                },
+                .has_key => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const sid = try self.vm.strings.insert(self.frontend.strings.get(c.sid));
+                    const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
+                    var dst = dead_reg;
+                    for (places, 0..) |def, i| switch (def) {
+                        .key => |k| if (k.src == c.place and k.sid == c.sid) {
+                            dst = scratch_base + @as(u8, @intCast(i));
+                            materialized[i] = true;
+                        },
+                        else => {},
+                    };
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                        .op = .MatchKey,
+                        .byte1 = dst,
+                        .byte2 = scratch_base + @as(u8, @intCast(c.place)),
+                        .constant = constant,
+                    } }, step_region));
+                },
+                .eq_const => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const elem = try self.goalPatternConstElem(ast, c.value);
+                    const constant = try self.makeConstantU16(module_id, elem, step_region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .kind = .constant,
+                        .arg = constant,
+                    } }, step_region));
+                },
+                .eq_global => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try fail_jumps.append(allocator, try self.emitEqGlobalStep(module_id, c.name, reg, step_region));
+                },
+                .bind => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    switch (bind_mode) {
+                        .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                            .op = .MatchBind,
+                            .byte1 = c.slot,
+                            .byte2 = scratch_base + @as(u8, @intCast(c.place)),
+                        } }, step_region),
+                        // Compare against the value the first chunk bound.
+                        .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                            .reg = scratch_base + @as(u8, @intCast(c.place)),
+                            .kind = .slot,
+                            .arg = c.slot,
+                        } }, step_region)),
+                    }
+                },
+                .eq_slot => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .kind = .slot,
+                        .arg = c.slot,
+                    } }, step_region));
+                },
+                // Evaluate the expression (a call, mirroring the plan's
+                // eval_eq) and compare its result against the place. Every
+                // read in the expression is bound by an earlier scheduled
+                // step, so the value compiles like any value position.
+                .eval_eq => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.writeGoal(module_id, ast, c.expr);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                        .op = .MatchEval,
+                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte2 = 0,
+                    } }, step_region));
+                },
+                .in_range => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, &fail_jumps, step_region);
+                },
+                .negated => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.emitNegatedStep(module_id, ast, c.count, c.part, reg, dead_reg, &fail_jumps, step_region);
+                },
+                .match_template => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    switch (self.templateStepable(ast, c.segments.items).?) {
+                        .static => try self.emitTemplateStatic(module_id, c.segments.items, reg, dead_reg, &fail_jumps, step_region),
+                        .cursor => try self.emitTemplateCursor(
+                            module_id,
+                            ast,
+                            c.segments.items,
+                            reg,
+                            .{ .front = span_front, .end = span_end, .rest = span_rest, .char = span_char },
+                            dead_reg,
+                            &fail_jumps,
+                            step_region,
+                        ),
+                    }
+                },
+                .solve_merge => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    if (c.ty == .array) {
+                        try self.emitArrayMergeSolve(
+                            module_id,
+                            ast,
+                            c.parts.items,
+                            c.solvable_index,
+                            reg,
+                            .{ .front = span_front, .end = span_end, .rest = span_rest, .chunk = span_char },
+                            &fail_jumps,
+                            step_region,
+                        );
+                    } else if (c.ty == .object) {
+                        try self.emitObjectMergeSolve(
+                            module_id,
+                            ast,
+                            c.parts.items,
+                            c.solvable_index,
+                            reg,
+                            dead_reg,
+                            .{ .claim = os_claim, .key = os_key, .val = os_val, .cursor = os_cursor, .target = os_target },
+                            bind_mode,
+                            &fail_jumps,
+                            step_region,
+                        );
+                    } else if (c.ty == null) {
+                        try self.emitUntypedMergeSolve(module_id, ast, c.parts.items, c.solvable_index, reg, dead_reg, &fail_jumps, step_region);
+                    } else {
+                        try self.emitMergeSolve(module_id, ast, c.ty, c.parts.items, reg, dead_reg, false, &fail_jumps, step_region);
+                    }
+                },
+                .search_key => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const src_reg = scratch_base + @as(u8, @intCast(c.place));
+                    const group = findClaimGroup(search_groups.items, c.place).?;
+                    const value_set = &ast.constraint_sets.items[c.value];
+
+                    // A known key (a bound local or a module global) probes
+                    // its member directly: the eval bridge pushes the key,
+                    // MatchClaimKey pops and looks it up, failing when the
+                    // claim array already holds it (a const-key seed or an
+                    // earlier pair), and the value matches in a nested
+                    // window. A mismatch fails the arm since no other member
+                    // can carry this key. An unknown (binding) key falls
+                    // through to the scanning path.
+                    const known_key = if (singleSetConstraint(ast, c.key)) |kc| switch (kc.kind) {
+                        .eq_slot => |s| blk: {
+                            try self.emitUnaryOp(.GetLocal, s.slot, step_region);
+                            break :blk true;
+                        },
+                        .eq_global => |g| blk: {
+                            try self.emitGlobalValuePush(module_id, g.name, step_region);
+                            break :blk true;
+                        },
+                        else => false,
+                    } else false;
+
+                    if (known_key) {
+                        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_key = .{
+                            .op = .MatchClaimKey,
+                            .key_dst = key_reg,
+                            .val_dst = value_reg,
+                            .src = src_reg,
+                            .claim = group.reg,
+                        } }, step_region));
+                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .arm = &fail_jumps } } }, step_region);
+                        _ = try self.ir().push(allocator, .{ .match_test = .{
+                            .op = .MatchClaimAdd,
+                            .byte1 = group.reg,
+                            .byte2 = key_reg,
+                        } }, step_region);
+                        continue;
+                    }
+
+                    // An unknown key scans for the first unclaimed member
+                    // the value pattern accepts; the value matches in a
+                    // nested window scrutinized by the found member, and a
+                    // rejected candidate exits that window and loops back.
+                    // The accepted pair claims its key so later pairs and
+                    // the rest skip the member.
+                    try self.emitUnaryOp(.MatchIterInit, cursor_reg, step_region);
+                    const loop = self.ir().nextIndex();
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_scan = .{
+                        .op = .MatchClaimScan,
+                        .key_dst = key_reg,
+                        .val_dst = value_reg,
+                        .src = src_reg,
+                        .cursor = cursor_reg,
+                        .claim = group.reg,
+                    } }, step_region));
+                    // Match the candidate key before the value window so the
+                    // value may read the key's binds ({A: Id(A)}, {A: [A, B]}).
+                    // A leaf bind binds the key directly; a computed key (a
+                    // template or merge that binds, {"%(0 + N)": 1}) matches in
+                    // its own child window that retries on mismatch. A rejected
+                    // candidate's binds are overwritten when the loop advances,
+                    // and a failed arm never reads them.
+                    const key_set = &ast.constraint_sets.items[c.key];
+                    const key_bind: ?u8 = if (singleSetConstraint(ast, c.key)) |kc| switch (kc.kind) {
+                        .bind => |b| b.slot,
+                        else => null,
+                    } else null;
+                    if (key_bind) |slot| {
+                        _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                            .op = .MatchBind,
+                            .byte1 = slot,
+                            .byte2 = key_reg,
+                        } }, step_region);
+                    } else if (key_set.constraints.items.len > 0) {
+                        try self.writeMatchSteps(module_id, ast, key_set.places.items, key_set.constraints.items, .{ .sub = .{ .src_reg = key_reg, .on_fail = .{ .retry = loop } } }, step_region);
+                    }
+                    try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .retry = loop } } }, step_region);
+                    _ = try self.ir().push(allocator, .{ .match_test = .{
+                        .op = .MatchClaimAdd,
+                        .byte1 = group.reg,
+                        .byte2 = key_reg,
+                    } }, step_region);
+                },
+                .solve_repeat => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const src_reg = scratch_base + @as(u8, @intCast(c.place));
+                    switch (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?) {
+                        // A known pattern: push its value, derive the
+                        // count from the place's value, and solve the
+                        // count factors against the derived count.
+                        .value => {
+                            try self.writeRepeatOperand(module_id, ast, c.pattern, step_region);
+                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                                .op = .MatchRepeatValue,
+                                .byte1 = src_reg,
+                                .byte2 = repeat_reg,
+                            } }, step_region));
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                        },
+                        // A codepoint range: scan the string, derive the
+                        // codepoint count, and test the count operand
+                        // against it.
+                        .range => {
+                            const range_constraint = self.repeatRangeConstraint(ast, c.pattern.sub).?;
+                            const rc = range_constraint.kind.in_range;
+                            var lower_eval: ?Ast.NodeId = null;
+                            var upper_eval: ?Ast.NodeId = null;
+                            const lower_desc = try self.rangeDescriptor(module_id, ast, rc.lower, step_region, &lower_eval);
+                            const upper_desc = try self.rangeDescriptor(module_id, ast, rc.upper, step_region, &upper_eval);
+                            std.debug.assert(lower_eval == null and upper_eval == null);
+                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_range = .{
+                                .op = .MatchRepeatRange,
+                                .src = src_reg,
+                                .dst = repeat_reg,
+                                .lower_kind = lower_desc.kind,
+                                .lower_arg = lower_desc.arg,
+                                .upper_kind = upper_desc.kind,
+                                .upper_arg = upper_desc.arg,
+                            } }, step_region));
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                        },
+                        // A fixed-length array sub-pattern: derive the
+                        // chunk count from the length, test the count
+                        // operand, then match each chunk in a loop. Each
+                        // chunk is materialized and matched in its own
+                        // window like any array/object pattern; the first
+                        // iteration binds and later iterations compare
+                        // against those binds (the static form of the
+                        // plan's has_rebound_pattern re-lowering), enforcing
+                        // that every chunk is identical.
+                        .array => {
+                            const chunk_set = &ast.constraint_sets.items[c.pattern.sub];
+                            const sub_len = repeatArrayLen(ast, c.pattern.sub).?;
+                            // MatchRepeatInit measures arrays and objects
+                            // alike, so pin the container type first: an
+                            // array chunk must not count an object's members.
+                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                                .op = .MatchType,
+                                .byte1 = src_reg,
+                                .byte2 = 0,
+                            } }, step_region));
+                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_init = .{
+                                .op = .MatchRepeatInit,
+                                .src = src_reg,
+                                .len = @intCast(sub_len),
+                                .count_dst = repeat_reg,
+                                .base = repeat_base_reg,
+                            } }, step_region));
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+
+                            // A chunk with no constrained elements (all
+                            // placeholders, like Array.length's [_] * L)
+                            // needs no loop: the length check is the
+                            // whole match.
+                            if (!repeatChunkNeedsLoop(ast, c.pattern.sub)) continue;
+
+                            const first_next = try self.ir().push(allocator, .{ .match_repeat_next = .{
+                                .op = .MatchRepeatNext,
+                                .src = src_reg,
+                                .base = repeat_base_reg,
+                                .len = @intCast(sub_len),
+                                .chunk_dst = repeat_chunk_reg,
+                                .target = Ir.unpatched_jump,
+                            } }, step_region);
+                            try self.writeMatchSteps(module_id, ast, chunk_set.places.items, chunk_set.constraints.items, .{ .sub = .{ .src_reg = repeat_chunk_reg, .on_fail = .{ .arm = &fail_jumps }, .bind_mode = .bind } }, step_region);
+
+                            const loop_head = self.ir().nextIndex();
+                            const loop_next = try self.ir().push(allocator, .{ .match_repeat_next = .{
+                                .op = .MatchRepeatNext,
+                                .src = src_reg,
+                                .base = repeat_base_reg,
+                                .len = @intCast(sub_len),
+                                .chunk_dst = repeat_chunk_reg,
+                                .target = Ir.unpatched_jump,
+                            } }, step_region);
+                            try self.writeMatchSteps(module_id, ast, chunk_set.places.items, chunk_set.constraints.items, .{ .sub = .{ .src_reg = repeat_chunk_reg, .on_fail = .{ .arm = &fail_jumps }, .bind_mode = .compare } }, step_region);
+                            try self.emitJumpBack(.JumpBack, loop_head, step_region);
+
+                            self.patchJump(first_next);
+                            self.patchJump(loop_next);
+                        },
+                        // An all-placeholder object sub-pattern: derive the
+                        // chunk count from the object's member count (members
+                        // / chunk members) the way the array shape derives it
+                        // from length, then test the count operand. No
+                        // per-member loop — the placeholders accept every
+                        // member, so the divisibility check is the whole match.
+                        .object => {
+                            const member_len = repeatObjectLen(ast, c.pattern.sub).?;
+                            // Pin the container type: MatchRepeatInit counts
+                            // an array's elements too, but an object chunk
+                            // must reject an array value.
+                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                                .op = .MatchType,
+                                .byte1 = src_reg,
+                                .byte2 = 1,
+                            } }, step_region));
+                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_init = .{
+                                .op = .MatchRepeatInit,
+                                .src = src_reg,
+                                .len = @intCast(member_len),
+                                .count_dst = repeat_reg,
+                                .base = repeat_base_reg,
+                            } }, step_region));
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                        },
+                        // A constrained-pair object sub-pattern ({K: V},
+                        // {_: 1}, {_: 1, _: 2}): derive the group count as
+                        // members / pair_count, then claim pair_count fresh
+                        // members per group into a claim array. Group 0 binds
+                        // the pair's binders; later groups compare (the
+                        // rebound variant), so a binding or constant key
+                        // re-probing a claimed member fails a second group.
+                        .object_search => {
+                            const pair_count = self.repeatObjectSearchLen(ast, c.pattern.sub).?;
+                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                                .op = .MatchType,
+                                .byte1 = src_reg,
+                                .byte2 = 1,
+                            } }, step_region));
+                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_init = .{
+                                .op = .MatchRepeatInit,
+                                .src = src_reg,
+                                .len = @intCast(pair_count),
+                                .count_dst = repeat_reg,
+                                .base = repeat_base_reg,
+                            } }, step_region));
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+
+                            // The repeat pattern owns the whole object, so
+                            // the claim array seeds empty; the group loop
+                            // grows it to cover every member.
+                            const empty_seed = try self.emptyKeyListConstant(module_id, step_region);
+                            _ = try self.ir().push(allocator, .{ .match_const = .{ .op = .MatchClaimSeed, .byte1 = os_claim, .byte2 = 0, .constant = empty_seed } }, step_region);
+
+                            // The exit bound is the whole member count; the
+                            // group loop claims pair_count members per group
+                            // and stops once the claim array reaches it.
+                            try self.emitMemberCount(src_reg, os_target, &fail_jumps, step_region);
+
+                            // The guard exits before the first group when the
+                            // object is empty (count 0); otherwise group 0
+                            // binds and the loop compares.
+                            const guard = try self.ir().push(allocator, .{ .match_claim_done = .{
+                                .op = .MatchClaimDoneCount,
+                                .claim = os_claim,
+                                .src = os_target,
+                                .target = Ir.unpatched_jump,
+                            } }, step_region);
+                            try self.emitObjectRepeatGroup(module_id, ast, c.pattern.sub, src_reg, os_claim, os_key, os_val, os_cursor, .bind, &fail_jumps, step_region);
+                            const loop_head = self.ir().nextIndex();
+                            const loop_done = try self.ir().push(allocator, .{ .match_claim_done = .{
+                                .op = .MatchClaimDoneCount,
+                                .claim = os_claim,
+                                .src = os_target,
+                                .target = Ir.unpatched_jump,
+                            } }, step_region);
+                            try self.emitObjectRepeatGroup(module_id, ast, c.pattern.sub, src_reg, os_claim, os_key, os_val, os_cursor, .compare, &fail_jumps, step_region);
+                            try self.emitJumpBack(.JumpBack, loop_head, step_region);
+                            self.patchJump(guard);
+                            self.patchJump(loop_done);
+                        },
+                        // A bare binder: push the known count (the product
+                        // of the scalar factors), solve the representative
+                        // chunk, and bind it.
+                        .chunk => {
+                            try self.writeRepeatCountProduct(module_id, ast, c.count_factors.items, null, step_region);
+                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                                .op = .MatchRepeatChunk,
+                                .byte1 = src_reg,
+                                .byte2 = repeat_reg,
+                            } }, step_region));
+                            switch (c.pattern) {
+                                .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                                    .op = .MatchBind,
+                                    .byte1 = ls.slot,
+                                    .byte2 = repeat_reg,
+                                } }, step_region),
+                                .placeholder => {},
+                                else => unreachable,
+                            }
+                        },
+                        // A bare binder with an unbound count: the pattern
+                        // greedily claims the whole scrutinee and the count,
+                        // with nothing left to claim, binds to 1 (the repeat's
+                        // identity). The match always succeeds.
+                        .identity => {
+                            switch (c.count_factors.items[0]) {
+                                .bind => |ls| {
+                                    try self.writeConstant(module_id, Elem.numberFloat(1), step_region);
+                                    try self.emitUnaryOp(.SetLocal, ls.slot, step_region);
+                                },
+                                .placeholder => {},
+                                else => unreachable,
+                            }
+                            switch (c.pattern) {
+                                .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                                    .op = .MatchBind,
+                                    .byte1 = ls.slot,
+                                    .byte2 = src_reg,
+                                } }, step_region),
+                                .placeholder => {},
+                                else => unreachable,
+                            }
+                        },
+                    }
+                },
+                // An object merge's repeat part: claim count-many disjoint
+                // member groups into the claim array, then a members_rest
+                // takes the leftover. Two count shapes: exact (no rest)
+                // derives the count from the object's member surplus over
+                // the const-key seed; inexact (rest present) loads a known
+                // count product and claims exactly that many groups.
+                .claim_members => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const src_reg = scratch_base + @as(u8, @intCast(c.place));
+                    const chunk_set_id = c.pattern.sub;
+                    const all_placeholder = repeatObjectLen(ast, chunk_set_id) != null;
+                    const pair_len: u8 = @intCast(if (repeatObjectLen(ast, chunk_set_id)) |l|
+                        l
+                    else
+                        self.repeatObjectSearchLen(ast, chunk_set_id).?);
+                    const seed_count: u8 = @intCast(hasKeyCount(constraints, c.place));
+
+                    if (c.exact) {
+                        // Shape A/B: the group count is the member surplus
+                        // over the seed divided by the chunk's pairs.
+                        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_count = .{
+                            .op = .MatchClaimCount,
+                            .src = src_reg,
+                            .pair_len = pair_len,
+                            .seed = seed_count,
+                            .count_dst = repeat_reg,
+                        } }, step_region));
+                        try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                        // Shape A: an all-placeholder chunk claims nothing
+                        // specific and has no rest, so divisibility is the
+                        // whole match — no group loop.
+                        if (all_placeholder) continue;
+
+                        // Shape B: seed the const keys, then claim groups
+                        // until the array covers every member (coverage ==
+                        // seed + groups × pair_len by the divisibility check).
+                        const seed_constant = try self.hasKeyListConstant(module_id, constraints, c.place, step_region);
+                        _ = try self.ir().push(allocator, .{ .match_const = .{ .op = .MatchClaimSeed, .byte1 = os_claim, .byte2 = 0, .constant = seed_constant } }, step_region);
+                        try self.emitMemberCount(src_reg, os_target, &fail_jumps, step_region);
+                        const guard = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = os_claim, .src = os_target, .target = Ir.unpatched_jump } }, step_region);
+                        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, os_claim, os_key, os_val, os_cursor, .bind, &fail_jumps, step_region);
+                        const loop_head = self.ir().nextIndex();
+                        const loop_done = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = os_claim, .src = os_target, .target = Ir.unpatched_jump } }, step_region);
+                        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, os_claim, os_key, os_val, os_cursor, .compare, &fail_jumps, step_region);
+                        try self.emitJumpBack(.JumpBack, loop_head, step_region);
+                        self.patchJump(guard);
+                        self.patchJump(loop_done);
+                    } else {
+                        // Shape C: the count is a known product; seed the
+                        // const keys, load the target claim size past them,
+                        // then claim exactly count-many groups. The
+                        // members_rest takes the remainder.
+                        const seed_constant = try self.hasKeyListConstant(module_id, constraints, c.place, step_region);
+                        _ = try self.ir().push(allocator, .{ .match_const = .{ .op = .MatchClaimSeed, .byte1 = os_claim, .byte2 = 0, .constant = seed_constant } }, step_region);
+                        try self.writeRepeatCountProduct(module_id, ast, c.count_factors.items, null, step_region);
+                        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count_load = .{
+                            .op = .MatchCountLoad,
+                            .dst = repeat_reg,
+                            .pair_len = pair_len,
+                            .claim = os_claim,
+                        } }, step_region));
+                        const guard = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = os_claim, .src = repeat_reg, .target = Ir.unpatched_jump } }, step_region);
+                        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, os_claim, os_key, os_val, os_cursor, .bind, &fail_jumps, step_region);
+                        const loop_head = self.ir().nextIndex();
+                        const loop_done = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = os_claim, .src = repeat_reg, .target = Ir.unpatched_jump } }, step_region);
+                        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, os_claim, os_key, os_val, os_cursor, .compare, &fail_jumps, step_region);
+                        try self.emitJumpBack(.JumpBack, loop_head, step_region);
+                        self.patchJump(guard);
+                        self.patchJump(loop_done);
+                    }
+                },
+                else => unreachable,
+            }
+        }
+
+        if (fail_jumps.items.len == 0) {
+            // Every step was deterministic; there is no failure path. Point
+            // the window's (unused) fail target at the exit to keep it in
+            // range, then close. Success falls through to the exit.
+            self.patchJump(enter_idx);
+            try self.emitOp(.MatchWindowExit, region);
+            if (skipJump) |j| self.patchJump(j);
+            return;
+        }
+        const okJump = try self.emitJump(.Jump, region);
+        // The window's shared fail block begins here; every semidet step
+        // inside jumped to it via the window's fail_ip.
+        self.patchJump(enter_idx);
+        switch (scrutinee) {
+            .input => {
+                try self.emitOp(.MatchFail, region);
+                // Both success (okJump) and failure (fall-through from
+                // MatchFail) run the window exit; the skip lands past it
+                // with no window open.
+                self.patchJump(okJump);
+                try self.emitOp(.MatchWindowExit, region);
+                self.patchJump(skipJump.?);
+            },
+            .sub => |s| {
+                // Failure closes this window then routes per the fail
+                // disposition; success closes it and falls through to the
+                // parent's continuation.
+                try self.emitOp(.MatchWindowExit, region);
+                switch (s.on_fail) {
+                    // A rejected search candidate loops back for the next
+                    // member.
+                    .retry => |target| try self.emitJumpBack(.JumpBack, target, region),
+                    // A rejected chunk cascades to the enclosing window's
+                    // fail block; the appended index marks the parent
+                    // fallible.
+                    .arm => |arm_fails| try arm_fails.append(allocator, try self.ir().push(allocator, .{ .none = .MatchRefail }, region)),
+                }
+                self.patchJump(okJump);
+                try self.emitOp(.MatchWindowExit, region);
+            },
+        }
+    }
+
+    // Compute the whole member count of the object in src_reg into dst as a
+    // float — a MatchClaimCount with a unit pair and no seed, which also fails
+    // the window when src is not an object. Feeds a MatchClaimDoneCount exit.
+    fn emitMemberCount(self: *Compiler, src_reg: u8, dst: u8, fail_jumps: *ArrayList(Ir.Index), region: Region) Error!void {
+        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_claim_count = .{
+            .op = .MatchClaimCount,
+            .src = src_reg,
+            .pair_len = 1,
+            .seed = 0,
+            .count_dst = dst,
+        } }, region));
+    }
+
+    // One group of a constrained-pair object repeat: match each search pair
+    // against a fresh unclaimed member of src, then claim it. A placeholder
+    // or first-group binding key scans (MatchClaimScan, retrying past
+    // value-rejected candidates via the advanced cursor); a rebound binding
+    // key reads its slot and probes directly (MatchClaimKey), failing when
+    // that member was already claimed by group 0. The value matches in a
+    // child window scrutinized by the found member; MatchClaimAdd then
+    // records the key so this and later groups skip it.
+    fn emitObjectRepeatGroup(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        chunk_set_id: Ast.SetId,
+        src_reg: u8,
+        claim_reg: u8,
+        key_dst: u8,
+        val_dst: u8,
+        cursor_reg: u8,
+        bind_mode: BindMode,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        const chunk_set = &ast.constraint_sets.items[chunk_set_id];
+        for (chunk_set.constraints.items) |constraint| switch (constraint.kind) {
+            // A const-key pair: probe the constant key directly, match its
+            // leaf value against the found member, and claim it. Re-probing
+            // the same key in a later group fails the exclusive claim.
+            .has_key => |c| {
+                const key_sid = try self.vm.strings.insert(self.frontend.strings.get(c.sid));
+                try self.writeConstant(module_id, Elem.string(key_sid), region);
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_key = .{
+                    .op = .MatchClaimKey,
+                    .key_dst = key_dst,
+                    .val_dst = val_dst,
+                    .src = src_reg,
+                    .claim = claim_reg,
+                } }, region));
+                try self.emitObjectRepeatConstValue(module_id, ast, chunk_set_id, c.sid, val_dst, bind_mode, fail_jumps, region);
+                _ = try self.ir().push(allocator, .{ .match_test = .{
+                    .op = .MatchClaimAdd,
+                    .byte1 = claim_reg,
+                    .byte2 = key_dst,
+                } }, region);
+            },
+            .search_key => |c| {
+                const key_set = &ast.constraint_sets.items[c.key];
+                const value_set = &ast.constraint_sets.items[c.value];
+                const key_bind: ?u8 = if (key_set.constraints.items.len == 1) switch (key_set.constraints.items[0].kind) {
+                    .bind => |b| b.slot,
+                    else => null,
+                } else null;
+
+                if (bind_mode == .compare and key_bind != null) {
+                    // Rebound known key: read its slot and probe directly.
+                    // A member group 0 already claimed under this key fails.
+                    try self.emitUnaryOp(.GetLocal, key_bind.?, region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_key = .{
+                        .op = .MatchClaimKey,
+                        .key_dst = key_dst,
+                        .val_dst = val_dst,
+                        .src = src_reg,
+                        .claim = claim_reg,
+                    } }, region));
+                    if (value_set.constraints.items.len > 0) {
+                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = val_dst, .on_fail = .{ .arm = fail_jumps }, .bind_mode = bind_mode } }, region);
+                    }
+                } else {
+                    // Scan for the first unclaimed member the value accepts.
+                    try self.emitUnaryOp(.MatchIterInit, cursor_reg, region);
+                    const loop = self.ir().nextIndex();
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_scan = .{
+                        .op = .MatchClaimScan,
+                        .key_dst = key_dst,
+                        .val_dst = val_dst,
+                        .src = src_reg,
+                        .cursor = cursor_reg,
+                        .claim = claim_reg,
+                    } }, region));
+                    if (bind_mode == .bind and key_bind != null) {
+                        _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                            .op = .MatchBind,
+                            .byte1 = key_bind.?,
+                            .byte2 = key_dst,
+                        } }, region);
+                    }
+                    if (value_set.constraints.items.len > 0) {
+                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = val_dst, .on_fail = .{ .retry = loop }, .bind_mode = bind_mode } }, region);
+                    }
+                }
+                _ = try self.ir().push(allocator, .{ .match_test = .{
+                    .op = .MatchClaimAdd,
+                    .byte1 = claim_reg,
+                    .byte2 = key_dst,
+                } }, region);
+            },
+            // The chunk's structural gates (enforced by MatchType +
+            // MatchRepeatInit and the group loop's arity) and the const-key
+            // value constraints (matched by their has_key arm above).
+            .is_type, .keys_exact => {},
+            else => {},
+        };
+    }
+
+    // A const-key pair's leaf value: match the constraints on the projected
+    // member place (`key %0 sid`) against the claimed member in val_dst.
+    // Structural values are gated out by repeatObjectSearchLen, so only leaf
+    // kinds reach here.
+    fn emitObjectRepeatConstValue(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        chunk_set_id: Ast.SetId,
+        key_sid: FrontendStrings.Id,
+        val_dst: u8,
+        bind_mode: BindMode,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        const chunk_set = &ast.constraint_sets.items[chunk_set_id];
+        // The projected member place for this key, if the pattern names one
+        // (a placeholder value projects nothing).
+        var value_place: ?Ast.PlaceId = null;
+        for (chunk_set.places.items, 0..) |def, i| switch (def) {
+            .key => |k| if (k.src == 0 and k.sid == key_sid) {
+                value_place = @intCast(i);
+            },
+            else => {},
+        };
+        const vp = value_place orelse return;
+        for (chunk_set.constraints.items) |constraint| {
+            const place = constraintPrimaryPlace(constraint.kind) orelse continue;
+            if (place != vp) continue;
+            switch (constraint.kind) {
+                .bind => |c| switch (bind_mode) {
+                    .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                        .op = .MatchBind,
+                        .byte1 = c.slot,
+                        .byte2 = val_dst,
+                    } }, region),
+                    .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = val_dst,
+                        .kind = .slot,
+                        .arg = c.slot,
+                    } }, region)),
+                },
+                .eq_const => |c| {
+                    const elem = try self.goalPatternConstElem(ast, c.value);
+                    const constant = try self.makeConstantU16(module_id, elem, region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = val_dst,
+                        .kind = .constant,
+                        .arg = constant,
+                    } }, region));
+                },
+                .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                    .reg = val_dst,
+                    .kind = .slot,
+                    .arg = c.slot,
+                } }, region)),
+                .eq_global => |c| try fail_jumps.append(allocator, try self.emitEqGlobalStep(module_id, c.name, val_dst, region)),
+                .in_range => |c| try self.emitInRangeStep(module_id, ast, val_dst, c.lower, c.upper, fail_jumps, region),
+                else => unreachable,
+            }
+        }
+    }
+
+    fn findClaimGroup(groups: []const ClaimGroup, src: Ast.PlaceId) ?ClaimGroup {
+        for (groups) |group| {
+            if (group.src == src) return group;
+        }
+        return null;
+    }
+
+    // The number of const-key (has_key) members claimed on an object place:
+    // the claim_members count and rest ops subtract this seed.
+    fn hasKeyCount(constraints: []const Ast.Constraint, place: Ast.PlaceId) u32 {
+        var count: u32 = 0;
+        for (constraints) |constraint| switch (constraint.kind) {
+            .has_key => |c| if (c.place == place) {
+                count += 1;
+            },
+            else => {},
+        };
+        return count;
+    }
+
+    // The statically matched keys of an object place — every has_key on
+    // the place — as an array constant: MatchClaimSeed starts a claim array
+    // from it and MatchObjectRest subtracts it.
+    fn hasKeyListConstant(
+        self: *Compiler,
+        module_id: Module.Id,
+        constraints: []const Ast.Constraint,
+        place: Ast.PlaceId,
+        region: Region,
+    ) Error!u16 {
+        var key_count: usize = 0;
+        for (constraints) |constraint| switch (constraint.kind) {
+            .has_key => |c| if (c.place == place) {
+                key_count += 1;
+            },
+            else => {},
+        };
+        const keys = try Elem.DynElem.Array.create(self.vm, key_count);
+        try self.vm.pushTempDyn(&keys.dyn);
+        for (constraints) |constraint| switch (constraint.kind) {
+            .has_key => |c| if (c.place == place) {
+                const sid = try self.vm.strings.insert(self.frontend.strings.get(c.sid));
+                keys.elems.appendAssumeCapacity(Elem.string(sid));
+            },
+            else => {},
+        };
+        const constant = try self.makeConstantU16(module_id, keys.dyn.elem(), region);
+        self.vm.dropTempDyn();
+        return constant;
+    }
+
+    fn emptyKeyListConstant(self: *Compiler, module_id: Module.Id, region: Region) Error!u16 {
+        const keys = try Elem.DynElem.Array.create(self.vm, 0);
+        try self.vm.pushTempDyn(&keys.dyn);
+        const constant = try self.makeConstantU16(module_id, keys.dyn.elem(), region);
+        self.vm.dropTempDyn();
+        return constant;
+    }
+
+    fn singleSetConstraint(ast: *const Ast, set_id: Ast.SetId) ?*const Ast.Constraint {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.constraints.items.len == 0) return null;
+        return &set.constraints.items[0];
+    }
+
+    // Push a repeat operand's value onto the stack for the repeat step
+    // to pop: a constant expression or a bound local read. repeatShape
+    // admits only these.
+    fn writeRepeatOperand(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        part: Ast.Part,
+        region: Region,
+    ) Error!void {
+        switch (part) {
+            .expr => |id| try self.writeGoal(module_id, ast, id),
+            .read => |ls| try self.emitUnaryOp(.GetLocal, ls.slot, region),
+            .global => |name| try self.emitGlobalValuePush(module_id, name, region),
+            else => unreachable,
+        }
+    }
+
+    // Test the derived repeat count in `reg` against the count operand:
+    // nothing for a placeholder, a bind or comparison for locals,
+    // constant equality, or a single-place count sub-set of leaf tests.
+    // repeatCountStepable admits exactly these shapes.
+    fn emitRepeatCountSteps(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        count: Ast.Part,
+        reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        switch (count) {
+            .placeholder => {},
+            .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchBind,
+                .byte1 = ls.slot,
+                .byte2 = reg,
+            } }, region),
+            .read => |ls| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = reg,
+                .kind = .slot,
+                .arg = ls.slot,
+            } }, region)),
+            .expr => |id| try self.emitRepeatCountConst(module_id, ast, id, reg, fail_jumps, region),
+            .sub => |set_id| {
+                const set = &ast.constraint_sets.items[set_id];
+                for (set.constraints.items) |constraint| switch (constraint.kind) {
+                    .eq_const => |c| try self.emitRepeatCountConst(module_id, ast, c.value, reg, fail_jumps, region),
+                    .bind => |c| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                        .op = .MatchBind,
+                        .byte1 = c.slot,
+                        .byte2 = reg,
+                    } }, region),
+                    .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = reg,
+                        .kind = .slot,
+                        .arg = c.slot,
+                    } }, region)),
+                    .in_range => |c| try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, fail_jumps, region),
+                    else => unreachable,
+                };
+            },
+            .local, .global => unreachable,
+        }
+    }
+
+    fn emitRepeatCountConst(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        id: Ast.NodeId,
+        reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const elem = try self.goalPatternConstElem(ast, id);
+        const constant = try self.makeConstantU16(module_id, elem, region);
+        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cmp = .{
+            .reg = reg,
+            .kind = .constant,
+            .arg = constant,
+        } }, region));
+    }
+
+    // Solve the count factors against the derived count in `reg`. A lone
+    // factor the single-Part emitter handles keeps its bytecode. Otherwise
+    // the factors form a product: the evaluable scalars divide the derived
+    // count (MatchDivideEval, one per pushed product, failing on an
+    // uneven division), and the single unbound factor binds the residual —
+    // or, with no unbound factor, the derived count must equal the product
+    // (MatchEval).
+    fn emitRepeatCountSolve(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        factors: []const Ast.Part,
+        solvable_index: ?u32,
+        reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        if (factors.len == 1) {
+            switch (factors[0]) {
+                .placeholder, .bind, .read, .sub => return self.emitRepeatCountSteps(module_id, ast, factors[0], reg, fail_jumps, region),
+                .expr => |id| if (self.constPatternNode(ast, id)) {
+                    return self.emitRepeatCountSteps(module_id, ast, factors[0], reg, fail_jumps, region);
+                },
+                else => {},
+            }
+        }
+        // A range factor (at most one, guaranteed by repeatCountFactorsStepable)
+        // is solved after the scalar factors divide out: greedy r · U = residual
+        // for a trailing unbound U, else a bound-check on the residual.
+        const range_idx: ?usize = for (factors, 0..) |factor, i| {
+            if (factor == .sub) break i;
+        } else null;
+        if (range_idx) |ri| {
+            try self.emitRepeatScalarDivide(module_id, ast, factors, ri, solvable_index, reg, fail_jumps, region);
+            const rc = self.repeatRangeConstraint(ast, factors[ri].sub).?.kind.in_range;
+            if (solvable_index) |s| {
+                var lower_eval: ?Ast.NodeId = null;
+                var upper_eval: ?Ast.NodeId = null;
+                const lower_desc = try self.rangeDescriptor(module_id, ast, rc.lower, region, &lower_eval);
+                const upper_desc = try self.rangeDescriptor(module_id, ast, rc.upper, region, &upper_eval);
+                std.debug.assert(lower_eval == null and upper_eval == null);
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_range = .{
+                    .op = .MatchRepeatRangeDivide,
+                    .src = reg,
+                    .dst = reg,
+                    .lower_kind = lower_desc.kind,
+                    .lower_arg = lower_desc.arg,
+                    .upper_kind = upper_desc.kind,
+                    .upper_arg = upper_desc.arg,
+                } }, region));
+                switch (factors[s]) {
+                    .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                        .op = .MatchBind,
+                        .byte1 = ls.slot,
+                        .byte2 = reg,
+                    } }, region),
+                    .placeholder => {},
+                    else => unreachable,
+                }
+            } else {
+                try self.emitInRangeStep(module_id, ast, reg, rc.lower, rc.upper, fail_jumps, region);
+            }
+            return;
+        }
+        if (solvable_index) |s| {
+            try self.writeRepeatCountProduct(module_id, ast, factors, s, region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchDivideEval,
+                .byte1 = reg,
+                .byte2 = reg,
+            } }, region));
+            switch (factors[s]) {
+                .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                    .op = .MatchBind,
+                    .byte1 = ls.slot,
+                    .byte2 = reg,
+                } }, region),
+                .placeholder => {},
+                else => unreachable,
+            }
+        } else {
+            try self.writeRepeatCountProduct(module_id, ast, factors, null, region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchEval,
+                .byte1 = reg,
+                .byte2 = 0,
+            } }, region));
+        }
+    }
+
+    // Divide the count register by the product of the scalar factors,
+    // skipping the range factor and the unbound solvable. Emits nothing
+    // when there are no scalar factors.
+    fn emitRepeatScalarDivide(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        factors: []const Ast.Part,
+        range_idx: usize,
+        solvable_index: ?u32,
+        reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        var pushed = false;
+        for (factors, 0..) |factor, i| {
+            if (i == range_idx) continue;
+            if (solvable_index) |s| if (i == s) continue;
+            try self.emitEvaluablePartValue(module_id, ast, factor, region);
+            if (pushed) try self.emitOp(.RepeatValue, region);
+            pushed = true;
+        }
+        if (pushed) {
+            try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_test = .{
+                .op = .MatchDivideEval,
+                .byte1 = reg,
+                .byte2 = reg,
+            } }, region));
+        }
+    }
+
+    // Push the product of the evaluable count factors, skipping the
+    // unbound solvable when one is given. Each factor evaluates to a
+    // number; RepeatValue multiplies the running product.
+    fn writeRepeatCountProduct(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        factors: []const Ast.Part,
+        skip_index: ?u32,
+        region: Region,
+    ) Error!void {
+        var first = true;
+        for (factors, 0..) |factor, i| {
+            if (skip_index) |s| if (i == s) continue;
+            try self.emitEvaluablePartValue(module_id, ast, factor, region);
+            if (!first) try self.emitOp(.RepeatValue, region);
+            first = false;
+        }
+    }
+
+    // Emit the residual steps of a number or boolean merge rooted at
+    // `src_reg`: the leftover part claims `src_reg` minus the folded
+    // constants (MatchMergeNum/Bool into dead_reg), then binds or compares.
+    // Shared by arm-level solve_merge and template number/boolean casts.
+    fn emitMergeSolve(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        ty: ?Ast.ValueType,
+        parts: []const Ast.Part,
+        src_reg: u8,
+        dead_reg: u8,
+        // The source register is a proven number (a template MatchCast to
+        // number ran first). Enables the `0 + leftover` identity shortcut, which
+        // otherwise would skip the number-type check MatchMergeNum performs.
+        src_is_number: bool,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        if (self.classifyBoolMergeStep(ast, ty, parts)) |step| {
+            const constant = try self.makeConstantU16(module_id, Elem.boolean(step.static_true), region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                .op = .MatchMergeBool,
+                .byte1 = dead_reg,
+                .byte2 = src_reg,
+                .constant = constant,
+            } }, region));
+            switch (step.kind) {
+                .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                    .op = .MatchBind,
+                    .byte1 = step.slot,
+                    .byte2 = dead_reg,
+                } }, region),
+                // A static-true claim already forced the scrutinee true and
+                // leaves the read unconstrained (`true OR L` holds for any
+                // L); only a static-false claim verifies L equals the
+                // residual scrutinee.
+                .read => if (!step.static_true) {
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = dead_reg,
+                        .kind = .slot,
+                        .arg = step.slot,
+                    } }, region));
+                },
+                .placeholder => {},
+            }
+            return;
+        }
+        const step = self.classifyNumMergeStep(ast, ty, parts).?;
+        if (step.has_runtime_part) {
+            try self.emitNumMergeRuntime(module_id, ast, parts, step, src_reg, dead_reg, fail_jumps, region);
+            return;
+        }
+        var sum: f64 = 0;
+        for (parts, 0..) |part, i| {
+            if (i == step.part_index) continue;
+            const elem = try self.goalPatternConstElem(ast, part.expr);
+            sum += elem.asFloat();
+        }
+        // `0 + leftover` (no negation) is the identity: the leftover equals
+        // the scrutinee. Bind or compare it directly instead of recomputing
+        // a float, so a NumberString keeps its exact text (json numbers like
+        // "123e65" round-trip). This mirrors the plan's value.merge(-0).
+        if (src_is_number and sum == 0 and !step.negate) {
+            switch (step.kind) {
+                .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                    .op = .MatchBind,
+                    .byte1 = step.slot,
+                    .byte2 = src_reg,
+                } }, region),
+                .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                    .reg = src_reg,
+                    .kind = .slot,
+                    .arg = step.slot,
+                } }, region)),
+                .placeholder => {},
+            }
+            return;
+        }
+        const constant = try self.makeConstantU16(module_id, Elem.numberFloat(sum), region);
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_merge_num = .{
+            .dst = dead_reg,
+            .src = src_reg,
+            .constant = constant,
+            .negate = step.negate,
+        } }, region));
+        switch (step.kind) {
+            .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchBind,
+                .byte1 = step.slot,
+                .byte2 = dead_reg,
+            } }, region),
+            .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = dead_reg,
+                .kind = .slot,
+                .arg = step.slot,
+            } }, region)),
+            .placeholder => {},
+        }
+    }
+
+    // The residual of a number merge whose non-leftover parts include a
+    // runtime value (a bound read, global, or call): fold the constant
+    // parts and subtract them (MatchMergeNum, which also gates src as a
+    // number), then subtract each runtime part in turn (MatchSubtractEval)
+    // into dead_reg, and bind or compare the leftover against it.
+    fn emitNumMergeRuntime(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        parts: []const Ast.Part,
+        step: NumMergeStep,
+        src_reg: u8,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        var const_sum: f64 = 0;
+        for (parts, 0..) |part, i| {
+            if (i == step.part_index) continue;
+            switch (part) {
+                .expr => |id| if (constNumberNode(ast, id)) {
+                    const elem = try self.goalPatternConstElem(ast, id);
+                    const_sum += elem.asFloat();
+                },
+                else => {},
+            }
+        }
+        const constant = try self.makeConstantU16(module_id, Elem.numberFloat(const_sum), region);
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_merge_num = .{
+            .dst = dead_reg,
+            .src = src_reg,
+            .constant = constant,
+            .negate = false,
+        } }, region));
+        for (parts, 0..) |part, i| {
+            if (i == step.part_index) continue;
+            const is_const = switch (part) {
+                .expr => |id| constNumberNode(ast, id),
+                else => false,
+            };
+            if (is_const) continue;
+            try self.emitEvaluablePartValue(module_id, ast, part, region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchSubtractEval,
+                .byte1 = dead_reg,
+                .byte2 = dead_reg,
+            } }, region));
+        }
+        switch (step.kind) {
+            .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchBind,
+                .byte1 = step.slot,
+                .byte2 = dead_reg,
+            } }, region),
+            .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = dead_reg,
+                .kind = .slot,
+                .arg = step.slot,
+            } }, region)),
+            .placeholder => {},
+        }
+    }
+
+    // An untyped merge (`part + X`) whose type is only known at match time:
+    // evaluate the non-solvable parts and merge them into one value on the
+    // stack, then MatchMergeEval pops it and writes the type-dispatched
+    // residual into dead_reg for the leftover to bind or compare.
+    //
+    // The solvable splits the known parts into a prefix (before it) and a
+    // suffix (after it). The prefix strips from the front (MatchMergeEval
+    // with back=0) and the suffix from the end (back=1), chaining into
+    // dead_reg; the leftover is whatever remains between them. Strings and
+    // arrays get a genuine two-sided carve; numbers, booleans, and objects
+    // merge order-independently, so the two strips just subtract both groups.
+    //
+    // With no solvable, every part evaluates: merge them all into one value
+    // and MatchEval compares it against the scrutinee — the merge holds only
+    // when the value equals the parts joined together.
+    fn emitUntypedMergeSolve(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        parts: []const Ast.Part,
+        solvable_index: ?u32,
+        src_reg: u8,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        const si = solvable_index orelse {
+            try self.emitMergedPartValues(module_id, ast, parts, region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchEval,
+                .byte1 = src_reg,
+                .byte2 = 0,
+            } }, region));
+            return;
+        };
+        // The next strip reads from the scrutinee until the prefix strip has
+        // written the running residual into dead_reg.
+        var residual_src = src_reg;
+        if (si > 0) {
+            try self.emitMergedPartValues(module_id, ast, parts[0..si], region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchMergeEval,
+                .byte1 = dead_reg,
+                .byte2 = residual_src,
+                .byte3 = 0,
+            } }, region));
+            residual_src = dead_reg;
+        }
+        if (si < parts.len - 1) {
+            try self.emitMergedPartValues(module_id, ast, parts[si + 1 ..], region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchMergeEval,
+                .byte1 = dead_reg,
+                .byte2 = residual_src,
+                .byte3 = 1,
+            } }, region));
+            residual_src = dead_reg;
+        }
+        switch (parts[si]) {
+            .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchBind,
+                .byte1 = ls.slot,
+                .byte2 = residual_src,
+            } }, region),
+            .read => |ls| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = residual_src,
+                .kind = .slot,
+                .arg = ls.slot,
+            } }, region)),
+            .placeholder => {},
+            else => unreachable,
+        }
+    }
+
+    // Evaluate each part and merge them left-to-right into one value left on
+    // the value stack. The caller guarantees a non-empty slice of evaluable
+    // parts (a bound read, module global, or evaluable expression).
+    fn emitMergedPartValues(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        parts: []const Ast.Part,
+        region: Region,
+    ) Error!void {
+        for (parts, 0..) |part, i| {
+            try self.emitEvaluablePartValue(module_id, ast, part, region);
+            if (i > 0) try self.emitOp(.Merge, region);
+        }
+    }
+
+    const ClaimRegs = struct { claim: u8, key: u8, val: u8, cursor: u8, target: u8 };
+
+    // An object merge solved on the shared claim array: each part claims
+    // members of src exclusively — a structural part via the repeat-group
+    // probe/scan/claim steps, an evaluated part whole via MatchClaimObject —
+    // and the single solvable part takes the unclaimed rest. With no
+    // solvable, the claims must instead cover every member. Overlapping
+    // keys across parts fail the exclusive claim, matching repeat-group
+    // semantics rather than merge's duplicate-key folding.
+    fn emitObjectMergeSolve(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        parts: []const Ast.Part,
+        solvable_index: ?u32,
+        src_reg: u8,
+        dead_reg: u8,
+        regs: ClaimRegs,
+        bind_mode: BindMode,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        // The claim ops require an object scrutinee.
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchType,
+            .byte1 = src_reg,
+            .byte2 = 1,
+        } }, region));
+        // The parts claim their own keys, so the array seeds empty.
+        const empty_seed = try self.emptyKeyListConstant(module_id, region);
+        _ = try self.ir().push(allocator, .{ .match_const = .{ .op = .MatchClaimSeed, .byte1 = regs.claim, .byte2 = 0, .constant = empty_seed } }, region);
+
+        for (parts, 0..) |part, i| {
+            if (solvable_index != null and solvable_index.? == i) continue;
+            switch (part) {
+                // A repeat part claims count-many groups past the claims so
+                // far: MatchCountLoad targets the current length plus the
+                // known count, and the shape-C group loop claims up to it.
+                .sub => |set_id| if (self.objectMergeRepeatPart(ast, set_id)) |repeat_constraint| {
+                    const r = repeat_constraint.kind.solve_repeat;
+                    const chunk_set_id = r.pattern.sub;
+                    const pair_len: u8 = @intCast(if (repeatObjectLen(ast, chunk_set_id)) |l|
+                        l
+                    else
+                        self.repeatObjectSearchLen(ast, chunk_set_id).?);
+                    try self.writeRepeatCountProduct(module_id, ast, r.count_factors.items, null, region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count_load = .{
+                        .op = .MatchCountLoad,
+                        .dst = regs.target,
+                        .pair_len = pair_len,
+                        .claim = regs.claim,
+                    } }, region));
+                    const guard = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = regs.claim, .src = regs.target, .target = Ir.unpatched_jump } }, region);
+                    try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, bind_mode, fail_jumps, region);
+                    const loop_head = self.ir().nextIndex();
+                    const loop_done = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = regs.claim, .src = regs.target, .target = Ir.unpatched_jump } }, region);
+                    try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, .compare, fail_jumps, region);
+                    try self.emitJumpBack(.JumpBack, loop_head, region);
+                    self.patchJump(guard);
+                    self.patchJump(loop_done);
+                } else {
+                    try self.emitObjectRepeatGroup(module_id, ast, set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, bind_mode, fail_jumps, region);
+                },
+                .read, .global, .expr => {
+                    try self.emitEvaluablePartValue(module_id, ast, part, region);
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                        .op = .MatchClaimObject,
+                        .byte1 = regs.claim,
+                        .byte2 = src_reg,
+                    } }, region));
+                },
+                else => unreachable,
+            }
+        }
+
+        if (solvable_index) |si| {
+            switch (parts[si]) {
+                .bind => |ls| {
+                    _ = try self.ir().push(allocator, .{ .match_claim_rest = .{
+                        .op = .MatchClaimRest,
+                        .dst = dead_reg,
+                        .src = src_reg,
+                        .claim = regs.claim,
+                    } }, region);
+                    switch (bind_mode) {
+                        .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                            .op = .MatchBind,
+                            .byte1 = ls.slot,
+                            .byte2 = dead_reg,
+                        } }, region),
+                        .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                            .reg = dead_reg,
+                            .kind = .slot,
+                            .arg = ls.slot,
+                        } }, region)),
+                    }
+                },
+                // A `_` rest absorbs the unclaimed members; no step.
+                .placeholder => {},
+                else => unreachable,
+            }
+        } else {
+            // No rest: the claims must cover every member. Claimed keys are
+            // distinct members of src, so reaching the member count means
+            // exact coverage; falling short fails the window.
+            try self.emitMemberCount(src_reg, regs.target, fail_jumps, region);
+            const done = try self.ir().push(allocator, .{ .match_claim_done = .{
+                .op = .MatchClaimDoneCount,
+                .claim = regs.claim,
+                .src = regs.target,
+                .target = Ir.unpatched_jump,
+            } }, region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .none = .MatchRefail }, region));
+            self.patchJump(done);
+        }
+    }
+
+    const SpanRegs = struct { front: u8, end: u8, rest: u8, chunk: u8 };
+
+    // An array merge solved through the span-cursor scheduler, mirroring the
+    // string template cursor path (emitTemplateCursor). The before-parts
+    // chomp the front cursor forward in source order, the after-parts chomp
+    // the end cursor backward in reverse order, and the single solvable part
+    // takes the residual span [front..end). With no solvable, the fixed
+    // parts must cover the array exactly (front meets end).
+    fn emitArrayMergeSolve(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        parts: []const Ast.Part,
+        solvable_index: ?u32,
+        reg: u8,
+        regs: SpanRegs,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        // The merge asserts its place is an array (the plan checks isDynType
+        // before slicing); MatchSpanInit then reads the element count.
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchType,
+            .byte1 = reg,
+            .byte2 = 0,
+        } }, region));
+        _ = try self.ir().push(allocator, .{ .match_span_init = .{
+            .op = .MatchSpanInit,
+            .src = reg,
+            .front = regs.front,
+            .end = regs.end,
+        } }, region);
+
+        const before_end = solvable_index orelse parts.len;
+        for (parts[0..before_end]) |part| {
+            try self.emitArrayMergeSegment(module_id, ast, part, reg, regs, false, fail_jumps, region);
+        }
+
+        if (solvable_index) |si| {
+            var i = parts.len;
+            while (i > si + 1) {
+                i -= 1;
+                try self.emitArrayMergeSegment(module_id, ast, parts[i], reg, regs, true, fail_jumps, region);
+            }
+            switch (parts[si]) {
+                .bind => |ls| {
+                    _ = try self.ir().push(allocator, .{ .match_span_rest = .{
+                        .op = .MatchSpanRest,
+                        .dst = regs.rest,
+                        .src = reg,
+                        .front = regs.front,
+                        .end = regs.end,
+                    } }, region);
+                    _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                        .op = .MatchBind,
+                        .byte1 = ls.slot,
+                        .byte2 = regs.rest,
+                    } }, region);
+                },
+                // A `_` rest absorbs the gap between the cursors; no step.
+                .placeholder => {},
+                else => unreachable,
+            }
+        } else {
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = regs.front,
+                .kind = .reg,
+                .arg = regs.end,
+            } }, region));
+        }
+    }
+
+    // One non-solvable array-merge part. `back` selects the end cursor
+    // (chomp backward) over the front cursor (chomp forward). A runtime
+    // array value is compared element-wise at the cursor by MatchSpanVal; a
+    // fixed-length structural part slices a MatchSpanChunk at the cursor and
+    // matches it in a child window (the empty base slices nothing).
+    fn emitArrayMergeSegment(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        part: Ast.Part,
+        reg: u8,
+        regs: SpanRegs,
+        back: bool,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        const cursor = if (back) regs.end else regs.front;
+        const opp = if (back) regs.front else regs.end;
+        switch (part) {
+            .sub => |set_id| {
+                const len = arrayMergePartFixedLen(ast, set_id).?;
+                if (len == 0) return;
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_span_chunk = .{
+                    .op = .MatchSpanChunk,
+                    .dst = regs.chunk,
+                    .src = reg,
+                    .cursor = cursor,
+                    .opp = opp,
+                    .back = if (back) 1 else 0,
+                    .len = len,
+                } }, region));
+                const set = &ast.constraint_sets.items[set_id];
+                try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{
+                    .src_reg = regs.chunk,
+                    .on_fail = .{ .arm = fail_jumps },
+                    .bind_mode = .bind,
+                } }, region);
+            },
+            else => {
+                try self.emitEvaluablePartValue(module_id, ast, part, region);
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_span_val = .{
+                    .op = .MatchSpanVal,
+                    .src = reg,
+                    .cursor = cursor,
+                    .opp = opp,
+                    .back = if (back) 1 else 0,
+                } }, region));
+            },
+        }
+    }
+
+    const TemplateRegs = struct { front: u8, end: u8, rest: u8, char: u8 };
+
+    // Path A: the static prefix/suffix/slice layout — literals around
+    // exactly one bind/placeholder within the 255-byte cap. No cursors.
+    fn emitTemplateStatic(
+        self: *Compiler,
+        module_id: Module.Id,
+        segments: []const Ast.Segment,
+        reg: u8,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        var prefix = ArrayList(u8){};
+        defer prefix.deinit(allocator);
+        var suffix = ArrayList(u8){};
+        defer suffix.deinit(allocator);
+        var special: ?Ast.Part = null;
+        for (segments) |segment| switch (segment) {
+            .literal => |s| if (special == null)
+                try prefix.appendSlice(allocator, s)
+            else
+                try suffix.appendSlice(allocator, s),
+            .part => |part| special = part,
+        };
+
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchType,
+            .byte1 = reg,
+            .byte2 = 2,
+        } }, region));
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+            .reg = reg,
+            .n = @intCast(prefix.items.len + suffix.items.len),
+            .mode = 1,
+        } }, region));
+        if (prefix.items.len > 0) {
+            const sid = try self.vm.strings.insert(prefix.items);
+            const constant = try self.makeConstantU16(module_id, Elem.string(sid), region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                .op = .MatchStrEnd,
+                .byte1 = reg,
+                .byte2 = 0,
+                .constant = constant,
+            } }, region));
+        }
+        if (suffix.items.len > 0) {
+            const sid = try self.vm.strings.insert(suffix.items);
+            const constant = try self.makeConstantU16(module_id, Elem.string(sid), region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                .op = .MatchStrEnd,
+                .byte1 = reg,
+                .byte2 = 1,
+                .constant = constant,
+            } }, region));
+        }
+        if (special.? == .bind) {
+            _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchSlice,
+                .byte1 = dead_reg,
+                .byte2 = reg,
+                .byte3 = @intCast(prefix.items.len),
+                .byte4 = @intCast(suffix.items.len),
+            } }, region);
+            _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchBind,
+                .byte1 = special.?.bind.slot,
+                .byte2 = dead_reg,
+            } }, region);
+        }
+    }
+
+    const EffSeg = union(enum) {
+        // A run of literal bytes (adjacent literals and folded constants),
+        // already interned as a string constant.
+        lit: u16,
+        // An evaluated value segment: a bound read or a call.
+        value: Ast.Part,
+        // A character-range segment: the sub-set holding the in_range.
+        char_range: Ast.SetId,
+        // The one bind/placeholder solvable.
+        solvable: Ast.Part,
+    };
+
+    // Path B: cursor-register chomping. `front`/`end` cursors bound each
+    // segment; before-segments chomp the front forward, after-segments the
+    // end backward (reverse order), and the gap between them is the
+    // solvable's raw substring (or the whole coverage check when there is
+    // no solvable). Parity with matchStringTemplate.
+    fn emitTemplateCursor(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        segments: []const Ast.Segment,
+        reg: u8,
+        regs: TemplateRegs,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchType,
+            .byte1 = reg,
+            .byte2 = 2,
+        } }, region));
+
+        // Normalize segments: fold constants into adjacent literal runs
+        // (interned eagerly) and classify the rest.
+        var effs = ArrayList(EffSeg){};
+        defer effs.deinit(allocator);
+        var lit = ArrayList(u8){};
+        defer lit.deinit(allocator);
+        var solvable_index: ?usize = null;
+
+        for (segments) |segment| switch (segment) {
+            .literal => |s| try lit.appendSlice(allocator, s),
+            .part => |part| switch (self.templatePartKind(ast, part)) {
+                .literal_fold => {
+                    const elem = try self.goalPatternConstElem(ast, part.expr);
+                    const str = try elem.toString(self.vm);
+                    const bytes = (try str.stringBytes(self.vm)).?;
+                    try lit.appendSlice(allocator, bytes);
+                },
+                .value => {
+                    try self.flushTemplateLit(module_id, &effs, &lit, region);
+                    try effs.append(allocator, .{ .value = part });
+                },
+                .char_range => {
+                    try self.flushTemplateLit(module_id, &effs, &lit, region);
+                    try effs.append(allocator, .{ .char_range = part.sub });
+                },
+                .solvable_raw, .solvable_cast => {
+                    try self.flushTemplateLit(module_id, &effs, &lit, region);
+                    solvable_index = effs.items.len;
+                    try effs.append(allocator, .{ .solvable = part });
+                },
+                .gate => unreachable,
+            },
+        };
+        try self.flushTemplateLit(module_id, &effs, &lit, region);
+
+        // Whole-string template: the solvable is the only segment, so front
+        // is 0 and end is the byte length by construction. The cursors and
+        // the rest substring are pure overhead — the source value is the
+        // rest — so skip MatchSpanInit/MatchSpanRest and act on reg directly.
+        if (solvable_index != null and solvable_index.? == 0 and effs.items.len == 1) {
+            switch (effs.items[0].solvable) {
+                .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                    .op = .MatchBind,
+                    .byte1 = ls.slot,
+                    .byte2 = reg,
+                } }, region),
+                .placeholder => {},
+                .sub => |set_id| try self.emitTemplateSubCast(module_id, ast, set_id, reg, regs.rest, dead_reg, fail_jumps, region),
+                else => unreachable,
+            }
+            return;
+        }
+
+        _ = try self.ir().push(allocator, .{ .match_span_init = .{
+            .op = .MatchSpanInit,
+            .src = reg,
+            .front = regs.front,
+            .end = regs.end,
+        } }, region);
+
+        const before_end = solvable_index orelse effs.items.len;
+
+        // Before-segments: chomp the front cursor forward, in source order.
+        for (effs.items[0..before_end]) |seg| {
+            try self.emitTemplateSegment(module_id, ast, seg, reg, regs, false, fail_jumps, region);
+        }
+
+        // After-segments: chomp the end cursor backward, in reverse order.
+        if (solvable_index) |si| {
+            var i = effs.items.len;
+            while (i > si + 1) {
+                i -= 1;
+                try self.emitTemplateSegment(module_id, ast, effs.items[i], reg, regs, true, fail_jumps, region);
+            }
+
+            switch (effs.items[si].solvable) {
+                .bind => |ls| {
+                    try self.emitTemplateRest(reg, regs, region);
+                    _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                        .op = .MatchBind,
+                        .byte1 = ls.slot,
+                        .byte2 = regs.rest,
+                    } }, region);
+                },
+                // A placeholder absorbs the gap between the cursors; no
+                // step needed.
+                .placeholder => {},
+                // A merge or structural cast solvable: take the raw
+                // substring, cast it in place, and run the residual (a
+                // merge residual, or a child window for a structural cast)
+                // against it.
+                .sub => |set_id| {
+                    try self.emitTemplateRest(reg, regs, region);
+                    try self.emitTemplateSubCast(module_id, ast, set_id, regs.rest, regs.rest, dead_reg, fail_jumps, region);
+                },
+                else => unreachable,
+            }
+        } else {
+            // No solvable: the fixed segments must cover the whole string.
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = regs.front,
+                .kind = .reg,
+                .arg = regs.end,
+            } }, region));
+        }
+    }
+
+    // A template solvable sub-pattern cast: a number/boolean merge casts
+    // to its resolved type and runs the merge residual (emitTemplateCast);
+    // a structural array/object cast parses JSON and matches the parsed
+    // container in a child window (emitTemplateStructuralCast).
+    fn emitTemplateSubCast(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        set_id: Ast.SetId,
+        cast_src: u8,
+        cast_dst: u8,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        if (templateRangeLimits(ast, set_id) != null) {
+            try self.emitTemplateRangeCast(module_id, ast, set_id, cast_src, cast_dst, fail_jumps, region);
+        } else if (self.templateMergeSolvable(ast, set_id) != null) {
+            try self.emitTemplateCast(module_id, ast, set_id, cast_src, cast_dst, dead_reg, fail_jumps, region);
+        } else if (self.templateRepeatSolvable(ast, set_id)) {
+            try self.emitTemplateRepeat(module_id, ast, set_id, cast_src, fail_jumps, region);
+        } else {
+            try self.emitTemplateStructuralCast(module_id, ast, set_id, cast_src, cast_dst, fail_jumps, region);
+        }
+    }
+
+    // A repeat template segment: the span (cast_src) is already the string
+    // the repeat matches — the source value for a lone segment, or the
+    // materialized residual substring (MatchSpanRest) between the fixed
+    // cursors — so run the repeat's steps against it in a child window with
+    // no cast.
+    fn emitTemplateRepeat(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        set_id: Ast.SetId,
+        cast_src: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const set = &ast.constraint_sets.items[set_id];
+        try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{
+            .src_reg = cast_src,
+            .on_fail = .{ .arm = fail_jumps },
+            .bind_mode = .bind,
+        } }, region);
+    }
+
+    // Cast a numeric-range solvable's byte range (cast_src) to a number
+    // into cast_dst, then range-test it. cast_src == cast_dst is the
+    // in-place form used after MatchSpanRest; the whole-string path casts
+    // the source value directly. A non-numeric byte range fails the cast.
+    fn emitTemplateRangeCast(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        set_id: Ast.SetId,
+        cast_src: u8,
+        cast_dst: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
+            .dst = cast_dst,
+            .src = cast_src,
+            .ty = .number,
+        } }, region));
+        const limits = templateRangeLimits(ast, set_id).?;
+        try self.emitInRangeStep(module_id, ast, cast_dst, limits.lower, limits.upper, fail_jumps, region);
+    }
+
+    // Parse the solvable's byte range (cast_src) as JSON into cast_dst,
+    // then match the parsed container against the sub-pattern in a child
+    // window scrutinized by cast_dst. A parse failure or a rejected match
+    // fails the whole template (a forward jump to the arm's fail tail).
+    // cast_src == cast_dst is the in-place form used after MatchSpanRest;
+    // the whole-string path casts the source value directly.
+    fn emitTemplateStructuralCast(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        set_id: Ast.SetId,
+        cast_src: u8,
+        cast_dst: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
+            .dst = cast_dst,
+            .src = cast_src,
+            .ty = .json,
+        } }, region));
+        const set = &ast.constraint_sets.items[set_id];
+        try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{
+            .src_reg = cast_dst,
+            .on_fail = .{ .arm = fail_jumps },
+            .bind_mode = .bind,
+        } }, region);
+    }
+
+    // Cast a merge solvable's byte range (cast_src) to its resolved type
+    // into cast_dst, then run the merge residual against cast_dst.
+    // cast_src == cast_dst is the in-place form used after MatchSpanRest;
+    // the whole-string path casts the source value directly.
+    fn emitTemplateCast(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        set_id: Ast.SetId,
+        cast_src: u8,
+        cast_dst: u8,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        const set = &ast.constraint_sets.items[set_id];
+        const merge = set.constraints.items[0].kind.solve_merge;
+        const cast_ty: MatchCastKind = switch (self.templateMergeSolvable(ast, set_id).?) {
+            .number => .number,
+            .boolean => .boolean,
+        };
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cast = .{
+            .dst = cast_dst,
+            .src = cast_src,
+            .ty = cast_ty,
+        } }, region));
+        try self.emitMergeSolve(module_id, ast, merge.ty, merge.parts.items, cast_dst, dead_reg, cast_ty == .number, fail_jumps, region);
+    }
+
+    fn emitTemplateRest(self: *Compiler, reg: u8, regs: TemplateRegs, region: Region) Error!void {
+        _ = try self.ir().push(self.vm.allocator, .{ .match_span_rest = .{
+            .op = .MatchSpanRest,
+            .dst = regs.rest,
+            .src = reg,
+            .front = regs.front,
+            .end = regs.end,
+        } }, region);
+    }
+
+    fn flushTemplateLit(
+        self: *Compiler,
+        module_id: Module.Id,
+        effs: *ArrayList(EffSeg),
+        lit: *ArrayList(u8),
+        region: Region,
+    ) Error!void {
+        if (lit.items.len == 0) return;
+        const sid = try self.vm.strings.insert(lit.items);
+        const constant = try self.makeConstantU16(module_id, Elem.string(sid), region);
+        try effs.append(self.vm.allocator, .{ .lit = constant });
+        lit.clearRetainingCapacity();
+    }
+
+    // One cursor-path segment chomp. `back` selects the end cursor (chomp
+    // backward) over the front cursor (chomp forward); the opposite cursor
+    // bounds the chomp.
+    fn emitTemplateSegment(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        seg: EffSeg,
+        reg: u8,
+        regs: TemplateRegs,
+        back: bool,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        const cursor = if (back) regs.end else regs.front;
+        const opp = if (back) regs.front else regs.end;
+        const back_byte: u8 = if (back) 1 else 0;
+        switch (seg) {
+            .lit => |constant| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_str_lit = .{
+                .op = .MatchStrLit,
+                .src = reg,
+                .cursor = cursor,
+                .opp = opp,
+                .back = back_byte,
+                .constant = constant,
+            } }, region)),
+            .value => |part| {
+                try self.emitEvaluablePartValue(module_id, ast, part, region);
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_span_val = .{
+                    .op = .MatchSpanVal,
+                    .src = reg,
+                    .cursor = cursor,
+                    .opp = opp,
+                    .back = back_byte,
+                } }, region));
+            },
+            .char_range => |set_id| {
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_str_char = .{
+                    .op = .MatchStrChar,
+                    .dst = regs.char,
+                    .src = reg,
+                    .cursor = cursor,
+                    .opp = opp,
+                    .back = back_byte,
+                } }, region));
+                // A codepoint range compares the decoded character directly;
+                // numeric ranges take the whole-substring cast path
+                // (emitTemplateRangeCast), not this per-codepoint one.
+                const limits = templateRangeLimits(ast, set_id).?;
+                try self.emitInRangeStep(module_id, ast, regs.char, limits.lower, limits.upper, fail_jumps, region);
+            },
+            .solvable => unreachable,
+        }
+    }
+
+    // A range test rooted at a register, decomposed into per-bound steps.
+    // First the range-value type gate (MatchType class 3: number or single
+    // codepoint) that MatchInRange applied up front — emitted every time,
+    // since a comparison bound can't carry it (compareRangeBound
+    // short-circuits to true on a ValueVar value, which the gate rejects).
+    // Then each bound as its own step, in source order.
+    fn emitInRangeStep(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        reg: u8,
+        lower: Ast.Limit,
+        upper: Ast.Limit,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchType,
+            .byte1 = reg,
+            .byte2 = 3,
+        } }, region));
+        try self.emitRangeBound(module_id, ast, lower, reg, false, fail_jumps, region);
+        try self.emitRangeBound(module_id, ast, upper, reg, true, fail_jumps, region);
+    }
+
+    // Emit one end of a range as its own step(s), mirroring matchRangeLimit.
+    // An open (none) bound emits nothing; a bind bound binds the value; a
+    // const/read bound emits MatchBound; an evaluable bound (expr, or a
+    // zero-arity function global) evaluates then MatchRangeBound. A
+    // non-function global becomes a constant MatchBound.
+    fn emitRangeBound(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        limit: Ast.Limit,
+        reg: u8,
+        is_upper: bool,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        switch (limit) {
+            .none => {},
+            .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchBind,
+                .byte1 = ls.slot,
+                .byte2 = reg,
+            } }, region),
+            .read => |ls| try self.emitMatchBound(reg, is_upper, RangeLimitKind.read, ls.slot, fail_jumps, region),
+            .global => |name| {
+                const global = self.resolveGlobal(module_id, name) orelse {
+                    try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+                    return Error.UndefinedVariable;
+                };
+                if (global.isDynType(.Function)) {
+                    if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+                    try self.writeCallFunctionConstant(module_id, global, region);
+                    try self.emitRangeBoundEval(reg, is_upper, fail_jumps, region);
+                } else {
+                    const constant = try self.makeConstantU16(module_id, global, region);
+                    try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fail_jumps, region);
+                }
+            },
+            .local => return error.UnsupportedPattern,
+            .expr => |id| {
+                if (self.constPatternNode(ast, id)) {
+                    const elem = try self.goalPatternConstElem(ast, id);
+                    if (!elem.isRangeBound(self.vm.*)) {
+                        try self.printError(module_id, region, "Range bound must be an integer or codepoint", .{});
+                        return Error.InvalidAst;
+                    }
+                    const constant = try self.makeConstantU16(module_id, elem, region);
+                    try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fail_jumps, region);
+                } else {
+                    try self.writeGoal(module_id, ast, id);
+                    try self.emitRangeBoundEval(reg, is_upper, fail_jumps, region);
+                }
+            },
+        }
+    }
+
+    fn emitMatchBound(
+        self: *Compiler,
+        reg: u8,
+        is_upper: bool,
+        kind: RangeLimitKind,
+        arg: u16,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_bound = .{
+            .op = .MatchBound,
+            .reg = reg,
+            .is_upper = @intFromBool(is_upper),
+            .kind = @intFromEnum(kind),
+            .arg = arg,
+        } }, region));
+    }
+
+    fn emitRangeBoundEval(
+        self: *Compiler,
+        reg: u8,
+        is_upper: bool,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchRangeBound,
+            .byte1 = reg,
+            .byte2 = @intFromBool(is_upper),
+        } }, region));
+    }
+
+    // A bare negation composes with any stepable inner. An evaluable
+    // inner (read, global, expr) negates its own evaluated result; a
+    // structural inner (bind, placeholder, sub) negates the scrutinee and
+    // matches against it, so a sub-pattern steps when its own set does.
+    fn negatedStepable(self: *Compiler, ast: *const Ast, part: Ast.Part) bool {
+        return switch (part) {
+            .bind, .placeholder, .read, .global, .expr => true,
+            .sub => |set_id| self.constraintsStepable(ast, ast.constraint_sets.items[set_id].constraints.items),
+            .local => false,
+        };
+    }
+
+    // Match a negated inner against its place. An evaluable inner mirrors
+    // the plan's negated-eval path: evaluate the pattern, negate the
+    // result (NegateNumber errors on a non-number, like the interpreter),
+    // then compare against the scrutinee. A structural inner negates the
+    // scrutinee in place — an odd count flips the sign (negate),
+    // an even count is the identity but still number-gates via a zero
+    // constant — then binds or matches the inner against the negated value.
+    fn emitNegatedStep(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        count: u32,
+        part: Ast.Part,
+        reg: u8,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        switch (part) {
+            .read, .global, .expr => {
+                try self.emitEvaluablePartValue(module_id, ast, part, region);
+                var i: u32 = 0;
+                while (i < count) : (i += 1) try self.emitOp(.NegateNumber, region);
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                    .op = .MatchEval,
+                    .byte1 = reg,
+                    .byte2 = 0,
+                } }, region));
+            },
+            .bind, .placeholder, .sub => {
+                const constant = try self.makeConstantU16(module_id, Elem.numberFloat(0), region);
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_merge_num = .{
+                    .dst = dead_reg,
+                    .src = reg,
+                    .constant = constant,
+                    .negate = count % 2 == 1,
+                } }, region));
+                switch (part) {
+                    .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                        .op = .MatchBind,
+                        .byte1 = ls.slot,
+                        .byte2 = dead_reg,
+                    } }, region),
+                    .placeholder => {},
+                    .sub => |set_id| {
+                        const set = &ast.constraint_sets.items[set_id];
+                        try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{ .src_reg = dead_reg, .on_fail = .{ .arm = fail_jumps } } }, region);
+                    },
+                    else => unreachable,
+                }
+            },
+            .local => unreachable,
+        }
+    }
+
+    // Push an evaluable part's value onto the stack: a bound local, a
+    // global (invoking a zero-arity function like the plan's const_fn), or
+    // an expression goal (a constant or a call). Shared by negation and
+    // template value holes.
+    fn emitEvaluablePartValue(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        part: Ast.Part,
+        region: Region,
+    ) Error!void {
+        switch (part) {
+            .read => |ls| try self.emitUnaryOp(.GetLocal, ls.slot, region),
+            .global => |name| {
+                const global = self.resolveGlobal(module_id, name) orelse {
+                    try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+                    return Error.UndefinedVariable;
+                };
+                // Only zero-arity functions evaluate per match; the plan
+                // path rejects the rest at compile time too.
+                if (global.isDynType(.Function)) {
+                    if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+                    try self.writeCallFunctionConstant(module_id, global, region);
+                } else {
+                    try self.writeConstant(module_id, global, region);
+                }
+            },
+            .expr => |id| try self.writeGoal(module_id, ast, id),
+            else => unreachable,
+        }
+    }
+
+    fn ensureGoalPlace(
+        self: *Compiler,
+        module_id: Module.Id,
+        constraints: []const Ast.Constraint,
+        places: []const Ast.PlaceDef,
+        materialized: []bool,
+        scratch_base: u8,
+        place: Ast.PlaceId,
+        region: Region,
+    ) Error!void {
+        if (materialized[place]) return;
+        switch (places[place]) {
+            .scrutinee => unreachable,
+            .elem => |e| {
+                try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, e.src, region);
+                _ = try self.ir().push(self.vm.allocator, .{ .match_bytes = .{
+                    .op = .MatchElem,
+                    .byte1 = scratch_base + @as(u8, @intCast(place)),
+                    .byte2 = scratch_base + @as(u8, @intCast(e.src)),
+                    .byte3 = @intCast(e.index),
+                    .byte4 = 0,
+                } }, region);
+            },
+            .elem_back => |e| {
+                try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, e.src, region);
+                _ = try self.ir().push(self.vm.allocator, .{ .match_bytes = .{
+                    .op = .MatchElem,
+                    .byte1 = scratch_base + @as(u8, @intCast(place)),
+                    .byte2 = scratch_base + @as(u8, @intCast(e.src)),
+                    .byte3 = @intCast(e.index),
+                    .byte4 = 1,
+                } }, region);
+            },
+            .slice => |s| {
+                try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, s.src, region);
+                _ = try self.ir().push(self.vm.allocator, .{ .match_bytes = .{
+                    .op = .MatchSlice,
+                    .byte1 = scratch_base + @as(u8, @intCast(place)),
+                    .byte2 = scratch_base + @as(u8, @intCast(s.src)),
+                    .byte3 = @intCast(s.front),
+                    .byte4 = @intCast(s.back),
+                } }, region);
+            },
+            .members_rest => |r| {
+                try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, r.src, region);
+                // A claim array on the place — an object-merge repeat's, or
+                // a search group's (seeded with the const keys, grown by the
+                // pairs) — holds every claimed key; the rest is src minus
+                // that array.
+                const claim = findClaimGroup(self.arm_claim_members, r.src) orelse
+                    findClaimGroup(self.arm_search_groups, r.src);
+                if (claim) |group| {
+                    _ = try self.ir().push(self.vm.allocator, .{ .match_claim_rest = .{
+                        .op = .MatchClaimRest,
+                        .dst = scratch_base + @as(u8, @intCast(place)),
+                        .src = scratch_base + @as(u8, @intCast(r.src)),
+                        .claim = group.reg,
+                    } }, region);
+                    materialized[place] = true;
+                    return;
+                }
+                // No claims beyond the const-key pairs: subtract the
+                // key-list constant directly, no claim array involved.
+                const constant = try self.hasKeyListConstant(module_id, constraints, r.src, region);
+                _ = try self.ir().push(self.vm.allocator, .{ .match_const = .{
+                    .op = .MatchObjectRest,
+                    .byte1 = scratch_base + @as(u8, @intCast(place)),
+                    .byte2 = scratch_base + @as(u8, @intCast(r.src)),
+                    .constant = constant,
+                } }, region);
+            },
+            // Key places materialize at their has_key constraint.
+            .key => @panic("Internal Error: key place used before its has_key constraint"),
+        }
+        materialized[place] = true;
     }
 
     fn printError(self: *Compiler, module_id: Module.Id, region: Region, comptime message: []const u8, args: anytype) !void {

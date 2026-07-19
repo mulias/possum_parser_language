@@ -58,11 +58,9 @@ inside them:
     p (parser `maybe`, stdlib/combinator.possum:16:11)
     "9" (parser `_number_integer_part`, stdlib/number.possum:53:29)
     "9" (parser `numeral`, stdlib/string.possum:19:15)
-    "%(0 + N)" (parser `as_number`, stdlib/combinator.possum:36:20)
     '"' (parser `string`, stdlib/json.possum:20:9)
     "[" (parser `array`, stdlib/json.possum:56:14)
     "{" (parser `object`, stdlib/json.possum:59:2)
-    Elem (parser `tuple1`, stdlib/array.possum:15:24)
   
   Parse trace (pruned to attempts reaching 1:4):
   
@@ -124,8 +122,6 @@ check:
   @main  \xe2\x9c\x97 at 1:6 (esc)
   \xe2\x94\x9c\xe2\x94\x80 @main \xc2\xbb value  \xe2\x9c\x93 consumed 1:0..1:6 (esc)
   \xe2\x94\x94\xe2\x94\x80 destructure at program:1:8  \xe2\x9c\x97 [1, 2] did not match [A, A] (esc)
-     \xe2\x94\x9c\xe2\x94\x80 1 vs A  \xe2\x9c\x93  A bound to 1 (esc)
-     \xe2\x94\x94\xe2\x94\x80 2 vs A  \xe2\x9c\x97 (esc)
   
   pruned: 1 successful subtrees, 0 failed attempts falling short of 1:6
   [ParserFailure]
@@ -155,8 +151,6 @@ A nested object pattern failure shows the failing key path:
   @main  \xe2\x9c\x97 at 1:22 (esc)
   \xe2\x94\x9c\xe2\x94\x80 @main \xc2\xbb value \xc2\xbb object  \xe2\x9c\x93 consumed 1:0..1:22 (esc)
   \xe2\x94\x94\xe2\x94\x80 destructure at program:1:8  \xe2\x9c\x97 {"user": {"age": 200}} did not match {"user": {"age": 0..150}} (esc)
-     \xe2\x94\x94\xe2\x94\x80 {"age": 200} vs {"age": 0..150}  \xe2\x9c\x97 (esc)
-        \xe2\x94\x94\xe2\x94\x80 200 vs 0..150  \xe2\x9c\x97 (esc)
   
   pruned: 1 successful subtrees, 0 failed attempts falling short of 1:22
   [ParserFailure]

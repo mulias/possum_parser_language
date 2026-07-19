@@ -385,6 +385,11 @@ pub const GC = struct {
             self.markElem(value);
         }
 
+        // Match scratch registers hold live handles like the value stack.
+        for (self.vm.match_regs.items) |value| {
+            self.markElem(value);
+        }
+
         if (self.print_trace) {
             self.vm.writers.debug.print("    frames: {}\n", .{self.vm.frames.items.len}) catch {};
         }

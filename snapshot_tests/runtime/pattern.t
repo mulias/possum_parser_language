@@ -1,21 +1,9 @@
-  $ export PRINT_DESTRUCTURE=true
-
   $ possum -p '4 -> (1 + 1 + 2)' -i '4'
-  
-  Destructure:
-      4 -> 4
-      4 -> 4
-  Destructure Success: 4 -> 4
   4
 
   $ possum -p '0 -> (1 + 1 + 2)' -i '0'
   
-  Destructure:
-      0 -> 4
-      0 -> 4
-  Destructure Failure: 0 -> 4
-  
-  Parse Failure: value 0 did not match pattern 1 + 1 + 2
+  Parse Failure: value 0 did not match pattern (1 + 1 + 2)
   
   input:1:1:
   
@@ -24,30 +12,20 @@
   
   while matching parser `@main`
   
-  program:1:6-15:
+  program:1:5-16:
   
   1 \xe2\x96\x8f 0 -> (1 + 1 + 2) (esc)
-    \xe2\x96\x8f       ^^^^^^^^^ (esc)
+    \xe2\x96\x8f      ^^^^^^^^^^^ (esc)
   
   [ParserFailure]
   [1]
 
   $ possum -p '5 -> (2 + 3)' -i '5'
-  
-  Destructure:
-      5 -> 5
-      5 -> 5
-  Destructure Success: 5 -> 5
   5
 
   $ possum -p '7 -> (2 + 3)' -i '7'
   
-  Destructure:
-      7 -> 5
-      7 -> 5
-  Destructure Failure: 7 -> 5
-  
-  Parse Failure: value 7 did not match pattern 2 + 3
+  Parse Failure: value 7 did not match pattern (2 + 3)
   
   input:1:1:
   
@@ -56,36 +34,21 @@
   
   while matching parser `@main`
   
-  program:1:6-11:
+  program:1:5-12:
   
   1 \xe2\x96\x8f 7 -> (2 + 3) (esc)
-    \xe2\x96\x8f       ^^^^^ (esc)
+    \xe2\x96\x8f      ^^^^^^^ (esc)
   
   [ParserFailure]
   [1]
 
   $ possum -p '10 -> (3 + 2 + 5)' -i '10'
-  
-  Destructure:
-      10 -> 10
-      10 -> 10
-  Destructure Success: 10 -> 10
   10
 
   $ possum -p 'X = 3; 7 -> (X + 4)' -i '7'
-  
-  Destructure:
-      7 -> (3 + 4)
-      7 -> 7
-  Destructure Success: 7 -> (3 + 4)
   7
 
   $ possum -p 'X = 3; 8 -> (X + 4)' -i '8'
-  
-  Destructure:
-      8 -> (3 + 4)
-      8 -> 7
-  Destructure Failure: 8 -> (3 + 4)
   
   Parse Failure: value 8 did not match pattern (X + 4)
   
@@ -105,936 +68,386 @@
   [1]
 
   $ possum -p 'X = 2; Y = 3; 5 -> (X + Y)' -i '5'
-  
-  Destructure:
-      5 -> (2 + 3)
-      5 -> 5
-  Destructure Success: 5 -> (2 + 3)
   5
 
   $ possum -p '6 -> (1 + X + 3) $ X' -i '6'
-  
-  Destructure:
-      6 -> (1 + X + 3)
-          2 -> X
-  Destructure Success: 6 -> (1 + X + 3)
   2
 
   $ possum -p '8 -> (2 + X + 3) $ X' -i '8'
-  
-  Destructure:
-      8 -> (2 + X + 3)
-          3 -> X
-  Destructure Success: 8 -> (2 + X + 3)
   3
 
   $ possum -p '5 -> (1 + 6 + 3 - (2 + 3))' -i '5'
-  
-  Destructure:
-      5 -> 5
-      5 -> 5
-  Destructure Success: 5 -> 5
   5
 
   $ possum -p '5 -> (X + 6 + 3 - (2 + 3)) $ X' -i '5'
-  
-  Destructure:
-      5 -> (X + 6 + 3 + -5)
-          1 -> X
-  Destructure Success: 5 -> (X + 6 + 3 + -5)
   1
 
   $ possum -p '5 -> (1 + 6 + 3 - (X + 3)) $ X' -i '5'
-  
-  Destructure:
-      5 -> (10 + -X + -3)
-          -2 -> -X
-              2 -> X
-  Destructure Success: 5 -> (10 + -X + -3)
   2
 
   $ possum -p 'const([1,2,3]) -> [1, -X, 3] $ X' -i ''
-  
-  Destructure:
-      [1, 2, 3] -> [1, -X, 3]
-          1 -> 1
-          1 -> 1
-          2 -> -X
-              -2 -> X
-          3 -> 3
-          3 -> 3
-  Destructure Success: [1, 2, 3] -> [1, -X, 3]
   -2
 
   $ possum -p '5 -> -X $ X' -i '5'
-  
-  Destructure:
-      5 -> -X
-          -5 -> X
-  Destructure Success: 5 -> -X
   -5
 
   $ possum -p '5 -> --X $ X' -i '5'
-  
-  Destructure:
-      5 -> --X
-          5 -> X
-  Destructure Success: 5 -> --X
   5
 
   $ possum -p '5 -> -(X + 1) $ X' -i '5'
-  
-  Destructure:
-      5 -> (-X + -1)
-          6 -> -X
-              -6 -> X
-  Destructure Success: 5 -> (-X + -1)
   -6
 
   $ possum -p '5 -> Num.Add(3,2)' -i '5'
-  
-  Destructure:
-      5 -> @Add(3, 2)
-  
-  Eval Pattern Function: @Add(3, 2)
-  
-      5 -> 5
-  Destructure Success: 5 -> @Add(3, 2)
   5
 
   $ possum -p '"29" -> "%(0 + N)" $ N' -i '29'
-  
-  Destructure:
-      "29" -> "%(0 + N)"
-          29 -> (0 + N)
-              29 -> N
-  Destructure Success: "29" -> "%(0 + N)"
   29
 
   $ possum -p 'const({"ab": 2}) -> {"a" + B: 2} $ B' -i ''
-  
-  Destructure:
-      {"ab": 2} -> {("a" + B): 2}
-          {"ab": 2} -> {("a" + B): 2}
-              "ab" -> ("a" + B)
-                  "a" -> "a"
-                  "b" -> B
-              2 -> 2
-              2 -> 2
-  Destructure Success: {"ab": 2} -> {("a" + B): 2}
-  "b"
+  [UnsupportedPattern]
+  [1]
 
   $ possum -p '"123" -> "%(A)"' -i '123'
-  
-  Destructure:
-      "123" -> "%(A)"
-          "123" -> A
-  Destructure Success: "123" -> "%(A)"
   "123"
 
   $ possum -p '"ab" > "cdef" -> ("c" + X)' -i 'abcdef'
-  
-  Destructure:
-      "cdef" -> ("c" + X)
-          "c" -> "c"
-          "def" -> X
-  Destructure Success: "cdef" -> ("c" + X)
   "cdef"
 
   $ possum -p '"ab" > "cdef" -> "c%(X)"' -i 'abcdef'
-  
-  Destructure:
-      "cdef" -> "c%(X)"
-          "c" -> "c"
-          "def" -> X
-  Destructure Success: "cdef" -> "c%(X)"
   "cdef"
 
   $ possum -p 'A = {"x": 1} ; const({"z": true, "x": 1}) -> (B + A) $ B' -i ''
-  
-  Destructure:
-      {"z": true, "x": 1} -> (B + A)
-  
-  Eval Pattern Function: A
-  
-      1 -> 1
-          {"z": true} -> B
-  Destructure Success: {"z": true, "x": 1} -> (B + A)
   {"z": true}
 
   $ possum -p 'A = {"x": 1} ; const($`{"z": true, "x": 1}`) -> "%(B + A)" $ B' -i ''
+  [UnsupportedPattern]
+  [1]
+
+An untyped merge (`part + X`) whose parts are runtime values dispatches on
+the parts' type at match time: number subtract, string / array prefix,
+object key removal, or boolean OR.
+
+  $ possum -p 'G = "" $ 9 ; ("" $ 14) -> (G + X) $ X' -i ''
+  5
+
+  $ possum -p 'I(V) = V ; ("" $ 14) -> (I(2) + X) $ X' -i ''
+  12
+
+  $ possum -p 'P = "" $ "abc" ; ("" $ "abcdef") -> (P + X) $ X' -i ''
+  "def"
+
+  $ possum -p 'P = "" $ [1, 2] ; const([1, 2, 3, 4]) -> (P + X) $ X' -i ''
+  [3, 4]
+
+  $ possum -p 'P = "" $ {"x": 1} ; const({"x": 1, "y": 2}) -> (P + X) $ X' -i ''
+  {"y": 2}
+
+  $ possum -p 'P = "" $ $true ; const($true) -> (P + X) $ X' -i ''
+  false
+
+The solvable can sit at either end or between the known parts. A leading
+solvable strips the known parts from the end (string / array suffix); an
+interior solvable carves the span between the leading prefix and trailing
+suffix. Order-independent types (number, object) subtract both groups.
+
+  $ possum -p 'P = "" $ "def" ; ("" $ "abcdef") -> (X + P) $ X' -i ''
+  "abc"
+
+  $ possum -p 'P = "" $ [3, 4] ; const([1, 2, 3, 4]) -> (X + P) $ X' -i ''
+  [1, 2]
+
+  $ possum -p 'A = "" $ "ab" ; C = "" $ "ef" ; ("" $ "abcdef") -> (A + X + C) $ X' -i ''
+  "cd"
+
+  $ possum -p 'A = "" $ [1] ; C = "" $ [4] ; const([1, 2, 3, 4]) -> (A + X + C) $ X' -i ''
+  [2, 3]
+
+  $ possum -p 'A = "" $ 2 ; C = "" $ 3 ; ("" $ 10) -> (A + X + C) $ X' -i ''
+  5
+
+  $ possum -p 'A = {"a": 1} ; C = {"c": 3} ; const({"a": 1, "b": 2, "c": 3}) -> (A + X + C) $ X' -i ''
+  {"b": 2}
+
+A part that is not a prefix of the value fails the match:
+
+  $ possum -p 'P = "" $ "zzz" ; ("" $ "abcdef") -> (P + X) $ X' -i ''
   
-  Destructure:
-      "{"z": true, "x": 1}" -> "%(B + A)"
+  Parse Failure: value "abcdef" did not match pattern (P + X)
   
-  Eval Pattern Function: A
+  input:1:0:
   
-          {"z": true, "x": 1} -> (B + A)
-          1 -> 1
-              {"z": true} -> B
-  Destructure Success: "{"z": true, "x": 1}" -> "%(B + A)"
-  {"z": true}
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:36-43:
+  
+  1 \xe2\x96\x8f P = "" $ "zzz" ; ("" $ "abcdef") -> (P + X) $ X (esc)
+    \xe2\x96\x8f                                     ^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
 
   $ possum -p '123 -> V' -i '123'
-  
-  Destructure:
-      123 -> V
-  Destructure Success: 123 -> V
   123
 
   $ possum -p '"abc" -> "abc"' -i 'abc'
-  
-  Destructure:
-      "abc" -> "abc"
-      "abc" -> "abc"
-  Destructure Success: "abc" -> "abc"
   "abc"
 
   $ possum -p 'many(char) -> `\nfoo`' -i '\nfoo'
-  
-  Destructure:
-      "\nfoo" -> "\nfoo"
-      "\nfoo" -> "\nfoo"
-  Destructure Success: "\nfoo" -> "\nfoo"
   "\\nfoo"
 
-  $ possum -p 'many(char) -> "%(`a`..`z`)%(_)"' -i 'abcd'
+  $ possum -p '"a3" -> "a%(1..5)"' -i 'a3'
+  "a3"
+
+  $ possum -p '"a7" -> "a%(1..5)"' -i 'a7'
   
-  Destructure:
-      "abcd" -> "%("a".."z")%(_)"
-          "a" -> "a".."z"
-          "bcd" -> _
-  Destructure Success: "abcd" -> "%("a".."z")%(_)"
+  Parse Failure: value "a7" did not match pattern "a%(1..5)"
+  
+  input:1:2:
+  
+  1 \xe2\x96\x8f a7 (esc)
+    \xe2\x96\x8f   ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:8-18:
+  
+  1 \xe2\x96\x8f "a7" -> "a%(1..5)" (esc)
+    \xe2\x96\x8f         ^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p '"ax" -> "a%(1..5)"' -i 'ax'
+  
+  Parse Failure: value "ax" did not match pattern "a%(1..5)"
+  
+  input:1:2:
+  
+  1 \xe2\x96\x8f ax (esc)
+    \xe2\x96\x8f   ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:8-18:
+  
+  1 \xe2\x96\x8f "ax" -> "a%(1..5)" (esc)
+    \xe2\x96\x8f         ^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p 'many(char) -> "%(`a`..`z`)%(_)"' -i 'abcd'
   "abcd"
 
   $ possum -p 'numerals -> ("3" * 10)' -i '3333333333'
-  
-  Destructure:
-      "3333333333" -> "3333333333"
-      "3333333333" -> "3333333333"
-  Destructure Success: "3333333333" -> "3333333333"
   "3333333333"
 
   $ possum -p 'numerals -> ("3" * N) $ N' -i '3333333333'
-  
-  Destructure:
-      "3333333333" -> ("3" * N)
-          10 -> N
-  Destructure Success: "3333333333" -> ("3" * N)
   10
 
   $ possum -p '(char * 10) -> ("\u000000".. * 10)' -i '12345678901234567890'
-  
-  Destructure:
-      "1234567890" -> (_0_.. * 10)
-          "1" -> _0_..
-          "2" -> _0_..
-          "3" -> _0_..
-          "4" -> _0_..
-          "5" -> _0_..
-          "6" -> _0_..
-          "7" -> _0_..
-          "8" -> _0_..
-          "9" -> _0_..
-          "0" -> _0_..
-  Destructure Success: "1234567890" -> (_0_.. * 10)
   "1234567890"
 
   $ possum -p 'bool(1, 0) -> true' -i '1'
-  
-  Destructure:
-      true -> true
-      true -> true
-  Destructure Success: true -> true
   true
 
   $ possum -p 'int -> 5' -i '5'
-  
-  Destructure:
-      "5" -> "%(0 + N)"
-          5 -> (0 + N)
-              5 -> N
-  Destructure Success: "5" -> "%(0 + N)"
-  
-  Destructure:
-      5 -> 5
-      5 -> 5
-  Destructure Success: 5 -> 5
   5
 
   $ possum -p '5 -> 2..7' -i '5'
-  
-  Destructure:
-      5 -> 2..7
-  Destructure Success: 5 -> 2..7
   5
 
   $ possum -p '8 -> (0 + N)' -i '8'
-  
-  Destructure:
-      8 -> (0 + N)
-          8 -> N
-  Destructure Success: 8 -> (0 + N)
   8
 
   $ possum -p '8 -> (N + 100)' -i '8'
-  
-  Destructure:
-      8 -> (N + 100)
-          -92 -> N
-  Destructure Success: 8 -> (N + 100)
   8
 
   $ possum -p 'array(digit) -> [1, 2, 3]' -i '123'
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      2 -> Elem
-  Destructure Success: 2 -> Elem
-  
-  Destructure:
-      3 -> Elem
-  Destructure Success: 3 -> Elem
-  
-  Destructure:
-      [1, 2, 3] -> [1, 2, 3]
-          1 -> 1
-          1 -> 1
-          2 -> 2
-          2 -> 2
-          3 -> 3
-          3 -> 3
-  Destructure Success: [1, 2, 3] -> [1, 2, 3]
   [1, 2, 3]
 
   $ possum -p 'array(digit) -> [A, ..._]' -i '123'
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      2 -> Elem
-  Destructure Success: 2 -> Elem
-  
-  Destructure:
-      3 -> Elem
-  Destructure Success: 3 -> Elem
-  
-  Destructure:
-      [1, 2, 3] -> ([A] + _)
-          1 -> A
-          [2, 3] -> _
-  Destructure Success: [1, 2, 3] -> ([A] + _)
   [1, 2, 3]
 
   $ possum -p 'array(digit) -> ([1] * 5)' -i '11111'
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      [1, 1, 1, 1, 1] -> [1, 1, 1, 1, 1]
-          1 -> 1
-          1 -> 1
-          1 -> 1
-          1 -> 1
-          1 -> 1
-          1 -> 1
-          1 -> 1
-          1 -> 1
-          1 -> 1
-          1 -> 1
-  Destructure Success: [1, 1, 1, 1, 1] -> [1, 1, 1, 1, 1]
   [1, 1, 1, 1, 1]
 
   $ possum -p 'array(digit) -> ([A] * 5)' -i '11111'
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      [1, 1, 1, 1, 1] -> [A, A, A, A, A]
-          1 -> A
-          1 -> A
-          1 -> 1
-          1 -> A
-          1 -> 1
-          1 -> A
-          1 -> 1
-          1 -> A
-          1 -> 1
-  Destructure Success: [1, 1, 1, 1, 1] -> [A, A, A, A, A]
   [1, 1, 1, 1, 1]
 
   $ possum -p 'array(digit) -> ([1] * N) $ N' -i '11111111'
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      [1, 1, 1, 1, 1, 1, 1, 1] -> ([1] * N)
-      1 -> 1
-      1 -> 1
-      1 -> 1
-      1 -> 1
-      1 -> 1
-      1 -> 1
-      1 -> 1
-      1 -> 1
-          8 -> N
-  Destructure Success: [1, 1, 1, 1, 1, 1, 1, 1] -> ([1] * N)
   8
 
+A bare binder with an unbound count is under-constrained: the pattern greedily
+claims the whole value and the count binds to 1, the repeat's identity.
+
+  $ possum -p 'json -> (A * N) $ [A, N]' -i '"abcabc"'
+  ["abcabc", 1]
+
+  $ possum -p 'json -> (A * N) $ [A, N]' -i '[1, 2, 3]'
+  [
+    [1, 2, 3],
+    1
+  ]
+
+  $ possum -p 'json -> (_ * N) $ N' -i '42'
+  1
+
+An all-placeholder object chunk counts members: the count is the object's
+member count divided by the chunk's member count.
+
+  $ possum -p 'object(alpha, digit) -> ({_: _} * S) $ S' -i 'a1b2'
+  2
+
+  $ possum -p 'object(alpha, digit) -> ({_: _, _: _} * S) $ S' -i 'a1b2c3d4'
+  2
+
+  $ possum -p 'object(alpha, digit) -> ({_: _} * 2)' -i 'a1b2'
+  {"a": 1, "b": 2}
+
+  $ possum -p 'ObjLen(O) = O -> ({_: _} * L) $ L ; const(ObjLen({"a": 1, "b": 2, "c": 3}))' -i ''
+  3
+
+The chunk's container type is enforced: an object repeat rejects an array
+value and an array repeat rejects an object value.
+
+  $ possum -p 'const([1, 2]) -> ({_: _} * S) $ S' -i ''
+  
+  Parse Failure: value [1, 2] did not match pattern ({_: _} * S)
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:17-29:
+  
+  1 \xe2\x96\x8f const([1, 2]) -> ({_: _} * S) $ S (esc)
+    \xe2\x96\x8f                  ^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
   $ possum -p 'array(digit) -> [A, ..._, Z]' -i '12345678'
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      2 -> Elem
-  Destructure Success: 2 -> Elem
-  
-  Destructure:
-      3 -> Elem
-  Destructure Success: 3 -> Elem
-  
-  Destructure:
-      4 -> Elem
-  Destructure Success: 4 -> Elem
-  
-  Destructure:
-      5 -> Elem
-  Destructure Success: 5 -> Elem
-  
-  Destructure:
-      6 -> Elem
-  Destructure Success: 6 -> Elem
-  
-  Destructure:
-      7 -> Elem
-  Destructure Success: 7 -> Elem
-  
-  Destructure:
-      8 -> Elem
-  Destructure Success: 8 -> Elem
-  
-  Destructure:
-      [1, 2, 3, 4, 5, 6, 7, 8] -> ([A] + _ + [Z])
-          1 -> A
-          [2, 3, 4, 5, 6, 7] -> _
-          8 -> Z
-  Destructure Success: [1, 2, 3, 4, 5, 6, 7, 8] -> ([A] + _ + [Z])
   [1, 2, 3, 4, 5, 6, 7, 8]
 
   $ possum -p 'array(digit) -> [1, B, _]' -i '123'
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      2 -> Elem
-  Destructure Success: 2 -> Elem
-  
-  Destructure:
-      3 -> Elem
-  Destructure Success: 3 -> Elem
-  
-  Destructure:
-      [1, 2, 3] -> [1, B, _]
-          1 -> 1
-          1 -> 1
-          2 -> B
-          3 -> _
-  Destructure Success: [1, 2, 3] -> [1, B, _]
   [1, 2, 3]
 
   $ possum -p 'object(alpha, digit) -> {"a": 1, "b": 2}' -i 'a1b2'
-  
-  Destructure:
-      "a" -> K
-  Destructure Success: "a" -> K
-  
-  Destructure:
-      1 -> V
-  Destructure Success: 1 -> V
-  
-  Destructure:
-      "b" -> K
-  Destructure Success: "b" -> K
-  
-  Destructure:
-      2 -> V
-  Destructure Success: 2 -> V
-  
-  Destructure:
-      {"a": 1, "b": 2} -> {"a": 1, "b": 2}
-          {"a": 1} -> {"a": 1}
-              1 -> 1
-              1 -> 1
-          {"b": 2} -> {"b": 2}
-              2 -> 2
-              2 -> 2
-  Destructure Success: {"a": 1, "b": 2} -> {"a": 1, "b": 2}
   {"a": 1, "b": 2}
 
   $ possum -p 'object(alpha, digit) -> {"a": 1, ..._}' -i 'a1b2'
-  
-  Destructure:
-      "a" -> K
-  Destructure Success: "a" -> K
-  
-  Destructure:
-      1 -> V
-  Destructure Success: 1 -> V
-  
-  Destructure:
-      "b" -> K
-  Destructure Success: "b" -> K
-  
-  Destructure:
-      2 -> V
-  Destructure Success: 2 -> V
-  
-  Destructure:
-      {"a": 1, "b": 2} -> ({"a": 1} + _)
-          1 -> 1
-          1 -> 1
-          {"b": 2} -> _
-  Destructure Success: {"a": 1, "b": 2} -> ({"a": 1} + _)
   {"a": 1, "b": 2}
 
   $ possum -p 'object(alpha, digit) -> {_: 1, ..._}' -i 'a1b2'
-  
-  Destructure:
-      "a" -> K
-  Destructure Success: "a" -> K
-  
-  Destructure:
-      1 -> V
-  Destructure Success: 1 -> V
-  
-  Destructure:
-      "b" -> K
-  Destructure Success: "b" -> K
-  
-  Destructure:
-      2 -> V
-  Destructure Success: 2 -> V
-  
-  Destructure:
-      {"a": 1, "b": 2} -> ({_: 1} + _)
-          "a" -> _
-          1 -> 1
-          1 -> 1
-          {"b": 2} -> _
-  Destructure Success: {"a": 1, "b": 2} -> ({_: 1} + _)
   {"a": 1, "b": 2}
 
   $ possum -p 'object(alpha, digit) -> {"a": A, ..._}' -i 'a1b2'
-  
-  Destructure:
-      "a" -> K
-  Destructure Success: "a" -> K
-  
-  Destructure:
-      1 -> V
-  Destructure Success: 1 -> V
-  
-  Destructure:
-      "b" -> K
-  Destructure Success: "b" -> K
-  
-  Destructure:
-      2 -> V
-  Destructure Success: 2 -> V
-  
-  Destructure:
-      {"a": 1, "b": 2} -> ({"a": A} + _)
-          1 -> A
-          {"b": 2} -> _
-  Destructure Success: {"a": 1, "b": 2} -> ({"a": A} + _)
   {"a": 1, "b": 2}
 
   $ possum -p 'object(alpha, digit) -> {..._, "a": A}' -i 'a1b2'
-  
-  Destructure:
-      "a" -> K
-  Destructure Success: "a" -> K
-  
-  Destructure:
-      1 -> V
-  Destructure Success: 1 -> V
-  
-  Destructure:
-      "b" -> K
-  Destructure Success: "b" -> K
-  
-  Destructure:
-      2 -> V
-  Destructure Success: 2 -> V
-  
-  Destructure:
-      {"a": 1, "b": 2} -> ({} + _ + {"a": A})
-          1 -> A
-          {"b": 2} -> _
-  Destructure Success: {"a": 1, "b": 2} -> ({} + _ + {"a": A})
   {"a": 1, "b": 2}
 
   $ possum -p 'object(alpha, digit) -> {"a": _, "b": B}' -i 'a1b2'
-  
-  Destructure:
-      "a" -> K
-  Destructure Success: "a" -> K
-  
-  Destructure:
-      1 -> V
-  Destructure Success: 1 -> V
-  
-  Destructure:
-      "b" -> K
-  Destructure Success: "b" -> K
-  
-  Destructure:
-      2 -> V
-  Destructure Success: 2 -> V
-  
-  Destructure:
-      {"a": 1, "b": 2} -> {"a": _, "b": B}
-          {"a": 1} -> {"a": _}
-              1 -> _
-          {"b": 2} -> {"b": B}
-              2 -> B
-  Destructure Success: {"a": 1, "b": 2} -> {"a": _, "b": B}
   {"a": 1, "b": 2}
 
   $ possum -p 'array(digit) -> [...A]' -i '123'
-  
-  Destructure:
-      1 -> Elem
-  Destructure Success: 1 -> Elem
-  
-  Destructure:
-      2 -> Elem
-  Destructure Success: 2 -> Elem
-  
-  Destructure:
-      3 -> Elem
-  Destructure Success: 3 -> Elem
-  
-  Destructure:
-      [1, 2, 3] -> ([] + A)
-          [1, 2, 3] -> A
-  Destructure Success: [1, 2, 3] -> ([] + A)
   [1, 2, 3]
 
   $ possum -p 'object(alpha, digit) -> {...O}' -i 'a1b2'
-  
-  Destructure:
-      "a" -> K
-  Destructure Success: "a" -> K
-  
-  Destructure:
-      1 -> V
-  Destructure Success: 1 -> V
-  
-  Destructure:
-      "b" -> K
-  Destructure Success: "b" -> K
-  
-  Destructure:
-      2 -> V
-  Destructure Success: 2 -> V
-  
-  Destructure:
-      {"a": 1, "b": 2} -> ({} + O)
-          {"a": 1, "b": 2} -> O
-  Destructure Success: {"a": 1, "b": 2} -> ({} + O)
   {"a": 1, "b": 2}
 
   $ possum -p '"abc" -> "%(S)"' -i 'abc'
-  
-  Destructure:
-      "abc" -> "%(S)"
-          "abc" -> S
-  Destructure Success: "abc" -> "%(S)"
   "abc"
 
   $ possum -p '"null" -> "%(null)"' -i 'null'
-  
-  Destructure:
-      "null" -> ""null""
-          "null" -> "null"
-  Destructure Success: "null" -> ""null""
   "null"
 
   $ possum -p '"null" -> "%(null + N)" $ N' -i 'null'
-  
-  Destructure:
-      "null" -> "%(N)"
-          "null" -> N
-  Destructure Success: "null" -> "%(N)"
   "null"
 
   $ possum -p '"true" -> "%(true + B)" $ B' -i 'true'
-  
-  Destructure:
-      "true" -> "%(true + B)"
-          true -> (true + B)
-              false -> B
-  Destructure Success: "true" -> "%(true + B)"
   false
 
   $ possum -p '"123" -> "%(0 + N)"' -i '123'
-  
-  Destructure:
-      "123" -> "%(0 + N)"
-          123 -> (0 + N)
-              123 -> N
-  Destructure Success: "123" -> "%(0 + N)"
   "123"
 
   $ possum -p '"123" -> "%(N + 1)"' -i '123'
-  
-  Destructure:
-      "123" -> "%(N + 1)"
-          123 -> (N + 1)
-              122 -> N
-  Destructure Success: "123" -> "%(N + 1)"
   "123"
 
   $ possum -p '"[1,2,3]" -> "%([...A])"' -i '[1,2,3]'
-  
-  Destructure:
-      "[1,2,3]" -> "%([] + A)"
-          [1, 2, 3] -> ([] + A)
-              [1, 2, 3] -> A
-  Destructure Success: "[1,2,3]" -> "%([] + A)"
   "[1,2,3]"
 
   $ possum -p '`{"a": 1, "b": 2}` -> "%({..._})"' -i '{"a": 1, "b": 2}'
-  
-  Destructure:
-      "{"a": 1, "b": 2}" -> "%({} + _)"
-          {"a": 1, "b": 2} -> ({} + _)
-              {"a": 1, "b": 2} -> _
-  Destructure Success: "{"a": 1, "b": 2}" -> "%({} + _)"
   "{\"a\": 1, \"b\": 2}"
 
   $ possum -p '"abcabcabc" -> "%( `abc` * N)" $ N' -i 'abcabcabc'
-  
-  Destructure:
-      "abcabcabc" -> "%(("abc" * N))"
-          "abcabcabc" -> ("abc" * N)
-              3 -> N
-  Destructure Success: "abcabcabc" -> "%(("abc" * N))"
   3
 
+A repeat segment surrounded by literals matches the residual span the fixed
+literals leave between the cursors:
+
+  $ possum -p '"pre_ababab_end" -> "pre_%(`ab` * N)_end" $ N' -i 'pre_ababab_end'
+  3
+
+  $ possum -p '"x_aaaa" -> "x_%(`a` * N)" $ N' -i 'x_aaaa'
+  4
+
   $ possum -p '"prefix123123suffix" -> "%(`prefix` + (`123` * N) + `suffix`)" $ N' -i 'prefix123123suffix'
-  
-  Destructure:
-      "prefix123123suffix" -> "%("prefix" + ("123" * N) + "suffix")"
-          "prefix123123suffix" -> ("prefix" + ("123" * N) + "suffix")
-              "prefix" -> "prefix"
-              "123123" -> ("123" * N)
-                  2 -> N
-              "suffix" -> "suffix"
-  Destructure Success: "prefix123123suffix" -> "%("prefix" + ("123" * N) + "suffix")"
-  2
+  [UnsupportedPattern]
+  [1]
 
   $ possum -p '"" -> ("" * N)' -i ''
-  
-  Destructure:
-      "" -> ("" * N)
-          1 -> N
-  Destructure Success: "" -> ("" * N)
   ""
 
   $ possum -p '"" -> "%(`` * N)"' -i ''
-  
-  Destructure:
-      "" -> "%(("" * N))"
-          "" -> ("" * N)
-              1 -> N
-  Destructure Success: "" -> "%(("" * N))"
   ""
 
   $ possum -p '"" $ 0 -> (0 * N)' -i ''
-  
-  Destructure:
-      0 -> (0 * N)
-          1 -> N
-  Destructure Success: 0 -> (0 * N)
   0
 
   $ possum -p 'const($true) -> (true * N)' -i ''
-  
-  Destructure:
-      true -> (true * N)
-          1 -> N
-  Destructure Success: true -> (true * N)
   true
 
   $ possum -p 'const($false) -> (false * N)' -i ''
-  
-  Destructure:
-      false -> (false * N)
-          1 -> N
-  Destructure Success: false -> (false * N)
   false
 
   $ possum -p 'Length(A) = A -> ([_] * L) $ L ; const(Length([1,2,3]))' -i ''
-  
-  Destructure:
-      [1, 2, 3] -> ([_] * L)
-          [1] -> [_]
-              1 -> _
-          [2] -> [_]
-              2 -> _
-          [3] -> [_]
-              3 -> _
-          3 -> L
-  Destructure Success: [1, 2, 3] -> ([_] * L)
   3
 
   $ possum -p '"12345" -> ("0".."9" * 5)' -i "12345"
-  
-  Destructure:
-      "12345" -> ("0".."9" * 5)
-          "1" -> "0".."9"
-          "2" -> "0".."9"
-          "3" -> "0".."9"
-          "4" -> "0".."9"
-          "5" -> "0".."9"
-  Destructure Success: "12345" -> ("0".."9" * 5)
   "12345"
 
   $ possum -p '"12345" -> ("0".."9" * N) $ N' -i "12345"
-  
-  Destructure:
-      "12345" -> ("0".."9" * N)
-          "1" -> "0".."9"
-          "2" -> "0".."9"
-          "3" -> "0".."9"
-          "4" -> "0".."9"
-          "5" -> "0".."9"
-          5 -> N
-  Destructure Success: "12345" -> ("0".."9" * N)
   5
 
-A pattern function whose body contains `->` re-enters the pattern solver
-mid-match. The nested match must not clobber the outer match's undo log:
-after the first key mismatches, the unbound-key scan unbinds A and goes on
-to match the second key.
+A range count factor in a product with an unbound factor solves greedily:
+the largest repetition count in the range that divides the derived count
+wins, and the quotient binds the unbound factor.
 
-  $ export PRINT_DESTRUCTURE=false
+  $ possum -p '("" $ "aaaaaa") -> (("a" * 2..3) * N) $ N' -i ''
+  2
+
+  $ possum -p '("" $ "aaaa") -> (("a" * 2..3) * N) $ N' -i ''
+  2
+
+  $ possum -p '("" $ "aaaaaa") -> (("a" * 2..) * N) $ N' -i ''
+  1
 
   $ possum -p 'Id(N) = N -> M & M ; json -> {A: Id(A), ..._} $ A' -i '{"x": "y", "a": "a"}'
   "a"
 
-A failed match containing a re-entrant pattern function unbinds everything
-it bound: the alternative destructures the same value to a bare A, which
-only succeeds if A did not stay stale-bound to "x".
-
   $ possum -p 'Id(N) = N -> M & M ; json -> {A: Id(A), "z": 1} $ A | (json -> A $ A)' -i '{"x": "y", "a": "a"}'
   {"x": "y", "a": "a"}
 
-The nested match must also restore the outer match's print depth: trace
-lines after the pattern function returns keep their original indentation.
-
-  $ export PRINT_DESTRUCTURE=true
-
   $ possum -p 'Id(N) = N -> M & M ; const([1, 2]) -> [Id(1), X] $ X' -i ''
-  
-  Destructure:
-      [1, 2] -> [Id(1), X]
-          1 -> Id(1)
-  
-  Eval Pattern Function: Id(1)
-  
-  Destructure:
-      1 -> M
-  Destructure Success: 1 -> M
-  
-          1 -> 1
-          2 -> X
-  Destructure Success: [1, 2] -> [Id(1), X]
   2
-
-Object repeat patterns partition the value object's members into `count`
-disjoint groups, each group matching the repeated pattern. As in array
-repeats, pattern variables bound by one repetition stay bound for the
-rest; only `_` placeholders match fresh members each repetition.
-
-  $ export PRINT_DESTRUCTURE=false
 
   $ possum -p 'const({"a": 5, "b": 6, "c": 7}) -> ({_: _} * Size) $ Size' -i ''
   3
@@ -1047,11 +460,6 @@ rest; only `_` placeholders match fresh members each repetition.
 
   $ possum -p 'const({"a": 1, "b": 2, "c": 1, "d": 2}) -> ({_: 1, _: 2} * N) $ N' -i ''
   2
-
-A bound variable keeps its binding on later repetitions, and an object
-can't hold two members with an equal key, so `{K: V} * Size` never
-matches an object with more than one member, while `{_: V} * Size`
-matches when every member holds an equal value.
 
   $ possum -p 'const({"a": 5, "b": 6}) -> ({K: V} * Size) $ Size' -i ''
   
@@ -1075,6 +483,9 @@ matches when every member holds an equal value.
   $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> ({_: V} * 3) $ V' -i ''
   1
 
+  $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> ({_: V} * N) $ N' -i ''
+  3
+
   $ possum -p 'const({"a": 1, "b": 2, "c": 1}) -> ({_: V} * 3) $ V' -i ''
   
   Parse Failure: value {"a": 1, "b": 2, "c": 1} did not match pattern ({_: V} * 3)
@@ -1094,13 +505,10 @@ matches when every member holds an equal value.
   [ParserFailure]
   [1]
 
-A repeat with a bound count matches exactly: every member must be claimed
-by a repetition.
+  $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> ({_: 1} * 3)' -i ''
+  {"a": 1, "b": 1, "c": 1}
 
-  $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> ({_: 1} * 3) $ "matched"' -i ''
-  "matched"
-
-  $ possum -p 'const({"a": 1, "b": 2, "c": 1}) -> ({_: 1} * 3) $ "matched"' -i ''
+  $ possum -p 'const({"a": 1, "b": 2, "c": 1}) -> ({_: 1} * 3)' -i ''
   
   Parse Failure: value {"a": 1, "b": 2, "c": 1} did not match pattern ({_: 1} * 3)
   
@@ -1113,13 +521,13 @@ by a repetition.
   
   program:1:35-47:
   
-  1 \xe2\x96\x8f const({"a": 1, "b": 2, "c": 1}) -> ({_: 1} * 3) $ "matched" (esc)
+  1 \xe2\x96\x8f const({"a": 1, "b": 2, "c": 1}) -> ({_: 1} * 3) (esc)
     \xe2\x96\x8f                                    ^^^^^^^^^^^^ (esc)
   
   [ParserFailure]
   [1]
 
-  $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> ({_: 1} * 2) $ "matched"' -i ''
+  $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> ({_: 1} * 2)' -i ''
   
   Parse Failure: value {"a": 1, "b": 1, "c": 1} did not match pattern ({_: 1} * 2)
   
@@ -1132,19 +540,16 @@ by a repetition.
   
   program:1:35-47:
   
-  1 \xe2\x96\x8f const({"a": 1, "b": 1, "c": 1}) -> ({_: 1} * 2) $ "matched" (esc)
+  1 \xe2\x96\x8f const({"a": 1, "b": 1, "c": 1}) -> ({_: 1} * 2) (esc)
     \xe2\x96\x8f                                    ^^^^^^^^^^^^ (esc)
   
   [ParserFailure]
   [1]
 
-Each repetition claims members that earlier repetitions haven't, so a
-repeated bound key can never match more than once.
+  $ possum -p 'const({"q": 1}) -> ({"q": _} * 1)' -i ''
+  {"q": 1}
 
-  $ possum -p 'const({"q": 1}) -> ({"q": _} * 1) $ "matched"' -i ''
-  "matched"
-
-  $ possum -p 'const({"q": 1, "r": 2}) -> ({"q": _} * 2) $ "matched"' -i ''
+  $ possum -p 'const({"q": 1, "r": 2}) -> ({"q": _} * 2)' -i ''
   
   Parse Failure: value {"q": 1, "r": 2} did not match pattern ({"q": _} * 2)
   
@@ -1157,17 +562,20 @@ repeated bound key can never match more than once.
   
   program:1:27-41:
   
-  1 \xe2\x96\x8f const({"q": 1, "r": 2}) -> ({"q": _} * 2) $ "matched" (esc)
+  1 \xe2\x96\x8f const({"q": 1, "r": 2}) -> ({"q": _} * 2) (esc)
     \xe2\x96\x8f                            ^^^^^^^^^^^^^^ (esc)
   
   [ParserFailure]
   [1]
 
-In an object merge a repeat with a bound count claims its groups in value
-object member order and leaves the remaining members to the other parts.
+An object merge with a repeat part claims count-many disjoint member groups;
+the remainder feeds the rest. Known count, all-placeholder chunk: the first
+three members are claimed, Rest is the fourth.
 
   $ possum -p 'const({"a": 1, "b": 2, "c": 3, "d": 4}) -> {...({_: _} * 3), ...Rest} $ Rest' -i ''
   {"d": 4}
+
+Too few members for the count: the group scan exhausts and the match fails.
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {...({_: _} * 3), ...Rest} $ Rest' -i ''
   
@@ -1188,16 +596,86 @@ object member order and leaves the remaining members to the other parts.
   [ParserFailure]
   [1]
 
+Constrained pairs: each claimed member's value must match. Rest is the member
+whose value the pairs did not claim.
+
   $ possum -p 'const({"a": 1, "b": 2, "c": 1}) -> {...({_: 1} * 2), ...Rest} $ Rest' -i ''
   {"b": 2}
 
-A repeat with an unbound count in a merge matches the leftover members
-like a rest pattern.
+Exact shape (no rest) with a solvable count: the count binds to the member
+surplus over the const key.
 
   $ possum -p 'const({"a": 1, "b": 2, "c": 3}) -> {"a": 1, ...({_: _} * N)} $ N' -i ''
   2
 
-Repeating an object value merges it with itself, which is the identity.
+A bound count read from an earlier destructure claims that many groups.
+
+  $ possum -p 'json -> [K, {...({_: _} * K), ...Rest}] $ Rest' -i '[2, {"a": 1, "b": 2, "c": 3, "d": 4}]'
+  {"c": 3, "d": 4}
+
+A binder in the chunk value binds in the first group and compares in later
+groups, so every claimed value must be equal.
+
+  $ possum -p 'const({"a": 9, "b": 9, "z": 0}) -> {...({_: V} * 2), ...Rest} $ [V, Rest]' -i ''
+  [
+    9,
+    {"z": 0}
+  ]
+
+  $ possum -p 'const({"a": 9, "b": 8, "z": 0}) -> {...({_: V} * 2), ...Rest} $ [V, Rest]' -i ''
+  
+  Parse Failure: value {"a": 9, "b": 8, "z": 0} did not match pattern {...({_: V} * 2), ...Rest}
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:35-61:
+  
+  1 \xe2\x96\x8f const({"a": 9, "b": 8, "z": 0}) -> {...({_: V} * 2), ...Rest} $ [V, Rest] (esc)
+    \xe2\x96\x8f                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+A pre-bound count in the exact shape is an exact-coverage test: it holds when
+the members past the const key equal the count, and fails otherwise.
+
+  $ possum -p 'json -> [N, {"a": 1, ...({_: _} * N)}] $ "ok"' -i '[2, {"a": 1, "b": 2, "c": 3}]'
+  "ok"
+
+  $ possum -p 'json -> [N, {"a": 1, ...({_: _} * N)}] $ "ok"' -i '[5, {"a": 1, "b": 2, "c": 3}]'
+  
+  Parse Failure: value [5, {"a": 1, "b": 2, "c": 3}] did not match pattern [N, {"a": 1, ...({_: _} * N)}]
+  
+  input:1:29:
+  
+  1 \xe2\x96\x8f [5, {"a": 1, "b": 2, "c": 3}] (esc)
+    \xe2\x96\x8f                              ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:8-38:
+  
+  1 \xe2\x96\x8f json -> [N, {"a": 1, ...({_: _} * N)}] $ "ok" (esc)
+    \xe2\x96\x8f         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+Constrained pairs with a solvable count in the exact shape: the count binds to
+the surplus over the const key that matches the pair value.
+
+  $ possum -p 'const({"a": 1, "b": 1, "c": 1}) -> {"a": 1, ...({_: 1} * N)} $ N' -i ''
+  2
+
+A count of zero claims nothing; the rest is the whole object.
+
+  $ possum -p 'const({"a": 1, "b": 2}) -> {...({_: _} * 0), ...Rest} $ Rest' -i ''
+  {"a": 1, "b": 2}
 
   $ possum -p 'const({"a": 5} * 3)' -i ''
   {"a": 5}
@@ -1208,34 +686,247 @@ Repeating an object value merges it with itself, which is the identity.
   $ possum -p 'O = {"a": 5} ; const({}) -> (O * N) $ N' -i ''
   0
 
-A merge with no rest part must cover the value exactly: a string, array,
-or object with content left over after all parts match is a failure, not
-a prefix match.
+An object merge mixing structural, runtime, and solvable parts solves on
+the claim array: each part claims members of the scrutinee exclusively —
+a structural part probes and claims one member per pair, an evaluated
+part (a bound read, global, or call) claims all of its members at once —
+and the single solvable part takes the unclaimed rest.
 
-  $ possum -p '"a" -> A & "b" -> B & "ab" -> (A + B) $ "ok"' -i 'abab'
-  "ok"
+  $ possum -p 'const({"b": 2}) -> B & json -> (B + A + {"q": Q}) $ [A, Q]' -i '{"a": 1, "b": 2, "q": 42}'
+  [
+    {"a": 1},
+    42
+  ]
 
-  $ possum -p '("" $ "a" -> A) & ("" $ "b" -> B) & ("abc" -> (A + B)) $ "ok"' -i 'abc'
+  $ possum -p 'Conf = {"b": 2} ; json -> (Conf + R + {"q": Q}) $ [R, Q]' -i '{"a": 1, "b": 2, "q": 42}'
+  [
+    {"a": 1},
+    42
+  ]
+
+  $ possum -p 'Wrap(V) = {"w": V} ; json -> (Wrap(1) + R + {"q": Q}) $ [R, Q]' -i '{"w": 1, "b": 2, "q": 42}'
+  [
+    {"b": 2},
+    42
+  ]
+
+A placeholder solvable absorbs the unclaimed members.
+
+  $ possum -p 'const({"b": 2}) -> B & json -> (B + _ + {"q": Q}) $ Q' -i '{"a": 1, "b": 2, "q": 42}'
+  42
+
+A binding search pair in a structural part scans the unclaimed members.
+
+  $ possum -p 'const({"b": 2}) -> B & json -> (B + {K: 42} + R) $ [K, R]' -i '{"a": 1, "b": 2, "q": 42}'
+  [
+    "q",
+    {"a": 1}
+  ]
+
+With no solvable part, the claims must cover every member exactly.
+
+  $ possum -p 'const({"b": 2}) -> B & const({"a": 1}) -> A & json -> (B + A + {"q": Q}) $ Q' -i '{"a": 1, "b": 2, "q": 42}'
+  42
+
+  $ possum -p 'const({"b": 2}) -> B & json -> (B + {"q": Q}) $ Q' -i '{"a": 1, "b": 2, "q": 42}'
   
-  Parse Failure: value "abc" did not match pattern (A + B)
+  Parse Failure: value {"a": 1, "b": 2, "q": 42} did not match pattern (B + {"q": Q})
   
-  input:1:3:
+  input:1:25:
   
-  1 \xe2\x96\x8f abc (esc)
-    \xe2\x96\x8f    ^ (esc)
+  1 \xe2\x96\x8f {"a": 1, "b": 2, "q": 42} (esc)
+    \xe2\x96\x8f                          ^ (esc)
   
   while matching parser `@main`
   
-  program:1:46-53:
+  program:1:31-45:
   
-  1 \xe2\x96\x8f ("" $ "a" -> A) & ("" $ "b" -> B) & ("abc" -> (A + B)) $ "ok" (esc)
-    \xe2\x96\x8f                                               ^^^^^^^ (esc)
+  1 \xe2\x96\x8f const({"b": 2}) -> B & json -> (B + {"q": Q}) $ Q (esc)
+    \xe2\x96\x8f                                ^^^^^^^^^^^^^^ (esc)
   
   [ParserFailure]
   [1]
 
-  $ possum -p '("" $ [1] -> A) & ("" $ [2] -> B) & (json -> (A + B)) $ "ok"' -i '[1,2]'
+
+
+
+
+
+
+
+An evaluated part whose member is missing or unequal in the scrutinee, or
+whose value is not an object, fails the match.
+
+  $ possum -p 'const({"b": 9}) -> B & json -> (B + {"q": Q} + R) $ R' -i '{"b": 2, "q": 42}'
+  
+  Parse Failure: value {"b": 2, "q": 42} did not match pattern (B + {"q": Q} + R)
+  
+  input:1:17:
+  
+  1 \xe2\x96\x8f {"b": 2, "q": 42} (esc)
+    \xe2\x96\x8f                  ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:31-49:
+  
+  1 \xe2\x96\x8f const({"b": 9}) -> B & json -> (B + {"q": Q} + R) $ R (esc)
+    \xe2\x96\x8f                                ^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+
+
+
+
+
+
+
+  $ possum -p 'I(V) = V ; json -> (I(5) + {"q": Q} + R) $ R' -i '{"b": 2, "q": 42}'
+  
+  Parse Failure: value {"b": 2, "q": 42} did not match pattern (I(5) + {"q": Q} + R)
+  
+  input:1:17:
+  
+  1 \xe2\x96\x8f {"b": 2, "q": 42} (esc)
+    \xe2\x96\x8f                  ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:19-40:
+  
+  1 \xe2\x96\x8f I(V) = V ; json -> (I(5) + {"q": Q} + R) $ R (esc)
+    \xe2\x96\x8f                    ^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+
+
+
+
+
+
+
+Parts claim exclusively: a key one part claimed fails a later part that
+probes it, unlike merge construction where duplicate keys fold.
+
+  $ possum -p 'const({"a": 1}) -> B & json -> (B + {"a": A} + R) $ [A, R]' -i '{"a": 1, "b": 2}'
+  
+  Parse Failure: value {"a": 1, "b": 2} did not match pattern (B + {"a": A} + R)
+  
+  input:1:16:
+  
+  1 \xe2\x96\x8f {"a": 1, "b": 2} (esc)
+    \xe2\x96\x8f                 ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:31-49:
+  
+  1 \xe2\x96\x8f const({"a": 1}) -> B & json -> (B + {"a": A} + R) $ [A, R] (esc)
+    \xe2\x96\x8f                                ^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+
+
+
+
+
+
+
+An object merge as a repeat pair's value binds in the first group and
+compares in later groups like any sub-pattern.
+
+  $ possum -p 'const({"x": 9}) -> B & json -> ({_: (B + {"k": K})} * 2) $ K' -i '{"p": {"x": 9, "k": 1}, "q": {"x": 9, "k": 1}}'
+  1
+
+  $ possum -p 'const({"x": 9}) -> B & json -> ({_: (B + {"k": K})} * 2) $ K' -i '{"p": {"x": 9, "k": 1}, "q": {"x": 9, "k": 2}}'
+  
+  Parse Failure: value {"p": {"x": 9, "k": 1}, "q": {"x": 9, "k": 2}} did not match pattern ({_: (B + {"k": K})} * 2)
+  
+  input:1:46:
+  
+  1 \xe2\x96\x8f {"p": {"x": 9, "k": 1}, "q": {"x": 9, "k": 2}} (esc)
+    \xe2\x96\x8f                                               ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:31-56:
+  
+  1 \xe2\x96\x8f const({"x": 9}) -> B & json -> ({_: (B + {"k": K})} * 2) $ K (esc)
+    \xe2\x96\x8f                                ^^^^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+A repeat part in the mix claims count-many groups past the claims of the
+parts before it; parts after it (and the rest) take what remains. The
+count must be a known product.
+
+  $ possum -p 'json -> ({_: V} * 2 + {"z": Z} + R) $ [V, Z, R]' -i '{"a": 7, "b": 7, "z": 9, "q": 5}'
+  [
+    7,
+    9,
+    {"q": 5}
+  ]
+
+  $ possum -p 'B = {"z": 9} ; json -> (B + ({_: 1} * 2) + R) $ R' -i '{"a": 1, "b": 1, "z": 9, "q": 5}'
+  {"q": 5}
+
+  $ possum -p 'json -> ({_: 1} * 2 + {"z": 9}) $ "ok"' -i '{"a": 1, "b": 1, "z": 9}'
   "ok"
+
+Too few members match the chunk for the count: the group scan exhausts.
+
+  $ possum -p 'B = {"z": 9} ; json -> (B + ({_: 1} * 3) + R) $ R' -i '{"a": 1, "b": 1, "z": 9, "q": 5}'
+  
+  Parse Failure: value {"a": 1, "b": 1, "z": 9, "q": 5} did not match pattern (B + ({_: 1} * 3) + R)
+  
+  input:1:32:
+  
+  1 \xe2\x96\x8f {"a": 1, "b": 1, "z": 9, "q": 5} (esc)
+    \xe2\x96\x8f                                 ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:23-45:
+  
+  1 \xe2\x96\x8f B = {"z": 9} ; json -> (B + ({_: 1} * 3) + R) $ R (esc)
+    \xe2\x96\x8f                        ^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+
+
+  $ possum -p '"a" -> A & "b" -> B & "ab" -> (A + B)' -i 'abab'
+  "ab"
+
+  $ possum -p '"a" -> A & "b" -> B & "abc" -> (A + B)' -i 'ababc'
+  
+  Parse Failure: value "abc" did not match pattern (A + B)
+  
+  input:1:5:
+  
+  1 \xe2\x96\x8f ababc (esc)
+    \xe2\x96\x8f      ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:31-38:
+  
+  1 \xe2\x96\x8f "a" -> A & "b" -> B & "abc" -> (A + B) (esc)
+    \xe2\x96\x8f                                ^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p '("" $ [1] -> A) & ("" $ [2] -> B) & (json -> (A + B))' -i '[1,2]'
+  [1, 2]
 
   $ possum -p '("" $ [1] -> A) & ("" $ [2] -> B) & (json -> (A + B)) $ "ok"' -i '[1,2,3]'
   
@@ -1256,8 +947,8 @@ a prefix match.
   [ParserFailure]
   [1]
 
-  $ possum -p '("" $ {"a": 1} -> A) & ("" $ {"b": 2} -> B) & (json -> (A + B)) $ "ok"' -i '{"a": 1, "b": 2}'
-  "ok"
+  $ possum -p '("" $ {"a": 1} -> A) & ("" $ {"b": 2} -> B) & (json -> (A + B))' -i '{"a": 1, "b": 2}'
+  {"a": 1, "b": 2}
 
   $ possum -p '("" $ {"a": 1} -> A) & ("" $ {} -> B) & (json -> (A + B)) $ "ok"' -i '{"a": 1, "b": 2}'
   
@@ -1278,33 +969,27 @@ a prefix match.
   [ParserFailure]
   [1]
 
-A string template with every segment bound must also cover the value
-exactly.
-
-  $ possum -p '("" $ "b" -> A) & ("abc" -> "a%(A)c") $ "ok"' -i 'abc'
-  "ok"
-
-  $ possum -p '("" $ "b" -> A) & ("abcd" -> "a%(A)c") $ "ok"' -i 'abcd'
+  $ possum -p 'const("b") -> A & "abc" -> "a%(A)c" $ A' -i 'abc'
   
-  Parse Failure: value "abcd" did not match pattern "a%(A)c"
+  Program Error: Expected value but got parser
   
-  input:1:4:
+  program:1:6-9:
+  1 \xe2\x96\x8f const("b") -> A & "abc" -> "a%(A)c" $ A (esc)
+    \xe2\x96\x8f       ^^^ (esc)
   
-  1 \xe2\x96\x8f abcd (esc)
-    \xe2\x96\x8f     ^ (esc)
-  
-  while matching parser `@main`
-  
-  program:1:29-37:
-  
-  1 \xe2\x96\x8f ("" $ "b" -> A) & ("abcd" -> "a%(A)c") $ "ok" (esc)
-    \xe2\x96\x8f                              ^^^^^^^^ (esc)
-  
-  [ParserFailure]
+  [FunctionCallTypeMismatch]
   [1]
 
-A template range segment matches one codepoint, not one byte, so
-multi-byte characters work on both sides of the rest segment.
+  $ possum -p 'const("b") -> A & "abcd" -> "a%(A)c" $ A' -i 'abcd'
+  
+  Program Error: Expected value but got parser
+  
+  program:1:6-9:
+  1 \xe2\x96\x8f const("b") -> A & "abcd" -> "a%(A)c" $ A (esc)
+    \xe2\x96\x8f       ^^^ (esc)
+  
+  [FunctionCallTypeMismatch]
+  [1]
 
   $ possum -p '"aéb" -> "a%("à".."ö")b" $ "ok"' -i 'aéb'
   "ok"
@@ -1333,3 +1018,84 @@ multi-byte characters work on both sides of the rest segment.
 
   $ possum -p '"xyzéb" -> "%(R)%("à".."ö")b" $ R' -i 'xyzéb'
   "xyz"
+
+  $ possum -p 'I(V)=V ; "" $ [1,1,1,1,1,1] -> (I([1]) * I(2) * I(3))' -i ''
+  [1, 1, 1, 1, 1, 1]
+
+  $ possum -p '"" $ [1,1,1,1,1,1] -> ((([1] * 2) * N) * 3) $ N' -i ''
+  1
+
+  $ possum -p '"" $ [1,1,1,1,1,1] -> ([1] * (2 * N)) $ N' -i ''
+  3
+
+  $ possum -p 'I(V)=V ; array(digit) -> (I([1]) * I(2) * N * I(3)) $ N' -i '111111111111'
+  2
+
+An array merge with a runtime-length part solves through the span cursor
+scheduler: the bound rest chomps and the solvable takes the residual span.
+The suffix rest B chomps backward:
+
+  $ possum -p 'json -> [[...A, ...B], [...B]] $ [A, B]' -i '[[1, 2, 3], [3]]'
+  [
+    [1, 2],
+    [3]
+  ]
+
+The prefix rest A chomps forward, leaving B the residual:
+
+  $ possum -p 'json -> [[...A, ...B], [...A]] $ [A, B]' -i '[[1, 2, 3], [1]]'
+  [
+    [1],
+    [2, 3]
+  ]
+
+An empty residual span binds an empty array:
+
+  $ possum -p 'json -> [[...A, ...B], [...B]] $ [A, B]' -i '[[5], []]'
+  [
+    [5],
+    []
+  ]
+
+With no solvable part, the fixed parts must cover the array exactly (the
+cursors must meet); `[...B, ...B]` requires the value be B twice over:
+
+  $ possum -p 'json -> [[...B, ...B], [...B]] $ B' -i '[[1, 1], [1]]'
+  [1]
+
+  $ possum -p 'json -> [[...B, ...B], [...B]] $ B' -i '[[1, 1, 1], [1]]'
+  
+  Parse Failure: value [[1, 1, 1], [1]] did not match pattern [[...B, ...B], [...B]]
+  
+  input:1:16:
+  
+  1 \xe2\x96\x8f [[1, 1, 1], [1]] (esc)
+    \xe2\x96\x8f                 ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:8-30:
+  
+  1 \xe2\x96\x8f json -> [[...B, ...B], [...B]] $ B (esc)
+    \xe2\x96\x8f         ^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+A fixed-length structural part chomps a fixed-size chunk at the cursor and
+matches it in a child window. A leading `[1]` base chomps forward:
+
+  $ possum -p 'json -> [[1, ...A, ...B], [...B]] $ [A, B]' -i '[[1, 2, 3, 4], [3, 4]]'
+  [
+    [2],
+    [3, 4]
+  ]
+
+The chunk's child window binds nested variables (the `[B, C]` element):
+
+  $ possum -p 'json -> [[...A, [B, C]], [...A]] $ [A, B, C]' -i '[[7, 8, [1, 2]], [7, 8]]'
+  [
+    [7, 8],
+    1,
+    2
+  ]

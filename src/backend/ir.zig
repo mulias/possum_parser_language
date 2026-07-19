@@ -5,6 +5,9 @@ const runtime = @import("../runtime.zig");
 const Chunk = runtime.Chunk;
 const ChunkError = runtime.ChunkError;
 const OpCode = runtime.OpCode;
+pub const RangeLimitKind = runtime.RangeLimitKind;
+pub const MatchCmpKind = runtime.MatchCmpKind;
+pub const MatchCastKind = runtime.MatchCastKind;
 const Region = @import("../region.zig").Region;
 const StringTable = runtime.StringTable;
 
@@ -41,9 +44,139 @@ pub const Ir = struct {
         push_var: StringTable.Id,
         call_function_constant: u24,
         call_tail_function_constant: u24,
-        destructure_plan: u24,
         jump: struct { op: OpCode, target: Index },
         jump_back: struct { op: OpCode, target: Index },
+        // Match step operands. Registers are frame slots. Semidet steps
+        // carry no fail target: on failure they jump to the innermost open
+        // window's shared fail block, recorded on MatchWindowEnter (w_enter).
+        // MatchBind (local, src), MatchElem (dst, src, index, dir), and
+        // MatchSlice (dst, src, front, back).
+        match_bytes: struct { op: OpCode, byte1: u8, byte2: u8, byte3: u8 = 0, byte4: u8 = 0 },
+        // MatchType (slot, immediate), MatchEval (register, unused),
+        // MatchRepeatValue/MatchRepeatChunk (src register, destination
+        // register) which pop their evaluated repeat operand from the
+        // stack, and MatchClaimObject (claim register, src register) which
+        // pops its evaluated object part.
+        // MatchMergeEval carries a third byte3 (the back/direction flag); the
+        // other match_test ops omit it.
+        match_test: struct { op: OpCode, byte1: u8, byte2: u8, byte3: u8 = 0 },
+        // MatchWindowEnter (width, fail target): open a match register
+        // window sized to width; the target is the window's shared fail
+        // block, where every semidet step inside the window jumps on
+        // failure (§ per-window failure continuation).
+        w_enter: struct { op: OpCode, width: u8, target: Index },
+        // MatchCount (register, immediate count, mode): semidet size test.
+        // Counts array elements, object members, or string bytes and
+        // compares against the immediate; mode 0 is equal, mode 1 at
+        // least. Carries a forward fail-jump target.
+        match_count: struct { reg: u8, n: u8, mode: u8 },
+        // MatchCmp (register, comparand kind, arg): semidet equality test.
+        // kind selects the comparand — constant (arg = constant index),
+        // slot (arg = bound local slot), or reg (arg = another scratch
+        // register). Carries a forward fail-jump target.
+        match_cmp: struct { reg: u8, kind: MatchCmpKind, arg: u16 },
+        // MatchCast (dst, src, target type): semidet parse of src's string
+        // bytes into dst as a number, boolean, or JSON document. Carries a
+        // forward fail-jump target.
+        match_cast: struct { dst: u8, src: u8, ty: MatchCastKind },
+        // MatchKey/MatchMergeBool (dst, src, constant) and MatchStrEnd
+        // (slot, direction, constant). byte2 is the src register or the
+        // direction flag; it is omitted for ops that carry neither.
+        match_const: struct { op: OpCode, byte1: u8, byte2: u8 = 0, constant: u16 },
+        // MatchMergeNum (dst, src, folded-constant sum, negate): the
+        // residual of a number merge. negate flips src − sum to sum − src
+        // for a leftover under an odd negation count. Carries a forward
+        // fail-jump target.
+        match_merge_num: struct { dst: u8, src: u8, constant: u16, negate: bool },
+        // MatchClaimScan (key_dst, val_dst, src, cursor, claim): semidet
+        // member search. Scans src's members from the cursor for the first
+        // key not in the claim array register, projects its key and value,
+        // and advances the cursor. Fails to the window on exhaustion. The
+        // match's own claim happens later via MatchClaimAdd.
+        match_claim_scan: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, cursor: u8, claim: u8 },
+        // MatchClaimKey (key_dst, val_dst, src, claim): semidet member
+        // probe by the popped known key (a string, runtime error otherwise).
+        // Fails to the window when the key is absent or already in the claim
+        // array; on success projects its key and value for the value window
+        // and a following MatchClaimAdd.
+        match_claim_key: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, claim: u8 },
+        // MatchClaimDoneCount (claim, src, target): object-repeat group-loop
+        // head. `src` names the count register holding the target claim size —
+        // the whole member count for an object repeat, or a count-derived size
+        // for an inexact object-merge repeat. Jumps to the done target once the
+        // claim array reaches that size (all groups claimed); otherwise falls
+        // through to match one more group. A success branch, not a failure.
+        match_claim_done: struct { op: OpCode, claim: u8, src: u8, target: Index },
+        // MatchClaimCount (src, pair_len, seed, count_dst): semidet object-
+        // merge repeat count. count_dst = (members(src) - seed) / pair_len,
+        // failing to the window when src is not an object, the seed exceeds
+        // the member count, or the remainder is nonzero.
+        match_claim_count: struct { op: OpCode, src: u8, pair_len: u8, seed: u8, count_dst: u8 },
+        // MatchCountLoad (dst, pair_len, claim): semidet — pop the evaluated
+        // count product and write the target claim size (the claim array's
+        // current length + count * pair_len) into dst, failing on a negative
+        // or non-integer count. The array must already be seeded.
+        match_count_load: struct { op: OpCode, dst: u8, pair_len: u8, claim: u8 },
+        // MatchClaimRest (dst, src, claim): det — a fresh object of src's
+        // members whose keys are not in the claim array, its creator handle
+        // into dst.
+        match_claim_rest: struct { op: OpCode, dst: u8, src: u8, claim: u8 },
+        // MatchBound (reg, is_upper, kind, arg): semidet one-ended range
+        // test. is_upper selects value<=bound (1) vs bound<=value (0);
+        // kind is const=1 (arg a constant index) or read=3 (arg a bound
+        // local slot). The range-value gate is carried by the comparison;
+        // bind/global/eval bounds are split at compile time into MatchBind
+        // / a constant / a call + MatchRangeBound, so none reach here.
+        match_bound: struct { op: OpCode, reg: u8, is_upper: u8, kind: u8, arg: u16 },
+        // MatchRepeatRange (src, count dst, lower kind+arg, upper
+        // kind+arg): semidet codepoint scan of src's string against the
+        // range bounds, writing the codepoint count into dst. Bound kinds
+        // are the non-evaluated range-bound subset (none/const/read).
+        match_repeat_range: struct { op: OpCode, src: u8, dst: u8, lower_kind: u8, lower_arg: u16, upper_kind: u8, upper_arg: u16 },
+        // MatchRepeatInit (src, chunk element length, count dst, base):
+        // semidet array-repeat loop entry — array check and divisibility,
+        // count = len / L into count_dst, base primed to -L so the first
+        // MatchRepeatNext advances it to 0.
+        match_repeat_init: struct { op: OpCode, src: u8, len: u8, count_dst: u8, base: u8 },
+        // MatchRepeatNext (src, base, chunk element length, chunk_dst):
+        // loop head — advance base by L and jump to the done target when
+        // the array is exhausted; otherwise materialize the chunk slice
+        // src[base..base+L] into chunk_dst for the chunk sub-pattern.
+        match_repeat_next: struct { op: OpCode, src: u8, base: u8, len: u8, chunk_dst: u8, target: Index },
+        // MatchSpanInit (src, front cursor, end cursor): det span-template
+        // loop entry — front = 0, end = src's byte length (string) or
+        // element count (array). src's type is fixed by the preceding
+        // MatchType.
+        match_span_init: struct { op: OpCode, src: u8, front: u8, end: u8 },
+        // MatchSpanRest (dst, src, front cursor, end cursor): det — the
+        // span [front..end) into dst: a string substring (InputSubstring
+        // range reuse else copy) or a fresh array slice, the solvable's raw
+        // range.
+        match_span_rest: struct { op: OpCode, dst: u8, src: u8, front: u8, end: u8 },
+        // MatchSpanChunk (dst, src, cursor, opposite cursor, back flag,
+        // length): semidet — slice a fixed-length array chunk at the cursor
+        // (forward [cursor..cursor+len) when back=0, else [cursor-len..cursor)),
+        // failing if it does not fit before the opposite cursor, materialize
+        // it as a fresh array into dst, and advance/retreat the cursor. A
+        // structural array-merge part; a child window matches dst.
+        match_span_chunk: struct { op: OpCode, dst: u8, src: u8, cursor: u8, opp: u8, back: u8, len: u8 },
+        // MatchStrLit (src, cursor, opposite cursor, back flag, literal
+        // constant): semidet — compare the constant's bytes at the cursor
+        // (forward [front..front+len) when back=0, else [end-len..end)),
+        // failing if they don't fit before the opposite cursor or differ,
+        // then advance/retreat the cursor.
+        match_str_lit: struct { op: OpCode, src: u8, cursor: u8, opp: u8, back: u8, constant: u16 },
+        // MatchSpanVal (src, cursor, opposite cursor, back flag): semidet —
+        // pop the evaluated segment value off the stack and compare/advance
+        // by its runtime length: a string chomp (stringified, like
+        // MatchStrLit) or an element-wise array compare at the cursor.
+        match_span_val: struct { op: OpCode, src: u8, cursor: u8, opp: u8, back: u8 },
+        // MatchStrChar (dst, src, cursor, opposite cursor, back flag):
+        // semidet — decode one codepoint at the cursor (forward lead-byte
+        // length; back continuation walk landing exactly), materialize it
+        // as a string into dst, and advance/retreat. The range test
+        // follows against dst.
+        match_str_char: struct { op: OpCode, dst: u8, src: u8, cursor: u8, opp: u8, back: u8 },
     };
 
     pub fn deinit(self: *Ir, allocator: Allocator) void {
@@ -116,8 +249,15 @@ pub const Ir = struct {
     // Point the jump at `index` to the next instruction to be emitted.
     pub fn patchJumpTarget(self: *Ir, index: Index) void {
         const insn = &self.instructions.items[index];
-        std.debug.assert(insn.operand.jump.target == unpatched_jump);
-        insn.operand.jump.target = self.nextIndex();
+        const target = switch (insn.operand) {
+            .jump => |*j| &j.target,
+            .w_enter => |*m| &m.target,
+            .match_repeat_next => |*m| &m.target,
+            .match_claim_done => |*m| &m.target,
+            else => unreachable,
+        };
+        std.debug.assert(target.* == unpatched_jump);
+        target.* = self.nextIndex();
     }
 
     pub fn lastByteRegion(self: *Ir) Region {
@@ -164,7 +304,6 @@ pub const Ir = struct {
                 .push_var => |sid| try writeSid(chunk, allocator, sid, .PushVar, .PushVar2, .PushVar3, .PushVar4, region),
                 .call_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallFunctionConstant, .CallFunctionConstant2, .CallFunctionConstant3, region),
                 .call_tail_function_constant => |idx| try writeIndexed(chunk, allocator, idx, .CallTailFunctionConstant, .CallTailFunctionConstant2, .CallTailFunctionConstant3, region),
-                .destructure_plan => |idx| try writeIndexed(chunk, allocator, idx, .DestructurePlan, .DestructurePlan2, .DestructurePlan3, region),
                 .jump => |j| {
                     std.debug.assert(j.target != unpatched_jump);
                     std.debug.assert(j.target > i);
@@ -176,8 +315,195 @@ pub const Ir = struct {
                     const distance = (offsets[i] + 3) - offsets[j.target];
                     try self.writeJumpOperand(chunk, allocator, j.op, distance, region);
                 },
+                .match_bytes => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.byte1, region);
+                    try chunk.write(allocator, m.byte2, region);
+                    if (m.op == .MatchElem or m.op == .MatchSlice) {
+                        try chunk.write(allocator, m.byte3, region);
+                        try chunk.write(allocator, m.byte4, region);
+                    }
+                },
+                .w_enter => |m| {
+                    std.debug.assert(m.target != unpatched_jump);
+                    std.debug.assert(m.target > i);
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.width, region);
+                    const insn_len = byteLength(insn.operand);
+                    const distance = offsets[m.target] - (offsets[i] + insn_len);
+                    try self.writeShortDistance(chunk, allocator, distance, region);
+                },
+                .match_test => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.byte1, region);
+                    try chunk.write(allocator, m.byte2, region);
+                    if (m.op == .MatchMergeEval) try chunk.write(allocator, m.byte3, region);
+                },
+                .match_count => |m| {
+                    try chunk.writeOp(allocator, .MatchCount, region);
+                    try chunk.write(allocator, m.reg, region);
+                    try chunk.write(allocator, m.n, region);
+                    try chunk.write(allocator, m.mode, region);
+                },
+                .match_cmp => |m| {
+                    try chunk.writeOp(allocator, .MatchCmp, region);
+                    try chunk.write(allocator, m.reg, region);
+                    try chunk.write(allocator, @intFromEnum(m.kind), region);
+                    try chunk.writeShort(allocator, m.arg, region);
+                },
+                .match_cast => |m| {
+                    try chunk.writeOp(allocator, .MatchCast, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, @intFromEnum(m.ty), region);
+                },
+                .match_const => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.byte1, region);
+                    if (matchConstHasSrcReg(m.op)) try chunk.write(allocator, m.byte2, region);
+                    try chunk.writeShort(allocator, m.constant, region);
+                },
+                .match_merge_num => |m| {
+                    try chunk.writeOp(allocator, .MatchMergeNum, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.writeShort(allocator, m.constant, region);
+                    try chunk.write(allocator, @intFromBool(m.negate), region);
+                },
+                .match_claim_scan => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.key_dst, region);
+                    try chunk.write(allocator, m.val_dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.cursor, region);
+                    try chunk.write(allocator, m.claim, region);
+                },
+                .match_claim_key => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.key_dst, region);
+                    try chunk.write(allocator, m.val_dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.claim, region);
+                },
+                .match_claim_done => |m| {
+                    std.debug.assert(m.target != unpatched_jump);
+                    std.debug.assert(m.target > i);
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.claim, region);
+                    try chunk.write(allocator, m.src, region);
+                    const insn_len = byteLength(insn.operand);
+                    const distance = offsets[m.target] - (offsets[i] + insn_len);
+                    try self.writeShortDistance(chunk, allocator, distance, region);
+                },
+                .match_claim_count => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.pair_len, region);
+                    try chunk.write(allocator, m.seed, region);
+                    try chunk.write(allocator, m.count_dst, region);
+                },
+                .match_count_load => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.pair_len, region);
+                    try chunk.write(allocator, m.claim, region);
+                },
+                .match_claim_rest => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.claim, region);
+                },
+                .match_bound => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.reg, region);
+                    try chunk.write(allocator, m.is_upper, region);
+                    try chunk.write(allocator, m.kind, region);
+                    try chunk.writeShort(allocator, m.arg, region);
+                },
+                .match_repeat_range => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.lower_kind, region);
+                    try chunk.writeShort(allocator, m.lower_arg, region);
+                    try chunk.write(allocator, m.upper_kind, region);
+                    try chunk.writeShort(allocator, m.upper_arg, region);
+                },
+                .match_repeat_init => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.len, region);
+                    try chunk.write(allocator, m.count_dst, region);
+                    try chunk.write(allocator, m.base, region);
+                },
+                .match_repeat_next => |m| {
+                    std.debug.assert(m.target != unpatched_jump);
+                    std.debug.assert(m.target > i);
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.base, region);
+                    try chunk.write(allocator, m.len, region);
+                    try chunk.write(allocator, m.chunk_dst, region);
+                    const insn_len = byteLength(insn.operand);
+                    const distance = offsets[m.target] - (offsets[i] + insn_len);
+                    try self.writeShortDistance(chunk, allocator, distance, region);
+                },
+                .match_span_init => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.front, region);
+                    try chunk.write(allocator, m.end, region);
+                },
+                .match_span_rest => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.front, region);
+                    try chunk.write(allocator, m.end, region);
+                },
+                .match_span_chunk => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.cursor, region);
+                    try chunk.write(allocator, m.opp, region);
+                    try chunk.write(allocator, m.back, region);
+                    try chunk.write(allocator, m.len, region);
+                },
+                .match_str_lit => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.cursor, region);
+                    try chunk.write(allocator, m.opp, region);
+                    try chunk.write(allocator, m.back, region);
+                    try chunk.writeShort(allocator, m.constant, region);
+                },
+                .match_span_val => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.cursor, region);
+                    try chunk.write(allocator, m.opp, region);
+                    try chunk.write(allocator, m.back, region);
+                },
+                .match_str_char => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.cursor, region);
+                    try chunk.write(allocator, m.opp, region);
+                    try chunk.write(allocator, m.back, region);
+                },
             }
         }
+    }
+
+    fn writeShortDistance(self: *Ir, chunk: *Chunk, allocator: Allocator, distance: u32, region: Region) !void {
+        if (distance > std.math.maxInt(u16)) {
+            self.overflow_region = region;
+            return ChunkError.ShortOverflow;
+        }
+        try chunk.writeShort(allocator, @intCast(distance), region);
     }
 
     fn writeJumpOperand(self: *Ir, chunk: *Chunk, allocator: Allocator, op: OpCode, distance: u32, region: Region) !void {
@@ -229,10 +555,46 @@ pub const Ir = struct {
             .get_constant_mutable,
             .call_function_constant,
             .call_tail_function_constant,
-            .destructure_plan,
             => |idx| indexedByteLength(idx),
             .push_string, .push_var => |sid| sidByteLength(sid),
             .jump, .jump_back => 3,
+            .match_bytes => |m| switch (m.op) {
+                .MatchElem, .MatchSlice => @as(u32, 5),
+                else => 3,
+            },
+            .w_enter => 4,
+            .match_test => |m| if (m.op == .MatchMergeEval) @as(u32, 4) else 3,
+            .match_count => 4,
+            .match_cmp => 5,
+            .match_cast => 4,
+            .match_const => |m| if (matchConstHasSrcReg(m.op)) @as(u32, 5) else 4,
+            .match_merge_num => 6,
+            .match_claim_scan => 6,
+            .match_claim_key => 5,
+            .match_claim_done => 5,
+            .match_claim_count => 5,
+            .match_count_load => 4,
+            .match_claim_rest => 4,
+            .match_bound => 6,
+            .match_repeat_range => 9,
+            .match_repeat_init => 5,
+            .match_repeat_next => 7,
+            .match_span_init => 4,
+            .match_span_rest => 5,
+            .match_span_chunk => 7,
+            .match_str_lit => 7,
+            .match_span_val => 5,
+            .match_str_char => 6,
+        };
+    }
+
+    // Which match_const ops write byte2 (a source register for MatchKey/
+    // MatchMergeBool/MatchObjectRest, a direction flag for MatchStrEnd)
+    // after byte1.
+    pub fn matchConstHasSrcReg(op: OpCode) bool {
+        return switch (op) {
+            .MatchKey, .MatchMergeBool, .MatchStrEnd, .MatchObjectRest => true,
+            else => false,
         };
     }
 
@@ -307,17 +669,22 @@ pub const Ir = struct {
                     try self.flowTo(depths, index, i + 1, next);
                 },
                 .branch => |branch| {
-                    const target: Index = switch (insn.operand) {
-                        .jump => |j| target: {
-                            if (j.target == unpatched_jump) return self.verifyFail(index, VerifyError.UnpatchedJumpTarget);
-                            if (j.target <= index or j.target >= insns.len) return self.verifyFail(index, VerifyError.InvalidJumpTarget);
-                            break :target j.target;
-                        },
-                        .jump_back => |j| target: {
-                            if (j.target > index) return self.verifyFail(index, VerifyError.InvalidJumpTarget);
-                            break :target j.target;
-                        },
+                    const forward_target: ?Index = switch (insn.operand) {
+                        .jump => |j| j.target,
+                        .w_enter => |m| m.target,
+                        .match_repeat_next => |m| m.target,
+                        .match_claim_done => |m| m.target,
+                        .jump_back => null,
                         else => return self.verifyFail(index, VerifyError.OperandKindMismatch),
+                    };
+                    const target: Index = if (forward_target) |t| target: {
+                        if (t == unpatched_jump) return self.verifyFail(index, VerifyError.UnpatchedJumpTarget);
+                        if (t <= index or t >= insns.len) return self.verifyFail(index, VerifyError.InvalidJumpTarget);
+                        break :target t;
+                    } else target: {
+                        const j = insn.operand.jump_back;
+                        if (j.target > index) return self.verifyFail(index, VerifyError.InvalidJumpTarget);
+                        break :target j.target;
                     };
                     const jump_depth = try self.applyEffect(index, depth, branch.jump);
                     try self.flowTo(depths, index, target, jump_depth);
@@ -365,9 +732,32 @@ pub const Ir = struct {
             .push_var => .PushVar,
             .call_function_constant => .CallFunctionConstant,
             .call_tail_function_constant => .CallTailFunctionConstant,
-            .destructure_plan => .DestructurePlan,
             .jump => |j| j.op,
             .jump_back => |j| j.op,
+            .w_enter => |m| m.op,
+            .match_bytes => |m| m.op,
+            .match_test => |m| m.op,
+            .match_count => .MatchCount,
+            .match_cmp => .MatchCmp,
+            .match_cast => .MatchCast,
+            .match_const => |m| m.op,
+            .match_merge_num => .MatchMergeNum,
+            .match_claim_scan => |m| m.op,
+            .match_claim_key => |m| m.op,
+            .match_claim_done => |m| m.op,
+            .match_claim_count => |m| m.op,
+            .match_count_load => |m| m.op,
+            .match_claim_rest => |m| m.op,
+            .match_bound => |m| m.op,
+            .match_repeat_range => |m| m.op,
+            .match_repeat_init => |m| m.op,
+            .match_repeat_next => |m| m.op,
+            .match_span_init => |m| m.op,
+            .match_span_rest => |m| m.op,
+            .match_span_chunk => |m| m.op,
+            .match_str_lit => |m| m.op,
+            .match_span_val => |m| m.op,
+            .match_str_char => |m| m.op,
         };
     }
 
@@ -387,7 +777,8 @@ pub const Ir = struct {
     }
 
     // The local slot an instruction overwrites without reading its previous
-    // value, if any.
+    // value, if any. Match scratch registers live on the match register
+    // stack, not the frame, so only SetLocal targets a frame slot here.
     pub fn localSlotDefOperand(op: OpCode, operand: Operand) ?u32 {
         return switch (op) {
             .SetLocal => switch (operand) {
@@ -396,6 +787,70 @@ pub const Ir = struct {
             },
             else => null,
         };
+    }
+
+    // Whether a match op jumps to the innermost open window's shared fail
+    // block when it fails: every semidet match op and MatchRefail.
+    // MatchRepeatNext is excluded — its branch operand is a success
+    // (loop-done) exit, not a failure.
+    pub fn opFailsToWindow(op: OpCode) bool {
+        return switch (op) {
+            .MatchType,
+            .MatchCount,
+            .MatchCmp,
+            .MatchCast,
+            .MatchKey,
+            .MatchMergeBool,
+            .MatchStrEnd,
+            .MatchMergeNum,
+            .MatchClaimScan,
+            .MatchClaimKey,
+            .MatchClaimCount,
+            .MatchCountLoad,
+            .MatchBound,
+            .MatchRepeatRange,
+            .MatchRepeatRangeDivide,
+            .MatchRepeatInit,
+            .MatchStrLit,
+            .MatchSpanVal,
+            .MatchSpanChunk,
+            .MatchStrChar,
+            .MatchEval,
+            .MatchRangeBound,
+            .MatchRepeatValue,
+            .MatchRepeatChunk,
+            .MatchSubtractEval,
+            .MatchMergeEval,
+            .MatchDivideEval,
+            .MatchRefail,
+            => true,
+            else => false,
+        };
+    }
+
+    // For each instruction, the IR index of the fail block it jumps to on
+    // failure, or unpatched_jump for instructions that don't fail to a
+    // window. A forward walk tracks open windows: MatchWindowEnter pushes
+    // its fail target and it is popped once the walk reaches that fail
+    // block, so a window-failing op (and a MatchRefail cascading out of a
+    // just-closed child) resolves to the innermost still-open window.
+    pub fn matchFailTargets(self: *const Ir, allocator: Allocator) Allocator.Error![]Index {
+        const insns = self.instructions.items;
+        const targets = try allocator.alloc(Index, insns.len);
+        @memset(targets, unpatched_jump);
+        var stack = ArrayList(Index){};
+        defer stack.deinit(allocator);
+        for (insns, 0..) |insn, i| {
+            const index: Index = @intCast(i);
+            while (stack.items.len > 0 and stack.getLast() == index) _ = stack.pop();
+            const op = operandOp(insn.operand);
+            if (op == .MatchWindowEnter) {
+                try stack.append(allocator, insn.operand.w_enter.target);
+            } else if (opFailsToWindow(op) and stack.items.len > 0) {
+                targets[i] = stack.getLast();
+            }
+        }
+        return targets;
     }
 };
 
@@ -453,7 +908,6 @@ test "indexed operands choose the shortest encoding" {
     _ = try ir.push(allocator, .{ .get_constant = 0x05 }, testRegion(0));
     _ = try ir.push(allocator, .{ .get_constant = 0x1234 }, testRegion(1));
     _ = try ir.push(allocator, .{ .get_constant = 0x123456 }, testRegion(2));
-    _ = try ir.push(allocator, .{ .destructure_plan = 0x1234 }, testRegion(3));
     _ = try ir.push(allocator, .{ .call_function_constant = 0x02 }, testRegion(4));
     _ = try ir.push(allocator, .{ .call_tail_function_constant = 0x123456 }, testRegion(5));
 
@@ -471,9 +925,6 @@ test "indexed operands choose the shortest encoding" {
         0x12,
         0x34,
         0x56,
-        @intFromEnum(OpCode.DestructurePlan2),
-        0x12,
-        0x34,
         @intFromEnum(OpCode.CallFunctionConstant),
         0x02,
         @intFromEnum(OpCode.CallTailFunctionConstant3),

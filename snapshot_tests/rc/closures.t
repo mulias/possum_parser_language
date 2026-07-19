@@ -13,8 +13,8 @@ closure.
   merges:            4 in place, 0 copied
   inserts:           5 in place, 0 copied
   husks:             9 parked, 6 reused
-  strings interned:  26
-  strings size:      106 chars
+  strings interned:  20
+  strings size:      94 chars
   bytes in use:      1376
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p 'array_sep(word, ",")' -i 'ab,cd,ef,gh,ij'
@@ -26,8 +26,8 @@ closure.
   merges:            0 in place, 4 copied
   inserts:           0 in place, 5 copied
   husks:             0 parked, 0 reused
-  strings interned:  26
-  strings size:      106 chars
+  strings interned:  20
+  strings size:      94 chars
   bytes in use:      1376
 
 Object closures: object_sep itself takes plain-variable arguments and
@@ -49,8 +49,8 @@ second object on.
   merges:            2 in place, 0 copied
   inserts:           6 in place, 0 copied
   husks:             9 parked, 4 reused
-  strings interned:  114
-  strings size:      738 chars
+  strings interned:  106
+  strings size:      722 chars
   bytes in use:      8720
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p 'json' -i '[{"a": 1}, {"b": 2}, {"c": 3}]'
@@ -66,6 +66,6 @@ second object on.
   merges:            0 in place, 2 copied
   inserts:           0 in place, 6 copied
   husks:             0 parked, 0 reused
-  strings interned:  114
-  strings size:      738 chars
+  strings interned:  106
+  strings size:      722 chars
   bytes in use:      8720

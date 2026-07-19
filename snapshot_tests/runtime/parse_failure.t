@@ -97,11 +97,9 @@ and every grammar site that failed at the farthest position is listed:
     p (parser `maybe`, stdlib/combinator.possum:16:11)
     "9" (parser `_number_integer_part`, stdlib/number.possum:53:29)
     "9" (parser `numeral`, stdlib/string.possum:19:15)
-    "%(0 + N)" (parser `as_number`, stdlib/combinator.possum:36:20)
     '"' (parser `string`, stdlib/json.possum:20:9)
     "[" (parser `array`, stdlib/json.possum:56:14)
     "{" (parser `object`, stdlib/json.possum:59:2)
-    V (parser `pair_sep`, stdlib/object.possum:19:54)
   [ParserFailure]
   [1]
 

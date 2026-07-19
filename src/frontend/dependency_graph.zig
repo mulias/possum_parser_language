@@ -4,7 +4,8 @@ const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.AutoArrayHashMapUnmanaged;
 const StringTable = @import("string_table.zig").FrontendStringTable;
 const PathTable = @import("path_table.zig").PathTable;
-const Ast = @import("can_ast.zig");
+const Ast = @import("goal_ast.zig");
+const Region = @import("../region.zig").Region;
 const Writer = std.Io.Writer;
 const Module = @import("../runtime.zig").Module;
 
@@ -64,7 +65,7 @@ pub const Node = union(enum) {
     pub fn isPrivate(self: *const Node) bool {
         return switch (self.*) {
             .precompiled => false,
-            .declaration => |*n| n.ast.identUnderscored(),
+            .declaration => |*n| n.decl.underscored,
             .anonymous_function => false,
         };
     }
@@ -87,47 +88,82 @@ pub const Node = union(enum) {
 };
 
 pub const DeclarationNode = struct {
-    ast: Ast.ParserOrValue.Declaration,
+    // The owning module's goal ast; bodies are node ids into it.
+    module_ast: *const Ast,
+    // A stable pointer into module_ast.declarations.
+    decl: *const Ast.Declaration,
     dependencies: ArrayList(Edge) = .{},
     locals: ArrayList(StringTable.Id) = .{},
 };
 
 pub const AnonymousFunctionNode = struct {
-    ast: *Ast.RNode(Ast.Parser.AnonymousFunction),
+    module_ast: *const Ast,
+    name: PathTable.Id,
+    parent_name: ?PathTable.Id,
+    body: Ast.NodeId,
+    region: Region,
     dependencies: ArrayList(Edge) = .{},
     locals: ArrayList(StringTable.Id) = .{},
     closure_captures: ArrayList(ClosureCapture) = .{},
 
     pub fn parent(self: *const AnonymousFunctionNode) ?PathTable.Id {
-        return self.ast.node.parent_name;
+        return self.parent_name;
     }
 };
 
-pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: Ast) !void {
-    for (ast.declarations.items) |decl| {
+pub fn addModule(self: *Graph, allocator: Allocator, module: Module, ast: *const Ast) !void {
+    for (ast.declarations.items) |*decl| {
         try self.addNode(
             allocator,
             module.id,
-            decl.identName(),
+            decl.name,
             .{ .declaration = .{
-                .ast = decl,
+                .module_ast = ast,
+                .decl = decl,
             } },
         );
     }
 
-    // `main` is included here too: the canonicalizer appends it to
-    // anonymous_functions, so it is added as a regular anonymous function
-    // node (with a null parent).
-    for (ast.anonymous_functions.items) |anon| {
+    // Anonymous functions are added in creation order, with `main` — a
+    // regular anonymous function node with a null parent whose body is the
+    // module's bare parser expression — spliced in at the point it was
+    // finalized. Lambda goal nodes appear in the goals array in creation
+    // order already.
+    var created: u64 = 0;
+    for (ast.goals.items) |rnode| {
+        if (rnode.node != .lambda) continue;
+        if (ast.main != null and created == ast.main_order) try self.addMain(allocator, module.id, ast);
+        created += 1;
+        const lambda = rnode.node.lambda;
         try self.addNode(
             allocator,
             module.id,
-            anon.node.name,
+            lambda.name,
             .{ .anonymous_function = .{
-                .ast = anon,
+                .module_ast = ast,
+                .name = lambda.name,
+                .parent_name = lambda.parent_name,
+                .body = lambda.body,
+                .region = rnode.region,
             } },
         );
     }
+    if (ast.main != null and created <= ast.main_order) try self.addMain(allocator, module.id, ast);
+}
+
+fn addMain(self: *Graph, allocator: Allocator, module_id: Module.Id, ast: *const Ast) !void {
+    try self.addNode(
+        allocator,
+        module_id,
+        ast.main_name.?,
+        .{ .anonymous_function = .{
+            .module_ast = ast,
+            .name = ast.main_name.?,
+            .parent_name = null,
+            .body = ast.main.?,
+            .region = ast.main_region.?,
+        } },
+    );
 }
 
 pub fn addPrecompiled(self: *Graph, allocator: Allocator, module_id: Module.Id, name: PathTable.Id) !void {
@@ -141,9 +177,9 @@ fn addNode(self: *Graph, allocator: Allocator, module_id: Module.Id, name: PathT
     node.* = fields;
 
     const entry = try self.nodes.getOrPut(allocator, key);
-    // The canonicalizer rejects duplicate declarations and user-written
-    // @-names, and generated anonymous function names are unique, so a
-    // key can never be added twice.
+    // Goal build rejects duplicate declarations and user-written @-names,
+    // and generated anonymous function names are unique, so a key can never
+    // be added twice.
     std.debug.assert(!entry.found_existing);
     entry.value_ptr.* = node;
 }

@@ -113,11 +113,11 @@ merge with a second unbound part is a compile error.
 
   $ possum -p 'number -> (A + B) $ [A, B]' -i '5'
   
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'B' is unbound here: a pattern can solve at most one unbound part
   
-  program:1:15-16:
+  program:1:10-17:
   1 \xe2\x96\x8f number -> (A + B) $ [A, B] (esc)
-    \xe2\x96\x8f                ^ (esc)
+    \xe2\x96\x8f           ^^^^^^^ (esc)
   
   [UnboundVariable]
   [1]
@@ -127,53 +127,40 @@ variable-length segment.
 
   $ possum -p 'json -> "%(A)-%(B)" $ [A, B]' -i '"x-y"'
   
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'B' is unbound here: a pattern can solve at most one unbound part
   
-  program:1:16-17:
+  program:1:8-19:
   1 \xe2\x96\x8f json -> "%(A)-%(B)" $ [A, B] (esc)
-    \xe2\x96\x8f                 ^ (esc)
+    \xe2\x96\x8f         ^^^^^^^^^^^ (esc)
   
   [UnboundVariable]
   [1]
 
-An object repeat with an unbound count is itself a solvable part, so it
-can't share a merge with an unbound rest.
+An object repeat inside a merge whose count is unbound is not something
+the compiler can lower: goal binding accepts it (a sub-part is never a
+merge-level solvable part, so only C counts), but pattern lowering
+rejects it as unsupported.
 
   $ possum -p 'json -> ({A: B} * N + C) $ [N, C]' -i '{"a":1,"b":2}'
-  
-  Program Error: variable 'C' is unbound here: a merge can solve at most one unbound part
-  
-  program:1:22-23:
-  1 \xe2\x96\x8f json -> ({A: B} * N + C) $ [N, C] (esc)
-    \xe2\x96\x8f                       ^ (esc)
-  
-  [UnboundVariable]
+  [UnsupportedPattern]
   [1]
 
-Placeholders are unbound parts too; a part with no variable to name gets
-a generic message.
+Two adjacent placeholders collapse — `_ + _` folds to `_` — so the merge
+is solvable and matches anything.
 
   $ possum -p 'json -> (_ + _)' -i '[1,2]'
-  
-  Program Error: pattern part is unbound here: a merge can solve at most one unbound part
-  
-  program:1:13-14:
-  1 \xe2\x96\x8f json -> (_ + _) (esc)
-    \xe2\x96\x8f              ^ (esc)
-  
-  [UnboundVariable]
-  [1]
+  [1, 2]
 
 Repeat counts are destructured like any pattern, so a count merge with
 two unbound variables is rejected.
 
   $ possum -p '("a" -> V) * (N + M) $ [N, M]' -i 'aaa'
   
-  Program Error: variable 'M' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'M' is unbound here: a pattern can solve at most one unbound part
   
-  program:1:18-19:
+  program:1:13-20:
   1 \xe2\x96\x8f ("a" -> V) * (N + M) $ [N, M] (esc)
-    \xe2\x96\x8f                   ^ (esc)
+    \xe2\x96\x8f              ^^^^^^^ (esc)
   
   [UnboundVariable]
   [1]
@@ -182,18 +169,18 @@ Every extra unbound part is reported.
 
   $ possum -p 'number -> (A + B + C) $ [A, B, C]' -i '5'
   
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'B' is unbound here: a pattern can solve at most one unbound part
   
-  program:1:15-16:
+  program:1:10-21:
   1 \xe2\x96\x8f number -> (A + B + C) $ [A, B, C] (esc)
-    \xe2\x96\x8f                ^ (esc)
+    \xe2\x96\x8f           ^^^^^^^^^^^ (esc)
   
   
-  Program Error: variable 'C' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'C' is unbound here: a pattern can solve at most one unbound part
   
-  program:1:19-20:
+  program:1:10-21:
   1 \xe2\x96\x8f number -> (A + B + C) $ [A, B, C] (esc)
-    \xe2\x96\x8f                    ^ (esc)
+    \xe2\x96\x8f           ^^^^^^^^^^^ (esc)
   
   [UnboundVariable]
   [1]
