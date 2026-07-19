@@ -86,7 +86,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -95,7 +95,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -175,7 +175,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -184,7 +184,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -200,9 +200,12 @@
   "Hello %(word)"
   ========================================
   0000    | CallFunctionConstant 0: "Hello "
-  0002    | CallFunctionConstant 1: word
-  0004    | MergeAsString
-  0005    | End
+  0002    | JumpIfFailure 2 -> 10
+  0005    | PushEmptyString
+  0006    | CallFunctionConstant 1: word
+  0008    | MergeAsString
+  0009    | Merge
+  0010    | End
   ========================================
 
   $ possum -p '"%(word) World"' -i ''
@@ -264,7 +267,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -273,7 +276,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -291,9 +294,10 @@
   0000    | PushEmptyString
   0001    | CallFunctionConstant 0: word
   0003    | MergeAsString
-  0004    | CallFunctionConstant 1: " World"
-  0006    | MergeAsString
-  0007    | End
+  0004    | JumpIfFailure 4 -> 10
+  0007    | CallFunctionConstant 1: " World"
+  0009    | Merge
+  0010    | End
   ========================================
 
   $ possum -p '"Hello %(word) and %(word)"' -i ''
@@ -355,7 +359,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -364,7 +368,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -380,13 +384,20 @@
   "Hello %(word) and %(word)"
   ========================================
   0000    | CallFunctionConstant 0: "Hello "
-  0002    | CallFunctionConstant 1: word
-  0004    | MergeAsString
-  0005    | CallFunctionConstant 2: " and "
-  0007    | MergeAsString
-  0008    | CallFunctionConstant 1: word
-  0010    | MergeAsString
-  0011    | End
+  0002    | JumpIfFailure 2 -> 10
+  0005    | PushEmptyString
+  0006    | CallFunctionConstant 1: word
+  0008    | MergeAsString
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 16
+  0013    | CallFunctionConstant 2: " and "
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 24
+  0019    | PushEmptyString
+  0020    | CallFunctionConstant 1: word
+  0022    | MergeAsString
+  0023    | Merge
+  0024    | End
   ========================================
 
   $ possum -p '"" $ "%(5)"' -i ''
@@ -407,8 +418,17 @@
   ========================================
   0000    | PushVar Str
   0002    | PushEmptyString
-  0003    | DestructurePlan 0: tmpl(bind Str)
-  0005    | End
+  0003    | JumpIfFailure 3 -> 32
+  0006    | MatchWindowEnter 2 fail->30
+  0010    | MatchScrutinee r0
+  0012    | MatchType r0 string
+  0015    | MatchCount r0 >=0
+  0019    | MatchSlice r1 r0[0..^0]
+  0024    | MatchBind l0 r1
+  0027    | Jump 27 -> 31
+  0030    | MatchFail
+  0031    | MatchWindowExit
+  0032    | End
   ========================================
 
   $ possum -p '"Hello %(int + word)"' -i ''
@@ -479,7 +499,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -488,7 +508,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -504,7 +524,7 @@
   maybe(p) = p | succeed
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 8
   0006    | CallTailFunctionConstant 0: succeed
   0008    | End
@@ -522,7 +542,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -530,11 +550,19 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar N
-  0002    | CallFunctionLocal 0
-  0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
-  0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 1
-  0011    | End
+  0002    | CallFunctionLocal l0
+  0004    | JumpIfFailure 4 -> 28
+  0007    | MatchWindowEnter 6 fail->26
+  0011    | MatchScrutinee r0
+  0013    | MatchType r0 string
+  0016    | MatchCast r4 <- num r0
+  0020    | MatchBind l1 r4
+  0023    | Jump 23 -> 27
+  0026    | MatchFail
+  0027    | MatchWindowExit
+  0028    | TakeRight 28 -> 33
+  0031    | GetLocalMove l1
+  0033    | End
   ========================================
   
   ===============6:integer================
@@ -584,11 +612,14 @@
   "Hello %(int + word)"
   ========================================
   0000    | CallFunctionConstant 0: "Hello "
-  0002    | CallFunctionConstant 1: integer
-  0004    | JumpIfFailure 4 -> 10
-  0007    | CallFunctionConstant 2: word
-  0009    | Merge
-  0010    | MergeAsString
-  0011    | End
+  0002    | JumpIfFailure 2 -> 16
+  0005    | PushEmptyString
+  0006    | CallFunctionConstant 1: integer
+  0008    | JumpIfFailure 8 -> 14
+  0011    | CallFunctionConstant 2: word
+  0013    | Merge
+  0014    | MergeAsString
+  0015    | Merge
+  0016    | End
   ========================================
 

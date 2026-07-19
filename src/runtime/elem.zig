@@ -555,9 +555,31 @@ pub const Elem = packed union {
         return false;
     }
 
+    // A value matches a range when it is any number (integer range) or a
+    // single-codepoint string (codepoint range). Multi-codepoint strings
+    // and non-number, non-string values never match a range.
+    pub fn isRangeValue(elem: Elem, vm: VM) bool {
+        if (elem.isNumber()) return true;
+        return elem.toCodepoint(vm) != null;
+    }
+
+    // A range bound must be a whole integer (integer range) or a single
+    // codepoint (codepoint range). Non-integer numbers and multi-codepoint
+    // strings are invalid bounds.
+    pub fn isRangeBound(elem: Elem, vm: VM) bool {
+        if (elem.isNumber()) return elem.isInteger(vm.strings);
+        return elem.toCodepoint(vm) != null;
+    }
+
     fn toCodepoint(elem: Elem, vm: VM) ?u21 {
         var buf: [4]u8 = undefined;
         const bytes = elem.shortStringBytes(&buf, vm) orelse return null;
+        if (bytes.len == 0) return null;
+        // Only a string that is exactly one codepoint decodes: the byte
+        // count must match the first byte's sequence length, or utf8Decode
+        // asserts on a multi-codepoint slice.
+        const len = unicode.utf8ByteSequenceLength(bytes[0]) catch return null;
+        if (len != bytes.len) return null;
         return unicode.utf8Decode(bytes) catch return null;
     }
 
@@ -1039,6 +1061,26 @@ pub const Elem = packed union {
                 return obj.dyn.elem();
             },
         };
+    }
+
+    // Parse `bytes` as a JSON document into an Elem, or null when the
+    // bytes are not valid JSON. The returned dyn is fully built (fromJson
+    // roots its interior during construction); callers must root it before
+    // the next allocation. Shared by the plan interpreter's template cast
+    // and the inline MatchCast json step.
+    pub fn parseJson(vm: *VM, bytes: []const u8) !?Elem {
+        const parsed = json.parseFromSlice(
+            json.Value,
+            vm.allocator,
+            bytes,
+            .{ .parse_numbers = false },
+        ) catch |e| switch (e) {
+            error.OutOfMemory => |oom| return oom,
+            else => return null,
+        };
+        defer parsed.deinit();
+
+        return try fromJson(parsed.value, vm);
     }
 
     pub const DynType = enum {

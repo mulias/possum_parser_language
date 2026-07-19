@@ -3,7 +3,6 @@ const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("elem.zig").Elem;
-const MatchPlan = @import("match_plan.zig").MatchPlan;
 const hl = @import("../highlight.zig");
 const Region = @import("../region.zig").Region;
 
@@ -12,16 +11,11 @@ pub const Module = struct {
     name: []const u8,
     source: []const u8,
     constants: ArrayList(Elem) = ArrayList(Elem){},
-    match_plans: ArrayList(MatchPlan) = ArrayList(MatchPlan){},
 
     pub const Id = u16;
 
     pub fn deinit(self: *Module, allocator: Allocator) void {
         self.constants.deinit(allocator);
-        for (self.match_plans.items) |*plan| {
-            plan.deinit(allocator);
-        }
-        self.match_plans.deinit(allocator);
     }
 
     pub fn addConstant(self: *Module, allocator: Allocator, elem: Elem) !usize {
@@ -35,16 +29,6 @@ pub const Module = struct {
 
     pub fn getConstant(self: Module, idx: usize) Elem {
         return self.constants.items[idx];
-    }
-
-    pub fn addMatchPlan(self: *Module, allocator: Allocator, plan: MatchPlan) !usize {
-        const idx = self.match_plans.items.len;
-        try self.match_plans.append(allocator, plan);
-        return idx;
-    }
-
-    pub fn getMatchPlan(self: Module, idx: usize) MatchPlan {
-        return self.match_plans.items[idx];
     }
 
     /// Highlight this region in the module source code with context lines and underlines

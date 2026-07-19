@@ -4,7 +4,8 @@ const ArrayList = std.ArrayListUnmanaged;
 const HashMap = std.AutoHashMapUnmanaged;
 const StringTable = @import("string_table.zig").FrontendStringTable;
 const PathTable = @import("path_table.zig").PathTable;
-const Ast = @import("can_ast.zig");
+const Ast = @import("goal_ast.zig");
+const Pattern = @import("pattern_tree.zig");
 const Module = @import("../runtime.zig").Module;
 const DependencyGraph = @import("dependency_graph.zig");
 const Region = @import("../region.zig").Region;
@@ -97,7 +98,7 @@ pub fn init(arena: *ArenaAllocator, paths: *PathTable, strings: *StringTable) Re
     };
 }
 
-pub fn addModule(self: *Resolver, module: Module, ast: Ast) !void {
+pub fn addModule(self: *Resolver, module: Module, ast: *const Ast) !void {
     try self.graph.addModule(self.arena.allocator(), module, ast);
 }
 
@@ -248,31 +249,13 @@ fn resolveDeclaration(
     node: *DependencyGraph.Node,
 ) !void {
     const allocator = self.arena.allocator();
-    const decl = node.declaration.ast;
-    switch (decl) {
-        .parser => |p| {
-            for (p.node.params.items) |param| {
-                const param_name = switch (param) {
-                    .parser => |parser_ident| parser_ident.node.name,
-                    .value => |value_ident| value_ident.node.name,
-                };
-                const decl_node = &node.declaration;
-                // The canonicalizer rejects namespaced params.
-                try decl_node.locals.append(allocator, self.paths.single(param_name).?);
-            }
-
-            try self.walkParser(key, node, p.node.body);
-        },
-        .value => |v| {
-            for (v.node.params.items) |param| {
-                const decl_node = &node.declaration;
-                // The canonicalizer rejects namespaced params.
-                try decl_node.locals.append(allocator, self.paths.single(param.node.name).?);
-            }
-
-            try self.walkValue(key, node, v.node.body);
-        },
+    const decl_node = &node.declaration;
+    const decl = decl_node.decl;
+    for (decl.params.items) |param_name| {
+        // Goal build rejects namespaced params, so each is a single segment.
+        try decl_node.locals.append(allocator, self.paths.single(param_name).?);
     }
+    try self.walkGoal(key, node, decl_node.module_ast, decl.body);
 }
 
 fn resolveAnonymousFunction(
@@ -280,7 +263,8 @@ fn resolveAnonymousFunction(
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
 ) !void {
-    try self.walkParser(key, node, node.anonymous_function.ast.node.body);
+    const anon = &node.anonymous_function;
+    try self.walkGoal(key, node, anon.module_ast, anon.body);
 }
 
 // At runtime `SetClosureCaptures` copies closure capture slot N into local
@@ -316,205 +300,125 @@ fn orderCapturedLocals(self: *Resolver, node: *DependencyGraph.Node) !void {
     anon.locals = ordered;
 }
 
-fn walkParser(
+// Walk a goal node, resolving eval-position identifiers and recording a
+// dependency on each lambda it references. Lambdas are graph nodes in their
+// own right, resolved separately, so the walk stops at them. Match nodes
+// route through their lowered constraints.
+fn walkGoal(
     self: *Resolver,
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
-    rnode: *Ast.Parser.RNode,
+    ast: *const Ast,
+    id: Ast.NodeId,
 ) error{OutOfMemory}!void {
+    const rnode = ast.goals.items[id];
     switch (rnode.node) {
-        .identifier => |ident| {
-            try self.resolveParserIdentifier(key, node, ident.name, rnode.region);
+        .ident => |ident| switch (ident.kind) {
+            .parser => try self.resolveParserIdentifier(key, node, ident.name, rnode.region),
+            .value => try self.resolveValueIdentifier(key, node, ident.name, rnode.region),
         },
-        .@"or" => |infix| {
-            try self.walkParser(key, node, infix.left);
-            try self.walkParser(key, node, infix.right);
+        .call => |call| {
+            try self.walkGoal(key, node, ast, call.callee);
+            for (call.args) |arg| try self.walkGoal(key, node, ast, arg);
         },
-        .@"return" => |ret| {
-            try self.walkParser(key, node, ret.left);
-            try self.walkValue(key, node, ret.right);
-        },
-        .anonymous_function => |anon| {
-            // Add dependency on the anonymous function itself
-            try self.addDependency(node, .{
-                .ref = anon.name,
-                .target = .{
-                    .module_id = key.module_id,
-                    .name = anon.name,
-                },
-            });
-        },
-        .conditional => |cond| {
-            try self.walkParser(key, node, cond.condition);
-            try self.walkParser(key, node, cond.then_branch);
-            try self.walkParser(key, node, cond.else_branch);
-        },
-        .destructure => |dest| {
-            try self.walkParser(key, node, dest.left);
-            try self.walkPattern(key, node, dest.right);
-        },
-        .function_call => |fc| {
-            try self.walkParser(key, node, fc.function);
-            for (fc.args.items) |arg| {
-                switch (arg) {
-                    .parser => |p| try self.walkParser(key, node, p),
-                    .value => |v| try self.walkValue(key, node, v),
-                }
+        .alt => |arms| {
+            for (arms.items) |arm| {
+                if (arm.guard) |guard| try self.walkGoal(key, node, ast, guard);
+                if (arm.body) |body| try self.walkGoal(key, node, ast, body);
             }
         },
-        .merge => |infix| {
-            try self.walkParser(key, node, infix.left);
-            try self.walkParser(key, node, infix.right);
+        .seq => |seq| {
+            for (seq.goals.items) |goal| try self.walkGoal(key, node, ast, goal);
         },
-        .negation => |inner| {
-            try self.walkParser(key, node, inner);
+        .neg, .to_string => |inner| try self.walkGoal(key, node, ast, inner),
+        .merge => |merge| {
+            try self.walkGoal(key, node, ast, merge.left);
+            try self.walkGoal(key, node, ast, merge.right);
+        },
+        .mult => |mult| {
+            try self.walkGoal(key, node, ast, mult.left);
+            try self.walkGoal(key, node, ast, mult.right);
+        },
+        .array => |items| {
+            for (items.items) |item| try self.walkGoal(key, node, ast, item);
+        },
+        .object => |pairs| {
+            for (pairs.items) |pair| {
+                try self.walkGoal(key, node, ast, pair.key);
+                try self.walkGoal(key, node, ast, pair.value);
+            }
+        },
+        .repeat => |rep| {
+            try self.walkGoal(key, node, ast, rep.body);
+            try self.walkPattern(key, node, ast, rep.count_pattern);
         },
         .range => |range| {
-            if (range.lower) |lower| try self.walkParser(key, node, lower);
-            if (range.upper) |upper| try self.walkParser(key, node, upper);
+            if (range.lower) |lower| try self.walkGoal(key, node, ast, lower);
+            if (range.upper) |upper| try self.walkGoal(key, node, ast, upper);
         },
-        .repeat => |rep| {
-            try self.walkParser(key, node, rep.left);
-            try self.walkPattern(key, node, rep.right);
+        .match => |match| {
+            try self.walkGoal(key, node, ast, match.scrutinee);
+            try self.walkPattern(key, node, ast, match.pattern);
         },
-        .string_template => |tmpl| {
-            for (tmpl.items) |item| {
-                try self.walkParser(key, node, item);
-            }
+        .lambda => |lambda| {
+            try self.addDependency(node, .{
+                .ref = lambda.name,
+                .target = .{ .module_id = key.module_id, .name = lambda.name },
+            });
         },
-        .take_left => |infix| {
-            try self.walkParser(key, node, infix.left);
-            try self.walkParser(key, node, infix.right);
-        },
-        .take_right => |infix| {
-            try self.walkParser(key, node, infix.left);
-            try self.walkParser(key, node, infix.right);
-        },
-        .number_string, .string => {},
+        .number_string, .number_float, .string, .true, .false, .null => {},
     }
 }
 
-fn walkValue(
-    self: *Resolver,
-    key: DependencyGraph.NodeKey,
-    node: *DependencyGraph.Node,
-    rnode: *Ast.Value.RNode,
-) error{OutOfMemory}!void {
-    switch (rnode.node) {
-        .identifier => |ident| {
-            try self.resolveValueIdentifier(key, node, ident.name, rnode.region);
-        },
-        .@"or" => |infix| {
-            try self.walkValue(key, node, infix.left);
-            try self.walkValue(key, node, infix.right);
-        },
-        .@"return" => |ret| {
-            try self.walkValue(key, node, ret.left);
-            try self.walkValue(key, node, ret.right);
-        },
-        .array => |arr| {
-            for (arr.items) |item| {
-                try self.walkValue(key, node, item);
-            }
-        },
-        .conditional => |cond| {
-            try self.walkValue(key, node, cond.condition);
-            try self.walkValue(key, node, cond.then_branch);
-            try self.walkValue(key, node, cond.else_branch);
-        },
-        .destructure => |dest| {
-            try self.walkValue(key, node, dest.left);
-            try self.walkPattern(key, node, dest.right);
-        },
-        .function_call => |fc| {
-            try self.walkValue(key, node, fc.function);
-            for (fc.args.items) |arg| {
-                try self.walkValue(key, node, arg);
-            }
-        },
-        .merge => |infix| {
-            try self.walkValue(key, node, infix.left);
-            try self.walkValue(key, node, infix.right);
-        },
-        .negation => |inner| {
-            try self.walkValue(key, node, inner);
-        },
-        .object => |obj| {
-            for (obj.items) |pair| {
-                try self.walkValue(key, node, pair.key);
-                try self.walkValue(key, node, pair.value);
-            }
-        },
-        .repeat => |rep| {
-            try self.walkValue(key, node, rep.left);
-            try self.walkValue(key, node, rep.right);
-        },
-        .string_template => |tmpl| {
-            for (tmpl.items) |item| {
-                try self.walkValue(key, node, item);
-            }
-        },
-        .take_left => |infix| {
-            try self.walkValue(key, node, infix.left);
-            try self.walkValue(key, node, infix.right);
-        },
-        .take_right => |infix| {
-            try self.walkValue(key, node, infix.left);
-            try self.walkValue(key, node, infix.right);
-        },
-        .false, .null, .number_float, .number_string, .string, .true => {},
-    }
-}
-
+// Discover a pattern's dependency edges and bound locals before it is
+// lowered: bare identifiers resolve as value identifiers (an unresolved
+// one binds a local), function-call leaves are already goal nodes, and
+// structure recurses. A placeholder binds nothing.
 fn walkPattern(
     self: *Resolver,
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
-    rnode: *Ast.Pattern.RNode,
+    ast: *const Ast,
+    pattern: *const Pattern.RNode,
 ) error{OutOfMemory}!void {
-    switch (rnode.node) {
+    switch (pattern.node) {
         .identifier => |ident| {
-            try self.resolveValueIdentifier(key, node, ident.name, rnode.region);
+            if (self.isPlaceholder(ident.name)) return;
+            try self.resolveValueIdentifier(key, node, ident.name, pattern.region);
         },
-        .array => |arr| {
-            for (arr.items) |item| {
-                try self.walkPattern(key, node, item);
-            }
+        .function_call => |expr| try self.walkGoal(key, node, ast, expr),
+        .merge => |op| {
+            try self.walkPattern(key, node, ast, op.left);
+            try self.walkPattern(key, node, ast, op.right);
         },
-        .function_call => |fc| {
-            try self.walkValue(key, node, fc.function);
-            for (fc.args.items) |arg| {
-                try self.walkValue(key, node, arg);
-            }
+        .repeat => |op| {
+            try self.walkPattern(key, node, ast, op.left);
+            try self.walkPattern(key, node, ast, op.right);
         },
-        .merge => |infix| {
-            try self.walkPattern(key, node, infix.left);
-            try self.walkPattern(key, node, infix.right);
+        .negation => |inner| try self.walkPattern(key, node, ast, inner),
+        .array => |elems| {
+            for (elems.items) |elem| try self.walkPattern(key, node, ast, elem);
         },
-        .negation => |inner| {
-            try self.walkPattern(key, node, inner);
-        },
-        .object => |obj| {
-            for (obj.items) |pair| {
-                try self.walkPattern(key, node, pair.key);
-                try self.walkPattern(key, node, pair.value);
+        .object => |pairs| {
+            for (pairs.items) |pair| {
+                try self.walkPattern(key, node, ast, pair.key);
+                try self.walkPattern(key, node, ast, pair.value);
             }
         },
         .range => |range| {
-            if (range.lower) |lower| try self.walkPattern(key, node, lower);
-            if (range.upper) |upper| try self.walkPattern(key, node, upper);
+            if (range.lower) |lower| try self.walkPattern(key, node, ast, lower);
+            if (range.upper) |upper| try self.walkPattern(key, node, ast, upper);
         },
-        .repeat => |rep| {
-            try self.walkPattern(key, node, rep.left);
-            try self.walkPattern(key, node, rep.right);
+        .string_template => |parts| {
+            for (parts.items) |part| try self.walkPattern(key, node, ast, part);
         },
-        .string_template => |tmpl| {
-            for (tmpl.items) |item| {
-                try self.walkPattern(key, node, item);
-            }
-        },
-        .false, .null, .number_float, .number_string, .string, .true => {},
+        .number_float, .number_string, .string, .true, .false, .null => {},
     }
+}
+
+fn isPlaceholder(self: *Resolver, name: PathTable.Id) bool {
+    const segment = self.paths.single(name) orelse return false;
+    return std.mem.eql(u8, self.strings.get(segment), "_");
 }
 
 fn addCapture(self: *Resolver, anon: *DependencyGraph.AnonymousFunctionNode, capture: DependencyGraph.ClosureCapture) !void {
@@ -805,13 +709,10 @@ fn matchAlias(self: *const Resolver, module_id: Module.Id, name: PathTable.Id, i
 
 fn nodeKind(self: *const Resolver, key: DependencyGraph.NodeKey, node: *const DependencyGraph.Node) Kind {
     return switch (node.*) {
-        .declaration => |*decl| switch (decl.ast) {
-            .parser => .parser,
-            .value => .value,
-        },
-        // Precompiled builtins carry no declaration; their names follow the
-        // same case convention (`@fail` is a parser, `@Fail` a value).
-        .precompiled => self.nameKind(key.name),
+        // A declaration's kind follows its name's case, the same convention
+        // goal build routes on. Precompiled builtins follow it too (`@fail`
+        // is a parser, `@Fail` a value).
+        .declaration, .precompiled => self.nameKind(key.name),
         .anonymous_function => .parser,
     };
 }

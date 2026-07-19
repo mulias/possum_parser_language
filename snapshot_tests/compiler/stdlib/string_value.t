@@ -6,9 +6,16 @@
   Str.Length(S) = S -> ("\u000000".. * L) $ L
   ========================================
   0000    | PushVar L
-  0002    | GetLocalMove 0
-  0004    | DestructurePlan 0: (_0_.. * bind L)
-  0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 1
-  0011    | End
+  0002    | GetLocalMove l0
+  0004    | JumpIfFailure 4 -> 30
+  0007    | MatchWindowEnter 3 fail->28
+  0011    | MatchScrutinee r0
+  0013    | MatchRepeatRange r0 r2 _0_..
+  0022    | MatchBind l1 r2
+  0025    | Jump 25 -> 29
+  0028    | MatchFail
+  0029    | MatchWindowExit
+  0030    | TakeRight 30 -> 35
+  0033    | GetLocalMove l1
+  0035    | End
   ========================================

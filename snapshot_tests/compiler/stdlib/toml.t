@@ -13,21 +13,21 @@
   ========================================
   
   ==============0:@Codepoint==============
-  0000    | GetLocal 0
+  0000    | GetLocal l0
   0002    | NativeCode 6: stringToCodepointNative
   0004    | End
   ========================================
   
   ==============0:@Multiply===============
-  0000    | GetLocal 0
-  0002    | GetLocal 1
+  0000    | GetLocal l0
+  0002    | GetLocal l1
   0004    | NativeCode 9: multiplyNative
   0006    | End
   ========================================
   
   ================0:@Power================
-  0000    | GetLocal 0
-  0002    | GetLocal 1
+  0000    | GetLocal l0
+  0002    | GetLocal l1
   0004    | NativeCode 11: powerNative
   0006    | End
   ========================================
@@ -39,10 +39,10 @@
   
   =================0:@at==================
   0000    | SetInputMark
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   0003    | NativeCode 4: setInputPositionNative
   0005    | JumpIfFailure 5 -> 13
-  0008    | GetLocal 1
+  0008    | GetLocal l1
   0010    | CallFunction 0
   0012    | ResetInput
   0013    | End
@@ -61,7 +61,7 @@
   tagged = custom(tagged_value)
   ========================================
   0000    | GetConstant 0: custom
-  0002    | GetConstant 202: tagged_value
+  0002    | GetConstant 205: tagged_value
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -77,25 +77,29 @@
   0002    | GetConstant 2: maybe
   0004    | GetConstant 3: @fn0
   0006    | CallFunction 1
-  0008    | TakeRight 8 -> 29
+  0008    | TakeRight 8 -> 40
   0011    | SetInputMark
   0012    | GetConstant 4: _with_root_table
-  0014    | GetLocal 0
+  0014    | GetLocal l0
   0016    | CallFunction 1
   0018    | Or 18 -> 27
   0021    | GetConstant 5: _no_root_table
-  0023    | GetLocalMove 0
+  0023    | GetLocalMove l0
   0025    | CallFunction 1
-  0027    | DestructurePlan 0: bind Doc
-  0029    | TakeRight 29 -> 47
-  0032    | GetConstant 2: maybe
-  0034    | GetConstant 6: @fn1
-  0036    | CallFunction 1
-  0038    | TakeRight 38 -> 47
-  0041    | GetConstant 7: _Doc.Value
-  0043    | GetLocalMove 1
-  0045    | CallTailFunction 1
-  0047    | End
+  0027    | JumpIfFailure 27 -> 40
+  0030    | MatchWindowEnter 2 fail->39
+  0034    | MatchScrutinee r0
+  0036    | MatchBind l1 r0
+  0039    | MatchWindowExit
+  0040    | TakeRight 40 -> 58
+  0043    | GetConstant 2: maybe
+  0045    | GetConstant 6: @fn1
+  0047    | CallFunction 1
+  0049    | TakeRight 49 -> 58
+  0052    | GetConstant 7: _Doc.Value
+  0054    | GetLocalMove l1
+  0056    | CallTailFunction 1
+  0058    | End
   ========================================
   
   ===========1:_with_root_table===========
@@ -105,23 +109,27 @@
   ========================================
   0000    | PushVar2 RootDoc
   0003    | GetConstant 13: _root_table
-  0005    | GetLocal 0
+  0005    | GetLocal l0
   0007    | CallFunctionConstant 14: _Doc.Empty
   0009    | CallFunction 2
-  0011    | DestructurePlan 1: bind RootDoc
-  0013    | TakeRight 13 -> 39
-  0016    | SetInputMark
-  0017    | CallFunctionConstant 15: _ws
-  0019    | TakeRight 19 -> 30
-  0022    | GetConstant 16: _tables
-  0024    | GetLocalMove 0
-  0026    | GetLocal 1
-  0028    | CallFunction 2
-  0030    | Or 30 -> 39
-  0033    | GetConstant 17: const
-  0035    | GetLocalMove 1
-  0037    | CallTailFunction 1
-  0039    | End
+  0011    | JumpIfFailure 11 -> 24
+  0014    | MatchWindowEnter 2 fail->23
+  0018    | MatchScrutinee r0
+  0020    | MatchBind l1 r0
+  0023    | MatchWindowExit
+  0024    | TakeRight 24 -> 50
+  0027    | SetInputMark
+  0028    | CallFunctionConstant 15: _ws
+  0030    | TakeRight 30 -> 41
+  0033    | GetConstant 16: _tables
+  0035    | GetLocalMove l0
+  0037    | GetLocal l1
+  0039    | CallFunction 2
+  0041    | Or 41 -> 50
+  0044    | GetConstant 17: const
+  0046    | GetLocalMove l1
+  0048    | CallTailFunction 1
+  0050    | End
   ========================================
   
   =============1:_root_table==============
@@ -129,9 +137,9 @@
     _table_body(value, [], Doc)
   ========================================
   0000    | GetConstant 18: _table_body
-  0002    | GetLocalMove 0
+  0002    | GetLocalMove l0
   0004    | PushEmptyArray
-  0005    | GetLocalMove 1
+  0005    | GetLocalMove l1
   0007    | CallTailFunction 3
   0009    | End
   ========================================
@@ -143,22 +151,26 @@
   ========================================
   0000    | PushVar2 NewDoc
   0003    | SetInputMark
-  0004    | GetConstant 92: _table
-  0006    | GetLocal 0
+  0004    | GetConstant 93: _table
+  0006    | GetLocal l0
   0008    | CallFunctionConstant 14: _Doc.Empty
   0010    | CallFunction 2
   0012    | Or 12 -> 23
-  0015    | GetConstant 93: _array_of_tables
-  0017    | GetLocal 0
+  0015    | GetConstant 94: _array_of_tables
+  0017    | GetLocal l0
   0019    | CallFunctionConstant 14: _Doc.Empty
   0021    | CallFunction 2
-  0023    | DestructurePlan 28: bind NewDoc
-  0025    | TakeRight 25 -> 36
-  0028    | GetConstant 16: _tables
-  0030    | GetLocalMove 0
-  0032    | GetLocalMove 1
-  0034    | CallTailFunction 2
-  0036    | End
+  0023    | JumpIfFailure 23 -> 36
+  0026    | MatchWindowEnter 2 fail->35
+  0030    | MatchScrutinee r0
+  0032    | MatchBind l1 r0
+  0035    | MatchWindowExit
+  0036    | TakeRight 36 -> 47
+  0039    | GetConstant 16: _tables
+  0041    | GetLocalMove l0
+  0043    | GetLocalMove l1
+  0045    | CallTailFunction 2
+  0047    | End
   ========================================
   
   ===============1:_tables================
@@ -173,26 +185,30 @@
   0004    | SetInputMark
   0005    | CallFunctionConstant 15: _ws
   0007    | TakeRight 7 -> 18
-  0010    | GetConstant 92: _table
-  0012    | GetLocal 0
-  0014    | GetLocal 1
+  0010    | GetConstant 93: _table
+  0012    | GetLocal l0
+  0014    | GetLocal l1
   0016    | CallFunction 2
   0018    | Or 18 -> 29
-  0021    | GetConstant 93: _array_of_tables
-  0023    | GetLocal 0
-  0025    | GetLocal 1
+  0021    | GetConstant 94: _array_of_tables
+  0023    | GetLocal l0
+  0025    | GetLocal l1
   0027    | CallFunction 2
-  0029    | DestructurePlan 22: bind NewDoc
-  0031    | ConditionalThen 31 -> 45
-  0034    | GetConstant 16: _tables
-  0036    | GetLocalMove 0
-  0038    | GetLocalMove 2
-  0040    | CallTailFunction 2
-  0042    | Jump 42 -> 51
-  0045    | GetConstant 17: const
-  0047    | GetLocalMove 1
-  0049    | CallTailFunction 1
-  0051    | End
+  0029    | JumpIfFailure 29 -> 42
+  0032    | MatchWindowEnter 2 fail->41
+  0036    | MatchScrutinee r0
+  0038    | MatchBind l2 r0
+  0041    | MatchWindowExit
+  0042    | ConditionalThen 42 -> 56
+  0045    | GetConstant 16: _tables
+  0047    | GetLocalMove l0
+  0049    | GetLocalMove l2
+  0051    | CallTailFunction 2
+  0053    | Jump 53 -> 62
+  0056    | GetConstant 17: const
+  0058    | GetLocalMove l1
+  0060    | CallTailFunction 1
+  0062    | End
   ========================================
   
   ================1:_table================
@@ -203,25 +219,29 @@
     )
   ========================================
   0000    | PushVar2 HeaderPath
-  0003    | CallFunctionConstant 94: _table_header
-  0005    | DestructurePlan 23: bind HeaderPath
-  0007    | TakeRight 7 -> 12
-  0010    | CallFunctionConstant 20: _ws_newline
-  0012    | TakeRight 12 -> 41
-  0015    | SetInputMark
-  0016    | GetConstant 18: _table_body
-  0018    | GetLocalMove 0
-  0020    | GetLocal 2
-  0022    | GetLocal 1
-  0024    | CallFunction 3
-  0026    | Or 26 -> 41
-  0029    | GetConstant 17: const
-  0031    | GetConstant 95: _Doc.EnsureTableAtPath
-  0033    | GetLocalMove 1
-  0035    | GetLocalMove 2
-  0037    | CallFunction 2
-  0039    | CallTailFunction 1
-  0041    | End
+  0003    | CallFunctionConstant 95: _table_header
+  0005    | JumpIfFailure 5 -> 18
+  0008    | MatchWindowEnter 2 fail->17
+  0012    | MatchScrutinee r0
+  0014    | MatchBind l2 r0
+  0017    | MatchWindowExit
+  0018    | TakeRight 18 -> 23
+  0021    | CallFunctionConstant 20: _ws_newline
+  0023    | TakeRight 23 -> 52
+  0026    | SetInputMark
+  0027    | GetConstant 18: _table_body
+  0029    | GetLocalMove l0
+  0031    | GetLocal l2
+  0033    | GetLocal l1
+  0035    | CallFunction 3
+  0037    | Or 37 -> 52
+  0040    | GetConstant 17: const
+  0042    | GetConstant 96: _Doc.EnsureTableAtPath
+  0044    | GetLocalMove l1
+  0046    | GetLocalMove l2
+  0048    | CallFunction 2
+  0050    | CallTailFunction 1
+  0052    | End
   ========================================
   
   ===========1:_array_of_tables===========
@@ -232,25 +252,33 @@
   ========================================
   0000    | PushVar2 HeaderPath
   0003    | PushVar2 InnerDoc
-  0006    | CallFunctionConstant 98: _array_of_tables_header
-  0008    | DestructurePlan 24: bind HeaderPath
-  0010    | TakeRight 10 -> 15
-  0013    | CallFunctionConstant 20: _ws_newline
-  0015    | TakeRight 15 -> 45
-  0018    | GetConstant 53: default
-  0020    | GetConstant 99: @fn2
-  0022    | CreateClosure 1
-  0024    | CaptureLocal 0
-  0026    | CallFunctionConstant 14: _Doc.Empty
-  0028    | CallFunction 2
-  0030    | DestructurePlan 25: bind InnerDoc
-  0032    | TakeRight 32 -> 45
-  0035    | GetConstant 100: _Doc.AppendAtPath
-  0037    | GetLocalMove 1
-  0039    | GetLocalMove 2
-  0041    | GetLocalMove 3
-  0043    | CallTailFunction 3
-  0045    | End
+  0006    | CallFunctionConstant 99: _array_of_tables_header
+  0008    | JumpIfFailure 8 -> 21
+  0011    | MatchWindowEnter 2 fail->20
+  0015    | MatchScrutinee r0
+  0017    | MatchBind l2 r0
+  0020    | MatchWindowExit
+  0021    | TakeRight 21 -> 26
+  0024    | CallFunctionConstant 20: _ws_newline
+  0026    | TakeRight 26 -> 67
+  0029    | GetConstant 53: default
+  0031    | GetConstant 100: @fn2
+  0033    | CreateClosure 1
+  0035    | CaptureLocal l0
+  0037    | CallFunctionConstant 14: _Doc.Empty
+  0039    | CallFunction 2
+  0041    | JumpIfFailure 41 -> 54
+  0044    | MatchWindowEnter 2 fail->53
+  0048    | MatchScrutinee r0
+  0050    | MatchBind l3 r0
+  0053    | MatchWindowExit
+  0054    | TakeRight 54 -> 67
+  0057    | GetConstant 101: _Doc.AppendAtPath
+  0059    | GetLocalMove l1
+  0061    | GetLocalMove l2
+  0063    | GetLocalMove l3
+  0065    | CallTailFunction 3
+  0067    | End
   ========================================
   
   =================1:_ws==================
@@ -304,7 +332,7 @@
   0002    | TakeRight 2 -> 13
   0005    | GetConstant 56: surround
   0007    | GetConstant 23: _path
-  0009    | GetConstant 96: @fn5
+  0009    | GetConstant 97: @fn5
   0011    | CallFunction 2
   0013    | JumpIfFailure 13 -> 19
   0016    | ParseChar ']'
@@ -316,14 +344,14 @@
   _array_of_tables_header =
     "[[" > surround(_path, maybe(ws)) < "]]"
   ========================================
-  0000    | CallFunctionConstant 101: "[["
+  0000    | CallFunctionConstant 102: "[["
   0002    | TakeRight 2 -> 13
   0005    | GetConstant 56: surround
   0007    | GetConstant 23: _path
-  0009    | GetConstant 102: @fn6
+  0009    | GetConstant 103: @fn6
   0011    | CallFunction 2
   0013    | JumpIfFailure 13 -> 19
-  0016    | CallFunctionConstant 103: "]]"
+  0016    | CallFunctionConstant 104: "]]"
   0018    | TakeLeft
   0019    | End
   ========================================
@@ -338,33 +366,48 @@
   0003    | PushVar2 Val
   0006    | PushVar2 NewDoc
   0009    | GetConstant 19: _table_pair
-  0011    | GetLocal 0
+  0011    | GetLocal l0
   0013    | CallFunction 1
-  0015    | DestructurePlan 2: [bind KeyPath, bind Val]
-  0017    | TakeRight 17 -> 22
-  0020    | CallFunctionConstant 20: _ws_newline
-  0022    | TakeRight 22 -> 43
-  0025    | GetConstant 17: const
-  0027    | GetConstant 21: _Doc.InsertPairAtHeaderPath
-  0029    | GetLocalMove 2
-  0031    | GetLocal 1
-  0033    | GetLocalMove 3
-  0035    | GetLocalMove 4
-  0037    | CallFunction 4
-  0039    | CallFunction 1
-  0041    | DestructurePlan 3: bind NewDoc
-  0043    | TakeRight 43 -> 66
-  0046    | SetInputMark
-  0047    | GetConstant 18: _table_body
-  0049    | GetLocalMove 0
-  0051    | GetLocalMove 1
-  0053    | GetLocal 5
-  0055    | CallFunction 3
-  0057    | Or 57 -> 66
+  0015    | JumpIfFailure 15 -> 52
+  0018    | MatchWindowEnter 4 fail->50
+  0022    | MatchScrutinee r0
+  0024    | MatchType r0 array
+  0027    | MatchCount r0 ==2
+  0031    | MatchElem r1 r0[0]
+  0036    | MatchBind l3 r1
+  0039    | MatchElem r2 r0[1]
+  0044    | MatchBind l4 r2
+  0047    | Jump 47 -> 51
+  0050    | MatchFail
+  0051    | MatchWindowExit
+  0052    | TakeRight 52 -> 57
+  0055    | CallFunctionConstant 20: _ws_newline
+  0057    | TakeRight 57 -> 89
   0060    | GetConstant 17: const
-  0062    | GetLocalMove 5
-  0064    | CallTailFunction 1
-  0066    | End
+  0062    | GetConstant 21: _Doc.InsertPairAtHeaderPath
+  0064    | GetLocalMove l2
+  0066    | GetLocal l1
+  0068    | GetLocalMove l3
+  0070    | GetLocalMove l4
+  0072    | CallFunction 4
+  0074    | CallFunction 1
+  0076    | JumpIfFailure 76 -> 89
+  0079    | MatchWindowEnter 2 fail->88
+  0083    | MatchScrutinee r0
+  0085    | MatchBind l5 r0
+  0088    | MatchWindowExit
+  0089    | TakeRight 89 -> 112
+  0092    | SetInputMark
+  0093    | GetConstant 18: _table_body
+  0095    | GetLocalMove l0
+  0097    | GetLocalMove l1
+  0099    | GetLocal l5
+  0101    | CallFunction 3
+  0103    | Or 103 -> 112
+  0106    | GetConstant 17: const
+  0108    | GetLocalMove l5
+  0110    | CallTailFunction 1
+  0112    | End
   ========================================
   
   =============1:_table_pair==============
@@ -374,7 +417,7 @@
   0000    | GetConstant 22: tuple2_sep
   0002    | GetConstant 23: _path
   0004    | GetConstant 24: @fn7
-  0006    | GetLocalMove 0
+  0006    | GetLocalMove l0
   0008    | CallTailFunction 3
   0010    | End
   ========================================
@@ -428,23 +471,23 @@
     inline_table(simple_value)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 110: string
+  0001    | CallFunctionConstant 113: string
   0003    | Or 3 -> 40
   0006    | SetInputMark
-  0007    | CallFunctionConstant 111: datetime
+  0007    | CallFunctionConstant 114: datetime
   0009    | Or 9 -> 40
   0012    | SetInputMark
-  0013    | CallFunctionConstant 112: number
+  0013    | CallFunctionConstant 115: number
   0015    | Or 15 -> 40
   0018    | SetInputMark
-  0019    | CallFunctionConstant 113: boolean
+  0019    | CallFunctionConstant 116: boolean
   0021    | Or 21 -> 40
   0024    | SetInputMark
-  0025    | GetConstant 114: array
+  0025    | GetConstant 117: array
   0027    | GetConstant 1: simple_value
   0029    | CallFunction 1
   0031    | Or 31 -> 40
-  0034    | GetConstant 115: inline_table
+  0034    | GetConstant 118: inline_table
   0036    | GetConstant 1: simple_value
   0038    | CallTailFunction 1
   0040    | End
@@ -469,75 +512,75 @@
     inline_table(tagged_value)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 110: string
+  0001    | CallFunctionConstant 113: string
   0003    | Or 3 -> 154
   0006    | SetInputMark
-  0007    | GetConstant 203: _tag
+  0007    | GetConstant 206: _tag
   0009    | PushString2 "datetime"
   0012    | PushString2 "offset"
-  0015    | GetConstant 126: datetime.offset
+  0015    | GetConstant 129: datetime.offset
   0017    | CallFunction 3
   0019    | Or 19 -> 154
   0022    | SetInputMark
-  0023    | GetConstant 203: _tag
+  0023    | GetConstant 206: _tag
   0025    | PushString2 "datetime"
   0028    | PushString2 "local"
-  0031    | GetConstant 127: datetime.local
+  0031    | GetConstant 130: datetime.local
   0033    | CallFunction 3
   0035    | Or 35 -> 154
   0038    | SetInputMark
-  0039    | GetConstant 203: _tag
+  0039    | GetConstant 206: _tag
   0041    | PushString2 "datetime"
   0044    | PushString2 "date-local"
-  0047    | GetConstant 128: datetime.local_date
+  0047    | GetConstant 131: datetime.local_date
   0049    | CallFunction 3
   0051    | Or 51 -> 154
   0054    | SetInputMark
-  0055    | GetConstant 203: _tag
+  0055    | GetConstant 206: _tag
   0057    | PushString2 "datetime"
   0060    | PushString2 "time-local"
-  0063    | GetConstant 129: datetime.local_time
+  0063    | GetConstant 132: datetime.local_time
   0065    | CallFunction 3
   0067    | Or 67 -> 154
   0070    | SetInputMark
-  0071    | CallFunctionConstant 142: number.binary_integer
+  0071    | CallFunctionConstant 145: number.binary_integer
   0073    | Or 73 -> 154
   0076    | SetInputMark
-  0077    | CallFunctionConstant 143: number.octal_integer
+  0077    | CallFunctionConstant 146: number.octal_integer
   0079    | Or 79 -> 154
   0082    | SetInputMark
-  0083    | CallFunctionConstant 144: number.hex_integer
+  0083    | CallFunctionConstant 147: number.hex_integer
   0085    | Or 85 -> 154
   0088    | SetInputMark
-  0089    | GetConstant 203: _tag
+  0089    | GetConstant 206: _tag
   0091    | PushString2 "float"
   0094    | PushString2 "infinity"
-  0097    | GetConstant 145: number.infinity
+  0097    | GetConstant 148: number.infinity
   0099    | CallFunction 3
   0101    | Or 101 -> 154
   0104    | SetInputMark
-  0105    | GetConstant 203: _tag
+  0105    | GetConstant 206: _tag
   0107    | PushString2 "float"
   0110    | PushString2 "not-a-number"
-  0113    | GetConstant 146: number.not_a_number
+  0113    | GetConstant 149: number.not_a_number
   0115    | CallFunction 3
   0117    | Or 117 -> 154
   0120    | SetInputMark
-  0121    | CallFunctionConstant 147: number.float
+  0121    | CallFunctionConstant 150: number.float
   0123    | Or 123 -> 154
   0126    | SetInputMark
-  0127    | CallFunctionConstant 148: number.integer
+  0127    | CallFunctionConstant 151: number.integer
   0129    | Or 129 -> 154
   0132    | SetInputMark
-  0133    | CallFunctionConstant 113: boolean
+  0133    | CallFunctionConstant 116: boolean
   0135    | Or 135 -> 154
   0138    | SetInputMark
-  0139    | GetConstant 114: array
-  0141    | GetConstant 202: tagged_value
+  0139    | GetConstant 117: array
+  0141    | GetConstant 205: tagged_value
   0143    | CallFunction 1
   0145    | Or 145 -> 154
-  0148    | GetConstant 115: inline_table
-  0150    | GetConstant 202: tagged_value
+  0148    | GetConstant 118: inline_table
+  0150    | GetConstant 205: tagged_value
   0152    | CallTailFunction 1
   0154    | End
   ========================================
@@ -547,20 +590,24 @@
     value -> Value $ {"type": Type, "subtype": Subtype, "value": Value}
   ========================================
   0000    | PushVar2 Value
-  0003    | CallFunctionLocal 2
-  0005    | DestructurePlan 37: bind Value
-  0007    | TakeRight 7 -> 33
-  0010    | GetConstantMutable 204: {_0_, _1_, _2_}
-  0012    | PushString2 "type"
-  0015    | GetLocalMove 0
-  0017    | InsertKeyVal 0
-  0019    | PushString2 "subtype"
-  0022    | GetLocalMove 1
-  0024    | InsertKeyVal 1
-  0026    | PushString2 "value"
-  0029    | GetLocalMove 3
-  0031    | InsertKeyVal 2
-  0033    | End
+  0003    | CallFunctionLocal l2
+  0005    | JumpIfFailure 5 -> 18
+  0008    | MatchWindowEnter 2 fail->17
+  0012    | MatchScrutinee r0
+  0014    | MatchBind l3 r0
+  0017    | MatchWindowExit
+  0018    | TakeRight 18 -> 44
+  0021    | GetConstantMutable 207: {_0_, _1_, _2_}
+  0023    | PushString2 "type"
+  0026    | GetLocalMove l0
+  0028    | InsertKeyVal 0
+  0030    | PushString2 "subtype"
+  0033    | GetLocalMove l1
+  0035    | InsertKeyVal 1
+  0037    | PushString2 "value"
+  0040    | GetLocalMove l3
+  0042    | InsertKeyVal 2
+  0044    | End
   ========================================
   
   ================1:string================
@@ -571,10 +618,10 @@
     string.literal
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 116: string.multi_line_basic
+  0001    | CallFunctionConstant 119: string.multi_line_basic
   0003    | Or 3 -> 20
   0006    | SetInputMark
-  0007    | CallFunctionConstant 117: string.multi_line_literal
+  0007    | CallFunctionConstant 120: string.multi_line_literal
   0009    | Or 9 -> 20
   0012    | SetInputMark
   0013    | CallFunctionConstant 30: string.basic
@@ -591,15 +638,15 @@
     datetime.local_time
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 126: datetime.offset
+  0001    | CallFunctionConstant 129: datetime.offset
   0003    | Or 3 -> 20
   0006    | SetInputMark
-  0007    | CallFunctionConstant 127: datetime.local
+  0007    | CallFunctionConstant 130: datetime.local
   0009    | Or 9 -> 20
   0012    | SetInputMark
-  0013    | CallFunctionConstant 128: datetime.local_date
+  0013    | CallFunctionConstant 131: datetime.local_date
   0015    | Or 15 -> 20
-  0018    | CallTailFunctionConstant 129: datetime.local_time
+  0018    | CallTailFunctionConstant 132: datetime.local_time
   0020    | End
   ========================================
   
@@ -614,31 +661,31 @@
     number.integer
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 142: number.binary_integer
+  0001    | CallFunctionConstant 145: number.binary_integer
   0003    | Or 3 -> 38
   0006    | SetInputMark
-  0007    | CallFunctionConstant 143: number.octal_integer
+  0007    | CallFunctionConstant 146: number.octal_integer
   0009    | Or 9 -> 38
   0012    | SetInputMark
-  0013    | CallFunctionConstant 144: number.hex_integer
+  0013    | CallFunctionConstant 147: number.hex_integer
   0015    | Or 15 -> 38
   0018    | SetInputMark
-  0019    | CallFunctionConstant 145: number.infinity
+  0019    | CallFunctionConstant 148: number.infinity
   0021    | Or 21 -> 38
   0024    | SetInputMark
-  0025    | CallFunctionConstant 146: number.not_a_number
+  0025    | CallFunctionConstant 149: number.not_a_number
   0027    | Or 27 -> 38
   0030    | SetInputMark
-  0031    | CallFunctionConstant 147: number.float
+  0031    | CallFunctionConstant 150: number.float
   0033    | Or 33 -> 38
-  0036    | CallTailFunctionConstant 148: number.integer
+  0036    | CallTailFunctionConstant 151: number.integer
   0038    | End
   ========================================
   
   ===============1:boolean================
   boolean = !stdlib.boolean("true", "false")
   ========================================
-  0000    | GetConstant 194: boolean
+  0000    | GetConstant 197: boolean
   0002    | PushString2 "true"
   0005    | PushString2 "false"
   0008    | CallTailFunction 2
@@ -657,9 +704,9 @@
   0005    | CallFunctionConstant 15: _ws
   0007    | TakeRight 7 -> 21
   0010    | GetConstant 53: default
-  0012    | GetConstant 195: @fn12
+  0012    | GetConstant 198: @fn12
   0014    | CreateClosure 1
-  0016    | CaptureLocal 0
+  0016    | CaptureLocal l0
   0018    | PushEmptyArray
   0019    | CallFunction 2
   0021    | JumpIfFailure 21 -> 27
@@ -678,17 +725,21 @@
   ========================================
   0000    | PushVar2 InlineDoc
   0003    | SetInputMark
-  0004    | CallFunctionConstant 198: _empty_inline_table
+  0004    | CallFunctionConstant 201: _empty_inline_table
   0006    | Or 6 -> 15
-  0009    | GetConstant 199: _nonempty_inline_table
-  0011    | GetLocalMove 0
+  0009    | GetConstant 202: _nonempty_inline_table
+  0011    | GetLocalMove l0
   0013    | CallFunction 1
-  0015    | DestructurePlan 32: bind InlineDoc
-  0017    | TakeRight 17 -> 26
-  0020    | GetConstant 7: _Doc.Value
-  0022    | GetLocalMove 1
-  0024    | CallTailFunction 1
-  0026    | End
+  0015    | JumpIfFailure 15 -> 28
+  0018    | MatchWindowEnter 2 fail->27
+  0022    | MatchScrutinee r0
+  0024    | MatchBind l1 r0
+  0027    | MatchWindowExit
+  0028    | TakeRight 28 -> 37
+  0031    | GetConstant 7: _Doc.Value
+  0033    | GetLocalMove l1
+  0035    | CallTailFunction 1
+  0037    | End
   ========================================
   
   =========1:_empty_inline_table==========
@@ -721,25 +772,29 @@
   0010    | GetConstant 59: spaces
   0012    | CallFunction 1
   0014    | TakeRight 14 -> 25
-  0017    | GetConstant 200: _inline_table_pair
-  0019    | GetLocal 0
+  0017    | GetConstant 203: _inline_table_pair
+  0019    | GetLocal l0
   0021    | CallFunctionConstant 14: _Doc.Empty
   0023    | CallFunction 2
-  0025    | DestructurePlan 33: bind DocWithFirstPair
-  0027    | TakeRight 27 -> 54
-  0030    | GetConstant 201: _inline_table_body
-  0032    | GetLocalMove 0
-  0034    | GetLocalMove 1
-  0036    | CallFunction 2
-  0038    | JumpIfFailure 38 -> 48
-  0041    | GetConstant 2: maybe
-  0043    | GetConstant 59: spaces
-  0045    | CallFunction 1
-  0047    | TakeLeft
-  0048    | JumpIfFailure 48 -> 54
-  0051    | ParseChar '}'
-  0053    | TakeLeft
-  0054    | End
+  0025    | JumpIfFailure 25 -> 38
+  0028    | MatchWindowEnter 2 fail->37
+  0032    | MatchScrutinee r0
+  0034    | MatchBind l1 r0
+  0037    | MatchWindowExit
+  0038    | TakeRight 38 -> 65
+  0041    | GetConstant 204: _inline_table_body
+  0043    | GetLocalMove l0
+  0045    | GetLocalMove l1
+  0047    | CallFunction 2
+  0049    | JumpIfFailure 49 -> 59
+  0052    | GetConstant 2: maybe
+  0054    | GetConstant 59: spaces
+  0056    | CallFunction 1
+  0058    | TakeLeft
+  0059    | JumpIfFailure 59 -> 65
+  0062    | ParseChar '}'
+  0064    | TakeLeft
+  0065    | End
   ========================================
   
   ==========1:_inline_table_body==========
@@ -752,21 +807,25 @@
   0003    | SetInputMark
   0004    | ParseChar ','
   0006    | TakeRight 6 -> 17
-  0009    | GetConstant 200: _inline_table_pair
-  0011    | GetLocal 0
-  0013    | GetLocal 1
+  0009    | GetConstant 203: _inline_table_pair
+  0011    | GetLocal l0
+  0013    | GetLocal l1
   0015    | CallFunction 2
-  0017    | DestructurePlan 36: bind NewDoc
-  0019    | ConditionalThen 19 -> 33
-  0022    | GetConstant 201: _inline_table_body
-  0024    | GetLocalMove 0
-  0026    | GetLocalMove 2
-  0028    | CallTailFunction 2
-  0030    | Jump 30 -> 39
-  0033    | GetConstant 17: const
-  0035    | GetLocalMove 1
-  0037    | CallTailFunction 1
-  0039    | End
+  0017    | JumpIfFailure 17 -> 30
+  0020    | MatchWindowEnter 2 fail->29
+  0024    | MatchScrutinee r0
+  0026    | MatchBind l2 r0
+  0029    | MatchWindowExit
+  0030    | ConditionalThen 30 -> 44
+  0033    | GetConstant 204: _inline_table_body
+  0035    | GetLocalMove l0
+  0037    | GetLocalMove l2
+  0039    | CallTailFunction 2
+  0041    | Jump 41 -> 50
+  0044    | GetConstant 17: const
+  0046    | GetLocalMove l1
+  0048    | CallTailFunction 1
+  0050    | End
   ========================================
   
   ==========1:_inline_table_pair==========
@@ -783,33 +842,41 @@
   0006    | GetConstant 2: maybe
   0008    | GetConstant 59: spaces
   0010    | CallFunction 1
-  0012    | TakeRight 12 -> 19
+  0012    | TakeRight 12 -> 30
   0015    | CallFunctionConstant 23: _path
-  0017    | DestructurePlan 34: bind Key
-  0019    | TakeRight 19 -> 28
-  0022    | GetConstant 2: maybe
-  0024    | GetConstant 59: spaces
-  0026    | CallFunction 1
-  0028    | TakeRight 28 -> 33
-  0031    | ParseChar '='
-  0033    | TakeRight 33 -> 42
-  0036    | GetConstant 2: maybe
-  0038    | GetConstant 59: spaces
-  0040    | CallFunction 1
-  0042    | TakeRight 42 -> 49
-  0045    | CallFunctionLocal 0
-  0047    | DestructurePlan 35: bind Val
-  0049    | TakeRight 49 -> 71
-  0052    | GetConstant 2: maybe
-  0054    | GetConstant 59: spaces
-  0056    | CallFunction 1
-  0058    | TakeRight 58 -> 71
-  0061    | GetConstant 66: _Doc.InsertAtPath
-  0063    | GetLocalMove 1
-  0065    | GetLocalMove 2
-  0067    | GetLocalMove 3
-  0069    | CallTailFunction 3
-  0071    | End
+  0017    | JumpIfFailure 17 -> 30
+  0020    | MatchWindowEnter 2 fail->29
+  0024    | MatchScrutinee r0
+  0026    | MatchBind l2 r0
+  0029    | MatchWindowExit
+  0030    | TakeRight 30 -> 39
+  0033    | GetConstant 2: maybe
+  0035    | GetConstant 59: spaces
+  0037    | CallFunction 1
+  0039    | TakeRight 39 -> 44
+  0042    | ParseChar '='
+  0044    | TakeRight 44 -> 53
+  0047    | GetConstant 2: maybe
+  0049    | GetConstant 59: spaces
+  0051    | CallFunction 1
+  0053    | TakeRight 53 -> 71
+  0056    | CallFunctionLocal l0
+  0058    | JumpIfFailure 58 -> 71
+  0061    | MatchWindowEnter 2 fail->70
+  0065    | MatchScrutinee r0
+  0067    | MatchBind l3 r0
+  0070    | MatchWindowExit
+  0071    | TakeRight 71 -> 93
+  0074    | GetConstant 2: maybe
+  0076    | GetConstant 59: spaces
+  0078    | CallFunction 1
+  0080    | TakeRight 80 -> 93
+  0083    | GetConstant 66: _Doc.InsertAtPath
+  0085    | GetLocalMove l1
+  0087    | GetLocalMove l2
+  0089    | GetLocalMove l3
+  0091    | CallTailFunction 3
+  0093    | End
   ========================================
   
   =======1:string.multi_line_basic========
@@ -825,22 +892,22 @@
     )
     + skip(`"""`) + (`"` * 0..2)
   ========================================
-  0000    | GetConstant 118: skip
+  0000    | GetConstant 121: skip
   0002    | PushString2 """""
   0005    | CallFunction 1
   0007    | JumpIfFailure 7 -> 17
-  0010    | GetConstant 118: skip
-  0012    | GetConstant 119: @fn15
+  0010    | GetConstant 121: skip
+  0012    | GetConstant 122: @fn15
   0014    | CallFunction 1
   0016    | Merge
   0017    | JumpIfFailure 17 -> 28
   0020    | GetConstant 53: default
-  0022    | GetConstant 120: @fn16
+  0022    | GetConstant 123: @fn16
   0024    | PushEmptyString
   0025    | CallFunction 2
   0027    | Merge
   0028    | JumpIfFailure 28 -> 39
-  0031    | GetConstant 118: skip
+  0031    | GetConstant 121: skip
   0033    | PushString2 """""
   0036    | CallFunction 1
   0038    | Merge
@@ -888,22 +955,22 @@
     default(many_until(char, `'''`), $"")
     + skip(`'''`) + (`'` * 0..2)
   ========================================
-  0000    | GetConstant 118: skip
+  0000    | GetConstant 121: skip
   0002    | PushString2 "'''"
   0005    | CallFunction 1
   0007    | JumpIfFailure 7 -> 17
-  0010    | GetConstant 118: skip
-  0012    | GetConstant 124: @fn19
+  0010    | GetConstant 121: skip
+  0012    | GetConstant 127: @fn19
   0014    | CallFunction 1
   0016    | Merge
   0017    | JumpIfFailure 17 -> 28
   0020    | GetConstant 53: default
-  0022    | GetConstant 125: @fn20
+  0022    | GetConstant 128: @fn20
   0024    | PushEmptyString
   0025    | CallFunction 2
   0027    | Merge
   0028    | JumpIfFailure 28 -> 39
-  0031    | GetConstant 118: skip
+  0031    | GetConstant 121: skip
   0033    | PushString2 "'''"
   0036    | CallFunction 1
   0038    | Merge
@@ -1062,40 +1129,48 @@
   0028    | JumpBack 28 -> 16
   0031    | Swap
   0032    | Drop
-  0033    | DestructurePlan 4: bind U
-  0035    | TakeRight 35 -> 44
-  0038    | GetConstant 50: @Codepoint
-  0040    | GetLocalMove 0
-  0042    | CallFunction 1
-  0044    | Or 44 -> 87
-  0047    | CallFunctionConstant 51: "\U"
-  0049    | TakeRight 49 -> 76
-  0052    | PushNull
-  0053    | PushInteger 8
-  0055    | ValidateRepeatPattern
-  0056    | JumpIfZero 56 -> 75
-  0059    | Swap
-  0060    | CallFunctionConstant 49: hex_numeral
-  0062    | Merge
-  0063    | JumpIfFailure 63 -> 74
-  0066    | Swap
-  0067    | Decrement
-  0068    | JumpIfZero 68 -> 75
-  0071    | JumpBack 71 -> 59
-  0074    | Swap
-  0075    | Drop
-  0076    | DestructurePlan 5: bind U
-  0078    | TakeRight 78 -> 87
-  0081    | GetConstant 50: @Codepoint
-  0083    | GetLocalMove 0
-  0085    | CallTailFunction 1
-  0087    | End
+  0033    | JumpIfFailure 33 -> 46
+  0036    | MatchWindowEnter 2 fail->45
+  0040    | MatchScrutinee r0
+  0042    | MatchBind l0 r0
+  0045    | MatchWindowExit
+  0046    | TakeRight 46 -> 55
+  0049    | GetConstant 50: @Codepoint
+  0051    | GetLocal l0
+  0053    | CallFunction 1
+  0055    | Or 55 -> 109
+  0058    | CallFunctionConstant 51: "\U"
+  0060    | TakeRight 60 -> 87
+  0063    | PushNull
+  0064    | PushInteger 8
+  0066    | ValidateRepeatPattern
+  0067    | JumpIfZero 67 -> 86
+  0070    | Swap
+  0071    | CallFunctionConstant 49: hex_numeral
+  0073    | Merge
+  0074    | JumpIfFailure 74 -> 85
+  0077    | Swap
+  0078    | Decrement
+  0079    | JumpIfZero 79 -> 86
+  0082    | JumpBack 82 -> 70
+  0085    | Swap
+  0086    | Drop
+  0087    | JumpIfFailure 87 -> 100
+  0090    | MatchWindowEnter 2 fail->99
+  0094    | MatchScrutinee r0
+  0096    | MatchBind l0 r0
+  0099    | MatchWindowExit
+  0100    | TakeRight 100 -> 109
+  0103    | GetConstant 50: @Codepoint
+  0105    | GetLocalMove l0
+  0107    | CallTailFunction 1
+  0109    | End
   ========================================
   
   ===========1:datetime.offset============
   datetime.offset = datetime.local_date + ("T" | "t" | " ") + _datetime.time_offset
   ========================================
-  0000    | CallFunctionConstant 128: datetime.local_date
+  0000    | CallFunctionConstant 131: datetime.local_date
   0002    | JumpIfFailure 2 -> 20
   0005    | SetInputMark
   0006    | ParseChar 'T'
@@ -1106,7 +1181,7 @@
   0017    | ParseChar ' '
   0019    | Merge
   0020    | JumpIfFailure 20 -> 26
-  0023    | CallFunctionConstant 130: _datetime.time_offset
+  0023    | CallFunctionConstant 133: _datetime.time_offset
   0025    | Merge
   0026    | End
   ========================================
@@ -1114,7 +1189,7 @@
   ============1:datetime.local============
   datetime.local = datetime.local_date + ("T" | "t" | " ") + datetime.local_time
   ========================================
-  0000    | CallFunctionConstant 128: datetime.local_date
+  0000    | CallFunctionConstant 131: datetime.local_date
   0002    | JumpIfFailure 2 -> 20
   0005    | SetInputMark
   0006    | ParseChar 'T'
@@ -1125,7 +1200,7 @@
   0017    | ParseChar ' '
   0019    | Merge
   0020    | JumpIfFailure 20 -> 26
-  0023    | CallFunctionConstant 129: datetime.local_time
+  0023    | CallFunctionConstant 132: datetime.local_time
   0025    | Merge
   0026    | End
   ========================================
@@ -1134,18 +1209,18 @@
   datetime.local_date =
     _datetime.year + "-" + _datetime.month + "-" + _datetime.mday
   ========================================
-  0000    | CallFunctionConstant 131: _datetime.year
+  0000    | CallFunctionConstant 134: _datetime.year
   0002    | JumpIfFailure 2 -> 8
   0005    | ParseChar '-'
   0007    | Merge
   0008    | JumpIfFailure 8 -> 14
-  0011    | CallFunctionConstant 132: _datetime.month
+  0011    | CallFunctionConstant 135: _datetime.month
   0013    | Merge
   0014    | JumpIfFailure 14 -> 20
   0017    | ParseChar '-'
   0019    | Merge
   0020    | JumpIfFailure 20 -> 26
-  0023    | CallFunctionConstant 133: _datetime.mday
+  0023    | CallFunctionConstant 136: _datetime.mday
   0025    | Merge
   0026    | End
   ========================================
@@ -1196,9 +1271,9 @@
   0010    | Merge
   0011    | Or 11 -> 22
   0014    | SetInputMark
-  0015    | CallFunctionConstant 134: "30"
+  0015    | CallFunctionConstant 137: "30"
   0017    | Or 17 -> 22
-  0020    | CallTailFunctionConstant 135: "31"
+  0020    | CallTailFunctionConstant 138: "31"
   0022    | End
   ========================================
   
@@ -1209,22 +1284,22 @@
     _datetime.seconds +
     maybe("." + (numeral * 1..9))
   ========================================
-  0000    | CallFunctionConstant 137: _datetime.hours
+  0000    | CallFunctionConstant 140: _datetime.hours
   0002    | JumpIfFailure 2 -> 8
   0005    | ParseChar ':'
   0007    | Merge
   0008    | JumpIfFailure 8 -> 14
-  0011    | CallFunctionConstant 138: _datetime.minutes
+  0011    | CallFunctionConstant 141: _datetime.minutes
   0013    | Merge
   0014    | JumpIfFailure 14 -> 20
   0017    | ParseChar ':'
   0019    | Merge
   0020    | JumpIfFailure 20 -> 26
-  0023    | CallFunctionConstant 139: _datetime.seconds
+  0023    | CallFunctionConstant 142: _datetime.seconds
   0025    | Merge
   0026    | JumpIfFailure 26 -> 36
   0029    | GetConstant 2: maybe
-  0031    | GetConstant 140: @fn24
+  0031    | GetConstant 143: @fn24
   0033    | CallFunction 1
   0035    | Merge
   0036    | End
@@ -1233,7 +1308,7 @@
   ========1:_datetime.time_offset=========
   _datetime.time_offset = datetime.local_time + ("Z" | "z" | _datetime.time_numoffset)
   ========================================
-  0000    | CallFunctionConstant 129: datetime.local_time
+  0000    | CallFunctionConstant 132: datetime.local_time
   0002    | JumpIfFailure 2 -> 20
   0005    | SetInputMark
   0006    | ParseChar 'Z'
@@ -1241,7 +1316,7 @@
   0011    | SetInputMark
   0012    | ParseChar 'z'
   0014    | Or 14 -> 19
-  0017    | CallFunctionConstant 136: _datetime.time_numoffset
+  0017    | CallFunctionConstant 139: _datetime.time_numoffset
   0019    | Merge
   0020    | End
   ========================================
@@ -1254,13 +1329,13 @@
   0003    | Or 3 -> 8
   0006    | ParseChar '-'
   0008    | JumpIfFailure 8 -> 14
-  0011    | CallFunctionConstant 137: _datetime.hours
+  0011    | CallFunctionConstant 140: _datetime.hours
   0013    | Merge
   0014    | JumpIfFailure 14 -> 20
   0017    | ParseChar ':'
   0019    | Merge
   0020    | JumpIfFailure 20 -> 26
-  0023    | CallFunctionConstant 138: _datetime.minutes
+  0023    | CallFunctionConstant 141: _datetime.minutes
   0025    | Merge
   0026    | End
   ========================================
@@ -1300,7 +1375,7 @@
   0007    | ParseCodepointRange '0'..'9'
   0010    | Merge
   0011    | Or 11 -> 16
-  0014    | CallTailFunctionConstant 141: "60"
+  0014    | CallTailFunctionConstant 144: "60"
   0016    | End
   ========================================
   
@@ -1310,8 +1385,8 @@
     _number.integer_part
   )
   ========================================
-  0000    | GetConstant 181: as_number
-  0002    | GetConstant 193: @fn25
+  0000    | GetConstant 184: as_number
+  0002    | GetConstant 196: @fn25
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -1320,7 +1395,7 @@
   _number.sign = maybe("-" | skip("+"))
   ========================================
   0000    | GetConstant 2: maybe
-  0002    | GetConstant 187: @fn26
+  0002    | GetConstant 190: @fn26
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -1333,7 +1408,7 @@
   0001    | ParseCodepointRange '1'..'9'
   0004    | JumpIfFailure 4 -> 14
   0007    | GetConstant 28: many
-  0009    | GetConstant 188: @fn27
+  0009    | GetConstant 191: @fn27
   0011    | CallFunction 1
   0013    | Merge
   0014    | Or 14 -> 19
@@ -1350,8 +1425,8 @@
     )
   )
   ========================================
-  0000    | GetConstant 181: as_number
-  0002    | GetConstant 182: @fn28
+  0000    | GetConstant 184: as_number
+  0002    | GetConstant 185: @fn28
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -1362,8 +1437,8 @@
   0000    | ParseChar '.'
   0002    | JumpIfFailure 2 -> 14
   0005    | GetConstant 10: many_sep
-  0007    | GetConstant 189: numerals
-  0009    | GetConstant 190: @fn29
+  0007    | GetConstant 192: numerals
+  0009    | GetConstant 193: @fn29
   0011    | CallFunction 2
   0013    | Merge
   0014    | End
@@ -1379,13 +1454,13 @@
   0006    | ParseChar 'E'
   0008    | JumpIfFailure 8 -> 18
   0011    | GetConstant 2: maybe
-  0013    | GetConstant 191: @fn30
+  0013    | GetConstant 194: @fn30
   0015    | CallFunction 1
   0017    | Merge
   0018    | JumpIfFailure 18 -> 30
   0021    | GetConstant 10: many_sep
-  0023    | GetConstant 189: numerals
-  0025    | GetConstant 192: @fn31
+  0023    | GetConstant 192: numerals
+  0025    | GetConstant 195: @fn31
   0027    | CallFunction 2
   0029    | Merge
   0030    | End
@@ -1395,10 +1470,10 @@
   number.infinity = maybe("+" | "-") + "inf"
   ========================================
   0000    | GetConstant 2: maybe
-  0002    | GetConstant 177: @fn32
+  0002    | GetConstant 180: @fn32
   0004    | CallFunction 1
   0006    | JumpIfFailure 6 -> 12
-  0009    | CallFunctionConstant 178: "inf"
+  0009    | CallFunctionConstant 181: "inf"
   0011    | Merge
   0012    | End
   ========================================
@@ -1407,10 +1482,10 @@
   number.not_a_number = maybe("+" | "-") + "nan"
   ========================================
   0000    | GetConstant 2: maybe
-  0002    | GetConstant 179: @fn33
+  0002    | GetConstant 182: @fn33
   0004    | CallFunction 1
   0006    | JumpIfFailure 6 -> 12
-  0009    | CallFunctionConstant 180: "nan"
+  0009    | CallFunctionConstant 183: "nan"
   0011    | Merge
   0012    | End
   ========================================
@@ -1424,18 +1499,22 @@
     Num.FromBinaryDigits(Digits)
   ========================================
   0000    | PushVar2 Digits
-  0003    | CallFunctionConstant 149: "0b"
-  0005    | TakeRight 5 -> 27
-  0008    | GetConstant 150: one_or_both
-  0010    | GetConstant 151: @fn34
-  0012    | GetConstant 152: @fn37
+  0003    | CallFunctionConstant 152: "0b"
+  0005    | TakeRight 5 -> 38
+  0008    | GetConstant 153: one_or_both
+  0010    | GetConstant 154: @fn34
+  0012    | GetConstant 155: @fn37
   0014    | CallFunction 2
-  0016    | DestructurePlan 29: bind Digits
-  0018    | TakeRight 18 -> 27
-  0021    | GetConstant 153: Num.FromBinaryDigits
-  0023    | GetLocalMove 0
-  0025    | CallTailFunction 1
-  0027    | End
+  0016    | JumpIfFailure 16 -> 29
+  0019    | MatchWindowEnter 2 fail->28
+  0023    | MatchScrutinee r0
+  0025    | MatchBind l0 r0
+  0028    | MatchWindowExit
+  0029    | TakeRight 29 -> 38
+  0032    | GetConstant 156: Num.FromBinaryDigits
+  0034    | GetLocalMove l0
+  0036    | CallTailFunction 1
+  0038    | End
   ========================================
   
   =========1:number.octal_integer=========
@@ -1447,18 +1526,22 @@
     Num.FromOctalDigits(Digits)
   ========================================
   0000    | PushVar2 Digits
-  0003    | CallFunctionConstant 160: "0o"
-  0005    | TakeRight 5 -> 27
-  0008    | GetConstant 150: one_or_both
-  0010    | GetConstant 161: @fn39
-  0012    | GetConstant 162: @fn42
+  0003    | CallFunctionConstant 163: "0o"
+  0005    | TakeRight 5 -> 38
+  0008    | GetConstant 153: one_or_both
+  0010    | GetConstant 164: @fn39
+  0012    | GetConstant 165: @fn42
   0014    | CallFunction 2
-  0016    | DestructurePlan 30: bind Digits
-  0018    | TakeRight 18 -> 27
-  0021    | GetConstant 163: Num.FromOctalDigits
-  0023    | GetLocalMove 0
-  0025    | CallTailFunction 1
-  0027    | End
+  0016    | JumpIfFailure 16 -> 29
+  0019    | MatchWindowEnter 2 fail->28
+  0023    | MatchScrutinee r0
+  0025    | MatchBind l0 r0
+  0028    | MatchWindowExit
+  0029    | TakeRight 29 -> 38
+  0032    | GetConstant 166: Num.FromOctalDigits
+  0034    | GetLocalMove l0
+  0036    | CallTailFunction 1
+  0038    | End
   ========================================
   
   ==========1:number.hex_integer==========
@@ -1470,18 +1553,22 @@
     Num.FromHexDigits(Digits)
   ========================================
   0000    | PushVar2 Digits
-  0003    | CallFunctionConstant 169: "0x"
-  0005    | TakeRight 5 -> 27
-  0008    | GetConstant 150: one_or_both
-  0010    | GetConstant 170: @fn44
-  0012    | GetConstant 171: @fn47
+  0003    | CallFunctionConstant 172: "0x"
+  0005    | TakeRight 5 -> 38
+  0008    | GetConstant 153: one_or_both
+  0010    | GetConstant 173: @fn44
+  0012    | GetConstant 174: @fn47
   0014    | CallFunction 2
-  0016    | DestructurePlan 31: bind Digits
-  0018    | TakeRight 18 -> 27
-  0021    | GetConstant 172: Num.FromHexDigits
-  0023    | GetLocalMove 0
-  0025    | CallTailFunction 1
-  0027    | End
+  0016    | JumpIfFailure 16 -> 29
+  0019    | MatchWindowEnter 2 fail->28
+  0023    | MatchScrutinee r0
+  0025    | MatchBind l0 r0
+  0028    | MatchWindowExit
+  0029    | TakeRight 29 -> 38
+  0032    | GetConstant 175: Num.FromHexDigits
+  0034    | GetLocalMove l0
+  0036    | CallTailFunction 1
+  0038    | End
   ========================================
   
   ==============1:_Doc.Empty==============
@@ -1495,7 +1582,7 @@
   _Doc.Value(Doc) = Obj.Get(Doc, "value")
   ========================================
   0000    | GetConstant 78: Obj.Get
-  0002    | GetLocalMove 0
+  0002    | GetLocalMove l0
   0004    | PushString2 "value"
   0007    | CallTailFunction 2
   0009    | End
@@ -1505,7 +1592,7 @@
   _Doc.Type(Doc) = Obj.Get(Doc, "type")
   ========================================
   0000    | GetConstant 78: Obj.Get
-  0002    | GetLocalMove 0
+  0002    | GetLocalMove l0
   0004    | PushString2 "type"
   0007    | CallTailFunction 2
   0009    | End
@@ -1516,9 +1603,9 @@
   ========================================
   0000    | GetConstant 77: Obj.Has
   0002    | GetConstant 76: _Doc.Type
-  0004    | GetLocalMove 0
+  0004    | GetLocalMove l0
   0006    | CallFunction 1
-  0008    | GetLocalMove 1
+  0008    | GetLocalMove l1
   0010    | CallTailFunction 2
   0012    | End
   ========================================
@@ -1533,17 +1620,17 @@
   0002    | PushString2 "value"
   0005    | GetConstant 78: Obj.Get
   0007    | GetConstant 7: _Doc.Value
-  0009    | GetLocal 0
+  0009    | GetLocal l0
   0011    | CallFunction 1
-  0013    | GetLocal 1
+  0013    | GetLocal l1
   0015    | CallFunction 2
   0017    | InsertKeyVal 0
   0019    | PushString2 "type"
   0022    | GetConstant 78: Obj.Get
   0024    | GetConstant 76: _Doc.Type
-  0026    | GetLocalMove 0
+  0026    | GetLocalMove l0
   0028    | CallFunction 1
-  0030    | GetLocalMove 1
+  0030    | GetLocalMove l1
   0032    | CallFunction 2
   0034    | InsertKeyVal 1
   0036    | End
@@ -1554,7 +1641,7 @@
   ========================================
   0000    | GetConstant 79: Is.Object
   0002    | GetConstant 76: _Doc.Type
-  0004    | GetLocalMove 0
+  0004    | GetLocalMove l0
   0006    | CallFunction 1
   0008    | CallTailFunction 1
   0010    | End
@@ -1569,26 +1656,26 @@
     }
   ========================================
   0000    | GetConstant 73: _Doc.IsTable
-  0002    | GetLocal 0
+  0002    | GetLocal l0
   0004    | CallFunction 1
   0006    | TakeRight 6 -> 49
   0009    | GetConstantMutable 82: {_0_, _1_}
   0011    | PushString2 "value"
   0014    | GetConstant 83: Obj.Put
   0016    | GetConstant 7: _Doc.Value
-  0018    | GetLocal 0
+  0018    | GetLocal l0
   0020    | CallFunction 1
-  0022    | GetLocal 1
-  0024    | GetLocalMove 2
+  0022    | GetLocal l1
+  0024    | GetLocalMove l2
   0026    | CallFunction 3
   0028    | InsertKeyVal 0
   0030    | PushString2 "type"
   0033    | GetConstant 83: Obj.Put
   0035    | GetConstant 76: _Doc.Type
-  0037    | GetLocalMove 0
+  0037    | GetLocalMove l0
   0039    | CallFunction 1
-  0041    | GetLocalMove 1
-  0043    | GetLocalMove 3
+  0041    | GetLocalMove l1
+  0043    | GetLocalMove l3
   0045    | CallFunction 3
   0047    | InsertKeyVal 1
   0049    | End
@@ -1607,40 +1694,56 @@
   0000    | PushVar2 Vs
   0003    | PushVar2 Ts
   0006    | GetConstant 74: _Doc.Get
-  0008    | GetLocal 0
-  0010    | GetLocal 1
+  0008    | GetLocal l0
+  0010    | GetLocal l1
   0012    | CallFunction 2
-  0014    | DestructurePlan 27: {"value": bind Vs, "type": [eq "array_of_tables", bind Ts]}
-  0016    | TakeRight 16 -> 73
-  0019    | GetConstant 75: _Doc.Insert
-  0021    | GetLocalMove 0
-  0023    | GetLocalMove 1
-  0025    | PushEmptyArray
-  0026    | JumpIfFailure 26 -> 32
-  0029    | GetLocalMove 3
-  0031    | Merge
-  0032    | JumpIfFailure 32 -> 46
-  0035    | GetConstantMutable 107: [_]
-  0037    | GetConstant 7: _Doc.Value
-  0039    | GetLocal 2
-  0041    | CallFunction 1
-  0043    | InsertAtIndex 0
-  0045    | Merge
-  0046    | GetConstantMutable 108: ["array_of_tables", _]
-  0048    | PushEmptyArray
-  0049    | JumpIfFailure 49 -> 55
-  0052    | GetLocalMove 4
-  0054    | Merge
-  0055    | JumpIfFailure 55 -> 69
-  0058    | GetConstantMutable 109: [_]
-  0060    | GetConstant 76: _Doc.Type
-  0062    | GetLocalMove 2
-  0064    | CallFunction 1
-  0066    | InsertAtIndex 0
-  0068    | Merge
-  0069    | InsertAtIndex 1
-  0071    | CallTailFunction 4
-  0073    | End
+  0014    | JumpIfFailure 14 -> 73
+  0017    | MatchWindowEnter 6 fail->71
+  0021    | MatchScrutinee r0
+  0023    | MatchType r0 object
+  0026    | MatchCount r0 ==2
+  0030    | MatchKey r1 r0["value"]
+  0035    | MatchBind l3 r1
+  0038    | MatchKey r2 r0["type"]
+  0043    | MatchType r2 array
+  0046    | MatchCount r2 ==2
+  0050    | MatchElem r3 r2[0]
+  0055    | MatchCmp r3 == "array_of_tables"
+  0060    | MatchElem r4 r2[1]
+  0065    | MatchBind l4 r4
+  0068    | Jump 68 -> 72
+  0071    | MatchFail
+  0072    | MatchWindowExit
+  0073    | TakeRight 73 -> 130
+  0076    | GetConstant 75: _Doc.Insert
+  0078    | GetLocalMove l0
+  0080    | GetLocalMove l1
+  0082    | PushEmptyArray
+  0083    | JumpIfFailure 83 -> 89
+  0086    | GetLocalMove l3
+  0088    | Merge
+  0089    | JumpIfFailure 89 -> 103
+  0092    | GetConstantMutable 110: [_]
+  0094    | GetConstant 7: _Doc.Value
+  0096    | GetLocal l2
+  0098    | CallFunction 1
+  0100    | InsertAtIndex 0
+  0102    | Merge
+  0103    | GetConstantMutable 111: ["array_of_tables", _]
+  0105    | PushEmptyArray
+  0106    | JumpIfFailure 106 -> 112
+  0109    | GetLocalMove l4
+  0111    | Merge
+  0112    | JumpIfFailure 112 -> 126
+  0115    | GetConstantMutable 112: [_]
+  0117    | GetConstant 76: _Doc.Type
+  0119    | GetLocalMove l2
+  0121    | CallFunction 1
+  0123    | InsertAtIndex 0
+  0125    | Merge
+  0126    | InsertAtIndex 1
+  0128    | CallTailFunction 4
+  0130    | End
   ========================================
   
   ==========1:_Doc.InsertAtPath===========
@@ -1648,9 +1751,9 @@
     _Doc.UpdateAtPath(Doc, Path, Val, _Doc.ValueUpdater)
   ========================================
   0000    | GetConstant 70: _Doc.UpdateAtPath
-  0002    | GetLocalMove 0
-  0004    | GetLocalMove 1
-  0006    | GetLocalMove 2
+  0002    | GetLocalMove l0
+  0004    | GetLocalMove l1
+  0006    | GetLocalMove l2
   0008    | GetConstant 71: _Doc.ValueUpdater
   0010    | CallTailFunction 4
   0012    | End
@@ -1661,10 +1764,10 @@
     _Doc.UpdateAtHeaderPath(Doc, Path, {}, _Doc.MissingTableUpdater)
   ========================================
   0000    | GetConstant 67: _Doc.UpdateAtHeaderPath
-  0002    | GetLocalMove 0
-  0004    | GetLocalMove 1
+  0002    | GetLocalMove l0
+  0004    | GetLocalMove l1
   0006    | PushEmptyObject
-  0007    | GetConstant 97: _Doc.MissingTableUpdater
+  0007    | GetConstant 98: _Doc.MissingTableUpdater
   0009    | CallTailFunction 4
   0011    | End
   ========================================
@@ -1674,10 +1777,10 @@
     _Doc.UpdateAtHeaderPath(Doc, Path, ElementDoc, _Doc.AppendUpdater)
   ========================================
   0000    | GetConstant 67: _Doc.UpdateAtHeaderPath
-  0002    | GetLocalMove 0
-  0004    | GetLocalMove 1
-  0006    | GetLocalMove 2
-  0008    | GetConstant 104: _Doc.AppendUpdater
+  0002    | GetLocalMove l0
+  0004    | GetLocalMove l1
+  0006    | GetLocalMove l2
+  0008    | GetConstant 105: _Doc.AppendUpdater
   0010    | CallTailFunction 4
   0012    | End
   ========================================
@@ -1701,63 +1804,87 @@
   0003    | PushVar2 PathRest
   0006    | PushVar2 InnerDoc
   0009    | SetInputMark
-  0010    | GetLocal 1
-  0012    | DestructurePlan 7: [bind Key]
-  0014    | ConditionalThen 14 -> 30
-  0017    | GetLocalMove 3
-  0019    | GetLocalMove 0
-  0021    | GetLocalMove 4
-  0023    | GetLocalMove 2
-  0025    | CallTailFunction 3
-  0027    | Jump 27 -> 128
-  0030    | SetInputMark
-  0031    | GetLocalMove 1
-  0033    | DestructurePlan 8: ([bind Key] + bind PathRest)
-  0035    | ConditionalThen 35 -> 126
-  0038    | SetInputMark
-  0039    | GetConstant 72: _Doc.Has
-  0041    | GetLocal 0
-  0043    | GetLocal 4
-  0045    | CallFunction 2
-  0047    | ConditionalThen 47 -> 86
-  0050    | GetConstant 73: _Doc.IsTable
-  0052    | GetConstant 74: _Doc.Get
-  0054    | GetLocal 0
-  0056    | GetLocal 4
-  0058    | CallFunction 2
-  0060    | CallFunction 1
-  0062    | TakeRight 62 -> 83
-  0065    | GetConstant 70: _Doc.UpdateAtPath
-  0067    | GetConstant 74: _Doc.Get
-  0069    | GetLocal 0
-  0071    | GetLocal 4
-  0073    | CallFunction 2
-  0075    | GetLocalMove 5
-  0077    | GetLocalMove 2
-  0079    | GetLocalMove 3
-  0081    | CallFunction 4
-  0083    | Jump 83 -> 98
-  0086    | GetConstant 70: _Doc.UpdateAtPath
-  0088    | CallFunctionConstant 14: _Doc.Empty
-  0090    | GetLocalMove 5
-  0092    | GetLocalMove 2
-  0094    | GetLocalMove 3
-  0096    | CallFunction 4
-  0098    | DestructurePlan 9: bind InnerDoc
-  0100    | TakeRight 100 -> 123
-  0103    | GetConstant 75: _Doc.Insert
-  0105    | GetLocalMove 0
-  0107    | GetLocalMove 4
-  0109    | GetConstant 7: _Doc.Value
-  0111    | GetLocal 6
-  0113    | CallFunction 1
-  0115    | GetConstant 76: _Doc.Type
-  0117    | GetLocalMove 6
-  0119    | CallFunction 1
-  0121    | CallTailFunction 4
-  0123    | Jump 123 -> 128
-  0126    | GetLocalMove 0
-  0128    | End
+  0010    | GetLocal l1
+  0012    | JumpIfFailure 12 -> 41
+  0015    | MatchWindowEnter 3 fail->39
+  0019    | MatchScrutinee r0
+  0021    | MatchType r0 array
+  0024    | MatchCount r0 ==1
+  0028    | MatchElem r1 r0[0]
+  0033    | MatchBind l4 r1
+  0036    | Jump 36 -> 40
+  0039    | MatchFail
+  0040    | MatchWindowExit
+  0041    | ConditionalThen 41 -> 57
+  0044    | GetLocalMove l3
+  0046    | GetLocalMove l0
+  0048    | GetLocalMove l4
+  0050    | GetLocalMove l2
+  0052    | CallTailFunction 3
+  0054    | Jump 54 -> 201
+  0057    | SetInputMark
+  0058    | GetLocalMove l1
+  0060    | JumpIfFailure 60 -> 97
+  0063    | MatchWindowEnter 4 fail->95
+  0067    | MatchScrutinee r0
+  0069    | MatchType r0 array
+  0072    | MatchCount r0 >=1
+  0076    | MatchElem r1 r0[0]
+  0081    | MatchBind l4 r1
+  0084    | MatchSlice r2 r0[1..^0]
+  0089    | MatchBind l5 r2
+  0092    | Jump 92 -> 96
+  0095    | MatchFail
+  0096    | MatchWindowExit
+  0097    | ConditionalThen 97 -> 199
+  0100    | SetInputMark
+  0101    | GetConstant 72: _Doc.Has
+  0103    | GetLocal l0
+  0105    | GetLocal l4
+  0107    | CallFunction 2
+  0109    | ConditionalThen 109 -> 148
+  0112    | GetConstant 73: _Doc.IsTable
+  0114    | GetConstant 74: _Doc.Get
+  0116    | GetLocal l0
+  0118    | GetLocal l4
+  0120    | CallFunction 2
+  0122    | CallFunction 1
+  0124    | TakeRight 124 -> 145
+  0127    | GetConstant 70: _Doc.UpdateAtPath
+  0129    | GetConstant 74: _Doc.Get
+  0131    | GetLocal l0
+  0133    | GetLocal l4
+  0135    | CallFunction 2
+  0137    | GetLocalMove l5
+  0139    | GetLocalMove l2
+  0141    | GetLocalMove l3
+  0143    | CallFunction 4
+  0145    | Jump 145 -> 160
+  0148    | GetConstant 70: _Doc.UpdateAtPath
+  0150    | CallFunctionConstant 14: _Doc.Empty
+  0152    | GetLocalMove l5
+  0154    | GetLocalMove l2
+  0156    | GetLocalMove l3
+  0158    | CallFunction 4
+  0160    | JumpIfFailure 160 -> 173
+  0163    | MatchWindowEnter 2 fail->172
+  0167    | MatchScrutinee r0
+  0169    | MatchBind l6 r0
+  0172    | MatchWindowExit
+  0173    | TakeRight 173 -> 196
+  0176    | GetConstant 75: _Doc.Insert
+  0178    | GetLocalMove l0
+  0180    | GetLocalMove l4
+  0182    | GetConstant 7: _Doc.Value
+  0184    | GetLocal l6
+  0186    | CallFunction 1
+  0188    | GetConstant 76: _Doc.Type
+  0190    | GetLocalMove l6
+  0192    | CallFunction 1
+  0194    | CallTailFunction 4
+  0196    | Jump 196 -> 201
+  0199    | GetLocalMove l0
+  0201    | End
   ========================================
   
   ==========1:_Doc.ValueUpdater===========
@@ -1766,16 +1893,16 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 72: _Doc.Has
-  0003    | GetLocal 0
-  0005    | GetLocal 1
+  0003    | GetLocal l0
+  0005    | GetLocal l1
   0007    | CallFunction 2
   0009    | ConditionalThen 9 -> 17
   0012    | CallTailFunctionConstant 84: @Fail
   0014    | Jump 14 -> 30
   0017    | GetConstant 75: _Doc.Insert
-  0019    | GetLocalMove 0
-  0021    | GetLocalMove 1
-  0023    | GetLocalMove 2
+  0019    | GetLocalMove l0
+  0021    | GetLocalMove l1
+  0023    | GetLocalMove l2
   0025    | PushString2 "value"
   0028    | CallTailFunction 4
   0030    | End
@@ -1789,22 +1916,22 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 72: _Doc.Has
-  0003    | GetLocal 0
-  0005    | GetLocal 1
+  0003    | GetLocal l0
+  0005    | GetLocal l1
   0007    | CallFunction 2
   0009    | ConditionalThen 9 -> 32
   0012    | GetConstant 73: _Doc.IsTable
   0014    | GetConstant 74: _Doc.Get
-  0016    | GetLocal 0
-  0018    | GetLocalMove 1
+  0016    | GetLocal l0
+  0018    | GetLocalMove l1
   0020    | CallFunction 2
   0022    | CallFunction 1
   0024    | TakeRight 24 -> 29
-  0027    | GetLocalMove 0
+  0027    | GetLocalMove l0
   0029    | Jump 29 -> 42
   0032    | GetConstant 75: _Doc.Insert
-  0034    | GetLocalMove 0
-  0036    | GetLocalMove 1
+  0034    | GetLocalMove l0
+  0036    | GetLocalMove l1
   0038    | PushEmptyObject
   0039    | PushEmptyObject
   0040    | CallTailFunction 4
@@ -1822,26 +1949,30 @@
   0000    | PushVar2 DocWithKey
   0003    | SetInputMark
   0004    | GetConstant 72: _Doc.Has
-  0006    | GetLocal 0
-  0008    | GetLocal 1
+  0006    | GetLocal l0
+  0008    | GetLocal l1
   0010    | CallFunction 2
   0012    | ConditionalThen 12 -> 20
-  0015    | GetLocalMove 0
+  0015    | GetLocalMove l0
   0017    | Jump 17 -> 31
   0020    | GetConstant 75: _Doc.Insert
-  0022    | GetLocalMove 0
-  0024    | GetLocal 1
+  0022    | GetLocalMove l0
+  0024    | GetLocal l1
   0026    | PushEmptyArray
-  0027    | GetConstant 105: ["array_of_tables", []]
+  0027    | GetConstant 106: ["array_of_tables", []]
   0029    | CallFunction 4
-  0031    | DestructurePlan 26: bind DocWithKey
-  0033    | TakeRight 33 -> 46
-  0036    | GetConstant 106: _Doc.AppendToArrayOfTables
-  0038    | GetLocalMove 3
-  0040    | GetLocalMove 1
-  0042    | GetLocalMove 2
-  0044    | CallTailFunction 3
-  0046    | End
+  0031    | JumpIfFailure 31 -> 44
+  0034    | MatchWindowEnter 2 fail->43
+  0038    | MatchScrutinee r0
+  0040    | MatchBind l3 r0
+  0043    | MatchWindowExit
+  0044    | TakeRight 44 -> 57
+  0047    | GetConstant 107: _Doc.AppendToArrayOfTables
+  0049    | GetLocalMove l3
+  0051    | GetLocalMove l1
+  0053    | GetLocalMove l2
+  0055    | CallTailFunction 3
+  0057    | End
   ========================================
   
   =====1:_Doc.InsertPairAtHeaderPath======
@@ -1850,26 +1981,33 @@
     _Doc.UpdateAtHeaderPath(Doc, HeaderPath, [KeyPath, Val], _Doc.PairUpdater)
   ========================================
   0000    | SetInputMark
-  0001    | GetLocal 1
-  0003    | DestructurePlan 6: []
-  0005    | ConditionalThen 5 -> 21
-  0008    | GetConstant 66: _Doc.InsertAtPath
-  0010    | GetLocalMove 0
-  0012    | GetLocalMove 2
-  0014    | GetLocalMove 3
-  0016    | CallTailFunction 3
-  0018    | Jump 18 -> 41
-  0021    | GetConstant 67: _Doc.UpdateAtHeaderPath
-  0023    | GetLocalMove 0
-  0025    | GetLocalMove 1
-  0027    | GetConstantMutable 68: [_, _]
-  0029    | GetLocalMove 2
-  0031    | InsertAtIndex 0
-  0033    | GetLocalMove 3
-  0035    | InsertAtIndex 1
-  0037    | GetConstant 69: _Doc.PairUpdater
-  0039    | CallTailFunction 4
-  0041    | End
+  0001    | GetLocal l1
+  0003    | JumpIfFailure 3 -> 24
+  0006    | MatchWindowEnter 2 fail->22
+  0010    | MatchScrutinee r0
+  0012    | MatchType r0 array
+  0015    | MatchCount r0 ==0
+  0019    | Jump 19 -> 23
+  0022    | MatchFail
+  0023    | MatchWindowExit
+  0024    | ConditionalThen 24 -> 40
+  0027    | GetConstant 66: _Doc.InsertAtPath
+  0029    | GetLocalMove l0
+  0031    | GetLocalMove l2
+  0033    | GetLocalMove l3
+  0035    | CallTailFunction 3
+  0037    | Jump 37 -> 60
+  0040    | GetConstant 67: _Doc.UpdateAtHeaderPath
+  0042    | GetLocalMove l0
+  0044    | GetLocalMove l1
+  0046    | GetConstantMutable 68: [_, _]
+  0048    | GetLocalMove l2
+  0050    | InsertAtIndex 0
+  0052    | GetLocalMove l3
+  0054    | InsertAtIndex 1
+  0056    | GetConstant 69: _Doc.PairUpdater
+  0058    | CallTailFunction 4
+  0060    | End
   ========================================
   
   ===========1:_Doc.PairUpdater===========
@@ -1884,45 +2022,64 @@
   0003    | PushVar2 Val
   0006    | PushVar2 SubDoc
   0009    | PushVar2 NewSubDoc
-  0012    | GetLocalMove 2
-  0014    | DestructurePlan 19: [bind KeyPath, bind Val]
-  0016    | TakeRight 16 -> 46
-  0019    | SetInputMark
-  0020    | GetConstant 72: _Doc.Has
-  0022    | GetLocal 0
-  0024    | GetLocal 1
-  0026    | CallFunction 2
-  0028    | ConditionalThen 28 -> 42
-  0031    | GetConstant 74: _Doc.Get
-  0033    | GetLocal 0
-  0035    | GetLocal 1
-  0037    | CallFunction 2
-  0039    | Jump 39 -> 44
-  0042    | CallFunctionConstant 14: _Doc.Empty
-  0044    | DestructurePlan 20: bind SubDoc
-  0046    | TakeRight 46 -> 55
-  0049    | GetConstant 73: _Doc.IsTable
-  0051    | GetLocal 5
-  0053    | CallFunction 1
-  0055    | TakeRight 55 -> 70
-  0058    | GetConstant 66: _Doc.InsertAtPath
-  0060    | GetLocalMove 5
-  0062    | GetLocalMove 3
-  0064    | GetLocalMove 4
-  0066    | CallFunction 3
-  0068    | DestructurePlan 21: bind NewSubDoc
-  0070    | TakeRight 70 -> 93
-  0073    | GetConstant 75: _Doc.Insert
-  0075    | GetLocalMove 0
-  0077    | GetLocalMove 1
-  0079    | GetConstant 7: _Doc.Value
-  0081    | GetLocal 6
-  0083    | CallFunction 1
-  0085    | GetConstant 76: _Doc.Type
-  0087    | GetLocalMove 6
-  0089    | CallFunction 1
-  0091    | CallTailFunction 4
-  0093    | End
+  0012    | GetLocalMove l2
+  0014    | JumpIfFailure 14 -> 51
+  0017    | MatchWindowEnter 4 fail->49
+  0021    | MatchScrutinee r0
+  0023    | MatchType r0 array
+  0026    | MatchCount r0 ==2
+  0030    | MatchElem r1 r0[0]
+  0035    | MatchBind l3 r1
+  0038    | MatchElem r2 r0[1]
+  0043    | MatchBind l4 r2
+  0046    | Jump 46 -> 50
+  0049    | MatchFail
+  0050    | MatchWindowExit
+  0051    | TakeRight 51 -> 92
+  0054    | SetInputMark
+  0055    | GetConstant 72: _Doc.Has
+  0057    | GetLocal l0
+  0059    | GetLocal l1
+  0061    | CallFunction 2
+  0063    | ConditionalThen 63 -> 77
+  0066    | GetConstant 74: _Doc.Get
+  0068    | GetLocal l0
+  0070    | GetLocal l1
+  0072    | CallFunction 2
+  0074    | Jump 74 -> 79
+  0077    | CallFunctionConstant 14: _Doc.Empty
+  0079    | JumpIfFailure 79 -> 92
+  0082    | MatchWindowEnter 2 fail->91
+  0086    | MatchScrutinee r0
+  0088    | MatchBind l5 r0
+  0091    | MatchWindowExit
+  0092    | TakeRight 92 -> 101
+  0095    | GetConstant 73: _Doc.IsTable
+  0097    | GetLocal l5
+  0099    | CallFunction 1
+  0101    | TakeRight 101 -> 127
+  0104    | GetConstant 66: _Doc.InsertAtPath
+  0106    | GetLocalMove l5
+  0108    | GetLocalMove l3
+  0110    | GetLocalMove l4
+  0112    | CallFunction 3
+  0114    | JumpIfFailure 114 -> 127
+  0117    | MatchWindowEnter 2 fail->126
+  0121    | MatchScrutinee r0
+  0123    | MatchBind l6 r0
+  0126    | MatchWindowExit
+  0127    | TakeRight 127 -> 150
+  0130    | GetConstant 75: _Doc.Insert
+  0132    | GetLocalMove l0
+  0134    | GetLocalMove l1
+  0136    | GetConstant 7: _Doc.Value
+  0138    | GetLocal l6
+  0140    | CallFunction 1
+  0142    | GetConstant 76: _Doc.Type
+  0144    | GetLocalMove l6
+  0146    | CallFunction 1
+  0148    | CallTailFunction 4
+  0150    | End
   ========================================
   
   =======1:_Doc.UpdateAtHeaderPath========
@@ -1935,29 +2092,49 @@
   0000    | PushVar2 Key
   0003    | PushVar2 PathRest
   0006    | SetInputMark
-  0007    | GetLocal 1
-  0009    | DestructurePlan 10: [bind Key]
-  0011    | ConditionalThen 11 -> 27
-  0014    | GetLocalMove 3
-  0016    | GetLocalMove 0
-  0018    | GetLocalMove 4
-  0020    | GetLocalMove 2
-  0022    | CallTailFunction 3
-  0024    | Jump 24 -> 54
-  0027    | SetInputMark
-  0028    | GetLocalMove 1
-  0030    | DestructurePlan 11: ([bind Key] + bind PathRest)
-  0032    | ConditionalThen 32 -> 52
-  0035    | GetConstant 85: _Doc.DescendHeaderKey
-  0037    | GetLocalMove 0
-  0039    | GetLocalMove 4
-  0041    | GetLocalMove 5
-  0043    | GetLocalMove 2
-  0045    | GetLocalMove 3
-  0047    | CallTailFunction 5
-  0049    | Jump 49 -> 54
-  0052    | GetLocalMove 0
-  0054    | End
+  0007    | GetLocal l1
+  0009    | JumpIfFailure 9 -> 38
+  0012    | MatchWindowEnter 3 fail->36
+  0016    | MatchScrutinee r0
+  0018    | MatchType r0 array
+  0021    | MatchCount r0 ==1
+  0025    | MatchElem r1 r0[0]
+  0030    | MatchBind l4 r1
+  0033    | Jump 33 -> 37
+  0036    | MatchFail
+  0037    | MatchWindowExit
+  0038    | ConditionalThen 38 -> 54
+  0041    | GetLocalMove l3
+  0043    | GetLocalMove l0
+  0045    | GetLocalMove l4
+  0047    | GetLocalMove l2
+  0049    | CallTailFunction 3
+  0051    | Jump 51 -> 116
+  0054    | SetInputMark
+  0055    | GetLocalMove l1
+  0057    | JumpIfFailure 57 -> 94
+  0060    | MatchWindowEnter 4 fail->92
+  0064    | MatchScrutinee r0
+  0066    | MatchType r0 array
+  0069    | MatchCount r0 >=1
+  0073    | MatchElem r1 r0[0]
+  0078    | MatchBind l4 r1
+  0081    | MatchSlice r2 r0[1..^0]
+  0086    | MatchBind l5 r2
+  0089    | Jump 89 -> 93
+  0092    | MatchFail
+  0093    | MatchWindowExit
+  0094    | ConditionalThen 94 -> 114
+  0097    | GetConstant 85: _Doc.DescendHeaderKey
+  0099    | GetLocalMove l0
+  0101    | GetLocalMove l4
+  0103    | GetLocalMove l5
+  0105    | GetLocalMove l2
+  0107    | GetLocalMove l3
+  0109    | CallTailFunction 5
+  0111    | Jump 111 -> 116
+  0114    | GetLocalMove l0
+  0116    | End
   ========================================
   
   ========1:_Doc.DescendHeaderKey=========
@@ -1977,76 +2154,96 @@
     )
   ========================================
   0000    | PushVar2 Current
-  0003    | PushUnderscoreVar
-  0004    | PushVar2 Updated
-  0007    | PushVar2 InnerDoc
-  0010    | SetInputMark
-  0011    | GetConstant 72: _Doc.Has
-  0013    | GetLocal 0
-  0015    | GetLocal 1
-  0017    | CallFunction 2
-  0019    | ConditionalThen 19 -> 111
-  0022    | GetConstant 74: _Doc.Get
-  0024    | GetLocal 0
-  0026    | GetLocal 1
-  0028    | CallFunction 2
-  0030    | DestructurePlan 12: bind Current
-  0032    | TakeRight 32 -> 85
-  0035    | SetInputMark
-  0036    | GetConstant 76: _Doc.Type
-  0038    | GetLocal 5
-  0040    | CallFunction 1
-  0042    | DestructurePlan 13: ([eq "array_of_tables"] + _)
-  0044    | ConditionalThen 44 -> 62
-  0047    | GetConstant 86: _Doc.UpdateAtLastAoTElement
-  0049    | GetLocalMove 5
-  0051    | GetLocalMove 2
-  0053    | GetLocalMove 3
-  0055    | GetLocalMove 4
-  0057    | CallFunction 4
-  0059    | Jump 59 -> 83
-  0062    | GetConstant 73: _Doc.IsTable
-  0064    | GetLocal 5
-  0066    | CallFunction 1
-  0068    | TakeRight 68 -> 83
-  0071    | GetConstant 67: _Doc.UpdateAtHeaderPath
-  0073    | GetLocalMove 5
-  0075    | GetLocalMove 2
-  0077    | GetLocalMove 3
-  0079    | GetLocalMove 4
-  0081    | CallFunction 4
-  0083    | DestructurePlan 14: bind Updated
-  0085    | TakeRight 85 -> 108
-  0088    | GetConstant 75: _Doc.Insert
-  0090    | GetLocalMove 0
-  0092    | GetLocalMove 1
-  0094    | GetConstant 7: _Doc.Value
-  0096    | GetLocal 7
-  0098    | CallFunction 1
-  0100    | GetConstant 76: _Doc.Type
-  0102    | GetLocalMove 7
-  0104    | CallFunction 1
-  0106    | CallTailFunction 4
-  0108    | Jump 108 -> 148
-  0111    | GetConstant 67: _Doc.UpdateAtHeaderPath
-  0113    | CallFunctionConstant 14: _Doc.Empty
-  0115    | GetLocalMove 2
-  0117    | GetLocalMove 3
-  0119    | GetLocalMove 4
-  0121    | CallFunction 4
-  0123    | DestructurePlan 15: bind InnerDoc
-  0125    | TakeRight 125 -> 148
-  0128    | GetConstant 75: _Doc.Insert
-  0130    | GetLocalMove 0
-  0132    | GetLocalMove 1
-  0134    | GetConstant 7: _Doc.Value
-  0136    | GetLocal 8
-  0138    | CallFunction 1
-  0140    | GetConstant 76: _Doc.Type
-  0142    | GetLocalMove 8
-  0144    | CallFunction 1
-  0146    | CallTailFunction 4
-  0148    | End
+  0003    | PushVar2 Updated
+  0006    | PushVar2 InnerDoc
+  0009    | SetInputMark
+  0010    | GetConstant 72: _Doc.Has
+  0012    | GetLocal l0
+  0014    | GetLocal l1
+  0016    | CallFunction 2
+  0018    | ConditionalThen 18 -> 161
+  0021    | GetConstant 74: _Doc.Get
+  0023    | GetLocal l0
+  0025    | GetLocal l1
+  0027    | CallFunction 2
+  0029    | JumpIfFailure 29 -> 42
+  0032    | MatchWindowEnter 2 fail->41
+  0036    | MatchScrutinee r0
+  0038    | MatchBind l5 r0
+  0041    | MatchWindowExit
+  0042    | TakeRight 42 -> 135
+  0045    | SetInputMark
+  0046    | GetConstant 76: _Doc.Type
+  0048    | GetLocal l5
+  0050    | CallFunction 1
+  0052    | JumpIfFailure 52 -> 83
+  0055    | MatchWindowEnter 3 fail->81
+  0059    | MatchScrutinee r0
+  0061    | MatchType r0 array
+  0064    | MatchCount r0 >=1
+  0068    | MatchElem r1 r0[0]
+  0073    | MatchCmp r1 == "array_of_tables"
+  0078    | Jump 78 -> 82
+  0081    | MatchFail
+  0082    | MatchWindowExit
+  0083    | ConditionalThen 83 -> 101
+  0086    | GetConstant 87: _Doc.UpdateAtLastAoTElement
+  0088    | GetLocalMove l5
+  0090    | GetLocalMove l2
+  0092    | GetLocalMove l3
+  0094    | GetLocalMove l4
+  0096    | CallFunction 4
+  0098    | Jump 98 -> 122
+  0101    | GetConstant 73: _Doc.IsTable
+  0103    | GetLocal l5
+  0105    | CallFunction 1
+  0107    | TakeRight 107 -> 122
+  0110    | GetConstant 67: _Doc.UpdateAtHeaderPath
+  0112    | GetLocalMove l5
+  0114    | GetLocalMove l2
+  0116    | GetLocalMove l3
+  0118    | GetLocalMove l4
+  0120    | CallFunction 4
+  0122    | JumpIfFailure 122 -> 135
+  0125    | MatchWindowEnter 2 fail->134
+  0129    | MatchScrutinee r0
+  0131    | MatchBind l6 r0
+  0134    | MatchWindowExit
+  0135    | TakeRight 135 -> 158
+  0138    | GetConstant 75: _Doc.Insert
+  0140    | GetLocalMove l0
+  0142    | GetLocalMove l1
+  0144    | GetConstant 7: _Doc.Value
+  0146    | GetLocal l6
+  0148    | CallFunction 1
+  0150    | GetConstant 76: _Doc.Type
+  0152    | GetLocalMove l6
+  0154    | CallFunction 1
+  0156    | CallTailFunction 4
+  0158    | Jump 158 -> 209
+  0161    | GetConstant 67: _Doc.UpdateAtHeaderPath
+  0163    | CallFunctionConstant 14: _Doc.Empty
+  0165    | GetLocalMove l2
+  0167    | GetLocalMove l3
+  0169    | GetLocalMove l4
+  0171    | CallFunction 4
+  0173    | JumpIfFailure 173 -> 186
+  0176    | MatchWindowEnter 2 fail->185
+  0180    | MatchScrutinee r0
+  0182    | MatchBind l7 r0
+  0185    | MatchWindowExit
+  0186    | TakeRight 186 -> 209
+  0189    | GetConstant 75: _Doc.Insert
+  0191    | GetLocalMove l0
+  0193    | GetLocalMove l1
+  0195    | GetConstant 7: _Doc.Value
+  0197    | GetLocal l7
+  0199    | CallFunction 1
+  0201    | GetConstant 76: _Doc.Type
+  0203    | GetLocalMove l7
+  0205    | CallFunction 1
+  0207    | CallTailFunction 4
+  0209    | End
   ========================================
   
   =====1:_Doc.UpdateAtLastAoTElement======
@@ -2067,65 +2264,96 @@
   0009    | PushVar2 TLast
   0012    | PushVar2 UpdatedLast
   0015    | GetConstant 7: _Doc.Value
-  0017    | GetLocal 0
+  0017    | GetLocal l0
   0019    | CallFunction 1
-  0021    | DestructurePlan 16: ([] + bind VsInit + [bind VLast])
-  0023    | TakeRight 23 -> 34
-  0026    | GetConstant 76: _Doc.Type
-  0028    | GetLocalMove 0
-  0030    | CallFunction 1
-  0032    | DestructurePlan 17: [eq "array_of_tables", ([] + bind TsInit + [bind TLast])]
-  0034    | TakeRight 34 -> 65
-  0037    | GetConstant 67: _Doc.UpdateAtHeaderPath
-  0039    | GetConstantMutable 87: {_0_, _1_}
-  0041    | PushString2 "value"
-  0044    | GetLocalMove 5
-  0046    | InsertKeyVal 0
-  0048    | PushString2 "type"
-  0051    | GetLocalMove 7
-  0053    | InsertKeyVal 1
-  0055    | GetLocalMove 1
-  0057    | GetLocalMove 2
-  0059    | GetLocalMove 3
-  0061    | CallFunction 4
-  0063    | DestructurePlan 18: bind UpdatedLast
-  0065    | TakeRight 65 -> 126
-  0068    | GetConstantMutable 88: {_0_, _1_}
-  0070    | PushString2 "value"
-  0073    | PushEmptyArray
-  0074    | JumpIfFailure 74 -> 80
-  0077    | GetLocalMove 4
-  0079    | Merge
-  0080    | JumpIfFailure 80 -> 94
-  0083    | GetConstantMutable 89: [_]
-  0085    | GetConstant 7: _Doc.Value
-  0087    | GetLocal 8
-  0089    | CallFunction 1
-  0091    | InsertAtIndex 0
-  0093    | Merge
-  0094    | InsertKeyVal 0
-  0096    | PushString2 "type"
-  0099    | GetConstantMutable 90: ["array_of_tables", _]
-  0101    | PushEmptyArray
-  0102    | JumpIfFailure 102 -> 108
-  0105    | GetLocalMove 6
-  0107    | Merge
-  0108    | JumpIfFailure 108 -> 122
-  0111    | GetConstantMutable 91: [_]
-  0113    | GetConstant 76: _Doc.Type
-  0115    | GetLocalMove 8
-  0117    | CallFunction 1
-  0119    | InsertAtIndex 0
-  0121    | Merge
-  0122    | InsertAtIndex 1
-  0124    | InsertKeyVal 1
-  0126    | End
+  0021    | JumpIfFailure 21 -> 58
+  0024    | MatchWindowEnter 4 fail->56
+  0028    | MatchScrutinee r0
+  0030    | MatchType r0 array
+  0033    | MatchCount r0 >=1
+  0037    | MatchSlice r1 r0[0..^1]
+  0042    | MatchBind l4 r1
+  0045    | MatchElem r2 r0[^0]
+  0050    | MatchBind l5 r2
+  0053    | Jump 53 -> 57
+  0056    | MatchFail
+  0057    | MatchWindowExit
+  0058    | TakeRight 58 -> 126
+  0061    | GetConstant 76: _Doc.Type
+  0063    | GetLocalMove l0
+  0065    | CallFunction 1
+  0067    | JumpIfFailure 67 -> 126
+  0070    | MatchWindowEnter 6 fail->124
+  0074    | MatchScrutinee r0
+  0076    | MatchType r0 array
+  0079    | MatchCount r0 ==2
+  0083    | MatchElem r1 r0[0]
+  0088    | MatchCmp r1 == "array_of_tables"
+  0093    | MatchElem r2 r0[1]
+  0098    | MatchType r2 array
+  0101    | MatchCount r2 >=1
+  0105    | MatchSlice r3 r2[0..^1]
+  0110    | MatchBind l6 r3
+  0113    | MatchElem r4 r2[^0]
+  0118    | MatchBind l7 r4
+  0121    | Jump 121 -> 125
+  0124    | MatchFail
+  0125    | MatchWindowExit
+  0126    | TakeRight 126 -> 168
+  0129    | GetConstant 67: _Doc.UpdateAtHeaderPath
+  0131    | GetConstantMutable 88: {_0_, _1_}
+  0133    | PushString2 "value"
+  0136    | GetLocalMove l5
+  0138    | InsertKeyVal 0
+  0140    | PushString2 "type"
+  0143    | GetLocalMove l7
+  0145    | InsertKeyVal 1
+  0147    | GetLocalMove l1
+  0149    | GetLocalMove l2
+  0151    | GetLocalMove l3
+  0153    | CallFunction 4
+  0155    | JumpIfFailure 155 -> 168
+  0158    | MatchWindowEnter 2 fail->167
+  0162    | MatchScrutinee r0
+  0164    | MatchBind l8 r0
+  0167    | MatchWindowExit
+  0168    | TakeRight 168 -> 229
+  0171    | GetConstantMutable 89: {_0_, _1_}
+  0173    | PushString2 "value"
+  0176    | PushEmptyArray
+  0177    | JumpIfFailure 177 -> 183
+  0180    | GetLocalMove l4
+  0182    | Merge
+  0183    | JumpIfFailure 183 -> 197
+  0186    | GetConstantMutable 90: [_]
+  0188    | GetConstant 7: _Doc.Value
+  0190    | GetLocal l8
+  0192    | CallFunction 1
+  0194    | InsertAtIndex 0
+  0196    | Merge
+  0197    | InsertKeyVal 0
+  0199    | PushString2 "type"
+  0202    | GetConstantMutable 91: ["array_of_tables", _]
+  0204    | PushEmptyArray
+  0205    | JumpIfFailure 205 -> 211
+  0208    | GetLocalMove l6
+  0210    | Merge
+  0211    | JumpIfFailure 211 -> 225
+  0214    | GetConstantMutable 92: [_]
+  0216    | GetConstant 76: _Doc.Type
+  0218    | GetLocalMove l8
+  0220    | CallFunction 1
+  0222    | InsertAtIndex 0
+  0224    | Merge
+  0225    | InsertAtIndex 1
+  0227    | InsertKeyVal 1
+  0229    | End
   ========================================
   
   ================1:@main=================
   simple
   ========================================
-  0000    | CallTailFunctionConstant 205: simple
+  0000    | CallTailFunctionConstant 208: simple
   0002    | End
   ========================================
   
@@ -2159,7 +2387,7 @@
   0000    | PushVar2 value
   0003    | SetClosureCaptures
   0004    | GetConstant 18: _table_body
-  0006    | GetLocalMove 0
+  0006    | GetLocalMove l0
   0008    | PushEmptyArray
   0009    | CallFunctionConstant 14: _Doc.Empty
   0011    | CallTailFunction 3
@@ -2264,7 +2492,7 @@
   0000    | PushVar2 elem
   0003    | SetClosureCaptures
   0004    | GetConstant 56: surround
-  0006    | GetLocalMove 0
+  0006    | GetLocalMove l0
   0008    | GetConstant 15: _ws
   0010    | CallTailFunction 2
   0012    | End
@@ -2286,14 +2514,14 @@
   0000    | PushVar2 elem
   0003    | SetClosureCaptures
   0004    | GetConstant 25: array_sep
-  0006    | GetConstant 196: @fn13
+  0006    | GetConstant 199: @fn13
   0008    | CreateClosure 1
-  0010    | CaptureLocal 0
+  0010    | CaptureLocal l0
   0012    | PushString2 ","
   0015    | CallFunction 2
   0017    | JumpIfFailure 17 -> 27
   0020    | GetConstant 2: maybe
-  0022    | GetConstant 197: @fn14
+  0022    | GetConstant 200: @fn14
   0024    | CallFunction 1
   0026    | TakeLeft
   0027    | End
@@ -2341,7 +2569,7 @@
   0031    | Or 31 -> 42
   0034    | GetConstant 38: unless
   0036    | GetConstant 39: char
-  0038    | GetConstant 123: @fn18
+  0038    | GetConstant 126: @fn18
   0040    | CallTailFunction 2
   0042    | End
   ========================================
@@ -2353,8 +2581,8 @@
         `"""`
       )
   ========================================
-  0000    | GetConstant 121: many_until
-  0002    | GetConstant 122: @fn17
+  0000    | GetConstant 124: many_until
+  0002    | GetConstant 125: @fn17
   0004    | PushString2 """""
   0007    | CallTailFunction 2
   0009    | End
@@ -2372,7 +2600,7 @@
   ================1:@fn20=================
   many_until(char, `'''`)
   ========================================
-  0000    | GetConstant 121: many_until
+  0000    | GetConstant 124: many_until
   0002    | GetConstant 39: char
   0004    | PushString2 "'''"
   0007    | CallTailFunction 2
@@ -2465,9 +2693,9 @@
   _number.sign +
     _number.integer_part
   ========================================
-  0000    | CallFunctionConstant 183: _number.sign
+  0000    | CallFunctionConstant 186: _number.sign
   0002    | JumpIfFailure 2 -> 8
-  0005    | CallFunctionConstant 184: _number.integer_part
+  0005    | CallFunctionConstant 187: _number.integer_part
   0007    | Merge
   0008    | End
   ========================================
@@ -2478,7 +2706,7 @@
   0000    | SetInputMark
   0001    | ParseChar '-'
   0003    | Or 3 -> 13
-  0006    | GetConstant 118: skip
+  0006    | GetConstant 121: skip
   0008    | PushString2 "+"
   0011    | CallTailFunction 1
   0013    | End
@@ -2502,20 +2730,20 @@
       _number.exponent_part
     )
   ========================================
-  0000    | CallFunctionConstant 183: _number.sign
+  0000    | CallFunctionConstant 186: _number.sign
   0002    | JumpIfFailure 2 -> 8
-  0005    | CallFunctionConstant 184: _number.integer_part
+  0005    | CallFunctionConstant 187: _number.integer_part
   0007    | Merge
   0008    | JumpIfFailure 8 -> 30
   0011    | SetInputMark
-  0012    | CallFunctionConstant 185: _number.fraction_part
+  0012    | CallFunctionConstant 188: _number.fraction_part
   0014    | JumpIfFailure 14 -> 24
   0017    | GetConstant 2: maybe
-  0019    | GetConstant 186: _number.exponent_part
+  0019    | GetConstant 189: _number.exponent_part
   0021    | CallFunction 1
   0023    | Merge
   0024    | Or 24 -> 29
-  0027    | CallFunctionConstant 186: _number.exponent_part
+  0027    | CallFunctionConstant 189: _number.exponent_part
   0029    | Merge
   0030    | End
   ========================================
@@ -2580,12 +2808,12 @@
   ================1:@fn36=================
   skip("_") < peek(binary_numeral)
   ========================================
-  0000    | GetConstant 118: skip
+  0000    | GetConstant 121: skip
   0002    | PushString "_"
   0004    | CallFunction 1
   0006    | JumpIfFailure 6 -> 16
-  0009    | GetConstant 156: peek
-  0011    | GetConstant 157: binary_numeral
+  0009    | GetConstant 159: peek
+  0011    | GetConstant 160: binary_numeral
   0013    | CallFunction 1
   0015    | TakeLeft
   0016    | End
@@ -2596,11 +2824,11 @@
   ========================================
   0000    | GetConstant 25: array_sep
   0002    | PushNumberStringZero
-  0003    | GetConstant 154: @fn35
+  0003    | GetConstant 157: @fn35
   0005    | CallFunction 2
   0007    | JumpIfFailure 7 -> 17
   0010    | GetConstant 2: maybe
-  0012    | GetConstant 155: @fn36
+  0012    | GetConstant 158: @fn36
   0014    | CallFunction 1
   0016    | Merge
   0017    | End
@@ -2619,8 +2847,8 @@
   array_sep(binary_digit, maybe("_"))
   ========================================
   0000    | GetConstant 25: array_sep
-  0002    | GetConstant 158: binary_digit
-  0004    | GetConstant 159: @fn38
+  0002    | GetConstant 161: binary_digit
+  0004    | GetConstant 162: @fn38
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -2637,12 +2865,12 @@
   ================1:@fn41=================
   skip("_") < peek(octal_numeral)
   ========================================
-  0000    | GetConstant 118: skip
+  0000    | GetConstant 121: skip
   0002    | PushString "_"
   0004    | CallFunction 1
   0006    | JumpIfFailure 6 -> 16
-  0009    | GetConstant 156: peek
-  0011    | GetConstant 166: octal_numeral
+  0009    | GetConstant 159: peek
+  0011    | GetConstant 169: octal_numeral
   0013    | CallFunction 1
   0015    | TakeLeft
   0016    | End
@@ -2653,11 +2881,11 @@
   ========================================
   0000    | GetConstant 25: array_sep
   0002    | PushNumberStringZero
-  0003    | GetConstant 164: @fn40
+  0003    | GetConstant 167: @fn40
   0005    | CallFunction 2
   0007    | JumpIfFailure 7 -> 17
   0010    | GetConstant 2: maybe
-  0012    | GetConstant 165: @fn41
+  0012    | GetConstant 168: @fn41
   0014    | CallFunction 1
   0016    | Merge
   0017    | End
@@ -2676,8 +2904,8 @@
   array_sep(octal_digit, maybe("_"))
   ========================================
   0000    | GetConstant 25: array_sep
-  0002    | GetConstant 167: octal_digit
-  0004    | GetConstant 168: @fn43
+  0002    | GetConstant 170: octal_digit
+  0004    | GetConstant 171: @fn43
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -2694,11 +2922,11 @@
   ================1:@fn46=================
   skip("_") < peek(hex_numeral)
   ========================================
-  0000    | GetConstant 118: skip
+  0000    | GetConstant 121: skip
   0002    | PushString "_"
   0004    | CallFunction 1
   0006    | JumpIfFailure 6 -> 16
-  0009    | GetConstant 156: peek
+  0009    | GetConstant 159: peek
   0011    | GetConstant 49: hex_numeral
   0013    | CallFunction 1
   0015    | TakeLeft
@@ -2710,11 +2938,11 @@
   ========================================
   0000    | GetConstant 25: array_sep
   0002    | PushNumberStringZero
-  0003    | GetConstant 173: @fn45
+  0003    | GetConstant 176: @fn45
   0005    | CallFunction 2
   0007    | JumpIfFailure 7 -> 17
   0010    | GetConstant 2: maybe
-  0012    | GetConstant 174: @fn46
+  0012    | GetConstant 177: @fn46
   0014    | CallFunction 1
   0016    | Merge
   0017    | End
@@ -2733,8 +2961,8 @@
   array_sep(hex_digit, maybe("_"))
   ========================================
   0000    | GetConstant 25: array_sep
-  0002    | GetConstant 175: hex_digit
-  0004    | GetConstant 176: @fn48
+  0002    | GetConstant 178: hex_digit
+  0004    | GetConstant 179: @fn48
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -2915,7 +3143,7 @@
   ========================================
   0000    | GetConstant 2: many_until
   0002    | GetConstant 3: char
-  0004    | GetLocalMove 0
+  0004    | GetLocalMove l0
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -2955,7 +3183,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -2964,7 +3192,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -2979,16 +3207,16 @@
   ===============3:many_sep===============
   many_sep(p, sep) = p + ((sep > p) * 0..)
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | JumpIfFailure 2 -> 54
   0005    | PushNull
   0006    | PushInteger 0
   0008    | ValidateRepeatPattern
   0009    | JumpIfZero 9 -> 32
   0012    | Swap
-  0013    | CallFunctionLocal 1
+  0013    | CallFunctionLocal l1
   0015    | TakeRight 15 -> 20
-  0018    | CallFunctionLocal 0
+  0018    | CallFunctionLocal l0
   0020    | Merge
   0021    | JumpIfFailure 21 -> 51
   0024    | Swap
@@ -2997,9 +3225,9 @@
   0029    | JumpBack 29 -> 12
   0032    | Swap
   0033    | SetInputMark
-  0034    | CallFunctionLocal 1
+  0034    | CallFunctionLocal l1
   0036    | TakeRight 36 -> 41
-  0039    | CallFunctionLocal 0
+  0039    | CallFunctionLocal l0
   0041    | JumpIfFailure 41 -> 49
   0044    | PopInputMark
   0045    | Merge
@@ -3021,8 +3249,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 2: unless
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -3033,8 +3261,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 2: unless
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -3046,7 +3274,7 @@
   0049    | Drop
   0050    | JumpIfFailure 50 -> 60
   0053    | GetConstant 3: peek
-  0055    | GetLocalMove 1
+  0055    | GetLocalMove l1
   0057    | CallFunction 1
   0059    | TakeLeft
   0060    | End
@@ -3060,7 +3288,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -3069,7 +3297,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -3086,20 +3314,24 @@
   ========================================
   0000    | PushVar Pos
   0002    | CallFunctionConstant 5: @input.offset
-  0004    | DestructurePlan 0: bind Pos
-  0006    | TakeRight 6 -> 17
-  0009    | GetConstant 6: @at
-  0011    | GetLocalMove 1
-  0013    | GetLocalMove 0
-  0015    | CallTailFunction 2
-  0017    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l1 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstant 6: @at
+  0022    | GetLocalMove l1
+  0024    | GetLocalMove l0
+  0026    | CallTailFunction 2
+  0028    | End
   ========================================
   
   ================3:maybe=================
   maybe(p) = p | succeed
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 8
   0006    | CallTailFunctionConstant 0: succeed
   0008    | End
@@ -3109,11 +3341,11 @@
   unless(p, excluded) = excluded ? @fail : p
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 1
+  0001    | CallFunctionLocal l1
   0003    | ConditionalThen 3 -> 11
   0006    | CallTailFunctionConstant 4: @fail
   0008    | Jump 8 -> 13
-  0011    | CallTailFunctionLocal 0
+  0011    | CallTailFunctionLocal l0
   0013    | End
   ========================================
   
@@ -3121,7 +3353,7 @@
   skip(p) = null(p)
   ========================================
   0000    | GetConstant 8: null
-  0002    | GetLocalMove 0
+  0002    | GetLocalMove l0
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -3139,10 +3371,10 @@
   default(p, D) = p | const(D)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 12
   0006    | GetConstant 1: const
-  0008    | GetLocalMove 1
+  0008    | GetLocalMove l1
   0010    | CallTailFunction 1
   0012    | End
   ========================================
@@ -3150,7 +3382,7 @@
   ================3:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -3158,21 +3390,29 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar2 N
-  0003    | CallFunctionLocal 0
-  0005    | DestructurePlan 1: tmpl((eq 0 + bind N))
-  0007    | TakeRight 7 -> 12
-  0010    | GetLocalMove 1
-  0012    | End
+  0003    | CallFunctionLocal l0
+  0005    | JumpIfFailure 5 -> 29
+  0008    | MatchWindowEnter 6 fail->27
+  0012    | MatchScrutinee r0
+  0014    | MatchType r0 string
+  0017    | MatchCast r4 <- num r0
+  0021    | MatchBind l1 r4
+  0024    | Jump 24 -> 28
+  0027    | MatchFail
+  0028    | MatchWindowExit
+  0029    | TakeRight 29 -> 34
+  0032    | GetLocalMove l1
+  0034    | End
   ========================================
   
   ===============3:surround===============
   surround(p, fill) = fill > p < fill
   ========================================
-  0000    | CallFunctionLocal 1
+  0000    | CallFunctionLocal l1
   0002    | TakeRight 2 -> 7
-  0005    | CallFunctionLocal 0
+  0005    | CallFunctionLocal l0
   0007    | JumpIfFailure 7 -> 13
-  0010    | CallFunctionLocal 1
+  0010    | CallFunctionLocal l1
   0012    | TakeLeft
   0013    | End
   ========================================
@@ -3205,18 +3445,18 @@
   one_or_both(a, b) = (a + maybe(b)) | (maybe(a) + b)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | JumpIfFailure 3 -> 13
   0006    | GetConstant 9: maybe
-  0008    | GetLocal 1
+  0008    | GetLocal l1
   0010    | CallFunction 1
   0012    | Merge
   0013    | Or 13 -> 28
   0016    | GetConstant 9: maybe
-  0018    | GetLocalMove 0
+  0018    | GetLocalMove l0
   0020    | CallFunction 1
   0022    | JumpIfFailure 22 -> 28
-  0025    | CallFunctionLocal 1
+  0025    | CallFunctionLocal l1
   0027    | Merge
   0028    | End
   ========================================
@@ -3224,7 +3464,7 @@
   =================4:true=================
   true(t) = t $ true
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 6
   0005    | PushTrue
   0006    | End
@@ -3233,7 +3473,7 @@
   ================4:false=================
   false(f) = f $ false
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 6
   0005    | PushFalse
   0006    | End
@@ -3244,11 +3484,11 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: true
-  0003    | GetLocalMove 0
+  0003    | GetLocalMove l0
   0005    | CallFunction 1
   0007    | Or 7 -> 16
   0010    | GetConstant 1: false
-  0012    | GetLocalMove 1
+  0012    | GetLocalMove l1
   0014    | CallTailFunction 1
   0016    | End
   ========================================
@@ -3256,7 +3496,7 @@
   =================4:null=================
   null(n) = n $ null
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 6
   0005    | PushNull
   0006    | End
@@ -3349,7 +3589,7 @@
   array_sep(elem, sep) = tuple1(elem) + (tuple1(sep > elem) * 0..)
   ========================================
   0000    | GetConstant 1: tuple1
-  0002    | GetLocal 0
+  0002    | GetLocal l0
   0004    | CallFunction 1
   0006    | JumpIfFailure 6 -> 68
   0009    | PushNull
@@ -3360,8 +3600,8 @@
   0017    | GetConstant 1: tuple1
   0019    | GetConstant 2: @fn0
   0021    | CreateClosure 2
-  0023    | CaptureLocal 1
-  0025    | CaptureLocal 0
+  0023    | CaptureLocal l1
+  0025    | CaptureLocal l0
   0027    | CallFunction 1
   0029    | Merge
   0030    | JumpIfFailure 30 -> 65
@@ -3374,8 +3614,8 @@
   0043    | GetConstant 1: tuple1
   0045    | GetConstant 2: @fn0
   0047    | CreateClosure 2
-  0049    | CaptureLocal 1
-  0051    | CaptureLocal 0
+  0049    | CaptureLocal l1
+  0051    | CaptureLocal l0
   0053    | CallFunction 1
   0055    | JumpIfFailure 55 -> 63
   0058    | PopInputMark
@@ -3393,13 +3633,17 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar2 Elem
-  0003    | CallFunctionLocal 0
-  0005    | DestructurePlan 2: bind Elem
-  0007    | TakeRight 7 -> 16
-  0010    | GetConstantMutable 3: [_]
-  0012    | GetLocalMove 1
-  0014    | InsertAtIndex 0
-  0016    | End
+  0003    | CallFunctionLocal l0
+  0005    | JumpIfFailure 5 -> 18
+  0008    | MatchWindowEnter 2 fail->17
+  0012    | MatchScrutinee r0
+  0014    | MatchBind l1 r0
+  0017    | MatchWindowExit
+  0018    | TakeRight 18 -> 27
+  0021    | GetConstantMutable 3: [_]
+  0023    | GetLocalMove l1
+  0025    | InsertAtIndex 0
+  0027    | End
   ========================================
   
   ==============7:tuple2_sep==============
@@ -3407,20 +3651,28 @@
   ========================================
   0000    | PushVar2 E1
   0003    | PushVar2 E2
-  0006    | CallFunctionLocal 0
-  0008    | DestructurePlan 0: bind E1
-  0010    | TakeRight 10 -> 15
-  0013    | CallFunctionLocal 1
-  0015    | TakeRight 15 -> 35
-  0018    | CallFunctionLocal 2
-  0020    | DestructurePlan 1: bind E2
-  0022    | TakeRight 22 -> 35
-  0025    | GetConstantMutable 0: [_, _]
-  0027    | GetLocalMove 3
-  0029    | InsertAtIndex 0
-  0031    | GetLocalMove 4
-  0033    | InsertAtIndex 1
-  0035    | End
+  0006    | CallFunctionLocal l0
+  0008    | JumpIfFailure 8 -> 21
+  0011    | MatchWindowEnter 2 fail->20
+  0015    | MatchScrutinee r0
+  0017    | MatchBind l3 r0
+  0020    | MatchWindowExit
+  0021    | TakeRight 21 -> 26
+  0024    | CallFunctionLocal l1
+  0026    | TakeRight 26 -> 57
+  0029    | CallFunctionLocal l2
+  0031    | JumpIfFailure 31 -> 44
+  0034    | MatchWindowEnter 2 fail->43
+  0038    | MatchScrutinee r0
+  0040    | MatchBind l4 r0
+  0043    | MatchWindowExit
+  0044    | TakeRight 44 -> 57
+  0047    | GetConstantMutable 0: [_, _]
+  0049    | GetLocalMove l3
+  0051    | InsertAtIndex 0
+  0053    | GetLocalMove l4
+  0055    | InsertAtIndex 1
+  0057    | End
   ========================================
   
   =================7:@fn0=================
@@ -3429,34 +3681,41 @@
   0000    | PushVar2 sep
   0003    | PushVar2 elem
   0006    | SetClosureCaptures
-  0007    | CallFunctionLocal 0
+  0007    | CallFunctionLocal l0
   0009    | TakeRight 9 -> 14
-  0012    | CallTailFunctionLocal 1
+  0012    | CallTailFunctionLocal l1
   0014    | End
   ========================================
   
   =============8:Array.Length=============
   Array.Length(A) = A -> ([_] * L) & L
   ========================================
-  0000    | PushUnderscoreVar
-  0001    | PushVar2 L
-  0004    | GetLocalMove 0
-  0006    | DestructurePlan 0: ([_] * bind L)
-  0008    | TakeRight 8 -> 13
-  0011    | GetLocalMove 2
-  0013    | End
+  0000    | PushVar2 L
+  0003    | GetLocalMove l0
+  0005    | JumpIfFailure 5 -> 30
+  0008    | MatchWindowEnter 5 fail->28
+  0012    | MatchScrutinee r0
+  0014    | MatchType r0 array
+  0017    | MatchRepeatInit r0 /1 n=r2 base=r3
+  0022    | MatchBind l1 r2
+  0025    | Jump 25 -> 29
+  0028    | MatchFail
+  0029    | MatchWindowExit
+  0030    | TakeRight 30 -> 35
+  0033    | GetLocalMove l1
+  0035    | End
   ========================================
   
   ==============0:@Multiply===============
-  0000    | GetLocal 0
-  0002    | GetLocal 1
+  0000    | GetLocal l0
+  0002    | GetLocal l1
   0004    | NativeCode 9: multiplyNative
   0006    | End
   ========================================
   
   ================0:@Power================
-  0000    | GetLocal 0
-  0002    | GetLocal 1
+  0000    | GetLocal l0
+  0002    | GetLocal l1
   0004    | NativeCode 11: powerNative
   0006    | End
   ========================================
@@ -3468,19 +3727,23 @@
   ========================================
   0000    | PushVar2 Len
   0003    | GetConstant 0: Array.Length
-  0005    | GetLocal 0
+  0005    | GetLocal l0
   0007    | CallFunction 1
-  0009    | DestructurePlan 0: bind Len
-  0011    | TakeRight 11 -> 30
-  0014    | GetConstant 1: _Num.FromBinaryDigits
-  0016    | GetLocalMove 0
-  0018    | GetLocalMove 1
-  0020    | JumpIfFailure 20 -> 26
-  0023    | PushNegInteger -1
-  0025    | Merge
-  0026    | PushInteger 0
-  0028    | CallTailFunction 3
-  0030    | End
+  0009    | JumpIfFailure 9 -> 22
+  0012    | MatchWindowEnter 2 fail->21
+  0016    | MatchScrutinee r0
+  0018    | MatchBind l1 r0
+  0021    | MatchWindowExit
+  0022    | TakeRight 22 -> 41
+  0025    | GetConstant 1: _Num.FromBinaryDigits
+  0027    | GetLocalMove l0
+  0029    | GetLocalMove l1
+  0031    | JumpIfFailure 31 -> 37
+  0034    | PushNegInteger -1
+  0036    | Merge
+  0037    | PushInteger 0
+  0039    | CallTailFunction 3
+  0041    | End
   ========================================
   
   ========9:_Num.FromBinaryDigits=========
@@ -3498,32 +3761,51 @@
   0000    | PushVar2 B
   0003    | PushVar2 Rest
   0006    | SetInputMark
-  0007    | GetLocalMove 0
-  0009    | DestructurePlan 1: ([bind B] + bind Rest)
-  0011    | ConditionalThen 11 -> 58
-  0014    | GetLocal 3
-  0016    | DestructurePlan 2: 0..1
-  0018    | TakeRight 18 -> 55
-  0021    | GetConstant 1: _Num.FromBinaryDigits
-  0023    | GetLocalMove 4
-  0025    | GetLocal 1
-  0027    | JumpIfFailure 27 -> 33
-  0030    | PushNegInteger -1
-  0032    | Merge
-  0033    | GetLocalMove 2
-  0035    | JumpIfFailure 35 -> 53
-  0038    | GetConstant 2: @Multiply
-  0040    | GetLocalMove 3
-  0042    | GetConstant 3: @Power
-  0044    | PushInteger 2
-  0046    | GetLocalMove 1
-  0048    | CallFunction 2
-  0050    | CallFunction 2
-  0052    | Merge
-  0053    | CallTailFunction 3
-  0055    | Jump 55 -> 60
-  0058    | GetLocalMove 2
-  0060    | End
+  0007    | GetLocalMove l0
+  0009    | JumpIfFailure 9 -> 46
+  0012    | MatchWindowEnter 4 fail->44
+  0016    | MatchScrutinee r0
+  0018    | MatchType r0 array
+  0021    | MatchCount r0 >=1
+  0025    | MatchElem r1 r0[0]
+  0030    | MatchBind l3 r1
+  0033    | MatchSlice r2 r0[1..^0]
+  0038    | MatchBind l4 r2
+  0041    | Jump 41 -> 45
+  0044    | MatchFail
+  0045    | MatchWindowExit
+  0046    | ConditionalThen 46 -> 120
+  0049    | GetLocal l3
+  0051    | JumpIfFailure 51 -> 80
+  0054    | MatchWindowEnter 2 fail->78
+  0058    | MatchScrutinee r0
+  0060    | MatchType r0 num_or_codepoint
+  0063    | MatchBound r0 lo 0
+  0069    | MatchBound r0 hi 1
+  0075    | Jump 75 -> 79
+  0078    | MatchFail
+  0079    | MatchWindowExit
+  0080    | TakeRight 80 -> 117
+  0083    | GetConstant 1: _Num.FromBinaryDigits
+  0085    | GetLocalMove l4
+  0087    | GetLocal l1
+  0089    | JumpIfFailure 89 -> 95
+  0092    | PushNegInteger -1
+  0094    | Merge
+  0095    | GetLocalMove l2
+  0097    | JumpIfFailure 97 -> 115
+  0100    | GetConstant 4: @Multiply
+  0102    | GetLocalMove l3
+  0104    | GetConstant 5: @Power
+  0106    | PushInteger 2
+  0108    | GetLocalMove l1
+  0110    | CallFunction 2
+  0112    | CallFunction 2
+  0114    | Merge
+  0115    | CallTailFunction 3
+  0117    | Jump 117 -> 122
+  0120    | GetLocalMove l2
+  0122    | End
   ========================================
   
   =========9:Num.FromOctalDigits==========
@@ -3533,19 +3815,23 @@
   ========================================
   0000    | PushVar2 Len
   0003    | GetConstant 0: Array.Length
-  0005    | GetLocal 0
+  0005    | GetLocal l0
   0007    | CallFunction 1
-  0009    | DestructurePlan 3: bind Len
-  0011    | TakeRight 11 -> 30
-  0014    | GetConstant 4: _Num.FromOctalDigits
-  0016    | GetLocalMove 0
-  0018    | GetLocalMove 1
-  0020    | JumpIfFailure 20 -> 26
-  0023    | PushNegInteger -1
-  0025    | Merge
-  0026    | PushInteger 0
-  0028    | CallTailFunction 3
-  0030    | End
+  0009    | JumpIfFailure 9 -> 22
+  0012    | MatchWindowEnter 2 fail->21
+  0016    | MatchScrutinee r0
+  0018    | MatchBind l1 r0
+  0021    | MatchWindowExit
+  0022    | TakeRight 22 -> 41
+  0025    | GetConstant 6: _Num.FromOctalDigits
+  0027    | GetLocalMove l0
+  0029    | GetLocalMove l1
+  0031    | JumpIfFailure 31 -> 37
+  0034    | PushNegInteger -1
+  0036    | Merge
+  0037    | PushInteger 0
+  0039    | CallTailFunction 3
+  0041    | End
   ========================================
   
   =========9:_Num.FromOctalDigits=========
@@ -3563,32 +3849,51 @@
   0000    | PushVar2 O
   0003    | PushVar2 Rest
   0006    | SetInputMark
-  0007    | GetLocalMove 0
-  0009    | DestructurePlan 4: ([bind O] + bind Rest)
-  0011    | ConditionalThen 11 -> 58
-  0014    | GetLocal 3
-  0016    | DestructurePlan 5: 0..7
-  0018    | TakeRight 18 -> 55
-  0021    | GetConstant 4: _Num.FromOctalDigits
-  0023    | GetLocalMove 4
-  0025    | GetLocal 1
-  0027    | JumpIfFailure 27 -> 33
-  0030    | PushNegInteger -1
-  0032    | Merge
-  0033    | GetLocalMove 2
-  0035    | JumpIfFailure 35 -> 53
-  0038    | GetConstant 2: @Multiply
-  0040    | GetLocalMove 3
-  0042    | GetConstant 3: @Power
-  0044    | PushInteger 8
-  0046    | GetLocalMove 1
-  0048    | CallFunction 2
-  0050    | CallFunction 2
-  0052    | Merge
-  0053    | CallTailFunction 3
-  0055    | Jump 55 -> 60
-  0058    | GetLocalMove 2
-  0060    | End
+  0007    | GetLocalMove l0
+  0009    | JumpIfFailure 9 -> 46
+  0012    | MatchWindowEnter 4 fail->44
+  0016    | MatchScrutinee r0
+  0018    | MatchType r0 array
+  0021    | MatchCount r0 >=1
+  0025    | MatchElem r1 r0[0]
+  0030    | MatchBind l3 r1
+  0033    | MatchSlice r2 r0[1..^0]
+  0038    | MatchBind l4 r2
+  0041    | Jump 41 -> 45
+  0044    | MatchFail
+  0045    | MatchWindowExit
+  0046    | ConditionalThen 46 -> 120
+  0049    | GetLocal l3
+  0051    | JumpIfFailure 51 -> 80
+  0054    | MatchWindowEnter 2 fail->78
+  0058    | MatchScrutinee r0
+  0060    | MatchType r0 num_or_codepoint
+  0063    | MatchBound r0 lo 0
+  0069    | MatchBound r0 hi 7
+  0075    | Jump 75 -> 79
+  0078    | MatchFail
+  0079    | MatchWindowExit
+  0080    | TakeRight 80 -> 117
+  0083    | GetConstant 6: _Num.FromOctalDigits
+  0085    | GetLocalMove l4
+  0087    | GetLocal l1
+  0089    | JumpIfFailure 89 -> 95
+  0092    | PushNegInteger -1
+  0094    | Merge
+  0095    | GetLocalMove l2
+  0097    | JumpIfFailure 97 -> 115
+  0100    | GetConstant 4: @Multiply
+  0102    | GetLocalMove l3
+  0104    | GetConstant 5: @Power
+  0106    | PushInteger 8
+  0108    | GetLocalMove l1
+  0110    | CallFunction 2
+  0112    | CallFunction 2
+  0114    | Merge
+  0115    | CallTailFunction 3
+  0117    | Jump 117 -> 122
+  0120    | GetLocalMove l2
+  0122    | End
   ========================================
   
   ==========9:Num.FromHexDigits===========
@@ -3598,19 +3903,23 @@
   ========================================
   0000    | PushVar2 Len
   0003    | GetConstant 0: Array.Length
-  0005    | GetLocal 0
+  0005    | GetLocal l0
   0007    | CallFunction 1
-  0009    | DestructurePlan 6: bind Len
-  0011    | TakeRight 11 -> 30
-  0014    | GetConstant 5: _Num.FromHexDigits
-  0016    | GetLocalMove 0
-  0018    | GetLocalMove 1
-  0020    | JumpIfFailure 20 -> 26
-  0023    | PushNegInteger -1
-  0025    | Merge
-  0026    | PushInteger 0
-  0028    | CallTailFunction 3
-  0030    | End
+  0009    | JumpIfFailure 9 -> 22
+  0012    | MatchWindowEnter 2 fail->21
+  0016    | MatchScrutinee r0
+  0018    | MatchBind l1 r0
+  0021    | MatchWindowExit
+  0022    | TakeRight 22 -> 41
+  0025    | GetConstant 8: _Num.FromHexDigits
+  0027    | GetLocalMove l0
+  0029    | GetLocalMove l1
+  0031    | JumpIfFailure 31 -> 37
+  0034    | PushNegInteger -1
+  0036    | Merge
+  0037    | PushInteger 0
+  0039    | CallTailFunction 3
+  0041    | End
   ========================================
   
   ==========9:_Num.FromHexDigits==========
@@ -3628,53 +3937,99 @@
   0000    | PushVar2 H
   0003    | PushVar2 Rest
   0006    | SetInputMark
-  0007    | GetLocalMove 0
-  0009    | DestructurePlan 7: ([bind H] + bind Rest)
-  0011    | ConditionalThen 11 -> 58
-  0014    | GetLocal 3
-  0016    | DestructurePlan 8: 0..15
-  0018    | TakeRight 18 -> 55
-  0021    | GetConstant 5: _Num.FromHexDigits
-  0023    | GetLocalMove 4
-  0025    | GetLocal 1
-  0027    | JumpIfFailure 27 -> 33
-  0030    | PushNegInteger -1
-  0032    | Merge
-  0033    | GetLocalMove 2
-  0035    | JumpIfFailure 35 -> 53
-  0038    | GetConstant 2: @Multiply
-  0040    | GetLocalMove 3
-  0042    | GetConstant 3: @Power
-  0044    | PushInteger 16
-  0046    | GetLocalMove 1
-  0048    | CallFunction 2
-  0050    | CallFunction 2
-  0052    | Merge
-  0053    | CallTailFunction 3
-  0055    | Jump 55 -> 60
-  0058    | GetLocalMove 2
-  0060    | End
+  0007    | GetLocalMove l0
+  0009    | JumpIfFailure 9 -> 46
+  0012    | MatchWindowEnter 4 fail->44
+  0016    | MatchScrutinee r0
+  0018    | MatchType r0 array
+  0021    | MatchCount r0 >=1
+  0025    | MatchElem r1 r0[0]
+  0030    | MatchBind l3 r1
+  0033    | MatchSlice r2 r0[1..^0]
+  0038    | MatchBind l4 r2
+  0041    | Jump 41 -> 45
+  0044    | MatchFail
+  0045    | MatchWindowExit
+  0046    | ConditionalThen 46 -> 120
+  0049    | GetLocal l3
+  0051    | JumpIfFailure 51 -> 80
+  0054    | MatchWindowEnter 2 fail->78
+  0058    | MatchScrutinee r0
+  0060    | MatchType r0 num_or_codepoint
+  0063    | MatchBound r0 lo 0
+  0069    | MatchBound r0 hi 15
+  0075    | Jump 75 -> 79
+  0078    | MatchFail
+  0079    | MatchWindowExit
+  0080    | TakeRight 80 -> 117
+  0083    | GetConstant 8: _Num.FromHexDigits
+  0085    | GetLocalMove l4
+  0087    | GetLocal l1
+  0089    | JumpIfFailure 89 -> 95
+  0092    | PushNegInteger -1
+  0094    | Merge
+  0095    | GetLocalMove l2
+  0097    | JumpIfFailure 97 -> 115
+  0100    | GetConstant 4: @Multiply
+  0102    | GetLocalMove l3
+  0104    | GetConstant 5: @Power
+  0106    | PushInteger 16
+  0108    | GetLocalMove l1
+  0110    | CallFunction 2
+  0112    | CallFunction 2
+  0114    | Merge
+  0115    | CallTailFunction 3
+  0117    | Jump 117 -> 122
+  0120    | GetLocalMove l2
+  0122    | End
   ========================================
   
   ===============13:Obj.Has===============
   Obj.Has(O, K) = O -> {K: _, ..._}
   ========================================
-  0000    | PushUnderscoreVar
-  0001    | GetLocalMove 0
-  0003    | DestructurePlan 0: ({bound_eq K: _} + _)
-  0005    | End
+  0000    | GetLocalMove l0
+  0002    | JumpIfFailure 2 -> 45
+  0005    | MatchWindowEnter 6 fail->43
+  0009    | MatchScrutinee r0
+  0011    | MatchClaimSeed r2 <- []
+  0015    | MatchType r0 object
+  0018    | MatchCount r0 >=1
+  0022    | GetLocalMove l1
+  0024    | MatchClaimKey key=r3 val=r4 src=r0 claims=r2
+  0029    | MatchWindowEnter 2 fail->36
+  0033    | MatchSubScrutinee r0 ^r4
+  0036    | MatchWindowExit
+  0037    | MatchClaimAdd r2 r3
+  0040    | Jump 40 -> 44
+  0043    | MatchFail
+  0044    | MatchWindowExit
+  0045    | End
   ========================================
   
   ===============13:Obj.Get===============
   Obj.Get(O, K) = O -> {K: V, ..._} & V
   ========================================
   0000    | PushVar2 V
-  0003    | PushUnderscoreVar
-  0004    | GetLocalMove 0
-  0006    | DestructurePlan 1: ({bound_eq K: bind V} + _)
-  0008    | TakeRight 8 -> 13
-  0011    | GetLocalMove 2
-  0013    | End
+  0003    | GetLocalMove l0
+  0005    | JumpIfFailure 5 -> 51
+  0008    | MatchWindowEnter 6 fail->49
+  0012    | MatchScrutinee r0
+  0014    | MatchClaimSeed r2 <- []
+  0018    | MatchType r0 object
+  0021    | MatchCount r0 >=1
+  0025    | GetLocalMove l1
+  0027    | MatchClaimKey key=r3 val=r4 src=r0 claims=r2
+  0032    | MatchWindowEnter 2 fail->42
+  0036    | MatchSubScrutinee r0 ^r4
+  0039    | MatchBind l2 r0
+  0042    | MatchWindowExit
+  0043    | MatchClaimAdd r2 r3
+  0046    | Jump 46 -> 50
+  0049    | MatchFail
+  0050    | MatchWindowExit
+  0051    | TakeRight 51 -> 56
+  0054    | GetLocalMove l2
+  0056    | End
   ========================================
   
   ===============13:Obj.Put===============
@@ -3682,12 +4037,12 @@
   ========================================
   0000    | PushEmptyObject
   0001    | JumpIfFailure 1 -> 7
-  0004    | GetLocalMove 0
+  0004    | GetLocalMove l0
   0006    | Merge
   0007    | JumpIfFailure 7 -> 19
-  0010    | GetConstantMutable 0: {_0_}
-  0012    | GetLocalMove 1
-  0014    | GetLocalMove 2
+  0010    | GetConstantMutable 2: {_0_}
+  0012    | GetLocalMove l1
+  0014    | GetLocalMove l2
   0016    | InsertKeyVal 0
   0018    | Merge
   0019    | End
@@ -3696,8 +4051,13 @@
   ==============14:Is.Object==============
   Is.Object(V) = V -> {..._}
   ========================================
-  0000    | PushUnderscoreVar
-  0001    | GetLocalMove 0
-  0003    | DestructurePlan 0: ({} + _)
-  0005    | End
+  0000    | GetLocalMove l0
+  0002    | JumpIfFailure 2 -> 19
+  0005    | MatchWindowEnter 2 fail->17
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 object
+  0014    | Jump 14 -> 18
+  0017    | MatchFail
+  0018    | MatchWindowExit
+  0019    | End
   ========================================

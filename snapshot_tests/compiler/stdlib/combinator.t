@@ -14,10 +14,10 @@
   
   =================0:@at==================
   0000    | SetInputMark
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   0003    | NativeCode 4: setInputPositionNative
   0005    | JumpIfFailure 5 -> 13
-  0008    | GetLocal 1
+  0008    | GetLocal l1
   0010    | CallFunction 0
   0012    | ResetInput
   0013    | End
@@ -31,7 +31,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -40,7 +40,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -55,16 +55,16 @@
   ===============1:many_sep===============
   many_sep(p, sep) = p + ((sep > p) * 0..)
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | JumpIfFailure 2 -> 54
   0005    | PushNull
   0006    | PushInteger 0
   0008    | ValidateRepeatPattern
   0009    | JumpIfZero 9 -> 32
   0012    | Swap
-  0013    | CallFunctionLocal 1
+  0013    | CallFunctionLocal l1
   0015    | TakeRight 15 -> 20
-  0018    | CallFunctionLocal 0
+  0018    | CallFunctionLocal l0
   0020    | Merge
   0021    | JumpIfFailure 21 -> 51
   0024    | Swap
@@ -73,9 +73,9 @@
   0029    | JumpBack 29 -> 12
   0032    | Swap
   0033    | SetInputMark
-  0034    | CallFunctionLocal 1
+  0034    | CallFunctionLocal l1
   0036    | TakeRight 36 -> 41
-  0039    | CallFunctionLocal 0
+  0039    | CallFunctionLocal l0
   0041    | JumpIfFailure 41 -> 49
   0044    | PopInputMark
   0045    | Merge
@@ -97,8 +97,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 0: unless
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -109,8 +109,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 0: unless
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -122,7 +122,7 @@
   0049    | Drop
   0050    | JumpIfFailure 50 -> 60
   0053    | GetConstant 1: peek
-  0055    | GetLocalMove 1
+  0055    | GetLocalMove l1
   0057    | CallFunction 1
   0059    | TakeLeft
   0060    | End
@@ -136,7 +136,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -145,7 +145,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -162,8 +162,8 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 5: many_sep
-  0003    | GetLocalMove 0
-  0005    | GetLocalMove 1
+  0003    | GetLocalMove l0
+  0005    | GetLocalMove l1
   0007    | CallFunction 2
   0009    | Or 9 -> 14
   0012    | CallTailFunctionConstant 6: succeed
@@ -175,20 +175,24 @@
   ========================================
   0000    | PushVar Pos
   0002    | CallFunctionConstant 3: @input.offset
-  0004    | DestructurePlan 0: bind Pos
-  0006    | TakeRight 6 -> 17
-  0009    | GetConstant 4: @at
-  0011    | GetLocalMove 1
-  0013    | GetLocalMove 0
-  0015    | CallTailFunction 2
-  0017    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l1 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstant 4: @at
+  0022    | GetLocalMove l1
+  0024    | GetLocalMove l0
+  0026    | CallTailFunction 2
+  0028    | End
   ========================================
   
   ================1:maybe=================
   maybe(p) = p | succeed
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 8
   0006    | CallTailFunctionConstant 6: succeed
   0008    | End
@@ -198,11 +202,11 @@
   unless(p, excluded) = excluded ? @fail : p
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 1
+  0001    | CallFunctionLocal l1
   0003    | ConditionalThen 3 -> 11
   0006    | CallTailFunctionConstant 2: @fail
   0008    | Jump 8 -> 13
-  0011    | CallTailFunctionLocal 0
+  0011    | CallTailFunctionLocal l0
   0013    | End
   ========================================
   
@@ -210,7 +214,7 @@
   skip(p) = null(p)
   ========================================
   0000    | GetConstant 8: null
-  0002    | GetLocalMove 0
+  0002    | GetLocalMove l0
   0004    | CallTailFunction 1
   0006    | End
   ========================================
@@ -219,12 +223,12 @@
   find(p) = p | (char > find(p))
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 17
   0006    | CallFunctionConstant 9: char
   0008    | TakeRight 8 -> 17
   0011    | GetConstant 10: find
-  0013    | GetLocalMove 0
+  0013    | GetLocalMove l0
   0015    | CallTailFunction 1
   0017    | End
   ========================================
@@ -235,7 +239,7 @@
   0000    | GetConstant 11: array
   0002    | GetConstant 12: @fn0
   0004    | CreateClosure 1
-  0006    | CaptureLocal 0
+  0006    | CaptureLocal l0
   0008    | CallFunction 1
   0010    | JumpIfFailure 10 -> 20
   0013    | GetConstant 13: maybe
@@ -249,18 +253,18 @@
   find_before(p, stop) = stop ? @fail : p | (char > find_before(p, stop))
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 1
+  0001    | CallFunctionLocal l1
   0003    | ConditionalThen 3 -> 11
   0006    | CallTailFunctionConstant 2: @fail
   0008    | Jump 8 -> 30
   0011    | SetInputMark
-  0012    | CallFunctionLocal 0
+  0012    | CallFunctionLocal l0
   0014    | Or 14 -> 30
   0017    | CallFunctionConstant 9: char
   0019    | TakeRight 19 -> 30
   0022    | GetConstant 16: find_before
-  0024    | GetLocalMove 0
-  0026    | GetLocalMove 1
+  0024    | GetLocalMove l0
+  0026    | GetLocalMove l1
   0028    | CallTailFunction 2
   0030    | End
   ========================================
@@ -271,14 +275,14 @@
   0000    | GetConstant 11: array
   0002    | GetConstant 17: @fn2
   0004    | CreateClosure 2
-  0006    | CaptureLocal 0
-  0008    | CaptureLocal 1
+  0006    | CaptureLocal l0
+  0008    | CaptureLocal l1
   0010    | CallFunction 1
   0012    | JumpIfFailure 12 -> 26
   0015    | GetConstant 13: maybe
   0017    | GetConstant 18: @fn3
   0019    | CreateClosure 1
-  0021    | CaptureLocal 1
+  0021    | CaptureLocal l1
   0023    | CallFunction 1
   0025    | TakeLeft
   0026    | End
@@ -297,10 +301,10 @@
   default(p, D) = p | const(D)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 12
   0006    | GetConstant 7: const
-  0008    | GetLocalMove 1
+  0008    | GetLocalMove l1
   0010    | CallTailFunction 1
   0012    | End
   ========================================
@@ -308,7 +312,7 @@
   ================1:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -316,18 +320,26 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar2 N
-  0003    | CallFunctionLocal 0
-  0005    | DestructurePlan 1: tmpl((eq 0 + bind N))
-  0007    | TakeRight 7 -> 12
-  0010    | GetLocalMove 1
-  0012    | End
+  0003    | CallFunctionLocal l0
+  0005    | JumpIfFailure 5 -> 29
+  0008    | MatchWindowEnter 6 fail->27
+  0012    | MatchScrutinee r0
+  0014    | MatchType r0 string
+  0017    | MatchCast r4 <- num r0
+  0021    | MatchBind l1 r4
+  0024    | Jump 24 -> 28
+  0027    | MatchFail
+  0028    | MatchWindowExit
+  0029    | TakeRight 29 -> 34
+  0032    | GetLocalMove l1
+  0034    | End
   ========================================
   
   ==============1:as_string===============
   as_string(p) = "%(p)"
   ========================================
   0000    | PushEmptyString
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | MergeAsString
   0004    | End
   ========================================
@@ -335,11 +347,11 @@
   ===============1:surround===============
   surround(p, fill) = fill > p < fill
   ========================================
-  0000    | CallFunctionLocal 1
+  0000    | CallFunctionLocal l1
   0002    | TakeRight 2 -> 7
-  0005    | CallFunctionLocal 0
+  0005    | CallFunctionLocal l0
   0007    | JumpIfFailure 7 -> 13
-  0010    | CallFunctionLocal 1
+  0010    | CallFunctionLocal l1
   0012    | TakeLeft
   0013    | End
   ========================================
@@ -372,7 +384,7 @@
   input(p) = surround(p, maybe(whitespace)) < end_of_input
   ========================================
   0000    | GetConstant 20: surround
-  0002    | GetLocalMove 0
+  0002    | GetLocalMove l0
   0004    | GetConstant 21: @fn4
   0006    | CallFunction 2
   0008    | JumpIfFailure 8 -> 14
@@ -385,18 +397,18 @@
   one_or_both(a, b) = (a + maybe(b)) | (maybe(a) + b)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | JumpIfFailure 3 -> 13
   0006    | GetConstant 13: maybe
-  0008    | GetLocal 1
+  0008    | GetLocal l1
   0010    | CallFunction 1
   0012    | Merge
   0013    | Or 13 -> 28
   0016    | GetConstant 13: maybe
-  0018    | GetLocalMove 0
+  0018    | GetLocalMove l0
   0020    | CallFunction 1
   0022    | JumpIfFailure 22 -> 28
-  0025    | CallFunctionLocal 1
+  0025    | CallFunctionLocal l1
   0027    | Merge
   0028    | End
   ========================================
@@ -407,7 +419,7 @@
   0000    | PushVar p
   0002    | SetClosureCaptures
   0003    | GetConstant 10: find
-  0005    | GetLocalMove 0
+  0005    | GetLocalMove l0
   0007    | CallTailFunction 1
   0009    | End
   ========================================
@@ -428,8 +440,8 @@
   0002    | PushVar stop
   0004    | SetClosureCaptures
   0005    | GetConstant 16: find_before
-  0007    | GetLocalMove 0
-  0009    | GetLocalMove 1
+  0007    | GetLocalMove l0
+  0009    | GetLocalMove l1
   0011    | CallTailFunction 2
   0013    | End
   ========================================
@@ -440,7 +452,7 @@
   0000    | PushVar stop
   0002    | SetClosureCaptures
   0003    | GetConstant 19: chars_until
-  0005    | GetLocalMove 0
+  0005    | GetLocalMove l0
   0007    | CallTailFunction 1
   0009    | End
   ========================================
@@ -525,7 +537,7 @@
   ========================================
   0000    | GetConstant 0: many_until
   0002    | GetConstant 1: char
-  0004    | GetLocalMove 0
+  0004    | GetLocalMove l0
   0006    | CallTailFunction 2
   0008    | End
   ========================================
@@ -548,7 +560,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -557,7 +569,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -578,8 +590,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 0: unless
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -590,8 +602,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 0: unless
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -603,7 +615,7 @@
   0049    | Drop
   0050    | JumpIfFailure 50 -> 60
   0053    | GetConstant 1: peek
-  0055    | GetLocalMove 1
+  0055    | GetLocalMove l1
   0057    | CallFunction 1
   0059    | TakeLeft
   0060    | End
@@ -614,31 +626,35 @@
   ========================================
   0000    | PushVar Pos
   0002    | CallFunctionConstant 3: @input.offset
-  0004    | DestructurePlan 0: bind Pos
-  0006    | TakeRight 6 -> 17
-  0009    | GetConstant 4: @at
-  0011    | GetLocalMove 1
-  0013    | GetLocalMove 0
-  0015    | CallTailFunction 2
-  0017    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l1 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstant 4: @at
+  0022    | GetLocalMove l1
+  0024    | GetLocalMove l0
+  0026    | CallTailFunction 2
+  0028    | End
   ========================================
   
   ================3:unless================
   unless(p, excluded) = excluded ? @fail : p
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 1
+  0001    | CallFunctionLocal l1
   0003    | ConditionalThen 3 -> 11
   0006    | CallTailFunctionConstant 2: @fail
   0008    | Jump 8 -> 13
-  0011    | CallTailFunctionLocal 0
+  0011    | CallTailFunctionLocal l0
   0013    | End
   ========================================
   
   =================4:null=================
   null(n) = n $ null
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 6
   0005    | PushNull
   0006    | End
@@ -653,7 +669,7 @@
   0004    | JumpIfZero 4 -> 26
   0007    | Swap
   0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   0012    | CallFunction 1
   0014    | Merge
   0015    | JumpIfFailure 15 -> 44
@@ -664,7 +680,7 @@
   0026    | Swap
   0027    | SetInputMark
   0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
+  0030    | GetLocal l0
   0032    | CallFunction 1
   0034    | JumpIfFailure 34 -> 42
   0037    | PopInputMark
@@ -681,11 +697,15 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal 0
-  0004    | DestructurePlan 0: bind Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove 1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0002    | CallFunctionLocal l0
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l1 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 26
+  0020    | GetConstantMutable 1: [_]
+  0022    | GetLocalMove l1
+  0024    | InsertAtIndex 0
+  0026    | End
   ========================================
