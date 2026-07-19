@@ -25,10 +25,7 @@ nothing.
 
   $ possum -p 'int -> _' -i ''
   main =
-    (match
-      scrutinee: (call int)
-      %0 = scrutinee
-      (arm))
+    (call int)
 
 Arrays decompose into shape tests plus element places.
 

@@ -57,7 +57,6 @@ pub fn init(
 
 pub fn canonicalize(self: *Can, ast: ParsedAst) !void {
     for (ast.roots.items) |root| try self.convertRoot(root);
-    try self.foldConstants();
 }
 
 fn addParserDeclaration(self: *Can, decl: *Ast.RNode(Ast.Parser.Declaration)) !void {
@@ -937,7 +936,9 @@ fn convertValueDecl(
     return Ast.Value.createDeclaration(self.arena.allocator(), decl_node, region);
 }
 
-fn foldConstants(self: *Can) !void {
+// A can→can pass run after canonicalization, separately so the goal ast
+// is built from unfolded can (goal folding is its own goal→goal pass).
+pub fn foldConstants(self: *Can) !void {
     if (self.ast.main) |main| {
         try self.foldParserConstants(main.node.body);
     }

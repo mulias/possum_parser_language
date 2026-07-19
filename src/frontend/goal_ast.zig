@@ -15,6 +15,10 @@ pub const Goal = @This();
 pub const NodeId = u32;
 pub const SetId = u32;
 
+// Pipeline stages the goal ast moves through; printing is parameterized
+// by the stage reached before the dump.
+pub const Stage = enum { created, folded };
+
 pub const RNode = struct {
     region: Region,
     node: GoalNode,
@@ -266,4 +270,16 @@ pub const Range = struct {
 pub const NumberString = struct {
     number: []const u8,
     negated: bool,
+
+    pub fn toFloat(self: NumberString) error{InvalidCharacter}!f64 {
+        const f = try std.fmt.parseFloat(f64, self.number);
+        return if (self.negated) -f else f;
+    }
+
+    pub fn negate(self: NumberString) NumberString {
+        return .{
+            .number = self.number,
+            .negated = !self.negated,
+        };
+    }
 };

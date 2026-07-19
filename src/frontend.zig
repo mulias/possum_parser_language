@@ -6,6 +6,7 @@ pub const Ast = @import("frontend/can_ast.zig");
 const DependencyGraph = @import("frontend/dependency_graph.zig");
 const DependencyResolver = @import("frontend/dependency_resolver.zig");
 const Goal = @import("frontend/goal.zig");
+const GoalAst = @import("frontend/goal_ast.zig");
 const Module = @import("runtime.zig").Module;
 const Parser = @import("frontend/parser.zig").Parser;
 pub const StringTable = @import("frontend/string_table.zig").FrontendStringTable;
@@ -37,7 +38,7 @@ pub const AddModuleOpts = struct {
     printScanner: bool = false,
     printParser: bool = false,
     printAst: bool = false,
-    printGoalAst: bool = false,
+    printGoalAst: ?GoalAst.Stage = null,
 };
 
 pub const Frontend = @This();
@@ -326,11 +327,16 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !Ast {
 
         _ = try can.canonicalize(parser.ast);
 
-        if (opts.printGoalAst) {
+        // The goal ast is built from unfolded can; folding is a separate
+        // pass on each representation.
+        if (opts.printGoalAst) |stage| {
             var goal = Goal.init(&self.arena, &self.strings, &self.paths);
             try goal.actualize(can);
+            if (stage != .created) try goal.fold();
             try goal.print(self.writers.debug);
         }
+
+        try can.foldConstants();
     }
 
     return can.ast;

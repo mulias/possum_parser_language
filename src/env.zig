@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
+const GoalStage = @import("frontend/goal_ast.zig").Stage;
 
 pub const IS_WASM_FREESTANDING = builtin.target.cpu.arch.isWasm() and builtin.target.os.tag == .freestanding;
 
@@ -8,7 +9,7 @@ pub const Env = struct {
     printScanner: bool,
     printParser: bool,
     printAst: bool,
-    printGoalAst: bool,
+    printGoalAst: ?GoalStage,
     printCompiledBytecode: bool,
     printExecutedBytecode: bool,
     printVM: bool,
@@ -24,7 +25,7 @@ pub const Env = struct {
             .printScanner = false,
             .printParser = false,
             .printAst = false,
-            .printGoalAst = false,
+            .printGoalAst = null,
             .printCompiledBytecode = false,
             .printExecutedBytecode = false,
             .printVM = false,
@@ -42,7 +43,7 @@ pub const Env = struct {
             .printScanner = try getFlag(allocator, "PRINT_SCANNER", false),
             .printParser = try getFlag(allocator, "PRINT_PARSER", false),
             .printAst = try getFlag(allocator, "PRINT_AST", false),
-            .printGoalAst = try getFlag(allocator, "PRINT_GOAL_AST", false),
+            .printGoalAst = try getGoalStage(allocator, "PRINT_GOAL_AST"),
             .printCompiledBytecode = try getFlag(allocator, "PRINT_COMPILED_BYTECODE", false),
             .printExecutedBytecode = try getFlag(allocator, "PRINT_EXECUTED_BYTECODE", false),
             .printVM = try getFlag(allocator, "PRINT_VM", false),
@@ -63,5 +64,18 @@ pub const Env = struct {
         defer allocator.free(value);
 
         return std.mem.eql(u8, value, "true");
+    }
+
+    // A stage name selects where in the goal pipeline to print; "true"
+    // prints the latest implemented stage.
+    fn getGoalStage(allocator: Allocator, key: []const u8) !?GoalStage {
+        const value = std.process.getEnvVarOwned(allocator, key) catch |err| switch (err) {
+            error.EnvironmentVariableNotFound => return null,
+            else => |e| return e,
+        };
+        defer allocator.free(value);
+
+        if (std.mem.eql(u8, value, "true")) return .folded;
+        return std.meta.stringToEnum(GoalStage, value);
     }
 };

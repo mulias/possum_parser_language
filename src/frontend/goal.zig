@@ -84,13 +84,6 @@ fn isPlaceholder(self: *Goal, name: PathTable.Id) bool {
     return self.strings.equal(self.paths.flat(name), "_");
 }
 
-fn isPlaceholderPattern(self: *Goal, pattern: *CanAst.Pattern.RNode) bool {
-    return switch (pattern.node) {
-        .identifier => |ident| self.isPlaceholder(ident.name),
-        else => false,
-    };
-}
-
 fn seqPair(self: *Goal, first: NodeId, second: NodeId, result: u32, region: Region) Error!NodeId {
     var goals = ArrayList(NodeId){};
     try goals.ensureTotalCapacity(self.alloc(), 2);
@@ -539,7 +532,6 @@ fn lowerPattern(
                 .len = @intCast(elems.items.len),
             } }, region);
             for (elems.items, 0..) |elem, i| {
-                if (self.isPlaceholderPattern(elem)) continue;
                 const elem_place = try self.internPlace(places, .{ .elem = .{
                     .src = place,
                     .index = @intCast(i),
@@ -564,7 +556,6 @@ fn lowerPattern(
                             .place = place,
                             .sid = sid,
                         } }, pair.key.region);
-                        if (self.isPlaceholderPattern(pair.value)) continue;
                         const key_place = try self.internPlace(places, .{ .key = .{
                             .src = place,
                             .sid = sid,
@@ -730,6 +721,361 @@ fn patternExprGoal(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!NodeId {
         } }, region),
         .negation => |inner| self.addGoal(.{ .neg = try self.patternExprGoal(inner) }, region),
         else => error.GoalAstGap,
+    };
+}
+
+// Goal→goal constant folding. The goal ast is built from unfolded can,
+// so this pass recovers what can-level folding produces there: constant
+// merges and negations fold on the goals array, then constraints whose
+// parts became constants collapse (solve_merge/negated/solve_repeat →
+// eq_const). Nodes rewrite in place; ids stay stable.
+pub fn fold(self: *Goal) FoldError!void {
+    // Children are appended before parents, so one forward pass folds
+    // bottom-up.
+    for (self.ast.goals.items) |*rnode| {
+        switch (rnode.node) {
+            .merge => |op| {
+                if (try self.foldedMerge(self.goalNode(op.left), self.goalNode(op.right))) |folded| {
+                    rnode.node = folded;
+                }
+            },
+            .neg => |inner| {
+                if (foldedNeg(self.goalNode(inner))) |folded| {
+                    rnode.node = folded;
+                }
+            },
+            else => {},
+        }
+    }
+
+    for (self.ast.constraint_sets.items) |*set| {
+        try self.foldConstraints(&set.constraints);
+    }
+    for (self.ast.goals.items) |*rnode| {
+        switch (rnode.node) {
+            .match => |*match| {
+                for (match.arms.items) |*arm| try self.foldConstraints(&arm.constraints);
+            },
+            else => {},
+        }
+    }
+
+    try self.simplifyPatterns();
+}
+
+// Post-folding pattern simplification: places no surviving constraint
+// reaches are pruned (a placeholder element interns its place at
+// creation but lowers to no constraints), then identity shells
+// collapse — an unconstrained single-arm match becomes its scrutinee,
+// an empty repeat count test drops.
+fn simplifyPatterns(self: *Goal) FoldError!void {
+    for (self.ast.constraint_sets.items) |*set| {
+        var lists = [_][]Ast.Constraint{set.constraints.items};
+        try self.prunePlaces(&set.places, &lists);
+    }
+    for (self.ast.goals.items) |*rnode| {
+        switch (rnode.node) {
+            .match => |*match| {
+                const lists = try self.alloc().alloc([]Ast.Constraint, match.arms.items.len);
+                for (match.arms.items, 0..) |arm, i| lists[i] = arm.constraints.items;
+                try self.prunePlaces(&match.places, lists);
+                if (identityMatch(match.*)) |scrutinee| rnode.node = self.goalNode(scrutinee);
+            },
+            .repeat => |*rep| {
+                if (rep.count_test) |set_id| {
+                    if (self.ast.constraint_sets.items[set_id].constraints.items.len == 0) {
+                        rep.count_test = null;
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+}
+
+// A single-arm match whose constraints all folded away, with no guard
+// and no body, is the identity on its scrutinee.
+fn identityMatch(match: Ast.Match) ?NodeId {
+    if (match.arms.items.len != 1) return null;
+    const arm = match.arms.items[0];
+    if (arm.constraints.items.len > 0 or arm.guard != null or arm.body != null) return null;
+    return match.scrutinee;
+}
+
+fn prunePlaces(
+    self: *Goal,
+    places: *ArrayList(Ast.PlaceDef),
+    constraint_lists: []const []Ast.Constraint,
+) FoldError!void {
+    const used = try self.alloc().alloc(bool, places.items.len);
+    @memset(used, false);
+    used[0] = true;
+    for (constraint_lists) |list| markUsedPlaces(list, used);
+
+    // Derivations intern parents before children, so one downward pass
+    // closes the src chains.
+    var i = places.items.len;
+    while (i > 0) {
+        i -= 1;
+        if (used[i]) {
+            if (placeSrc(places.items[i])) |src| used[src] = true;
+        }
+    }
+
+    const map = try self.alloc().alloc(Ast.PlaceId, places.items.len);
+    var write: usize = 0;
+    for (places.items, 0..) |def, idx| {
+        if (!used[idx]) continue;
+        map[idx] = @intCast(write);
+        places.items[write] = def;
+        write += 1;
+    }
+    if (write == places.items.len) return;
+    places.shrinkRetainingCapacity(write);
+
+    for (places.items) |*def| {
+        switch (def.*) {
+            .scrutinee => {},
+            .elem => |*e| e.src = map[e.src],
+            .elem_back => |*e| e.src = map[e.src],
+            .slice => |*s| s.src = map[s.src],
+            .key => |*k| k.src = map[k.src],
+        }
+    }
+    for (constraint_lists) |list| remapPlaces(list, map);
+}
+
+fn placeSrc(def: Ast.PlaceDef) ?Ast.PlaceId {
+    return switch (def) {
+        .scrutinee => null,
+        .elem => |e| e.src,
+        .elem_back => |e| e.src,
+        .slice => |s| s.src,
+        .key => |k| k.src,
+    };
+}
+
+fn markUsedPlaces(constraints: []const Ast.Constraint, used: []bool) void {
+    for (constraints) |c| {
+        switch (c.kind) {
+            .eq_places => |x| {
+                used[x.a] = true;
+                used[x.b] = true;
+            },
+            inline else => |x| used[x.place] = true,
+        }
+    }
+}
+
+fn remapPlaces(constraints: []Ast.Constraint, map: []const Ast.PlaceId) void {
+    for (constraints) |*c| {
+        switch (c.kind) {
+            .eq_places => |*x| {
+                x.a = map[x.a];
+                x.b = map[x.b];
+            },
+            inline else => |*x| x.place = map[x.place],
+        }
+    }
+}
+
+pub const FoldError = error{ OutOfMemory, InvalidCharacter };
+
+fn foldConstraints(self: *Goal, constraints: *ArrayList(Ast.Constraint)) FoldError!void {
+    var i: usize = 0;
+    while (i < constraints.items.len) {
+        var remove = false;
+        const kind = &constraints.items[i].kind;
+        switch (kind.*) {
+            .negated => |*c| {
+                c.part = self.simplifiedPart(c.part);
+                if (c.part == .expr) {
+                    if (negatedConst(self.goalNode(c.part.expr), c.count)) |folded| {
+                        self.ast.goals.items[c.part.expr].node = folded;
+                        kind.* = .{ .eq_const = .{ .place = c.place, .value = c.part.expr } };
+                    }
+                }
+            },
+            .solve_merge => |*c| {
+                const last_null = try self.foldMergeParts(&c.parts);
+                if (c.parts.items.len == 0) {
+                    // Every part was a constant null; their merge is null.
+                    kind.* = .{ .eq_const = .{ .place = c.place, .value = last_null.? } };
+                } else if (c.parts.items.len == 1) {
+                    switch (c.parts.items[0]) {
+                        .expr => |value| kind.* = .{ .eq_const = .{
+                            .place = c.place,
+                            .value = value,
+                        } },
+                        .local => |name| kind.* = .{ .local = .{
+                            .place = c.place,
+                            .name = name,
+                        } },
+                        .placeholder => remove = true,
+                        // A lone structural part keeps its merge wrapper;
+                        // splicing the sub-set would rebase its places.
+                        .sub => {},
+                    }
+                }
+            },
+            // Only constant-size results fold: `2 * 3` is one number,
+            // but expanding `[A] * N` or `"ab" * N` materializes output
+            // proportional to the count.
+            .solve_repeat => |*c| {
+                c.pattern = self.simplifiedPart(c.pattern);
+                c.count = self.simplifiedPart(c.count);
+                if (c.pattern == .expr and c.count == .expr) {
+                    if (try foldedRepeat(
+                        self.goalNode(c.pattern.expr),
+                        self.goalNode(c.count.expr),
+                    )) |folded| {
+                        self.ast.goals.items[c.pattern.expr].node = folded;
+                        kind.* = .{ .eq_const = .{ .place = c.place, .value = c.pattern.expr } };
+                    }
+                }
+            },
+            .match_template => |*c| {
+                for (c.segments.items) |*segment| {
+                    switch (segment.*) {
+                        .part => |part| segment.* = .{ .part = self.simplifiedPart(part) },
+                        .literal => {},
+                    }
+                }
+            },
+            else => {},
+        }
+        if (remove) {
+            _ = constraints.orderedRemove(i);
+        } else {
+            i += 1;
+        }
+    }
+}
+
+// Drops constant-null parts (merge identity), folds runs of adjacent
+// constant parts into their merged value (mutating the surviving part's
+// goal node), and collapses runs of adjacent placeholders — `_ + _` is
+// "whatever plus whatever", one absorption. Returns the last dropped
+// null, for the all-null case.
+fn foldMergeParts(self: *Goal, parts: *ArrayList(Ast.Part)) FoldError!?NodeId {
+    var last_null: ?NodeId = null;
+    var write: usize = 0;
+    for (parts.items) |raw_part| {
+        const part = self.simplifiedPart(raw_part);
+        if (part == .expr and self.goalNode(part.expr) == .null) {
+            last_null = part.expr;
+            continue;
+        }
+        if (write > 0 and part == .placeholder and parts.items[write - 1] == .placeholder) {
+            continue;
+        }
+        if (write > 0 and part == .expr and parts.items[write - 1] == .expr) {
+            const prev = parts.items[write - 1].expr;
+            if (try self.foldedMerge(self.goalNode(prev), self.goalNode(part.expr))) |folded| {
+                self.ast.goals.items[prev].node = folded;
+                continue;
+            }
+        }
+        parts.items[write] = part;
+        write += 1;
+    }
+    parts.shrinkRetainingCapacity(write);
+    return last_null;
+}
+
+fn foldedMerge(self: *Goal, a: Ast.GoalNode, b: Ast.GoalNode) FoldError!?Ast.GoalNode {
+    if (a == .null) return b;
+    if (b == .null) return a;
+
+    return switch (a) {
+        .false => switch (b) {
+            .false, .true => b,
+            else => null,
+        },
+        .true => switch (b) {
+            .false, .true => a,
+            else => null,
+        },
+        .string => |a_str| switch (b) {
+            .string => |b_str| blk: {
+                const buffer = try self.alloc().alloc(u8, a_str.len + b_str.len);
+                @memcpy(buffer[0..a_str.len], a_str);
+                @memcpy(buffer[a_str.len..], b_str);
+                break :blk .{ .string = buffer };
+            },
+            else => null,
+        },
+        .number_float, .number_string => switch (b) {
+            .number_float, .number_string => .{
+                .number_float = try numberValue(a) + try numberValue(b),
+            },
+            else => null,
+        },
+        .array => |a_arr| switch (b) {
+            .array => |b_arr| blk: {
+                var merged = a_arr;
+                try merged.ensureTotalCapacity(self.alloc(), a_arr.items.len + b_arr.items.len);
+                merged.appendSliceAssumeCapacity(b_arr.items);
+                break :blk .{ .array = merged };
+            },
+            else => null,
+        },
+        else => null,
+    };
+}
+
+fn foldedNeg(inner: Ast.GoalNode) ?Ast.GoalNode {
+    return switch (inner) {
+        .number_float => |f| .{ .number_float = -f },
+        .number_string => |ns| .{ .number_string = ns.negate() },
+        else => null,
+    };
+}
+
+// A negated pattern constraint chain applied to a constant: numbers fold
+// for any count, everything else stays a runtime negation.
+fn negatedConst(node: Ast.GoalNode, count: u32) ?Ast.GoalNode {
+    if (node != .number_float and node != .number_string) return null;
+    if (count % 2 == 0) return node;
+    return foldedNeg(node);
+}
+
+// A structural sub-pattern whose set folded to nothing constrains
+// nothing — a placeholder; one that folded to a single constant
+// comparison collapses back to an expression part.
+fn simplifiedPart(self: *Goal, part: Ast.Part) Ast.Part {
+    if (part != .sub) return part;
+    const set = self.ast.constraint_sets.items[part.sub];
+    if (set.constraints.items.len == 0) return .placeholder;
+    if (set.places.items.len != 1 or set.constraints.items.len != 1) return part;
+    return switch (set.constraints.items[0].kind) {
+        .eq_const => |c| .{ .expr = c.value },
+        else => part,
+    };
+}
+
+fn foldedRepeat(pattern: Ast.GoalNode, count: Ast.GoalNode) error{InvalidCharacter}!?Ast.GoalNode {
+    const count_float = switch (count) {
+        .number_float, .number_string => try numberValue(count),
+        else => return null,
+    };
+    return switch (pattern) {
+        .number_float, .number_string => .{
+            .number_float = try numberValue(pattern) * count_float,
+        },
+        .null, .true, .false => if (count_float >= 0 and count_float == @floor(count_float))
+            pattern
+        else
+            null,
+        else => null,
+    };
+}
+
+fn numberValue(node: Ast.GoalNode) error{InvalidCharacter}!f64 {
+    return switch (node) {
+        .number_float => |f| f,
+        .number_string => |ns| try ns.toFloat(),
+        else => unreachable,
     };
 }
 
