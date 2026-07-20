@@ -72,7 +72,6 @@ pub const Compiler = struct {
         UndefinedVariable,
         FunctionCallTooManyArgs,
         FunctionCallTooFewArgs,
-        FunctionCallTypeMismatch,
         RangeNotSingleCodepoint,
         RangeCodepointsUnordered,
         RangeIntegersUnordered,
@@ -700,24 +699,6 @@ pub const Compiler = struct {
                 } else {
                     try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got {d}", .{ function_elem_name, f.arity, arg_count });
                     return Error.FunctionCallTooFewArgs;
-                }
-            }
-
-            for (arguments.items, 0..) |arg, i| {
-                const expected_type = f.param_types.get(@intCast(i));
-                const is_parser_arg = switch (arg) {
-                    .parser => true,
-                    .value => false,
-                };
-
-                const expected_is_parser = expected_type == .Parser;
-                if (is_parser_arg != expected_is_parser) {
-                    if (expected_is_parser) {
-                        try self.printError(module_id, arg.region(), "Expected parser but got value", .{});
-                    } else {
-                        try self.printError(module_id, arg.region(), "Expected value but got parser", .{});
-                    }
-                    return Error.FunctionCallTypeMismatch;
                 }
             }
         } else {

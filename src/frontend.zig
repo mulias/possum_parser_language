@@ -16,6 +16,7 @@ const Writers = @import("writer.zig").Writers;
 const Region = @import("region.zig").Region;
 const std = @import("std");
 const binding = @import("frontend/binding.zig");
+const call_check = @import("frontend/call_check.zig");
 const goal_binding = @import("frontend/goal_binding.zig");
 
 vm: *VM,
@@ -68,6 +69,7 @@ pub const Error = error{
     NamespacedLocal,
     ImportResolution,
     UnknownModule,
+    FunctionCallTypeMismatch,
 };
 
 const ImportChainEntry = struct {
@@ -264,7 +266,36 @@ pub fn finalize(self: *Frontend) !void {
     try self.printBoundGoal();
     try self.analyzeBindings();
     self.checkGoalBindingParity();
+    try self.checkFunctionCalls();
     // try self.analyzeLiveness();
+}
+
+// Check parser function calls against callee param kinds on the can ast,
+// where arguments still carry their surface parser-or-value kind; the goal
+// ast the backend compiles from has erased it.
+fn checkFunctionCalls(self: *Frontend) !void {
+    var iter = self.dependenciesIterator();
+
+    while (iter.next()) |entry| {
+        const key = entry.key_ptr.*;
+        const node = entry.value_ptr.*;
+        const body = switch (node.*) {
+            .precompiled => continue,
+            .declaration => |*decl_node| switch (decl_node.ast) {
+                .parser => |p| p.node.body,
+                .value => continue,
+            },
+            .anonymous_function => |*anon| anon.ast.node.body,
+        };
+
+        if (try call_check.checkParserFunction(self, node, body)) |diagnostic| {
+            switch (diagnostic.expected) {
+                .parser => try self.printError(key.module_id, diagnostic.region, "Expected parser but got value", .{}),
+                .value => try self.printError(key.module_id, diagnostic.region, "Expected value but got parser", .{}),
+            }
+            return Error.FunctionCallTypeMismatch;
+        }
+    }
 }
 
 fn analyzeGoalBindings(self: *Frontend) !void {
