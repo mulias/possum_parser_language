@@ -57,11 +57,11 @@ value call's arguments evaluate in place.
   $ possum fns.possum -i ''
   double(p) =
     (seq result=1
-      (call p)
-      (call p))
+      (call p~0)
+      (call p~0))
   
   Add(A, B) =
-    (merge A B)
+    (merge A~0 B~1)
   
   main =
     (seq result=1

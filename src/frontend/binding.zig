@@ -40,13 +40,13 @@ const Paths = @import("path_table.zig").PathTable;
 //   still a runtime error.
 
 pub const max_locals = 256;
-const SlotSet = std.bit_set.StaticBitSet(max_locals);
+pub const SlotSet = std.bit_set.StaticBitSet(max_locals);
 
 // Where a local stands on the control paths reaching a program point:
 // bound on every path, on none, or only on some.
-const State = enum { unbound, bound, split };
+pub const State = enum { unbound, bound, split };
 
-const Slot = struct {
+pub const Slot = struct {
     state: State = .unbound,
     // The frame slot may still physically hold a value from a binding that
     // is out of scope: a failed alternative or an earlier loop iteration.
@@ -54,9 +54,34 @@ const Slot = struct {
     stale: bool = false,
 };
 
-const Env = struct {
+pub const Env = struct {
     slots: [max_locals]Slot = [_]Slot{.{}} ** max_locals,
 };
+
+// Mark slots that `after` may have bound or dirtied relative to `base`
+// as stale in `target`: the values may physically remain in the frame
+// while the bindings are out of scope.
+pub fn markStaleBinds(target: *Env, base: *const Env, after: *const Env) void {
+    for (&target.slots, base.slots, after.slots) |*t, b, a| {
+        if (a.stale or (b.state == .unbound and a.state != .unbound)) {
+            t.stale = true;
+        }
+    }
+}
+
+pub fn joinEnv(a: *const Env, b: *const Env) Env {
+    var out = Env{};
+    for (&out.slots, a.slots, b.slots) |*o, x, y| {
+        if (x.state == .bound and y.state == .bound) {
+            o.* = .{ .state = .bound, .stale = false };
+        } else if (x.state == .unbound and y.state == .unbound) {
+            o.* = .{ .state = .unbound, .stale = x.stale or y.stale };
+        } else {
+            o.* = .{ .state = .split, .stale = x.stale or y.stale };
+        }
+    }
+    return out;
+}
 
 pub const Diagnostic = struct {
     region: Region,
@@ -563,31 +588,6 @@ const Analyzer = struct {
                 state.* = .{ .state = .bound, .stale = false };
             },
         }
-    }
-
-    // Mark slots that `after` may have bound or dirtied relative to `base`
-    // as stale in `target`: the values may physically remain in the frame
-    // while the bindings are out of scope.
-    fn markStaleBinds(target: *Env, base: *const Env, after: *const Env) void {
-        for (&target.slots, base.slots, after.slots) |*t, b, a| {
-            if (a.stale or (b.state == .unbound and a.state != .unbound)) {
-                t.stale = true;
-            }
-        }
-    }
-
-    fn joinEnv(a: *const Env, b: *const Env) Env {
-        var out = Env{};
-        for (&out.slots, a.slots, b.slots) |*o, x, y| {
-            if (x.state == .bound and y.state == .bound) {
-                o.* = .{ .state = .bound, .stale = false };
-            } else if (x.state == .unbound and y.state == .unbound) {
-                o.* = .{ .state = .unbound, .stale = x.stale or y.stale };
-            } else {
-                o.* = .{ .state = .split, .stale = x.stale or y.stale };
-            }
-        }
-        return out;
     }
 
     fn analyzeParser(self: *Analyzer, env: *Env, rnode: *Ast.Parser.RNode) Allocator.Error!void {

@@ -5,7 +5,7 @@ Full created-stage goal form of stdlib/object_value.
   $ possum $TESTDIR/../../../stdlib/object_value.possum -i '' --no-stdlib
   Obj.Has(O, K) =
     (match
-      scrutinee: O
+      scrutinee: O~0
       %0 = scrutinee
       (arm
         (solve_merge %0
@@ -16,7 +16,7 @@ Full created-stage goal form of stdlib/object_value.
             (search_key %0
               key: (set
                 %0 = scrutinee
-                (local %0 K))
+                (eq_slot %0 K~1))
               value: (set
                 %0 = scrutinee)))
           _)))
@@ -24,7 +24,7 @@ Full created-stage goal form of stdlib/object_value.
   Obj.Get(O, K) =
     (seq result=1
       (match
-        scrutinee: O
+        scrutinee: O~0
         %0 = scrutinee
         (arm
           (solve_merge %0
@@ -35,26 +35,26 @@ Full created-stage goal form of stdlib/object_value.
               (search_key %0
                 key: (set
                   %0 = scrutinee
-                  (local %0 K))
+                  (eq_slot %0 K~1))
                 value: (set
                   %0 = scrutinee
-                  (local %0 V))))
+                  (bind %0 V~2))))
             _)))
-      V)
+      V~2)
   
   Obj.Put(O, K, V) =
     (merge
       (merge
         (object [])
-        O)
+        O~0)
       (object [
-        (pair K V)
+        (pair K~1 V~2)
       ]))
   
   Obj.Size(O) =
     (seq result=1
       (match
-        scrutinee: O
+        scrutinee: O~0
         %0 = scrutinee
         (arm
           (solve_repeat %0
@@ -67,12 +67,12 @@ Full created-stage goal form of stdlib/object_value.
                   %0 = scrutinee)
                 value: (set
                   %0 = scrutinee)))
-            count: (local S))))
-      S)
+            count: (bind S~2))))
+      S~2)
   
   Obj.Keys(O) =
     (call _Obj.Keys [
-      O
+      O~0
       (array [])
     ])
   
@@ -80,7 +80,7 @@ Full created-stage goal form of stdlib/object_value.
     (alt
       (arm
         guard: (match
-          scrutinee: O
+          scrutinee: O~0
           %0 = scrutinee
           (arm
             (solve_merge %0
@@ -91,26 +91,26 @@ Full created-stage goal form of stdlib/object_value.
                 (search_key %0
                   key: (set
                     %0 = scrutinee
-                    (local %0 K))
+                    (bind %0 K~2))
                   value: (set
                     %0 = scrutinee)))
-              (local Rest))))
+              (bind Rest~4))))
         body: (call _Obj.Keys [
-          Rest
+          Rest~4
           (merge
             (merge
               (array [])
-              Acc)
+              Acc~1)
             (array [
-              K
+              K~2
             ]))
         ]))
       (arm
-        body: Acc))
+        body: Acc~1))
   
   Obj.Values(O) =
     (call _Obj.Values [
-      O
+      O~0
       (array [])
     ])
   
@@ -118,7 +118,7 @@ Full created-stage goal form of stdlib/object_value.
     (alt
       (arm
         guard: (match
-          scrutinee: O
+          scrutinee: O~0
           %0 = scrutinee
           (arm
             (solve_merge %0
@@ -131,18 +131,18 @@ Full created-stage goal form of stdlib/object_value.
                     %0 = scrutinee)
                   value: (set
                     %0 = scrutinee
-                    (local %0 V))))
-              (local Rest))))
+                    (bind %0 V~3))))
+              (bind Rest~4))))
         body: (call _Obj.Values [
-          Rest
+          Rest~4
           (merge
             (merge
               (array [])
-              Acc)
+              Acc~1)
             (array [
-              V
+              V~3
             ]))
         ]))
       (arm
-        body: Acc))
+        body: Acc~1))
   

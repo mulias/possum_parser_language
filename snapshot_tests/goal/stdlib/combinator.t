@@ -5,18 +5,18 @@ Full created-stage goal form of stdlib/combinator.
   $ possum $TESTDIR/../../../stdlib/combinator.possum -i '' --no-stdlib
   many(p) =
     (repeat
-      body: (call p)
+      body: (call p~0)
       count: (set
         %0 = scrutinee
         (in_range %0 1 _)))
   
   many_sep(p, sep) =
     (merge
-      (call p)
+      (call p~0)
       (repeat
         body: (seq result=1
-          (call sep)
-          (call p))
+          (call sep~1)
+          (call p~0))
         count: (set
           %0 = scrutinee
           (in_range %0 0 _))))
@@ -24,15 +24,15 @@ Full created-stage goal form of stdlib/combinator.
   many_until(p, stop) =
     (seq result=0
       (repeat
-        body: (call unless [p stop])
+        body: (call unless [p~0 stop~1])
         count: (set
           %0 = scrutinee
           (in_range %0 1 _)))
-      (call peek [stop]))
+      (call peek [stop~1]))
   
   maybe_many(p) =
     (repeat
-      body: (call p)
+      body: (call p~0)
       count: (set
         %0 = scrutinee
         (in_range %0 0 _)))
@@ -40,7 +40,7 @@ Full created-stage goal form of stdlib/combinator.
   maybe_many_sep(p, sep) =
     (alt
       (arm
-        guard: (call many_sep [p sep]))
+        guard: (call many_sep [p~0 sep~1]))
       (arm
         body: (call succeed)))
   
@@ -50,41 +50,41 @@ Full created-stage goal form of stdlib/combinator.
         scrutinee: (call @input.offset)
         %0 = scrutinee
         (arm
-          (local %0 Pos)))
-      (call @at [Pos p]))
+          (bind %0 Pos~1)))
+      (call @at [Pos~1 p~0]))
   
   maybe(p) =
     (alt
       (arm
-        guard: (call p))
+        guard: (call p~0))
       (arm
         body: (call succeed)))
   
   unless(p, excluded) =
     (alt
       (arm
-        guard: (call excluded)
+        guard: (call excluded~1)
         body: (call @fail))
       (arm
-        body: (call p)))
+        body: (call p~0)))
   
   skip(p) =
-    (call null [p])
+    (call null [p~0])
   
   find(p) =
     (alt
       (arm
-        guard: (call p))
+        guard: (call p~0))
       (arm
         body: (seq result=1
           (call char)
-          (call find [p]))))
+          (call find [p~0]))))
   
   find_all(p) =
     (seq result=0
       (call _@import0 [
-        (lambda @fn0
-          (call find [p]))
+        (lambda @fn0 captures=[p]
+          (call find [p~0]))
       ])
       (call maybe [
         (lambda @fn1
@@ -94,24 +94,24 @@ Full created-stage goal form of stdlib/combinator.
   find_before(p, stop) =
     (alt
       (arm
-        guard: (call stop)
+        guard: (call stop~1)
         body: (call @fail))
       (arm
-        guard: (call p))
+        guard: (call p~0))
       (arm
         body: (seq result=1
           (call char)
-          (call find_before [p stop]))))
+          (call find_before [p~0 stop~1]))))
   
   find_all_before(p, stop) =
     (seq result=0
       (call _@import1 [
-        (lambda @fn2
-          (call find_before [p stop]))
+        (lambda @fn2 captures=[p stop]
+          (call find_before [p~0 stop~1]))
       ])
       (call maybe [
-        (lambda @fn3
-          (call chars_until [stop]))
+        (lambda @fn3 captures=[stop]
+          (call chars_until [stop~0]))
       ]))
   
   succeed =
@@ -120,19 +120,19 @@ Full created-stage goal form of stdlib/combinator.
   default(p, D) =
     (alt
       (arm
-        guard: (call p))
+        guard: (call p~0))
       (arm
-        body: (call const [D])))
+        body: (call const [D~1])))
   
   const(C) =
     (seq result=1
       (call "")
-      C)
+      C~0)
   
   as_number(p) =
     (seq result=1
       (match
-        scrutinee: (call p)
+        scrutinee: (call p~0)
         %0 = scrutinee
         (arm
           (match_template %0
@@ -140,18 +140,18 @@ Full created-stage goal form of stdlib/combinator.
               %0 = scrutinee
               (solve_merge %0
                 0
-                (local N))))))
-      N)
+                (bind N~1))))))
+      N~1)
   
   as_string(p) =
-    (to_string (call p))
+    (to_string (call p~0))
   
   surround(p, fill) =
     (seq result=0
       (seq result=1
-        (call fill)
-        (call p))
-      (call fill))
+        (call fill~1)
+        (call p~0))
+      (call fill~1))
   
   end_of_input =
     (alt
@@ -167,7 +167,7 @@ Full created-stage goal form of stdlib/combinator.
   input(p) =
     (seq result=0
       (call surround [
-        p
+        p~0
         (lambda @fn4
           (call maybe [whitespace]))
       ])
@@ -176,7 +176,7 @@ Full created-stage goal form of stdlib/combinator.
   one_or_both(a, b) =
     (alt
       (arm
-        guard: (merge (call a) (call maybe [b])))
+        guard: (merge (call a~0) (call maybe [b~1])))
       (arm
-        body: (merge (call maybe [a]) (call b))))
+        body: (merge (call maybe [a~0]) (call b~1))))
   

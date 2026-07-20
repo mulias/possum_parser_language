@@ -75,7 +75,7 @@ pub const Env = struct {
         };
         defer allocator.free(value);
 
-        if (std.mem.eql(u8, value, "true")) return .folded;
+        if (std.mem.eql(u8, value, "true")) return .bound;
         return std.meta.stringToEnum(GoalStage, value);
     }
 };

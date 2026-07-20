@@ -6,11 +6,11 @@ Full created-stage goal form of stdlib/cast_value.
   As.Number(V) =
     (alt
       (arm
-        guard: (call Is.Number [V]))
+        guard: (call Is.Number [V~0]))
       (arm
         body: (seq result=1
           (match
-            scrutinee: V
+            scrutinee: V~0
             %0 = scrutinee
             (arm
               (match_template %0
@@ -18,9 +18,9 @@ Full created-stage goal form of stdlib/cast_value.
                   %0 = scrutinee
                   (solve_merge %0
                     0
-                    (local N))))))
-          N)))
+                    (bind N~1))))))
+          N~1)))
   
   As.String(V) =
-    (to_string V)
+    (to_string V~0)
   

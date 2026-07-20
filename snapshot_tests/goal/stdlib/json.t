@@ -114,14 +114,14 @@ Full created-stage goal form of stdlib/json.
         scrutinee: (call _high_surrogate)
         %0 = scrutinee
         (arm
-          (local %0 H)))
+          (bind %0 H~0)))
       (seq result=1
         (match
           scrutinee: (call _low_surrogate)
           %0 = scrutinee
           (arm
-            (local %0 L)))
-        (call @SurrogatePairCodepoint [H L])))
+            (bind %0 L~1)))
+        (call @SurrogatePairCodepoint [H~0 L~1])))
   
   _invalid_surrogate_pair =
     (seq result=1
@@ -191,17 +191,17 @@ Full created-stage goal form of stdlib/json.
               (eq_const %0 4))))
         %0 = scrutinee
         (arm
-          (local %0 U)))
-      (call @Codepoint [U]))
+          (bind %0 U~0)))
+      (call @Codepoint [U~0]))
   
   array(elem) =
     (seq result=0
       (seq result=1
         (call "[")
         (call _@import2 [
-          (lambda @fn2
+          (lambda @fn2 captures=[elem]
             (call surround [
-              elem
+              elem~0
               (lambda @fn3
                 (call maybe [ws]))
             ]))
@@ -221,9 +221,9 @@ Full created-stage goal form of stdlib/json.
                 (call maybe [ws]))
             ]))
           ":"
-          (lambda @fn6
+          (lambda @fn6 captures=[value]
             (call surround [
-              value
+              value~0
               (lambda @fn7
                 (call maybe [ws]))
             ]))

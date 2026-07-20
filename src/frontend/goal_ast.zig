@@ -10,6 +10,9 @@ goals: ArrayList(RNode) = .{},
 constraint_sets: ArrayList(ConstraintSet) = .{},
 declarations: ArrayList(Declaration) = .{},
 main: ?NodeId = null,
+// The generated name of main's anonymous-function node in the dependency
+// graph; binding analysis resolves main's locals against it.
+main_name: ?PathTable.Id = null,
 
 pub const Goal = @This();
 pub const NodeId = u32;
@@ -17,7 +20,7 @@ pub const SetId = u32;
 
 // Pipeline stages the goal ast moves through; printing is parameterized
 // by the stage reached before the dump.
-pub const Stage = enum { created, folded };
+pub const Stage = enum { created, folded, bound };
 
 pub const RNode = struct {
     region: Region,
@@ -107,6 +110,25 @@ pub const Ident = struct {
     name: PathTable.Id,
     builtin: bool,
     underscored: bool,
+    // Filled by binding analysis: an eval-position ident is a frame-local
+    // read or a module-level constant/function reference. No resolution
+    // survives the bound stage except placeholder (`_` never reads).
+    resolution: Resolution = .unresolved,
+
+    pub const Resolution = union(enum) {
+        unresolved,
+        local: u8,
+        global,
+        placeholder,
+    };
+};
+
+// A classified local-variable occurrence: the frame slot (index into the
+// owning function's locals, captures first for lambdas) plus the name for
+// printing and diagnostics.
+pub const LocalSlot = struct {
+    slot: u8,
+    name: PathTable.Id,
 };
 
 pub const Match = struct {
@@ -168,8 +190,17 @@ pub const Part = union(enum) {
     // `_`: constrains nothing, absorbs the leftover.
     placeholder,
     // A bare variable; binding analysis decides binder vs read. As a
-    // merge part, an unbound local is the solvable rest.
+    // merge part, an unbound local is the solvable rest. Does not
+    // survive the bound stage.
     local: PathTable.Id,
+    // Classified by binding analysis: an unbound local the match solves
+    // for and binds.
+    bind: LocalSlot,
+    // Classified by binding analysis: a bound local compared by value.
+    read: LocalSlot,
+    // Classified by binding analysis: a module-level constant compared
+    // by value.
+    global: PathTable.Id,
     // A constant or evaluable expression goal, compared by value.
     expr: NodeId,
     // A structural sub-pattern; the set is rooted at the part's portion
@@ -180,8 +211,15 @@ pub const Part = union(enum) {
 pub const Limit = union(enum) {
     none,
     // A bare local: bound compares, unbound binds the matched value and
-    // imposes no limit.
+    // imposes no limit. Does not survive the bound stage.
     local: PathTable.Id,
+    // Classified by binding analysis: an unbound range limit binds the
+    // matched value. Never appears as a repeat cap (unbound caps clear).
+    bind: LocalSlot,
+    // Classified by binding analysis: a bound local compared by value.
+    read: LocalSlot,
+    // Classified by binding analysis: a module-level constant.
+    global: PathTable.Id,
     // Evaluated at match time; every read must be bound.
     expr: NodeId,
 };
@@ -207,7 +245,14 @@ pub const Constraint = struct {
         // A variable occurrence. Binding analysis classifies each as
         // binder, bound read, or global reference (a zero-arity function
         // global evaluates per match, mirroring the solver's const_fn).
+        // Does not survive the bound stage.
         local: struct { place: PlaceId, name: PathTable.Id },
+        // Classified occurrences: bind writes the place's value into the
+        // slot; eq_slot compares against the bound slot; eq_global
+        // compares against the resolved module-level constant.
+        bind: struct { place: PlaceId, slot: u8, name: PathTable.Id },
+        eq_slot: struct { place: PlaceId, slot: u8, name: PathTable.Id },
+        eq_global: struct { place: PlaceId, name: PathTable.Id },
         // Evaluate expr (a call or evaluable expression goal) and compare
         // the result against the place.
         eval_eq: struct { place: PlaceId, expr: NodeId },
@@ -248,6 +293,7 @@ pub const Lambda = struct {
     parent_name: ?PathTable.Id,
     name: PathTable.Id,
     body: NodeId,
+    captures: ArrayList(StringTable.Id) = .{},
 };
 
 // Greedy loop up to an optional cap, then an ordinary pattern test of the

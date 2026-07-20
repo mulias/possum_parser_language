@@ -156,8 +156,8 @@ Full created-stage goal form of stdlib/number.
         scrutinee: (call array [binary_digit])
         %0 = scrutinee
         (arm
-          (local %0 Digits)))
-      (call Num.FromBinaryDigits [Digits]))
+          (bind %0 Digits~0)))
+      (call Num.FromBinaryDigits [Digits~0]))
   
   octal_integer =
     (seq result=1
@@ -165,8 +165,8 @@ Full created-stage goal form of stdlib/number.
         scrutinee: (call array [octal_digit])
         %0 = scrutinee
         (arm
-          (local %0 Digits)))
-      (call Num.FromOctalDigits [Digits]))
+          (bind %0 Digits~0)))
+      (call Num.FromOctalDigits [Digits~0]))
   
   hex_integer =
     (seq result=1
@@ -174,6 +174,6 @@ Full created-stage goal form of stdlib/number.
         scrutinee: (call array [hex_digit])
         %0 = scrutinee
         (arm
-          (local %0 Digits)))
-      (call Num.FromHexDigits [Digits]))
+          (bind %0 Digits~0)))
+      (call Num.FromHexDigits [Digits~0]))
   

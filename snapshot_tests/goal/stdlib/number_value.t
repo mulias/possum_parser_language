@@ -28,60 +28,60 @@ Full created-stage goal form of stdlib/number_value.
     @Ceiling
   
   Num.Inc(N) =
-    (call @Add [N 1])
+    (call @Add [N~0 1])
   
   Num.Dec(N) =
-    (call @Subtract [N 1])
+    (call @Subtract [N~0 1])
   
   Num.Abs(N) =
     (alt
       (arm
         guard: (match
-          scrutinee: N
+          scrutinee: N~0
           %0 = scrutinee
           (arm
             (in_range %0 0 _))))
       (arm
-        body: (neg N)))
+        body: (neg N~0)))
   
   Num.Max(A, B) =
     (alt
       (arm
         guard: (match
-          scrutinee: A
+          scrutinee: A~0
           %0 = scrutinee
           (arm
-            (in_range %0 (local B) _)))
-        body: A)
+            (in_range %0 (read B~1) _)))
+        body: A~0)
       (arm
-        body: B))
+        body: B~1))
   
   Num.Min(A, B) =
     (alt
       (arm
         guard: (match
-          scrutinee: A
+          scrutinee: A~0
           %0 = scrutinee
           (arm
-            (in_range %0 _ (local B))))
-        body: A)
+            (in_range %0 _ (read B~1))))
+        body: A~0)
       (arm
-        body: B))
+        body: B~1))
   
   Num.FromBinaryDigits(Bs) =
     (seq result=1
       (match
-        scrutinee: (call Array.Length [Bs])
+        scrutinee: (call Array.Length [Bs~0])
         %0 = scrutinee
         (arm
-          (local %0 Len)))
-      (call _Num.FromBinaryDigits [Bs (merge Len -1) 0]))
+          (bind %0 Len~1)))
+      (call _Num.FromBinaryDigits [Bs~0 (merge Len~1 -1) 0]))
   
   _Num.FromBinaryDigits(Bs, Pos, Acc) =
     (alt
       (arm
         guard: (match
-          scrutinee: Bs
+          scrutinee: Bs~0
           %0 = scrutinee
           (arm
             (solve_merge %0
@@ -90,32 +90,32 @@ Full created-stage goal form of stdlib/number_value.
                 %1 = elem %0 0
                 (is_type %0 array)
                 (len_eq %0 1)
-                (local %1 B))
-              (local Rest))))
+                (bind %1 B~3))
+              (bind Rest~4))))
         body: (seq result=1
           (match
-            scrutinee: B
+            scrutinee: B~3
             %0 = scrutinee
             (arm
               (in_range %0 0 1)))
-          (call _Num.FromBinaryDigits [Rest (merge Pos -1) (merge Acc (call Num.Mul [B (call Num.Pow [2 Pos])]))])))
+          (call _Num.FromBinaryDigits [Rest~4 (merge Pos~1 -1) (merge Acc~2 (call Num.Mul [B~3 (call Num.Pow [2 Pos~1])]))])))
       (arm
-        body: Acc))
+        body: Acc~2))
   
   Num.FromOctalDigits(Os) =
     (seq result=1
       (match
-        scrutinee: (call Array.Length [Os])
+        scrutinee: (call Array.Length [Os~0])
         %0 = scrutinee
         (arm
-          (local %0 Len)))
-      (call _Num.FromOctalDigits [Os (merge Len -1) 0]))
+          (bind %0 Len~1)))
+      (call _Num.FromOctalDigits [Os~0 (merge Len~1 -1) 0]))
   
   _Num.FromOctalDigits(Os, Pos, Acc) =
     (alt
       (arm
         guard: (match
-          scrutinee: Os
+          scrutinee: Os~0
           %0 = scrutinee
           (arm
             (solve_merge %0
@@ -124,32 +124,32 @@ Full created-stage goal form of stdlib/number_value.
                 %1 = elem %0 0
                 (is_type %0 array)
                 (len_eq %0 1)
-                (local %1 O))
-              (local Rest))))
+                (bind %1 O~3))
+              (bind Rest~4))))
         body: (seq result=1
           (match
-            scrutinee: O
+            scrutinee: O~3
             %0 = scrutinee
             (arm
               (in_range %0 0 7)))
-          (call _Num.FromOctalDigits [Rest (merge Pos -1) (merge Acc (call Num.Mul [O (call Num.Pow [8 Pos])]))])))
+          (call _Num.FromOctalDigits [Rest~4 (merge Pos~1 -1) (merge Acc~2 (call Num.Mul [O~3 (call Num.Pow [8 Pos~1])]))])))
       (arm
-        body: Acc))
+        body: Acc~2))
   
   Num.FromHexDigits(Hs) =
     (seq result=1
       (match
-        scrutinee: (call Array.Length [Hs])
+        scrutinee: (call Array.Length [Hs~0])
         %0 = scrutinee
         (arm
-          (local %0 Len)))
-      (call _Num.FromHexDigits [Hs (merge Len -1) 0]))
+          (bind %0 Len~1)))
+      (call _Num.FromHexDigits [Hs~0 (merge Len~1 -1) 0]))
   
   _Num.FromHexDigits(Hs, Pos, Acc) =
     (alt
       (arm
         guard: (match
-          scrutinee: Hs
+          scrutinee: Hs~0
           %0 = scrutinee
           (arm
             (solve_merge %0
@@ -158,15 +158,15 @@ Full created-stage goal form of stdlib/number_value.
                 %1 = elem %0 0
                 (is_type %0 array)
                 (len_eq %0 1)
-                (local %1 H))
-              (local Rest))))
+                (bind %1 H~3))
+              (bind Rest~4))))
         body: (seq result=1
           (match
-            scrutinee: H
+            scrutinee: H~3
             %0 = scrutinee
             (arm
               (in_range %0 0 15)))
-          (call _Num.FromHexDigits [Rest (merge Pos -1) (merge Acc (call Num.Mul [H (call Num.Pow [16 Pos])]))])))
+          (call _Num.FromHexDigits [Rest~4 (merge Pos~1 -1) (merge Acc~2 (call Num.Mul [H~3 (call Num.Pow [16 Pos~1])]))])))
       (arm
-        body: Acc))
+        body: Acc~2))
   

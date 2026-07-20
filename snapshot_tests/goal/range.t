@@ -39,12 +39,12 @@ Either way it prints as a local limit at the created stage.
         scrutinee: (call int)
         %0 = scrutinee
         (arm
-          (local %0 N)))
+          (bind %0 N~0)))
       (match
         scrutinee: (call int)
         %0 = scrutinee
         (arm
-          (in_range %0 0 (local N)))))
+          (in_range %0 0 (read N~0)))))
 
 Expression limits evaluate at match time.
 
@@ -55,9 +55,9 @@ Expression limits evaluate at match time.
         scrutinee: (call int)
         %0 = scrutinee
         (arm
-          (local %0 N)))
+          (bind %0 N~0)))
       (match
         scrutinee: (call int)
         %0 = scrutinee
         (arm
-          (in_range %0 0 (merge N 1)))))
+          (in_range %0 0 (merge N~0 1)))))

@@ -16,6 +16,7 @@ const Writers = @import("writer.zig").Writers;
 const Region = @import("region.zig").Region;
 const std = @import("std");
 const binding = @import("frontend/binding.zig");
+const goal_binding = @import("frontend/goal_binding.zig");
 
 vm: *VM,
 allocator: Allocator,
@@ -27,6 +28,17 @@ target_module_id: ?Module.Id = null,
 resolver: DependencyResolver.Resolver,
 main: ?*Ast.RNode(Ast.Parser.AnonymousFunction) = null,
 binding_maps: binding.Maps = .{},
+// Per-module goal asts, built from unfolded can during parse and folded
+// immediately; the goal binding pass classifies them in finalize, once
+// the dependency graph is resolved.
+goals: std.AutoArrayHashMapUnmanaged(Module.Id, *Goal) = .{},
+// Diagnostics from the goal binding pass. Never reported: can-binding
+// remains the reporter until the compiler consumes goal, and finalize
+// asserts these are empty whenever can-binding succeeds.
+goal_diagnostics: std.ArrayListUnmanaged(binding.Diagnostic) = .{},
+// The target module's requested goal print stage; the bound stage can
+// only print from finalize.
+print_goal_stage: ?GoalAst.Stage = null,
 // Modules every added module implicitly dumps (builtins, then stdlib).
 // Registered before a module's own imports so user imports shadow them.
 implicit_dumps: std.ArrayListUnmanaged(Module.Id) = .{},
@@ -79,6 +91,9 @@ pub fn init(vm: *VM) !*Frontend {
     frontend.target_module_id = null;
     frontend.main = null;
     frontend.binding_maps = .{};
+    frontend.goals = .{};
+    frontend.goal_diagnostics = .{};
+    frontend.print_goal_stage = null;
     frontend.implicit_dumps = .{};
     frontend.import_chain = .{};
     frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena, &frontend.paths, &frontend.strings);
@@ -100,6 +115,7 @@ pub fn addTargetModule(self: *Frontend, module: Module, opts: AddModuleOpts) Add
         @panic("addTargetModule called more than once during compilation");
     }
 
+    self.print_goal_stage = opts.printGoalAst;
     const ast = try self.parse(module, opts);
 
     try self.resolver.addModule(module, ast);
@@ -239,8 +255,47 @@ pub fn finalize(self: *Frontend) !void {
     try self.resolver.resolve();
     try self.reportResolverDiagnostics();
     // try self.resolver.prune();
+    try self.analyzeGoalBindings();
     try self.analyzeBindings();
+    self.checkGoalBindingParity();
+    try self.printBoundGoal();
     // try self.analyzeLiveness();
+}
+
+fn analyzeGoalBindings(self: *Frontend) !void {
+    var iter = self.goals.iterator();
+    while (iter.next()) |entry| {
+        try goal_binding.analyzeModule(
+            self,
+            entry.key_ptr.*,
+            &entry.value_ptr.*.ast,
+            &self.goal_diagnostics,
+        );
+        goal_binding.verifyModule(self, entry.key_ptr.*, &entry.value_ptr.*.ast);
+    }
+}
+
+// Differential check while both binding passes coexist: can-binding
+// succeeded (analyzeBindings returned without error), so any goal
+// diagnostic is a bug in the goal pass.
+fn checkGoalBindingParity(self: *Frontend) void {
+    if (!std.debug.runtime_safety) return;
+    if (self.goal_diagnostics.items.len == 0) return;
+    for (self.goal_diagnostics.items) |diagnostic| {
+        std.debug.print("goal binding diagnostic without can counterpart: {s} '{s}'\n", .{
+            @tagName(diagnostic.kind),
+            if (diagnostic.name) |name| self.strings.get(name) else "?",
+        });
+    }
+    @panic("goal binding diagnostics diverge from can binding");
+}
+
+fn printBoundGoal(self: *Frontend) !void {
+    const stage = self.print_goal_stage orelse return;
+    if (stage != .bound) return;
+    const target = self.target_module_id orelse return;
+    const goal = self.goals.get(target) orelse return;
+    try goal.print(self.writers.debug);
 }
 
 fn reportResolverDiagnostics(self: *Frontend) !void {
@@ -328,13 +383,19 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !Ast {
         _ = try can.canonicalize(parser.ast);
 
         // The goal ast is built from unfolded can; folding is a separate
-        // pass on each representation.
+        // pass on each representation. Binding classifies the goal in
+        // finalize, once the dependency graph is resolved.
+        const goal = try self.arena.allocator().create(Goal);
+        goal.* = Goal.init(&self.arena, &self.strings, &self.paths);
+        try goal.actualize(can);
         if (opts.printGoalAst) |stage| {
-            var goal = Goal.init(&self.arena, &self.strings, &self.paths);
-            try goal.actualize(can);
-            if (stage != .created) try goal.fold();
-            try goal.print(self.writers.debug);
+            if (stage == .created) try goal.print(self.writers.debug);
         }
+        try goal.fold();
+        if (opts.printGoalAst) |stage| {
+            if (stage == .folded) try goal.print(self.writers.debug);
+        }
+        try self.goals.put(self.arena.allocator(), module.id, goal);
 
         try can.foldConstants();
     }

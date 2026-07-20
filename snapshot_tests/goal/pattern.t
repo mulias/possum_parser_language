@@ -21,7 +21,7 @@ nothing.
       scrutinee: (call int)
       %0 = scrutinee
       (arm
-        (local %0 N)))
+        (bind %0 N~0)))
 
   $ possum -p 'int -> _' -i ''
   main =
@@ -40,7 +40,7 @@ Arrays decompose into shape tests plus element places.
         (is_type %0 array)
         (len_eq %0 3)
         (eq_const %1 1)
-        (local %2 A)))
+        (bind %2 A~0)))
 
   $ possum -p 'array(int) -> [[A], [B]]' -i ''
   main =
@@ -56,10 +56,10 @@ Arrays decompose into shape tests plus element places.
         (len_eq %0 2)
         (is_type %1 array)
         (len_eq %1 1)
-        (local %2 A)
+        (bind %2 A~0)
         (is_type %3 array)
         (len_eq %3 1)
-        (local %4 B)))
+        (bind %4 B~1)))
 
 Array rests arrive from can as merge chains: solve_merge over sub-pattern
 parts, each rooted at its own portion of the value.
@@ -76,8 +76,8 @@ parts, each rooted at its own portion of the value.
             %1 = elem %0 0
             (is_type %0 array)
             (len_eq %0 1)
-            (local %1 First))
-          (local Rest))))
+            (bind %1 First~0))
+          (bind Rest~1))))
 
   $ possum -p 'array(int) -> [...Front, Last]' -i ''
   main =
@@ -90,13 +90,13 @@ parts, each rooted at its own portion of the value.
             %0 = scrutinee
             (is_type %0 array)
             (len_eq %0 0))
-          (local Front)
+          (bind Front~0)
           (set
             %0 = scrutinee
             %1 = elem %0 0
             (is_type %0 array)
             (len_eq %0 1)
-            (local %1 Last)))))
+            (bind %1 Last~1)))))
 
   $ possum -p 'array(int) -> [F, ...Mid, L]' -i ''
   main =
@@ -110,14 +110,14 @@ parts, each rooted at its own portion of the value.
             %1 = elem %0 0
             (is_type %0 array)
             (len_eq %0 1)
-            (local %1 F))
-          (local Mid)
+            (bind %1 F~0))
+          (bind Mid~1)
           (set
             %0 = scrutinee
             %1 = elem %0 0
             (is_type %0 array)
             (len_eq %0 1)
-            (local %1 L)))))
+            (bind %1 L~2)))))
 
 Objects: constant keys become has_key tests plus key places; a computed
 key searches the unmatched members with nested key/value constraint sets.
@@ -132,11 +132,11 @@ key searches the unmatched members with nested key/value constraint sets.
         (is_type %0 object)
         (keys_exact %0 2)
         (has_key %0 "a")
-        (local %1 A)
+        (bind %1 A~0)
         (search_key %0
           key: (set
             %0 = scrutinee
-            (local %0 W))
+            (bind %0 W~1))
           value: (set
             %0 = scrutinee
             (eq_const %0 2)))))
@@ -155,7 +155,7 @@ key searches the unmatched members with nested key/value constraint sets.
             (keys_exact %0 1)
             (has_key %0 "a")
             (eq_const %1 1))
-          (local Rest))))
+          (bind Rest~0))))
 
 A repeated variable is two local occurrences of the same name; binding
 analysis later classifies binder vs read.
@@ -167,12 +167,12 @@ analysis later classifies binder vs read.
         scrutinee: (call int)
         %0 = scrutinee
         (arm
-          (local %0 A)))
+          (bind %0 A~0)))
       (match
         scrutinee: (call int)
         %0 = scrutinee
         (arm
-          (local %0 A))))
+          (eq_slot %0 A~0))))
 
 Pattern function calls evaluate and compare in place: eval_eq, no place
 defined.
@@ -183,7 +183,7 @@ defined.
   > EOF
   $ possum inc.possum -i ''
   Inc(N) =
-    (merge N 1)
+    (merge N~0 1)
   
   main =
     (seq result=1
@@ -191,13 +191,15 @@ defined.
         scrutinee: (call int)
         %0 = scrutinee
         (arm
-          (local %0 A)))
+          (bind %0 A~0)))
       (match
         scrutinee: (call int)
         %0 = scrutinee
         (arm
-          (eval_eq %0 (call Inc [A])))))
+          (eval_eq %0 (call Inc [A~0])))))
   
+
+
 
 Numeric negation wraps the inner part with a count.
 
@@ -207,7 +209,7 @@ Numeric negation wraps the inner part with a count.
       scrutinee: (call int)
       %0 = scrutinee
       (arm
-        (negated %0 1 (local N))))
+        (negated %0 1 (bind N~0))))
 
   $ possum -p 'int -> --N' -i ''
   main =
@@ -215,7 +217,7 @@ Numeric negation wraps the inner part with a count.
       scrutinee: (call int)
       %0 = scrutinee
       (arm
-        (negated %0 2 (local N))))
+        (negated %0 2 (bind N~0))))
 
 String template patterns keep their segments as a match_template
 constraint.
@@ -228,7 +230,7 @@ constraint.
       (arm
         (match_template %0
           "a"
-          (local Mid)
+          (bind Mid~0)
           "z")))
 
 Pattern repeats become solve_repeat over pattern and count parts.
@@ -241,7 +243,7 @@ Pattern repeats become solve_repeat over pattern and count parts.
       (arm
         (solve_repeat %0
           pattern: "ab"
-          count: (local N))))
+          count: (bind N~0))))
 
 Value-context destructure is the same match node.
 
@@ -253,4 +255,4 @@ Value-context destructure is the same match node.
         scrutinee: 1
         %0 = scrutinee
         (arm
-          (local %0 N))))
+          (bind %0 N~0))))

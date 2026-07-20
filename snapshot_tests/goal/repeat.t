@@ -23,13 +23,13 @@ otherwise.
         scrutinee: (call int)
         %0 = scrutinee
         (arm
-          (local %0 N)))
+          (bind %0 N~0)))
       (repeat
         body: (call digit)
-        cap: (local N)
+        cap: (read N~0)
         count: (set
           %0 = scrutinee
-          (local %0 N))))
+          (eq_slot %0 N~0))))
 
   $ possum -p 'digit * (0..)' -i ''
   main =
@@ -65,11 +65,10 @@ local is bound and clears it if the count binds instead.
     (seq result=1
       (repeat
         body: (call digit)
-        cap: (local N)
         count: (set
           %0 = scrutinee
-          (local %0 N)))
-      N)
+          (bind %0 N~0)))
+      N~0)
 
 A count expression caps the same way; it is computed at runtime when its
 reads are bound, and the cap is cleared when the count test must solve.
@@ -79,13 +78,12 @@ reads are bound, and the cap is cleared when the count test must solve.
     (seq result=1
       (repeat
         body: (call digit)
-        cap: (merge N 2)
         count: (set
           %0 = scrutinee
           (solve_merge %0
-            (local N)
+            (bind N~0)
             2)))
-      N)
+      N~0)
 
 A value repeat's count is evaluable, so it is both the loop cap and an
 eval_eq exact-count test.

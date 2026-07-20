@@ -67,6 +67,7 @@ pub fn actualize(self: *Goal, can: Can) Error!void {
 
     if (can.ast.main) |main_fn| {
         self.ast.main = try self.convertParser(main_fn.node.body);
+        self.ast.main_name = main_fn.node.name;
     }
 }
 
@@ -915,6 +916,9 @@ fn foldConstraints(self: *Goal, constraints: *ArrayList(Ast.Constraint)) FoldErr
                         // A lone structural part keeps its merge wrapper;
                         // splicing the sub-set would rebase its places.
                         .sub => {},
+                        // Folding runs before binding; classified parts
+                        // cannot occur here.
+                        .bind, .read, .global => unreachable,
                     }
                 }
             },
@@ -1146,7 +1150,10 @@ fn printGoal(self: *Goal, writer: *Writer, id: NodeId, indent: u32) Writer.Error
             ns.number,
         }),
         .number_float => |f| try writer.print("{d}", .{f}),
-        .ident => |ident| try writer.print("{s}", .{self.pathName(ident.name)}),
+        .ident => |ident| switch (ident.resolution) {
+            .local => |slot| try writer.print("{s}~{d}", .{ self.pathName(ident.name), slot }),
+            .unresolved, .global, .placeholder => try writer.print("{s}", .{self.pathName(ident.name)}),
+        },
         .call => |c| try self.printCall(writer, c, indent),
         .neg => |inner| try self.printUnary(writer, "neg", inner, indent),
         .to_string => |inner| try self.printUnary(writer, "to_string", inner, indent),
@@ -1185,7 +1192,16 @@ fn printGoal(self: *Goal, writer: *Writer, id: NodeId, indent: u32) Writer.Error
             try writer.writeAll(")");
         },
         .lambda => |lambda| {
-            try writer.print("(lambda {s}\n", .{self.pathName(lambda.name)});
+            try writer.print("(lambda {s}", .{self.pathName(lambda.name)});
+            if (lambda.captures.items.len > 0) {
+                try writer.writeAll(" captures=[");
+                for (lambda.captures.items, 0..) |segment, i| {
+                    if (i > 0) try writer.writeAll(" ");
+                    try writer.print("{s}", .{self.strings.get(segment)});
+                }
+                try writer.writeAll("]");
+            }
+            try writer.writeAll("\n");
             try self.printChild(writer, lambda.body, indent + 1);
             try writer.writeAll(")");
         },
@@ -1416,6 +1432,9 @@ fn printConstraint(
             try writer.writeAll(")");
         },
         .local => |c| try writer.print("(local %{d} {s})", .{ c.place, self.pathName(c.name) }),
+        .bind => |c| try writer.print("(bind %{d} {s}~{d})", .{ c.place, self.pathName(c.name), c.slot }),
+        .eq_slot => |c| try writer.print("(eq_slot %{d} {s}~{d})", .{ c.place, self.pathName(c.name), c.slot }),
+        .eq_global => |c| try writer.print("(eq_global %{d} {s})", .{ c.place, self.pathName(c.name) }),
         .eval_eq => |c| {
             try writer.print("(eval_eq %{d} ", .{c.place});
             try self.printGoal(writer, c.expr, indent);
@@ -1477,6 +1496,9 @@ fn printPart(self: *Goal, writer: *Writer, part: Ast.Part, indent: u32) Writer.E
     switch (part) {
         .placeholder => try writer.writeAll("_"),
         .local => |name| try writer.print("(local {s})", .{self.pathName(name)}),
+        .bind => |ls| try writer.print("(bind {s}~{d})", .{ self.pathName(ls.name), ls.slot }),
+        .read => |ls| try writer.print("(read {s}~{d})", .{ self.pathName(ls.name), ls.slot }),
+        .global => |name| try writer.print("(global {s})", .{self.pathName(name)}),
         .expr => |id| try self.printGoal(writer, id, indent),
         .sub => |set_id| try self.printSet(writer, set_id, indent),
     }
@@ -1486,6 +1508,9 @@ fn printLimit(self: *Goal, writer: *Writer, limit: Ast.Limit, indent: u32) Write
     switch (limit) {
         .none => try writer.writeAll("_"),
         .local => |name| try writer.print("(local {s})", .{self.pathName(name)}),
+        .bind => |ls| try writer.print("(bind {s}~{d})", .{ self.pathName(ls.name), ls.slot }),
+        .read => |ls| try writer.print("(read {s}~{d})", .{ self.pathName(ls.name), ls.slot }),
+        .global => |name| try writer.print("(global {s})", .{self.pathName(name)}),
         .expr => |id| try self.printGoal(writer, id, indent),
     }
 }

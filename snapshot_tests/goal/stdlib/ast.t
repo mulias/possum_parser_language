@@ -4,13 +4,13 @@ Full created-stage goal form of stdlib/ast.
 
   $ possum $TESTDIR/../../../stdlib/ast.possum -i '' --no-stdlib
   with_operator_precedence(operand, prefix, infix, postfix) =
-    (call _with_precedence_start [operand prefix infix postfix 0])
+    (call _with_precedence_start [operand~0 prefix~1 infix~2 postfix~3 0])
   
   _with_precedence_start(operand, prefix, infix, postfix, LeftBindingPower) =
     (alt
       (arm
         guard: (match
-          scrutinee: (call prefix)
+          scrutinee: (call prefix~1)
           %0 = scrutinee
           (arm
             (solve_merge %0
@@ -20,45 +20,45 @@ Full created-stage goal form of stdlib/ast.
                 (is_type %0 object)
                 (keys_exact %0 1)
                 (has_key %0 "power")
-                (local %1 PrefixBindingPower))
-              (local PrefixNode))))
+                (bind %1 PrefixBindingPower~5))
+              (bind PrefixNode~6))))
         body: (seq result=1
           (match
-            scrutinee: (call _with_precedence_start [operand prefix infix postfix PrefixBindingPower])
+            scrutinee: (call _with_precedence_start [operand~0 prefix~1 infix~2 postfix~3 PrefixBindingPower~5])
             %0 = scrutinee
             (arm
-              (local %0 Node)))
+              (bind %0 Node~7)))
           (call _with_precedence_rest [
-            operand
-            prefix
-            infix
-            postfix
-            LeftBindingPower
+            operand~0
+            prefix~1
+            infix~2
+            postfix~3
+            LeftBindingPower~4
             (merge
               (merge
                 (object [])
-                PrefixNode)
+                PrefixNode~6)
               (merge
                 (object [
-                  (pair "prefixed" Node)
+                  (pair "prefixed" Node~7)
                 ])
-                (call _MergePos [PrefixNode Node])))
+                (call _MergePos [PrefixNode~6 Node~7])))
           ])))
       (arm
         body: (seq result=1
           (match
-            scrutinee: (call operand)
+            scrutinee: (call operand~0)
             %0 = scrutinee
             (arm
-              (local %0 Node)))
-          (call _with_precedence_rest [operand prefix infix postfix LeftBindingPower Node]))))
+              (bind %0 Node~7)))
+          (call _with_precedence_rest [operand~0 prefix~1 infix~2 postfix~3 LeftBindingPower~4 Node~7]))))
   
   _with_precedence_rest(operand, prefix, infix, postfix, LeftBindingPower, Node) =
     (alt
       (arm
         guard: (seq result=1
           (match
-            scrutinee: (call postfix)
+            scrutinee: (call postfix~3)
             %0 = scrutinee
             (arm
               (solve_merge %0
@@ -68,29 +68,29 @@ Full created-stage goal form of stdlib/ast.
                   (is_type %0 object)
                   (keys_exact %0 1)
                   (has_key %0 "power")
-                  (local %1 RightBindingPower))
-                (local PostfixNode))))
-          (call const [(call Is.LessThan [LeftBindingPower RightBindingPower])]))
+                  (bind %1 RightBindingPower~6))
+                (bind PostfixNode~7))))
+          (call const [(call Is.LessThan [LeftBindingPower~4 RightBindingPower~6])]))
         body: (call _with_precedence_rest [
-          operand
-          prefix
-          infix
-          postfix
-          LeftBindingPower
+          operand~0
+          prefix~1
+          infix~2
+          postfix~3
+          LeftBindingPower~4
           (merge
             (merge
               (object [])
-              PostfixNode)
+              PostfixNode~7)
             (merge
               (object [
-                (pair "postfixed" Node)
+                (pair "postfixed" Node~5)
               ])
-              (call _MergePos [Node PostfixNode])))
+              (call _MergePos [Node~5 PostfixNode~7])))
         ]))
       (arm
         guard: (seq result=1
           (match
-            scrutinee: (call infix)
+            scrutinee: (call infix~2)
             %0 = scrutinee
             (arm
               (solve_merge %0
@@ -104,75 +104,75 @@ Full created-stage goal form of stdlib/ast.
                   (has_key %0 "power")
                   (is_type %1 array)
                   (len_eq %1 2)
-                  (local %2 RightBindingPower)
-                  (local %3 NextLeftBindingPower))
-                (local InfixNode))))
-          (call const [(call Is.LessThan [LeftBindingPower RightBindingPower])]))
+                  (bind %2 RightBindingPower~6)
+                  (bind %3 NextLeftBindingPower~8))
+                (bind InfixNode~9))))
+          (call const [(call Is.LessThan [LeftBindingPower~4 RightBindingPower~6])]))
         body: (seq result=1
           (match
-            scrutinee: (call _with_precedence_start [operand prefix infix postfix NextLeftBindingPower])
+            scrutinee: (call _with_precedence_start [operand~0 prefix~1 infix~2 postfix~3 NextLeftBindingPower~8])
             %0 = scrutinee
             (arm
-              (local %0 RightNode)))
+              (bind %0 RightNode~10)))
           (call _with_precedence_rest [
-            operand
-            prefix
-            infix
-            postfix
-            LeftBindingPower
+            operand~0
+            prefix~1
+            infix~2
+            postfix~3
+            LeftBindingPower~4
             (merge
               (merge
                 (object [])
-                InfixNode)
+                InfixNode~9)
               (merge
                 (object [
-                  (pair "left" Node)
-                  (pair "right" RightNode)
+                  (pair "left" Node~5)
+                  (pair "right" RightNode~10)
                 ])
-                (call _MergePos [Node RightNode])))
+                (call _MergePos [Node~5 RightNode~10])))
           ])))
       (arm
-        body: (call const [Node])))
+        body: (call const [Node~5])))
   
   node(value, Type) =
     (seq result=1
       (match
-        scrutinee: (call value)
+        scrutinee: (call value~0)
         %0 = scrutinee
         (arm
-          (local %0 Value)))
+          (bind %0 Value~2)))
       (object [
-        (pair "type" Type)
-        (pair "value" Value)
+        (pair "type" Type~1)
+        (pair "value" Value~2)
       ]))
   
   prefix_node(op, Type, BindingPower) =
     (seq result=1
-      (call op)
+      (call op~0)
       (object [
-        (pair "type" Type)
-        (pair "power" BindingPower)
+        (pair "type" Type~1)
+        (pair "power" BindingPower~2)
       ]))
   
   infix_node(op, Type, LeftBindingPower, RightBindingPower) =
     (seq result=1
-      (call op)
+      (call op~0)
       (object [
-        (pair "type" Type)
+        (pair "type" Type~1)
         (pair
           "power"
           (array [
-            LeftBindingPower
-            RightBindingPower
+            LeftBindingPower~2
+            RightBindingPower~3
           ]))
       ]))
   
   postfix_node(op, Type, BindingPower) =
     (seq result=1
-      (call op)
+      (call op~0)
       (object [
-        (pair "type" Type)
-        (pair "power" BindingPower)
+        (pair "type" Type~1)
+        (pair "power" BindingPower~2)
       ]))
   
   with_offset_pos(node) =
@@ -182,25 +182,25 @@ Full created-stage goal form of stdlib/ast.
           scrutinee: (call @input.offset)
           %0 = scrutinee
           (arm
-            (local %0 StartOffset)))
+            (bind %0 StartOffset~1)))
         (match
-          scrutinee: (call node)
+          scrutinee: (call node~0)
           %0 = scrutinee
           (arm
-            (local %0 Node))))
+            (bind %0 Node~2))))
       (seq result=1
         (match
           scrutinee: (call @input.offset)
           %0 = scrutinee
           (arm
-            (local %0 EndOffset)))
+            (bind %0 EndOffset~3)))
         (merge
           (merge
             (object [])
-            Node)
+            Node~2)
           (object [
-            (pair "startpos" StartOffset)
-            (pair "endpos" EndOffset)
+            (pair "startpos" StartOffset~1)
+            (pair "endpos" EndOffset~3)
           ]))))
   
   with_line_pos(node) =
@@ -212,44 +212,44 @@ Full created-stage goal form of stdlib/ast.
               scrutinee: (call @input.line)
               %0 = scrutinee
               (arm
-                (local %0 StartLine)))
+                (bind %0 StartLine~1)))
             (match
               scrutinee: (call @input.line_offset)
               %0 = scrutinee
               (arm
-                (local %0 StartLineOffset))))
+                (bind %0 StartLineOffset~2))))
           (match
-            scrutinee: (call node)
+            scrutinee: (call node~0)
             %0 = scrutinee
             (arm
-              (local %0 Node))))
+              (bind %0 Node~3))))
         (match
           scrutinee: (call @input.line)
           %0 = scrutinee
           (arm
-            (local %0 EndLine))))
+            (bind %0 EndLine~4))))
       (seq result=1
         (match
           scrutinee: (call @input.line_offset)
           %0 = scrutinee
           (arm
-            (local %0 EndLineOffset)))
+            (bind %0 EndLineOffset~5)))
         (merge
           (merge
             (object [])
-            Node)
+            Node~3)
           (object [
             (pair
               "startpos"
               (object [
-                (pair "line" StartLine)
-                (pair "offset" StartLineOffset)
+                (pair "line" StartLine~1)
+                (pair "offset" StartLineOffset~2)
               ]))
             (pair
               "endpos"
               (object [
-                (pair "line" EndLine)
-                (pair "offset" EndLineOffset)
+                (pair "line" EndLine~4)
+                (pair "offset" EndLineOffset~5)
               ]))
           ]))))
   
@@ -260,7 +260,7 @@ Full created-stage goal form of stdlib/ast.
         (alt
           (arm
             guard: (match
-              scrutinee: Left
+              scrutinee: Left~0
               %0 = scrutinee
               (arm
                 (solve_merge %0
@@ -270,17 +270,17 @@ Full created-stage goal form of stdlib/ast.
                     (is_type %0 object)
                     (keys_exact %0 1)
                     (has_key %0 "startpos")
-                    (local %1 StartPos))
+                    (bind %1 StartPos~2))
                   _)))
             body: (object [
-              (pair "startpos" StartPos)
+              (pair "startpos" StartPos~2)
             ]))
           (arm
             body: (object []))))
       (alt
         (arm
           guard: (match
-            scrutinee: Right
+            scrutinee: Right~1
             %0 = scrutinee
             (arm
               (solve_merge %0
@@ -290,10 +290,10 @@ Full created-stage goal form of stdlib/ast.
                   (is_type %0 object)
                   (keys_exact %0 1)
                   (has_key %0 "endpos")
-                  (local %1 EndPos))
+                  (bind %1 EndPos~4))
                 _)))
           body: (object [
-            (pair "endpos" EndPos)
+            (pair "endpos" EndPos~4)
           ]))
         (arm
           body: (object []))))

@@ -153,7 +153,7 @@ Full created-stage goal form of stdlib/string.
     (call whitespace)
   
   chars_until(stop) =
-    (call many_until [char stop])
+    (call many_until [char stop~0])
   
   ctrl_char =
     (call (range "\x00" "\x1f")) (esc)

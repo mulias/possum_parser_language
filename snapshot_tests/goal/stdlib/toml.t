@@ -19,39 +19,39 @@ Full created-stage goal form of stdlib/toml.
         (match
           scrutinee: (alt
             (arm
-              guard: (call _with_root_table [value]))
+              guard: (call _with_root_table [value~0]))
             (arm
-              body: (call _no_root_table [value])))
+              body: (call _no_root_table [value~0])))
           %0 = scrutinee
           (arm
-            (local %0 Doc))))
+            (bind %0 Doc~1))))
       (seq result=1
         (call maybe [
           (lambda @fn1
             (merge (call maybe [ws]) (call _comments)))
         ])
-        (call _Doc.Value [Doc])))
+        (call _Doc.Value [Doc~1])))
   
   _with_root_table(value) =
     (seq result=1
       (match
-        scrutinee: (call _root_table [value _Doc.Empty])
+        scrutinee: (call _root_table [value~0 _Doc.Empty])
         %0 = scrutinee
         (arm
-          (local %0 RootDoc)))
+          (bind %0 RootDoc~1)))
       (alt
         (arm
           guard: (seq result=1
             (call _ws)
-            (call _tables [value RootDoc])))
+            (call _tables [value~0 RootDoc~1])))
         (arm
-          body: (call const [RootDoc]))))
+          body: (call const [RootDoc~1]))))
   
   _root_table(value, Doc) =
     (call _table_body [
-      value
+      value~0
       (array [])
-      Doc
+      Doc~1
     ])
   
   _no_root_table(value) =
@@ -59,13 +59,13 @@ Full created-stage goal form of stdlib/toml.
       (match
         scrutinee: (alt
           (arm
-            guard: (call _table [value _Doc.Empty]))
+            guard: (call _table [value~0 _Doc.Empty]))
           (arm
-            body: (call _array_of_tables [value _Doc.Empty])))
+            body: (call _array_of_tables [value~0 _Doc.Empty])))
         %0 = scrutinee
         (arm
-          (local %0 NewDoc)))
-      (call _tables [value NewDoc]))
+          (bind %0 NewDoc~1)))
+      (call _tables [value~0 NewDoc~1]))
   
   _tables(value, Doc) =
     (alt
@@ -75,15 +75,15 @@ Full created-stage goal form of stdlib/toml.
             (arm
               guard: (seq result=1
                 (call _ws)
-                (call _table [value Doc])))
+                (call _table [value~0 Doc~1])))
             (arm
-              body: (call _array_of_tables [value Doc])))
+              body: (call _array_of_tables [value~0 Doc~1])))
           %0 = scrutinee
           (arm
-            (local %0 NewDoc)))
-        body: (call _tables [value NewDoc]))
+            (bind %0 NewDoc~2)))
+        body: (call _tables [value~0 NewDoc~2]))
       (arm
-        body: (call const [Doc])))
+        body: (call const [Doc~1])))
   
   _table(value, Doc) =
     (seq result=1
@@ -92,13 +92,13 @@ Full created-stage goal form of stdlib/toml.
           scrutinee: (call _table_header)
           %0 = scrutinee
           (arm
-            (local %0 HeaderPath)))
+            (bind %0 HeaderPath~2)))
         (call _ws_newline))
       (alt
         (arm
-          guard: (call _table_body [value HeaderPath Doc]))
+          guard: (call _table_body [value~0 HeaderPath~2 Doc~1]))
         (arm
-          body: (call const [(call _Doc.EnsureTableAtPath [Doc HeaderPath])]))))
+          body: (call const [(call _Doc.EnsureTableAtPath [Doc~1 HeaderPath~2])]))))
   
   _array_of_tables(value, Doc) =
     (seq result=1
@@ -107,14 +107,14 @@ Full created-stage goal form of stdlib/toml.
           scrutinee: (call _array_of_tables_header)
           %0 = scrutinee
           (arm
-            (local %0 HeaderPath)))
+            (bind %0 HeaderPath~2)))
         (call _ws_newline))
       (seq result=1
         (match
           scrutinee: (call default [
-            (lambda @fn2
+            (lambda @fn2 captures=[value]
               (call _table_body [
-                value
+                value~0
                 (array [])
                 _Doc.Empty
               ]))
@@ -122,8 +122,8 @@ Full created-stage goal form of stdlib/toml.
           ])
           %0 = scrutinee
           (arm
-            (local %0 InnerDoc)))
-        (call _Doc.AppendAtPath [Doc HeaderPath InnerDoc])))
+            (bind %0 InnerDoc~3)))
+        (call _Doc.AppendAtPath [Doc~1 HeaderPath~2 InnerDoc~3])))
   
   _ws =
     (call maybe_many [
@@ -186,26 +186,26 @@ Full created-stage goal form of stdlib/toml.
       (seq result=1
         (seq result=1
           (match
-            scrutinee: (call _table_pair [value])
+            scrutinee: (call _table_pair [value~0])
             %0 = scrutinee
             %1 = elem %0 0
             %2 = elem %0 1
             (arm
               (is_type %0 array)
               (len_eq %0 2)
-              (local %1 KeyPath)
-              (local %2 Val)))
+              (bind %1 KeyPath~3)
+              (bind %2 Val~4)))
           (call _ws_newline))
         (match
-          scrutinee: (call const [(call _Doc.InsertPairAtHeaderPath [Doc HeaderPath KeyPath Val])])
+          scrutinee: (call const [(call _Doc.InsertPairAtHeaderPath [Doc~2 HeaderPath~1 KeyPath~3 Val~4])])
           %0 = scrutinee
           (arm
-            (local %0 NewDoc))))
+            (bind %0 NewDoc~5))))
       (alt
         (arm
-          guard: (call _table_body [value HeaderPath NewDoc]))
+          guard: (call _table_body [value~0 HeaderPath~1 NewDoc~5]))
         (arm
-          body: (call const [NewDoc]))))
+          body: (call const [NewDoc~5]))))
   
   _table_pair(value) =
     (call tuple2_sep [
@@ -216,7 +216,7 @@ Full created-stage goal form of stdlib/toml.
           (lambda @fn8
             (call maybe [spaces]))
         ]))
-      value
+      value~0
     ])
   
   _path =
@@ -306,14 +306,14 @@ Full created-stage goal form of stdlib/toml.
   _tag(Type, Subtype, value) =
     (seq result=1
       (match
-        scrutinee: (call value)
+        scrutinee: (call value~2)
         %0 = scrutinee
         (arm
-          (local %0 Value)))
+          (bind %0 Value~3)))
       (object [
-        (pair "type" Type)
-        (pair "subtype" Subtype)
-        (pair "value" Value)
+        (pair "type" Type~0)
+        (pair "subtype" Subtype~1)
+        (pair "value" Value~3)
       ]))
   
   string =
@@ -366,11 +366,11 @@ Full created-stage goal form of stdlib/toml.
             (call "[")
             (call _ws))
           (call default [
-            (lambda @fn12
+            (lambda @fn12 captures=[elem]
               (seq result=0
                 (call array_sep [
-                  (lambda @fn13
-                    (call surround [elem _ws]))
+                  (lambda @fn13 captures=[elem]
+                    (call surround [elem~0 _ws]))
                   ","
                 ])
                 (call maybe [
@@ -389,11 +389,11 @@ Full created-stage goal form of stdlib/toml.
           (arm
             guard: (call _empty_inline_table))
           (arm
-            body: (call _nonempty_inline_table [value])))
+            body: (call _nonempty_inline_table [value~0])))
         %0 = scrutinee
         (arm
-          (local %0 InlineDoc)))
-      (call _Doc.Value [InlineDoc]))
+          (bind %0 InlineDoc~1)))
+      (call _Doc.Value [InlineDoc~1]))
   
   _empty_inline_table =
     (seq result=1
@@ -411,13 +411,13 @@ Full created-stage goal form of stdlib/toml.
           (seq result=1
             (call "{")
             (call maybe [spaces]))
-          (call _inline_table_pair [value _Doc.Empty]))
+          (call _inline_table_pair [value~0 _Doc.Empty]))
         %0 = scrutinee
         (arm
-          (local %0 DocWithFirstPair)))
+          (bind %0 DocWithFirstPair~1)))
       (seq result=0
         (seq result=0
-          (call _inline_table_body [value DocWithFirstPair])
+          (call _inline_table_body [value~0 DocWithFirstPair~1])
           (call maybe [spaces]))
         (call "}")))
   
@@ -427,13 +427,13 @@ Full created-stage goal form of stdlib/toml.
         guard: (match
           scrutinee: (seq result=1
             (call ",")
-            (call _inline_table_pair [value Doc]))
+            (call _inline_table_pair [value~0 Doc~1]))
           %0 = scrutinee
           (arm
-            (local %0 NewDoc)))
-        body: (call _inline_table_body [value NewDoc]))
+            (bind %0 NewDoc~2)))
+        body: (call _inline_table_body [value~0 NewDoc~2]))
       (arm
-        body: (call const [Doc])))
+        body: (call const [Doc~1])))
   
   _inline_table_pair(value, Doc) =
     (seq result=1
@@ -447,18 +447,18 @@ Full created-stage goal form of stdlib/toml.
                   scrutinee: (call _path)
                   %0 = scrutinee
                   (arm
-                    (local %0 Key))))
+                    (bind %0 Key~2))))
               (call maybe [spaces]))
             (call "="))
           (call maybe [spaces]))
         (match
-          scrutinee: (call value)
+          scrutinee: (call value~0)
           %0 = scrutinee
           (arm
-            (local %0 Val))))
+            (bind %0 Val~3))))
       (seq result=1
         (call maybe [spaces])
-        (call _Doc.InsertAtPath [Doc Key Val])))
+        (call _Doc.InsertAtPath [Doc~1 Key~2 Val~3])))
   
   string.multi_line_basic =
     (merge
@@ -622,8 +622,8 @@ Full created-stage goal form of stdlib/toml.
                   (eq_const %0 4))))
             %0 = scrutinee
             (arm
-              (local %0 U)))
-          (call @Codepoint [U])))
+              (bind %0 U~0)))
+          (call @Codepoint [U~0])))
       (arm
         body: (seq result=1
           (match
@@ -637,8 +637,8 @@ Full created-stage goal form of stdlib/toml.
                   (eq_const %0 8))))
             %0 = scrutinee
             (arm
-              (local %0 U)))
-          (call @Codepoint [U]))))
+              (bind %0 U~0)))
+          (call @Codepoint [U~0]))))
   
   datetime.offset =
     (merge
@@ -874,8 +874,8 @@ Full created-stage goal form of stdlib/toml.
           ])
           %0 = scrutinee
           (arm
-            (local %0 Digits)))
-        (call Num.FromBinaryDigits [Digits])))
+            (bind %0 Digits~0)))
+        (call Num.FromBinaryDigits [Digits~0])))
   
   number.octal_integer =
     (seq result=1
@@ -905,8 +905,8 @@ Full created-stage goal form of stdlib/toml.
           ])
           %0 = scrutinee
           (arm
-            (local %0 Digits)))
-        (call Num.FromOctalDigits [Digits])))
+            (bind %0 Digits~0)))
+        (call Num.FromOctalDigits [Digits~0])))
   
   number.hex_integer =
     (seq result=1
@@ -936,8 +936,8 @@ Full created-stage goal form of stdlib/toml.
           ])
           %0 = scrutinee
           (arm
-            (local %0 Digits)))
-        (call Num.FromHexDigits [Digits])))
+            (bind %0 Digits~0)))
+        (call Num.FromHexDigits [Digits~0])))
   
   _Doc.Empty =
     (object [
@@ -950,35 +950,35 @@ Full created-stage goal form of stdlib/toml.
     ])
   
   _Doc.Value(Doc) =
-    (call Obj.Get [Doc "value"])
+    (call Obj.Get [Doc~0 "value"])
   
   _Doc.Type(Doc) =
-    (call Obj.Get [Doc "type"])
+    (call Obj.Get [Doc~0 "type"])
   
   _Doc.Has(Doc, Key) =
-    (call Obj.Has [(call _Doc.Type [Doc]) Key])
+    (call Obj.Has [(call _Doc.Type [Doc~0]) Key~1])
   
   _Doc.Get(Doc, Key) =
     (object [
-      (pair "value" (call Obj.Get [(call _Doc.Value [Doc]) Key]))
-      (pair "type" (call Obj.Get [(call _Doc.Type [Doc]) Key]))
+      (pair "value" (call Obj.Get [(call _Doc.Value [Doc~0]) Key~1]))
+      (pair "type" (call Obj.Get [(call _Doc.Type [Doc~0]) Key~1]))
     ])
   
   _Doc.IsTable(Doc) =
-    (call Is.Object [(call _Doc.Type [Doc])])
+    (call Is.Object [(call _Doc.Type [Doc~0])])
   
   _Doc.Insert(Doc, Key, Val, Type) =
     (seq result=1
-      (call _Doc.IsTable [Doc])
+      (call _Doc.IsTable [Doc~0])
       (object [
-        (pair "value" (call Obj.Put [(call _Doc.Value [Doc]) Key Val]))
-        (pair "type" (call Obj.Put [(call _Doc.Type [Doc]) Key Type]))
+        (pair "value" (call Obj.Put [(call _Doc.Value [Doc~0]) Key~1 Val~2]))
+        (pair "type" (call Obj.Put [(call _Doc.Type [Doc~0]) Key~1 Type~3]))
       ]))
   
   _Doc.AppendToArrayOfTables(Doc, Key, ElementDoc) =
     (seq result=1
       (match
-        scrutinee: (call _Doc.Get [Doc Key])
+        scrutinee: (call _Doc.Get [Doc~0 Key~1])
         %0 = scrutinee
         %1 = key %0 "value"
         %2 = key %0 "type"
@@ -988,63 +988,63 @@ Full created-stage goal form of stdlib/toml.
           (is_type %0 object)
           (keys_exact %0 2)
           (has_key %0 "value")
-          (local %1 Vs)
+          (bind %1 Vs~3)
           (has_key %0 "type")
           (is_type %2 array)
           (len_eq %2 2)
           (eq_const %3 "array_of_tables")
-          (local %4 Ts)))
+          (bind %4 Ts~4)))
       (call _Doc.Insert [
-        Doc
-        Key
+        Doc~0
+        Key~1
         (merge
           (merge
             (array [])
-            Vs)
+            Vs~3)
           (array [
-            (call _Doc.Value [ElementDoc])
+            (call _Doc.Value [ElementDoc~2])
           ]))
         (array [
           "array_of_tables"
           (merge
             (merge
               (array [])
-              Ts)
+              Ts~4)
             (array [
-              (call _Doc.Type [ElementDoc])
+              (call _Doc.Type [ElementDoc~2])
             ]))
         ])
       ]))
   
   _Doc.InsertAtPath(Doc, Path, Val) =
-    (call _Doc.UpdateAtPath [Doc Path Val _Doc.ValueUpdater])
+    (call _Doc.UpdateAtPath [Doc~0 Path~1 Val~2 _Doc.ValueUpdater])
   
   _Doc.EnsureTableAtPath(Doc, Path) =
     (call _Doc.UpdateAtHeaderPath [
-      Doc
-      Path
+      Doc~0
+      Path~1
       (object [])
       _Doc.MissingTableUpdater
     ])
   
   _Doc.AppendAtPath(Doc, Path, ElementDoc) =
-    (call _Doc.UpdateAtHeaderPath [Doc Path ElementDoc _Doc.AppendUpdater])
+    (call _Doc.UpdateAtHeaderPath [Doc~0 Path~1 ElementDoc~2 _Doc.AppendUpdater])
   
   _Doc.UpdateAtPath(Doc, Path, Val, Updater) =
     (alt
       (arm
         guard: (match
-          scrutinee: Path
+          scrutinee: Path~1
           %0 = scrutinee
           %1 = elem %0 0
           (arm
             (is_type %0 array)
             (len_eq %0 1)
-            (local %1 Key)))
-        body: (call Updater [Doc Key Val]))
+            (bind %1 Key~4)))
+        body: (call Updater~3 [Doc~0 Key~4 Val~2]))
       (arm
         guard: (match
-          scrutinee: Path
+          scrutinee: Path~1
           %0 = scrutinee
           (arm
             (solve_merge %0
@@ -1053,44 +1053,44 @@ Full created-stage goal form of stdlib/toml.
                 %1 = elem %0 0
                 (is_type %0 array)
                 (len_eq %0 1)
-                (local %1 Key))
-              (local PathRest))))
+                (bind %1 Key~4))
+              (bind PathRest~5))))
         body: (seq result=1
           (match
             scrutinee: (alt
               (arm
-                guard: (call _Doc.Has [Doc Key])
+                guard: (call _Doc.Has [Doc~0 Key~4])
                 body: (seq result=1
-                  (call _Doc.IsTable [(call _Doc.Get [Doc Key])])
-                  (call _Doc.UpdateAtPath [(call _Doc.Get [Doc Key]) PathRest Val Updater])))
+                  (call _Doc.IsTable [(call _Doc.Get [Doc~0 Key~4])])
+                  (call _Doc.UpdateAtPath [(call _Doc.Get [Doc~0 Key~4]) PathRest~5 Val~2 Updater~3])))
               (arm
-                body: (call _Doc.UpdateAtPath [_Doc.Empty PathRest Val Updater])))
+                body: (call _Doc.UpdateAtPath [_Doc.Empty PathRest~5 Val~2 Updater~3])))
             %0 = scrutinee
             (arm
-              (local %0 InnerDoc)))
-          (call _Doc.Insert [Doc Key (call _Doc.Value [InnerDoc]) (call _Doc.Type [InnerDoc])])))
+              (bind %0 InnerDoc~6)))
+          (call _Doc.Insert [Doc~0 Key~4 (call _Doc.Value [InnerDoc~6]) (call _Doc.Type [InnerDoc~6])])))
       (arm
-        body: Doc))
+        body: Doc~0))
   
   _Doc.ValueUpdater(Doc, Key, Val) =
     (alt
       (arm
-        guard: (call _Doc.Has [Doc Key])
+        guard: (call _Doc.Has [Doc~0 Key~1])
         body: @Fail)
       (arm
-        body: (call _Doc.Insert [Doc Key Val "value"])))
+        body: (call _Doc.Insert [Doc~0 Key~1 Val~2 "value"])))
   
   _Doc.MissingTableUpdater(Doc, Key, _Val) =
     (alt
       (arm
-        guard: (call _Doc.Has [Doc Key])
+        guard: (call _Doc.Has [Doc~0 Key~1])
         body: (seq result=1
-          (call _Doc.IsTable [(call _Doc.Get [Doc Key])])
-          Doc))
+          (call _Doc.IsTable [(call _Doc.Get [Doc~0 Key~1])])
+          Doc~0))
       (arm
         body: (call _Doc.Insert [
-          Doc
-          Key
+          Doc~0
+          Key~1
           (object [])
           (object [])
         ])))
@@ -1100,12 +1100,12 @@ Full created-stage goal form of stdlib/toml.
       (match
         scrutinee: (alt
           (arm
-            guard: (call _Doc.Has [Doc Key])
-            body: Doc)
+            guard: (call _Doc.Has [Doc~0 Key~1])
+            body: Doc~0)
           (arm
             body: (call _Doc.Insert [
-              Doc
-              Key
+              Doc~0
+              Key~1
               (array [])
               (array [
                 "array_of_tables"
@@ -1114,26 +1114,26 @@ Full created-stage goal form of stdlib/toml.
             ])))
         %0 = scrutinee
         (arm
-          (local %0 DocWithKey)))
-      (call _Doc.AppendToArrayOfTables [DocWithKey Key ElementDoc]))
+          (bind %0 DocWithKey~3)))
+      (call _Doc.AppendToArrayOfTables [DocWithKey~3 Key~1 ElementDoc~2]))
   
   _Doc.InsertPairAtHeaderPath(Doc, HeaderPath, KeyPath, Val) =
     (alt
       (arm
         guard: (match
-          scrutinee: HeaderPath
+          scrutinee: HeaderPath~1
           %0 = scrutinee
           (arm
             (is_type %0 array)
             (len_eq %0 0)))
-        body: (call _Doc.InsertAtPath [Doc KeyPath Val]))
+        body: (call _Doc.InsertAtPath [Doc~0 KeyPath~2 Val~3]))
       (arm
         body: (call _Doc.UpdateAtHeaderPath [
-          Doc
-          HeaderPath
+          Doc~0
+          HeaderPath~1
           (array [
-            KeyPath
-            Val
+            KeyPath~2
+            Val~3
           ])
           _Doc.PairUpdater
         ])))
@@ -1144,48 +1144,48 @@ Full created-stage goal form of stdlib/toml.
         (seq result=1
           (seq result=1
             (match
-              scrutinee: KeyPathAndVal
+              scrutinee: KeyPathAndVal~2
               %0 = scrutinee
               %1 = elem %0 0
               %2 = elem %0 1
               (arm
                 (is_type %0 array)
                 (len_eq %0 2)
-                (local %1 KeyPath)
-                (local %2 Val)))
+                (bind %1 KeyPath~3)
+                (bind %2 Val~4)))
             (match
               scrutinee: (alt
                 (arm
-                  guard: (call _Doc.Has [Doc Key])
-                  body: (call _Doc.Get [Doc Key]))
+                  guard: (call _Doc.Has [Doc~0 Key~1])
+                  body: (call _Doc.Get [Doc~0 Key~1]))
                 (arm
                   body: _Doc.Empty))
               %0 = scrutinee
               (arm
-                (local %0 SubDoc))))
-          (call _Doc.IsTable [SubDoc]))
+                (bind %0 SubDoc~5))))
+          (call _Doc.IsTable [SubDoc~5]))
         (match
-          scrutinee: (call _Doc.InsertAtPath [SubDoc KeyPath Val])
+          scrutinee: (call _Doc.InsertAtPath [SubDoc~5 KeyPath~3 Val~4])
           %0 = scrutinee
           (arm
-            (local %0 NewSubDoc))))
-      (call _Doc.Insert [Doc Key (call _Doc.Value [NewSubDoc]) (call _Doc.Type [NewSubDoc])]))
+            (bind %0 NewSubDoc~6))))
+      (call _Doc.Insert [Doc~0 Key~1 (call _Doc.Value [NewSubDoc~6]) (call _Doc.Type [NewSubDoc~6])]))
   
   _Doc.UpdateAtHeaderPath(Doc, Path, Val, Updater) =
     (alt
       (arm
         guard: (match
-          scrutinee: Path
+          scrutinee: Path~1
           %0 = scrutinee
           %1 = elem %0 0
           (arm
             (is_type %0 array)
             (len_eq %0 1)
-            (local %1 Key)))
-        body: (call Updater [Doc Key Val]))
+            (bind %1 Key~4)))
+        body: (call Updater~3 [Doc~0 Key~4 Val~2]))
       (arm
         guard: (match
-          scrutinee: Path
+          scrutinee: Path~1
           %0 = scrutinee
           (arm
             (solve_merge %0
@@ -1194,28 +1194,28 @@ Full created-stage goal form of stdlib/toml.
                 %1 = elem %0 0
                 (is_type %0 array)
                 (len_eq %0 1)
-                (local %1 Key))
-              (local PathRest))))
-        body: (call _Doc.DescendHeaderKey [Doc Key PathRest Val Updater]))
+                (bind %1 Key~4))
+              (bind PathRest~5))))
+        body: (call _Doc.DescendHeaderKey [Doc~0 Key~4 PathRest~5 Val~2 Updater~3]))
       (arm
-        body: Doc))
+        body: Doc~0))
   
   _Doc.DescendHeaderKey(Doc, Key, PathRest, Val, Updater) =
     (alt
       (arm
-        guard: (call _Doc.Has [Doc Key])
+        guard: (call _Doc.Has [Doc~0 Key~1])
         body: (seq result=1
           (seq result=1
             (match
-              scrutinee: (call _Doc.Get [Doc Key])
+              scrutinee: (call _Doc.Get [Doc~0 Key~1])
               %0 = scrutinee
               (arm
-                (local %0 Current)))
+                (bind %0 Current~5)))
             (match
               scrutinee: (alt
                 (arm
                   guard: (match
-                    scrutinee: (call _Doc.Type [Current])
+                    scrutinee: (call _Doc.Type [Current~5])
                     %0 = scrutinee
                     (arm
                       (solve_merge %0
@@ -1226,30 +1226,30 @@ Full created-stage goal form of stdlib/toml.
                           (len_eq %0 1)
                           (eq_const %1 "array_of_tables"))
                         _)))
-                  body: (call _Doc.UpdateAtLastAoTElement [Current PathRest Val Updater]))
+                  body: (call _Doc.UpdateAtLastAoTElement [Current~5 PathRest~2 Val~3 Updater~4]))
                 (arm
                   body: (seq result=1
-                    (call _Doc.IsTable [Current])
-                    (call _Doc.UpdateAtHeaderPath [Current PathRest Val Updater]))))
+                    (call _Doc.IsTable [Current~5])
+                    (call _Doc.UpdateAtHeaderPath [Current~5 PathRest~2 Val~3 Updater~4]))))
               %0 = scrutinee
               (arm
-                (local %0 Updated))))
-          (call _Doc.Insert [Doc Key (call _Doc.Value [Updated]) (call _Doc.Type [Updated])])))
+                (bind %0 Updated~7))))
+          (call _Doc.Insert [Doc~0 Key~1 (call _Doc.Value [Updated~7]) (call _Doc.Type [Updated~7])])))
       (arm
         body: (seq result=1
           (match
-            scrutinee: (call _Doc.UpdateAtHeaderPath [_Doc.Empty PathRest Val Updater])
+            scrutinee: (call _Doc.UpdateAtHeaderPath [_Doc.Empty PathRest~2 Val~3 Updater~4])
             %0 = scrutinee
             (arm
-              (local %0 InnerDoc)))
-          (call _Doc.Insert [Doc Key (call _Doc.Value [InnerDoc]) (call _Doc.Type [InnerDoc])]))))
+              (bind %0 InnerDoc~8)))
+          (call _Doc.Insert [Doc~0 Key~1 (call _Doc.Value [InnerDoc~8]) (call _Doc.Type [InnerDoc~8])]))))
   
   _Doc.UpdateAtLastAoTElement(AoTDoc, PathRest, Val, Updater) =
     (seq result=1
       (seq result=1
         (seq result=1
           (match
-            scrutinee: (call _Doc.Value [AoTDoc])
+            scrutinee: (call _Doc.Value [AoTDoc~0])
             %0 = scrutinee
             (arm
               (solve_merge %0
@@ -1257,15 +1257,15 @@ Full created-stage goal form of stdlib/toml.
                   %0 = scrutinee
                   (is_type %0 array)
                   (len_eq %0 0))
-                (local VsInit)
+                (bind VsInit~4)
                 (set
                   %0 = scrutinee
                   %1 = elem %0 0
                   (is_type %0 array)
                   (len_eq %0 1)
-                  (local %1 VLast)))))
+                  (bind %1 VLast~5)))))
           (match
-            scrutinee: (call _Doc.Type [AoTDoc])
+            scrutinee: (call _Doc.Type [AoTDoc~0])
             %0 = scrutinee
             %1 = elem %0 0
             %2 = elem %0 1
@@ -1278,35 +1278,35 @@ Full created-stage goal form of stdlib/toml.
                   %0 = scrutinee
                   (is_type %0 array)
                   (len_eq %0 0))
-                (local TsInit)
+                (bind TsInit~6)
                 (set
                   %0 = scrutinee
                   %1 = elem %0 0
                   (is_type %0 array)
                   (len_eq %0 1)
-                  (local %1 TLast))))))
+                  (bind %1 TLast~7))))))
         (match
           scrutinee: (call _Doc.UpdateAtHeaderPath [
             (object [
-              (pair "value" VLast)
-              (pair "type" TLast)
+              (pair "value" VLast~5)
+              (pair "type" TLast~7)
             ])
-            PathRest
-            Val
-            Updater
+            PathRest~1
+            Val~2
+            Updater~3
           ])
           %0 = scrutinee
           (arm
-            (local %0 UpdatedLast))))
+            (bind %0 UpdatedLast~8))))
       (object [
         (pair
           "value"
           (merge
             (merge
               (array [])
-              VsInit)
+              VsInit~4)
             (array [
-              (call _Doc.Value [UpdatedLast])
+              (call _Doc.Value [UpdatedLast~8])
             ])))
         (pair
           "type"
@@ -1315,9 +1315,9 @@ Full created-stage goal form of stdlib/toml.
             (merge
               (merge
                 (array [])
-                TsInit)
+                TsInit~6)
               (array [
-                (call _Doc.Type [UpdatedLast])
+                (call _Doc.Type [UpdatedLast~8])
               ]))
           ]))
       ]))

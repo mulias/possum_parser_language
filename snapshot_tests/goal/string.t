@@ -25,5 +25,5 @@ A value template stringifies value reads.
         scrutinee: (call word)
         %0 = scrutinee
         (arm
-          (local %0 W)))
-      (merge "hi " (to_string W)))
+          (bind %0 W~0)))
+      (merge "hi " (to_string W~0)))

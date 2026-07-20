@@ -5,26 +5,26 @@ Full created-stage goal form of stdlib/const.
   $ possum $TESTDIR/../../../stdlib/const.possum -i '' --no-stdlib
   true(t) =
     (seq result=1
-      (call t)
+      (call t~0)
       true)
   
   false(f) =
     (seq result=1
-      (call f)
+      (call f~0)
       false)
   
   boolean(t, f) =
     (alt
       (arm
-        guard: (call true [t]))
+        guard: (call true [t~0]))
       (arm
-        body: (call false [f])))
+        body: (call false [f~1])))
   
   bool =
     (call boolean)
   
   null(n) =
     (seq result=1
-      (call n)
+      (call n~0)
       null)
   
