@@ -138,7 +138,7 @@ Full created-stage goal form of stdlib/combinator.
           (match_template %0
             (set
               %0 = scrutinee
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 0
                 (bind N~1))))))
       N~1)

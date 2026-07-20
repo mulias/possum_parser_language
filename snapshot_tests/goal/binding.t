@@ -79,7 +79,7 @@ solvable rest, a bound part compares.
         scrutinee: (call word)
         %0 = scrutinee
         (arm
-          (solve_merge %0
+          (solve_merge %0 solvable=1
             "a"
             (bind Rest~0))))
       (match

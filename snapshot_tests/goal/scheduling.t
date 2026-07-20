@@ -1,0 +1,282 @@
+Constraint scheduling on the goal ast. Classification runs through a
+worklist fixpoint: the earliest ready constraint is classified first,
+where ready means the constraint can solve for at most one unknown part
+and no eval read of an unbound slot another pending constraint could
+still bind. Binder selection is an output of readiness, not textual
+first sight. Constraint lists print in scheduled order.
+
+Can-binding still consumes the can ast and reports errors textually, so
+patterns only the fixpoint can order print their bound goal and then
+fail compilation; they become runnable when the compiler consumes goal.
+Diagnostics from goal binding print after the bound goal as `goal
+diagnostic:` lines (the "Program Error" below each is can-binding's);
+goal regions point at the whole constraint since parts carry no regions.
+
+  $ export PRINT_GOAL_AST=bound RUN_VM=false
+
+Two rests with both vars unbound are underdetermined: for `[1, 2, 3]`
+there are multiple valid assignments of A and B. The merge can never
+become ready, the textual fallback classifies it, and the
+one-unbound-part rule rejects it.
+
+  $ possum -p 'input -> [...A, ...B] $ [A, B]' -i ''
+  main =
+    (seq result=1
+      (match
+        scrutinee: (call input)
+        %0 = scrutinee
+        (arm
+          (solve_merge %0 solvable=1
+            (set
+              %0 = scrutinee
+              (is_type %0 array)
+              (len_eq %0 0))
+            (bind A~0)
+            (bind B~1))))
+      (array [
+        A~0
+        B~1
+      ]))
+  
+  goal diagnostic: variable 'B' is unbound here: a merge can solve at most one unbound part
+  program:1:9-21:
+  1 \xe2\x96\x8f input -> [...A, ...B] $ [A, B] (esc)
+    \xe2\x96\x8f          ^^^^^^^^^^^^ (esc)
+  
+  
+  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:19-21:
+  1 \xe2\x96\x8f input -> [...A, ...B] $ [A, B] (esc)
+    \xe2\x96\x8f                    ^^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+
+
+
+The same merge inside a larger pattern is decidable: element 1 binds B,
+which leaves element 0's merge with one unknown. The merge delays until
+B arrives — the schedule places element 1's constraint first and B
+becomes a read in the merge, with A the solvable part. Can-binding
+still rejects the pattern textually.
+
+  $ possum -p 'input -> [[...A, ...B], [...B]] $ [A, B]' -i ''
+  main =
+    (seq result=1
+      (match
+        scrutinee: (call input)
+        %0 = scrutinee
+        %1 = elem %0 0
+        %2 = elem %0 1
+        (arm
+          (is_type %0 array)
+          (len_eq %0 2)
+          (solve_merge %2 solvable=1
+            (set
+              %0 = scrutinee
+              (is_type %0 array)
+              (len_eq %0 0))
+            (bind B~1))
+          (solve_merge %1 solvable=1
+            (set
+              %0 = scrutinee
+              (is_type %0 array)
+              (len_eq %0 0))
+            (bind A~0)
+            (read B~1))))
+      (array [
+        A~0
+        B~1
+      ]))
+  
+  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:20-22:
+  1 \xe2\x96\x8f input -> [[...A, ...B], [...B]] $ [A, B] (esc)
+    \xe2\x96\x8f                     ^^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+
+
+
+An eval that reads a slot another constraint can bind delays until the
+binder has run: the eval_eq schedules after the bind even though it
+appears first. This pattern compiles under can-binding too (its lenient
+walk treats the read as bound), so the whole program is accepted.
+
+  $ possum -p 'Inc(N) = N + 1 ; main = input -> [Inc(A), A] $ A' -i ''
+  Inc(N) =
+    (merge N~0 1)
+  
+  main =
+    (seq result=1
+      (match
+        scrutinee: (call input)
+        %0 = scrutinee
+        %1 = elem %0 0
+        %2 = elem %0 1
+        (arm
+          (is_type %0 array)
+          (len_eq %0 2)
+          (bind %2 A~0)
+          (eval_eq %1 (call Inc [A~0]))))
+      A~0)
+  
+
+
+A genuine cycle — each merge's eval needs the other merge's binder —
+can never become ready. The textual fallback reproduces can-binding's
+lenient walk exactly: the program compiles (and fails at runtime when
+the solver evaluates Inc with B unbound). Cycles become compile errors
+when goal binding becomes the reporter.
+
+  $ possum -p 'Inc(N) = N + 1 ; main = input -> [("a" + A + Inc(B)), ("b" + B + Inc(A))] $ [A, B]' -i ''
+  Inc(N) =
+    (merge N~0 1)
+  
+  main =
+    (seq result=1
+      (match
+        scrutinee: (call input)
+        %0 = scrutinee
+        %1 = elem %0 0
+        %2 = elem %0 1
+        (arm
+          (is_type %0 array)
+          (len_eq %0 2)
+          (solve_merge %1 solvable=1
+            "a"
+            (bind A~0)
+            (call Inc [B~1]))
+          (solve_merge %2
+            "b"
+            (read B~1)
+            (call Inc [A~0]))))
+      (array [
+        A~0
+        B~1
+      ]))
+  
+
+
+A variable both merges could bind is not a cycle: whichever schedules
+first binds, the other reads, and source order breaks the tie. The
+result is identical either way because valid patterns have at most one
+solution.
+
+  $ possum -p 'input -> [[...A], [...A]] $ A' -i ''
+  main =
+    (seq result=1
+      (match
+        scrutinee: (call input)
+        %0 = scrutinee
+        %1 = elem %0 0
+        %2 = elem %0 1
+        (arm
+          (is_type %0 array)
+          (len_eq %0 2)
+          (solve_merge %1 solvable=1
+            (set
+              %0 = scrutinee
+              (is_type %0 array)
+              (len_eq %0 0))
+            (bind A~0))
+          (solve_merge %2
+            (set
+              %0 = scrutinee
+              (is_type %0 array)
+              (len_eq %0 0))
+            (read A~0))))
+      A~0)
+
+A chain of dependent merges schedules back to front: `[...C]` binds C,
+unlocking B's merge, unlocking A's.
+
+  $ possum -p 'input -> [[...A, ...B], [...B, ...C], [...C]] $ [A, B, C]' -i ''
+  main =
+    (seq result=1
+      (match
+        scrutinee: (call input)
+        %0 = scrutinee
+        %1 = elem %0 0
+        %2 = elem %0 1
+        %3 = elem %0 2
+        (arm
+          (is_type %0 array)
+          (len_eq %0 3)
+          (solve_merge %3 solvable=1
+            (set
+              %0 = scrutinee
+              (is_type %0 array)
+              (len_eq %0 0))
+            (bind C~2))
+          (solve_merge %2 solvable=1
+            (set
+              %0 = scrutinee
+              (is_type %0 array)
+              (len_eq %0 0))
+            (bind B~1)
+            (read C~2))
+          (solve_merge %1 solvable=1
+            (set
+              %0 = scrutinee
+              (is_type %0 array)
+              (len_eq %0 0))
+            (bind A~0)
+            (read B~1))))
+      (array [
+        A~0
+        B~1
+        C~2
+      ]))
+  
+  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:20-22:
+  1 \xe2\x96\x8f input -> [[...A, ...B], [...B, ...C], [...C]] $ [A, B, C] (esc)
+    \xe2\x96\x8f                     ^^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+
+
+
+A merge repeating the same unbound variable has two unknown parts even
+though there is one unknown: it cannot be solved by subtraction. The
+solvable-part count judges parts before classification, so both count.
+
+  $ possum -p 'input -> ("x" + A + A) $ A' -i ''
+  main =
+    (seq result=1
+      (match
+        scrutinee: (call input)
+        %0 = scrutinee
+        (arm
+          (solve_merge %0 solvable=1
+            "x"
+            (bind A~0)
+            (read A~0))))
+      A~0)
+  
+  goal diagnostic: variable 'A' is unbound here: a merge can solve at most one unbound part
+  program:1:9-22:
+  1 \xe2\x96\x8f input -> ("x" + A + A) $ A (esc)
+    \xe2\x96\x8f          ^^^^^^^^^^^^^ (esc)
+  
+  
+  Program Error: variable 'A' is unbound here: a merge can solve at most one unbound part
+  
+  program:1:20-21:
+  1 \xe2\x96\x8f input -> ("x" + A + A) $ A (esc)
+    \xe2\x96\x8f                     ^ (esc)
+  
+  [UnboundVariable]
+  [1]
+
+
+

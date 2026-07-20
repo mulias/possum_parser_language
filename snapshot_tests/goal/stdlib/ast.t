@@ -13,7 +13,7 @@ Full created-stage goal form of stdlib/ast.
           scrutinee: (call prefix~1)
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = key %0 "power"
@@ -61,7 +61,7 @@ Full created-stage goal form of stdlib/ast.
             scrutinee: (call postfix~3)
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   %1 = key %0 "power"
@@ -93,7 +93,7 @@ Full created-stage goal form of stdlib/ast.
             scrutinee: (call infix~2)
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   %1 = key %0 "power"
@@ -263,7 +263,7 @@ Full created-stage goal form of stdlib/ast.
               scrutinee: Left~0
               %0 = scrutinee
               (arm
-                (solve_merge %0
+                (solve_merge %0 solvable=1
                   (set
                     %0 = scrutinee
                     %1 = key %0 "startpos"
@@ -283,7 +283,7 @@ Full created-stage goal form of stdlib/ast.
             scrutinee: Right~1
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   %1 = key %0 "endpos"

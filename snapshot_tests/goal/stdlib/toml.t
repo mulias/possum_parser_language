@@ -1047,7 +1047,7 @@ Full created-stage goal form of stdlib/toml.
           scrutinee: Path~1
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -1188,7 +1188,7 @@ Full created-stage goal form of stdlib/toml.
           scrutinee: Path~1
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -1218,7 +1218,7 @@ Full created-stage goal form of stdlib/toml.
                     scrutinee: (call _Doc.Type [Current~5])
                     %0 = scrutinee
                     (arm
-                      (solve_merge %0
+                      (solve_merge %0 solvable=1
                         (set
                           %0 = scrutinee
                           %1 = elem %0 0
@@ -1252,7 +1252,7 @@ Full created-stage goal form of stdlib/toml.
             scrutinee: (call _Doc.Value [AoTDoc~0])
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   (is_type %0 array)
@@ -1273,7 +1273,7 @@ Full created-stage goal form of stdlib/toml.
               (is_type %0 array)
               (len_eq %0 2)
               (eq_const %1 "array_of_tables")
-              (solve_merge %2
+              (solve_merge %2 solvable=1
                 (set
                   %0 = scrutinee
                   (is_type %0 array)

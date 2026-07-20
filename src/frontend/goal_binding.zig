@@ -11,7 +11,15 @@ const Paths = @import("path_table.zig").PathTable;
 
 const Env = binding.Env;
 const SlotSet = binding.SlotSet;
-const Diagnostic = binding.Diagnostic;
+
+// binding.Diagnostic plus the module, so the frontend can print regions
+// without re-threading module state.
+pub const Diagnostic = struct {
+    module_id: Module.Id,
+    region: Region,
+    name: ?Strings.Id,
+    kind: binding.Diagnostic.Kind,
+};
 const markStaleBinds = binding.markStaleBinds;
 const joinEnv = binding.joinEnv;
 
@@ -31,10 +39,20 @@ const joinEnv = binding.joinEnv;
 // the creation point, and an unbound capture reports at the chain's
 // outermost lambda.
 //
-// Deliberate deviations from binding.zig, all invisible on programs that
-// compile:
-// - The one-unbound-part rule (extra_unbound_part) is not enforced; it
-//   moves to step lowering with the fixpoint scheduler.
+// Constraint classification runs through a fixpoint scheduler
+// (scheduleConstraints): binder selection is an output of readiness, not
+// textual first sight, so `[[...A, ...B], [...B]]` schedules element 1's
+// bind of B before element 0's merge and becomes solvable. The
+// one-unbound-part rule (extra_unbound_part) is enforced here, judged
+// pre-classification like can-binding's checkOneUnboundPart, and each
+// solve_merge's solvable_index is filled. Constraint lists are reordered
+// in place to the schedule.
+//
+// Deliberate deviations from binding.zig:
+// - Constraints can-binding rejects but the fixpoint can order
+//   (delayed merges, evals after their binder) classify with the
+//   scheduled binder sites; visible only on programs can-binding
+//   rejects, until goal binding becomes the reporter.
 // - Value-context repeats get the same per-iteration binding scope as
 //   parser repeats (the goal node is context-free), and their count
 //   reads diagnose as unbound_function_var rather than unbound.
@@ -107,8 +125,9 @@ const Analyzer = struct {
         return &self.scopes.items[self.scopes.items.len - 1];
     }
 
-    fn diagnose(self: *Analyzer, region: Region, name: ?Strings.Id, kind: Diagnostic.Kind) !void {
+    fn diagnose(self: *Analyzer, region: Region, name: ?Strings.Id, kind: binding.Diagnostic.Kind) !void {
         try self.diagnostics.append(self.allocator, .{
+            .module_id = self.module_id,
             .region = region,
             .name = name,
             .kind = kind,
@@ -422,53 +441,299 @@ const Analyzer = struct {
     fn destructure(self: *Analyzer, env: *Env, constraints: []Ast.Constraint) Allocator.Error!void {
         var bindable = SlotSet.initEmpty();
         self.collectBindable(constraints, &bindable);
-        try self.visitConstraints(env, &bindable, constraints);
+        try self.scheduleConstraints(env, &bindable, constraints);
     }
 
-    fn visitConstraints(
+    // Worklist fixpoint over one constraint list: repeatedly classify the
+    // earliest pending constraint that is ready — it can solve for at
+    // most one unknown part, and no eval read of an unbound slot that
+    // another pending constraint could still bind. A constraint that
+    // cannot run yet waits; binding is monotone, so a ready constraint
+    // never becomes unready and the greedy pick is safe. When nothing is
+    // ready the earliest pending constraint is classified anyway, which
+    // reproduces the textual walk and its diagnostics for
+    // underdetermined sets (`[...A, ...B]`: extra_unbound_part) and
+    // cyclic sets (`[A + Inc(B), B + Inc(A)]`: accepted, a runtime
+    // error, matching can-binding; cycles become compile errors when
+    // goal binding becomes the reporter). The list is reordered in place
+    // to the schedule; for every constraint set the textual walk
+    // accepts, the earliest-ready tie-break reproduces source order
+    // exactly. Producers are only visible within one list: a read
+    // satisfiable only by an outer or sibling scope's constraint does
+    // not delay, which is never wrong, only conservative.
+    fn scheduleConstraints(
         self: *Analyzer,
         env: *Env,
         bindable: *const SlotSet,
         constraints: []Ast.Constraint,
     ) Allocator.Error!void {
-        for (constraints) |*constraint| {
-            const region = constraint.region;
-            switch (constraint.kind) {
-                .is_type, .len_eq, .len_min, .keys_exact, .has_key, .eq_const, .eq_places => {},
-                .bind, .eq_slot, .eq_global => unreachable,
-                .local => |occ| try self.classifyLocalConstraint(env, constraint, occ, region),
-                .eval_eq => |eval| try self.walkPatternExpr(env, bindable, eval.expr),
-                .in_range => |*range| {
-                    try self.classifyLimit(env, bindable, &range.lower, region);
-                    try self.classifyLimit(env, bindable, &range.upper, region);
+        if (constraints.len <= 1) {
+            for (constraints) |*constraint| try self.classifyConstraint(env, bindable, constraint);
+            return;
+        }
+
+        const n = constraints.len;
+        const producers = try self.allocator.alloc(SlotSet, n);
+        for (producers, 0..) |*set, i| {
+            set.* = SlotSet.initEmpty();
+            self.collectBindable(constraints[i .. i + 1], set);
+        }
+        const scheduled = try self.allocator.alloc(bool, n);
+        @memset(scheduled, false);
+        const order = try self.allocator.alloc(u32, n);
+
+        var count: usize = 0;
+        while (count < n) : (count += 1) {
+            var pick: ?usize = null;
+            for (constraints, 0..) |constraint, i| {
+                if (scheduled[i]) continue;
+                if (self.constraintReady(env, constraints, producers, scheduled, i, constraint)) {
+                    pick = i;
+                    break;
+                }
+            }
+            if (pick == null) {
+                for (scheduled, 0..) |done, i| {
+                    if (!done) {
+                        pick = i;
+                        break;
+                    }
+                }
+            }
+            const index = pick.?;
+            scheduled[index] = true;
+            order[count] = @intCast(index);
+            try self.classifyConstraint(env, bindable, &constraints[index]);
+        }
+
+        for (order, 0..) |src, dst| {
+            if (src != dst) break;
+        } else return;
+        const temp = try self.allocator.alloc(Ast.Constraint, n);
+        for (order, 0..) |src, dst| temp[dst] = constraints[src];
+        @memcpy(constraints, temp);
+    }
+
+    fn constraintReady(
+        self: *Analyzer,
+        env: *const Env,
+        constraints: []const Ast.Constraint,
+        producers: []const SlotSet,
+        scheduled: []const bool,
+        index: usize,
+        constraint: Ast.Constraint,
+    ) bool {
+        // Evals that run, run in source order relative to each other.
+        if (constraint.kind == .eval_eq) {
+            for (constraints[0..index], 0..) |earlier, i| {
+                if (!scheduled[i] and earlier.kind == .eval_eq) return false;
+            }
+        }
+
+        var reads = SlotSet.initEmpty();
+        self.collectEvalReads(constraint, &reads);
+        var iter = reads.iterator(.{});
+        while (iter.next()) |slot| {
+            if (env.slots[slot].state != .unbound) continue;
+            for (producers, 0..) |producer, i| {
+                if (i != index and !scheduled[i] and producer.isSet(slot)) return false;
+            }
+        }
+
+        return self.countSolvableParts(env, constraint) <= 1;
+    }
+
+    // How many parts the constraint would have to solve for, judged
+    // against the current env the same way can-binding's
+    // checkOneUnboundPart judges parts before classifying them: an
+    // unbound bare local or a placeholder needs solving; evaluable
+    // expressions and structural sub-patterns never do.
+    fn countSolvableParts(self: *Analyzer, env: *const Env, constraint: Ast.Constraint) u32 {
+        var count: u32 = 0;
+        switch (constraint.kind) {
+            .solve_merge => |merge| for (merge.parts.items) |part| {
+                if (self.partIsSolvable(env, part)) count += 1;
+            },
+            .match_template => |template| for (template.segments.items) |segment| switch (segment) {
+                .literal => {},
+                .part => |part| if (self.partIsSolvable(env, part)) {
+                    count += 1;
                 },
-                .negated => |*negated| try self.classifyPart(env, bindable, &negated.part, region),
-                .solve_merge => |*merge| for (merge.parts.items) |*part| {
+            },
+            else => {},
+        }
+        return count;
+    }
+
+    fn partIsSolvable(self: *Analyzer, env: *const Env, part: Ast.Part) bool {
+        return switch (part) {
+            .placeholder, .bind => true,
+            .read, .global, .expr, .sub => false,
+            .local => |name| blk: {
+                const slot = self.patternSlot(name) orelse break :blk false;
+                break :blk env.slots[slot].state != .bound;
+            },
+        };
+    }
+
+    fn partUnboundName(self: *Analyzer, part: Ast.Part) ?Strings.Id {
+        return switch (part) {
+            .local => |name| self.frontend.paths.single(name),
+            .bind => |local| self.frontend.paths.single(local.name),
+            else => null,
+        };
+    }
+
+    // The one-unbound-part rule, judged pre-classification like
+    // can-binding: the first solvable part is the one the solver will
+    // solve for; every further solvable part is a compile error. Returns
+    // the solvable index for solve_merge to record.
+    fn checkSolvableParts(
+        self: *Analyzer,
+        env: *const Env,
+        constraint: Ast.Constraint,
+        region: Region,
+    ) !?u32 {
+        var solvable: ?u32 = null;
+        switch (constraint.kind) {
+            .solve_merge => |merge| for (merge.parts.items, 0..) |part, index| {
+                if (!self.partIsSolvable(env, part)) continue;
+                if (solvable == null) {
+                    solvable = @intCast(index);
+                } else {
+                    try self.diagnose(region, self.partUnboundName(part), .extra_unbound_part);
+                }
+            },
+            .match_template => |template| for (template.segments.items) |segment| switch (segment) {
+                .literal => {},
+                .part => |part| {
+                    if (!self.partIsSolvable(env, part)) continue;
+                    if (solvable == null) {
+                        solvable = 0;
+                    } else {
+                        try self.diagnose(region, self.partUnboundName(part), .extra_unbound_part);
+                    }
+                },
+            },
+            else => unreachable,
+        }
+        return solvable;
+    }
+
+    // Slots a constraint reads in evaluated positions: eval_eq
+    // expressions, expression parts, and the evaluated interior of
+    // compound range limits (whose bare locals bind rather than read).
+    fn collectEvalReads(self: *Analyzer, constraint: Ast.Constraint, set: *SlotSet) void {
+        switch (constraint.kind) {
+            .is_type, .len_eq, .len_min, .keys_exact, .has_key => {},
+            .eq_const, .eq_places, .local, .bind, .eq_slot, .eq_global => {},
+            .eval_eq => |eval| self.collectExprSlots(eval.expr, set),
+            .in_range => |range| {
+                self.collectLimitEvalReads(range.lower, set);
+                self.collectLimitEvalReads(range.upper, set);
+            },
+            .negated => |negated| self.collectPartEvalReads(negated.part, set),
+            .solve_merge => |merge| for (merge.parts.items) |part| {
+                self.collectPartEvalReads(part, set);
+            },
+            .match_template => |template| for (template.segments.items) |segment| switch (segment) {
+                .literal => {},
+                .part => |part| self.collectPartEvalReads(part, set),
+            },
+            .solve_repeat => |repeat| {
+                self.collectPartEvalReads(repeat.pattern, set);
+                self.collectPartEvalReads(repeat.count, set);
+            },
+            .search_key => |search| {
+                for (self.ast.constraint_sets.items[search.key].constraints.items) |sub| {
+                    self.collectEvalReads(sub, set);
+                }
+                for (self.ast.constraint_sets.items[search.value].constraints.items) |sub| {
+                    self.collectEvalReads(sub, set);
+                }
+            },
+        }
+    }
+
+    fn collectPartEvalReads(self: *Analyzer, part: Ast.Part, set: *SlotSet) void {
+        switch (part) {
+            .placeholder, .local, .bind, .read, .global => {},
+            .expr => |expr| self.collectExprSlots(expr, set),
+            .sub => |set_id| for (self.ast.constraint_sets.items[set_id].constraints.items) |sub| {
+                self.collectEvalReads(sub, set);
+            },
+        }
+    }
+
+    fn collectLimitEvalReads(self: *Analyzer, limit: Ast.Limit, set: *SlotSet) void {
+        switch (limit) {
+            .none, .local, .bind, .read, .global => {},
+            .expr => |expr| self.collectLimitExprEvalReads(expr, set),
+        }
+    }
+
+    fn collectLimitExprEvalReads(self: *Analyzer, id: Ast.NodeId, set: *SlotSet) void {
+        switch (self.ast.goals.items[id].node) {
+            // A bare local in a compound limit binds (the limit solves
+            // for it), so it is not a read.
+            .ident => {},
+            .merge => |merge| {
+                self.collectLimitExprEvalReads(merge.left, set);
+                self.collectLimitExprEvalReads(merge.right, set);
+            },
+            .neg => |inner| self.collectLimitExprEvalReads(inner, set),
+            else => self.collectExprSlots(id, set),
+        }
+    }
+
+    fn classifyConstraint(
+        self: *Analyzer,
+        env: *Env,
+        bindable: *const SlotSet,
+        constraint: *Ast.Constraint,
+    ) Allocator.Error!void {
+        const region = constraint.region;
+        switch (constraint.kind) {
+            .is_type, .len_eq, .len_min, .keys_exact, .has_key, .eq_const, .eq_places => {},
+            .bind, .eq_slot, .eq_global => unreachable,
+            .local => |occ| try self.classifyLocalConstraint(env, constraint, occ, region),
+            .eval_eq => |eval| try self.walkPatternExpr(env, bindable, eval.expr),
+            .in_range => |*range| {
+                try self.classifyLimit(env, bindable, &range.lower, region);
+                try self.classifyLimit(env, bindable, &range.upper, region);
+            },
+            .negated => |*negated| try self.classifyPart(env, bindable, &negated.part, region),
+            .solve_merge => |*merge| {
+                merge.solvable_index = try self.checkSolvableParts(env, constraint.*, region);
+                for (merge.parts.items) |*part| {
                     try self.classifyPart(env, bindable, part, region);
-                },
-                .match_template => |*template| for (template.segments.items) |*segment| {
+                }
+            },
+            .match_template => |*template| {
+                _ = try self.checkSolvableParts(env, constraint.*, region);
+                for (template.segments.items) |*segment| {
                     switch (segment.*) {
                         .literal => {},
                         .part => |*part| try self.classifyPart(env, bindable, part, region),
                     }
-                },
-                .solve_repeat => |*repeat| {
-                    try self.classifyPart(env, bindable, &repeat.pattern, region);
-                    try self.classifyPart(env, bindable, &repeat.count, region);
-                },
-                .search_key => |search| {
-                    try self.visitConstraints(
-                        env,
-                        bindable,
-                        self.ast.constraint_sets.items[search.key].constraints.items,
-                    );
-                    try self.visitConstraints(
-                        env,
-                        bindable,
-                        self.ast.constraint_sets.items[search.value].constraints.items,
-                    );
-                },
-            }
+                }
+            },
+            .solve_repeat => |*repeat| {
+                try self.classifyPart(env, bindable, &repeat.pattern, region);
+                try self.classifyPart(env, bindable, &repeat.count, region);
+            },
+            .search_key => |search| {
+                try self.scheduleConstraints(
+                    env,
+                    bindable,
+                    self.ast.constraint_sets.items[search.key].constraints.items,
+                );
+                try self.scheduleConstraints(
+                    env,
+                    bindable,
+                    self.ast.constraint_sets.items[search.value].constraints.items,
+                );
+            },
         }
     }
 
@@ -538,7 +803,7 @@ const Analyzer = struct {
                     .{ .global = name };
             },
             .expr => |expr| try self.walkPatternExpr(env, bindable, expr),
-            .sub => |set_id| try self.visitConstraints(
+            .sub => |set_id| try self.scheduleConstraints(
                 env,
                 bindable,
                 self.ast.constraint_sets.items[set_id].constraints.items,
@@ -982,7 +1247,12 @@ const Verifier = struct {
                     self.verifyLimit(range.upper);
                 },
                 .negated => |negated| self.verifyPart(negated.part),
-                .solve_merge => |merge| for (merge.parts.items) |part| self.verifyPart(part),
+                .solve_merge => |merge| for (merge.parts.items) |part| {
+                    self.verifyPart(part);
+                    if (part == .bind and merge.solvable_index == null) {
+                        self.fail("merge binds a part but has no solvable_index", part.bind.name);
+                    }
+                },
                 .match_template => |template| for (template.segments.items) |segment| {
                     switch (segment) {
                         .literal => {},

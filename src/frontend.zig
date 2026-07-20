@@ -32,10 +32,12 @@ binding_maps: binding.Maps = .{},
 // immediately; the goal binding pass classifies them in finalize, once
 // the dependency graph is resolved.
 goals: std.AutoArrayHashMapUnmanaged(Module.Id, *Goal) = .{},
-// Diagnostics from the goal binding pass. Never reported: can-binding
-// remains the reporter until the compiler consumes goal, and finalize
-// asserts these are empty whenever can-binding succeeds.
-goal_diagnostics: std.ArrayListUnmanaged(binding.Diagnostic) = .{},
+// Diagnostics from the goal binding pass. Not reported as errors:
+// can-binding remains the reporter until the compiler consumes goal, and
+// finalize asserts these are empty whenever can-binding succeeds. They
+// print to the debug writer with the bound goal so cram tests can see
+// them.
+goal_diagnostics: std.ArrayListUnmanaged(goal_binding.Diagnostic) = .{},
 // The target module's requested goal print stage; the bound stage can
 // only print from finalize.
 print_goal_stage: ?GoalAst.Stage = null,
@@ -256,9 +258,12 @@ pub fn finalize(self: *Frontend) !void {
     try self.reportResolverDiagnostics();
     // try self.resolver.prune();
     try self.analyzeGoalBindings();
+    // Before can-binding, so newly-schedulable patterns can-binding
+    // still rejects (fixpoint-ordered constraints) print their bound
+    // goal ahead of the can error.
+    try self.printBoundGoal();
     try self.analyzeBindings();
     self.checkGoalBindingParity();
-    try self.printBoundGoal();
     // try self.analyzeLiveness();
 }
 
@@ -296,6 +301,49 @@ fn printBoundGoal(self: *Frontend) !void {
     const target = self.target_module_id orelse return;
     const goal = self.goals.get(target) orelse return;
     try goal.print(self.writers.debug);
+    try self.printGoalDiagnostics();
+}
+
+// Goal binding diagnostics print with the bound goal, mirroring
+// reportBindingDiagnostics' messages, so cram tests can see what goal
+// binding diagnosed while can-binding remains the error reporter.
+fn printGoalDiagnostics(self: *Frontend) !void {
+    const writer = self.writers.debug;
+    for (self.goal_diagnostics.items) |diagnostic| {
+        const name: []const u8 = if (diagnostic.name) |n| self.strings.get(n) else "";
+        try writer.print("\ngoal diagnostic: ", .{});
+        switch (diagnostic.kind) {
+            .unbound => try writer.print(
+                "variable '{s}' is unbound here",
+                .{name},
+            ),
+            .out_of_scope => try writer.print(
+                "variable '{s}' is unbound here: its binding is out of scope",
+                .{name},
+            ),
+            .split => try writer.print(
+                "variable '{s}' may be unbound here: it is not bound on every path",
+                .{name},
+            ),
+            .unbound_function_var => try writer.print(
+                "variable '{s}' is unbound here: variables in pattern function calls must be bound",
+                .{name},
+            ),
+            .extra_unbound_part => if (diagnostic.name != null) try writer.print(
+                "variable '{s}' is unbound here: a merge can solve at most one unbound part",
+                .{name},
+            ) else try writer.print(
+                "pattern part is unbound here: a merge can solve at most one unbound part",
+                .{},
+            ),
+        }
+        const module = self.vm.getModule(diagnostic.module_id);
+        try writer.print("\n{s}:", .{module.name});
+        try diagnostic.region.printLineRelative(module.source, writer);
+        try writer.print(":\n", .{});
+        try module.highlight(diagnostic.region, writer);
+        try writer.print("\n", .{});
+    }
 }
 
 fn reportResolverDiagnostics(self: *Frontend) !void {

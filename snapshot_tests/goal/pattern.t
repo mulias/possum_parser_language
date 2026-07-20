@@ -70,7 +70,7 @@ parts, each rooted at its own portion of the value.
       scrutinee: (call array [int])
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           (set
             %0 = scrutinee
             %1 = elem %0 0
@@ -85,7 +85,7 @@ parts, each rooted at its own portion of the value.
       scrutinee: (call array [int])
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           (set
             %0 = scrutinee
             (is_type %0 array)
@@ -104,7 +104,7 @@ parts, each rooted at its own portion of the value.
       scrutinee: (call array [int])
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           (set
             %0 = scrutinee
             %1 = elem %0 0
@@ -147,7 +147,7 @@ key searches the unmatched members with nested key/value constraint sets.
       scrutinee: (call object [word int])
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           (set
             %0 = scrutinee
             %1 = key %0 "a"

@@ -80,7 +80,7 @@ reads are bound, and the cap is cleared when the count test must solve.
         body: (call digit)
         count: (set
           %0 = scrutinee
-          (solve_merge %0
+          (solve_merge %0 solvable=0
             (bind N~0)
             2)))
       N~0)

@@ -8,7 +8,7 @@ Full created-stage goal form of stdlib/predicate_value.
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           ""
           _)))
   
@@ -17,7 +17,7 @@ Full created-stage goal form of stdlib/predicate_value.
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           0
           _)))
   
@@ -26,7 +26,7 @@ Full created-stage goal form of stdlib/predicate_value.
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           false
           _)))
   
@@ -42,7 +42,7 @@ Full created-stage goal form of stdlib/predicate_value.
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           (set
             %0 = scrutinee
             (is_type %0 array)
@@ -54,7 +54,7 @@ Full created-stage goal form of stdlib/predicate_value.
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           (set
             %0 = scrutinee
             (is_type %0 object)

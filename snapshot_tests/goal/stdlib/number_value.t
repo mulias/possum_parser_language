@@ -84,7 +84,7 @@ Full created-stage goal form of stdlib/number_value.
           scrutinee: Bs~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -118,7 +118,7 @@ Full created-stage goal form of stdlib/number_value.
           scrutinee: Os~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -152,7 +152,7 @@ Full created-stage goal form of stdlib/number_value.
           scrutinee: Hs~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0

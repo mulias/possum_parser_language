@@ -9,7 +9,7 @@ Full created-stage goal form of stdlib/array_value.
         scrutinee: A~0
         %0 = scrutinee
         (arm
-          (solve_merge %0
+          (solve_merge %0 solvable=1
             (set
               %0 = scrutinee
               %1 = elem %0 0
@@ -25,7 +25,7 @@ Full created-stage goal form of stdlib/array_value.
         scrutinee: A~0
         %0 = scrutinee
         (arm
-          (solve_merge %0
+          (solve_merge %0 solvable=1
             (set
               %0 = scrutinee
               (is_type %0 array)
@@ -60,7 +60,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: A~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -93,7 +93,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: A~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -129,7 +129,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: A~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -170,7 +170,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: A~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -207,7 +207,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: A~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -229,7 +229,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: A~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -248,7 +248,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: A~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -275,7 +275,7 @@ Full created-stage goal form of stdlib/array_value.
             scrutinee: Ks~0
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   %1 = elem %0 0
@@ -287,7 +287,7 @@ Full created-stage goal form of stdlib/array_value.
             scrutinee: Vs~1
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   %1 = elem %0 0
@@ -324,7 +324,7 @@ Full created-stage goal form of stdlib/array_value.
             scrutinee: A1~0
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   %1 = elem %0 0
@@ -336,7 +336,7 @@ Full created-stage goal form of stdlib/array_value.
             scrutinee: A2~1
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   %1 = elem %0 0
@@ -413,7 +413,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: T~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -425,7 +425,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: Row~1
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -448,7 +448,7 @@ Full created-stage goal form of stdlib/array_value.
             scrutinee: T~0
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   %1 = elem %0 0
@@ -460,7 +460,7 @@ Full created-stage goal form of stdlib/array_value.
             scrutinee: Row~2
             %0 = scrutinee
             (arm
-              (solve_merge %0
+              (solve_merge %0 solvable=1
                 (set
                   %0 = scrutinee
                   %1 = elem %0 0
@@ -494,7 +494,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: T~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0
@@ -508,7 +508,7 @@ Full created-stage goal form of stdlib/array_value.
               scrutinee: Row~2
               %0 = scrutinee
               (arm
-                (solve_merge %0
+                (solve_merge %0 solvable=1
                   (set
                     %0 = scrutinee
                     (is_type %0 array)
@@ -558,7 +558,7 @@ Full created-stage goal form of stdlib/array_value.
           scrutinee: Rows~1
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 %1 = elem %0 0

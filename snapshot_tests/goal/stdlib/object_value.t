@@ -8,7 +8,7 @@ Full created-stage goal form of stdlib/object_value.
       scrutinee: O~0
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 solvable=1
           (set
             %0 = scrutinee
             (is_type %0 object)
@@ -27,7 +27,7 @@ Full created-stage goal form of stdlib/object_value.
         scrutinee: O~0
         %0 = scrutinee
         (arm
-          (solve_merge %0
+          (solve_merge %0 solvable=1
             (set
               %0 = scrutinee
               (is_type %0 object)
@@ -83,7 +83,7 @@ Full created-stage goal form of stdlib/object_value.
           scrutinee: O~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 (is_type %0 object)
@@ -121,7 +121,7 @@ Full created-stage goal form of stdlib/object_value.
           scrutinee: O~0
           %0 = scrutinee
           (arm
-            (solve_merge %0
+            (solve_merge %0 solvable=1
               (set
                 %0 = scrutinee
                 (is_type %0 object)
