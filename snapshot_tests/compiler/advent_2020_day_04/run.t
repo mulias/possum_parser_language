@@ -151,7 +151,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -160,7 +160,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -175,16 +175,16 @@
   ===============4:many_sep===============
   many_sep(p, sep) = p + ((sep > p) * 0..)
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | JumpIfFailure 2 -> 54
   0005    | PushNull
   0006    | PushInteger 0
   0008    | ValidateRepeatPattern
   0009    | JumpIfZero 9 -> 32
   0012    | Swap
-  0013    | CallFunctionLocal 1
+  0013    | CallFunctionLocal l1
   0015    | TakeRight 15 -> 20
-  0018    | CallFunctionLocal 0
+  0018    | CallFunctionLocal l0
   0020    | Merge
   0021    | JumpIfFailure 21 -> 51
   0024    | Swap
@@ -193,9 +193,9 @@
   0029    | JumpBack 29 -> 12
   0032    | Swap
   0033    | SetInputMark
-  0034    | CallFunctionLocal 1
+  0034    | CallFunctionLocal l1
   0036    | TakeRight 36 -> 41
-  0039    | CallFunctionLocal 0
+  0039    | CallFunctionLocal l0
   0041    | JumpIfFailure 41 -> 49
   0044    | PopInputMark
   0045    | Merge
@@ -212,11 +212,11 @@
   unless(p, excluded) = excluded ? @fail : p
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 1
+  0001    | CallFunctionLocal l1
   0003    | ConditionalThen 3 -> 11
   0006    | CallTailFunctionConstant 0: @fail
   0008    | Jump 8 -> 13
-  0011    | CallTailFunctionLocal 0
+  0011    | CallTailFunctionLocal l0
   0013    | End
   ========================================
   
@@ -226,9 +226,9 @@
     ((sep > pair_sep(key, kv_sep, value)) * 0..)
   ========================================
   0000    | GetConstant 0: pair_sep
-  0002    | GetLocal 0
-  0004    | GetLocal 1
-  0006    | GetLocal 2
+  0002    | GetLocal l0
+  0004    | GetLocal l1
+  0006    | GetLocal l2
   0008    | CallFunction 3
   0010    | JumpIfFailure 10 -> 78
   0013    | PushNull
@@ -236,12 +236,12 @@
   0016    | ValidateRepeatPattern
   0017    | JumpIfZero 17 -> 48
   0020    | Swap
-  0021    | CallFunctionLocal 3
+  0021    | CallFunctionLocal l3
   0023    | TakeRight 23 -> 36
   0026    | GetConstant 0: pair_sep
-  0028    | GetLocal 0
-  0030    | GetLocal 1
-  0032    | GetLocal 2
+  0028    | GetLocal l0
+  0030    | GetLocal l1
+  0032    | GetLocal l2
   0034    | CallFunction 3
   0036    | Merge
   0037    | JumpIfFailure 37 -> 75
@@ -251,12 +251,12 @@
   0045    | JumpBack 45 -> 20
   0048    | Swap
   0049    | SetInputMark
-  0050    | CallFunctionLocal 3
+  0050    | CallFunctionLocal l3
   0052    | TakeRight 52 -> 65
   0055    | GetConstant 0: pair_sep
-  0057    | GetLocal 0
-  0059    | GetLocal 1
-  0061    | GetLocal 2
+  0057    | GetLocal l0
+  0059    | GetLocal l1
+  0061    | GetLocal l2
   0063    | CallFunction 3
   0065    | JumpIfFailure 65 -> 73
   0068    | PopInputMark
@@ -275,17 +275,17 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal 0
+  0004    | CallFunctionLocal l0
   0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 13
-  0011    | CallFunctionLocal 1
+  0011    | CallFunctionLocal l1
   0013    | TakeRight 13 -> 31
-  0016    | CallFunctionLocal 2
+  0016    | CallFunctionLocal l2
   0018    | DestructurePlan 1: bind V
   0020    | TakeRight 20 -> 31
   0023    | GetConstantMutable 1: {_0_}
-  0025    | GetLocalMove 3
-  0027    | GetLocalMove 4
+  0025    | GetLocalMove l3
+  0027    | GetLocalMove l4
   0029    | InsertKeyVal 0
   0031    | End
   ========================================

@@ -86,7 +86,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -95,7 +95,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -175,7 +175,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -184,7 +184,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -264,7 +264,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -273,7 +273,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -355,7 +355,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -364,7 +364,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -479,7 +479,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -488,7 +488,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -504,7 +504,7 @@
   maybe(p) = p | succeed
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 8
   0006    | CallTailFunctionConstant 0: succeed
   0008    | End
@@ -522,7 +522,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -530,10 +530,10 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar N
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 1
+  0009    | GetLocalMove l1
   0011    | End
   ========================================
   

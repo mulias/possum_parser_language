@@ -8,14 +8,14 @@
   ========================================
   
   ==============0:@Codepoint==============
-  0000    | GetLocal 0
+  0000    | GetLocal l0
   0002    | NativeCode 3: stringToCodepointNative
   0004    | End
   ========================================
   
   =======0:@SurrogatePairCodepoint========
-  0000    | GetLocal 0
-  0002    | GetLocal 1
+  0000    | GetLocal l0
+  0002    | GetLocal l1
   0004    | NativeCode 1: stringsToSurrogateCodepointNative
   0006    | End
   ========================================
@@ -189,8 +189,8 @@
   0015    | DestructurePlan 1: bind L
   0017    | TakeRight 17 -> 28
   0020    | GetConstant 32: @SurrogatePairCodepoint
-  0022    | GetLocalMove 0
-  0024    | GetLocalMove 1
+  0022    | GetLocalMove l0
+  0024    | GetLocalMove l1
   0026    | CallTailFunction 2
   0028    | End
   ========================================
@@ -292,7 +292,7 @@
   0032    | DestructurePlan 2: bind U
   0034    | TakeRight 34 -> 43
   0037    | GetConstant 35: @Codepoint
-  0039    | GetLocalMove 0
+  0039    | GetLocalMove l0
   0041    | CallTailFunction 1
   0043    | End
   ========================================
@@ -305,7 +305,7 @@
   0005    | GetConstant 37: maybe_array_sep
   0007    | GetConstant 38: @fn2
   0009    | CreateClosure 1
-  0011    | CaptureLocal 0
+  0011    | CaptureLocal l0
   0013    | PushString2 ","
   0016    | CallFunction 2
   0018    | JumpIfFailure 18 -> 24
@@ -330,7 +330,7 @@
   0009    | PushString2 ":"
   0012    | GetConstant 45: @fn6
   0014    | CreateClosure 1
-  0016    | CaptureLocal 0
+  0016    | CaptureLocal l0
   0018    | PushString2 ","
   0021    | CallFunction 4
   0023    | JumpIfFailure 23 -> 29
@@ -392,7 +392,7 @@
   0000    | PushVar2 elem
   0003    | SetClosureCaptures
   0004    | GetConstant 39: surround
-  0006    | GetLocalMove 0
+  0006    | GetLocalMove l0
   0008    | GetConstant 40: @fn3
   0010    | CallTailFunction 2
   0012    | End
@@ -432,7 +432,7 @@
   0000    | PushVar value
   0002    | SetClosureCaptures
   0003    | GetConstant 39: surround
-  0005    | GetLocalMove 0
+  0005    | GetLocalMove l0
   0007    | GetConstant 47: @fn7
   0009    | CallTailFunction 2
   0011    | End
@@ -567,7 +567,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -576,7 +576,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -592,7 +592,7 @@
   maybe(p) = p | succeed
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 8
   0006    | CallTailFunctionConstant 0: succeed
   0008    | End
@@ -602,11 +602,11 @@
   unless(p, excluded) = excluded ? @fail : p
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 1
+  0001    | CallFunctionLocal l1
   0003    | ConditionalThen 3 -> 11
   0006    | CallTailFunctionConstant 2: @fail
   0008    | Jump 8 -> 13
-  0011    | CallTailFunctionLocal 0
+  0011    | CallTailFunctionLocal l0
   0013    | End
   ========================================
   
@@ -623,10 +623,10 @@
   default(p, D) = p | const(D)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 12
   0006    | GetConstant 1: const
-  0008    | GetLocalMove 1
+  0008    | GetLocalMove l1
   0010    | CallTailFunction 1
   0012    | End
   ========================================
@@ -634,7 +634,7 @@
   ================3:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -642,21 +642,21 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar N
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 1
+  0009    | GetLocalMove l1
   0011    | End
   ========================================
   
   ===============3:surround===============
   surround(p, fill) = fill > p < fill
   ========================================
-  0000    | CallFunctionLocal 1
+  0000    | CallFunctionLocal l1
   0002    | TakeRight 2 -> 7
-  0005    | CallFunctionLocal 0
+  0005    | CallFunctionLocal l0
   0007    | JumpIfFailure 7 -> 13
-  0010    | CallFunctionLocal 1
+  0010    | CallFunctionLocal l1
   0012    | TakeLeft
   0013    | End
   ========================================
@@ -664,7 +664,7 @@
   =================4:true=================
   true(t) = t $ true
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 6
   0005    | PushTrue
   0006    | End
@@ -673,7 +673,7 @@
   ================4:false=================
   false(f) = f $ false
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 6
   0005    | PushFalse
   0006    | End
@@ -684,11 +684,11 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: true
-  0003    | GetLocalMove 0
+  0003    | GetLocalMove l0
   0005    | CallFunction 1
   0007    | Or 7 -> 16
   0010    | GetConstant 1: false
-  0012    | GetLocalMove 1
+  0012    | GetLocalMove l1
   0014    | CallTailFunction 1
   0016    | End
   ========================================
@@ -696,7 +696,7 @@
   =================4:null=================
   null(n) = n $ null
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 6
   0005    | PushNull
   0006    | End
@@ -796,7 +796,7 @@
   array_sep(elem, sep) = tuple1(elem) + (tuple1(sep > elem) * 0..)
   ========================================
   0000    | GetConstant 3: tuple1
-  0002    | GetLocal 0
+  0002    | GetLocal l0
   0004    | CallFunction 1
   0006    | JumpIfFailure 6 -> 68
   0009    | PushNull
@@ -807,8 +807,8 @@
   0017    | GetConstant 3: tuple1
   0019    | GetConstant 4: @fn0
   0021    | CreateClosure 2
-  0023    | CaptureLocal 1
-  0025    | CaptureLocal 0
+  0023    | CaptureLocal l1
+  0025    | CaptureLocal l0
   0027    | CallFunction 1
   0029    | Merge
   0030    | JumpIfFailure 30 -> 65
@@ -821,8 +821,8 @@
   0043    | GetConstant 3: tuple1
   0045    | GetConstant 4: @fn0
   0047    | CreateClosure 2
-  0049    | CaptureLocal 1
-  0051    | CaptureLocal 0
+  0049    | CaptureLocal l1
+  0051    | CaptureLocal l0
   0053    | CallFunction 1
   0055    | JumpIfFailure 55 -> 63
   0058    | PopInputMark
@@ -842,8 +842,8 @@
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn3
   0004    | CreateClosure 2
-  0006    | CaptureLocal 0
-  0008    | CaptureLocal 1
+  0006    | CaptureLocal l0
+  0008    | CaptureLocal l1
   0010    | PushEmptyArray
   0011    | CallTailFunction 2
   0013    | End
@@ -853,11 +853,11 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar2 Elem
-  0003    | CallFunctionLocal 0
+  0003    | CallFunctionLocal l0
   0005    | DestructurePlan 0: bind Elem
   0007    | TakeRight 7 -> 16
   0010    | GetConstantMutable 5: [_]
-  0012    | GetLocalMove 1
+  0012    | GetLocalMove l1
   0014    | InsertAtIndex 0
   0016    | End
   ========================================
@@ -868,9 +868,9 @@
   0000    | PushVar2 sep
   0003    | PushVar2 elem
   0006    | SetClosureCaptures
-  0007    | CallFunctionLocal 0
+  0007    | CallFunctionLocal l0
   0009    | TakeRight 9 -> 14
-  0012    | CallTailFunctionLocal 1
+  0012    | CallTailFunctionLocal l1
   0014    | End
   ========================================
   
@@ -881,8 +881,8 @@
   0003    | PushVar2 sep
   0006    | SetClosureCaptures
   0007    | GetConstant 2: array_sep
-  0009    | GetLocalMove 0
-  0011    | GetLocalMove 1
+  0009    | GetLocalMove l0
+  0011    | GetLocalMove l1
   0013    | CallTailFunction 2
   0015    | End
   ========================================
@@ -893,9 +893,9 @@
     ((sep > pair_sep(key, kv_sep, value)) * 0..)
   ========================================
   0000    | GetConstant 3: pair_sep
-  0002    | GetLocal 0
-  0004    | GetLocal 1
-  0006    | GetLocal 2
+  0002    | GetLocal l0
+  0004    | GetLocal l1
+  0006    | GetLocal l2
   0008    | CallFunction 3
   0010    | JumpIfFailure 10 -> 78
   0013    | PushNull
@@ -903,12 +903,12 @@
   0016    | ValidateRepeatPattern
   0017    | JumpIfZero 17 -> 48
   0020    | Swap
-  0021    | CallFunctionLocal 3
+  0021    | CallFunctionLocal l3
   0023    | TakeRight 23 -> 36
   0026    | GetConstant 3: pair_sep
-  0028    | GetLocal 0
-  0030    | GetLocal 1
-  0032    | GetLocal 2
+  0028    | GetLocal l0
+  0030    | GetLocal l1
+  0032    | GetLocal l2
   0034    | CallFunction 3
   0036    | Merge
   0037    | JumpIfFailure 37 -> 75
@@ -918,12 +918,12 @@
   0045    | JumpBack 45 -> 20
   0048    | Swap
   0049    | SetInputMark
-  0050    | CallFunctionLocal 3
+  0050    | CallFunctionLocal l3
   0052    | TakeRight 52 -> 65
   0055    | GetConstant 3: pair_sep
-  0057    | GetLocal 0
-  0059    | GetLocal 1
-  0061    | GetLocal 2
+  0057    | GetLocal l0
+  0059    | GetLocal l1
+  0061    | GetLocal l2
   0063    | CallFunction 3
   0065    | JumpIfFailure 65 -> 73
   0068    | PopInputMark
@@ -944,10 +944,10 @@
   0000    | GetConstant 0: default
   0002    | GetConstant 1: @fn2
   0004    | CreateClosure 4
-  0006    | CaptureLocal 0
-  0008    | CaptureLocal 1
-  0010    | CaptureLocal 2
-  0012    | CaptureLocal 3
+  0006    | CaptureLocal l0
+  0008    | CaptureLocal l1
+  0010    | CaptureLocal l2
+  0012    | CaptureLocal l3
   0014    | PushEmptyObject
   0015    | CallTailFunction 2
   0017    | End
@@ -958,17 +958,17 @@
   ========================================
   0000    | PushVar2 K
   0003    | PushVar2 V
-  0006    | CallFunctionLocal 0
+  0006    | CallFunctionLocal l0
   0008    | DestructurePlan 0: bind K
   0010    | TakeRight 10 -> 15
-  0013    | CallFunctionLocal 1
+  0013    | CallFunctionLocal l1
   0015    | TakeRight 15 -> 33
-  0018    | CallFunctionLocal 2
+  0018    | CallFunctionLocal l2
   0020    | DestructurePlan 1: bind V
   0022    | TakeRight 22 -> 33
   0025    | GetConstantMutable 4: {_0_}
-  0027    | GetLocalMove 3
-  0029    | GetLocalMove 4
+  0027    | GetLocalMove l3
+  0029    | GetLocalMove l4
   0031    | InsertKeyVal 0
   0033    | End
   ========================================
@@ -982,10 +982,10 @@
   0008    | PushVar2 sep
   0011    | SetClosureCaptures
   0012    | GetConstant 2: object_sep
-  0014    | GetLocalMove 0
-  0016    | GetLocalMove 1
-  0018    | GetLocalMove 2
-  0020    | GetLocalMove 3
+  0014    | GetLocalMove l0
+  0016    | GetLocalMove l1
+  0018    | GetLocalMove l2
+  0020    | GetLocalMove l3
   0022    | CallTailFunction 4
   0024    | End
   ========================================

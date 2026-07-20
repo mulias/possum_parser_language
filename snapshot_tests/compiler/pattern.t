@@ -5,7 +5,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -24,7 +24,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -46,7 +46,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -67,7 +67,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -87,7 +87,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -105,7 +105,7 @@
   0016    | CallFunction 1
   0018    | DestructurePlan 0: [bind A, [[bind B], eq 3]]
   0020    | TakeRight 20 -> 25
-  0023    | GetLocalMove 1
+  0023    | GetLocalMove l1
   0025    | End
   ========================================
 
@@ -125,7 +125,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -143,8 +143,8 @@
   $ possum -p 'const([1, @Add(1, 2), 3]) -> [A, @Add(1, 1), 3]' -i ''
   
   =================0:@Add=================
-  0000    | GetLocal 0
-  0002    | GetLocal 1
+  0000    | GetLocal l0
+  0002    | GetLocal l1
   0004    | NativeCode 1: addNative
   0006    | End
   ========================================
@@ -152,7 +152,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -177,7 +177,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -196,7 +196,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -216,7 +216,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -242,7 +242,7 @@
   0002    | CallFunctionConstant 0: "foobar"
   0004    | DestructurePlan 0: (eq "fo" + bind Ob + eq "ar")
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -251,7 +251,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -264,7 +264,7 @@
   0006    | CallFunction 1
   0008    | DestructurePlan 0: ([eq 1] + bind Rest)
   0010    | TakeRight 10 -> 15
-  0013    | GetLocalMove 0
+  0013    | GetLocalMove l0
   0015    | End
   ========================================
 
@@ -273,7 +273,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -292,7 +292,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -313,7 +313,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -333,7 +333,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -353,7 +353,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -373,7 +373,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -393,7 +393,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -457,7 +457,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -465,7 +465,7 @@
   Is.Array(V) = V -> [..._]
   ========================================
   0000    | PushUnderscoreVar
-  0001    | GetLocalMove 0
+  0001    | GetLocalMove l0
   0003    | DestructurePlan 0: ([] + _)
   0005    | End
   ========================================
@@ -506,38 +506,38 @@
   0004    | PushUnderscoreVar
   0005    | PushVar RowRest
   0007    | SetInputMark
-  0008    | GetLocalMove 0
+  0008    | GetLocalMove l0
   0010    | DestructurePlan 0: ([bind Row] + bind Rest)
   0012    | ConditionalThen 12 -> 71
   0015    | SetInputMark
-  0016    | GetLocalMove 2
+  0016    | GetLocalMove l2
   0018    | DestructurePlan 1: ([_] + bind RowRest)
   0020    | ConditionalThen 20 -> 49
   0023    | GetConstant 0: __Table.RestPerRow
-  0025    | GetLocalMove 3
+  0025    | GetLocalMove l3
   0027    | PushEmptyArray
   0028    | JumpIfFailure 28 -> 34
-  0031    | GetLocalMove 1
+  0031    | GetLocalMove l1
   0033    | Merge
   0034    | JumpIfFailure 34 -> 44
   0037    | GetConstantMutable 1: [_]
-  0039    | GetLocalMove 5
+  0039    | GetLocalMove l5
   0041    | InsertAtIndex 0
   0043    | Merge
   0044    | CallTailFunction 2
   0046    | Jump 46 -> 68
   0049    | GetConstant 0: __Table.RestPerRow
-  0051    | GetLocalMove 3
+  0051    | GetLocalMove l3
   0053    | PushEmptyArray
   0054    | JumpIfFailure 54 -> 60
-  0057    | GetLocalMove 1
+  0057    | GetLocalMove l1
   0059    | Merge
   0060    | JumpIfFailure 60 -> 66
   0063    | GetConstant 2: [[]]
   0065    | Merge
   0066    | CallTailFunction 2
   0068    | Jump 68 -> 73
-  0071    | GetLocalMove 1
+  0071    | GetLocalMove l1
   0073    | End
   ========================================
   
@@ -555,10 +555,10 @@
   ========================================
   0000    | PushVar V
   0002    | PushUnderscoreVar
-  0003    | GetLocalMove 0
+  0003    | GetLocalMove l0
   0005    | DestructurePlan 0: ({bound_eq K: bind V} + _)
   0007    | TakeRight 7 -> 12
-  0010    | GetLocalMove 2
+  0010    | GetLocalMove l2
   0012    | End
   ========================================
   
@@ -629,7 +629,7 @@
   0002    | ParseNumberStringChar 6
   0004    | DestructurePlan 0: (eq 1 + bind X + eq 3)
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -652,7 +652,7 @@
   0002    | ParseNumberStringChar 6
   0004    | DestructurePlan 0: (eq 1 + bind X + eq -3)
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -665,7 +665,7 @@
   0002    | ParseNumberStringChar 6
   0004    | DestructurePlan 0: (eq 1 + negated bind X + eq 3)
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -688,7 +688,7 @@
   0002    | ParseNumberStringChar 5
   0004    | DestructurePlan 0: (negated bind X + eq -1)
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -697,7 +697,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -710,7 +710,7 @@
   0006    | CallFunction 1
   0008    | DestructurePlan 0: [eq 1, (negated bind X + eq -1), eq 2]
   0010    | TakeRight 10 -> 15
-  0013    | GetLocalMove 0
+  0013    | GetLocalMove l0
   0015    | End
   ========================================
 
@@ -743,7 +743,7 @@
   0002    | CallFunctionConstant 0: "50"
   0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -851,7 +851,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -860,7 +860,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -899,7 +899,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -908,7 +908,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -957,7 +957,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -966,7 +966,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -1003,7 +1003,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -1012,7 +1012,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -1039,7 +1039,7 @@
   =================5:true=================
   true(t) = t $ true
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 6
   0005    | PushTrue
   0006    | End
@@ -1048,7 +1048,7 @@
   ================5:false=================
   false(f) = f $ false
   ========================================
-  0000    | CallFunctionLocal 0
+  0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 6
   0005    | PushFalse
   0006    | End
@@ -1059,11 +1059,11 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: true
-  0003    | GetLocalMove 0
+  0003    | GetLocalMove l0
   0005    | CallFunction 1
   0007    | Or 7 -> 16
   0010    | GetConstant 1: false
-  0012    | GetLocalMove 1
+  0012    | GetLocalMove l1
   0014    | CallTailFunction 1
   0016    | End
   ========================================
@@ -1073,11 +1073,11 @@
   ========================================
   0000    | SetInputMark
   0001    | GetConstant 0: true
-  0003    | GetLocalMove 0
+  0003    | GetLocalMove l0
   0005    | CallFunction 1
   0007    | Or 7 -> 16
   0010    | GetConstant 1: false
-  0012    | GetLocalMove 1
+  0012    | GetLocalMove l1
   0014    | CallTailFunction 1
   0016    | End
   ========================================
@@ -1119,7 +1119,7 @@
   0003    | ValidateRepeatPattern
   0004    | JumpIfZero 4 -> 22
   0007    | Swap
-  0008    | CallFunctionLocal 0
+  0008    | CallFunctionLocal l0
   0010    | Merge
   0011    | JumpIfFailure 11 -> 36
   0014    | Swap
@@ -1128,7 +1128,7 @@
   0019    | JumpBack 19 -> 7
   0022    | Swap
   0023    | SetInputMark
-  0024    | CallFunctionLocal 0
+  0024    | CallFunctionLocal l0
   0026    | JumpIfFailure 26 -> 34
   0029    | PopInputMark
   0030    | Merge
@@ -1144,7 +1144,7 @@
   maybe(p) = p | succeed
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionLocal 0
+  0001    | CallFunctionLocal l0
   0003    | Or 3 -> 8
   0006    | CallTailFunctionConstant 0: succeed
   0008    | End
@@ -1162,7 +1162,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -1170,10 +1170,10 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar N
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 1
+  0009    | GetLocalMove l1
   0011    | End
   ========================================
   
@@ -1278,7 +1278,7 @@
   0004    | JumpIfZero 4 -> 26
   0007    | Swap
   0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   0012    | CallFunction 1
   0014    | Merge
   0015    | JumpIfFailure 15 -> 44
@@ -1289,7 +1289,7 @@
   0026    | Swap
   0027    | SetInputMark
   0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
+  0030    | GetLocal l0
   0032    | CallFunction 1
   0034    | JumpIfFailure 34 -> 42
   0037    | PopInputMark
@@ -1306,11 +1306,11 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove 1
+  0011    | GetLocalMove l1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1343,7 +1343,7 @@
   0004    | JumpIfZero 4 -> 26
   0007    | Swap
   0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   0012    | CallFunction 1
   0014    | Merge
   0015    | JumpIfFailure 15 -> 44
@@ -1354,7 +1354,7 @@
   0026    | Swap
   0027    | SetInputMark
   0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
+  0030    | GetLocal l0
   0032    | CallFunction 1
   0034    | JumpIfFailure 34 -> 42
   0037    | PopInputMark
@@ -1371,11 +1371,11 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove 1
+  0011    | GetLocalMove l1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1410,7 +1410,7 @@
   0004    | JumpIfZero 4 -> 26
   0007    | Swap
   0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   0012    | CallFunction 1
   0014    | Merge
   0015    | JumpIfFailure 15 -> 44
@@ -1421,7 +1421,7 @@
   0026    | Swap
   0027    | SetInputMark
   0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
+  0030    | GetLocal l0
   0032    | CallFunction 1
   0034    | JumpIfFailure 34 -> 42
   0037    | PopInputMark
@@ -1438,11 +1438,11 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove 1
+  0011    | GetLocalMove l1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1475,7 +1475,7 @@
   0004    | JumpIfZero 4 -> 26
   0007    | Swap
   0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   0012    | CallFunction 1
   0014    | Merge
   0015    | JumpIfFailure 15 -> 44
@@ -1486,7 +1486,7 @@
   0026    | Swap
   0027    | SetInputMark
   0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
+  0030    | GetLocal l0
   0032    | CallFunction 1
   0034    | JumpIfFailure 34 -> 42
   0037    | PopInputMark
@@ -1503,11 +1503,11 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove 1
+  0011    | GetLocalMove l1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1541,7 +1541,7 @@
   0004    | JumpIfZero 4 -> 26
   0007    | Swap
   0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   0012    | CallFunction 1
   0014    | Merge
   0015    | JumpIfFailure 15 -> 44
@@ -1552,7 +1552,7 @@
   0026    | Swap
   0027    | SetInputMark
   0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
+  0030    | GetLocal l0
   0032    | CallFunction 1
   0034    | JumpIfFailure 34 -> 42
   0037    | PopInputMark
@@ -1569,11 +1569,11 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove 1
+  0011    | GetLocalMove l1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1587,7 +1587,7 @@
   0006    | CallFunction 1
   0008    | DestructurePlan 0: ([eq 1] * bind N)
   0010    | TakeRight 10 -> 15
-  0013    | GetLocalMove 0
+  0013    | GetLocalMove l0
   0015    | End
   ========================================
 
@@ -1609,7 +1609,7 @@
   0004    | JumpIfZero 4 -> 26
   0007    | Swap
   0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   0012    | CallFunction 1
   0014    | Merge
   0015    | JumpIfFailure 15 -> 44
@@ -1620,7 +1620,7 @@
   0026    | Swap
   0027    | SetInputMark
   0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
+  0030    | GetLocal l0
   0032    | CallFunction 1
   0034    | JumpIfFailure 34 -> 42
   0037    | PopInputMark
@@ -1637,11 +1637,11 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove 1
+  0011    | GetLocalMove l1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1677,7 +1677,7 @@
   0004    | JumpIfZero 4 -> 26
   0007    | Swap
   0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   0012    | CallFunction 1
   0014    | Merge
   0015    | JumpIfFailure 15 -> 44
@@ -1688,7 +1688,7 @@
   0026    | Swap
   0027    | SetInputMark
   0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
+  0030    | GetLocal l0
   0032    | CallFunction 1
   0034    | JumpIfFailure 34 -> 42
   0037    | PopInputMark
@@ -1705,11 +1705,11 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove 1
+  0011    | GetLocalMove l1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -1754,8 +1754,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 0: pair
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -1766,8 +1766,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 0: pair
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -1785,15 +1785,15 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal 0
+  0004    | CallFunctionLocal l0
   0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
+  0011    | CallFunctionLocal l1
   0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
-  0020    | GetLocalMove 2
-  0022    | GetLocalMove 3
+  0020    | GetLocalMove l2
+  0022    | GetLocalMove l3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -1837,8 +1837,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 0: pair
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -1849,8 +1849,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 0: pair
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -1868,15 +1868,15 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal 0
+  0004    | CallFunctionLocal l0
   0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
+  0011    | CallFunctionLocal l1
   0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
-  0020    | GetLocalMove 2
-  0022    | GetLocalMove 3
+  0020    | GetLocalMove l2
+  0022    | GetLocalMove l3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -1921,8 +1921,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 0: pair
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -1933,8 +1933,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 0: pair
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -1952,15 +1952,15 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal 0
+  0004    | CallFunctionLocal l0
   0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
+  0011    | CallFunctionLocal l1
   0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
-  0020    | GetLocalMove 2
-  0022    | GetLocalMove 3
+  0020    | GetLocalMove l2
+  0022    | GetLocalMove l3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -2005,8 +2005,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 0: pair
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -2017,8 +2017,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 0: pair
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -2036,15 +2036,15 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal 0
+  0004    | CallFunctionLocal l0
   0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
+  0011    | CallFunctionLocal l1
   0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
-  0020    | GetLocalMove 2
-  0022    | GetLocalMove 3
+  0020    | GetLocalMove l2
+  0022    | GetLocalMove l3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -2090,8 +2090,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 0: pair
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -2102,8 +2102,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 0: pair
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -2121,15 +2121,15 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal 0
+  0004    | CallFunctionLocal l0
   0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
+  0011    | CallFunctionLocal l1
   0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
-  0020    | GetLocalMove 2
-  0022    | GetLocalMove 3
+  0020    | GetLocalMove l2
+  0022    | GetLocalMove l3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -2175,8 +2175,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 0: pair
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -2187,8 +2187,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 0: pair
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -2206,15 +2206,15 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal 0
+  0004    | CallFunctionLocal l0
   0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
+  0011    | CallFunctionLocal l1
   0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
-  0020    | GetLocalMove 2
-  0022    | GetLocalMove 3
+  0020    | GetLocalMove l2
+  0022    | GetLocalMove l3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -2250,7 +2250,7 @@
   0004    | JumpIfZero 4 -> 26
   0007    | Swap
   0008    | GetConstant 0: tuple1
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   0012    | CallFunction 1
   0014    | Merge
   0015    | JumpIfFailure 15 -> 44
@@ -2261,7 +2261,7 @@
   0026    | Swap
   0027    | SetInputMark
   0028    | GetConstant 0: tuple1
-  0030    | GetLocal 0
+  0030    | GetLocal l0
   0032    | CallFunction 1
   0034    | JumpIfFailure 34 -> 42
   0037    | PopInputMark
@@ -2278,11 +2278,11 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal 0
+  0002    | CallFunctionLocal l0
   0004    | DestructurePlan 0: bind Elem
   0006    | TakeRight 6 -> 15
   0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove 1
+  0011    | GetLocalMove l1
   0013    | InsertAtIndex 0
   0015    | End
   ========================================
@@ -2326,8 +2326,8 @@
   0004    | JumpIfZero 4 -> 28
   0007    | Swap
   0008    | GetConstant 0: pair
-  0010    | GetLocal 0
-  0012    | GetLocal 1
+  0010    | GetLocal l0
+  0012    | GetLocal l1
   0014    | CallFunction 2
   0016    | Merge
   0017    | JumpIfFailure 17 -> 48
@@ -2338,8 +2338,8 @@
   0028    | Swap
   0029    | SetInputMark
   0030    | GetConstant 0: pair
-  0032    | GetLocal 0
-  0034    | GetLocal 1
+  0032    | GetLocal l0
+  0034    | GetLocal l1
   0036    | CallFunction 2
   0038    | JumpIfFailure 38 -> 46
   0041    | PopInputMark
@@ -2357,15 +2357,15 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal 0
+  0004    | CallFunctionLocal l0
   0006    | DestructurePlan 0: bind K
   0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal 1
+  0011    | CallFunctionLocal l1
   0013    | DestructurePlan 1: bind V
   0015    | TakeRight 15 -> 26
   0018    | GetConstantMutable 1: {_0_}
-  0020    | GetLocalMove 2
-  0022    | GetLocalMove 3
+  0020    | GetLocalMove l2
+  0022    | GetLocalMove l3
   0024    | InsertKeyVal 0
   0026    | End
   ========================================
@@ -2412,7 +2412,7 @@
   0002    | CallFunctionConstant 0: "null"
   0004    | DestructurePlan 0: tmpl(bind N)
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -2425,7 +2425,7 @@
   0002    | CallFunctionConstant 0: "true"
   0004    | DestructurePlan 0: tmpl((eq true + bind B))
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -2482,7 +2482,7 @@
   0002    | CallFunctionConstant 0: "abcabcabc"
   0004    | DestructurePlan 0: tmpl((eq "abc" * bind N))
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -2495,7 +2495,7 @@
   0002    | CallFunctionConstant 0: "prefix123123suffix"
   0004    | DestructurePlan 0: tmpl((eq "prefix" + (eq "123" * bind N) + eq "suffix"))
   0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove 0
+  0009    | GetLocalMove l0
   0011    | End
   ========================================
 
@@ -2537,7 +2537,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -2557,7 +2557,7 @@
   ================4:const=================
   const(C) = "" $ C
   ========================================
-  0000    | GetLocalMove 0
+  0000    | GetLocalMove l0
   0002    | End
   ========================================
   
@@ -2577,9 +2577,9 @@
   ================2:Double================
   Double(N) = N + N
   ========================================
-  0000    | GetLocal 0
+  0000    | GetLocal l0
   0002    | JumpIfFailure 2 -> 8
-  0005    | GetLocalMove 0
+  0005    | GetLocalMove l0
   0007    | Merge
   0008    | End
   ========================================

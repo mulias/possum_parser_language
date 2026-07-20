@@ -536,18 +536,19 @@ pub const OpCode = enum(u8) {
             => self.matchPlan2Instruction(chunk, vm, module, writer, offset),
             .DestructurePlan3,
             => self.matchPlan3Instruction(chunk, vm, module, writer, offset),
-            .AssertFunctionArity,
-            .CallFunction,
-            .CallTailFunction,
             .CallFunctionLocal,
             .CallTailFunctionLocal,
             .CaptureLocal,
-            .CreateClosure,
             .GetLocal,
             .GetLocalMove,
+            .SetLocal,
+            => self.localInstruction(chunk, writer, offset),
+            .AssertFunctionArity,
+            .CallFunction,
+            .CallTailFunction,
+            .CreateClosure,
             .InsertAtIndex,
             .InsertKeyVal,
-            .SetLocal,
             => self.byteInstruciton(chunk, writer, offset),
             .ParseChar,
             => self.charInstruction(chunk, writer, offset),
@@ -676,6 +677,12 @@ pub const OpCode = enum(u8) {
     fn byteInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const byte = chunk.read(offset + 1);
         try writer.print("{s} {}\n", .{ @tagName(self), byte });
+        return offset + 2;
+    }
+
+    fn localInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const local = chunk.read(offset + 1);
+        try writer.print("{s} l{}\n", .{ @tagName(self), local });
         return offset + 2;
     }
 

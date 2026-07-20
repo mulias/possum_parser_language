@@ -39,7 +39,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | @main
   Stack   | @main, 4, Fib
-  0012    | GetLocalMove 0
+  0012    | GetLocalMove l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | @main
@@ -54,7 +54,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
@@ -78,7 +78,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, Fib
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
@@ -108,7 +108,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -132,7 +132,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -162,7 +162,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -186,7 +186,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -216,7 +216,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, Fib, 1
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
@@ -250,7 +250,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, 2, 1, Fib
-  0025    | GetLocalMove 0
+  0025    | GetLocalMove l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -280,7 +280,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
   Stack   | Fib, 4, Fib, 3, Fib, _, 1, Fib, 0
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib, Fib
@@ -324,7 +324,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, 4, Fib, 3, 1, Fib
-  0025    | GetLocalMove 0
+  0025    | GetLocalMove l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -354,7 +354,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, 4, Fib, _, 1, Fib, 1
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -398,7 +398,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
   Stack   | Fib, 4, 2, Fib
-  0025    | GetLocalMove 0
+  0025    | GetLocalMove l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib
@@ -428,7 +428,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, _, 2, Fib, 2
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -452,7 +452,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, _, 2, Fib, 2, Fib
-  0010    | GetLocal 0
+  0010    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -482,7 +482,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, _, 2, Fib, 2, Fib, 1
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
@@ -516,7 +516,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
   Stack   | Fib, _, 2, Fib, 2, 1, Fib
-  0025    | GetLocalMove 0
+  0025    | GetLocalMove l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib
@@ -546,7 +546,7 @@
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
   Stack   | Fib, _, 2, Fib, _, 1, Fib, 0
-  0001    | GetLocal 0
+  0001    | GetLocal l0
   
   input   | 4 @ Line 1 byte 1
   Frames  | Fib, Fib, Fib
