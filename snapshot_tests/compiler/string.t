@@ -200,9 +200,12 @@
   "Hello %(word)"
   ========================================
   0000    | CallFunctionConstant 0: "Hello "
-  0002    | CallFunctionConstant 1: word
-  0004    | MergeAsString
-  0005    | End
+  0002    | JumpIfFailure 2 -> 10
+  0005    | PushEmptyString
+  0006    | CallFunctionConstant 1: word
+  0008    | MergeAsString
+  0009    | Merge
+  0010    | End
   ========================================
 
   $ possum -p '"%(word) World"' -i ''
@@ -291,9 +294,10 @@
   0000    | PushEmptyString
   0001    | CallFunctionConstant 0: word
   0003    | MergeAsString
-  0004    | CallFunctionConstant 1: " World"
-  0006    | MergeAsString
-  0007    | End
+  0004    | JumpIfFailure 4 -> 10
+  0007    | CallFunctionConstant 1: " World"
+  0009    | Merge
+  0010    | End
   ========================================
 
   $ possum -p '"Hello %(word) and %(word)"' -i ''
@@ -380,13 +384,20 @@
   "Hello %(word) and %(word)"
   ========================================
   0000    | CallFunctionConstant 0: "Hello "
-  0002    | CallFunctionConstant 1: word
-  0004    | MergeAsString
-  0005    | CallFunctionConstant 2: " and "
-  0007    | MergeAsString
-  0008    | CallFunctionConstant 1: word
-  0010    | MergeAsString
-  0011    | End
+  0002    | JumpIfFailure 2 -> 10
+  0005    | PushEmptyString
+  0006    | CallFunctionConstant 1: word
+  0008    | MergeAsString
+  0009    | Merge
+  0010    | JumpIfFailure 10 -> 16
+  0013    | CallFunctionConstant 2: " and "
+  0015    | Merge
+  0016    | JumpIfFailure 16 -> 24
+  0019    | PushEmptyString
+  0020    | CallFunctionConstant 1: word
+  0022    | MergeAsString
+  0023    | Merge
+  0024    | End
   ========================================
 
   $ possum -p '"" $ "%(5)"' -i ''
@@ -406,9 +417,18 @@
   "" -> "%(Str)"
   ========================================
   0000    | PushVar Str
-  0002    | PushEmptyString
-  0003    | DestructurePlan 0: tmpl(bind Str)
-  0005    | End
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | PushEmptyString
+  0005    | JumpIfFailure 5 -> 32
+  0008    | MatchScrutinee r1
+  0010    | MatchType r1 string -> 31
+  0015    | MatchLenMin r1 0 -> 31
+  0020    | MatchSlice r2 r1[0..^0]
+  0025    | MatchBind l0 r2
+  0028    | Jump 28 -> 32
+  0031    | MatchFail
+  0032    | End
   ========================================
 
   $ possum -p '"Hello %(int + word)"' -i ''
@@ -530,11 +550,23 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar N
-  0002    | CallFunctionLocal l0
-  0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
-  0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove l1
-  0011    | End
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | CallFunctionLocal l0
+  0010    | JumpIfFailure 10 -> 32
+  0013    | MatchScrutinee r2
+  0015    | MatchType r2 string -> 31
+  0020    | MatchCastNum r6 <- r2 -> 31
+  0025    | MatchBind l1 r6
+  0028    | Jump 28 -> 32
+  0031    | MatchFail
+  0032    | TakeRight 32 -> 37
+  0035    | GetLocalMove l1
+  0037    | End
   ========================================
   
   ===============6:integer================
@@ -584,11 +616,14 @@
   "Hello %(int + word)"
   ========================================
   0000    | CallFunctionConstant 0: "Hello "
-  0002    | CallFunctionConstant 1: integer
-  0004    | JumpIfFailure 4 -> 10
-  0007    | CallFunctionConstant 2: word
-  0009    | Merge
-  0010    | MergeAsString
-  0011    | End
+  0002    | JumpIfFailure 2 -> 16
+  0005    | PushEmptyString
+  0006    | CallFunctionConstant 1: integer
+  0008    | JumpIfFailure 8 -> 14
+  0011    | CallFunctionConstant 2: word
+  0013    | Merge
+  0014    | MergeAsString
+  0015    | Merge
+  0016    | End
   ========================================
 

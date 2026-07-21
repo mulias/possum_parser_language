@@ -1046,15 +1046,13 @@ Full created-stage goal form of stdlib/toml.
         guard: (match
           scrutinee: Path~1
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 Key~4))
-              (bind PathRest~5))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 Key~4)
+            (bind %2 PathRest~5)))
         body: (seq result=1
           (match
             scrutinee: (alt
@@ -1187,15 +1185,13 @@ Full created-stage goal form of stdlib/toml.
         guard: (match
           scrutinee: Path~1
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 Key~4))
-              (bind PathRest~5))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 Key~4)
+            (bind %2 PathRest~5)))
         body: (call _Doc.DescendHeaderKey [Doc~0 Key~4 PathRest~5 Val~2 Updater~3]))
       (arm
         body: Doc~0))
@@ -1217,15 +1213,11 @@ Full created-stage goal form of stdlib/toml.
                   guard: (match
                     scrutinee: (call _Doc.Type [Current~5])
                     %0 = scrutinee
+                    %1 = elem %0 0
                     (arm
-                      (solve_merge %0 solvable=1
-                        (set
-                          %0 = scrutinee
-                          %1 = elem %0 0
-                          (is_type %0 array)
-                          (len_eq %0 1)
-                          (eq_const %1 "array_of_tables"))
-                        _)))
+                      (is_type %0 array)
+                      (len_min %0 1)
+                      (eq_const %1 "array_of_tables")))
                   body: (call _Doc.UpdateAtLastAoTElement [Current~5 PathRest~2 Val~3 Updater~4]))
                 (arm
                   body: (seq result=1
@@ -1251,40 +1243,28 @@ Full created-stage goal form of stdlib/toml.
           (match
             scrutinee: (call _Doc.Value [AoTDoc~0])
             %0 = scrutinee
+            %1 = slice %0 0 1
+            %2 = elem_back %0 0
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  (is_type %0 array)
-                  (len_eq %0 0))
-                (bind VsInit~4)
-                (set
-                  %0 = scrutinee
-                  %1 = elem %0 0
-                  (is_type %0 array)
-                  (len_eq %0 1)
-                  (bind %1 VLast~5)))))
+              (is_type %0 array)
+              (len_min %0 1)
+              (bind %1 VsInit~4)
+              (bind %2 VLast~5)))
           (match
             scrutinee: (call _Doc.Type [AoTDoc~0])
             %0 = scrutinee
             %1 = elem %0 0
             %2 = elem %0 1
+            %3 = slice %2 0 1
+            %4 = elem_back %2 0
             (arm
               (is_type %0 array)
               (len_eq %0 2)
               (eq_const %1 "array_of_tables")
-              (solve_merge %2 solvable=1
-                (set
-                  %0 = scrutinee
-                  (is_type %0 array)
-                  (len_eq %0 0))
-                (bind TsInit~6)
-                (set
-                  %0 = scrutinee
-                  %1 = elem %0 0
-                  (is_type %0 array)
-                  (len_eq %0 1)
-                  (bind %1 TLast~7))))))
+              (is_type %2 array)
+              (len_min %2 1)
+              (bind %3 TsInit~6)
+              (bind %4 TLast~7))))
         (match
           scrutinee: (call _Doc.UpdateAtHeaderPath [
             (object [

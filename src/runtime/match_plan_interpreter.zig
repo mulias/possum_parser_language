@@ -20,7 +20,7 @@ pub const Error = error{
 // as an indented `value -> pattern` line, mirroring PatternSolver.printSteps.
 // The flag is config-derived and constant for the run.
 inline fn printSteps(vm: *VM) bool {
-    return vm.config.printVM or vm.config.printDestructure;
+    return vm.config.printVM;
 }
 
 // --explain records a step/bind event per match node instead of printing.
@@ -473,8 +473,14 @@ fn matchRepeatValueCount(vm: *VM, plan: MatchPlan, value: Elem, count_elem: Elem
     if (try value.stringBytes(vm)) |value_str| {
         // Special case: count is 0
         if (count == 0) {
-            // Pattern * 0 = "" for any pattern (empty string identity)
-            return value_str.len == 0;
+            // Pattern * 0 = "" for any pattern (empty string identity).
+            // The pattern matches the empty representative, so a bare
+            // binder binds ""; ranges scan zero codepoints and bind
+            // nothing.
+            if (value_str.len != 0) return false;
+            if (plan.nodes[pattern_idx].tag == .range) return true;
+            const chunk_elem = try substringElem(vm, value, value_str, 0, 0);
+            return matchNode(vm, chunk_elem, plan, pattern_idx, null);
         }
 
         // Range patterns match codepoint-by-codepoint
@@ -508,15 +514,48 @@ fn matchRepeatValueCount(vm: *VM, plan: MatchPlan, value: Elem, count_elem: Elem
     if (value.isDynType(.Array)) {
         const value_array = value.asDyn().asArray();
 
-        // Value must have exactly count elements
-        if (value_array.len() != count) return false;
-
-        // Match each element against the pattern
-        for (value_array.elems.items, 0..) |elem, i| {
-            const sub = if (i == 0) pattern_idx else later_pattern_idx;
-            if (!(try matchNode(vm, elem, plan, sub, null))) return false;
+        // A fixed-length pattern divides the value into chunks of its
+        // length: the length check is len == count * pattern_len, never an
+        // expansion of the pattern.
+        if (try fixedArrayLength(vm, plan, pattern_idx)) |pattern_len| {
+            if (pattern_len == 0) return false;
+            if (value_array.len() != count * pattern_len) return false;
+            return matchArrayChunks(vm, plan, value_array, pattern_len, count, pattern_idx, later_pattern_idx);
         }
-        return true;
+
+        // Special case: count is 0
+        if (count == 0) {
+            // Pattern * 0 = [] for any pattern (empty array identity).
+            // A bare binder binds the empty representative.
+            if (value_array.len() != 0) return false;
+            const chunk_array = try Elem.DynElem.Array.create(vm, 0);
+            try vm.pushTempDyn(&chunk_array.dyn);
+            return matchNode(vm, chunk_array.dyn.elem(), plan, pattern_idx, null);
+        }
+
+        // For other patterns (like unbound variables), compute repeated
+        // chunks, mirroring the string path: length divisible by count,
+        // all chunks equal, pattern matched against the first chunk.
+        if (value_array.len() % count != 0) return false;
+
+        const chunk_len = value_array.len() / count;
+
+        var i: usize = 1;
+        while (i < count) : (i += 1) {
+            const start = i * chunk_len;
+            for (0..chunk_len) |j| {
+                const first_elem = value_array.elems.items[j];
+                const chunk_elem = value_array.elems.items[start + j];
+                if (printSteps(vm)) try emitEquality(vm, chunk_elem, first_elem);
+                if (!chunk_elem.isEql(first_elem, vm.*)) return false;
+            }
+        }
+
+        const chunk_array = try Elem.DynElem.Array.create(vm, chunk_len);
+        try vm.pushTempDyn(&chunk_array.dyn);
+        for (value_array.elems.items[0..chunk_len]) |chunk_item| chunk_item.retain();
+        try chunk_array.elems.appendSlice(vm.gc.allocator(), value_array.elems.items[0..chunk_len]);
+        return matchNode(vm, chunk_array.dyn.elem(), plan, pattern_idx, null);
     }
 
     // Object pattern matching: the members partition into `count`
@@ -605,21 +644,8 @@ fn matchRepeatUnresolved(vm: *VM, plan: MatchPlan, value: Elem, pattern_idx: u32
 
         const count = value_array.len() / pattern_len;
 
-        // Match each chunk against the pattern
-        var i: usize = 0;
-        while (i < count) : (i += 1) {
-            const start = i * pattern_len;
-            const end = start + pattern_len;
-
-            const chunk_array = try Elem.DynElem.Array.create(vm, pattern_len);
-            try vm.pushTempDyn(&chunk_array.dyn);
-            for (value_array.elems.items[start..end]) |chunk_item| chunk_item.retain();
-            try chunk_array.elems.appendSlice(vm.gc.allocator(), value_array.elems.items[start..end]);
-
-            const sub = if (i == 0) pattern_idx else later_pattern_idx;
-            if (!(try matchNode(vm, chunk_array.dyn.elem(), plan, sub, null))) {
-                return false;
-            }
+        if (!(try matchArrayChunks(vm, plan, value_array, pattern_len, count, pattern_idx, later_pattern_idx))) {
+            return false;
         }
 
         // Bind the count
@@ -628,6 +654,36 @@ fn matchRepeatUnresolved(vm: *VM, plan: MatchPlan, value: Elem, pattern_idx: u32
     } else {
         return error.RuntimeError;
     }
+}
+
+// Match each pattern_len-sized chunk of the value against the pattern
+// subtree. The first chunk binds; later chunks use the rebound variant so
+// their binds compare instead.
+fn matchArrayChunks(
+    vm: *VM,
+    plan: MatchPlan,
+    value_array: *Elem.DynElem.Array,
+    pattern_len: usize,
+    count: usize,
+    pattern_idx: u32,
+    later_pattern_idx: u32,
+) Error!bool {
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        const start = i * pattern_len;
+        const end = start + pattern_len;
+
+        const chunk_array = try Elem.DynElem.Array.create(vm, pattern_len);
+        try vm.pushTempDyn(&chunk_array.dyn);
+        for (value_array.elems.items[start..end]) |chunk_item| chunk_item.retain();
+        try chunk_array.elems.appendSlice(vm.gc.allocator(), value_array.elems.items[start..end]);
+
+        const sub = if (i == 0) pattern_idx else later_pattern_idx;
+        if (!(try matchNode(vm, chunk_array.dyn.elem(), plan, sub, null))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 fn resolveRepeatOperand(
@@ -1407,19 +1463,15 @@ fn matchBooleanMerge(vm: *VM, plan: MatchPlan, value: Elem, base: usize, count: 
 
     if (rest_index) |ui| {
         const sub = mergePart(vm, base, ui).rest;
+        if (!value.isConst(.True) and !value.isConst(.False)) return false;
         if (bound_truth.isConst(.True)) {
-            if (value.isEql(bound_truth, vm.*)) {
-                // `true -> (true + X)`
-                return (try matchNode(vm, Elem.boolean(false), plan, sub, null)) or
-                    (try matchNode(vm, Elem.boolean(true), plan, sub, null));
-            } else {
-                // `false -> (true + X)`
-                return false;
-            }
-        } else {
-            // `value -> (false + X)`
-            return matchNode(vm, value, plan, sub, null);
+            // The claimed truth requires a true scrutinee; the rest claims
+            // the residual `value AND NOT true`, the identity false.
+            if (!value.isEql(bound_truth, vm.*)) return false;
+            return matchNode(vm, Elem.boolean(false), plan, sub, null);
         }
+        // Nothing claimed yet, so the rest claims the whole scrutinee.
+        return matchNode(vm, value, plan, sub, null);
     }
     // `value -> true` / `value -> false`
     if (printSteps(vm)) try emitEquality(vm, value, bound_truth);

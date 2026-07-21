@@ -6,16 +6,28 @@
   As.Number(V) = Is.Number(V) | (V -> "%(0 + N)" $ N)
   ========================================
   0000    | PushVar N
-  0002    | SetInputMark
-  0003    | GetConstant 0: Is.Number
-  0005    | GetLocal l0
-  0007    | CallFunction 1
-  0009    | Or 9 -> 21
-  0012    | GetLocalMove l0
-  0014    | DestructurePlan 0: tmpl((eq 0 + bind N))
-  0016    | TakeRight 16 -> 21
-  0019    | GetLocalMove l1
-  0021    | End
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | SetInputMark
+  0009    | GetConstant 0: Is.Number
+  0011    | GetLocal l0
+  0013    | CallFunction 1
+  0015    | Or 15 -> 47
+  0018    | GetLocalMove l0
+  0020    | JumpIfFailure 20 -> 42
+  0023    | MatchScrutinee r2
+  0025    | MatchType r2 string -> 41
+  0030    | MatchCastNum r6 <- r2 -> 41
+  0035    | MatchBind l1 r6
+  0038    | Jump 38 -> 42
+  0041    | MatchFail
+  0042    | TakeRight 42 -> 47
+  0045    | GetLocalMove l1
+  0047    | End
   ========================================
   
   ==============1:As.String===============
@@ -31,7 +43,13 @@
   Is.Number(V) = V -> (0 + _)
   ========================================
   0000    | PushUnderscoreVar
-  0001    | GetLocalMove l0
-  0003    | DestructurePlan 0: (eq 0 + _)
-  0005    | End
+  0001    | PushUnderscoreVar
+  0002    | PushUnderscoreVar
+  0003    | GetLocalMove l0
+  0005    | JumpIfFailure 5 -> 21
+  0008    | MatchScrutinee r2
+  0010    | MatchMergeNum r3 r2 - 0 -> 20
+  0017    | Jump 17 -> 21
+  0020    | MatchFail
+  0021    | End
   ========================================

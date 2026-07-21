@@ -175,7 +175,7 @@ Full created-stage goal form of stdlib/array.
         cap: (merge N~2 -1)
         count: (set
           %0 = scrutinee
-          (solve_merge %0
+          (solve_merge %0 ty=number
             (read N~2)
             -1))))
   

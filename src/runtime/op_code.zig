@@ -4,6 +4,18 @@ const Chunk = @import("chunk.zig").Chunk;
 const VM = @import("vm.zig").VM;
 const Module = @import("module.zig").Module;
 
+// How each end of a MatchInRange step resolves its bound. `const_elem`
+// and `global` carry a constant index; `read` and `bind` carry a local
+// slot. Evaluated bounds are handled by a separate MatchRangeBound step,
+// not encoded in MatchInRange, so they have no kind here.
+pub const RangeLimitKind = enum(u8) {
+    none,
+    const_elem,
+    global,
+    read,
+    bind,
+};
+
 pub const OpCode = enum(u8) {
     AssertFunctionArity,
     AssertParamTypes,
@@ -43,6 +55,55 @@ pub const OpCode = enum(u8) {
     JumpBack,
     JumpIfFailure,
     JumpIfZero,
+    // Match step ops: pattern constraints compiled inline. Registers are
+    // frame slots above the locals; semidet steps carry a fail-jump
+    // offset like Or. MatchScrutinee copies the value under test (stack
+    // top) into its register; projections copy container children into
+    // registers; MatchBind copies a register into a local slot; MatchFail
+    // is the shared failure tail that swaps the value for the failure
+    // const and records the pattern mismatch.
+    MatchBind,
+    MatchCastBool,
+    MatchCastNum,
+    MatchConst,
+    MatchElem,
+    MatchElemBack,
+    MatchElemDyn,
+    MatchEval,
+    MatchFail,
+    MatchGlobal,
+    MatchInRange,
+    MatchKey,
+    MatchKeyBound,
+    MatchKeys,
+    MatchKeysMin,
+    MatchLen,
+    MatchLenMin,
+    MatchMergeBool,
+    MatchMergeNum,
+    MatchMergeNumNeg,
+    MatchNextUnclaimed,
+    MatchObjectRest,
+    MatchObjectRestSearch,
+    MatchRangeBound,
+    MatchRepeatChunk,
+    MatchRepeatInit,
+    MatchRepeatNext,
+    MatchRepeatRange,
+    MatchRepeatValue,
+    MatchScrutinee,
+    MatchSearchInit,
+    MatchSlice,
+    MatchSlot,
+    MatchStrChar,
+    MatchStrCovered,
+    MatchStrInit,
+    MatchStrLit,
+    MatchStrPrefix,
+    MatchStrRest,
+    MatchStrSuffix,
+    MatchStrVal,
+    MatchType,
     Merge,
     MergeAsString,
     NativeCode,
@@ -192,6 +253,79 @@ pub const OpCode = enum(u8) {
             .Drop,
             .SetLocal,
             => .{ .fixed = .{ .pops = 1, .pushes = 0 } },
+
+            // Register-to-register / register-to-slot moves and the det
+            // projections: no stack traffic.
+            .MatchBind,
+            .MatchElem,
+            .MatchElemBack,
+            .MatchElemDyn,
+            .MatchObjectRest,
+            .MatchObjectRestSearch,
+            .MatchSearchInit,
+            .MatchSlice,
+            .MatchStrInit,
+            .MatchStrRest,
+            => .{ .fixed = .{ .pops = 0, .pushes = 0 } },
+
+            // Inspects the value under test on the stack top and copies it
+            // into a register.
+            .MatchScrutinee => .{ .fixed = .{ .pops = 1, .pushes = 1 } },
+
+            // Pops the matched value and pushes the failure const.
+            .MatchFail => .{ .fixed = .{ .pops = 1, .pushes = 1 } },
+
+            // Semidet steps: no stack traffic on either path.
+            .MatchCastBool,
+            .MatchCastNum,
+            .MatchConst,
+            .MatchGlobal,
+            .MatchInRange,
+            .MatchKey,
+            .MatchKeyBound,
+            .MatchKeys,
+            .MatchKeysMin,
+            .MatchLen,
+            .MatchLenMin,
+            .MatchMergeBool,
+            .MatchMergeNum,
+            .MatchMergeNumNeg,
+            .MatchNextUnclaimed,
+            .MatchRepeatInit,
+            .MatchRepeatNext,
+            .MatchRepeatRange,
+            .MatchSlot,
+            .MatchStrChar,
+            .MatchStrCovered,
+            .MatchStrLit,
+            .MatchStrPrefix,
+            .MatchStrSuffix,
+            .MatchType,
+            => .{ .branch = .{
+                .fallthrough = .{ .pops = 0, .pushes = 0 },
+                .jump = .{ .pops = 0, .pushes = 0 },
+            } },
+
+            // Pops the value evaluated by the preceding expression and
+            // compares it against the place register on both paths.
+            .MatchEval,
+            // Pops the evaluated range bound and compares it against the
+            // value register as one end of the range.
+            .MatchRangeBound,
+            // Pop the evaluated repeat operand — the pattern value
+            // (MatchRepeatValue derives the count from src) or the count
+            // (MatchRepeatChunk derives src's repeated chunk) — on both
+            // paths.
+            .MatchRepeatChunk,
+            .MatchRepeatValue,
+            // Pops the evaluated segment value the preceding expression
+            // left on the stack, stringifies it, and byte-compares it at
+            // the cursor.
+            .MatchStrVal,
+            => .{ .branch = .{
+                .fallthrough = .{ .pops = 1, .pushes = 0 },
+                .jump = .{ .pops = 1, .pushes = 0 },
+            } },
 
             .InsertAtIndex,
             .Merge,
@@ -403,6 +537,70 @@ pub const OpCode = enum(u8) {
             // previous handle is released in the dispatch.
             .SetLocal => .{ .operands = .consumed, .result = .none },
 
+            // Match steps never pop handles: tests borrow, and the copy
+            // steps (MatchScrutinee, MatchElem, MatchElemBack, MatchKey,
+            // MatchBind) retain into their target slot and release the
+            // slot's previous handle in the dispatch. MatchSlice stores a
+            // fresh array's creator handle into its register the same
+            // way.
+            .MatchBind,
+            .MatchCastBool,
+            .MatchCastNum,
+            .MatchConst,
+            .MatchElem,
+            .MatchElemBack,
+            .MatchElemDyn,
+            .MatchGlobal,
+            .MatchInRange,
+            .MatchKey,
+            .MatchKeyBound,
+            .MatchKeys,
+            .MatchKeysMin,
+            .MatchLen,
+            .MatchLenMin,
+            .MatchMergeBool,
+            .MatchMergeNum,
+            .MatchMergeNumNeg,
+            .MatchNextUnclaimed,
+            .MatchObjectRest,
+            .MatchObjectRestSearch,
+            .MatchRepeatInit,
+            .MatchRepeatNext,
+            .MatchRepeatRange,
+            .MatchScrutinee,
+            .MatchSearchInit,
+            .MatchSlice,
+            .MatchSlot,
+            .MatchStrChar,
+            .MatchStrCovered,
+            .MatchStrInit,
+            .MatchStrLit,
+            .MatchStrPrefix,
+            .MatchStrRest,
+            .MatchStrSuffix,
+            .MatchType,
+            => .{ .operands = .borrowed, .result = .none },
+
+            // The matched value's handle dies; the failure const is not a
+            // Dyn.
+            .MatchFail => .{ .operands = .consumed, .result = .none },
+
+            // Pops and discards the evaluated expression result; the
+            // scrutinee below it stays untouched.
+            .MatchEval,
+            // Pops and discards the evaluated range bound.
+            .MatchRangeBound,
+            // Pop and release the evaluated repeat operand; the derived
+            // count or chunk is stored into the destination register in
+            // the dispatch (release previous, fresh chunks move their
+            // creator handle in).
+            .MatchRepeatChunk,
+            .MatchRepeatValue,
+            // Pops and releases the evaluated segment value; the compare
+            // reads its bytes before releasing.
+            .MatchStrVal,
+            => .{ .operands = .consumed, .result = .none },
+
             // The matched value stays on the stack on success (pattern
             // vars bound into frame slots add +1 per binding in the
             // pattern solver), or is released and replaced by the failure
@@ -513,7 +711,52 @@ pub const OpCode = enum(u8) {
             .Swap,
             .TakeLeft,
             .ValidateRepeatPattern,
+            .MatchFail,
             => self.simpleInstruction(writer, offset),
+            .MatchScrutinee => self.registerInstruction(chunk, writer, offset),
+            .MatchSearchInit => self.registerInstruction(chunk, writer, offset),
+            .MatchNextUnclaimed => self.matchNextUnclaimedInstruction(chunk, vm, module, writer, offset),
+            .MatchObjectRestSearch => self.matchObjectRestSearchInstruction(chunk, vm, module, writer, offset),
+            .MatchBind => self.matchBindInstruction(chunk, writer, offset),
+            .MatchElem => self.matchElemInstruction(chunk, writer, offset),
+            .MatchElemBack => self.matchElemBackInstruction(chunk, writer, offset),
+            .MatchElemDyn => self.matchElemDynInstruction(chunk, writer, offset),
+            .MatchRepeatInit => self.matchRepeatInitInstruction(chunk, writer, offset),
+            .MatchRepeatNext => self.matchRepeatNextInstruction(chunk, writer, offset),
+            .MatchSlice => self.matchSliceInstruction(chunk, writer, offset),
+            .MatchStrInit => self.matchStrInitInstruction(chunk, writer, offset),
+            .MatchStrRest => self.matchStrRestInstruction(chunk, writer, offset),
+            .MatchStrLit => self.matchStrLitInstruction(chunk, vm, module, writer, offset),
+            .MatchStrVal => self.matchStrValInstruction(chunk, writer, offset),
+            .MatchStrChar => self.matchStrCharInstruction(chunk, writer, offset),
+            .MatchStrCovered => self.matchStrCoveredInstruction(chunk, writer, offset),
+            .MatchCastNum,
+            .MatchCastBool,
+            => self.matchCastInstruction(chunk, writer, offset),
+            .MatchType => self.matchTypeInstruction(chunk, writer, offset),
+            .MatchLen,
+            .MatchLenMin,
+            .MatchKeys,
+            .MatchKeysMin,
+            => self.matchCountJumpInstruction(chunk, writer, offset),
+            .MatchSlot => self.matchSlotInstruction(chunk, writer, offset),
+            .MatchEval => self.matchEvalInstruction(chunk, writer, offset),
+            .MatchRepeatChunk,
+            .MatchRepeatValue,
+            => self.matchRepeatInstruction(chunk, writer, offset),
+            .MatchRepeatRange => self.matchRepeatRangeInstruction(chunk, vm, module, writer, offset),
+            .MatchInRange => self.matchInRangeInstruction(chunk, vm, module, writer, offset),
+            .MatchRangeBound => self.matchRangeBoundInstruction(chunk, writer, offset),
+            .MatchConst,
+            .MatchGlobal,
+            .MatchStrPrefix,
+            .MatchStrSuffix,
+            => self.matchConstJumpInstruction(chunk, vm, module, writer, offset),
+            .MatchKey => self.matchKeyInstruction(chunk, vm, module, writer, offset),
+            .MatchKeyBound => self.matchKeyBoundInstruction(chunk, vm, module, writer, offset),
+            .MatchMergeBool => self.matchMergeBoolInstruction(chunk, vm, module, writer, offset),
+            .MatchMergeNum, .MatchMergeNumNeg => self.matchMergeNumInstruction(chunk, vm, module, writer, offset),
+            .MatchObjectRest => self.matchObjectRestInstruction(chunk, vm, module, writer, offset),
             .CallFunctionConstant,
             .CallTailFunctionConstant,
             .GetConstant,
@@ -672,6 +915,366 @@ pub const OpCode = enum(u8) {
         const byte2 = chunk.read(offset + 2);
         try writer.print("{s} {d}..{d}\n", .{ @tagName(self), byte1, byte2 });
         return offset + 3;
+    }
+
+    fn registerInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const register = chunk.read(offset + 1);
+        try writer.print("{s} r{}\n", .{ @tagName(self), register });
+        return offset + 2;
+    }
+
+    fn matchBindInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const local = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        try writer.print("{s} l{} r{}\n", .{ @tagName(self), local, src });
+        return offset + 3;
+    }
+
+    fn matchElemInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const index = chunk.read(offset + 3);
+        try writer.print("{s} r{} r{}[{}]\n", .{ @tagName(self), dst, src, index });
+        return offset + 4;
+    }
+
+    fn matchObjectRestInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const constantIdx = (@as(usize, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        var keys = module.getConstant(constantIdx);
+        try writer.print("{s} r{} r{} \\ ", .{ @tagName(self), dst, src });
+        try keys.print(vm, writer);
+        try writer.print("\n", .{});
+        return offset + 5;
+    }
+
+    fn matchObjectRestSearchInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const constantIdx = (@as(usize, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const claim_base = chunk.read(offset + 5);
+        const claim_count = chunk.read(offset + 6);
+        var keys = module.getConstant(constantIdx);
+        try writer.print("{s} r{} r{} \\ ", .{ @tagName(self), dst, src });
+        try keys.print(vm, writer);
+        try writer.print(" r{}..r{}\n", .{ claim_base, claim_base + claim_count });
+        return offset + 7;
+    }
+
+    fn matchNextUnclaimedInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const key_dst = chunk.read(offset + 1);
+        const val_dst = chunk.read(offset + 2);
+        const src = chunk.read(offset + 3);
+        const cursor = chunk.read(offset + 4);
+        const claim_count = chunk.read(offset + 5);
+        const constantIdx = (@as(usize, @intCast(chunk.read(offset + 6))) << 8) | chunk.read(offset + 7);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 8))) << 8) | chunk.read(offset + 9);
+        const target = offset + 10 + jump;
+        var keys = module.getConstant(constantIdx);
+        try writer.print("{s} key=r{} val=r{} src=r{} cursor=r{} keys=r{}..r{} \\ ", .{
+            @tagName(self), key_dst, val_dst, src, cursor, key_dst - claim_count, key_dst,
+        });
+        try keys.print(vm, writer);
+        try writer.print(" loop->{}\n", .{target});
+        return offset + 10;
+    }
+
+    fn matchKeyBoundInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const key_dst = chunk.read(offset + 1);
+        const val_dst = chunk.read(offset + 2);
+        const src = chunk.read(offset + 3);
+        const slot = chunk.read(offset + 4);
+        const claim_count = chunk.read(offset + 5);
+        const constantIdx = (@as(usize, @intCast(chunk.read(offset + 6))) << 8) | chunk.read(offset + 7);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 8))) << 8) | chunk.read(offset + 9);
+        const target = offset + 10 + jump;
+        var keys = module.getConstant(constantIdx);
+        try writer.print("{s} key=r{} val=r{} src=r{}[l{}] keys=r{}..r{} \\ ", .{
+            @tagName(self), key_dst, val_dst, src, slot, key_dst - claim_count, key_dst,
+        });
+        try keys.print(vm, writer);
+        try writer.print(" -> {}\n", .{target});
+        return offset + 10;
+    }
+
+    fn matchElemBackInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const index = chunk.read(offset + 3);
+        try writer.print("{s} r{} r{}[^{}]\n", .{ @tagName(self), dst, src, index });
+        return offset + 4;
+    }
+
+    fn matchSliceInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const front = chunk.read(offset + 3);
+        const back = chunk.read(offset + 4);
+        try writer.print("{s} r{} r{}[{}..^{}]\n", .{ @tagName(self), dst, src, front, back });
+        return offset + 5;
+    }
+
+    fn matchStrInitInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const src = chunk.read(offset + 1);
+        const front = chunk.read(offset + 2);
+        const end = chunk.read(offset + 3);
+        try writer.print("{s} r{} front=r{} end=r{}\n", .{ @tagName(self), src, front, end });
+        return offset + 4;
+    }
+
+    fn matchStrRestInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const front = chunk.read(offset + 3);
+        const end = chunk.read(offset + 4);
+        try writer.print("{s} r{} r{}[r{}..r{}]\n", .{ @tagName(self), dst, src, front, end });
+        return offset + 5;
+    }
+
+    fn strCursorDir(back: u8) []const u8 {
+        return if (back != 0) "back" else "front";
+    }
+
+    fn matchStrLitInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const src = chunk.read(offset + 1);
+        const cursor = chunk.read(offset + 2);
+        const opp = chunk.read(offset + 3);
+        const back = chunk.read(offset + 4);
+        const constant_idx = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 7))) << 8) | chunk.read(offset + 8);
+        const target = offset + 9 + jump;
+        var constant = module.getConstant(constant_idx);
+        try writer.print("{s} r{} cursor=r{} opp=r{} {s} ", .{ @tagName(self), src, cursor, opp, strCursorDir(back) });
+        try constant.print(vm, writer);
+        try writer.print(" -> {}\n", .{target});
+        return offset + 9;
+    }
+
+    fn matchStrValInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const src = chunk.read(offset + 1);
+        const cursor = chunk.read(offset + 2);
+        const opp = chunk.read(offset + 3);
+        const back = chunk.read(offset + 4);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
+        const target = offset + 7 + jump;
+        try writer.print("{s} r{} cursor=r{} opp=r{} {s} -> {}\n", .{ @tagName(self), src, cursor, opp, strCursorDir(back), target });
+        return offset + 7;
+    }
+
+    fn matchStrCharInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const cursor = chunk.read(offset + 3);
+        const opp = chunk.read(offset + 4);
+        const back = chunk.read(offset + 5);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 6))) << 8) | chunk.read(offset + 7);
+        const target = offset + 8 + jump;
+        try writer.print("{s} r{} r{} cursor=r{} opp=r{} {s} -> {}\n", .{ @tagName(self), dst, src, cursor, opp, strCursorDir(back), target });
+        return offset + 8;
+    }
+
+    fn matchCastInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const target = offset + 5 + jump;
+        try writer.print("{s} r{} <- r{} -> {}\n", .{ @tagName(self), dst, src, target });
+        return offset + 5;
+    }
+
+    fn matchStrCoveredInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const front = chunk.read(offset + 1);
+        const end = chunk.read(offset + 2);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const target = offset + 5 + jump;
+        try writer.print("{s} r{}==r{} -> {}\n", .{ @tagName(self), front, end, target });
+        return offset + 5;
+    }
+
+    fn matchTypeInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const register = chunk.read(offset + 1);
+        const ty: []const u8 = switch (chunk.read(offset + 2)) {
+            0 => "array",
+            1 => "object",
+            2 => "string",
+            else => "unknown",
+        };
+        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const target = offset + 5 + jump;
+        try writer.print("{s} r{} {s} -> {}\n", .{ @tagName(self), register, ty, target });
+        return offset + 5;
+    }
+
+    fn matchCountJumpInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const register = chunk.read(offset + 1);
+        const count = chunk.read(offset + 2);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const target = offset + 5 + jump;
+        try writer.print("{s} r{} {} -> {}\n", .{ @tagName(self), register, count, target });
+        return offset + 5;
+    }
+
+    fn matchSlotInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const register = chunk.read(offset + 1);
+        const local = chunk.read(offset + 2);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const target = offset + 5 + jump;
+        try writer.print("{s} r{} l{} -> {}\n", .{ @tagName(self), register, local, target });
+        return offset + 5;
+    }
+
+    fn matchEvalInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const register = chunk.read(offset + 1);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const target = offset + 5 + jump;
+        try writer.print("{s} r{} -> {}\n", .{ @tagName(self), register, target });
+        return offset + 5;
+    }
+
+    fn matchElemDynInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const base = chunk.read(offset + 3);
+        const index = chunk.read(offset + 4);
+        try writer.print("{s} r{} r{}[r{}+{}]\n", .{ @tagName(self), dst, src, base, index });
+        return offset + 5;
+    }
+
+    fn matchRepeatInitInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const src = chunk.read(offset + 1);
+        const len = chunk.read(offset + 2);
+        const count_dst = chunk.read(offset + 3);
+        const base = chunk.read(offset + 4);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
+        const target = offset + 7 + jump;
+        try writer.print("{s} r{} /{} n=r{} base=r{} -> {}\n", .{ @tagName(self), src, len, count_dst, base, target });
+        return offset + 7;
+    }
+
+    fn matchRepeatNextInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const src = chunk.read(offset + 1);
+        const base = chunk.read(offset + 2);
+        const len = chunk.read(offset + 3);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 4))) << 8) | chunk.read(offset + 5);
+        const target = offset + 6 + jump;
+        try writer.print("{s} r{} base=r{}+{} done->{}\n", .{ @tagName(self), src, base, len, target });
+        return offset + 6;
+    }
+
+    fn matchRepeatInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const src = chunk.read(offset + 1);
+        const dst = chunk.read(offset + 2);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const target = offset + 5 + jump;
+        try writer.print("{s} r{} r{} -> {}\n", .{ @tagName(self), src, dst, target });
+        return offset + 5;
+    }
+
+    fn matchRepeatRangeInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const src = chunk.read(offset + 1);
+        const dst = chunk.read(offset + 2);
+        const lower_kind = chunk.read(offset + 3);
+        const lower_arg = (@as(u16, @intCast(chunk.read(offset + 4))) << 8) | chunk.read(offset + 5);
+        const upper_kind = chunk.read(offset + 6);
+        const upper_arg = (@as(u16, @intCast(chunk.read(offset + 7))) << 8) | chunk.read(offset + 8);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 9))) << 8) | chunk.read(offset + 10);
+        const target = offset + 11 + jump;
+        try writer.print("{s} r{} r{} ", .{ @tagName(self), src, dst });
+        try printRangeLimit(vm, module, writer, lower_kind, lower_arg);
+        try writer.writeAll("..");
+        try printRangeLimit(vm, module, writer, upper_kind, upper_arg);
+        try writer.print(" -> {}\n", .{target});
+        return offset + 11;
+    }
+
+    fn matchInRangeInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const slot = chunk.read(offset + 1);
+        const lower_kind = chunk.read(offset + 2);
+        const lower_arg = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const upper_kind = chunk.read(offset + 5);
+        const upper_arg = (@as(u16, @intCast(chunk.read(offset + 6))) << 8) | chunk.read(offset + 7);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 8))) << 8) | chunk.read(offset + 9);
+        const target = offset + 10 + jump;
+        try writer.print("{s} r{} ", .{ @tagName(self), slot });
+        try printRangeLimit(vm, module, writer, lower_kind, lower_arg);
+        try writer.writeAll("..");
+        try printRangeLimit(vm, module, writer, upper_kind, upper_arg);
+        try writer.print(" -> {}\n", .{target});
+        return offset + 10;
+    }
+
+    fn printRangeLimit(vm: VM, module: Module, writer: *Writer, kind: u8, arg: u16) !void {
+        switch (kind) {
+            0 => {}, // none: open bound
+            1, 2 => { // const / global
+                var constant = module.getConstant(arg);
+                try constant.print(vm, writer);
+            },
+            3 => try writer.print("s{}", .{arg}), // read: bound local slot
+            4 => try writer.print("=s{}", .{arg}), // bind: unbound var slot
+            else => try writer.writeAll("?"),
+        }
+    }
+
+    fn matchRangeBoundInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const slot = chunk.read(offset + 1);
+        const is_upper = chunk.read(offset + 2) != 0;
+        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const target = offset + 5 + jump;
+        try writer.print("{s} r{} {s} -> {}\n", .{ @tagName(self), slot, if (is_upper) "hi" else "lo", target });
+        return offset + 5;
+    }
+
+    fn matchConstJumpInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const register = chunk.read(offset + 1);
+        const constant_idx = (@as(u16, @intCast(chunk.read(offset + 2))) << 8) | chunk.read(offset + 3);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 4))) << 8) | chunk.read(offset + 5);
+        const target = offset + 6 + jump;
+        var constant = module.getConstant(constant_idx);
+        try writer.print("{s} r{} ", .{ @tagName(self), register });
+        try constant.print(vm, writer);
+        try writer.print(" -> {}\n", .{target});
+        return offset + 6;
+    }
+
+    fn matchKeyInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const constant_idx = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
+        const target = offset + 7 + jump;
+        var constant = module.getConstant(constant_idx);
+        try writer.print("{s} r{} r{}[", .{ @tagName(self), dst, src });
+        try constant.print(vm, writer);
+        try writer.print("] -> {}\n", .{target});
+        return offset + 7;
+    }
+
+    fn matchMergeBoolInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const constant_idx = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
+        const target = offset + 7 + jump;
+        var constant = module.getConstant(constant_idx);
+        try writer.print("{s} r{} r{} claim ", .{ @tagName(self), dst, src });
+        try constant.print(vm, writer);
+        try writer.print(" -> {}\n", .{target});
+        return offset + 7;
+    }
+
+    fn matchMergeNumInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const constant_idx = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
+        const target = offset + 7 + jump;
+        var constant = module.getConstant(constant_idx);
+        try writer.print("{s} r{} r{} - ", .{ @tagName(self), dst, src });
+        try constant.print(vm, writer);
+        try writer.print(" -> {}\n", .{target});
+        return offset + 7;
     }
 
     fn byteInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {

@@ -43,6 +43,7 @@ pub const GoalType = enum {
     ident,
     neg,
     merge,
+    mult,
     to_string,
     number_string,
     number_float,
@@ -70,6 +71,9 @@ pub const GoalNode = union(GoalType) {
     ident: Ident,
     neg: NodeId,
     merge: Merge,
+    // Value multiplication `V1 * V2`: merge the left value with itself
+    // right times, per Elem.repeat. Parser repetition stays `repeat`.
+    mult: Mult,
     // Stringify the result: identity on strings, JSON encoding otherwise.
     // String templates desugar to merge chains of literal segments and
     // to_string-wrapped interpolations; there is no template goal node.
@@ -104,6 +108,10 @@ pub const Seq = struct {
 pub const Call = struct {
     callee: NodeId,
     args: []NodeId,
+    // Bit i set means args[i] is a value, unset a parser, matching the
+    // Function.ParamTypes bitset the backend asserts against. Args past
+    // bit 31 are unrepresentable; the compiler rejects such calls.
+    value_args: u32,
 };
 
 pub const Ident = struct {
@@ -148,14 +156,18 @@ pub const PlaceId = u32; // index into the owning places list; 0 = root
 pub const PlaceDef = union(enum) {
     // The tested value: a match scrutinee or a ConstraintSet's root.
     scrutinee,
-    // `First` in `[First, ...Rest]`
-    elem: struct { src: PlaceId, index: u32 },
+    // `First` in `[First, ...Rest]`. Index is u8: the match-step ops
+    // encode it in one byte, and goal creation rejects larger patterns.
+    elem: struct { src: PlaceId, index: u8 },
     // `Last` in `[...Front, Last]`
-    elem_back: struct { src: PlaceId, index: u32 },
+    elem_back: struct { src: PlaceId, index: u8 },
     // `Middle` in `[First, ...Middle, Last]`
-    slice: struct { src: PlaceId, front: u32, back: u32 },
+    slice: struct { src: PlaceId, front: u8, back: u8 },
     // "foo" in `{"foo": Bar}`
     key: struct { src: PlaceId, sid: StringTable.Id },
+    // `Rest` in `{"foo": Bar, ...Rest}`: the object minus the members
+    // the arm's has_key constraints on src claim.
+    members_rest: struct { src: PlaceId },
 };
 
 pub const MatchArm = struct {
@@ -232,11 +244,19 @@ pub const Constraint = struct {
     // IR property. Only eval_eq order relative to other eval_eq
     // constraints is preserved from source.
     pub const Kind = union(enum) {
-        // shape tests
+        // shape tests. len_eq/len_min measure array elements or string
+        // bytes, directed by the place's is_type. str_prefix/str_suffix
+        // compare literal bytes at a string place's ends without
+        // materializing a substring. len/count are u8: the match-step ops
+        // encode them in one byte, and goal creation rejects larger
+        // patterns.
         is_type: struct { place: PlaceId, ty: ValueType },
-        len_eq: struct { place: PlaceId, len: u32 },
-        len_min: struct { place: PlaceId, len: u32 },
-        keys_exact: struct { place: PlaceId, count: u32 },
+        len_eq: struct { place: PlaceId, len: u8 },
+        len_min: struct { place: PlaceId, len: u8 },
+        str_prefix: struct { place: PlaceId, literal: []const u8 },
+        str_suffix: struct { place: PlaceId, literal: []const u8 },
+        keys_exact: struct { place: PlaceId, count: u8 },
+        keys_min: struct { place: PlaceId, count: u8 },
         has_key: struct { place: PlaceId, sid: StringTable.Id },
         // point tests
         eq_const: struct { place: PlaceId, value: NodeId },
@@ -265,6 +285,11 @@ pub const Constraint = struct {
             place: PlaceId,
             parts: ArrayList(Part),
             solvable_index: ?u32,
+            // The merge's static type: the first structurally typed part
+            // names it at creation, and conflicting static part types are
+            // creation-time errors. Null = no structural part, resolved
+            // from part values at match time.
+            ty: ?ValueType,
         },
         match_template: struct { place: PlaceId, segments: ArrayList(Segment) },
         solve_repeat: struct { place: PlaceId, pattern: Part, count: Part },
@@ -280,6 +305,11 @@ pub const Segment = union(enum) {
 };
 
 pub const Merge = struct {
+    left: NodeId,
+    right: NodeId,
+};
+
+pub const Mult = struct {
     left: NodeId,
     right: NodeId,
 };

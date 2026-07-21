@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Ir = @import("ir.zig").Ir;
+const RangeLimitKind = @import("ir.zig").RangeLimitKind;
 
 // Local slot operands are a single byte.
 pub const max_locals = 256;
@@ -92,27 +93,169 @@ pub const Liveness = struct {
 };
 
 fn instructionReads(operand: Ir.Operand, plan_slots: []const PlanSlots) SlotSet {
+    var reads = SlotSet.initEmpty();
     switch (operand) {
         .destructure_plan => |idx| return plan_slots[idx].reads,
+        // MatchBind and MatchElem read their source register;
+        // MatchElemDyn also reads the loop base register.
+        .match_bytes => |m| {
+            reads.set(m.byte2);
+            if (m.op == .MatchElemDyn) reads.set(m.byte3);
+        },
+        // Tests read the register under test; MatchSlot also reads the
+        // local it compares against, and MatchStrCovered reads both the
+        // front and end cursor registers. The cast steps read their src
+        // register (byte2) and define dst (byte1); in the in-place form
+        // src == dst.
+        .match_test => |m| switch (m.op) {
+            .MatchCastNum, .MatchCastBool => reads.set(m.byte2),
+            .MatchSlot, .MatchStrCovered => {
+                reads.set(m.byte1);
+                reads.set(m.byte2);
+            },
+            else => reads.set(m.byte1),
+        },
+        // MatchConst/MatchGlobal read the tested register; MatchKey and
+        // MatchMergeNum(Neg) read their source register.
+        .match_const => |m| reads.set(if (Ir.matchConstHasSrcReg(m.op)) m.byte2 else m.byte1),
+        // MatchObjectRest reads its source register.
+        .match_rest => |m| reads.set(m.byte2),
+        // The rest-with-search variant reads its source and the claimed
+        // search-key registers it subtracts.
+        .match_rest_search => |m| {
+            reads.set(m.src);
+            var r = m.claim_base;
+            while (r < m.claim_base + m.claim_count) : (r += 1) reads.set(r);
+        },
+        // MatchNextUnclaimed reads the searched object and the claim
+        // registers below its key destination.
+        .match_search => |m| {
+            reads.set(m.src);
+            var r = m.key_dst - m.claim_count;
+            while (r < m.key_dst) : (r += 1) reads.set(r);
+        },
+        // MatchKeyBound also reads the bound key local.
+        .match_key_bound => |m| {
+            reads.set(m.src);
+            reads.set(m.slot);
+            var r = m.key_dst - m.claim_count;
+            while (r < m.key_dst) : (r += 1) reads.set(r);
+        },
+        // MatchInRange reads the tested register and any bound that reads
+        // a bound local's slot; bind bounds define rather than read.
+        .match_range => |m| {
+            reads.set(m.slot);
+            if (m.lower_kind == @intFromEnum(RangeLimitKind.read)) reads.set(@intCast(m.lower_arg));
+            if (m.upper_kind == @intFromEnum(RangeLimitKind.read)) reads.set(@intCast(m.upper_arg));
+        },
+        // MatchRepeatRange reads the scanned string register and any
+        // bound-local range bounds.
+        .match_repeat_range => |m| {
+            reads.set(m.src);
+            if (m.lower_kind == @intFromEnum(RangeLimitKind.read)) reads.set(@intCast(m.lower_arg));
+            if (m.upper_kind == @intFromEnum(RangeLimitKind.read)) reads.set(@intCast(m.upper_arg));
+        },
+        // The array-repeat loop entry reads the array; the loop head
+        // reads the array and advances the base register.
+        .match_repeat_init => |m| reads.set(m.src),
+        .match_repeat_next => |m| {
+            reads.set(m.src);
+            reads.set(m.base);
+        },
+        // String-template steps read the source string and their cursor
+        // registers; the opposite cursor bounds each chomp.
+        .match_str_init => |m| reads.set(m.src),
+        .match_str_rest => |m| {
+            reads.set(m.src);
+            reads.set(m.front);
+            reads.set(m.end);
+        },
+        .match_str_lit => |m| {
+            reads.set(m.src);
+            reads.set(m.cursor);
+            reads.set(m.opp);
+        },
+        .match_str_val => |m| {
+            reads.set(m.src);
+            reads.set(m.cursor);
+            reads.set(m.opp);
+        },
+        .match_str_char => |m| {
+            reads.set(m.src);
+            reads.set(m.cursor);
+            reads.set(m.opp);
+        },
         else => {
-            var reads = SlotSet.initEmpty();
             const op = Ir.operandOp(operand);
             if (Ir.localSlotOperand(op, operand)) |slot| reads.set(slot);
-            return reads;
         },
     }
+    return reads;
 }
 
 fn instructionDefs(operand: Ir.Operand, plan_slots: []const PlanSlots) SlotSet {
+    var defs = SlotSet.initEmpty();
     switch (operand) {
         .destructure_plan => |idx| return plan_slots[idx].defs,
+        // MatchBind overwrites its local; MatchElem overwrites its
+        // destination register.
+        .match_bytes => |m| defs.set(m.byte1),
+        // The repeat steps overwrite their destination register (derived
+        // count or representative chunk); the cast steps rewrite their
+        // register in place with the parsed value. Straight defs, sound the
+        // same way projection defs are.
+        .match_test => |m| switch (m.op) {
+            .MatchRepeatValue, .MatchRepeatChunk => defs.set(m.byte2),
+            .MatchCastNum, .MatchCastBool => defs.set(m.byte1),
+            else => {},
+        },
+        // MatchKey and MatchMergeNum(Neg) overwrite their destination
+        // register on the success path only; treating it as a straight
+        // def is sound for the same reason plan binds are: nothing
+        // reachable reads the previous value once a projection targets
+        // the register.
+        .match_const => |m| if (Ir.matchConstHasSrcReg(m.op)) defs.set(m.byte1),
+        .match_rest => |m| defs.set(m.byte1),
+        .match_rest_search => |m| defs.set(m.dst),
+        // MatchNextUnclaimed and MatchKeyBound overwrite the found key
+        // and value registers.
+        .match_search => |m| {
+            defs.set(m.key_dst);
+            defs.set(m.val_dst);
+        },
+        .match_key_bound => |m| {
+            defs.set(m.key_dst);
+            defs.set(m.val_dst);
+        },
+        // An unbound-var (bind) range bound overwrites its local slot.
+        .match_range => |m| {
+            if (m.lower_kind == @intFromEnum(RangeLimitKind.bind)) defs.set(@intCast(m.lower_arg));
+            if (m.upper_kind == @intFromEnum(RangeLimitKind.bind)) defs.set(@intCast(m.upper_arg));
+        },
+        // MatchRepeatRange overwrites its count destination register.
+        .match_repeat_range => |m| defs.set(m.dst),
+        // The loop entry overwrites the count and base registers; the
+        // loop head rewrites base from its previous value (a read, not
+        // a def).
+        .match_repeat_init => |m| {
+            defs.set(m.count_dst);
+            defs.set(m.base);
+        },
+        // MatchStrInit primes both cursors; MatchStrRest and MatchStrChar
+        // overwrite their destination register. The cursor rewrites in the
+        // chomp steps are reads, not defs (like MatchRepeatNext's base).
+        .match_str_init => |m| {
+            defs.set(m.front);
+            defs.set(m.end);
+        },
+        .match_str_rest => |m| defs.set(m.dst),
+        .match_str_char => |m| defs.set(m.dst),
         else => {
-            var defs = SlotSet.initEmpty();
             const op = Ir.operandOp(operand);
             if (Ir.localSlotDefOperand(op, operand)) |slot| defs.set(slot);
-            return defs;
         },
     }
+    return defs;
 }
 
 // The four invariants relied on here are enforced by Ir.verify, which is
@@ -132,6 +275,17 @@ fn liveOut(insns: []const Ir.Insn, live_in: []const SlotSet, i: usize) SlotSet {
             const target = switch (operand) {
                 .jump => |j| j.target,
                 .jump_back => |j| j.target,
+                .match_test => |m| m.target,
+                .match_const => |m| m.target,
+                .match_search => |m| m.target,
+                .match_key_bound => |m| m.target,
+                .match_range => |m| m.target,
+                .match_repeat_range => |m| m.target,
+                .match_repeat_init => |m| m.target,
+                .match_repeat_next => |m| m.target,
+                .match_str_lit => |m| m.target,
+                .match_str_val => |m| m.target,
+                .match_str_char => |m| m.target,
                 else => unreachable,
             };
             // Invariant: every jump is patched before liveness runs, so its

@@ -26,11 +26,11 @@ pub const Lowerer = struct {
     resolver: NameResolver,
     plan_slots: *AutoHashMap(Module.Id, ArrayList(liveness.PlanSlots)),
 
-    fn internForRuntime(self: *const Lowerer, name: Frontend.PathTable.Id) !RuntimeStrings.Id {
+    pub fn internForRuntime(self: *const Lowerer, name: Frontend.PathTable.Id) !RuntimeStrings.Id {
         return self.vm.strings.insert(self.frontend.pathString(name));
     }
 
-    fn numberStringNodeToElem(self: *const Lowerer, number: []const u8, negated: bool) !Elem {
+    pub fn numberStringNodeToElem(self: *const Lowerer, number: []const u8, negated: bool) !Elem {
         const elem = try Elem.numberStringFromBytes(number, self.vm);
         if (negated) {
             return elem.asNumberString().negate().elem();
@@ -43,7 +43,7 @@ pub const Lowerer = struct {
 // Scratch state for lowering one pattern to a MatchPlan. Everything
 // accumulates here so an UnsupportedPattern deep in the tree abandons
 // cleanly, before any module or plan state mutation.
-const PlanBuilder = struct {
+pub const PlanBuilder = struct {
     nodes: ArrayList(match_plan.Node) = .{},
     vars: ArrayList(match_plan.LocalVar) = .{},
     elems: ArrayList(Elem) = .{},
@@ -55,7 +55,7 @@ const PlanBuilder = struct {
     reads: liveness.SlotSet = liveness.SlotSet.initEmpty(),
     defs: liveness.SlotSet = liveness.SlotSet.initEmpty(),
 
-    fn deinit(self: *PlanBuilder, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *PlanBuilder, allocator: std.mem.Allocator) void {
         self.nodes.deinit(allocator);
         self.vars.deinit(allocator);
         self.elems.deinit(allocator);
@@ -66,11 +66,11 @@ const PlanBuilder = struct {
         self.repeats.deinit(allocator);
     }
 
-    fn appendLeaf(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, payload: u32) !void {
+    pub fn appendLeaf(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, payload: u32) !void {
         try self.nodes.append(allocator, .{ .tag = tag, .subtree_len = 1, .payload = payload });
     }
 
-    fn addElem(self: *PlanBuilder, allocator: std.mem.Allocator, elem: Elem) !u32 {
+    pub fn addElem(self: *PlanBuilder, allocator: std.mem.Allocator, elem: Elem) !u32 {
         // The plan holds the elem across matches, like a module
         // constant: shared by construction, never unique.
         if (elem.isType(.Dyn)) elem.asDyn().makeImmortal();
@@ -82,9 +82,9 @@ const PlanBuilder = struct {
     // A compare/eval occurrence reads the slot at match time; a bind
     // occurrence overwrites it without reading, which liveness uses to end
     // the previous value's live range.
-    const VarAccess = enum { read, bind };
+    pub const VarAccess = enum { read, bind };
 
-    fn addVar(self: *PlanBuilder, allocator: std.mem.Allocator, local_var: match_plan.LocalVar, access: VarAccess) !u32 {
+    pub fn addVar(self: *PlanBuilder, allocator: std.mem.Allocator, local_var: match_plan.LocalVar, access: VarAccess) !u32 {
         const idx: u32 = @intCast(self.vars.items.len);
         try self.vars.append(allocator, local_var);
         switch (access) {
@@ -94,11 +94,11 @@ const PlanBuilder = struct {
         return idx;
     }
 
-    fn appendEquality(self: *PlanBuilder, allocator: std.mem.Allocator, elem: Elem) !void {
+    pub fn appendEquality(self: *PlanBuilder, allocator: std.mem.Allocator, elem: Elem) !void {
         try self.appendLeaf(allocator, .equality, try self.addElem(allocator, elem));
     }
 
-    fn appendVar(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, local_var: match_plan.LocalVar) !void {
+    pub fn appendVar(self: *PlanBuilder, allocator: std.mem.Allocator, tag: match_plan.Tag, local_var: match_plan.LocalVar) !void {
         const access: VarAccess = if (tag == .bind) .bind else .read;
         try self.appendLeaf(allocator, tag, try self.addVar(allocator, local_var, access));
     }
@@ -114,6 +114,14 @@ pub fn createMatchPlan(
     defer builder.deinit(allocator);
 
     try lowerPatternNode(self,module_id, rnode, &builder, false, 0);
+
+    return finishPlan(self, module_id, &builder);
+}
+
+// Move the accumulated builder state into a module match plan and record
+// its slot sets for liveness. Shared with the goal-driven lowering.
+pub fn finishPlan(self: *Lowerer, module_id: Module.Id, builder: *PlanBuilder) Error!u24 {
+    const allocator = self.vm.allocator;
 
     const nodes = try builder.nodes.toOwnedSlice(allocator);
     errdefer allocator.free(nodes);
@@ -724,9 +732,9 @@ fn lowerMergePart(
 // How a repeat operand subtree is obtained at match time, mirroring what
 // the solver's attemptEval would discover dynamically. The split between
 // constant and eval is the compile-time refinement: constants fold here.
-const SubtreeClass = enum { constant, eval, subtree };
+pub const SubtreeClass = enum { constant, eval, subtree };
 
-fn classifyPlanSubtree(self: *Lowerer, builder: *PlanBuilder, idx: u32) SubtreeClass {
+pub fn classifyPlanSubtree(self: *Lowerer, builder: *PlanBuilder, idx: u32) SubtreeClass {
     const node = builder.nodes.items[idx];
     return switch (node.tag) {
         .equality => .constant,
@@ -804,7 +812,7 @@ fn foldPlanSubtree(self: *Lowerer, builder: *PlanBuilder, idx: u32) Error!?Elem 
     }
 }
 
-fn lowerRepeatOperand(
+pub fn lowerRepeatOperand(
     self: *Lowerer,
     builder: *PlanBuilder,
     subtree_idx: u32,

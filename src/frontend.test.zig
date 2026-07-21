@@ -64,8 +64,8 @@ test "module with declarations" {
     defer frontend.deinit();
 
     const source =
-        \\ foo(N) = "foo" $ N
-        \\ bar(P) = "bar" $ P
+        \\ foo(a) = "foo" > a
+        \\ bar(b) = "bar" > b
         \\ foo("input")
     ;
 

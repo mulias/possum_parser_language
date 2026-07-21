@@ -304,10 +304,12 @@ fn convertParser(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Parser.RNode {
                 .left = try self.convertParser(infix.left),
                 .right = try self.convertParser(infix.right),
             } },
-            .Repeat => Ast.Parser.Node{ .repeat = .{
-                .left = try self.convertParser(infix.left),
-                .right = try self.convertPattern(infix.right),
-            } },
+            .Repeat => blk: {
+                const left = try self.convertParser(infix.left);
+                const right = try self.convertPattern(infix.right);
+                try self.validateRepeatCountPattern(right);
+                break :blk Ast.Parser.Node{ .repeat = .{ .left = left, .right = right } };
+            },
             .Return => Ast.Parser.Node{ .@"return" = .{
                 .left = try self.convertParser(infix.left),
                 .right = try self.convertValue(infix.right),
@@ -329,7 +331,15 @@ fn convertParser(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Parser.RNode {
             .lower = if (range.lower) |l| try self.convertParser(l) else null,
             .upper = if (range.upper) |u| try self.convertParser(u) else null,
         } },
-        .Negation => |inner| Ast.Parser.Node{ .negation = try self.convertParser(inner) },
+        .Negation => |inner| {
+            const p = try self.convertParser(inner);
+            if (p.node == .number_string and !p.node.number_string.negated) {
+                p.node.number_string.negated = true;
+                return p;
+            } else {
+                return Error.InvalidAst;
+            }
+        },
         .ValueLabel => {
             try self.printError(region, "Value label '$' is not valid in parser context", .{});
             return Error.InvalidAst;
@@ -440,10 +450,12 @@ fn convertValue(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Value.RNode {
                 .left = try self.convertValue(infix.left),
                 .right = try self.convertValue(infix.right),
             } },
-            .Repeat => Ast.Value.Node{ .repeat = .{
-                .left = try self.convertValue(infix.left),
-                .right = try self.convertValue(infix.right),
-            } },
+            .Repeat => blk: {
+                const left = try self.convertValue(infix.left);
+                const right = try self.convertValue(infix.right);
+                try self.validateRepeatCountValue(right);
+                break :blk Ast.Value.Node{ .repeat = .{ .left = left, .right = right } };
+            },
             .Return => Ast.Value.Node{ .@"return" = .{
                 .left = try self.convertValue(infix.left),
                 .right = try self.convertValue(infix.right),
@@ -600,10 +612,12 @@ fn convertPattern(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Pattern.RNode 
                 .left = try self.convertPattern(infix.left),
                 .right = try self.convertPattern(infix.right),
             } },
-            .Repeat => Ast.Pattern.Node{ .repeat = .{
-                .left = try self.convertPattern(infix.left),
-                .right = try self.convertPattern(infix.right),
-            } },
+            .Repeat => blk: {
+                const left = try self.convertPattern(infix.left);
+                const right = try self.convertPattern(infix.right);
+                try self.validateRepeatCountPattern(right);
+                break :blk Ast.Pattern.Node{ .repeat = .{ .left = left, .right = right } };
+            },
             .NumberSubtract => Ast.Pattern.Node{ .merge = .{
                 .left = try self.convertPattern(infix.left),
                 .right = try Ast.Pattern.create(
@@ -700,6 +714,52 @@ fn convertPattern(self: *Can, rnode: *ParsedAst.RNode) Error!*Ast.Pattern.RNode 
     };
 
     return Ast.Pattern.create(self.arena.allocator(), node, region);
+}
+
+// A repeat count must be numeric at runtime, so its expression is
+// restricted to shapes that can produce a number: numbers, variables,
+// global aliases and function calls, ranges of those (pattern counts
+// only), and merges, negations, and repeats of those.
+fn validateRepeatCountPattern(self: *Can, rnode: *Ast.Pattern.RNode) Error!void {
+    switch (rnode.node) {
+        .number_float, .number_string, .identifier, .function_call => {},
+        .merge => |merge| {
+            try self.validateRepeatCountPattern(merge.left);
+            try self.validateRepeatCountPattern(merge.right);
+        },
+        .repeat => |repeat| {
+            try self.validateRepeatCountPattern(repeat.left);
+            try self.validateRepeatCountPattern(repeat.right);
+        },
+        .negation => |inner| try self.validateRepeatCountPattern(inner),
+        .range => |range| {
+            if (range.lower) |lower| try self.validateRepeatCountPattern(lower);
+            if (range.upper) |upper| try self.validateRepeatCountPattern(upper);
+        },
+        .array, .object, .string, .string_template, .true, .false, .null => {
+            try self.printError(rnode.region, "Repeat count must be a number, variable, function call, or a compound of those", .{});
+            return Error.InvalidAst;
+        },
+    }
+}
+
+fn validateRepeatCountValue(self: *Can, rnode: *Ast.Value.RNode) Error!void {
+    switch (rnode.node) {
+        .number_float, .number_string, .identifier, .function_call => {},
+        .merge => |merge| {
+            try self.validateRepeatCountValue(merge.left);
+            try self.validateRepeatCountValue(merge.right);
+        },
+        .repeat => |repeat| {
+            try self.validateRepeatCountValue(repeat.left);
+            try self.validateRepeatCountValue(repeat.right);
+        },
+        .negation => |inner| try self.validateRepeatCountValue(inner),
+        else => {
+            try self.printError(rnode.region, "Repeat count must be a number, variable, function call, or a compound of those", .{});
+            return Error.InvalidAst;
+        },
+    }
 }
 
 fn convertParserFunctionCallArg(self: *Can, rnode: *ParsedAst.RNode) !Ast.ParserOrValue.RNode {
@@ -989,9 +1049,6 @@ fn foldParserConstants(self: *Can, node: *Ast.Parser.RNode) error{ OutOfMemory, 
         .merge => |merge| {
             try self.foldParserConstants(merge.left);
             try self.foldParserConstants(merge.right);
-        },
-        .negation => |neg| {
-            try self.foldParserConstants(neg);
         },
         .range => |range| {
             if (range.lower) |lower| try self.foldParserConstants(lower);

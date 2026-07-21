@@ -189,17 +189,23 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal l0
-  0006    | DestructurePlan 0: bind K
-  0008    | TakeRight 8 -> 26
-  0011    | CallFunctionLocal l1
-  0013    | DestructurePlan 1: bind V
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstantMutable 1: {_0_}
-  0020    | GetLocalMove l2
-  0022    | GetLocalMove l3
-  0024    | InsertKeyVal 0
-  0026    | End
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | CallFunctionLocal l0
+  0008    | JumpIfFailure 8 -> 16
+  0011    | MatchScrutinee r4
+  0013    | MatchBind l2 r4
+  0016    | TakeRight 16 -> 40
+  0019    | CallFunctionLocal l1
+  0021    | JumpIfFailure 21 -> 29
+  0024    | MatchScrutinee r4
+  0026    | MatchBind l3 r4
+  0029    | TakeRight 29 -> 40
+  0032    | GetConstantMutable 1: {_0_}
+  0034    | GetLocalMove l2
+  0036    | GetLocalMove l3
+  0038    | InsertKeyVal 0
+  0040    | End
   ========================================
   
   ===============1:pair_sep===============
@@ -207,33 +213,43 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal l0
-  0006    | DestructurePlan 2: bind K
-  0008    | TakeRight 8 -> 13
-  0011    | CallFunctionLocal l1
-  0013    | TakeRight 13 -> 31
-  0016    | CallFunctionLocal l2
-  0018    | DestructurePlan 3: bind V
-  0020    | TakeRight 20 -> 31
-  0023    | GetConstantMutable 3: {_0_}
-  0025    | GetLocalMove l3
-  0027    | GetLocalMove l4
-  0029    | InsertKeyVal 0
-  0031    | End
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | CallFunctionLocal l0
+  0008    | JumpIfFailure 8 -> 16
+  0011    | MatchScrutinee r5
+  0013    | MatchBind l3 r5
+  0016    | TakeRight 16 -> 21
+  0019    | CallFunctionLocal l1
+  0021    | TakeRight 21 -> 45
+  0024    | CallFunctionLocal l2
+  0026    | JumpIfFailure 26 -> 34
+  0029    | MatchScrutinee r5
+  0031    | MatchBind l4 r5
+  0034    | TakeRight 34 -> 45
+  0037    | GetConstantMutable 3: {_0_}
+  0039    | GetLocalMove l3
+  0041    | GetLocalMove l4
+  0043    | InsertKeyVal 0
+  0045    | End
   ========================================
   
   ===============1:record1================
   record1(Key, value) = value -> Value $ {Key: Value}
   ========================================
   0000    | PushVar Value
-  0002    | CallFunctionLocal l1
-  0004    | DestructurePlan 4: bind Value
-  0006    | TakeRight 6 -> 17
-  0009    | GetConstantMutable 12: {_0_}
-  0011    | GetLocalMove l0
-  0013    | GetLocalMove l2
-  0015    | InsertKeyVal 0
-  0017    | End
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | CallFunctionLocal l1
+  0006    | JumpIfFailure 6 -> 14
+  0009    | MatchScrutinee r3
+  0011    | MatchBind l2 r3
+  0014    | TakeRight 14 -> 25
+  0017    | GetConstantMutable 12: {_0_}
+  0019    | GetLocalMove l0
+  0021    | GetLocalMove l2
+  0023    | InsertKeyVal 0
+  0025    | End
   ========================================
   
   ===============1:record2================
@@ -244,20 +260,26 @@
   ========================================
   0000    | PushVar V1
   0002    | PushVar V2
-  0004    | CallFunctionLocal l1
-  0006    | DestructurePlan 5: bind V1
-  0008    | TakeRight 8 -> 32
-  0011    | CallFunctionLocal l3
-  0013    | DestructurePlan 6: bind V2
-  0015    | TakeRight 15 -> 32
-  0018    | GetConstantMutable 13: {_0_, _1_}
-  0020    | GetLocalMove l0
-  0022    | GetLocalMove l4
-  0024    | InsertKeyVal 0
-  0026    | GetLocalMove l2
-  0028    | GetLocalMove l5
-  0030    | InsertKeyVal 1
-  0032    | End
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | CallFunctionLocal l1
+  0008    | JumpIfFailure 8 -> 16
+  0011    | MatchScrutinee r6
+  0013    | MatchBind l4 r6
+  0016    | TakeRight 16 -> 46
+  0019    | CallFunctionLocal l3
+  0021    | JumpIfFailure 21 -> 29
+  0024    | MatchScrutinee r6
+  0026    | MatchBind l5 r6
+  0029    | TakeRight 29 -> 46
+  0032    | GetConstantMutable 13: {_0_, _1_}
+  0034    | GetLocalMove l0
+  0036    | GetLocalMove l4
+  0038    | InsertKeyVal 0
+  0040    | GetLocalMove l2
+  0042    | GetLocalMove l5
+  0044    | InsertKeyVal 1
+  0046    | End
   ========================================
   
   =============1:record2_sep==============
@@ -268,22 +290,28 @@
   ========================================
   0000    | PushVar V1
   0002    | PushVar V2
-  0004    | CallFunctionLocal l1
-  0006    | DestructurePlan 7: bind V1
-  0008    | TakeRight 8 -> 13
-  0011    | CallFunctionLocal l2
-  0013    | TakeRight 13 -> 37
-  0016    | CallFunctionLocal l4
-  0018    | DestructurePlan 8: bind V2
-  0020    | TakeRight 20 -> 37
-  0023    | GetConstantMutable 14: {_0_, _1_}
-  0025    | GetLocalMove l0
-  0027    | GetLocalMove l5
-  0029    | InsertKeyVal 0
-  0031    | GetLocalMove l3
-  0033    | GetLocalMove l6
-  0035    | InsertKeyVal 1
-  0037    | End
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | CallFunctionLocal l1
+  0008    | JumpIfFailure 8 -> 16
+  0011    | MatchScrutinee r7
+  0013    | MatchBind l5 r7
+  0016    | TakeRight 16 -> 21
+  0019    | CallFunctionLocal l2
+  0021    | TakeRight 21 -> 51
+  0024    | CallFunctionLocal l4
+  0026    | JumpIfFailure 26 -> 34
+  0029    | MatchScrutinee r7
+  0031    | MatchBind l6 r7
+  0034    | TakeRight 34 -> 51
+  0037    | GetConstantMutable 14: {_0_, _1_}
+  0039    | GetLocalMove l0
+  0041    | GetLocalMove l5
+  0043    | InsertKeyVal 0
+  0045    | GetLocalMove l3
+  0047    | GetLocalMove l6
+  0049    | InsertKeyVal 1
+  0051    | End
   ========================================
   
   ===============1:record3================
@@ -296,26 +324,34 @@
   0000    | PushVar V1
   0002    | PushVar V2
   0004    | PushVar V3
-  0006    | CallFunctionLocal l1
-  0008    | DestructurePlan 9: bind V1
-  0010    | TakeRight 10 -> 17
-  0013    | CallFunctionLocal l3
-  0015    | DestructurePlan 10: bind V2
-  0017    | TakeRight 17 -> 47
-  0020    | CallFunctionLocal l5
-  0022    | DestructurePlan 11: bind V3
-  0024    | TakeRight 24 -> 47
-  0027    | GetConstantMutable 15: {_0_, _1_, _2_}
-  0029    | GetLocalMove l0
-  0031    | GetLocalMove l6
-  0033    | InsertKeyVal 0
-  0035    | GetLocalMove l2
-  0037    | GetLocalMove l7
-  0039    | InsertKeyVal 1
-  0041    | GetLocalMove l4
-  0043    | GetLocalMove l8
-  0045    | InsertKeyVal 2
-  0047    | End
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | CallFunctionLocal l1
+  0010    | JumpIfFailure 10 -> 18
+  0013    | MatchScrutinee r9
+  0015    | MatchBind l6 r9
+  0018    | TakeRight 18 -> 31
+  0021    | CallFunctionLocal l3
+  0023    | JumpIfFailure 23 -> 31
+  0026    | MatchScrutinee r9
+  0028    | MatchBind l7 r9
+  0031    | TakeRight 31 -> 67
+  0034    | CallFunctionLocal l5
+  0036    | JumpIfFailure 36 -> 44
+  0039    | MatchScrutinee r9
+  0041    | MatchBind l8 r9
+  0044    | TakeRight 44 -> 67
+  0047    | GetConstantMutable 15: {_0_, _1_, _2_}
+  0049    | GetLocalMove l0
+  0051    | GetLocalMove l6
+  0053    | InsertKeyVal 0
+  0055    | GetLocalMove l2
+  0057    | GetLocalMove l7
+  0059    | InsertKeyVal 1
+  0061    | GetLocalMove l4
+  0063    | GetLocalMove l8
+  0065    | InsertKeyVal 2
+  0067    | End
   ========================================
   
   =============1:record3_sep==============
@@ -328,30 +364,38 @@
   0000    | PushVar V1
   0002    | PushVar V2
   0004    | PushVar V3
-  0006    | CallFunctionLocal l1
-  0008    | DestructurePlan 12: bind V1
-  0010    | TakeRight 10 -> 15
-  0013    | CallFunctionLocal l2
-  0015    | TakeRight 15 -> 22
-  0018    | CallFunctionLocal l4
-  0020    | DestructurePlan 13: bind V2
-  0022    | TakeRight 22 -> 27
-  0025    | CallFunctionLocal l5
-  0027    | TakeRight 27 -> 57
-  0030    | CallFunctionLocal l7
-  0032    | DestructurePlan 14: bind V3
-  0034    | TakeRight 34 -> 57
-  0037    | GetConstantMutable 16: {_0_, _1_, _2_}
-  0039    | GetLocalMove l0
-  0041    | GetLocalMove l8
-  0043    | InsertKeyVal 0
-  0045    | GetLocalMove l3
-  0047    | GetLocalMove l9
-  0049    | InsertKeyVal 1
-  0051    | GetLocalMove l6
-  0053    | GetLocalMove l10
-  0055    | InsertKeyVal 2
-  0057    | End
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | CallFunctionLocal l1
+  0010    | JumpIfFailure 10 -> 18
+  0013    | MatchScrutinee r11
+  0015    | MatchBind l8 r11
+  0018    | TakeRight 18 -> 23
+  0021    | CallFunctionLocal l2
+  0023    | TakeRight 23 -> 36
+  0026    | CallFunctionLocal l4
+  0028    | JumpIfFailure 28 -> 36
+  0031    | MatchScrutinee r11
+  0033    | MatchBind l9 r11
+  0036    | TakeRight 36 -> 41
+  0039    | CallFunctionLocal l5
+  0041    | TakeRight 41 -> 77
+  0044    | CallFunctionLocal l7
+  0046    | JumpIfFailure 46 -> 54
+  0049    | MatchScrutinee r11
+  0051    | MatchBind l10 r11
+  0054    | TakeRight 54 -> 77
+  0057    | GetConstantMutable 16: {_0_, _1_, _2_}
+  0059    | GetLocalMove l0
+  0061    | GetLocalMove l8
+  0063    | InsertKeyVal 0
+  0065    | GetLocalMove l3
+  0067    | GetLocalMove l9
+  0069    | InsertKeyVal 1
+  0071    | GetLocalMove l6
+  0073    | GetLocalMove l10
+  0075    | InsertKeyVal 2
+  0077    | End
   ========================================
   
   =================1:@fn0=================
@@ -401,14 +445,18 @@
   peek(p) = @input.offset -> Pos & @at(Pos, p)
   ========================================
   0000    | PushVar Pos
-  0002    | CallFunctionConstant 1: @input.offset
-  0004    | DestructurePlan 0: bind Pos
-  0006    | TakeRight 6 -> 17
-  0009    | GetConstant 2: @at
-  0011    | GetLocalMove l1
-  0013    | GetLocalMove l0
-  0015    | CallTailFunction 2
-  0017    | End
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | CallFunctionConstant 1: @input.offset
+  0006    | JumpIfFailure 6 -> 14
+  0009    | MatchScrutinee r2
+  0011    | MatchBind l1 r2
+  0014    | TakeRight 14 -> 25
+  0017    | GetConstant 2: @at
+  0019    | GetLocalMove l1
+  0021    | GetLocalMove l0
+  0023    | CallTailFunction 2
+  0025    | End
   ========================================
   
   ================2:unless================

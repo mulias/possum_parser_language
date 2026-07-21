@@ -6,9 +6,20 @@
   Obj.Has(O, K) = O -> {K: _, ..._}
   ========================================
   0000    | PushUnderscoreVar
-  0001    | GetLocalMove l0
-  0003    | DestructurePlan 0: ({bound_eq K: _} + _)
-  0005    | End
+  0001    | PushUnderscoreVar
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | GetLocalMove l0
+  0008    | JumpIfFailure 8 -> 37
+  0011    | MatchScrutinee r3
+  0013    | MatchType r3 object -> 36
+  0018    | MatchKeysMin r3 1 -> 36
+  0023    | MatchKeyBound key=r5 val=r6 src=r3[l1] keys=r5..r5 \ [] -> 36
+  0033    | Jump 33 -> 37
+  0036    | MatchFail
+  0037    | End
   ========================================
   
   ===============1:Obj.Get================
@@ -16,11 +27,23 @@
   ========================================
   0000    | PushVar V
   0002    | PushUnderscoreVar
-  0003    | GetLocalMove l0
-  0005    | DestructurePlan 1: ({bound_eq K: bind V} + _)
-  0007    | TakeRight 7 -> 12
-  0010    | GetLocalMove l2
-  0012    | End
+  0003    | PushUnderscoreVar
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | GetLocalMove l0
+  0010    | JumpIfFailure 10 -> 42
+  0013    | MatchScrutinee r4
+  0015    | MatchType r4 object -> 41
+  0020    | MatchKeysMin r4 1 -> 41
+  0025    | MatchKeyBound key=r6 val=r7 src=r4[l1] keys=r6..r6 \ [] -> 41
+  0035    | MatchBind l2 r7
+  0038    | Jump 38 -> 42
+  0041    | MatchFail
+  0042    | TakeRight 42 -> 47
+  0045    | GetLocalMove l2
+  0047    | End
   ========================================
   
   ===============1:Obj.Put================
@@ -31,7 +54,7 @@
   0004    | GetLocalMove l0
   0006    | Merge
   0007    | JumpIfFailure 7 -> 19
-  0010    | GetConstantMutable 0: {_0_}
+  0010    | GetConstantMutable 2: {_0_}
   0012    | GetLocalMove l1
   0014    | GetLocalMove l2
   0016    | InsertKeyVal 0
@@ -45,7 +68,7 @@
   0000    | PushUnderscoreVar
   0001    | PushVar S
   0003    | GetLocalMove l0
-  0005    | DestructurePlan 2: ({_: _} * bind S)
+  0005    | DestructurePlan 0: ({_: _} * bind S)
   0007    | TakeRight 7 -> 12
   0010    | GetLocalMove l2
   0012    | End
@@ -54,7 +77,7 @@
   ===============1:Obj.Keys===============
   Obj.Keys(O) = _Obj.Keys(O, [])
   ========================================
-  0000    | GetConstant 1: _Obj.Keys
+  0000    | GetConstant 3: _Obj.Keys
   0002    | GetLocalMove l0
   0004    | PushEmptyArray
   0005    | CallTailFunction 2
@@ -67,31 +90,47 @@
   0000    | PushVar K
   0002    | PushUnderscoreVar
   0003    | PushVar Rest
-  0005    | SetInputMark
-  0006    | GetLocalMove l0
-  0008    | DestructurePlan 3: ({bind K: _} + bind Rest)
-  0010    | ConditionalThen 10 -> 39
-  0013    | GetConstant 1: _Obj.Keys
-  0015    | GetLocalMove l4
-  0017    | PushEmptyArray
-  0018    | JumpIfFailure 18 -> 24
-  0021    | GetLocalMove l1
-  0023    | Merge
-  0024    | JumpIfFailure 24 -> 34
-  0027    | GetConstantMutable 2: [_]
-  0029    | GetLocalMove l2
-  0031    | InsertAtIndex 0
-  0033    | Merge
-  0034    | CallTailFunction 2
-  0036    | Jump 36 -> 41
-  0039    | GetLocalMove l1
-  0041    | End
+  0005    | PushUnderscoreVar
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | PushUnderscoreVar
+  0009    | PushUnderscoreVar
+  0010    | PushUnderscoreVar
+  0011    | SetInputMark
+  0012    | GetLocalMove l0
+  0014    | JumpIfFailure 14 -> 58
+  0017    | MatchScrutinee r5
+  0019    | MatchType r5 object -> 57
+  0024    | MatchKeysMin r5 1 -> 57
+  0029    | MatchSearchInit r10
+  0031    | MatchNextUnclaimed key=r8 val=r9 src=r5 cursor=r10 keys=r8..r8 \ [] loop->57
+  0041    | MatchBind l2 r8
+  0044    | MatchObjectRestSearch r6 r5 \ [] r8..r9
+  0051    | MatchBind l4 r6
+  0054    | Jump 54 -> 58
+  0057    | MatchFail
+  0058    | ConditionalThen 58 -> 87
+  0061    | GetConstant 3: _Obj.Keys
+  0063    | GetLocalMove l4
+  0065    | PushEmptyArray
+  0066    | JumpIfFailure 66 -> 72
+  0069    | GetLocalMove l1
+  0071    | Merge
+  0072    | JumpIfFailure 72 -> 82
+  0075    | GetConstantMutable 6: [_]
+  0077    | GetLocalMove l2
+  0079    | InsertAtIndex 0
+  0081    | Merge
+  0082    | CallTailFunction 2
+  0084    | Jump 84 -> 89
+  0087    | GetLocalMove l1
+  0089    | End
   ========================================
   
   ==============1:Obj.Values==============
   Obj.Values(O) = _Obj.Values(O, [])
   ========================================
-  0000    | GetConstant 3: _Obj.Values
+  0000    | GetConstant 7: _Obj.Values
   0002    | GetLocalMove l0
   0004    | PushEmptyArray
   0005    | CallTailFunction 2
@@ -104,23 +143,39 @@
   0000    | PushUnderscoreVar
   0001    | PushVar V
   0003    | PushVar Rest
-  0005    | SetInputMark
-  0006    | GetLocalMove l0
-  0008    | DestructurePlan 4: ({_: bind V} + bind Rest)
-  0010    | ConditionalThen 10 -> 39
-  0013    | GetConstant 3: _Obj.Values
-  0015    | GetLocalMove l4
-  0017    | PushEmptyArray
-  0018    | JumpIfFailure 18 -> 24
-  0021    | GetLocalMove l1
-  0023    | Merge
-  0024    | JumpIfFailure 24 -> 34
-  0027    | GetConstantMutable 4: [_]
-  0029    | GetLocalMove l3
-  0031    | InsertAtIndex 0
-  0033    | Merge
-  0034    | CallTailFunction 2
-  0036    | Jump 36 -> 41
-  0039    | GetLocalMove l1
-  0041    | End
+  0005    | PushUnderscoreVar
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | PushUnderscoreVar
+  0009    | PushUnderscoreVar
+  0010    | PushUnderscoreVar
+  0011    | SetInputMark
+  0012    | GetLocalMove l0
+  0014    | JumpIfFailure 14 -> 58
+  0017    | MatchScrutinee r5
+  0019    | MatchType r5 object -> 57
+  0024    | MatchKeysMin r5 1 -> 57
+  0029    | MatchSearchInit r10
+  0031    | MatchNextUnclaimed key=r8 val=r9 src=r5 cursor=r10 keys=r8..r8 \ [] loop->57
+  0041    | MatchBind l3 r9
+  0044    | MatchObjectRestSearch r6 r5 \ [] r8..r9
+  0051    | MatchBind l4 r6
+  0054    | Jump 54 -> 58
+  0057    | MatchFail
+  0058    | ConditionalThen 58 -> 87
+  0061    | GetConstant 7: _Obj.Values
+  0063    | GetLocalMove l4
+  0065    | PushEmptyArray
+  0066    | JumpIfFailure 66 -> 72
+  0069    | GetLocalMove l1
+  0071    | Merge
+  0072    | JumpIfFailure 72 -> 82
+  0075    | GetConstantMutable 10: [_]
+  0077    | GetLocalMove l3
+  0079    | InsertAtIndex 0
+  0081    | Merge
+  0082    | CallTailFunction 2
+  0084    | Jump 84 -> 89
+  0087    | GetLocalMove l1
+  0089    | End
   ========================================

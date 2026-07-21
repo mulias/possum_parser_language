@@ -8,16 +8,15 @@ Full created-stage goal form of stdlib/predicate_value.
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0 solvable=1
-          ""
-          _)))
+        (is_type %0 string)
+        (len_min %0 0)))
   
   Is.Number(V) =
     (match
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0 solvable=1
+        (solve_merge %0 ty=number solvable=1
           0
           _)))
   
@@ -26,7 +25,7 @@ Full created-stage goal form of stdlib/predicate_value.
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0 solvable=1
+        (solve_merge %0 ty=boolean solvable=1
           false
           _)))
   
@@ -42,24 +41,15 @@ Full created-stage goal form of stdlib/predicate_value.
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0 solvable=1
-          (set
-            %0 = scrutinee
-            (is_type %0 array)
-            (len_eq %0 0))
-          _)))
+        (is_type %0 array)
+        (len_min %0 0)))
   
   Is.Object(V) =
     (match
       scrutinee: V~0
       %0 = scrutinee
       (arm
-        (solve_merge %0 solvable=1
-          (set
-            %0 = scrutinee
-            (is_type %0 object)
-            (keys_exact %0 0))
-          _)))
+        (is_type %0 object)))
   
   Is.Equal(A, B) =
     (match

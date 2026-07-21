@@ -16,6 +16,7 @@ const match_plan_interpreter = @import("match_plan_interpreter.zig");
 const Module = @import("module.zig").Module;
 const ModuleLoader = @import("module_loader.zig").ModuleLoader;
 const OpCode = @import("op_code.zig").OpCode;
+const RangeLimitKind = @import("op_code.zig").RangeLimitKind;
 const StringTable = @import("string_table.zig").RuntimeStringTable;
 const Region = @import("../region.zig").Region;
 const LineRelativeRegion = @import("../region.zig").LineRelativeRegion;
@@ -34,7 +35,6 @@ pub const Config = struct {
     printCompiledBytecode: bool = false,
     printExecutedBytecode: bool = false,
     printVM: bool = false,
-    printDestructure: bool = false,
     print_gc: bool = false,
     runVM: bool = true,
     includeStdlib: bool = true,
@@ -55,7 +55,6 @@ pub const Config = struct {
         self.printCompiledBytecode = env.printCompiledBytecode;
         self.printExecutedBytecode = env.printExecutedBytecode;
         self.printVM = env.printVM;
-        self.printDestructure = env.printDestructure;
         self.print_gc = env.printGC;
         self.runVM = env.runVM;
         self.gc_mode = if (env.stressTestGC) .StressTest else .GC;
@@ -837,6 +836,883 @@ pub const VM = struct {
                 if (elem.isEql(Elem.numberFloat(0), self.*)) {
                     self.cur_frame.ip += offset;
                 }
+            },
+            .MatchScrutinee => {
+                const slot = self.readByte();
+                const value = self.peek(0);
+                const previous = self.getLocal(slot);
+                value.retain();
+                self.setLocal(slot, value);
+                previous.release();
+            },
+            .MatchType => {
+                const slot = self.readByte();
+                const ty = self.readByte();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                const matches = switch (ty) {
+                    0 => value.isDynType(.Array),
+                    1 => value.isDynType(.Object),
+                    2 => value.isType(.String) or value.isType(.InputSubstring) or value.isDynType(.String),
+                    else => @panic("Internal Error: unsupported MatchType operand"),
+                };
+                if (!matches) self.cur_frame.ip += offset;
+            },
+            .MatchLen => {
+                const slot = self.readByte();
+                const len = self.readByte();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                if (!value.isDynType(.Array) or
+                    value.asDyn().asArray().elems.items.len != len)
+                {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchLenMin => {
+                // Arrays measure elements, strings bytes; the emitted
+                // is_type test precedes, so nothing else reaches here.
+                const slot = self.readByte();
+                const min = self.readByte();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                const len = if (value.isDynType(.Array))
+                    value.asDyn().asArray().elems.items.len
+                else if (try value.stringBytes(self)) |bytes|
+                    bytes.len
+                else
+                    0;
+                if (len < min) self.cur_frame.ip += offset;
+            },
+            .MatchKeys => {
+                const slot = self.readByte();
+                const count = self.readByte();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                if (!value.isDynType(.Object) or
+                    value.asDyn().asObject().members.count() != count)
+                {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchKeysMin => {
+                const slot = self.readByte();
+                const min = self.readByte();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                if (!value.isDynType(.Object) or
+                    value.asDyn().asObject().members.count() < min)
+                {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchElem => {
+                const dst = self.readByte();
+                const src = self.readByte();
+                const index = self.readByte();
+                const value = self.getLocal(src).asDyn().asArray().elems.items[index];
+                const previous = self.getLocal(dst);
+                value.retain();
+                self.setLocal(dst, value);
+                previous.release();
+            },
+            .MatchElemBack => {
+                const dst = self.readByte();
+                const src = self.readByte();
+                const index = self.readByte();
+                const elems = self.getLocal(src).asDyn().asArray().elems.items;
+                const value = elems[elems.len - 1 - index];
+                const previous = self.getLocal(dst);
+                value.retain();
+                self.setLocal(dst, value);
+                previous.release();
+            },
+            .MatchElemDyn => {
+                // An element of the current repeat chunk: index off the
+                // loop's base register, so the chunk is never
+                // materialized.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const base = self.readByte();
+                const index = self.readByte();
+                const base_idx: usize = @intFromFloat(self.getLocal(base).asFloat());
+                const value = self.getLocal(src).asDyn().asArray().elems.items[base_idx + index];
+                const previous = self.getLocal(dst);
+                value.retain();
+                self.setLocal(dst, value);
+                previous.release();
+            },
+            .MatchRepeatInit => {
+                // Array-repeat loop entry: the value must be an array
+                // whose length is a multiple of the chunk element length.
+                // The chunk count goes into the count register for the
+                // count steps; the base register is primed to -L so the
+                // first MatchRepeatNext advances it to chunk 0.
+                const src = self.readByte();
+                const len: f64 = @floatFromInt(self.readByte());
+                const count_dst = self.readByte();
+                const base = self.readByte();
+                const offset = self.readShort();
+                const value = self.getLocal(src);
+                if (!value.isDynType(.Array)) {
+                    self.cur_frame.ip += offset;
+                    return;
+                }
+                const elems_len = value.asDyn().asArray().elems.items.len;
+                const chunk_len: usize = @intFromFloat(len);
+                if (elems_len % chunk_len != 0) {
+                    self.cur_frame.ip += offset;
+                    return;
+                }
+                const prev_count = self.getLocal(count_dst);
+                self.setLocal(count_dst, Elem.numberFloat(@floatFromInt(elems_len / chunk_len)));
+                prev_count.release();
+                const prev_base = self.getLocal(base);
+                self.setLocal(base, Elem.numberFloat(-len));
+                prev_base.release();
+            },
+            .MatchRepeatNext => {
+                // Loop head: advance the base by the chunk element length
+                // and exit to the done target once the array is
+                // exhausted.
+                const src = self.readByte();
+                const base = self.readByte();
+                const len: f64 = @floatFromInt(self.readByte());
+                const offset = self.readShort();
+                const next_base = self.getLocal(base).asFloat() + len;
+                self.setLocal(base, Elem.numberFloat(next_base));
+                const elems_len = self.getLocal(src).asDyn().asArray().elems.items.len;
+                if (next_base >= @as(f64, @floatFromInt(elems_len))) {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchSlice => {
+                // The middle of an array (fresh Array) or string
+                // (InputSubstring range when possible, else a copy); the
+                // emitted is_type test pins which. The new value's
+                // creator handle moves into the dst register.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const front = self.readByte();
+                const back = self.readByte();
+                const value = self.getLocal(src);
+                const sliced: Elem = if (value.isDynType(.Array)) blk: {
+                    const elems = value.asDyn().asArray().elems.items;
+                    const slice = elems[front .. elems.len - back];
+                    const array = try Elem.DynElem.Array.create(self, slice.len);
+                    try self.pushTempDyn(&array.dyn);
+                    for (slice) |elem| elem.retain();
+                    try array.elems.appendSlice(self.gc.allocator(), slice);
+                    self.dropTempDyn();
+                    break :blk array.dyn.elem();
+                } else blk: {
+                    const bytes = (try value.stringBytes(self)).?;
+                    const rest = bytes[front .. bytes.len - back];
+                    if (value.isType(.InputSubstring)) {
+                        const start = value.asInputSubstring().start;
+                        if (try Elem.inputSubstringFromRange(start + front, start + bytes.len - back)) |elem| {
+                            break :blk elem;
+                        }
+                    }
+                    const str = try Elem.DynElem.String.copy(self, rest);
+                    break :blk str.dyn.elem();
+                };
+                const previous = self.getLocal(dst);
+                self.setLocal(dst, sliced);
+                previous.release();
+            },
+            .MatchObjectRest => {
+                // The src object minus the members named by the key-list
+                // constant, which the preceding MatchKey steps already
+                // claimed. Fresh object; creator handle into dst.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const constant_idx = self.readShort();
+                const keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
+                const src_object = self.getLocal(src).asDyn().asObject();
+                const rest = try Elem.DynElem.Object.create(self, src_object.members.count());
+                try self.pushTempDyn(&rest.dyn);
+                var iter = src_object.members.iterator();
+                outer: while (iter.next()) |entry| {
+                    const sid = entry.key_ptr.*;
+                    for (keys) |key| {
+                        if (key.asString() == sid) continue :outer;
+                    }
+                    try rest.put(self, sid, entry.value_ptr.*);
+                }
+                self.dropTempDyn();
+                const previous = self.getLocal(dst);
+                self.setLocal(dst, rest.dyn.elem());
+                previous.release();
+            },
+            .MatchObjectRestSearch => {
+                // The src object minus the const keys named by the key-list
+                // constant and the search keys sitting in the claim
+                // registers. Fresh object; creator handle into dst.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const constant_idx = self.readShort();
+                const claim_base = self.readByte();
+                const claim_count = self.readByte();
+                const keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
+                const src_object = self.getLocal(src).asDyn().asObject();
+                const rest = try Elem.DynElem.Object.create(self, src_object.members.count());
+                try self.pushTempDyn(&rest.dyn);
+                var iter = src_object.members.iterator();
+                outer: while (iter.next()) |entry| {
+                    const sid = entry.key_ptr.*;
+                    for (keys) |key| {
+                        if (key.asString() == sid) continue :outer;
+                    }
+                    for (0..claim_count) |i| {
+                        if (self.getLocal(claim_base + @as(u8, @intCast(i))).asString() == sid) continue :outer;
+                    }
+                    try rest.put(self, sid, entry.value_ptr.*);
+                }
+                self.dropTempDyn();
+                const previous = self.getLocal(dst);
+                self.setLocal(dst, rest.dyn.elem());
+                previous.release();
+            },
+            .MatchSearchInit => {
+                const cursor = self.readByte();
+                const previous = self.getLocal(cursor);
+                self.setLocal(cursor, Elem.numberFloat(0));
+                previous.release();
+            },
+            .MatchNextUnclaimed => {
+                // Scan the object from the cursor for the first member whose
+                // key isn't already claimed — by an earlier search pair
+                // (claim registers) or by a const-key pair (key-list
+                // constant) — then project its key and value into registers
+                // and advance the cursor. On exhaustion take the fail jump.
+                const key_dst = self.readByte();
+                const val_dst = self.readByte();
+                const src = self.readByte();
+                const cursor = self.readByte();
+                const claim_count = self.readByte();
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const static_keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
+                const object = self.getLocal(src).asDyn().asObject();
+                const member_keys = object.members.keys();
+                const member_values = object.members.values();
+                const claim_base = key_dst - claim_count;
+                var idx: usize = @intFromFloat(self.getLocal(cursor).asFloat());
+                outer: while (idx < member_keys.len) : (idx += 1) {
+                    const sid = member_keys[idx];
+                    for (static_keys) |key| {
+                        if (key.asString() == sid) continue :outer;
+                    }
+                    const claimed = for (0..claim_count) |i| {
+                        if (self.getLocal(claim_base + @as(u8, @intCast(i))).asString() == sid) break true;
+                    } else false;
+                    if (claimed) continue;
+
+                    const key_elem = Elem.string(sid);
+                    const prev_key = self.getLocal(key_dst);
+                    key_elem.retain();
+                    self.setLocal(key_dst, key_elem);
+                    prev_key.release();
+
+                    const val_elem = member_values[idx];
+                    const prev_val = self.getLocal(val_dst);
+                    val_elem.retain();
+                    self.setLocal(val_dst, val_elem);
+                    prev_val.release();
+
+                    self.setLocal(cursor, Elem.numberFloat(@floatFromInt(idx + 1)));
+                    break;
+                } else {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchStrPrefix => {
+                const slot = self.readByte();
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                const literal = self.strings.get(self.getConstant(constant_idx).asString());
+                const bytes = (try value.stringBytes(self)).?;
+                if (bytes.len < literal.len or
+                    !std.mem.eql(u8, bytes[0..literal.len], literal))
+                {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchStrSuffix => {
+                const slot = self.readByte();
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                const literal = self.strings.get(self.getConstant(constant_idx).asString());
+                const bytes = (try value.stringBytes(self)).?;
+                if (bytes.len < literal.len or
+                    !std.mem.eql(u8, bytes[bytes.len - literal.len ..], literal))
+                {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchStrInit => {
+                // String-template loop entry: front = 0, end = byte length.
+                // The preceding MatchType guarantees src is string-typed.
+                const src = self.readByte();
+                const front = self.readByte();
+                const end = self.readByte();
+                const bytes = (try self.getLocal(src).stringBytes(self)).?;
+                const prev_front = self.getLocal(front);
+                self.setLocal(front, Elem.numberFloat(0));
+                prev_front.release();
+                const prev_end = self.getLocal(end);
+                self.setLocal(end, Elem.numberFloat(@floatFromInt(bytes.len)));
+                prev_end.release();
+            },
+            .MatchStrLit => {
+                // Compare the literal at the cursor, bounded by the opposite
+                // cursor, then advance (front, back=0) or retreat (end,
+                // back=1) the cursor. A misfit or byte mismatch fails.
+                const src = self.readByte();
+                const cursor = self.readByte();
+                const opp = self.readByte();
+                const back = self.readByte() != 0;
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const literal = self.strings.get(self.getConstant(constant_idx).asString());
+                const bytes = (try self.getLocal(src).stringBytes(self)).?;
+                const cur: usize = @intFromFloat(self.getLocal(cursor).asFloat());
+                const opp_v: usize = @intFromFloat(self.getLocal(opp).asFloat());
+                const new_cursor = matchStrChomp(bytes, cur, opp_v, back, literal) orelse {
+                    self.cur_frame.ip += offset;
+                    return;
+                };
+                const prev = self.getLocal(cursor);
+                self.setLocal(cursor, Elem.numberFloat(@floatFromInt(new_cursor)));
+                prev.release();
+            },
+            .MatchStrVal => {
+                // The preceding expression left the segment value on the
+                // stack; stringify it (identity on strings) and compare its
+                // bytes at the cursor like MatchStrLit with the runtime
+                // length.
+                const src = self.readByte();
+                const cursor = self.readByte();
+                const opp = self.readByte();
+                const back = self.readByte() != 0;
+                const offset = self.readShort();
+                const evaluated = self.pop();
+                const str_elem = try evaluated.toString(self);
+                var rooted = false;
+                if (str_elem.isType(.Dyn)) {
+                    try self.pushTempDyn(str_elem.asDyn());
+                    rooted = true;
+                }
+                const literal = (try str_elem.stringBytes(self)).?;
+                const bytes = (try self.getLocal(src).stringBytes(self)).?;
+                const cur: usize = @intFromFloat(self.getLocal(cursor).asFloat());
+                const opp_v: usize = @intFromFloat(self.getLocal(opp).asFloat());
+                const new_cursor = matchStrChomp(bytes, cur, opp_v, back, literal);
+                if (new_cursor) |nc| {
+                    const prev = self.getLocal(cursor);
+                    self.setLocal(cursor, Elem.numberFloat(@floatFromInt(nc)));
+                    prev.release();
+                }
+                if (rooted) self.dropTempDyn();
+                self.reclaimElem(evaluated);
+                if (new_cursor == null) self.cur_frame.ip += offset;
+            },
+            .MatchStrChar => {
+                // Decode one codepoint at the cursor — forward by lead-byte
+                // sequence length, backward by walking continuation bytes to
+                // a lead byte that lands exactly on the cursor — materialize
+                // it as a string into dst, and advance/retreat. Empty range
+                // or malformed UTF-8 fails. The range test follows.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const cursor = self.readByte();
+                const opp = self.readByte();
+                const back = self.readByte() != 0;
+                const offset = self.readShort();
+                const bytes = (try self.getLocal(src).stringBytes(self)).?;
+                const cur: usize = @intFromFloat(self.getLocal(cursor).asFloat());
+                const opp_v: usize = @intFromFloat(self.getLocal(opp).asFloat());
+                const span = matchStrChar(bytes, cur, opp_v, back) orelse {
+                    self.cur_frame.ip += offset;
+                    return;
+                };
+                var buf: [4]u8 = undefined;
+                const char_bytes = bytes[span.start..span.end];
+                @memcpy(buf[0..char_bytes.len], char_bytes);
+                const char_elem = Elem.string(try self.strings.insert(buf[0..char_bytes.len]));
+                const prev_dst = self.getLocal(dst);
+                self.setLocal(dst, char_elem);
+                prev_dst.release();
+                const prev_cursor = self.getLocal(cursor);
+                self.setLocal(cursor, Elem.numberFloat(@floatFromInt(span.next_cursor)));
+                prev_cursor.release();
+            },
+            .MatchStrRest => {
+                // The substring [front..end) — the solvable's raw byte
+                // range — into dst: an InputSubstring range when the source
+                // is one, else a fresh copy.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const front = self.readByte();
+                const end = self.readByte();
+                const value = self.getLocal(src);
+                const bytes = (try value.stringBytes(self)).?;
+                const start: usize = @intFromFloat(self.getLocal(front).asFloat());
+                const stop: usize = @intFromFloat(self.getLocal(end).asFloat());
+                const rest: Elem = blk: {
+                    if (value.isType(.InputSubstring)) {
+                        const base = value.asInputSubstring().start;
+                        if (try Elem.inputSubstringFromRange(base + start, base + stop)) |elem| break :blk elem;
+                    }
+                    const str = try Elem.DynElem.String.copy(self, bytes[start..stop]);
+                    break :blk str.dyn.elem();
+                };
+                const previous = self.getLocal(dst);
+                self.setLocal(dst, rest);
+                previous.release();
+            },
+            .MatchStrCovered => {
+                // No-solvable template: the fixed segments must cover the
+                // whole string, i.e. the cursors meet.
+                const front = self.readByte();
+                const end = self.readByte();
+                const offset = self.readShort();
+                if (self.getLocal(front).asFloat() != self.getLocal(end).asFloat()) {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchCastNum => {
+                // Cast src's string bytes to a number into dst for a
+                // number-merge template solvable, or fail — empty or
+                // non-numeric bytes fail, mirroring the interpreter's
+                // number cast. src == dst is the in-place form; a
+                // whole-string template casts the source value directly.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const offset = self.readShort();
+                const bytes = (try self.getLocal(src).stringBytes(self)).?;
+                if (bytes.len == 0 or !parsing.isValidNumberString(bytes)) {
+                    self.cur_frame.ip += offset;
+                    return;
+                }
+                const number = try Elem.numberStringFromBytes(bytes, self);
+                const previous = self.getLocal(dst);
+                self.setLocal(dst, number);
+                previous.release();
+            },
+            .MatchCastBool => {
+                // Cast src's string bytes to a boolean into dst for a
+                // boolean-merge template solvable, or fail. src == dst is
+                // the in-place form.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const offset = self.readShort();
+                const bytes = (try self.getLocal(src).stringBytes(self)).?;
+                const boolean: ?bool = if (std.mem.eql(u8, bytes, "true"))
+                    true
+                else if (std.mem.eql(u8, bytes, "false"))
+                    false
+                else
+                    null;
+                if (boolean) |b| {
+                    const previous = self.getLocal(dst);
+                    self.setLocal(dst, Elem.boolean(b));
+                    previous.release();
+                } else {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchKey => {
+                const dst = self.readByte();
+                const src = self.readByte();
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const sid = self.getConstant(constant_idx).asString();
+                const container = self.getLocal(src);
+                if (container.isDynType(.Object)) {
+                    if (container.asDyn().asObject().members.get(sid)) |value| {
+                        const previous = self.getLocal(dst);
+                        value.retain();
+                        self.setLocal(dst, value);
+                        previous.release();
+                        return;
+                    }
+                }
+                self.cur_frame.ip += offset;
+            },
+            .MatchKeyBound => {
+                // Probe the object for the member keyed by the bound
+                // local, which must be a string. Fails when the member is
+                // absent or already claimed — by a const-key pair (the
+                // key-list constant) or an earlier pair (the claim
+                // registers below key_dst). On success the key is claimed
+                // into key_dst and the value projected into val_dst.
+                const key_dst = self.readByte();
+                const val_dst = self.readByte();
+                const src = self.readByte();
+                const slot = self.readByte();
+                const claim_count = self.readByte();
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const bound = try self.getBoundLocal(slot);
+                const sid = (try bound.getOrPutSid(self)) orelse
+                    return self.runtimeError("Object key must be a string", .{});
+                const static_keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
+                const claimed_static = for (static_keys) |key| {
+                    if (key.asString() == sid) break true;
+                } else false;
+                const claim_base = key_dst - claim_count;
+                const claimed_search = for (0..claim_count) |i| {
+                    if (self.getLocal(claim_base + @as(u8, @intCast(i))).asString() == sid) break true;
+                } else false;
+                const member = self.getLocal(src).asDyn().asObject().members.get(sid);
+                if (claimed_static or claimed_search or member == null) {
+                    self.cur_frame.ip += offset;
+                    return;
+                }
+                const key_elem = Elem.string(sid);
+                const prev_key = self.getLocal(key_dst);
+                key_elem.retain();
+                self.setLocal(key_dst, key_elem);
+                prev_key.release();
+
+                const val_elem = member.?;
+                const prev_val = self.getLocal(val_dst);
+                val_elem.retain();
+                self.setLocal(val_dst, val_elem);
+                prev_val.release();
+            },
+            .MatchConst => {
+                const slot = self.readByte();
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                if (!value.isEql(self.getConstant(constant_idx), self.*)) {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchMergeNum, .MatchMergeNumNeg => {
+                // The residual of a number merge: src minus the folded
+                // constant parts, into dst. The Neg variant flips the sign
+                // for a leftover part under an odd negation count. Fails
+                // when src isn't a number.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const value = self.getLocal(src);
+                var src_float: f64 = undefined;
+                if (value.isFloat()) {
+                    src_float = value.asFloat();
+                } else if (value.isType(.NumberString)) {
+                    src_float = value.asNumberString().toNumberFloat(self.strings).asFloat();
+                } else {
+                    self.cur_frame.ip += offset;
+                    return;
+                }
+                const sum = self.getConstant(constant_idx).asFloat();
+                const residual = if (opCode == .MatchMergeNumNeg) sum - src_float else src_float - sum;
+                const previous = self.getLocal(dst);
+                self.setLocal(dst, Elem.numberFloat(residual));
+                previous.release();
+            },
+            .MatchMergeBool => {
+                // Booleans merge by logical OR, so the residual of a merge
+                // is the scrutinee with the folded static truth claimed
+                // out: `scrutinee AND NOT static`, into dst. Fails when the
+                // scrutinee isn't a bool, or when the static part claims a
+                // truth the scrutinee lacks (static true, scrutinee false).
+                const dst = self.readByte();
+                const src = self.readByte();
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const value = self.getLocal(src);
+                const value_true = value.isConst(.True);
+                if (!value_true and !value.isConst(.False)) {
+                    self.cur_frame.ip += offset;
+                    return;
+                }
+                const static_true = self.getConstant(constant_idx).isConst(.True);
+                if (static_true and !value_true) {
+                    self.cur_frame.ip += offset;
+                    return;
+                }
+                const previous = self.getLocal(dst);
+                self.setLocal(dst, Elem.boolean(value_true and !static_true));
+                previous.release();
+            },
+            .MatchGlobal => {
+                // eq_global mirrors the plan interpreter's const_fn: a
+                // zero-arity Function global evaluates per match and its
+                // result is compared; everything else compares directly.
+                const slot = self.readByte();
+                const constant_idx = self.readShort();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                var pattern_value = self.getConstant(constant_idx);
+                var rooted = false;
+                if (pattern_value.isDynType(.Function)) {
+                    const function = pattern_value.asDyn().asFunction();
+                    if (function.arity != 0) {
+                        return self.runtimeError("Pattern function '{s}' expects arguments.", .{self.strings.get(function.name)});
+                    }
+                    try self.push(pattern_value);
+                    try self.callFunction(pattern_value, 0, false);
+                    try self.runFunction();
+                    pattern_value = self.pop();
+                    if (pattern_value.isType(.Dyn)) {
+                        try self.pushTempDyn(pattern_value.asDyn());
+                        rooted = true;
+                    }
+                }
+                const matched = value.isEql(pattern_value, self.*);
+                if (rooted) self.dropTempDyn();
+                if (!matched) self.cur_frame.ip += offset;
+            },
+            .MatchSlot => {
+                const register = self.readByte();
+                const local = self.readByte();
+                const offset = self.readShort();
+                const value = self.getLocal(register);
+                const bound = try self.getBoundLocal(local);
+                if (!value.isEql(bound, self.*)) self.cur_frame.ip += offset;
+            },
+            .MatchEval => {
+                // The preceding expression left its result on the stack;
+                // compare it against the place register, mirroring the plan
+                // interpreter's eval_eq. Roots a Dyn result while comparing,
+                // like MatchGlobal.
+                const register = self.readByte();
+                _ = self.readByte();
+                const offset = self.readShort();
+                const evaluated = self.pop();
+                var rooted = false;
+                if (evaluated.isType(.Dyn)) {
+                    try self.pushTempDyn(evaluated.asDyn());
+                    rooted = true;
+                }
+                const value = self.getLocal(register);
+                const matched = value.isEql(evaluated, self.*);
+                if (rooted) self.dropTempDyn();
+                if (!matched) self.cur_frame.ip += offset;
+            },
+            .MatchBind => {
+                const local = self.readByte();
+                const src = self.readByte();
+                const value = self.getLocal(src);
+                const previous = self.getLocal(local);
+                value.retain();
+                self.setLocal(local, value);
+                previous.release();
+            },
+            .MatchInRange => {
+                const slot = self.readByte();
+                const lower_kind: RangeLimitKind = @enumFromInt(self.readByte());
+                const lower_arg = self.readShort();
+                const upper_kind: RangeLimitKind = @enumFromInt(self.readByte());
+                const upper_arg = self.readShort();
+                const offset = self.readShort();
+                const value = self.getLocal(slot);
+                const matched = try self.matchInRange(value, lower_kind, lower_arg, upper_kind, upper_arg);
+                if (!matched) self.cur_frame.ip += offset;
+            },
+            .MatchRangeBound => {
+                // The preceding expression left the evaluated bound on the
+                // stack; compare it against the value register as one end
+                // of the range. Roots a Dyn result while comparing, like
+                // MatchEval.
+                const slot = self.readByte();
+                const is_upper = self.readByte() != 0;
+                const offset = self.readShort();
+                const evaluated = self.pop();
+                var rooted = false;
+                if (evaluated.isType(.Dyn)) {
+                    try self.pushTempDyn(evaluated.asDyn());
+                    rooted = true;
+                }
+                const value = self.getLocal(slot);
+                const matched = try self.compareRangeBound(evaluated, value, is_upper);
+                if (rooted) self.dropTempDyn();
+                if (!matched) self.cur_frame.ip += offset;
+            },
+            .MatchRepeatValue => {
+                // The preceding expression left the repeat's pattern value
+                // on the stack; derive how many times it repeats to make
+                // src's value and write that count into the destination
+                // register for the count steps that follow. Chunk checks
+                // scan the value in place — nothing is materialized.
+                const src = self.readByte();
+                const count_dst = self.readByte();
+                const offset = self.readShort();
+                const pattern_value = self.pop();
+                var rooted = false;
+                if (pattern_value.isType(.Dyn)) {
+                    try self.pushTempDyn(pattern_value.asDyn());
+                    rooted = true;
+                }
+                const value = self.getLocal(src);
+                const derived = try self.repeatValueCount(value, pattern_value);
+                if (rooted) self.dropTempDyn();
+                self.reclaimElem(pattern_value);
+                if (derived) |count| {
+                    const previous = self.getLocal(count_dst);
+                    self.setLocal(count_dst, Elem.numberFloat(count));
+                    previous.release();
+                } else {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchRepeatChunk => {
+                // The preceding expression left the repeat count on the
+                // stack; check src's value is one chunk repeated that many
+                // times and write the representative — string substring,
+                // fresh array, or number quotient — into the destination
+                // register for the pattern steps that follow. A count of 0
+                // matches the type's empty value, with the empty value as
+                // the representative.
+                const src = self.readByte();
+                const chunk_dst = self.readByte();
+                const offset = self.readShort();
+                const count_elem = self.pop();
+                if (!count_elem.isNumber()) {
+                    return self.runtimeError("Repeat count must be a number", .{});
+                }
+                const count_float = if (count_elem.isFloat())
+                    count_elem.asFloat()
+                else
+                    count_elem.asNumberString().toNumberFloat(self.strings).asFloat();
+                self.reclaimElem(count_elem);
+                if (count_float < 0 or @trunc(count_float) != count_float) {
+                    self.cur_frame.ip += offset;
+                    return;
+                }
+                const count: usize = @intFromFloat(count_float);
+                const value = self.getLocal(src);
+                const chunk_elem: Elem = if (try value.stringBytes(self)) |bytes| blk: {
+                    const chunk_len = if (count == 0) 0 else bytes.len / count;
+                    if (count == 0) {
+                        if (bytes.len != 0) {
+                            self.cur_frame.ip += offset;
+                            return;
+                        }
+                    } else {
+                        if (bytes.len % count != 0) {
+                            self.cur_frame.ip += offset;
+                            return;
+                        }
+                        var i: usize = 1;
+                        while (i < count) : (i += 1) {
+                            const start = i * chunk_len;
+                            if (!std.mem.eql(u8, bytes[0..chunk_len], bytes[start .. start + chunk_len])) {
+                                self.cur_frame.ip += offset;
+                                return;
+                            }
+                        }
+                    }
+                    if (value.isType(.InputSubstring)) {
+                        const start = value.asInputSubstring().start;
+                        if (try Elem.inputSubstringFromRange(start, start + chunk_len)) |elem| {
+                            break :blk elem;
+                        }
+                    }
+                    const str = try Elem.DynElem.String.copy(self, bytes[0..chunk_len]);
+                    break :blk str.dyn.elem();
+                } else if (value.isDynType(.Array)) blk: {
+                    const elems = value.asDyn().asArray().elems.items;
+                    const chunk_len = if (count == 0) 0 else elems.len / count;
+                    if (count == 0) {
+                        if (elems.len != 0) {
+                            self.cur_frame.ip += offset;
+                            return;
+                        }
+                    } else {
+                        if (elems.len % count != 0) {
+                            self.cur_frame.ip += offset;
+                            return;
+                        }
+                        var i: usize = 1;
+                        while (i < count) : (i += 1) {
+                            const start = i * chunk_len;
+                            for (0..chunk_len) |j| {
+                                if (!elems[start + j].isEql(elems[j], self.*)) {
+                                    self.cur_frame.ip += offset;
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    const array = try Elem.DynElem.Array.create(self, chunk_len);
+                    try self.pushTempDyn(&array.dyn);
+                    for (elems[0..chunk_len]) |elem| elem.retain();
+                    try array.elems.appendSlice(self.gc.allocator(), elems[0..chunk_len]);
+                    self.dropTempDyn();
+                    break :blk array.dyn.elem();
+                } else if (value.isNumber()) blk: {
+                    if (count == 0) {
+                        self.cur_frame.ip += offset;
+                        return;
+                    }
+                    const value_float = if (value.isFloat())
+                        value.asFloat()
+                    else
+                        value.asNumberString().toNumberFloat(self.strings).asFloat();
+                    break :blk Elem.numberFloat(value_float / count_float);
+                } else {
+                    self.cur_frame.ip += offset;
+                    return;
+                };
+                const previous = self.getLocal(chunk_dst);
+                self.setLocal(chunk_dst, chunk_elem);
+                previous.release();
+            },
+            .MatchRepeatRange => {
+                // Scan src's string codepoint by codepoint against the
+                // range bounds and write the codepoint count into the
+                // destination register for the count steps that follow.
+                // An invalid sequence or out-of-range codepoint takes the
+                // fail jump. Bounds are the non-evaluated MatchInRange
+                // subset (none/const/read).
+                const src = self.readByte();
+                const dst = self.readByte();
+                const lower_kind: RangeLimitKind = @enumFromInt(self.readByte());
+                const lower_arg = self.readShort();
+                const upper_kind: RangeLimitKind = @enumFromInt(self.readByte());
+                const upper_arg = self.readShort();
+                const offset = self.readShort();
+                const value = self.getLocal(src);
+                const scanned: ?usize = blk: {
+                    const bytes = (try value.stringBytes(self)) orelse break :blk null;
+                    const lower = try self.repeatRangeCodepoint(lower_kind, lower_arg);
+                    const upper = try self.repeatRangeCodepoint(upper_kind, upper_arg);
+                    var count: usize = 0;
+                    var byte_index: usize = 0;
+                    while (byte_index < bytes.len) {
+                        const byte_len = unicode.utf8ByteSequenceLength(bytes[byte_index]) catch break :blk null;
+                        if (byte_index + byte_len > bytes.len) break :blk null;
+                        const codepoint = parsing.utf8Decode(bytes[byte_index .. byte_index + byte_len]) orelse break :blk null;
+                        if (lower) |l| if (codepoint < l) break :blk null;
+                        if (upper) |u| if (codepoint > u) break :blk null;
+                        count += 1;
+                        byte_index += byte_len;
+                    }
+                    break :blk count;
+                };
+                if (scanned) |count| {
+                    const previous = self.getLocal(dst);
+                    self.setLocal(dst, Elem.numberFloat(@floatFromInt(count)));
+                    previous.release();
+                } else {
+                    self.cur_frame.ip += offset;
+                }
+            },
+            .MatchFail => {
+                const value = self.peek(0);
+                if (value.isSuccess()) self.recordPatternFailure(value);
+                _ = self.popConsumed(.MatchFail);
+                try self.pushFailure();
             },
             .GetConstant, .GetConstant2, .GetConstant3 => {
                 const idx = self.readIndex(opCode);
@@ -1636,6 +2512,210 @@ pub const VM = struct {
         // The local slot is at the start of the frame + 1, since the first
         // elem in the frame is the function getting called.
         self.stack.items[self.cur_frame.elemsOffset + slot + 1] = elem;
+    }
+
+    // Match a value against a range whose non-evaluated bounds are encoded
+    // in the MatchInRange operand. The value must be a number or a single
+    // codepoint (the range value gate); each present bound must resolve to
+    // a whole integer or a single codepoint (else a runtime error); an
+    // unbound-var bound binds the value and imposes no comparison.
+    // Compare `literal` at the cursor within a string template and return
+    // the advanced cursor, or null when it doesn't fit before the opposite
+    // cursor or the bytes differ. Forward (back=false) chomps from `cur`
+    // toward higher indices; backward chomps toward lower indices.
+    fn matchStrChomp(bytes: []const u8, cur: usize, opp: usize, back: bool, literal: []const u8) ?usize {
+        if (back) {
+            if (cur < opp + literal.len) return null;
+            if (!std.mem.eql(u8, bytes[cur - literal.len .. cur], literal)) return null;
+            return cur - literal.len;
+        }
+        if (cur + literal.len > opp) return null;
+        if (!std.mem.eql(u8, bytes[cur .. cur + literal.len], literal)) return null;
+        return cur + literal.len;
+    }
+
+    const CharSpan = struct { start: usize, end: usize, next_cursor: usize };
+
+    // Locate one codepoint at the cursor. Forward: the lead byte at `cur`
+    // determines the sequence length, bounded by the opposite cursor.
+    // Backward: walk continuation bytes down from `cur` (the end) to a lead
+    // byte whose sequence lands exactly on `cur`, mirroring the plan
+    // interpreter's segmentStart. Malformed UTF-8 or an empty span is null.
+    fn matchStrChar(bytes: []const u8, cur: usize, opp: usize, back: bool) ?CharSpan {
+        if (back) {
+            var start = cur;
+            while (start > opp and cur - start < 4) {
+                start -= 1;
+                const byte = bytes[start];
+                if (byte & 0b1100_0000 != 0b1000_0000) {
+                    const len = unicode.utf8ByteSequenceLength(byte) catch return null;
+                    if (start + len != cur) return null;
+                    if (parsing.utf8Decode(bytes[start..cur]) == null) return null;
+                    return .{ .start = start, .end = cur, .next_cursor = start };
+                }
+            }
+            return null;
+        }
+        if (cur >= opp) return null;
+        const len = unicode.utf8ByteSequenceLength(bytes[cur]) catch return null;
+        if (cur + len > opp) return null;
+        if (parsing.utf8Decode(bytes[cur .. cur + len]) == null) return null;
+        return .{ .start = cur, .end = cur + len, .next_cursor = cur + len };
+    }
+
+    fn matchInRange(
+        self: *VM,
+        value: Elem,
+        lower_kind: RangeLimitKind,
+        lower_arg: u16,
+        upper_kind: RangeLimitKind,
+        upper_arg: u16,
+    ) !bool {
+        if (!value.isRangeValue(self.*)) return false;
+        if (!try self.matchRangeLimit(value, lower_kind, lower_arg, false)) return false;
+        if (!try self.matchRangeLimit(value, upper_kind, upper_arg, true)) return false;
+        return true;
+    }
+
+    fn matchRangeLimit(self: *VM, value: Elem, kind: RangeLimitKind, arg: u16, is_upper: bool) !bool {
+        switch (kind) {
+            .none => return true,
+            .bind => {
+                const previous = self.getLocal(arg);
+                value.retain();
+                self.setLocal(arg, value);
+                previous.release();
+                return true;
+            },
+            .read => return self.compareRangeBound(try self.getBoundLocal(arg), value, is_upper),
+            .const_elem => return self.compareRangeBound(self.getConstant(arg), value, is_upper),
+            .global => {
+                // A zero-arity function bound evaluates per match and its
+                // result is compared, mirroring MatchGlobal.
+                var limit = self.getConstant(arg);
+                var rooted = false;
+                if (limit.isDynType(.Function)) {
+                    const function = limit.asDyn().asFunction();
+                    if (function.arity != 0) {
+                        return self.runtimeError("Pattern function '{s}' expects arguments.", .{self.strings.get(function.name)});
+                    }
+                    try self.push(limit);
+                    try self.callFunction(limit, 0, false);
+                    try self.runFunction();
+                    limit = self.pop();
+                    if (limit.isType(.Dyn)) {
+                        try self.pushTempDyn(limit.asDyn());
+                        rooted = true;
+                    }
+                }
+                const matched = try self.compareRangeBound(limit, value, is_upper);
+                if (rooted) self.dropTempDyn();
+                return matched;
+            },
+        }
+    }
+
+    // A repeat range bound resolved to its codepoint: none is open, and
+    // const and read bounds must be strings (runtime error otherwise). A
+    // string that isn't a single codepoint imposes no limit, mirroring
+    // the plan interpreter's rangeLimitCodepoint.
+    fn repeatRangeCodepoint(self: *VM, kind: RangeLimitKind, arg: u16) !?u21 {
+        const limit: Elem = switch (kind) {
+            .none => return null,
+            .read => try self.getBoundLocal(arg),
+            .const_elem => self.getConstant(arg),
+            .global, .bind => unreachable,
+        };
+        if (try limit.stringBytes(self)) |bytes| {
+            return parsing.utf8Decode(bytes);
+        }
+        return self.runtimeError("Range bound must be a codepoint", .{});
+    }
+
+    // How many times pattern_value repeats (merges with itself) to make
+    // value, or null when it can't. Strings and arrays divide by the
+    // pattern's length and compare chunks in place; numbers divide (the
+    // count may be fractional or negative); objects and booleans only
+    // match themselves, with identity-element canonical counts.
+    fn repeatValueCount(self: *VM, value: Elem, pattern_value: Elem) !?f64 {
+        if (try pattern_value.stringBytes(self)) |pattern_str| {
+            const value_str = (try value.stringBytes(self)) orelse return null;
+            if (pattern_str.len == 0) {
+                // "" * N = "" for any N >= 1; 1 is the canonical answer
+                return if (value_str.len == 0) 1 else null;
+            }
+            if (value_str.len % pattern_str.len != 0) return null;
+            const count = value_str.len / pattern_str.len;
+            var i: usize = 0;
+            while (i < count) : (i += 1) {
+                const start = i * pattern_str.len;
+                if (!std.mem.eql(u8, value_str[start .. start + pattern_str.len], pattern_str)) {
+                    return null;
+                }
+            }
+            return @floatFromInt(count);
+        }
+        if (pattern_value.isDynType(.Array)) {
+            if (!value.isDynType(.Array)) return null;
+            const pattern_elems = pattern_value.asDyn().asArray().elems.items;
+            const value_elems = value.asDyn().asArray().elems.items;
+            if (pattern_elems.len == 0) return null;
+            if (value_elems.len % pattern_elems.len != 0) return null;
+            const count = value_elems.len / pattern_elems.len;
+            var i: usize = 0;
+            while (i < count) : (i += 1) {
+                const start = i * pattern_elems.len;
+                for (pattern_elems, 0..) |pattern_elem, j| {
+                    if (!value_elems[start + j].isEql(pattern_elem, self.*)) return null;
+                }
+            }
+            return @floatFromInt(count);
+        }
+        if (pattern_value.isDynType(.Object)) {
+            if (!value.isDynType(.Object)) return null;
+            const pattern_members = pattern_value.asDyn().asObject().members.count();
+            const value_members = value.asDyn().asObject().members.count();
+            // Merging an object with itself is the identity: {} is P * 0
+            // for non-empty P, any other value is pattern * 1.
+            if (value_members == 0) return if (pattern_members == 0) 1 else 0;
+            return if (value.isEql(pattern_value, self.*)) 1 else null;
+        }
+        if (pattern_value.isNumber() and value.isNumber()) {
+            const pattern_float = if (pattern_value.isFloat())
+                pattern_value.asFloat()
+            else
+                pattern_value.asNumberString().toNumberFloat(self.strings).asFloat();
+            const value_float = if (value.isFloat())
+                value.asFloat()
+            else
+                value.asNumberString().toNumberFloat(self.strings).asFloat();
+            if (pattern_float == 0) {
+                // 0 * N = 0 for any N >= 1; 1 is the canonical answer
+                return if (value_float == 0) 1 else null;
+            }
+            return value_float / pattern_float;
+        }
+        if (pattern_value.isType(.Const)) {
+            const pattern_const = pattern_value.asConst();
+            if (pattern_const == .True or pattern_const == .False) {
+                // true * N = true and false * N = false for any N >= 1
+                if (!value.isType(.Const)) return null;
+                const value_const = value.asConst();
+                if (value_const != .True and value_const != .False) return null;
+                return if (pattern_value.isEql(value, self.*)) 1 else null;
+            }
+        }
+        return null;
+    }
+
+    // A resolved bound must be a valid range bound. The comparison is
+    // inclusive: lower bounds check `limit <= value`, upper bounds check
+    // `value <= limit`.
+    fn compareRangeBound(self: *VM, limit: Elem, value: Elem, is_upper: bool) !bool {
+        return if (is_upper)
+            value.isLessThanOrEqualInRangePattern(limit, self.*)
+        else
+            limit.isLessThanOrEqualInRangePattern(value, self.*);
     }
 
     fn readByte(self: *VM) u8 {

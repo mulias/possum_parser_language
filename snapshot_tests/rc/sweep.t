@@ -6,12 +6,12 @@ of copying — one fewer dyn created, and gc runs is nonzero.
   $ PRINT_MEMORY_REPORT=true possum -p '(("a" $ [1]) * 2) -> X & ("" $ [X]) & ("" $ ("y" * 1200000)) & ("" $ (X + [2]))' -i 'aa'
   [1, 1, 2]
   ===== memory report =====
-  dyns created:      7
+  dyns created:      8
   dyns live:         4 (string 0, array 4, object 0, function 0, native 0, closure 0)
   live ref counts:   unique 1, shared 0, immortal 3
-  merges:            1199999 in place, 1 copied
+  merges:            1199998 in place, 2 copied
   inserts:           1 in place, 0 copied
-  husks:             2 parked, 0 reused
+  husks:             3 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
   bytes in use:      736

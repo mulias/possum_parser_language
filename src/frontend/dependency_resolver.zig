@@ -366,9 +366,6 @@ fn walkParser(
             try self.walkParser(key, node, infix.left);
             try self.walkParser(key, node, infix.right);
         },
-        .negation => |inner| {
-            try self.walkParser(key, node, inner);
-        },
         .range => |range| {
             if (range.lower) |lower| try self.walkParser(key, node, lower);
             if (range.upper) |upper| try self.walkParser(key, node, upper);

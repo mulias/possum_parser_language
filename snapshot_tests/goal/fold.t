@@ -62,7 +62,7 @@ A solve_merge whose parts are all constants collapses to eq_const.
       scrutinee: (call int)
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 ty=string
           "a"
           "b")))
 
@@ -82,7 +82,7 @@ Adjacent constant parts fold together; non-constant parts survive.
       scrutinee: (call int)
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 ty=number
           (local A)
           3)))
 
@@ -147,7 +147,7 @@ collapses back to an expression part of its parent.
       scrutinee: (call int)
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 ty=number
           (local N)
           (set
             %0 = scrutinee
@@ -159,7 +159,7 @@ collapses back to an expression part of its parent.
       scrutinee: (call int)
       %0 = scrutinee
       (arm
-        (solve_merge %0
+        (solve_merge %0 ty=number
           (local N)
           -1)))
 
@@ -299,7 +299,7 @@ array, the count pattern's solve_merge collapses to eq_const.
       cap: (merge 1 2)
       count: (set
         %0 = scrutinee
-        (solve_merge %0
+        (solve_merge %0 ty=number
           1
           2)))
 
@@ -311,3 +311,78 @@ array, the count pattern's solve_merge collapses to eq_const.
       count: (set
         %0 = scrutinee
         (eq_const %0 3)))
+
+Ranges fold by interval arithmetic: a number is a range with that value
+as both bounds (`0..1 + 1` is `0..1 + 1..1` = `1..2`), an open bound
+absorbs, and a lone folded range lifts out of its merge as an in_range
+on the merged place. A cap unrecognizable at creation is re-derived
+from the folded count: an exact count is its own cap, a range's upper
+limit is the cap.
+
+  $ PRINT_GOAL_AST=folded possum -p '"a" * (0..1 + 1)' -i ''
+  main =
+    (repeat
+      body: (call "a")
+      cap: 2
+      count: (set
+        %0 = scrutinee
+        (in_range %0 1 2)))
+
+  $ PRINT_GOAL_AST=folded possum -p '"a" * (0.. + 1)' -i ''
+  main =
+    (repeat
+      body: (call "a")
+      count: (set
+        %0 = scrutinee
+        (in_range %0 1 _)))
+
+  $ PRINT_GOAL_AST=folded possum -p '2 * (2 * 2)' -i ''
+  main =
+    (repeat
+      body: (call 2)
+      cap: 4
+      count: (set
+        %0 = scrutinee
+        (eq_const %0 4)))
+
+Range merges and scales fold in destructure patterns too: ranges add
+bound-wise, and a range scales by a constant non-negative count.
+
+  $ PRINT_GOAL_AST=folded possum -p "('' \$ 4) -> (1..2 + 2..3)" -i ''
+  main =
+    (match
+      scrutinee: (seq result=1
+        (call "")
+        4)
+      %0 = scrutinee
+      (arm
+        (in_range %0 3 5)))
+
+  $ PRINT_GOAL_AST=folded possum -p "('' \$ 4) -> (1..2 * 3)" -i ''
+  main =
+    (match
+      scrutinee: (seq result=1
+        (call "")
+        4)
+      %0 = scrutinee
+      (arm
+        (in_range %0 3 6)))
+
+Two ranges never multiply: `2..3 * 2..3` is the discrete set {4, 6, 9},
+not `4..9`, so the solve_repeat stays for the runtime solver.
+
+  $ PRINT_GOAL_AST=folded possum -p "('' \$ 6) -> (2..3 * 2..3)" -i ''
+  main =
+    (match
+      scrutinee: (seq result=1
+        (call "")
+        6)
+      %0 = scrutinee
+      (arm
+        (solve_repeat %0
+          pattern: (set
+            %0 = scrutinee
+            (in_range %0 2 3))
+          count: (set
+            %0 = scrutinee
+            (in_range %0 2 3)))))

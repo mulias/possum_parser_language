@@ -465,7 +465,7 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !Ast {
         // pass on each representation. Binding classifies the goal in
         // finalize, once the dependency graph is resolved.
         const goal = try self.arena.allocator().create(Goal);
-        goal.* = Goal.init(&self.arena, &self.strings, &self.paths);
+        goal.* = Goal.init(&self.arena, self.writers, &self.strings, &self.paths, module);
         try goal.actualize(can);
         if (opts.printGoalAst) |stage| {
             if (stage == .created) try goal.print(self.writers.debug);

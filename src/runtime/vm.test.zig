@@ -921,46 +921,6 @@ test "'foo' -> _" {
     }
 }
 
-test "a bare local var pattern compiles to a match plan" {
-    const parser =
-        \\'foo' -> Foo $ Foo
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, "foo"),
-            Elem.inputSubstring(0, 3),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expect(plan_count > 0);
-    }
-}
-
-test "a pattern still compiles to a match plan under PRINT_DESTRUCTURE" {
-    const parser =
-        \\'foo' -> Foo $ Foo
-    ;
-    {
-        var print_config = config;
-        print_config.printDestructure = true;
-        var vm = VM.create();
-        try vm.init(allocator, writers, print_config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, "foo"),
-            Elem.inputSubstring(0, 3),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expect(plan_count > 0);
-    }
-}
-
 test "a pattern still compiles to a match plan under --explain" {
     const parser =
         \\'foo' -> Foo $ Foo
@@ -982,25 +942,6 @@ test "a pattern still compiles to a match plan under --explain" {
     }
 }
 
-test "constant literal patterns compile to match plans" {
-    const parser =
-        \\('' $ 42) -> 42 & ('' $ 'abc') -> 'abc' & ('' $ true) -> true & ('' $ null) -> null $ 'ok'
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(4, plan_count);
-    }
-}
-
 test "constant equality mismatch drives alternation" {
     const parser =
         \\(('' $ 1) -> 2 $ 'no') | ('' $ 'yes')
@@ -1014,46 +955,6 @@ test "constant equality mismatch drives alternation" {
             (try Elem.DynElem.String.copy(&vm, "yes")).dyn.elem(),
             vm,
         );
-    }
-}
-
-test "a global constant pattern compiles to a match plan" {
-    const parser =
-        \\Two = 2
-        \\'' $ 2 -> Two $ 'ok'
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
-test "a fixed-length array pattern compiles to a match plan" {
-    const parser =
-        \\('' $ [[1, 2], 3]) -> [[A, B], _] $ [B, A]
-    ;
-    {
-        const array = [_]Elem{ Elem.numberFloat(2), Elem.numberFloat(1) };
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
     }
 }
 
@@ -1089,46 +990,6 @@ test "array plan failure after a bind resets locals and drives alternation" {
     }
 }
 
-test "an array rest pattern compiles to a match plan" {
-    const parser =
-        \\('' $ [1, 2, 3]) -> [1, ...Rest] $ Rest
-    ;
-    {
-        const array = [_]Elem{ Elem.numberFloat(2), Elem.numberFloat(3) };
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
-test "an object pattern with constant keys compiles to a match plan" {
-    const parser =
-        \\('' $ {'a': 1, 'b': [2, 3]}) -> {'a': A, 'b': [_, B]} $ [A, B]
-    ;
-    {
-        const array = [_]Elem{ Elem.numberFloat(1), Elem.numberFloat(3) };
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
 test "object plan mismatches drive alternation" {
     const parser =
         \\obj = '' $ {'a': 1, 'b': 2}
@@ -1143,44 +1004,6 @@ test "object plan mismatches drive alternation" {
             try Elem.numberStringFromBytes("2", &vm),
             vm,
         );
-    }
-}
-
-test "an object pattern with a variable key compiles to a match plan" {
-    const parser =
-        \\('' $ {'a': 1}) -> {K: 1} $ K
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            (try Elem.DynElem.String.copy(&vm, "a")).dyn.elem(),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
-test "range patterns with constant bounds compile to match plans" {
-    const parser =
-        \\('' $ 3) -> 1..5 & ('' $ 9) -> 5.. & ('' $ 2) -> ..5 & ('' $ 'c') -> 'a'..'f' $ 'ok'
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(4, plan_count);
     }
 }
 
@@ -1200,139 +1023,6 @@ test "range plan mismatch drives alternation" {
     }
 }
 
-test "a range bound by a bound local compiles to a match plan" {
-    const parser =
-        \\(('' $ 5) -> N) & (('' $ 3) -> 1..N) $ 'ok'
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(2, plan_count);
-    }
-}
-
-test "a range with an unbound local bound compiles to a match plan" {
-    const parser =
-        \\('' $ 3) -> N..5 $ N
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            try Elem.numberStringFromBytes("3", &vm),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
-test "a number merge pattern compiles to a match plan" {
-    const parser =
-        \\('' $ 3) -> (1 + N) $ N
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            Elem.numberFloat(2),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
-test "a string merge pattern compiles to a match plan" {
-    const parser =
-        \\'abc' -> ('a' + R) $ R
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, "abc"),
-            Elem.inputSubstring(1, 2),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
-test "an object rest pattern compiles to a match plan" {
-    const parser =
-        \\('' $ {'a': 1, 'b': 2}) -> ({'a': 1} + R) & ('' $ R) -> {'b': B} $ B
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            try Elem.numberStringFromBytes("2", &vm),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(2, plan_count);
-    }
-}
-
-test "a boolean merge pattern compiles to a match plan" {
-    const parser =
-        \\('' $ true) -> (false + B) $ B
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            Elem.boolean(true),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
-test "an untyped merge pattern compiles to a match plan" {
-    const parser =
-        \\('' $ 5) -> (null + X) $ X
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            try Elem.numberStringFromBytes("5", &vm),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
 test "merge plan mismatch drives alternation" {
     const parser =
         \\(('' $ 'xyz') -> ('a' + R) $ 'no') | ('' $ 'yes')
@@ -1349,45 +1039,7 @@ test "merge plan mismatch drives alternation" {
     }
 }
 
-test "a merge with a negated part compiles to a match plan" {
-    const parser =
-        \\('' $ 4) -> (5 + -N) $ N
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            Elem.numberFloat(1),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
-test "a string template pattern compiles to a match plan" {
-    const parser =
-        \\('' $ 'a3b') -> "a%(N)b" $ N
-    ;
-    {
-        var vm = VM.create();
-        try vm.init(allocator, writers, config);
-        defer vm.deinit();
-        try testing.expectSuccess(
-            try vm.interpret("test", parser, ""),
-            (try Elem.DynElem.String.copy(&vm, "3")).dyn.elem(),
-            vm,
-        );
-        var plan_count: usize = 0;
-        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
-    }
-}
-
-test "a template with a merge segment casts to the merge type" {
+test "a template with a number-merge segment casts to cursor steps" {
     const parser =
         \\('' $ '12') -> "%(0 + N)" $ N
     ;
@@ -1400,9 +1052,11 @@ test "a template with a merge segment casts to the merge type" {
             Elem.numberFloat(12),
             vm,
         );
+        // The number-merge solvable lowers to MatchStrRest + MatchCastNum +
+        // MatchMergeNum; no plan remains.
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
+        try std.testing.expectEqual(0, plan_count);
     }
 }
 
@@ -1425,7 +1079,7 @@ test "a template with an array segment casts to json" {
     }
 }
 
-test "a template with a range segment matches one character" {
+test "a template with a range segment compiles to cursor steps" {
     const parser =
         \\('' $ 'xb') -> "%('a'..'z')b" $ 'ok'
     ;
@@ -1438,13 +1092,14 @@ test "a template with a range segment matches one character" {
             (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
             vm,
         );
+        // The range segment lowers to MatchStrChar + a range test, no plan.
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
+        try std.testing.expectEqual(0, plan_count);
     }
 }
 
-test "a template with a bound local segment compiles to a match plan" {
+test "a template with a bound local segment compiles to cursor steps" {
     const parser =
         \\(('' $ 'x') -> X) & (('' $ 'axb') -> "a%(X)b") $ 'ok'
     ;
@@ -1457,9 +1112,10 @@ test "a template with a bound local segment compiles to a match plan" {
             (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
             vm,
         );
+        // The bound-read segment lowers to MatchStrVal; no plan remains.
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(2, plan_count);
+        try std.testing.expectEqual(0, plan_count);
     }
 }
 
@@ -3313,14 +2969,21 @@ test "('' $ [2, 4]) -> [A, Double(A)] $ A" {
     );
 }
 
-test "('' $ [4, 2]) -> [Double(A), A] errors on the unbound argument" {
+test "('' $ [4, 2]) -> [Double(A), A] schedules the bind before the call" {
+    // A binds from the second element before Double(A) evaluates against
+    // the first, so the call sees a bound argument despite appearing
+    // earlier positionally.
     const parser =
         \\Double(N) = N + N; ("" $ [4, 2]) -> [Double(A), A] $ A
     ;
     var vm = VM.create();
     try vm.init(allocator, writers, config);
     defer vm.deinit();
-    try std.testing.expectError(error.RuntimeError, vm.interpret("test", parser, ""));
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(2),
+        vm,
+    );
 }
 
 test "a function-valued local is callable in a pattern" {
@@ -3363,9 +3026,49 @@ test "('' $ 'abab') -> (A * 2) $ A" {
     );
 }
 
-test "('' $ [1, 1]) -> (A * 2) binds once then compares" {
+test "('' $ [1, 1]) -> (A * 2) binds A to the repeated chunk" {
     const parser =
         \\("" $ [1, 1]) -> (A * 2) $ A
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        const result = try vm.interpret("test", parser, "");
+        const expected = try Elem.DynElem.Array.create(&vm, 1);
+        try expected.append(&vm, Elem.numberFloat(1));
+        try testing.expectSuccess(result, expected.dyn.elem(), vm);
+    }
+    {
+        const mismatch =
+            \\("" $ [1, 2]) -> (A * 2) $ A
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", mismatch, ""),
+        );
+    }
+}
+
+test "('' $ [1, 2, 1, 2]) -> (A * 2) binds A to a multi-element chunk" {
+    const parser =
+        \\("" $ [1, 2, 1, 2]) -> (A * 2) $ A
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    const result = try vm.interpret("test", parser, "");
+    const expected = try Elem.DynElem.Array.create(&vm, 2);
+    try expected.append(&vm, Elem.numberFloat(1));
+    try expected.append(&vm, Elem.numberFloat(2));
+    try testing.expectSuccess(result, expected.dyn.elem(), vm);
+}
+
+test "('' $ [1, 1, 1, 1, 1]) -> ([A] * 5) chunks with a bound count" {
+    const parser =
+        \\("" $ [1, 1, 1, 1, 1]) -> ([A] * 5) $ A
     ;
     {
         var vm = VM.create();
@@ -3378,14 +3081,14 @@ test "('' $ [1, 1]) -> (A * 2) binds once then compares" {
         );
     }
     {
-        const mismatch =
-            \\("" $ [1, 2]) -> (A * 2) $ A
+        const wrong_count =
+            \\("" $ [1, 1, 1, 1, 1]) -> ([A] * 4) $ A
         ;
         var vm = VM.create();
         try vm.init(allocator, writers, config);
         defer vm.deinit();
         try testing.expectFailure(
-            try vm.interpret("test", mismatch, ""),
+            try vm.interpret("test", wrong_count, ""),
         );
     }
 }
@@ -3415,6 +3118,88 @@ test "('' $ [1, 2, 1, 2]) -> ([A, B] * N) matches equal chunks" {
             try vm.interpret("test", mismatch, ""),
         );
     }
+}
+
+test "a bound local read as the repeat pattern derives the count" {
+    const parser =
+        \\("" $ "ab") -> S $ (("" $ "abab") -> (S * C) $ C)
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(2),
+        vm,
+    );
+}
+
+test "a range count tests the derived repeat count" {
+    {
+        const parser =
+            \\("" $ "aaaa") -> ("a" * (2..8)) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        const out_of_range =
+            \\("" $ "aaaa") -> ("a" * (5..8)) $ "ok"
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", out_of_range, ""),
+        );
+    }
+}
+
+test "a zero-count repeat matches the empty value and binds it" {
+    {
+        const parser =
+            \\("" $ "") -> (A * 0) $ A
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        const non_empty =
+            \\("" $ "a") -> (A * 0) $ A
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", non_empty, ""),
+        );
+    }
+}
+
+test "a number repeat divides, allowing fractional counts" {
+    const parser =
+        \\("" $ 7.5) -> (5 * N) $ N
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(1.5),
+        vm,
+    );
 }
 
 test "('' $ [1, 2, 1, 2]) -> ([1, 2] * N) folds the pattern at compile time" {
@@ -3934,6 +3719,16 @@ test "a string global key folds to a constant key" {
 test "a non-string key in a plain object errors" {
     const parser =
         \\N = 1 ; ("" $ {"1": 5}) -> {N: V} $ V
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try std.testing.expectError(error.RuntimeError, vm.interpret("test", parser, ""));
+}
+
+test "a bound non-string key in a plain object errors" {
+    const parser =
+        \\(('' $ 1) -> K) & (('' $ {"1": 5}) -> {K: V}) $ V
     ;
     var vm = VM.create();
     try vm.init(allocator, writers, config);

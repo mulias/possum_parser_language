@@ -6,11 +6,15 @@ const Writer = std.Io.Writer;
 const Ast = @import("goal_ast.zig");
 const Can = @import("can.zig");
 const CanAst = @import("can_ast.zig");
+const Module = @import("../runtime.zig").Module;
 const StringTable = @import("string_table.zig").FrontendStringTable;
 const PathTable = @import("path_table.zig").PathTable;
 const Region = @import("../region.zig").Region;
+const Writers = @import("../writer.zig").Writers;
 
 arena: *ArenaAllocator,
+writers: Writers,
+module: Module,
 strings: *StringTable,
 paths: *PathTable,
 ast: Ast = .{},
@@ -21,17 +25,23 @@ pub const SetId = Ast.SetId;
 pub const PlaceId = Ast.PlaceId;
 
 // GoalAstGap: a can construct the goal ast cannot express yet.
-pub const Error = error{ OutOfMemory, GoalAstGap };
+// PatternTooLarge: a place index, length, or key count exceeds what the
+// match-step byte encoding admits.
+pub const Error = error{ OutOfMemory, GoalAstGap, MergeTypeConflict, PatternTooLarge } || Writer.Error;
 
 pub fn init(
     arena: *ArenaAllocator,
+    writers: Writers,
     strings: *StringTable,
     paths: *PathTable,
+    module: Module,
 ) Goal {
     return Goal{
         .arena = arena,
+        .writers = writers,
         .strings = strings,
         .paths = paths,
+        .module = module,
     };
 }
 
@@ -75,7 +85,20 @@ fn alloc(self: *Goal) Allocator {
     return self.arena.allocator();
 }
 
-fn addGoal(self: *Goal, node: Ast.GoalNode, region: Region) Error!NodeId {
+fn printError(self: *Goal, region: Region, comptime format: []const u8, args: anytype) !void {
+    try self.writers.err.print("\nValidation Error: ", .{});
+    try self.writers.err.print(format, args);
+    try self.writers.err.print("\n\n", .{});
+
+    try self.writers.err.print("{s}:", .{self.module.name});
+    try region.printLineRelative(self.module.source, self.writers.err);
+    try self.writers.err.print(":\n", .{});
+
+    try self.module.highlight(region, self.writers.err);
+    try self.writers.err.print("\n", .{});
+}
+
+fn addGoal(self: *Goal, node: Ast.GoalNode, region: Region) error{OutOfMemory}!NodeId {
     const id: NodeId = @intCast(self.ast.goals.items.len);
     try self.ast.goals.append(self.alloc(), .{ .node = node, .region = region });
     return id;
@@ -103,7 +126,11 @@ fn identGoal(self: *Goal, ident: anytype, region: Region) Error!NodeId {
 
 fn invoked(self: *Goal, callee: NodeId, region: Region) Error!NodeId {
     const args = try self.alloc().alloc(NodeId, 0);
-    return self.addGoal(.{ .call = .{ .callee = callee, .args = args } }, region);
+    return self.addGoal(.{ .call = .{
+        .callee = callee,
+        .args = args,
+        .value_args = 0,
+    } }, region);
 }
 
 // Operand position: the parser runs here. Bare identifiers and literal
@@ -136,7 +163,6 @@ fn convertParser(self: *Goal, rnode: *CanAst.Parser.RNode) Error!NodeId {
             .left = try self.convertParser(op.left),
             .right = try self.convertParser(op.right),
         } }, region),
-        .negation => |inner| self.addGoal(.{ .neg = try self.convertParser(inner) }, region),
         .number_string => |ns| self.invoked(try self.addGoal(.{ .number_string = .{
             .number = ns.number,
             .negated = ns.negated,
@@ -166,13 +192,21 @@ fn convertParser(self: *Goal, rnode: *CanAst.Parser.RNode) Error!NodeId {
 fn convertParserCall(self: *Goal, fc: CanAst.Parser.FunctionCall, region: Region) Error!NodeId {
     const callee = try self.convertParserValue(fc.function);
     const args = try self.alloc().alloc(NodeId, fc.args.items.len);
+    var value_args: u32 = 0;
     for (fc.args.items, 0..) |arg, i| {
         args[i] = switch (arg) {
             .parser => |p| try self.convertParserValue(p),
-            .value => |v| try self.convertValue(v),
+            .value => |v| blk: {
+                if (i < 32) value_args |= @as(u32, 1) << @intCast(i);
+                break :blk try self.convertValue(v);
+            },
         };
     }
-    return self.addGoal(.{ .call = .{ .callee = callee, .args = args } }, region);
+    return self.addGoal(.{ .call = .{
+        .callee = callee,
+        .args = args,
+        .value_args = value_args,
+    } }, region);
 }
 
 // Value position within a parser context: arguments, callees, range
@@ -328,17 +362,10 @@ fn convertValue(self: *Goal, rnode: *CanAst.Value.RNode) Error!NodeId {
             op.right,
             region,
         ),
-        .repeat => |op| blk: {
-            // V1 * V2: merge V1 with itself V2 times. The count is
-            // evaluable, so it is both the loop cap and the exact-count
-            // test.
-            const count = try self.convertValue(op.right);
-            break :blk self.addGoal(.{ .repeat = .{
-                .body = try self.convertValue(op.left),
-                .cap = .{ .expr = count },
-                .count_test = try self.evalEqSet(count, op.right.region),
-            } }, region);
-        },
+        .repeat => |op| self.addGoal(.{ .mult = .{
+            .left = try self.convertValue(op.left),
+            .right = try self.convertValue(op.right),
+        } }, region),
     };
 }
 
@@ -346,7 +373,16 @@ fn convertValueCall(self: *Goal, fc: CanAst.Value.FunctionCall, region: Region) 
     const callee = try self.convertValue(fc.function);
     const args = try self.alloc().alloc(NodeId, fc.args.items.len);
     for (fc.args.items, 0..) |arg, i| args[i] = try self.convertValue(arg);
-    return self.addGoal(.{ .call = .{ .callee = callee, .args = args } }, region);
+    return self.addGoal(.{ .call = .{
+        .callee = callee,
+        .args = args,
+        .value_args = allValueArgs(args.len),
+    } }, region);
+}
+
+fn allValueArgs(count: usize) u32 {
+    if (count >= 32) return std.math.maxInt(u32);
+    return (@as(u32, 1) << @intCast(count)) - 1;
 }
 
 fn convertValueTemplate(
@@ -440,22 +476,6 @@ fn patternSet(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!SetId {
     return self.addSet(set);
 }
 
-// A ConstraintSet asserting the root equals an evaluated expression: the
-// exact-count test of a value repeat.
-fn evalEqSet(self: *Goal, expr: NodeId, region: Region) Error!SetId {
-    var set = Ast.ConstraintSet{
-        .places = .{},
-        .constraints = .{},
-        .region = region,
-    };
-    try set.places.append(self.alloc(), .scrutinee);
-    try set.constraints.append(self.alloc(), .{
-        .kind = .{ .eval_eq = .{ .place = 0, .expr = expr } },
-        .region = region,
-    });
-    return self.addSet(set);
-}
-
 fn addSet(self: *Goal, set: Ast.ConstraintSet) Error!SetId {
     const id: SetId = @intCast(self.ast.constraint_sets.items.len);
     try self.ast.constraint_sets.append(self.alloc(), set);
@@ -481,6 +501,17 @@ fn pushConstraint(
     region: Region,
 ) Error!void {
     try constraints.append(self.alloc(), .{ .kind = kind, .region = region });
+}
+
+// Narrow a place index, length, or key count to the byte the match-step
+// ops encode it in, reporting a compile error when the pattern needs a
+// larger number.
+fn boundedByte(self: *Goal, value: usize, region: Region, comptime what: []const u8) Error!u8 {
+    if (value > 255) {
+        try self.printError(region, what ++ " ({d}) exceeds the maximum of 255", .{value});
+        return Error.PatternTooLarge;
+    }
+    return @intCast(value);
 }
 
 fn lowerPattern(
@@ -530,12 +561,12 @@ fn lowerPattern(
             } }, region);
             try self.pushConstraint(constraints, .{ .len_eq = .{
                 .place = place,
-                .len = @intCast(elems.items.len),
+                .len = try self.boundedByte(elems.items.len, region, "array pattern length"),
             } }, region);
             for (elems.items, 0..) |elem, i| {
                 const elem_place = try self.internPlace(places, .{ .elem = .{
                     .src = place,
-                    .index = @intCast(i),
+                    .index = try self.boundedByte(i, region, "array element index"),
                 } });
                 try self.lowerPattern(elem, elem_place, places, constraints);
             }
@@ -547,7 +578,7 @@ fn lowerPattern(
             } }, region);
             try self.pushConstraint(constraints, .{ .keys_exact = .{
                 .place = place,
-                .count = @intCast(pairs.items.len),
+                .count = try self.boundedByte(pairs.items.len, region, "object pattern key count"),
             } }, region);
             for (pairs.items) |pair| {
                 switch (pair.key.node) {
@@ -581,12 +612,34 @@ fn lowerPattern(
             } }, region);
         },
         .merge => {
+            var part_patterns = ArrayList(*CanAst.Pattern.RNode){};
+            var ty: ?Ast.ValueType = null;
+            try self.collectMergePatterns(pattern, &part_patterns, &ty);
+            if (ty == .array) {
+                if (try self.lowerArrayMerge(part_patterns.items, place, places, constraints, region)) {
+                    return;
+                }
+            }
+            if (ty == .string) {
+                if (try self.lowerStringMerge(part_patterns.items, place, places, constraints, region)) {
+                    return;
+                }
+            }
+            if (ty == .object) {
+                if (try self.lowerObjectMerge(part_patterns.items, place, places, constraints, region)) {
+                    return;
+                }
+            }
             var parts = ArrayList(Ast.Part){};
-            try self.collectMergeParts(pattern, &parts);
+            try parts.ensureTotalCapacity(self.alloc(), part_patterns.items.len);
+            for (part_patterns.items) |part| {
+                parts.appendAssumeCapacity(try self.patternPart(part));
+            }
             try self.pushConstraint(constraints, .{ .solve_merge = .{
                 .place = place,
                 .parts = parts,
                 .solvable_index = null,
+                .ty = ty,
             } }, region);
         },
         .repeat => |op| {
@@ -613,18 +666,371 @@ fn lowerPattern(
     }
 }
 
-fn collectMergeParts(
+fn collectMergePatterns(
     self: *Goal,
     pattern: *CanAst.Pattern.RNode,
-    parts: *ArrayList(Ast.Part),
+    parts: *ArrayList(*CanAst.Pattern.RNode),
+    ty: *?Ast.ValueType,
 ) Error!void {
     switch (pattern.node) {
         .merge => |op| {
-            try self.collectMergeParts(op.left, parts);
-            try self.collectMergeParts(op.right, parts);
+            try self.collectMergePatterns(op.left, parts, ty);
+            try self.collectMergePatterns(op.right, parts, ty);
         },
-        else => try parts.append(self.alloc(), try self.patternPart(pattern)),
+        else => {
+            if (mergePartStaticType(pattern)) |part_ty| {
+                if (ty.*) |merge_ty| {
+                    if (part_ty != merge_ty) {
+                        try self.printError(
+                            pattern.region,
+                            "cannot merge {s} {s} into {s} {s} merge",
+                            .{ article(part_ty), @tagName(part_ty), article(merge_ty), @tagName(merge_ty) },
+                        );
+                        return Error.MergeTypeConflict;
+                    }
+                } else {
+                    ty.* = part_ty;
+                }
+            }
+            try parts.append(self.alloc(), pattern);
+        },
     }
+}
+
+// Flatten an array merge with a static layout into constraints on the
+// merge's own place: array-pattern parts pin every offset, so their
+// elements land at elem/elem_back places and the at-most-one
+// unknown-length part takes the middle slice. The layout is
+// boundness-agnostic — a bound value at the slice place enforces the
+// total length implicitly — so at most one unknown-length part is the
+// only condition. Returns false to fall back to solve_merge (repeats,
+// negations, and second unknown-length parts keep the runtime solve).
+fn lowerArrayMerge(
+    self: *Goal,
+    parts: []const *CanAst.Pattern.RNode,
+    place: PlaceId,
+    places: *ArrayList(Ast.PlaceDef),
+    constraints: *ArrayList(Ast.Constraint),
+    region: Region,
+) Error!bool {
+    var slack: ?usize = null;
+    var front_len: u32 = 0;
+    var back_len: u32 = 0;
+    for (parts, 0..) |part, i| {
+        switch (part.node) {
+            .array => |elems| {
+                const len: u32 = @intCast(elems.items.len);
+                if (slack == null) front_len += len else back_len += len;
+            },
+            .null => {},
+            .identifier, .function_call => {
+                if (slack != null) return false;
+                slack = i;
+            },
+            else => return false,
+        }
+    }
+
+    try self.pushConstraint(constraints, .{ .is_type = .{
+        .place = place,
+        .ty = .array,
+    } }, region);
+    if (slack == null) {
+        try self.pushConstraint(constraints, .{ .len_eq = .{
+            .place = place,
+            .len = try self.boundedByte(front_len + back_len, region, "array pattern length"),
+        } }, region);
+    } else {
+        try self.pushConstraint(constraints, .{ .len_min = .{
+            .place = place,
+            .len = try self.boundedByte(front_len + back_len, region, "array pattern length"),
+        } }, region);
+    }
+
+    var front_index: u32 = 0;
+    var back_remaining: u32 = back_len;
+    for (parts, 0..) |part, i| {
+        switch (part.node) {
+            .array => |elems| for (elems.items) |elem| {
+                const elem_place = if (slack == null or i < slack.?) blk: {
+                    defer front_index += 1;
+                    break :blk try self.internPlace(places, .{ .elem = .{
+                        .src = place,
+                        .index = try self.boundedByte(front_index, region, "array element index"),
+                    } });
+                } else blk: {
+                    back_remaining -= 1;
+                    break :blk try self.internPlace(places, .{ .elem_back = .{
+                        .src = place,
+                        .index = try self.boundedByte(back_remaining, region, "array element index"),
+                    } });
+                };
+                try self.lowerPattern(elem, elem_place, places, constraints);
+            },
+            .null => {},
+            .identifier => |ident| {
+                const slice_place = try self.internPlace(places, .{ .slice = .{
+                    .src = place,
+                    .front = try self.boundedByte(front_len, region, "array pattern length"),
+                    .back = try self.boundedByte(back_len, region, "array pattern length"),
+                } });
+                if (!self.isPlaceholder(ident.name)) {
+                    try self.pushConstraint(constraints, .{ .local = .{
+                        .place = slice_place,
+                        .name = ident.name,
+                    } }, part.region);
+                }
+            },
+            .function_call => |fc| {
+                const slice_place = try self.internPlace(places, .{ .slice = .{
+                    .src = place,
+                    .front = try self.boundedByte(front_len, region, "array pattern length"),
+                    .back = try self.boundedByte(back_len, region, "array pattern length"),
+                } });
+                try self.pushConstraint(constraints, .{ .eval_eq = .{
+                    .place = slice_place,
+                    .expr = try self.patternCallGoal(fc, part.region),
+                } }, part.region);
+            },
+            else => unreachable,
+        }
+    }
+    return true;
+}
+
+fn article(ty: Ast.ValueType) []const u8 {
+    return switch (ty) {
+        .array, .object => "an",
+        .string, .number, .boolean, .null => "a",
+    };
+}
+
+// The merge type a part imposes structurally, or null when only its
+// match-time value can type it (locals, placeholders, calls) or when it
+// is the merge identity (null). Ranges type as number: constant number
+// ranges fold by interval arithmetic, and a surviving range part in a
+// merge is invalid for every type. Negation only ever produces numbers;
+// a negated local stays untyped so the match fails instead of the merge
+// typing, mirroring the interpreter's mergePartType.
+fn mergePartStaticType(pattern: *const CanAst.Pattern.RNode) ?Ast.ValueType {
+    return switch (pattern.node) {
+        .array => .array,
+        .object => .object,
+        .string, .string_template => .string,
+        .number_float, .number_string, .range => .number,
+        .true, .false => .boolean,
+        .negation => |inner| if (mergePartStaticType(inner)) |t|
+            (if (t == .number) t else null)
+        else
+            null,
+        .repeat => |op| mergePartStaticType(op.left),
+        .null, .identifier, .function_call, .merge => null,
+    };
+}
+
+// Flatten a string merge with a static byte layout: literal parts pin
+// the byte offsets, so leading literals become a prefix test, trailing
+// literals a suffix test, and the at-most-one unknown-length part takes
+// the byte slice between them. All-literal merges are left to constant
+// folding, and templates never reach here — a bound template
+// interpolation stringifies its value before comparing, which only the
+// backend (post-classification) can decide.
+fn lowerStringMerge(
+    self: *Goal,
+    parts: []const *CanAst.Pattern.RNode,
+    place: PlaceId,
+    places: *ArrayList(Ast.PlaceDef),
+    constraints: *ArrayList(Ast.Constraint),
+    region: Region,
+) Error!bool {
+    var slack: ?usize = null;
+    var front_len: u32 = 0;
+    var back_len: u32 = 0;
+    for (parts, 0..) |part, i| {
+        switch (part.node) {
+            .string => |s| {
+                const len: u32 = @intCast(s.len);
+                if (slack == null) front_len += len else back_len += len;
+            },
+            .null => {},
+            .identifier, .function_call => {
+                if (slack != null) return false;
+                slack = i;
+            },
+            else => return false,
+        }
+    }
+    const slack_index = slack orelse return false;
+
+    try self.pushConstraint(constraints, .{ .is_type = .{
+        .place = place,
+        .ty = .string,
+    } }, region);
+    try self.pushConstraint(constraints, .{ .len_min = .{
+        .place = place,
+        .len = try self.boundedByte(front_len + back_len, region, "string pattern length"),
+    } }, region);
+    if (front_len > 0) {
+        try self.pushConstraint(constraints, .{ .str_prefix = .{
+            .place = place,
+            .literal = try self.concatLiterals(parts[0..slack_index]),
+        } }, region);
+    }
+    if (back_len > 0) {
+        try self.pushConstraint(constraints, .{ .str_suffix = .{
+            .place = place,
+            .literal = try self.concatLiterals(parts[slack_index + 1 ..]),
+        } }, region);
+    }
+
+    const slack_pattern = parts[slack_index];
+    const slice_place = try self.internPlace(places, .{ .slice = .{
+        .src = place,
+        .front = try self.boundedByte(front_len, region, "string pattern length"),
+        .back = try self.boundedByte(back_len, region, "string pattern length"),
+    } });
+    switch (slack_pattern.node) {
+        .identifier => |ident| if (!self.isPlaceholder(ident.name)) {
+            try self.pushConstraint(constraints, .{ .local = .{
+                .place = slice_place,
+                .name = ident.name,
+            } }, slack_pattern.region);
+        },
+        .function_call => |fc| try self.pushConstraint(constraints, .{ .eval_eq = .{
+            .place = slice_place,
+            .expr = try self.patternCallGoal(fc, slack_pattern.region),
+        } }, slack_pattern.region),
+        else => unreachable,
+    }
+    return true;
+}
+
+// Flatten an object merge whose object parts have only constant string
+// keys: every pair lands as a has_key test plus key place on the merge's
+// own place, exactly like a plain object pattern, except the member
+// count is only exact when there is no slack part — the slack takes the
+// unclaimed members at a members_rest place. Duplicate keys across
+// parts and computed keys keep the runtime solve.
+fn lowerObjectMerge(
+    self: *Goal,
+    parts: []const *CanAst.Pattern.RNode,
+    place: PlaceId,
+    places: *ArrayList(Ast.PlaceDef),
+    constraints: *ArrayList(Ast.Constraint),
+    region: Region,
+) Error!bool {
+    var slack: ?usize = null;
+    var key_count: u32 = 0;
+    var seen_keys = ArrayList([]const u8){};
+    defer seen_keys.deinit(self.alloc());
+    for (parts, 0..) |part, i| {
+        switch (part.node) {
+            .object => |pairs| for (pairs.items) |pair| {
+                switch (pair.key.node) {
+                    .string => |key_str| {
+                        for (seen_keys.items) |seen| {
+                            if (std.mem.eql(u8, seen, key_str)) return false;
+                        }
+                        try seen_keys.append(self.alloc(), key_str);
+                        key_count += 1;
+                    },
+                    // A variable or computed key is a search pair: it claims
+                    // one member the const keys didn't. It counts toward the
+                    // member minimum but can't be deduped statically.
+                    else => key_count += 1,
+                }
+            },
+            .null => {},
+            .identifier, .function_call => {
+                if (slack != null) return false;
+                slack = i;
+            },
+            else => return false,
+        }
+    }
+
+    try self.pushConstraint(constraints, .{ .is_type = .{
+        .place = place,
+        .ty = .object,
+    } }, region);
+    if (slack == null) {
+        try self.pushConstraint(constraints, .{ .keys_exact = .{
+            .place = place,
+            .count = try self.boundedByte(key_count, region, "object pattern key count"),
+        } }, region);
+    } else if (key_count > 0) {
+        try self.pushConstraint(constraints, .{ .keys_min = .{
+            .place = place,
+            .count = try self.boundedByte(key_count, region, "object pattern key count"),
+        } }, region);
+    }
+
+    for (parts) |part| {
+        switch (part.node) {
+            .object => |pairs| for (pairs.items) |pair| {
+                switch (pair.key.node) {
+                    .string => |key_str| {
+                        const sid = try self.strings.insert(key_str);
+                        try self.pushConstraint(constraints, .{ .has_key = .{
+                            .place = place,
+                            .sid = sid,
+                        } }, pair.key.region);
+                        const key_place = try self.internPlace(places, .{ .key = .{
+                            .src = place,
+                            .sid = sid,
+                        } });
+                        try self.lowerPattern(pair.value, key_place, places, constraints);
+                    },
+                    else => try self.pushConstraint(constraints, .{ .search_key = .{
+                        .place = place,
+                        .key = try self.patternSet(pair.key),
+                        .value = try self.patternSet(pair.value),
+                    } }, pair.key.region),
+                }
+            },
+            .null => {},
+            .identifier => |ident| {
+                const rest_place = try self.internPlace(places, .{ .members_rest = .{
+                    .src = place,
+                } });
+                if (!self.isPlaceholder(ident.name)) {
+                    try self.pushConstraint(constraints, .{ .local = .{
+                        .place = rest_place,
+                        .name = ident.name,
+                    } }, part.region);
+                }
+            },
+            .function_call => |fc| {
+                const rest_place = try self.internPlace(places, .{ .members_rest = .{
+                    .src = place,
+                } });
+                try self.pushConstraint(constraints, .{ .eval_eq = .{
+                    .place = rest_place,
+                    .expr = try self.patternCallGoal(fc, part.region),
+                } }, part.region);
+            },
+            else => unreachable,
+        }
+    }
+    return true;
+}
+
+fn concatLiterals(self: *Goal, parts: []const *CanAst.Pattern.RNode) Error![]const u8 {
+    var total: usize = 0;
+    for (parts) |part| total += switch (part.node) {
+        .string => |s| s.len,
+        else => 0,
+    };
+    const bytes = try self.alloc().alloc(u8, total);
+    var offset: usize = 0;
+    for (parts) |part| switch (part.node) {
+        .string => |s| {
+            @memcpy(bytes[offset .. offset + s.len], s);
+            offset += s.len;
+        },
+        else => {},
+    };
+    return bytes;
 }
 
 fn patternPart(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!Ast.Part {
@@ -673,7 +1079,7 @@ fn repeatCap(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!Ast.Limit {
         .function_call, .merge, .negation => blk: {
             const expr = self.patternExprGoal(pattern) catch |err| switch (err) {
                 error.GoalAstGap => break :blk .none,
-                error.OutOfMemory => return error.OutOfMemory,
+                else => |e| return e,
             };
             break :blk .{ .expr = expr };
         },
@@ -705,7 +1111,11 @@ fn patternCallGoal(
     const callee = try self.convertValue(fc.function);
     const args = try self.alloc().alloc(NodeId, fc.args.items.len);
     for (fc.args.items, 0..) |arg, i| args[i] = try self.convertValue(arg);
-    return self.addGoal(.{ .call = .{ .callee = callee, .args = args } }, region);
+    return self.addGoal(.{ .call = .{
+        .callee = callee,
+        .args = args,
+        .value_args = allValueArgs(args.len),
+    } }, region);
 }
 
 // Evaluable pattern expressions: range limits and other positions where
@@ -740,6 +1150,11 @@ pub fn fold(self: *Goal) FoldError!void {
                     rnode.node = folded;
                 }
             },
+            .mult => |op| {
+                if (try self.foldedMult(self.goalNode(op.left), self.goalNode(op.right))) |folded| {
+                    rnode.node = folded;
+                }
+            },
             .neg => |inner| {
                 if (foldedNeg(self.goalNode(inner))) |folded| {
                     rnode.node = folded;
@@ -748,6 +1163,8 @@ pub fn fold(self: *Goal) FoldError!void {
             else => {},
         }
     }
+
+    try self.distributeNegatedMerges();
 
     for (self.ast.constraint_sets.items) |*set| {
         try self.foldConstraints(&set.constraints);
@@ -784,8 +1201,22 @@ fn simplifyPatterns(self: *Goal) FoldError!void {
             },
             .repeat => |*rep| {
                 if (rep.count_test) |set_id| {
-                    if (self.ast.constraint_sets.items[set_id].constraints.items.len == 0) {
+                    const constraints = self.ast.constraint_sets.items[set_id].constraints.items;
+                    if (constraints.len == 0) {
                         rep.count_test = null;
+                    } else if (rep.cap == .none and constraints.len == 1) {
+                        // Folding can leave count shapes whose cap was not
+                        // recognizable at creation: `(2 * 2)` folds to an
+                        // exact count, `(0..1 + 1)` to a range.
+                        switch (constraints[0].kind) {
+                            .eq_const => |c| if (self.constNumber(c.value) != null) {
+                                rep.cap = .{ .expr = c.value };
+                            },
+                            .in_range => |c| if (c.upper != .none) {
+                                rep.cap = c.upper;
+                            },
+                            else => {},
+                        }
                     }
                 }
             },
@@ -841,6 +1272,7 @@ fn prunePlaces(
             .elem_back => |*e| e.src = map[e.src],
             .slice => |*s| s.src = map[s.src],
             .key => |*k| k.src = map[k.src],
+            .members_rest => |*r| r.src = map[r.src],
         }
     }
     for (constraint_lists) |list| remapPlaces(list, map);
@@ -853,6 +1285,7 @@ fn placeSrc(def: Ast.PlaceDef) ?Ast.PlaceId {
         .elem_back => |e| e.src,
         .slice => |s| s.src,
         .key => |k| k.src,
+        .members_rest => |r| r.src,
     };
 }
 
@@ -913,9 +1346,19 @@ fn foldConstraints(self: *Goal, constraints: *ArrayList(Ast.Constraint)) FoldErr
                             .name = name,
                         } },
                         .placeholder => remove = true,
-                        // A lone structural part keeps its merge wrapper;
-                        // splicing the sub-set would rebase its places.
-                        .sub => {},
+                        // A lone structural part keeps its merge wrapper —
+                        // splicing the sub-set would rebase its places —
+                        // except a bare in_range, whose limits reference
+                        // no places and lift to the merged place directly.
+                        .sub => |set_id| {
+                            if (self.loneInRange(set_id)) |range| {
+                                kind.* = .{ .in_range = .{
+                                    .place = c.place,
+                                    .lower = range.lower,
+                                    .upper = range.upper,
+                                } };
+                            }
+                        },
                         // Folding runs before binding; classified parts
                         // cannot occur here.
                         .bind, .read, .global => unreachable,
@@ -924,7 +1367,10 @@ fn foldConstraints(self: *Goal, constraints: *ArrayList(Ast.Constraint)) FoldErr
             },
             // Only constant-size results fold: `2 * 3` is one number,
             // but expanding `[A] * N` or `"ab" * N` materializes output
-            // proportional to the count.
+            // proportional to the count. A range pattern scales by a
+            // constant non-negative count; range * range stays unfolded
+            // because `2..3 * 2..3` is the discrete set {4, 6, 9}, not
+            // `4..9`.
             .solve_repeat => |*c| {
                 c.pattern = self.simplifiedPart(c.pattern);
                 c.count = self.simplifiedPart(c.count);
@@ -935,6 +1381,19 @@ fn foldConstraints(self: *Goal, constraints: *ArrayList(Ast.Constraint)) FoldErr
                     )) |folded| {
                         self.ast.goals.items[c.pattern.expr].node = folded;
                         kind.* = .{ .eq_const = .{ .place = c.place, .value = c.pattern.expr } };
+                    }
+                } else if (c.count == .expr) {
+                    if (self.rangePart(c.pattern)) |range| {
+                        if (self.constNumber(c.count.expr)) |n| {
+                            if (n >= 0) {
+                                const region = constraints.items[i].region;
+                                kind.* = .{ .in_range = .{
+                                    .place = c.place,
+                                    .lower = try self.boundLimit(scaledBound(range.lower, n), region),
+                                    .upper = try self.boundLimit(scaledBound(range.upper, n), region),
+                                } };
+                            }
+                        }
                     }
                 }
             },
@@ -973,18 +1432,271 @@ fn foldMergeParts(self: *Goal, parts: *ArrayList(Ast.Part)) FoldError!?NodeId {
         if (write > 0 and part == .placeholder and parts.items[write - 1] == .placeholder) {
             continue;
         }
-        if (write > 0 and part == .expr and parts.items[write - 1] == .expr) {
-            const prev = parts.items[write - 1].expr;
-            if (try self.foldedMerge(self.goalNode(prev), self.goalNode(part.expr))) |folded| {
-                self.ast.goals.items[prev].node = folded;
-                continue;
-            }
+        if (write > 0) {
+            if (try self.foldedMergePair(&parts.items[write - 1], part)) continue;
         }
         parts.items[write] = part;
         write += 1;
     }
     parts.shrinkRetainingCapacity(write);
     return last_null;
+}
+
+const NegatedLeaf = struct { part: Ast.Part, negated: bool };
+
+// Negation distributes over a number merge — `-(X + 3)` is `-X + -3` —
+// so a merge part that negates a nested number merge splices its parts
+// (each with the enclosing negations composed in) into the merge. Runs
+// before part folding so distributed constants merge with their
+// neighbours and the sole non-constant part becomes the leftover;
+// otherwise a negated sub-merge keeps the plan path, which cannot solve
+// a negated structural part.
+fn distributeNegatedMerges(self: *Goal) FoldError!void {
+    var si: usize = 0;
+    while (si < self.ast.constraint_sets.items.len) : (si += 1) {
+        var ci: usize = 0;
+        while (ci < self.ast.constraint_sets.items[si].constraints.items.len) : (ci += 1) {
+            const constraint = self.ast.constraint_sets.items[si].constraints.items[ci];
+            if (constraint.kind != .solve_merge or constraint.kind.solve_merge.ty != .number) continue;
+            const distributed = try self.distributedMergeParts(constraint.kind.solve_merge.parts, constraint.region) orelse continue;
+            // Appending wrapper sets above may have moved the set array.
+            const merge = &self.ast.constraint_sets.items[si].constraints.items[ci].kind.solve_merge;
+            merge.parts.deinit(self.alloc());
+            merge.parts = distributed;
+        }
+    }
+    // Index-based: distributing appends fresh constant nodes to the goal
+    // array, which may move the match node holding these constraints.
+    var gi: usize = 0;
+    while (gi < self.ast.goals.items.len) : (gi += 1) {
+        if (self.ast.goals.items[gi].node != .match) continue;
+        const arms = self.ast.goals.items[gi].node.match.arms.items;
+        for (arms) |*arm| {
+            var ci: usize = 0;
+            while (ci < arm.constraints.items.len) : (ci += 1) {
+                const constraint = arm.constraints.items[ci];
+                if (constraint.kind != .solve_merge or constraint.kind.solve_merge.ty != .number) continue;
+                const distributed = try self.distributedMergeParts(constraint.kind.solve_merge.parts, constraint.region) orelse continue;
+                const merge = &arm.constraints.items[ci].kind.solve_merge;
+                merge.parts.deinit(self.alloc());
+                merge.parts = distributed;
+            }
+        }
+    }
+}
+
+// The parts of `parts` with every negated number sub-merge flattened, or
+// null when none needs it. Match-arm merges live outside constraint_sets,
+// so wrapper-set appends never move them; set-merge callers re-fetch.
+fn distributedMergeParts(self: *Goal, parts: ArrayList(Ast.Part), region: Region) FoldError!?ArrayList(Ast.Part) {
+    var needs = false;
+    for (parts.items) |part| {
+        if (self.negatesNumberMerge(part)) {
+            needs = true;
+            break;
+        }
+    }
+    if (!needs) return null;
+
+    var leaves = ArrayList(NegatedLeaf){};
+    defer leaves.deinit(self.alloc());
+    for (parts.items) |part| try self.collectMergeLeaves(part, false, &leaves);
+
+    var out = ArrayList(Ast.Part){};
+    for (leaves.items) |leaf| {
+        try out.append(self.alloc(), try self.negatedLeafPart(leaf.part, leaf.negated, region));
+    }
+    return out;
+}
+
+// Whether a merge part is a negation wrapping (through further negations)
+// a number sub-merge — the shape distribution flattens.
+fn negatesNumberMerge(self: *Goal, part: Ast.Part) bool {
+    if (part != .sub) return false;
+    const set = self.ast.constraint_sets.items[part.sub];
+    if (set.constraints.items.len != 1) return false;
+    return switch (set.constraints.items[0].kind) {
+        .negated => |n| self.wrapsNumberMerge(n.part),
+        else => false,
+    };
+}
+
+fn wrapsNumberMerge(self: *Goal, part: Ast.Part) bool {
+    if (part != .sub) return false;
+    const set = self.ast.constraint_sets.items[part.sub];
+    if (set.constraints.items.len != 1) return false;
+    return switch (set.constraints.items[0].kind) {
+        .solve_merge => |m| m.ty == .number,
+        .negated => |n| self.wrapsNumberMerge(n.part),
+        else => false,
+    };
+}
+
+// Flatten a part into merge leaves, composing negation parity through
+// nested negations and number sub-merges. A leaf is anything else — a
+// constant, a local, a placeholder, or a non-number structural part.
+fn collectMergeLeaves(self: *Goal, part: Ast.Part, negated: bool, leaves: *ArrayList(NegatedLeaf)) FoldError!void {
+    if (part == .sub) {
+        const set = &self.ast.constraint_sets.items[part.sub];
+        if (set.constraints.items.len == 1) {
+            switch (set.constraints.items[0].kind) {
+                .negated => |n| return self.collectMergeLeaves(n.part, negated != (n.count % 2 == 1), leaves),
+                .solve_merge => |m| if (m.ty == .number) {
+                    for (m.parts.items) |mp| try self.collectMergeLeaves(mp, negated, leaves);
+                    return;
+                },
+                else => {},
+            }
+        }
+    }
+    try leaves.append(self.alloc(), .{ .part = part, .negated = negated });
+}
+
+// A leaf carrying its accumulated negation: a constant becomes a fresh
+// signed node, anything else negated is wrapped in a single-negation
+// sub-set mirroring how `-X` lowers at creation. Constants get a fresh
+// node rather than reusing the leaf's — folding still visits the now-dead
+// constraint the leaf came from and would negate a shared node.
+fn negatedLeafPart(self: *Goal, part: Ast.Part, negated: bool, region: Region) FoldError!Ast.Part {
+    if (part == .expr) {
+        const node = self.goalNode(part.expr);
+        if (node == .number_float or node == .number_string) {
+            return .{ .expr = try self.addGoal(negatedConst(node, @intFromBool(negated)).?, region) };
+        }
+    }
+    if (!negated) return part;
+    var set = Ast.ConstraintSet{ .places = .{}, .constraints = .{}, .region = region };
+    try set.places.append(self.alloc(), .scrutinee);
+    try set.constraints.append(self.alloc(), .{
+        .kind = .{ .negated = .{ .place = 0, .count = 1, .part = part } },
+        .region = region,
+    });
+    const id: SetId = @intCast(self.ast.constraint_sets.items.len);
+    try self.ast.constraint_sets.append(self.alloc(), set);
+    return .{ .sub = id };
+}
+
+// Folds `part` into `prev` when both are constants or constant ranges.
+// Constant pairs fold through foldedMerge; a range merges by interval
+// addition — a number is a range with that value as both bounds, so
+// `0..1 + 1` is `0..1 + 1..1` = `1..2` — and an open bound absorbs
+// (`0.. + 1` is `1..`).
+fn foldedMergePair(self: *Goal, prev: *Ast.Part, part: Ast.Part) FoldError!bool {
+    if (prev.* == .expr and part == .expr) {
+        if (try self.foldedMerge(self.goalNode(prev.expr), self.goalNode(part.expr))) |folded| {
+            self.ast.goals.items[prev.expr].node = folded;
+            return true;
+        }
+        return false;
+    }
+    const prev_range = self.rangePart(prev.*);
+    const part_range = self.rangePart(part);
+    if (prev_range) |a| {
+        const b = part_range orelse (if (part == .expr) self.numberRange(part.expr) else null) orelse
+            return false;
+        try self.writeRangeSet(a.set, addedBound(a.lower, b.lower), addedBound(a.upper, b.upper));
+        return true;
+    }
+    if (part_range) |b| {
+        if (prev.* != .expr) return false;
+        const a = self.numberRange(prev.expr) orelse return false;
+        try self.writeRangeSet(b.set, addedBound(a.lower, b.lower), addedBound(a.upper, b.upper));
+        prev.* = part;
+        return true;
+    }
+    return false;
+}
+
+// A range bound folding can compute with: open or a constant number.
+// A range with any other bound shape does not fold.
+const Bound = union(enum) {
+    open,
+    value: f64,
+};
+
+const RangeBounds = struct {
+    // The sub-set holding the in_range constraint, for foldable parts;
+    // unused for a number's degenerate range.
+    set: SetId = 0,
+    lower: Bound,
+    upper: Bound,
+};
+
+// The in_range constraint of a set that contains nothing else. Its
+// limits reference no places, so it can lift out of the set.
+fn loneInRange(self: *Goal, set_id: SetId) ?struct { lower: Ast.Limit, upper: Ast.Limit } {
+    const set = self.ast.constraint_sets.items[set_id];
+    if (set.places.items.len != 1 or set.constraints.items.len != 1) return null;
+    return switch (set.constraints.items[0].kind) {
+        .in_range => |range| .{ .lower = range.lower, .upper = range.upper },
+        else => null,
+    };
+}
+
+// A structural part that is exactly one in_range constraint with
+// foldable bounds: a range sub-pattern like `0..1`.
+fn rangePart(self: *Goal, part: Ast.Part) ?RangeBounds {
+    if (part != .sub) return null;
+    const set = self.ast.constraint_sets.items[part.sub];
+    if (set.places.items.len != 1 or set.constraints.items.len != 1) return null;
+    if (set.constraints.items[0].kind != .in_range) return null;
+    const range = set.constraints.items[0].kind.in_range;
+    return .{
+        .set = part.sub,
+        .lower = self.foldableBound(range.lower) orelse return null,
+        .upper = self.foldableBound(range.upper) orelse return null,
+    };
+}
+
+fn numberRange(self: *Goal, id: NodeId) ?RangeBounds {
+    const n = self.constNumber(id) orelse return null;
+    return .{ .lower = .{ .value = n }, .upper = .{ .value = n } };
+}
+
+fn foldableBound(self: *Goal, limit: Ast.Limit) ?Bound {
+    return switch (limit) {
+        .none => .open,
+        .expr => |id| if (self.constNumber(id)) |n| .{ .value = n } else null,
+        else => null,
+    };
+}
+
+fn constNumber(self: *Goal, id: NodeId) ?f64 {
+    return switch (self.goalNode(id)) {
+        .number_float => |f| f,
+        .number_string => |ns| ns.toFloat() catch null,
+        else => null,
+    };
+}
+
+fn addedBound(a: Bound, b: Bound) Bound {
+    if (a == .open or b == .open) return .open;
+    return .{ .value = a.value + b.value };
+}
+
+fn scaledBound(bound: Bound, n: f64) Bound {
+    return switch (bound) {
+        .open => .open,
+        .value => |v| .{ .value = v * n },
+    };
+}
+
+fn writeRangeSet(self: *Goal, set_id: SetId, lower: Bound, upper: Bound) FoldError!void {
+    const region = self.ast.constraint_sets.items[set_id].region;
+    const limits = .{
+        .lower = try self.boundLimit(lower, region),
+        .upper = try self.boundLimit(upper, region),
+    };
+    const kind = &self.ast.constraint_sets.items[set_id].constraints.items[0].kind;
+    kind.in_range.lower = limits.lower;
+    kind.in_range.upper = limits.upper;
+}
+
+fn boundLimit(self: *Goal, bound: Bound, region: Region) FoldError!Ast.Limit {
+    return switch (bound) {
+        .open => .none,
+        .value => |v| .{ .expr = try self.addGoal(.{ .number_float = v }, region) },
+    };
 }
 
 fn foldedMerge(self: *Goal, a: Ast.GoalNode, b: Ast.GoalNode) FoldError!?Ast.GoalNode {
@@ -1028,6 +1740,19 @@ fn foldedMerge(self: *Goal, a: Ast.GoalNode, b: Ast.GoalNode) FoldError!?Ast.Goa
     };
 }
 
+// Value multiplication follows Elem.repeat, folding only constant-size
+// results like foldedRepeat. A placeholder left side absorbs any count
+// and stays a placeholder; a placeholder count never folds.
+fn foldedMult(self: *Goal, a: Ast.GoalNode, b: Ast.GoalNode) FoldError!?Ast.GoalNode {
+    if (self.isPlaceholderNode(b)) return null;
+    if (self.isPlaceholderNode(a)) return a;
+    return foldedRepeat(a, b);
+}
+
+fn isPlaceholderNode(self: *Goal, node: Ast.GoalNode) bool {
+    return node == .ident and self.isPlaceholder(node.ident.name);
+}
+
 fn foldedNeg(inner: Ast.GoalNode) ?Ast.GoalNode {
     return switch (inner) {
         .number_float => |f| .{ .number_float = -f },
@@ -1068,7 +1793,8 @@ fn foldedRepeat(pattern: Ast.GoalNode, count: Ast.GoalNode) error{InvalidCharact
             .number_float = try numberValue(pattern) * count_float,
         },
         .null, .true, .false => if (count_float >= 0 and count_float == @floor(count_float))
-            pattern
+            // Zero repetitions merge nothing: the result is null.
+            (if (count_float == 0) .null else pattern)
         else
             null,
         else => null,
@@ -1128,6 +1854,7 @@ fn isInlineGoal(self: *Goal, id: NodeId) bool {
         .true, .false, .null, .string, .number_string, .number_float, .ident => true,
         .neg, .to_string => |inner| self.isInlineGoal(inner),
         .merge => |m| self.isInlineGoal(m.left) and self.isInlineGoal(m.right),
+        .mult => |m| self.isInlineGoal(m.left) and self.isInlineGoal(m.right),
         .range => |r| (r.lower == null or self.isInlineGoal(r.lower.?)) and
             (r.upper == null or self.isInlineGoal(r.upper.?)),
         .call => |c| blk: {
@@ -1158,6 +1885,7 @@ fn printGoal(self: *Goal, writer: *Writer, id: NodeId, indent: u32) Writer.Error
         .neg => |inner| try self.printUnary(writer, "neg", inner, indent),
         .to_string => |inner| try self.printUnary(writer, "to_string", inner, indent),
         .merge => |m| try self.printBinary(writer, "merge", m.left, m.right, indent),
+        .mult => |m| try self.printBinary(writer, "mult", m.left, m.right, indent),
         .range => |r| {
             try writer.writeAll("(range ");
             try self.printOptGoal(writer, r.lower, indent);
@@ -1386,6 +2114,7 @@ fn printPlaces(
             .elem_back => |e| try writer.print("elem_back %{d} {d}", .{ e.src, e.index }),
             .slice => |s| try writer.print("slice %{d} {d} {d}", .{ s.src, s.front, s.back }),
             .key => |k| try writer.print("key %{d} \"{s}\"", .{ k.src, self.strings.get(k.sid) }),
+            .members_rest => |r| try writer.print("members_rest %{d}", .{r.src}),
         }
     }
 }
@@ -1413,7 +2142,10 @@ fn printConstraint(
         .is_type => |c| try writer.print("(is_type %{d} {s})", .{ c.place, @tagName(c.ty) }),
         .len_eq => |c| try writer.print("(len_eq %{d} {d})", .{ c.place, c.len }),
         .len_min => |c| try writer.print("(len_min %{d} {d})", .{ c.place, c.len }),
+        .str_prefix => |c| try writer.print("(str_prefix %{d} \"{s}\")", .{ c.place, c.literal }),
+        .str_suffix => |c| try writer.print("(str_suffix %{d} \"{s}\")", .{ c.place, c.literal }),
         .keys_exact => |c| try writer.print("(keys_exact %{d} {d})", .{ c.place, c.count }),
+        .keys_min => |c| try writer.print("(keys_min %{d} {d})", .{ c.place, c.count }),
         .has_key => |c| try writer.print("(has_key %{d} \"{s}\")", .{
             c.place,
             self.strings.get(c.sid),
@@ -1447,6 +2179,7 @@ fn printConstraint(
         },
         .solve_merge => |c| {
             try writer.print("(solve_merge %{d}", .{c.place});
+            if (c.ty) |ty| try writer.print(" ty={s}", .{@tagName(ty)});
             if (c.solvable_index) |index| try writer.print(" solvable={d}", .{index});
             for (c.parts.items) |part| {
                 try writer.writeAll("\n");

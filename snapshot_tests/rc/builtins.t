@@ -13,8 +13,8 @@ string templates, and container construction.
   merges:            2 in place, 0 copied
   inserts:           4 in place, 0 copied
   husks:             6 parked, 1 reused
-  strings interned:  116
-  strings size:      757 chars
+  strings interned:  107
+  strings size:      739 chars
   bytes in use:      8528
 
 A dyn string passed to a native builtin and kept live: the native

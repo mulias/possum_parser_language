@@ -8,18 +8,14 @@ Full created-stage goal form of stdlib/object_value.
       scrutinee: O~0
       %0 = scrutinee
       (arm
-        (solve_merge %0 solvable=1
-          (set
+        (is_type %0 object)
+        (keys_min %0 1)
+        (search_key %0
+          key: (set
             %0 = scrutinee
-            (is_type %0 object)
-            (keys_exact %0 1)
-            (search_key %0
-              key: (set
-                %0 = scrutinee
-                (eq_slot %0 K~1))
-              value: (set
-                %0 = scrutinee)))
-          _)))
+            (eq_slot %0 K~1))
+          value: (set
+            %0 = scrutinee))))
   
   Obj.Get(O, K) =
     (seq result=1
@@ -27,19 +23,15 @@ Full created-stage goal form of stdlib/object_value.
         scrutinee: O~0
         %0 = scrutinee
         (arm
-          (solve_merge %0 solvable=1
-            (set
+          (is_type %0 object)
+          (keys_min %0 1)
+          (search_key %0
+            key: (set
               %0 = scrutinee
-              (is_type %0 object)
-              (keys_exact %0 1)
-              (search_key %0
-                key: (set
-                  %0 = scrutinee
-                  (eq_slot %0 K~1))
-                value: (set
-                  %0 = scrutinee
-                  (bind %0 V~2))))
-            _)))
+              (eq_slot %0 K~1))
+            value: (set
+              %0 = scrutinee
+              (bind %0 V~2)))))
       V~2)
   
   Obj.Put(O, K, V) =
@@ -82,19 +74,17 @@ Full created-stage goal form of stdlib/object_value.
         guard: (match
           scrutinee: O~0
           %0 = scrutinee
+          %1 = members_rest %0
           (arm
-            (solve_merge %0 solvable=1
-              (set
+            (is_type %0 object)
+            (keys_min %0 1)
+            (search_key %0
+              key: (set
                 %0 = scrutinee
-                (is_type %0 object)
-                (keys_exact %0 1)
-                (search_key %0
-                  key: (set
-                    %0 = scrutinee
-                    (bind %0 K~2))
-                  value: (set
-                    %0 = scrutinee)))
-              (bind Rest~4))))
+                (bind %0 K~2))
+              value: (set
+                %0 = scrutinee))
+            (bind %1 Rest~4)))
         body: (call _Obj.Keys [
           Rest~4
           (merge
@@ -120,19 +110,17 @@ Full created-stage goal form of stdlib/object_value.
         guard: (match
           scrutinee: O~0
           %0 = scrutinee
+          %1 = members_rest %0
           (arm
-            (solve_merge %0 solvable=1
-              (set
+            (is_type %0 object)
+            (keys_min %0 1)
+            (search_key %0
+              key: (set
+                %0 = scrutinee)
+              value: (set
                 %0 = scrutinee
-                (is_type %0 object)
-                (keys_exact %0 1)
-                (search_key %0
-                  key: (set
-                    %0 = scrutinee)
-                  value: (set
-                    %0 = scrutinee
-                    (bind %0 V~3))))
-              (bind Rest~4))))
+                (bind %0 V~3)))
+            (bind %1 Rest~4)))
         body: (call _Obj.Values [
           Rest~4
           (merge

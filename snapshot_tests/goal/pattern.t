@@ -69,55 +69,41 @@ parts, each rooted at its own portion of the value.
     (match
       scrutinee: (call array [int])
       %0 = scrutinee
+      %1 = elem %0 0
+      %2 = slice %0 1 0
       (arm
-        (solve_merge %0 solvable=1
-          (set
-            %0 = scrutinee
-            %1 = elem %0 0
-            (is_type %0 array)
-            (len_eq %0 1)
-            (bind %1 First~0))
-          (bind Rest~1))))
+        (is_type %0 array)
+        (len_min %0 1)
+        (bind %1 First~0)
+        (bind %2 Rest~1)))
 
   $ possum -p 'array(int) -> [...Front, Last]' -i ''
   main =
     (match
       scrutinee: (call array [int])
       %0 = scrutinee
+      %1 = slice %0 0 1
+      %2 = elem_back %0 0
       (arm
-        (solve_merge %0 solvable=1
-          (set
-            %0 = scrutinee
-            (is_type %0 array)
-            (len_eq %0 0))
-          (bind Front~0)
-          (set
-            %0 = scrutinee
-            %1 = elem %0 0
-            (is_type %0 array)
-            (len_eq %0 1)
-            (bind %1 Last~1)))))
+        (is_type %0 array)
+        (len_min %0 1)
+        (bind %1 Front~0)
+        (bind %2 Last~1)))
 
   $ possum -p 'array(int) -> [F, ...Mid, L]' -i ''
   main =
     (match
       scrutinee: (call array [int])
       %0 = scrutinee
+      %1 = elem %0 0
+      %2 = slice %0 1 1
+      %3 = elem_back %0 0
       (arm
-        (solve_merge %0 solvable=1
-          (set
-            %0 = scrutinee
-            %1 = elem %0 0
-            (is_type %0 array)
-            (len_eq %0 1)
-            (bind %1 F~0))
-          (bind Mid~1)
-          (set
-            %0 = scrutinee
-            %1 = elem %0 0
-            (is_type %0 array)
-            (len_eq %0 1)
-            (bind %1 L~2)))))
+        (is_type %0 array)
+        (len_min %0 2)
+        (bind %1 F~0)
+        (bind %2 Mid~1)
+        (bind %3 L~2)))
 
 Objects: constant keys become has_key tests plus key places; a computed
 key searches the unmatched members with nested key/value constraint sets.
@@ -146,16 +132,14 @@ key searches the unmatched members with nested key/value constraint sets.
     (match
       scrutinee: (call object [word int])
       %0 = scrutinee
+      %1 = key %0 "a"
+      %2 = members_rest %0
       (arm
-        (solve_merge %0 solvable=1
-          (set
-            %0 = scrutinee
-            %1 = key %0 "a"
-            (is_type %0 object)
-            (keys_exact %0 1)
-            (has_key %0 "a")
-            (eq_const %1 1))
-          (bind Rest~0))))
+        (is_type %0 object)
+        (keys_min %0 1)
+        (has_key %0 "a")
+        (eq_const %1 1)
+        (bind %2 Rest~0)))
 
 A repeated variable is two local occurrences of the same name; binding
 analysis later classifies binder vs read.
@@ -256,3 +240,99 @@ Value-context destructure is the same match node.
         %0 = scrutinee
         (arm
           (bind %0 N~0))))
+
+Merge parts type the merge at creation: the first structurally typed part
+names it, and a later part with a conflicting static type is an error
+reported against that part.
+
+  $ possum -p 'json -> ([1] + "a" + R) $ R' -i ''
+  
+  Validation Error: cannot merge a string into an array merge
+  
+  program:1:15-18:
+  1 \xe2\x96\x8f json -> ([1] + "a" + R) $ R (esc)
+    \xe2\x96\x8f                ^^^ (esc)
+  
+  [MergeTypeConflict]
+  [1]
+
+  $ possum -p 'json -> (1 + [2] + R) $ R' -i ''
+  
+  Validation Error: cannot merge an array into a number merge
+  
+  program:1:13-16:
+  1 \xe2\x96\x8f json -> (1 + [2] + R) $ R (esc)
+    \xe2\x96\x8f              ^^^ (esc)
+  
+  [MergeTypeConflict]
+  [1]
+
+Ranges type as number for conflict purposes: constant number ranges fold
+by interval arithmetic, and a surviving range part is invalid in every
+merge type.
+
+  $ possum -p 'json -> ("a" + 1..2) $ "ok"' -i ''
+  
+  Validation Error: cannot merge a number into a string merge
+  
+  program:1:15-19:
+  1 \xe2\x96\x8f json -> ("a" + 1..2) $ "ok" (esc)
+    \xe2\x96\x8f                ^^^^ (esc)
+  
+  [MergeTypeConflict]
+  [1]
+
+Parts without a static type stay legal in any merge; their values type
+the merge at match time.
+
+  $ possum -p 'const([1,2]) -> (Head + [2]) $ Head' -i ''
+  main =
+    (seq result=1
+      (match
+        scrutinee: (call const [
+          (array [
+            1
+            2
+          ])
+        ])
+        %0 = scrutinee
+        %1 = slice %0 0 1
+        %2 = elem_back %0 0
+        (arm
+          (is_type %0 array)
+          (len_min %0 1)
+          (bind %1 Head~0)
+          (eq_const %2 2)))
+      Head~0)
+
+String merges with a static byte layout flatten the same way: literal
+parts become prefix/suffix byte tests and the one unknown-length part
+takes the byte slice.
+
+  $ possum -p 'word -> ("a" + Mid + "fg")' -i ''
+  main =
+    (match
+      scrutinee: (call word)
+      %0 = scrutinee
+      %1 = slice %0 1 2
+      (arm
+        (is_type %0 string)
+        (len_min %0 3)
+        (str_prefix %0 "a")
+        (str_suffix %0 "fg")
+        (bind %1 Mid~0)))
+
+Templates keep match_template in the IR: whether an interpolation binds
+a substring or stringifies a bound value before comparing is only known
+after binding analysis, so the backend decides the flattening.
+
+  $ possum -p 'word -> "a%(Mid)fg"' -i ''
+  main =
+    (match
+      scrutinee: (call word)
+      %0 = scrutinee
+      (arm
+        (match_template %0
+          "a"
+          (bind Mid~0)
+          "fg")))

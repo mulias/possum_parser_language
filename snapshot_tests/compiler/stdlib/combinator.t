@@ -174,14 +174,18 @@
   peek(p) = @input.offset -> Pos & @at(Pos, p)
   ========================================
   0000    | PushVar Pos
-  0002    | CallFunctionConstant 3: @input.offset
-  0004    | DestructurePlan 0: bind Pos
-  0006    | TakeRight 6 -> 17
-  0009    | GetConstant 4: @at
-  0011    | GetLocalMove l1
-  0013    | GetLocalMove l0
-  0015    | CallTailFunction 2
-  0017    | End
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | CallFunctionConstant 3: @input.offset
+  0006    | JumpIfFailure 6 -> 14
+  0009    | MatchScrutinee r2
+  0011    | MatchBind l1 r2
+  0014    | TakeRight 14 -> 25
+  0017    | GetConstant 4: @at
+  0019    | GetLocalMove l1
+  0021    | GetLocalMove l0
+  0023    | CallTailFunction 2
+  0025    | End
   ========================================
   
   ================1:maybe=================
@@ -316,11 +320,23 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar2 N
-  0003    | CallFunctionLocal l0
-  0005    | DestructurePlan 1: tmpl((eq 0 + bind N))
-  0007    | TakeRight 7 -> 12
-  0010    | GetLocalMove l1
-  0012    | End
+  0003    | PushUnderscoreVar
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | PushUnderscoreVar
+  0009    | CallFunctionLocal l0
+  0011    | JumpIfFailure 11 -> 33
+  0014    | MatchScrutinee r2
+  0016    | MatchType r2 string -> 32
+  0021    | MatchCastNum r6 <- r2 -> 32
+  0026    | MatchBind l1 r6
+  0029    | Jump 29 -> 33
+  0032    | MatchFail
+  0033    | TakeRight 33 -> 38
+  0036    | GetLocalMove l1
+  0038    | End
   ========================================
   
   ==============1:as_string===============
@@ -613,14 +629,18 @@
   peek(p) = @input.offset -> Pos & @at(Pos, p)
   ========================================
   0000    | PushVar Pos
-  0002    | CallFunctionConstant 3: @input.offset
-  0004    | DestructurePlan 0: bind Pos
-  0006    | TakeRight 6 -> 17
-  0009    | GetConstant 4: @at
-  0011    | GetLocalMove l1
-  0013    | GetLocalMove l0
-  0015    | CallTailFunction 2
-  0017    | End
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | CallFunctionConstant 3: @input.offset
+  0006    | JumpIfFailure 6 -> 14
+  0009    | MatchScrutinee r2
+  0011    | MatchBind l1 r2
+  0014    | TakeRight 14 -> 25
+  0017    | GetConstant 4: @at
+  0019    | GetLocalMove l1
+  0021    | GetLocalMove l0
+  0023    | CallTailFunction 2
+  0025    | End
   ========================================
   
   ================3:unless================
@@ -681,11 +701,15 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | CallFunctionLocal l0
-  0004    | DestructurePlan 0: bind Elem
-  0006    | TakeRight 6 -> 15
-  0009    | GetConstantMutable 1: [_]
-  0011    | GetLocalMove l1
-  0013    | InsertAtIndex 0
-  0015    | End
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | CallFunctionLocal l0
+  0006    | JumpIfFailure 6 -> 14
+  0009    | MatchScrutinee r2
+  0011    | MatchBind l1 r2
+  0014    | TakeRight 14 -> 23
+  0017    | GetConstantMutable 1: [_]
+  0019    | GetLocalMove l1
+  0021    | InsertAtIndex 0
+  0023    | End
   ========================================

@@ -182,17 +182,23 @@
   ========================================
   0000    | PushVar2 H
   0003    | PushVar2 L
-  0006    | CallFunctionConstant 30: _high_surrogate
-  0008    | DestructurePlan 0: bind H
-  0010    | TakeRight 10 -> 28
-  0013    | CallFunctionConstant 31: _low_surrogate
-  0015    | DestructurePlan 1: bind L
-  0017    | TakeRight 17 -> 28
-  0020    | GetConstant 32: @SurrogatePairCodepoint
-  0022    | GetLocalMove l0
-  0024    | GetLocalMove l1
-  0026    | CallTailFunction 2
-  0028    | End
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | CallFunctionConstant 30: _high_surrogate
+  0010    | JumpIfFailure 10 -> 18
+  0013    | MatchScrutinee r2
+  0015    | MatchBind l0 r2
+  0018    | TakeRight 18 -> 42
+  0021    | CallFunctionConstant 31: _low_surrogate
+  0023    | JumpIfFailure 23 -> 31
+  0026    | MatchScrutinee r2
+  0028    | MatchBind l1 r2
+  0031    | TakeRight 31 -> 42
+  0034    | GetConstant 32: @SurrogatePairCodepoint
+  0036    | GetLocalMove l0
+  0038    | GetLocalMove l1
+  0040    | CallTailFunction 2
+  0042    | End
   ========================================
   
   =======1:_invalid_surrogate_pair========
@@ -273,28 +279,32 @@
   _escaped_codepoint = `\u` > (hex_numeral * 4) -> U $ @Codepoint(U)
   ========================================
   0000    | PushVar2 U
-  0003    | CallFunctionConstant 33: "\u"
-  0005    | TakeRight 5 -> 32
-  0008    | PushNull
-  0009    | PushInteger 4
-  0011    | ValidateRepeatPattern
-  0012    | JumpIfZero 12 -> 31
-  0015    | Swap
-  0016    | CallFunctionConstant 34: hex_numeral
-  0018    | Merge
-  0019    | JumpIfFailure 19 -> 30
-  0022    | Swap
-  0023    | Decrement
-  0024    | JumpIfZero 24 -> 31
-  0027    | JumpBack 27 -> 15
-  0030    | Swap
-  0031    | Drop
-  0032    | DestructurePlan 2: bind U
-  0034    | TakeRight 34 -> 43
-  0037    | GetConstant 35: @Codepoint
-  0039    | GetLocalMove l0
-  0041    | CallTailFunction 1
-  0043    | End
+  0003    | PushUnderscoreVar
+  0004    | PushUnderscoreVar
+  0005    | CallFunctionConstant 33: "\u"
+  0007    | TakeRight 7 -> 34
+  0010    | PushNull
+  0011    | PushInteger 4
+  0013    | ValidateRepeatPattern
+  0014    | JumpIfZero 14 -> 33
+  0017    | Swap
+  0018    | CallFunctionConstant 34: hex_numeral
+  0020    | Merge
+  0021    | JumpIfFailure 21 -> 32
+  0024    | Swap
+  0025    | Decrement
+  0026    | JumpIfZero 26 -> 33
+  0029    | JumpBack 29 -> 17
+  0032    | Swap
+  0033    | Drop
+  0034    | JumpIfFailure 34 -> 42
+  0037    | MatchScrutinee r1
+  0039    | MatchBind l0 r1
+  0042    | TakeRight 42 -> 51
+  0045    | GetConstant 35: @Codepoint
+  0047    | GetLocalMove l0
+  0049    | CallTailFunction 1
+  0051    | End
   ========================================
   
   ================1:array=================
@@ -642,11 +652,23 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar N
-  0002    | CallFunctionLocal l0
-  0004    | DestructurePlan 0: tmpl((eq 0 + bind N))
-  0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove l1
-  0011    | End
+  0002    | PushUnderscoreVar
+  0003    | PushUnderscoreVar
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | CallFunctionLocal l0
+  0010    | JumpIfFailure 10 -> 32
+  0013    | MatchScrutinee r2
+  0015    | MatchType r2 string -> 31
+  0020    | MatchCastNum r6 <- r2 -> 31
+  0025    | MatchBind l1 r6
+  0028    | Jump 28 -> 32
+  0031    | MatchFail
+  0032    | TakeRight 32 -> 37
+  0035    | GetLocalMove l1
+  0037    | End
   ========================================
   
   ===============3:surround===============
@@ -853,13 +875,17 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar2 Elem
-  0003    | CallFunctionLocal l0
-  0005    | DestructurePlan 0: bind Elem
-  0007    | TakeRight 7 -> 16
-  0010    | GetConstantMutable 5: [_]
-  0012    | GetLocalMove l1
-  0014    | InsertAtIndex 0
-  0016    | End
+  0003    | PushUnderscoreVar
+  0004    | PushUnderscoreVar
+  0005    | CallFunctionLocal l0
+  0007    | JumpIfFailure 7 -> 15
+  0010    | MatchScrutinee r2
+  0012    | MatchBind l1 r2
+  0015    | TakeRight 15 -> 24
+  0018    | GetConstantMutable 5: [_]
+  0020    | GetLocalMove l1
+  0022    | InsertAtIndex 0
+  0024    | End
   ========================================
   
   =================7:@fn0=================
@@ -958,19 +984,25 @@
   ========================================
   0000    | PushVar2 K
   0003    | PushVar2 V
-  0006    | CallFunctionLocal l0
-  0008    | DestructurePlan 0: bind K
-  0010    | TakeRight 10 -> 15
-  0013    | CallFunctionLocal l1
-  0015    | TakeRight 15 -> 33
-  0018    | CallFunctionLocal l2
-  0020    | DestructurePlan 1: bind V
-  0022    | TakeRight 22 -> 33
-  0025    | GetConstantMutable 4: {_0_}
-  0027    | GetLocalMove l3
-  0029    | GetLocalMove l4
-  0031    | InsertKeyVal 0
-  0033    | End
+  0006    | PushUnderscoreVar
+  0007    | PushUnderscoreVar
+  0008    | CallFunctionLocal l0
+  0010    | JumpIfFailure 10 -> 18
+  0013    | MatchScrutinee r5
+  0015    | MatchBind l3 r5
+  0018    | TakeRight 18 -> 23
+  0021    | CallFunctionLocal l1
+  0023    | TakeRight 23 -> 47
+  0026    | CallFunctionLocal l2
+  0028    | JumpIfFailure 28 -> 36
+  0031    | MatchScrutinee r5
+  0033    | MatchBind l4 r5
+  0036    | TakeRight 36 -> 47
+  0039    | GetConstantMutable 4: {_0_}
+  0041    | GetLocalMove l3
+  0043    | GetLocalMove l4
+  0045    | InsertKeyVal 0
+  0047    | End
   ========================================
   
   ================10:@fn2=================

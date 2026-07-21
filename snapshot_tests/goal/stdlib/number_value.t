@@ -83,15 +83,13 @@ Full created-stage goal form of stdlib/number_value.
         guard: (match
           scrutinee: Bs~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 B~3))
-              (bind Rest~4))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 B~3)
+            (bind %2 Rest~4)))
         body: (seq result=1
           (match
             scrutinee: B~3
@@ -117,15 +115,13 @@ Full created-stage goal form of stdlib/number_value.
         guard: (match
           scrutinee: Os~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 O~3))
-              (bind Rest~4))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 O~3)
+            (bind %2 Rest~4)))
         body: (seq result=1
           (match
             scrutinee: O~3
@@ -151,15 +147,13 @@ Full created-stage goal form of stdlib/number_value.
         guard: (match
           scrutinee: Hs~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 H~3))
-              (bind Rest~4))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 H~3)
+            (bind %2 Rest~4)))
         body: (seq result=1
           (match
             scrutinee: H~3

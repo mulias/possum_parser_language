@@ -41,8 +41,8 @@ Merge and negation.
     (merge (call "a") (call "b"))
 
   $ possum -p '-int' -i ''
-  main =
-    (neg (call int))
+  [InvalidAst]
+  [1]
 
 Ordered choice flattens into one alt: guard-only arms, then a body-only
 final arm. Guard failure tries the next arm.

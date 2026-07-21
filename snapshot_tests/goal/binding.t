@@ -78,17 +78,21 @@ solvable rest, a bound part compares.
       (match
         scrutinee: (call word)
         %0 = scrutinee
+        %1 = slice %0 1 0
         (arm
-          (solve_merge %0 solvable=1
-            "a"
-            (bind Rest~0))))
+          (is_type %0 string)
+          (len_min %0 1)
+          (str_prefix %0 "a")
+          (bind %1 Rest~0)))
       (match
         scrutinee: (call word)
         %0 = scrutinee
+        %1 = slice %0 0 1
         (arm
-          (solve_merge %0
-            (read Rest~0)
-            "!"))))
+          (is_type %0 string)
+          (len_min %0 1)
+          (str_suffix %0 "!")
+          (eq_slot %1 Rest~0))))
 
 Function calls in patterns are evaluated, not solved: callees resolve as
 globals and their arguments read bound slots.
@@ -171,9 +175,4 @@ both read the bound slot.
         %0 = scrutinee
         (arm
           (bind %0 N~0)))
-      (repeat
-        body: "ab"
-        cap: N~0
-        count: (set
-          %0 = scrutinee
-          (eval_eq %0 N~0))))
+      (mult "ab" N~0))

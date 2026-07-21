@@ -275,19 +275,25 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | CallFunctionLocal l0
-  0006    | DestructurePlan 0: bind K
-  0008    | TakeRight 8 -> 13
-  0011    | CallFunctionLocal l1
-  0013    | TakeRight 13 -> 31
-  0016    | CallFunctionLocal l2
-  0018    | DestructurePlan 1: bind V
-  0020    | TakeRight 20 -> 31
-  0023    | GetConstantMutable 1: {_0_}
-  0025    | GetLocalMove l3
-  0027    | GetLocalMove l4
-  0029    | InsertKeyVal 0
-  0031    | End
+  0004    | PushUnderscoreVar
+  0005    | PushUnderscoreVar
+  0006    | CallFunctionLocal l0
+  0008    | JumpIfFailure 8 -> 16
+  0011    | MatchScrutinee r5
+  0013    | MatchBind l3 r5
+  0016    | TakeRight 16 -> 21
+  0019    | CallFunctionLocal l1
+  0021    | TakeRight 21 -> 45
+  0024    | CallFunctionLocal l2
+  0026    | JumpIfFailure 26 -> 34
+  0029    | MatchScrutinee r5
+  0031    | MatchBind l4 r5
+  0034    | TakeRight 34 -> 45
+  0037    | GetConstantMutable 1: {_0_}
+  0039    | GetLocalMove l3
+  0041    | GetLocalMove l4
+  0043    | InsertKeyVal 0
+  0045    | End
   ========================================
   
   ===============2:passport===============
@@ -310,16 +316,30 @@
     }
   ========================================
   0000    | PushUnderscoreVar
-  0001    | CallFunctionConstant 6: passport
-  0003    | DestructurePlan 0: ({"byr": _, "iyr": _, "eyr": _, "hgt": _, "hcl": _, "ecl": _, "pid": _} + _)
-  0005    | End
+  0001    | PushUnderscoreVar
+  0002    | PushUnderscoreVar
+  0003    | CallFunctionConstant 6: passport
+  0005    | JumpIfFailure 5 -> 73
+  0008    | MatchScrutinee r1
+  0010    | MatchType r1 object -> 72
+  0015    | MatchKeysMin r1 7 -> 72
+  0020    | MatchKey r2 r1["byr"] -> 72
+  0027    | MatchKey r2 r1["iyr"] -> 72
+  0034    | MatchKey r2 r1["eyr"] -> 72
+  0041    | MatchKey r2 r1["hgt"] -> 72
+  0048    | MatchKey r2 r1["hcl"] -> 72
+  0055    | MatchKey r2 r1["ecl"] -> 72
+  0062    | MatchKey r2 r1["pid"] -> 72
+  0069    | Jump 69 -> 73
+  0072    | MatchFail
+  0073    | End
   ========================================
   
   =========2:count_valid_passport=========
   count_valid_passport = (valid_passport $ 1) | (passport $ 0)
   ========================================
   0000    | SetInputMark
-  0001    | CallFunctionConstant 7: valid_passport
+  0001    | CallFunctionConstant 14: valid_passport
   0003    | TakeRight 3 -> 8
   0006    | PushInteger 1
   0008    | Or 8 -> 18
@@ -352,10 +372,9 @@
   ================2:@main=================
   many_sep(count_valid_passport, nl+nl)
   ========================================
-  0000    | GetConstant 8: many_sep
-  0002    | GetConstant 9: count_valid_passport
-  0004    | GetConstant 10: @fn1
+  0000    | GetConstant 15: many_sep
+  0002    | GetConstant 16: count_valid_passport
+  0004    | GetConstant 17: @fn1
   0006    | CallTailFunction 2
   0008    | End
   ========================================
-

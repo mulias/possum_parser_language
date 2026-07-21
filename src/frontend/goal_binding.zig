@@ -260,6 +260,10 @@ const Analyzer = struct {
                 try self.analyzeGoal(env, merge.left);
                 try self.analyzeGoal(env, merge.right);
             },
+            .mult => |mult| {
+                try self.analyzeGoal(env, mult.left);
+                try self.analyzeGoal(env, mult.right);
+            },
             .neg, .to_string => |inner| try self.analyzeGoal(env, inner),
             .range => |range| {
                 if (range.lower) |lower| try self.analyzeGoal(env, lower);
@@ -420,6 +424,11 @@ const Analyzer = struct {
             .merge => |merge| {
                 const left = try self.capExprBound(env, merge.left);
                 const right = try self.capExprBound(env, merge.right);
+                return left and right;
+            },
+            .mult => |mult| {
+                const left = try self.capExprBound(env, mult.left);
+                const right = try self.capExprBound(env, mult.right);
                 return left and right;
             },
             .neg, .to_string => |inner| return self.capExprBound(env, inner),
@@ -625,7 +634,7 @@ const Analyzer = struct {
     // compound range limits (whose bare locals bind rather than read).
     fn collectEvalReads(self: *Analyzer, constraint: Ast.Constraint, set: *SlotSet) void {
         switch (constraint.kind) {
-            .is_type, .len_eq, .len_min, .keys_exact, .has_key => {},
+            .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key => {},
             .eq_const, .eq_places, .local, .bind, .eq_slot, .eq_global => {},
             .eval_eq => |eval| self.collectExprSlots(eval.expr, set),
             .in_range => |range| {
@@ -694,7 +703,7 @@ const Analyzer = struct {
     ) Allocator.Error!void {
         const region = constraint.region;
         switch (constraint.kind) {
-            .is_type, .len_eq, .len_min, .keys_exact, .has_key, .eq_const, .eq_places => {},
+            .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key, .eq_const, .eq_places => {},
             .bind, .eq_slot, .eq_global => unreachable,
             .local => |occ| try self.classifyLocalConstraint(env, constraint, occ, region),
             .eval_eq => |eval| try self.walkPatternExpr(env, bindable, eval.expr),
@@ -889,6 +898,10 @@ const Analyzer = struct {
                 try self.walkPatternExpr(env, bindable, merge.left);
                 try self.walkPatternExpr(env, bindable, merge.right);
             },
+            .mult => |mult| {
+                try self.walkPatternExpr(env, bindable, mult.left);
+                try self.walkPatternExpr(env, bindable, mult.right);
+            },
             .array => |elems| for (elems.items) |elem| try self.walkPatternExpr(env, bindable, elem),
             .object => |pairs| for (pairs.items) |pair| {
                 try self.walkPatternExpr(env, bindable, pair.key);
@@ -951,7 +964,7 @@ const Analyzer = struct {
     fn collectBindable(self: *Analyzer, constraints: []const Ast.Constraint, set: *SlotSet) void {
         for (constraints) |constraint| {
             switch (constraint.kind) {
-                .is_type, .len_eq, .len_min, .keys_exact, .has_key => {},
+                .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key => {},
                 .eq_const, .eq_places, .eval_eq => {},
                 .bind, .eq_slot, .eq_global => {},
                 .local => |occ| if (self.patternSlot(occ.name)) |slot| set.set(slot),
@@ -1027,6 +1040,10 @@ const Analyzer = struct {
                 self.collectGoalBinds(merge.left, set);
                 self.collectGoalBinds(merge.right, set);
             },
+            .mult => |mult| {
+                self.collectGoalBinds(mult.left, set);
+                self.collectGoalBinds(mult.right, set);
+            },
             .neg, .to_string => |inner| self.collectGoalBinds(inner, set),
             .range => |range| {
                 if (range.lower) |lower| self.collectGoalBinds(lower, set);
@@ -1064,7 +1081,7 @@ const Analyzer = struct {
     fn collectPatternSlots(self: *Analyzer, constraints: []const Ast.Constraint, set: *SlotSet) void {
         for (constraints) |constraint| {
             switch (constraint.kind) {
-                .is_type, .len_eq, .len_min, .keys_exact, .has_key => {},
+                .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key => {},
                 .eq_const, .eq_places => {},
                 .bind, .eq_slot, .eq_global => {},
                 .local => |occ| if (self.patternSlot(occ.name)) |slot| set.set(slot),
@@ -1127,6 +1144,10 @@ const Analyzer = struct {
                 self.collectExprSlots(merge.left, set);
                 self.collectExprSlots(merge.right, set);
             },
+            .mult => |mult| {
+                self.collectExprSlots(mult.left, set);
+                self.collectExprSlots(mult.right, set);
+            },
             .array => |elems| for (elems.items) |elem| self.collectExprSlots(elem, set),
             .object => |pairs| for (pairs.items) |pair| {
                 self.collectExprSlots(pair.key, set);
@@ -1179,6 +1200,10 @@ const Verifier = struct {
             .merge => |merge| {
                 self.verifyGoal(merge.left);
                 self.verifyGoal(merge.right);
+            },
+            .mult => |mult| {
+                self.verifyGoal(mult.left);
+                self.verifyGoal(mult.right);
             },
             .neg, .to_string => |inner| self.verifyGoal(inner),
             .range => |range| {
@@ -1237,7 +1262,7 @@ const Verifier = struct {
     fn verifyConstraints(self: *const Verifier, constraints: []const Ast.Constraint) void {
         for (constraints) |constraint| {
             switch (constraint.kind) {
-                .is_type, .len_eq, .len_min, .keys_exact, .has_key, .eq_places => {},
+                .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key, .eq_places => {},
                 .bind, .eq_slot, .eq_global => {},
                 .eq_const => |eq| self.verifyGoal(eq.value),
                 .local => |occ| self.fail("neutral local survived binding", occ.name),

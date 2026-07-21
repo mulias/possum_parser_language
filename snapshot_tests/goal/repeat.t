@@ -80,21 +80,70 @@ reads are bound, and the cap is cleared when the count test must solve.
         body: (call digit)
         count: (set
           %0 = scrutinee
-          (solve_merge %0 solvable=0
+          (solve_merge %0 ty=number solvable=0
             (bind N~0)
             2)))
       N~0)
 
-A value repeat's count is evaluable, so it is both the loop cap and an
-eval_eq exact-count test.
+A value repeat is not a loop: it lowers to a mult node compiled to the
+RepeatValue op, evaluating each side once.
 
   $ possum -p '"" $ ("ab" * 3)' -i ''
   main =
     (seq result=1
       (call "")
-      (repeat
-        body: "ab"
-        cap: 3
-        count: (set
-          %0 = scrutinee
-          (eval_eq %0 3))))
+      (mult "ab" 3))
+
+Mult folds only constant-size results, following Elem.repeat: numbers
+multiply, but string and array repeats stay unfolded so the output is
+never materialized at compile time. A placeholder left side absorbs any
+count; a placeholder count never folds.
+
+  $ possum -p '"" $ (2 * 3)' -i ''
+  main =
+    (seq result=1
+      (call "")
+      6)
+
+  $ possum -p '"" $ (_ * 5)' -i ''
+  main =
+    (seq result=1
+      (call "")
+      _)
+
+  $ possum -p '"" $ (5 * _)' -i ''
+  main =
+    (seq result=1
+      (call "")
+      (mult 5 _))
+
+  $ possum -p '"" $ (_ * _)' -i ''
+  main =
+    (seq result=1
+      (call "")
+      (mult _ _))
+
+A repeat count that can never be a number is rejected at
+canonicalization, in parser, value, and pattern contexts alike.
+
+  $ possum -p '"a" * "b"' -i ''
+  
+  Validation Error: Repeat count must be a number, variable, function call, or a compound of those
+  
+  program:1:6-9:
+  1 \xe2\x96\x8f "a" * "b" (esc)
+    \xe2\x96\x8f       ^^^ (esc)
+  
+  [InvalidAst]
+  [1]
+
+  $ possum -p '"" $ (1 * (N + "a"))' -i ''
+  
+  Validation Error: Repeat count must be a number, variable, function call, or a compound of those
+  
+  program:1:15-18:
+  1 \xe2\x96\x8f "" $ (1 * (N + "a")) (esc)
+    \xe2\x96\x8f                ^^^ (esc)
+  
+  [InvalidAst]
+  [1]

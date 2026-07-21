@@ -26,7 +26,7 @@ one-unbound-part rule rejects it.
         scrutinee: (call input)
         %0 = scrutinee
         (arm
-          (solve_merge %0 solvable=1
+          (solve_merge %0 ty=array solvable=1
             (set
               %0 = scrutinee
               (is_type %0 array)
@@ -70,16 +70,14 @@ still rejects the pattern textually.
         %0 = scrutinee
         %1 = elem %0 0
         %2 = elem %0 1
+        %3 = slice %2 0 0
         (arm
           (is_type %0 array)
           (len_eq %0 2)
-          (solve_merge %2 solvable=1
-            (set
-              %0 = scrutinee
-              (is_type %0 array)
-              (len_eq %0 0))
-            (bind B~1))
-          (solve_merge %1 solvable=1
+          (is_type %2 array)
+          (len_min %2 0)
+          (bind %3 B~1)
+          (solve_merge %1 ty=array solvable=1
             (set
               %0 = scrutinee
               (is_type %0 array)
@@ -148,11 +146,11 @@ when goal binding becomes the reporter.
         (arm
           (is_type %0 array)
           (len_eq %0 2)
-          (solve_merge %1 solvable=1
+          (solve_merge %1 ty=string solvable=1
             "a"
             (bind A~0)
             (call Inc [B~1]))
-          (solve_merge %2
+          (solve_merge %2 ty=string
             "b"
             (read B~1)
             (call Inc [A~0]))))
@@ -175,22 +173,18 @@ solution.
         scrutinee: (call input)
         %0 = scrutinee
         %1 = elem %0 0
-        %2 = elem %0 1
+        %2 = slice %1 0 0
+        %3 = elem %0 1
+        %4 = slice %3 0 0
         (arm
           (is_type %0 array)
           (len_eq %0 2)
-          (solve_merge %1 solvable=1
-            (set
-              %0 = scrutinee
-              (is_type %0 array)
-              (len_eq %0 0))
-            (bind A~0))
-          (solve_merge %2
-            (set
-              %0 = scrutinee
-              (is_type %0 array)
-              (len_eq %0 0))
-            (read A~0))))
+          (is_type %1 array)
+          (len_min %1 0)
+          (bind %2 A~0)
+          (is_type %3 array)
+          (len_min %3 0)
+          (eq_slot %4 A~0)))
       A~0)
 
 A chain of dependent merges schedules back to front: `[...C]` binds C,
@@ -205,23 +199,21 @@ unlocking B's merge, unlocking A's.
         %1 = elem %0 0
         %2 = elem %0 1
         %3 = elem %0 2
+        %4 = slice %3 0 0
         (arm
           (is_type %0 array)
           (len_eq %0 3)
-          (solve_merge %3 solvable=1
-            (set
-              %0 = scrutinee
-              (is_type %0 array)
-              (len_eq %0 0))
-            (bind C~2))
-          (solve_merge %2 solvable=1
+          (is_type %3 array)
+          (len_min %3 0)
+          (bind %4 C~2)
+          (solve_merge %2 ty=array solvable=1
             (set
               %0 = scrutinee
               (is_type %0 array)
               (len_eq %0 0))
             (bind B~1)
             (read C~2))
-          (solve_merge %1 solvable=1
+          (solve_merge %1 ty=array solvable=1
             (set
               %0 = scrutinee
               (is_type %0 array)
@@ -257,7 +249,7 @@ solvable-part count judges parts before classification, so both count.
         scrutinee: (call input)
         %0 = scrutinee
         (arm
-          (solve_merge %0 solvable=1
+          (solve_merge %0 ty=string solvable=1
             "x"
             (bind A~0)
             (read A~0))))

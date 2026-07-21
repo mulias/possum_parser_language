@@ -12,16 +12,14 @@ Full created-stage goal form of stdlib/ast.
         guard: (match
           scrutinee: (call prefix~1)
           %0 = scrutinee
+          %1 = key %0 "power"
+          %2 = members_rest %0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = key %0 "power"
-                (is_type %0 object)
-                (keys_exact %0 1)
-                (has_key %0 "power")
-                (bind %1 PrefixBindingPower~5))
-              (bind PrefixNode~6))))
+            (is_type %0 object)
+            (keys_min %0 1)
+            (has_key %0 "power")
+            (bind %1 PrefixBindingPower~5)
+            (bind %2 PrefixNode~6)))
         body: (seq result=1
           (match
             scrutinee: (call _with_precedence_start [operand~0 prefix~1 infix~2 postfix~3 PrefixBindingPower~5])
@@ -60,16 +58,14 @@ Full created-stage goal form of stdlib/ast.
           (match
             scrutinee: (call postfix~3)
             %0 = scrutinee
+            %1 = key %0 "power"
+            %2 = members_rest %0
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  %1 = key %0 "power"
-                  (is_type %0 object)
-                  (keys_exact %0 1)
-                  (has_key %0 "power")
-                  (bind %1 RightBindingPower~6))
-                (bind PostfixNode~7))))
+              (is_type %0 object)
+              (keys_min %0 1)
+              (has_key %0 "power")
+              (bind %1 RightBindingPower~6)
+              (bind %2 PostfixNode~7)))
           (call const [(call Is.LessThan [LeftBindingPower~4 RightBindingPower~6])]))
         body: (call _with_precedence_rest [
           operand~0
@@ -92,21 +88,19 @@ Full created-stage goal form of stdlib/ast.
           (match
             scrutinee: (call infix~2)
             %0 = scrutinee
+            %1 = key %0 "power"
+            %2 = elem %1 0
+            %3 = elem %1 1
+            %4 = members_rest %0
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  %1 = key %0 "power"
-                  %2 = elem %1 0
-                  %3 = elem %1 1
-                  (is_type %0 object)
-                  (keys_exact %0 1)
-                  (has_key %0 "power")
-                  (is_type %1 array)
-                  (len_eq %1 2)
-                  (bind %2 RightBindingPower~6)
-                  (bind %3 NextLeftBindingPower~8))
-                (bind InfixNode~9))))
+              (is_type %0 object)
+              (keys_min %0 1)
+              (has_key %0 "power")
+              (is_type %1 array)
+              (len_eq %1 2)
+              (bind %2 RightBindingPower~6)
+              (bind %3 NextLeftBindingPower~8)
+              (bind %4 InfixNode~9)))
           (call const [(call Is.LessThan [LeftBindingPower~4 RightBindingPower~6])]))
         body: (seq result=1
           (match
@@ -262,16 +256,12 @@ Full created-stage goal form of stdlib/ast.
             guard: (match
               scrutinee: Left~0
               %0 = scrutinee
+              %1 = key %0 "startpos"
               (arm
-                (solve_merge %0 solvable=1
-                  (set
-                    %0 = scrutinee
-                    %1 = key %0 "startpos"
-                    (is_type %0 object)
-                    (keys_exact %0 1)
-                    (has_key %0 "startpos")
-                    (bind %1 StartPos~2))
-                  _)))
+                (is_type %0 object)
+                (keys_min %0 1)
+                (has_key %0 "startpos")
+                (bind %1 StartPos~2)))
             body: (object [
               (pair "startpos" StartPos~2)
             ]))
@@ -282,16 +272,12 @@ Full created-stage goal form of stdlib/ast.
           guard: (match
             scrutinee: Right~1
             %0 = scrutinee
+            %1 = key %0 "endpos"
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  %1 = key %0 "endpos"
-                  (is_type %0 object)
-                  (keys_exact %0 1)
-                  (has_key %0 "endpos")
-                  (bind %1 EndPos~4))
-                _)))
+              (is_type %0 object)
+              (keys_min %0 1)
+              (has_key %0 "endpos")
+              (bind %1 EndPos~4)))
           body: (object [
             (pair "endpos" EndPos~4)
           ]))

@@ -8,15 +8,11 @@ Full created-stage goal form of stdlib/array_value.
       (match
         scrutinee: A~0
         %0 = scrutinee
+        %1 = elem %0 0
         (arm
-          (solve_merge %0 solvable=1
-            (set
-              %0 = scrutinee
-              %1 = elem %0 0
-              (is_type %0 array)
-              (len_eq %0 1)
-              (bind %1 F~1))
-            _)))
+          (is_type %0 array)
+          (len_min %0 1)
+          (bind %1 F~1)))
       F~1)
   
   Array.Rest(A) =
@@ -24,13 +20,11 @@ Full created-stage goal form of stdlib/array_value.
       (match
         scrutinee: A~0
         %0 = scrutinee
+        %1 = slice %0 1 0
         (arm
-          (solve_merge %0 solvable=1
-            (set
-              %0 = scrutinee
-              (is_type %0 array)
-              (len_eq %0 1))
-            (bind R~2))))
+          (is_type %0 array)
+          (len_min %0 1)
+          (bind %1 R~2)))
       R~2)
   
   Array.Length(A) =
@@ -59,15 +53,13 @@ Full created-stage goal form of stdlib/array_value.
         guard: (match
           scrutinee: A~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 First~2))
-              (bind Rest~3))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 First~2)
+            (bind %2 Rest~3)))
         body: (call _Array.Reverse [
           Rest~3
           (merge
@@ -92,15 +84,13 @@ Full created-stage goal form of stdlib/array_value.
         guard: (match
           scrutinee: A~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 First~3))
-              (bind Rest~4))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 First~3)
+            (bind %2 Rest~4)))
         body: (call _Array.Map [
           Rest~4
           Fn~1
@@ -128,15 +118,13 @@ Full created-stage goal form of stdlib/array_value.
         guard: (match
           scrutinee: A~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 First~3))
-              (bind Rest~4))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 First~3)
+            (bind %2 Rest~4)))
         body: (call _Array.Filter [
           Rest~4
           Pred~1
@@ -169,15 +157,13 @@ Full created-stage goal form of stdlib/array_value.
         guard: (match
           scrutinee: A~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 First~3))
-              (bind Rest~4))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 First~3)
+            (bind %2 Rest~4)))
         body: (call _Array.Reject [
           Rest~4
           Pred~1
@@ -206,15 +192,13 @@ Full created-stage goal form of stdlib/array_value.
         guard: (match
           scrutinee: A~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 First~2))
-              (bind Rest~3))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 First~2)
+            (bind %2 Rest~3)))
         body: (call _Array.Merge [Rest~3 (merge Acc~1 First~2)]))
       (arm
         body: Acc~1))
@@ -228,15 +212,13 @@ Full created-stage goal form of stdlib/array_value.
         guard: (match
           scrutinee: A~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 First~3))
-              (bind Rest~4))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 First~3)
+            (bind %2 Rest~4)))
         body: (call _Array.MapMerge [Rest~4 Fn~1 (merge Acc~2 (call Fn~1 [First~3]))]))
       (arm
         body: Acc~2))
@@ -247,15 +229,13 @@ Full created-stage goal form of stdlib/array_value.
         guard: (match
           scrutinee: A~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 First~3))
-              (bind Rest~4))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 First~3)
+            (bind %2 Rest~4)))
         body: (call Array.Reduce [Rest~4 Fn~1 (call Fn~1 [Acc~2 First~3])]))
       (arm
         body: Acc~2))
@@ -274,27 +254,23 @@ Full created-stage goal form of stdlib/array_value.
           (match
             scrutinee: Ks~0
             %0 = scrutinee
+            %1 = elem %0 0
+            %2 = slice %0 1 0
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  %1 = elem %0 0
-                  (is_type %0 array)
-                  (len_eq %0 1)
-                  (bind %1 K~3))
-                (bind KsRest~4))))
+              (is_type %0 array)
+              (len_min %0 1)
+              (bind %1 K~3)
+              (bind %2 KsRest~4)))
           (match
             scrutinee: Vs~1
             %0 = scrutinee
+            %1 = elem %0 0
+            %2 = slice %0 1 0
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  %1 = elem %0 0
-                  (is_type %0 array)
-                  (len_eq %0 1)
-                  (bind %1 V~5))
-                (bind VsRest~6)))))
+              (is_type %0 array)
+              (len_min %0 1)
+              (bind %1 V~5)
+              (bind %2 VsRest~6))))
         body: (call _Array.ZipObject [
           KsRest~4
           VsRest~6
@@ -323,27 +299,23 @@ Full created-stage goal form of stdlib/array_value.
           (match
             scrutinee: A1~0
             %0 = scrutinee
+            %1 = elem %0 0
+            %2 = slice %0 1 0
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  %1 = elem %0 0
-                  (is_type %0 array)
-                  (len_eq %0 1)
-                  (bind %1 First1~3))
-                (bind Rest1~4))))
+              (is_type %0 array)
+              (len_min %0 1)
+              (bind %1 First1~3)
+              (bind %2 Rest1~4)))
           (match
             scrutinee: A2~1
             %0 = scrutinee
+            %1 = elem %0 0
+            %2 = slice %0 1 0
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  %1 = elem %0 0
-                  (is_type %0 array)
-                  (len_eq %0 1)
-                  (bind %1 First2~5))
-                (bind Rest2~6)))))
+              (is_type %0 array)
+              (len_min %0 1)
+              (bind %1 First2~5)
+              (bind %2 Rest2~6))))
         body: (call _Array.ZipPairs [
           Rest1~4
           Rest2~6
@@ -364,14 +336,11 @@ Full created-stage goal form of stdlib/array_value.
   Array.AppendN(A, Val, N) =
     (merge
       A~0
-      (repeat
-        body: (array [
+      (mult
+        (array [
           Val~1
         ])
-        cap: N~2
-        count: (set
-          %0 = scrutinee
-          (eval_eq %0 N~2))))
+        N~2))
   
   Table.Transpose(T) =
     (call _Table.Transpose [
@@ -412,27 +381,21 @@ Full created-stage goal form of stdlib/array_value.
         (match
           scrutinee: T~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 Row~1))
-              (bind Rest~2))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 Row~1)
+            (bind %2 Rest~2)))
         (match
           scrutinee: Row~1
           %0 = scrutinee
+          %1 = elem %0 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 VeryFirst~3))
-              _))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 VeryFirst~3))))
       (call __Table.FirstPerRow [
         Rest~2
         (array [
@@ -447,27 +410,21 @@ Full created-stage goal form of stdlib/array_value.
           (match
             scrutinee: T~0
             %0 = scrutinee
+            %1 = elem %0 0
+            %2 = slice %0 1 0
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  %1 = elem %0 0
-                  (is_type %0 array)
-                  (len_eq %0 1)
-                  (bind %1 Row~2))
-                (bind Rest~3))))
+              (is_type %0 array)
+              (len_min %0 1)
+              (bind %1 Row~2)
+              (bind %2 Rest~3)))
           (match
             scrutinee: Row~2
             %0 = scrutinee
+            %1 = elem %0 0
             (arm
-              (solve_merge %0 solvable=1
-                (set
-                  %0 = scrutinee
-                  %1 = elem %0 0
-                  (is_type %0 array)
-                  (len_eq %0 1)
-                  (bind %1 First~4))
-                _))))
+              (is_type %0 array)
+              (len_min %0 1)
+              (bind %1 First~4))))
         body: (call __Table.FirstPerRow [
           Rest~3
           (merge
@@ -493,27 +450,23 @@ Full created-stage goal form of stdlib/array_value.
         guard: (match
           scrutinee: T~0
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 Row~2))
-              (bind Rest~3))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 Row~2)
+            (bind %2 Rest~3)))
         body: (alt
           (arm
             guard: (match
               scrutinee: Row~2
               %0 = scrutinee
+              %1 = slice %0 1 0
               (arm
-                (solve_merge %0 solvable=1
-                  (set
-                    %0 = scrutinee
-                    (is_type %0 array)
-                    (len_eq %0 1))
-                  (bind RowRest~5))))
+                (is_type %0 array)
+                (len_min %0 1)
+                (bind %1 RowRest~5)))
             body: (call __Table.RestPerRow [
               Rest~3
               (merge
@@ -557,15 +510,13 @@ Full created-stage goal form of stdlib/array_value.
         guard: (match
           scrutinee: Rows~1
           %0 = scrutinee
+          %1 = elem %0 0
+          %2 = slice %0 1 0
           (arm
-            (solve_merge %0 solvable=1
-              (set
-                %0 = scrutinee
-                %1 = elem %0 0
-                (is_type %0 array)
-                (len_eq %0 1)
-                (bind %1 Row~3))
-              (bind Rest~4))))
+            (is_type %0 array)
+            (len_min %0 1)
+            (bind %1 Row~3)
+            (bind %2 Rest~4)))
         body: (call _Table.ZipObjects [
           Ks~0
           Rest~4

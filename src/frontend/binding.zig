@@ -641,7 +641,6 @@ const Analyzer = struct {
                 if (bounds.lower) |lower| try self.analyzeParser(env, lower);
                 if (bounds.upper) |upper| try self.analyzeParser(env, upper);
             },
-            .negation => |inner| try self.analyzeParser(env, inner),
             .identifier => |ident| try self.readIdentifier(env, ident.name, rnode.region),
             .function_call => |function_call| {
                 if (function_call.function.node == .identifier) {
@@ -788,7 +787,6 @@ const Analyzer = struct {
                 if (bounds.lower) |lower| self.collectParserBinds(lower, set);
                 if (bounds.upper) |upper| self.collectParserBinds(upper, set);
             },
-            .negation => |inner| self.collectParserBinds(inner, set),
             .string_template => |parts| for (parts.items) |part| {
                 self.collectParserBinds(part, set);
             },
