@@ -844,23 +844,20 @@
   ========================================
   0000    | PushVar V
   0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | PushUnderscoreVar
-  0007    | PushUnderscoreVar
-  0008    | GetLocalMove l0
-  0010    | JumpIfFailure 10 -> 42
-  0013    | MatchScrutinee r4
-  0015    | MatchType r4 object -> 41
-  0020    | MatchKeysMin r4 1 -> 41
-  0025    | MatchKeyBound key=r6 val=r7 src=r4[l1] keys=r6..r6 \ [] -> 41
-  0035    | MatchBind l2 r7
-  0038    | Jump 38 -> 42
-  0041    | MatchFail
-  0042    | TakeRight 42 -> 47
-  0045    | GetLocalMove l2
-  0047    | End
+  0003    | GetLocalMove l0
+  0005    | JumpIfFailure 5 -> 40
+  0008    | MatchWindowEnter 5
+  0010    | MatchScrutinee r0
+  0012    | MatchType r0 object -> 38
+  0017    | MatchKeysMin r0 1 -> 38
+  0022    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 38
+  0032    | MatchBind l2 r3
+  0035    | Jump 35 -> 39
+  0038    | MatchFail
+  0039    | MatchWindowExit
+  0040    | TakeRight 40 -> 45
+  0043    | GetLocalMove l2
+  0045    | End
   ========================================
   
   ================2:@main=================
@@ -2617,27 +2614,24 @@
   object(alpha, digit) -> {_: 1, ..._}
   ========================================
   0000    | PushUnderscoreVar
-  0001    | PushUnderscoreVar
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | GetConstant 0: object
-  0008    | GetConstant 1: alpha
-  0010    | GetConstant 2: digit
-  0012    | CallFunction 2
-  0014    | JumpIfFailure 14 -> 57
-  0017    | MatchScrutinee r1
-  0019    | MatchType r1 object -> 56
-  0024    | MatchKeysMin r1 1 -> 56
-  0029    | MatchSearchInit r5
-  0031    | MatchNextUnclaimed key=r3 val=r4 src=r1 cursor=r5 keys=r3..r3 \ [] loop->56
-  0041    | MatchConst r4 1 -> 50
-  0047    | Jump 47 -> 53
-  0050    | JumpBack 50 -> 31
-  0053    | Jump 53 -> 57
-  0056    | MatchFail
-  0057    | End
+  0001    | GetConstant 0: object
+  0003    | GetConstant 1: alpha
+  0005    | GetConstant 2: digit
+  0007    | CallFunction 2
+  0009    | JumpIfFailure 9 -> 55
+  0012    | MatchWindowEnter 5
+  0014    | MatchScrutinee r0
+  0016    | MatchType r0 object -> 53
+  0021    | MatchKeysMin r0 1 -> 53
+  0026    | MatchSearchInit r4
+  0028    | MatchNextUnclaimed key=r2 val=r3 src=r0 cursor=r4 keys=r2..r2 \ [] loop->53
+  0038    | MatchConst r3 1 -> 47
+  0044    | Jump 44 -> 50
+  0047    | JumpBack 47 -> 28
+  0050    | Jump 50 -> 54
+  0053    | MatchFail
+  0054    | MatchWindowExit
+  0055    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": A, ..._}' -i 'a1b2'

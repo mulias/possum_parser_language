@@ -2499,8 +2499,21 @@ pub const Compiler = struct {
         return @as(u32, @intCast(match.places.items.len + 1)) + extra + repeats + templates;
     }
 
-    // Whether every inline-lowered match in the body uses only place
-    // registers (no search/repeat/cursor-template scratch pool), so the
+    // Whether an arm's inline scratch pools are all ones window mode can
+    // address. Place registers and the search pool (claims + value +
+    // cursor) are windowed; the repeat and template pools still require
+    // the frame-local reservation, so an arm using either stays frame-mode.
+    fn armScratchWindowable(self: *Compiler, ast: *const GoalAst, arm: *const GoalAst.MatchArm) bool {
+        for (arm.constraints.items) |constraint| switch (constraint.kind) {
+            .solve_repeat => return false,
+            .match_template => |c| if (self.templateStepable(ast, c.segments.items) == .cursor) return false,
+            else => {},
+        };
+        return true;
+    }
+
+    // Whether every inline-lowered match in the body uses only scratch
+    // pools window mode can address (see armScratchWindowable), so the
     // function can address match scratch through per-match windows sized
     // to each match rather than a single frame-local reservation. Matches
     // that take the plan path impose no requirement — they carry their own
@@ -2553,7 +2566,7 @@ pub const Compiler = struct {
                 if (!self.goalBodyWindowable(ast, match.scrutinee)) break :blk false;
                 for (match.arms.items) |*arm| {
                     if (match.arms.items.len == 1 and self.armStepable(ast, arm)) {
-                        if (self.armStepScratchWidth(ast, match, arm) != match.places.items.len + 1) break :blk false;
+                        if (!self.armScratchWindowable(ast, arm)) break :blk false;
                     }
                     if (arm.guard) |guard| if (!self.goalBodyWindowable(ast, guard)) break :blk false;
                     if (arm.body) |body| if (!self.goalBodyWindowable(ast, body)) break :blk false;

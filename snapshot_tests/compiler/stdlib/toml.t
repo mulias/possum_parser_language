@@ -3990,20 +3990,17 @@
   Obj.Has(O, K) = O -> {K: _, ..._}
   ========================================
   0000    | PushUnderscoreVar
-  0001    | PushUnderscoreVar
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | GetLocalMove l0
-  0008    | JumpIfFailure 8 -> 37
-  0011    | MatchScrutinee r3
-  0013    | MatchType r3 object -> 36
-  0018    | MatchKeysMin r3 1 -> 36
-  0023    | MatchKeyBound key=r5 val=r6 src=r3[l1] keys=r5..r5 \ [] -> 36
-  0033    | Jump 33 -> 37
-  0036    | MatchFail
-  0037    | End
+  0001    | GetLocalMove l0
+  0003    | JumpIfFailure 3 -> 35
+  0006    | MatchWindowEnter 5
+  0008    | MatchScrutinee r0
+  0010    | MatchType r0 object -> 33
+  0015    | MatchKeysMin r0 1 -> 33
+  0020    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 33
+  0030    | Jump 30 -> 34
+  0033    | MatchFail
+  0034    | MatchWindowExit
+  0035    | End
   ========================================
   
   ===============13:Obj.Get===============
@@ -4011,23 +4008,20 @@
   ========================================
   0000    | PushVar2 V
   0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | PushUnderscoreVar
-  0007    | PushUnderscoreVar
-  0008    | PushUnderscoreVar
-  0009    | GetLocalMove l0
-  0011    | JumpIfFailure 11 -> 43
-  0014    | MatchScrutinee r4
-  0016    | MatchType r4 object -> 42
-  0021    | MatchKeysMin r4 1 -> 42
-  0026    | MatchKeyBound key=r6 val=r7 src=r4[l1] keys=r6..r6 \ [] -> 42
-  0036    | MatchBind l2 r7
-  0039    | Jump 39 -> 43
-  0042    | MatchFail
-  0043    | TakeRight 43 -> 48
-  0046    | GetLocalMove l2
-  0048    | End
+  0004    | GetLocalMove l0
+  0006    | JumpIfFailure 6 -> 41
+  0009    | MatchWindowEnter 5
+  0011    | MatchScrutinee r0
+  0013    | MatchType r0 object -> 39
+  0018    | MatchKeysMin r0 1 -> 39
+  0023    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 39
+  0033    | MatchBind l2 r3
+  0036    | Jump 36 -> 40
+  0039    | MatchFail
+  0040    | MatchWindowExit
+  0041    | TakeRight 41 -> 46
+  0044    | GetLocalMove l2
+  0046    | End
   ========================================
   
   ===============13:Obj.Put===============
