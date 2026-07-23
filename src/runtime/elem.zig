@@ -1716,6 +1716,11 @@ pub const Elem = packed union {
             name: StringTable.Id,
             is_anonymous: bool,
             builtin: bool,
+            // Transitional: when true the function's match steps address
+            // scratch through the VM's match register stack (windows)
+            // rather than frame-local slots. Defaults false; the compiler
+            // flips it per function as scratch pools migrate to windows.
+            window_mode: bool = false,
 
             pub const ParamType = enum { Parser, Value };
 

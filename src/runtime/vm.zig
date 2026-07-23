@@ -200,6 +200,14 @@ pub const VM = struct {
     compiler: ?*const Compiler,
     stack: ArrayList(Elem),
     frames: ArrayList(CallFrame),
+    // Match register stack: transient pattern-match scratch (places,
+    // cursors, counters) for window-mode functions, held in nested LIFO
+    // windows separate from the value stack. current_window_base caches
+    // the base of the innermost open window; window_bases holds the saved
+    // bases of enclosing windows. GC-rooted like the value stack.
+    match_regs: ArrayList(Elem),
+    window_bases: ArrayList(usize),
+    current_window_base: usize,
     cur_frame: *CallFrame,
     cur_code: []const u8,
     temp_dyns: ArrayList(*Elem.DynElem),
@@ -239,6 +247,12 @@ pub const VM = struct {
         function: *Elem.DynElem.Function,
         ip: usize,
         elemsOffset: usize,
+        // match_regs.items.len and current_window_base captured at frame
+        // entry. End (and any error unwind) reclaims the registers above
+        // match_regs_base and restores current_window_base, so a callee
+        // that errors mid-match cannot corrupt a caller's open window.
+        match_regs_base: usize,
+        saved_window_base: usize,
     };
 
     pub const Error = error{
@@ -268,6 +282,9 @@ pub const VM = struct {
             .compiler = undefined,
             .stack = undefined,
             .frames = undefined,
+            .match_regs = undefined,
+            .window_bases = undefined,
+            .current_window_base = undefined,
             .cur_frame = undefined,
             .cur_code = undefined,
             .temp_dyns = undefined,
@@ -310,6 +327,9 @@ pub const VM = struct {
         self.compiler = null;
         self.stack = ArrayList(Elem){};
         self.frames = ArrayList(CallFrame){};
+        self.match_regs = ArrayList(Elem){};
+        self.window_bases = ArrayList(usize){};
+        self.current_window_base = 0;
         self.cur_frame = undefined;
         self.cur_code = undefined;
         self.temp_dyns = ArrayList(*Elem.DynElem){};
@@ -348,6 +368,8 @@ pub const VM = struct {
         self.loader.deinit();
         self.stack.deinit(self.allocator);
         self.frames.deinit(self.allocator);
+        self.match_regs.deinit(self.allocator);
+        self.window_bases.deinit(self.allocator);
         self.temp_dyns.deinit(self.allocator);
         self.inputMarks.deinit(self.allocator);
         self.explain_events.deinit(self.allocator);
@@ -672,6 +694,17 @@ pub const VM = struct {
                 }
 
                 try self.stack.resize(self.allocator, prevFrame.elemsOffset);
+
+                // Reclaim any match scratch the frame left open (defensive:
+                // a callee that errored mid-match) and restore the window
+                // state it was entered with, so the caller's open window is
+                // intact on return.
+                for (self.match_regs.items[prevFrame.match_regs_base..]) |reg| {
+                    self.reclaimElem(reg);
+                }
+                self.match_regs.shrinkRetainingCapacity(prevFrame.match_regs_base);
+                self.current_window_base = prevFrame.saved_window_base;
+
                 try self.pushTransferred(.End, result);
             },
             .PushFail => {
@@ -840,16 +873,16 @@ pub const VM = struct {
             .MatchScrutinee => {
                 const slot = self.readByte();
                 const value = self.peek(0);
-                const previous = self.getLocal(slot);
+                const previous = self.getScratch(slot);
                 value.retain();
-                self.setLocal(slot, value);
+                self.setScratch(slot, value);
                 previous.release();
             },
             .MatchType => {
                 const slot = self.readByte();
                 const ty = self.readByte();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 const matches = switch (ty) {
                     0 => value.isDynType(.Array),
                     1 => value.isDynType(.Object),
@@ -862,7 +895,7 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const len = self.readByte();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 if (!value.isDynType(.Array) or
                     value.asDyn().asArray().elems.items.len != len)
                 {
@@ -875,7 +908,7 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const min = self.readByte();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 const len = if (value.isDynType(.Array))
                     value.asDyn().asArray().elems.items.len
                 else if (try value.stringBytes(self)) |bytes|
@@ -888,7 +921,7 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const count = self.readByte();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 if (!value.isDynType(.Object) or
                     value.asDyn().asObject().members.count() != count)
                 {
@@ -899,7 +932,7 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const min = self.readByte();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 if (!value.isDynType(.Object) or
                     value.asDyn().asObject().members.count() < min)
                 {
@@ -910,21 +943,21 @@ pub const VM = struct {
                 const dst = self.readByte();
                 const src = self.readByte();
                 const index = self.readByte();
-                const value = self.getLocal(src).asDyn().asArray().elems.items[index];
-                const previous = self.getLocal(dst);
+                const value = self.getScratch(src).asDyn().asArray().elems.items[index];
+                const previous = self.getScratch(dst);
                 value.retain();
-                self.setLocal(dst, value);
+                self.setScratch(dst, value);
                 previous.release();
             },
             .MatchElemBack => {
                 const dst = self.readByte();
                 const src = self.readByte();
                 const index = self.readByte();
-                const elems = self.getLocal(src).asDyn().asArray().elems.items;
+                const elems = self.getScratch(src).asDyn().asArray().elems.items;
                 const value = elems[elems.len - 1 - index];
-                const previous = self.getLocal(dst);
+                const previous = self.getScratch(dst);
                 value.retain();
-                self.setLocal(dst, value);
+                self.setScratch(dst, value);
                 previous.release();
             },
             .MatchElemDyn => {
@@ -935,11 +968,11 @@ pub const VM = struct {
                 const src = self.readByte();
                 const base = self.readByte();
                 const index = self.readByte();
-                const base_idx: usize = @intFromFloat(self.getLocal(base).asFloat());
-                const value = self.getLocal(src).asDyn().asArray().elems.items[base_idx + index];
-                const previous = self.getLocal(dst);
+                const base_idx: usize = @intFromFloat(self.getScratch(base).asFloat());
+                const value = self.getScratch(src).asDyn().asArray().elems.items[base_idx + index];
+                const previous = self.getScratch(dst);
                 value.retain();
-                self.setLocal(dst, value);
+                self.setScratch(dst, value);
                 previous.release();
             },
             .MatchRepeatInit => {
@@ -953,7 +986,7 @@ pub const VM = struct {
                 const count_dst = self.readByte();
                 const base = self.readByte();
                 const offset = self.readShort();
-                const value = self.getLocal(src);
+                const value = self.getScratch(src);
                 if (!value.isDynType(.Array)) {
                     self.cur_frame.ip += offset;
                     return;
@@ -964,11 +997,11 @@ pub const VM = struct {
                     self.cur_frame.ip += offset;
                     return;
                 }
-                const prev_count = self.getLocal(count_dst);
-                self.setLocal(count_dst, Elem.numberFloat(@floatFromInt(elems_len / chunk_len)));
+                const prev_count = self.getScratch(count_dst);
+                self.setScratch(count_dst, Elem.numberFloat(@floatFromInt(elems_len / chunk_len)));
                 prev_count.release();
-                const prev_base = self.getLocal(base);
-                self.setLocal(base, Elem.numberFloat(-len));
+                const prev_base = self.getScratch(base);
+                self.setScratch(base, Elem.numberFloat(-len));
                 prev_base.release();
             },
             .MatchRepeatNext => {
@@ -979,9 +1012,9 @@ pub const VM = struct {
                 const base = self.readByte();
                 const len: f64 = @floatFromInt(self.readByte());
                 const offset = self.readShort();
-                const next_base = self.getLocal(base).asFloat() + len;
-                self.setLocal(base, Elem.numberFloat(next_base));
-                const elems_len = self.getLocal(src).asDyn().asArray().elems.items.len;
+                const next_base = self.getScratch(base).asFloat() + len;
+                self.setScratch(base, Elem.numberFloat(next_base));
+                const elems_len = self.getScratch(src).asDyn().asArray().elems.items.len;
                 if (next_base >= @as(f64, @floatFromInt(elems_len))) {
                     self.cur_frame.ip += offset;
                 }
@@ -995,7 +1028,7 @@ pub const VM = struct {
                 const src = self.readByte();
                 const front = self.readByte();
                 const back = self.readByte();
-                const value = self.getLocal(src);
+                const value = self.getScratch(src);
                 const sliced: Elem = if (value.isDynType(.Array)) blk: {
                     const elems = value.asDyn().asArray().elems.items;
                     const slice = elems[front .. elems.len - back];
@@ -1017,8 +1050,8 @@ pub const VM = struct {
                     const str = try Elem.DynElem.String.copy(self, rest);
                     break :blk str.dyn.elem();
                 };
-                const previous = self.getLocal(dst);
-                self.setLocal(dst, sliced);
+                const previous = self.getScratch(dst);
+                self.setScratch(dst, sliced);
                 previous.release();
             },
             .MatchObjectRest => {
@@ -1029,7 +1062,7 @@ pub const VM = struct {
                 const src = self.readByte();
                 const constant_idx = self.readShort();
                 const keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
-                const src_object = self.getLocal(src).asDyn().asObject();
+                const src_object = self.getScratch(src).asDyn().asObject();
                 const rest = try Elem.DynElem.Object.create(self, src_object.members.count());
                 try self.pushTempDyn(&rest.dyn);
                 var iter = src_object.members.iterator();
@@ -1041,8 +1074,8 @@ pub const VM = struct {
                     try rest.put(self, sid, entry.value_ptr.*);
                 }
                 self.dropTempDyn();
-                const previous = self.getLocal(dst);
-                self.setLocal(dst, rest.dyn.elem());
+                const previous = self.getScratch(dst);
+                self.setScratch(dst, rest.dyn.elem());
                 previous.release();
             },
             .MatchObjectRestSearch => {
@@ -1055,7 +1088,7 @@ pub const VM = struct {
                 const claim_base = self.readByte();
                 const claim_count = self.readByte();
                 const keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
-                const src_object = self.getLocal(src).asDyn().asObject();
+                const src_object = self.getScratch(src).asDyn().asObject();
                 const rest = try Elem.DynElem.Object.create(self, src_object.members.count());
                 try self.pushTempDyn(&rest.dyn);
                 var iter = src_object.members.iterator();
@@ -1065,19 +1098,19 @@ pub const VM = struct {
                         if (key.asString() == sid) continue :outer;
                     }
                     for (0..claim_count) |i| {
-                        if (self.getLocal(claim_base + @as(u8, @intCast(i))).asString() == sid) continue :outer;
+                        if (self.getScratch(claim_base + @as(u8, @intCast(i))).asString() == sid) continue :outer;
                     }
                     try rest.put(self, sid, entry.value_ptr.*);
                 }
                 self.dropTempDyn();
-                const previous = self.getLocal(dst);
-                self.setLocal(dst, rest.dyn.elem());
+                const previous = self.getScratch(dst);
+                self.setScratch(dst, rest.dyn.elem());
                 previous.release();
             },
             .MatchSearchInit => {
                 const cursor = self.readByte();
-                const previous = self.getLocal(cursor);
-                self.setLocal(cursor, Elem.numberFloat(0));
+                const previous = self.getScratch(cursor);
+                self.setScratch(cursor, Elem.numberFloat(0));
                 previous.release();
             },
             .MatchNextUnclaimed => {
@@ -1094,34 +1127,34 @@ pub const VM = struct {
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
                 const static_keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
-                const object = self.getLocal(src).asDyn().asObject();
+                const object = self.getScratch(src).asDyn().asObject();
                 const member_keys = object.members.keys();
                 const member_values = object.members.values();
                 const claim_base = key_dst - claim_count;
-                var idx: usize = @intFromFloat(self.getLocal(cursor).asFloat());
+                var idx: usize = @intFromFloat(self.getScratch(cursor).asFloat());
                 outer: while (idx < member_keys.len) : (idx += 1) {
                     const sid = member_keys[idx];
                     for (static_keys) |key| {
                         if (key.asString() == sid) continue :outer;
                     }
                     const claimed = for (0..claim_count) |i| {
-                        if (self.getLocal(claim_base + @as(u8, @intCast(i))).asString() == sid) break true;
+                        if (self.getScratch(claim_base + @as(u8, @intCast(i))).asString() == sid) break true;
                     } else false;
                     if (claimed) continue;
 
                     const key_elem = Elem.string(sid);
-                    const prev_key = self.getLocal(key_dst);
+                    const prev_key = self.getScratch(key_dst);
                     key_elem.retain();
-                    self.setLocal(key_dst, key_elem);
+                    self.setScratch(key_dst, key_elem);
                     prev_key.release();
 
                     const val_elem = member_values[idx];
-                    const prev_val = self.getLocal(val_dst);
+                    const prev_val = self.getScratch(val_dst);
                     val_elem.retain();
-                    self.setLocal(val_dst, val_elem);
+                    self.setScratch(val_dst, val_elem);
                     prev_val.release();
 
-                    self.setLocal(cursor, Elem.numberFloat(@floatFromInt(idx + 1)));
+                    self.setScratch(cursor, Elem.numberFloat(@floatFromInt(idx + 1)));
                     break;
                 } else {
                     self.cur_frame.ip += offset;
@@ -1131,7 +1164,7 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 const literal = self.strings.get(self.getConstant(constant_idx).asString());
                 const bytes = (try value.stringBytes(self)).?;
                 if (bytes.len < literal.len or
@@ -1144,7 +1177,7 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 const literal = self.strings.get(self.getConstant(constant_idx).asString());
                 const bytes = (try value.stringBytes(self)).?;
                 if (bytes.len < literal.len or
@@ -1159,12 +1192,12 @@ pub const VM = struct {
                 const src = self.readByte();
                 const front = self.readByte();
                 const end = self.readByte();
-                const bytes = (try self.getLocal(src).stringBytes(self)).?;
-                const prev_front = self.getLocal(front);
-                self.setLocal(front, Elem.numberFloat(0));
+                const bytes = (try self.getScratch(src).stringBytes(self)).?;
+                const prev_front = self.getScratch(front);
+                self.setScratch(front, Elem.numberFloat(0));
                 prev_front.release();
-                const prev_end = self.getLocal(end);
-                self.setLocal(end, Elem.numberFloat(@floatFromInt(bytes.len)));
+                const prev_end = self.getScratch(end);
+                self.setScratch(end, Elem.numberFloat(@floatFromInt(bytes.len)));
                 prev_end.release();
             },
             .MatchStrLit => {
@@ -1178,15 +1211,15 @@ pub const VM = struct {
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
                 const literal = self.strings.get(self.getConstant(constant_idx).asString());
-                const bytes = (try self.getLocal(src).stringBytes(self)).?;
-                const cur: usize = @intFromFloat(self.getLocal(cursor).asFloat());
-                const opp_v: usize = @intFromFloat(self.getLocal(opp).asFloat());
+                const bytes = (try self.getScratch(src).stringBytes(self)).?;
+                const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
+                const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
                 const new_cursor = matchStrChomp(bytes, cur, opp_v, back, literal) orelse {
                     self.cur_frame.ip += offset;
                     return;
                 };
-                const prev = self.getLocal(cursor);
-                self.setLocal(cursor, Elem.numberFloat(@floatFromInt(new_cursor)));
+                const prev = self.getScratch(cursor);
+                self.setScratch(cursor, Elem.numberFloat(@floatFromInt(new_cursor)));
                 prev.release();
             },
             .MatchStrVal => {
@@ -1207,13 +1240,13 @@ pub const VM = struct {
                     rooted = true;
                 }
                 const literal = (try str_elem.stringBytes(self)).?;
-                const bytes = (try self.getLocal(src).stringBytes(self)).?;
-                const cur: usize = @intFromFloat(self.getLocal(cursor).asFloat());
-                const opp_v: usize = @intFromFloat(self.getLocal(opp).asFloat());
+                const bytes = (try self.getScratch(src).stringBytes(self)).?;
+                const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
+                const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
                 const new_cursor = matchStrChomp(bytes, cur, opp_v, back, literal);
                 if (new_cursor) |nc| {
-                    const prev = self.getLocal(cursor);
-                    self.setLocal(cursor, Elem.numberFloat(@floatFromInt(nc)));
+                    const prev = self.getScratch(cursor);
+                    self.setScratch(cursor, Elem.numberFloat(@floatFromInt(nc)));
                     prev.release();
                 }
                 if (rooted) self.dropTempDyn();
@@ -1232,9 +1265,9 @@ pub const VM = struct {
                 const opp = self.readByte();
                 const back = self.readByte() != 0;
                 const offset = self.readShort();
-                const bytes = (try self.getLocal(src).stringBytes(self)).?;
-                const cur: usize = @intFromFloat(self.getLocal(cursor).asFloat());
-                const opp_v: usize = @intFromFloat(self.getLocal(opp).asFloat());
+                const bytes = (try self.getScratch(src).stringBytes(self)).?;
+                const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
+                const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
                 const span = matchStrChar(bytes, cur, opp_v, back) orelse {
                     self.cur_frame.ip += offset;
                     return;
@@ -1243,11 +1276,11 @@ pub const VM = struct {
                 const char_bytes = bytes[span.start..span.end];
                 @memcpy(buf[0..char_bytes.len], char_bytes);
                 const char_elem = Elem.string(try self.strings.insert(buf[0..char_bytes.len]));
-                const prev_dst = self.getLocal(dst);
-                self.setLocal(dst, char_elem);
+                const prev_dst = self.getScratch(dst);
+                self.setScratch(dst, char_elem);
                 prev_dst.release();
-                const prev_cursor = self.getLocal(cursor);
-                self.setLocal(cursor, Elem.numberFloat(@floatFromInt(span.next_cursor)));
+                const prev_cursor = self.getScratch(cursor);
+                self.setScratch(cursor, Elem.numberFloat(@floatFromInt(span.next_cursor)));
                 prev_cursor.release();
             },
             .MatchStrRest => {
@@ -1258,10 +1291,10 @@ pub const VM = struct {
                 const src = self.readByte();
                 const front = self.readByte();
                 const end = self.readByte();
-                const value = self.getLocal(src);
+                const value = self.getScratch(src);
                 const bytes = (try value.stringBytes(self)).?;
-                const start: usize = @intFromFloat(self.getLocal(front).asFloat());
-                const stop: usize = @intFromFloat(self.getLocal(end).asFloat());
+                const start: usize = @intFromFloat(self.getScratch(front).asFloat());
+                const stop: usize = @intFromFloat(self.getScratch(end).asFloat());
                 const rest: Elem = blk: {
                     if (value.isType(.InputSubstring)) {
                         const base = value.asInputSubstring().start;
@@ -1270,8 +1303,8 @@ pub const VM = struct {
                     const str = try Elem.DynElem.String.copy(self, bytes[start..stop]);
                     break :blk str.dyn.elem();
                 };
-                const previous = self.getLocal(dst);
-                self.setLocal(dst, rest);
+                const previous = self.getScratch(dst);
+                self.setScratch(dst, rest);
                 previous.release();
             },
             .MatchStrCovered => {
@@ -1280,7 +1313,7 @@ pub const VM = struct {
                 const front = self.readByte();
                 const end = self.readByte();
                 const offset = self.readShort();
-                if (self.getLocal(front).asFloat() != self.getLocal(end).asFloat()) {
+                if (self.getScratch(front).asFloat() != self.getScratch(end).asFloat()) {
                     self.cur_frame.ip += offset;
                 }
             },
@@ -1293,14 +1326,14 @@ pub const VM = struct {
                 const dst = self.readByte();
                 const src = self.readByte();
                 const offset = self.readShort();
-                const bytes = (try self.getLocal(src).stringBytes(self)).?;
+                const bytes = (try self.getScratch(src).stringBytes(self)).?;
                 if (bytes.len == 0 or !parsing.isValidNumberString(bytes)) {
                     self.cur_frame.ip += offset;
                     return;
                 }
                 const number = try Elem.numberStringFromBytes(bytes, self);
-                const previous = self.getLocal(dst);
-                self.setLocal(dst, number);
+                const previous = self.getScratch(dst);
+                self.setScratch(dst, number);
                 previous.release();
             },
             .MatchCastBool => {
@@ -1310,7 +1343,7 @@ pub const VM = struct {
                 const dst = self.readByte();
                 const src = self.readByte();
                 const offset = self.readShort();
-                const bytes = (try self.getLocal(src).stringBytes(self)).?;
+                const bytes = (try self.getScratch(src).stringBytes(self)).?;
                 const boolean: ?bool = if (std.mem.eql(u8, bytes, "true"))
                     true
                 else if (std.mem.eql(u8, bytes, "false"))
@@ -1318,8 +1351,8 @@ pub const VM = struct {
                 else
                     null;
                 if (boolean) |b| {
-                    const previous = self.getLocal(dst);
-                    self.setLocal(dst, Elem.boolean(b));
+                    const previous = self.getScratch(dst);
+                    self.setScratch(dst, Elem.boolean(b));
                     previous.release();
                 } else {
                     self.cur_frame.ip += offset;
@@ -1331,12 +1364,12 @@ pub const VM = struct {
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
                 const sid = self.getConstant(constant_idx).asString();
-                const container = self.getLocal(src);
+                const container = self.getScratch(src);
                 if (container.isDynType(.Object)) {
                     if (container.asDyn().asObject().members.get(sid)) |value| {
-                        const previous = self.getLocal(dst);
+                        const previous = self.getScratch(dst);
                         value.retain();
-                        self.setLocal(dst, value);
+                        self.setScratch(dst, value);
                         previous.release();
                         return;
                     }
@@ -1366,30 +1399,30 @@ pub const VM = struct {
                 } else false;
                 const claim_base = key_dst - claim_count;
                 const claimed_search = for (0..claim_count) |i| {
-                    if (self.getLocal(claim_base + @as(u8, @intCast(i))).asString() == sid) break true;
+                    if (self.getScratch(claim_base + @as(u8, @intCast(i))).asString() == sid) break true;
                 } else false;
-                const member = self.getLocal(src).asDyn().asObject().members.get(sid);
+                const member = self.getScratch(src).asDyn().asObject().members.get(sid);
                 if (claimed_static or claimed_search or member == null) {
                     self.cur_frame.ip += offset;
                     return;
                 }
                 const key_elem = Elem.string(sid);
-                const prev_key = self.getLocal(key_dst);
+                const prev_key = self.getScratch(key_dst);
                 key_elem.retain();
-                self.setLocal(key_dst, key_elem);
+                self.setScratch(key_dst, key_elem);
                 prev_key.release();
 
                 const val_elem = member.?;
-                const prev_val = self.getLocal(val_dst);
+                const prev_val = self.getScratch(val_dst);
                 val_elem.retain();
-                self.setLocal(val_dst, val_elem);
+                self.setScratch(val_dst, val_elem);
                 prev_val.release();
             },
             .MatchConst => {
                 const slot = self.readByte();
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 if (!value.isEql(self.getConstant(constant_idx), self.*)) {
                     self.cur_frame.ip += offset;
                 }
@@ -1403,7 +1436,7 @@ pub const VM = struct {
                 const src = self.readByte();
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
-                const value = self.getLocal(src);
+                const value = self.getScratch(src);
                 var src_float: f64 = undefined;
                 if (value.isFloat()) {
                     src_float = value.asFloat();
@@ -1415,8 +1448,8 @@ pub const VM = struct {
                 }
                 const sum = self.getConstant(constant_idx).asFloat();
                 const residual = if (opCode == .MatchMergeNumNeg) sum - src_float else src_float - sum;
-                const previous = self.getLocal(dst);
-                self.setLocal(dst, Elem.numberFloat(residual));
+                const previous = self.getScratch(dst);
+                self.setScratch(dst, Elem.numberFloat(residual));
                 previous.release();
             },
             .MatchMergeBool => {
@@ -1429,7 +1462,7 @@ pub const VM = struct {
                 const src = self.readByte();
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
-                const value = self.getLocal(src);
+                const value = self.getScratch(src);
                 const value_true = value.isConst(.True);
                 if (!value_true and !value.isConst(.False)) {
                     self.cur_frame.ip += offset;
@@ -1440,8 +1473,8 @@ pub const VM = struct {
                     self.cur_frame.ip += offset;
                     return;
                 }
-                const previous = self.getLocal(dst);
-                self.setLocal(dst, Elem.boolean(value_true and !static_true));
+                const previous = self.getScratch(dst);
+                self.setScratch(dst, Elem.boolean(value_true and !static_true));
                 previous.release();
             },
             .MatchGlobal => {
@@ -1451,7 +1484,7 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 var pattern_value = self.getConstant(constant_idx);
                 var rooted = false;
                 if (pattern_value.isDynType(.Function)) {
@@ -1476,7 +1509,7 @@ pub const VM = struct {
                 const register = self.readByte();
                 const local = self.readByte();
                 const offset = self.readShort();
-                const value = self.getLocal(register);
+                const value = self.getScratch(register);
                 const bound = try self.getBoundLocal(local);
                 if (!value.isEql(bound, self.*)) self.cur_frame.ip += offset;
             },
@@ -1494,7 +1527,7 @@ pub const VM = struct {
                     try self.pushTempDyn(evaluated.asDyn());
                     rooted = true;
                 }
-                const value = self.getLocal(register);
+                const value = self.getScratch(register);
                 const matched = value.isEql(evaluated, self.*);
                 if (rooted) self.dropTempDyn();
                 if (!matched) self.cur_frame.ip += offset;
@@ -1502,7 +1535,7 @@ pub const VM = struct {
             .MatchBind => {
                 const local = self.readByte();
                 const src = self.readByte();
-                const value = self.getLocal(src);
+                const value = self.getScratch(src);
                 const previous = self.getLocal(local);
                 value.retain();
                 self.setLocal(local, value);
@@ -1515,7 +1548,7 @@ pub const VM = struct {
                 const upper_kind: RangeLimitKind = @enumFromInt(self.readByte());
                 const upper_arg = self.readShort();
                 const offset = self.readShort();
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 const matched = try self.matchInRange(value, lower_kind, lower_arg, upper_kind, upper_arg);
                 if (!matched) self.cur_frame.ip += offset;
             },
@@ -1533,7 +1566,7 @@ pub const VM = struct {
                     try self.pushTempDyn(evaluated.asDyn());
                     rooted = true;
                 }
-                const value = self.getLocal(slot);
+                const value = self.getScratch(slot);
                 const matched = try self.compareRangeBound(evaluated, value, is_upper);
                 if (rooted) self.dropTempDyn();
                 if (!matched) self.cur_frame.ip += offset;
@@ -1553,13 +1586,13 @@ pub const VM = struct {
                     try self.pushTempDyn(pattern_value.asDyn());
                     rooted = true;
                 }
-                const value = self.getLocal(src);
+                const value = self.getScratch(src);
                 const derived = try self.repeatValueCount(value, pattern_value);
                 if (rooted) self.dropTempDyn();
                 self.reclaimElem(pattern_value);
                 if (derived) |count| {
-                    const previous = self.getLocal(count_dst);
-                    self.setLocal(count_dst, Elem.numberFloat(count));
+                    const previous = self.getScratch(count_dst);
+                    self.setScratch(count_dst, Elem.numberFloat(count));
                     previous.release();
                 } else {
                     self.cur_frame.ip += offset;
@@ -1590,7 +1623,7 @@ pub const VM = struct {
                     return;
                 }
                 const count: usize = @intFromFloat(count_float);
-                const value = self.getLocal(src);
+                const value = self.getScratch(src);
                 const chunk_elem: Elem = if (try value.stringBytes(self)) |bytes| blk: {
                     const chunk_len = if (count == 0) 0 else bytes.len / count;
                     if (count == 0) {
@@ -1664,8 +1697,8 @@ pub const VM = struct {
                     self.cur_frame.ip += offset;
                     return;
                 };
-                const previous = self.getLocal(chunk_dst);
-                self.setLocal(chunk_dst, chunk_elem);
+                const previous = self.getScratch(chunk_dst);
+                self.setScratch(chunk_dst, chunk_elem);
                 previous.release();
             },
             .MatchRepeatRange => {
@@ -1682,7 +1715,7 @@ pub const VM = struct {
                 const upper_kind: RangeLimitKind = @enumFromInt(self.readByte());
                 const upper_arg = self.readShort();
                 const offset = self.readShort();
-                const value = self.getLocal(src);
+                const value = self.getScratch(src);
                 const scanned: ?usize = blk: {
                     const bytes = (try value.stringBytes(self)) orelse break :blk null;
                     const lower = try self.repeatRangeCodepoint(lower_kind, lower_arg);
@@ -1701,8 +1734,8 @@ pub const VM = struct {
                     break :blk count;
                 };
                 if (scanned) |count| {
-                    const previous = self.getLocal(dst);
-                    self.setLocal(dst, Elem.numberFloat(@floatFromInt(count)));
+                    const previous = self.getScratch(dst);
+                    self.setScratch(dst, Elem.numberFloat(@floatFromInt(count)));
                     previous.release();
                 } else {
                     self.cur_frame.ip += offset;
@@ -1713,6 +1746,24 @@ pub const VM = struct {
                 if (value.isSuccess()) self.recordPatternFailure(value);
                 _ = self.popConsumed(.MatchFail);
                 try self.pushFailure();
+            },
+            .MatchWindowEnter => {
+                // Open a fresh window: save the enclosing base, then append
+                // `width` placeholders (singleton underscore var, no
+                // retain) for this match's places and scratch pool.
+                const width = self.readByte();
+                try self.window_bases.append(self.allocator, self.current_window_base);
+                self.current_window_base = self.match_regs.items.len;
+                try self.match_regs.appendNTimes(self.allocator, self.singleton_underscore_var, width);
+            },
+            .MatchWindowExit => {
+                // Close the innermost window: release its live handles, drop
+                // its registers, and restore the enclosing base.
+                for (self.match_regs.items[self.current_window_base..]) |reg| {
+                    self.reclaimElem(reg);
+                }
+                self.match_regs.shrinkRetainingCapacity(self.current_window_base);
+                self.current_window_base = self.window_bases.pop().?;
             },
             .GetConstant, .GetConstant2, .GetConstant3 => {
                 const idx = self.readIndex(opCode);
@@ -2410,6 +2461,8 @@ pub const VM = struct {
             .function = function,
             .ip = 0,
             .elemsOffset = self.stack.items.len - function.arity - 1,
+            .match_regs_base = self.match_regs.items.len,
+            .saved_window_base = self.current_window_base,
         });
         self.syncCurrentFrame();
     }
@@ -2512,6 +2565,25 @@ pub const VM = struct {
         // The local slot is at the start of the frame + 1, since the first
         // elem in the frame is the function getting called.
         self.stack.items[self.cur_frame.elemsOffset + slot + 1] = elem;
+    }
+
+    // Read/write a match scratch (place/register) slot. Transitional
+    // dual-mode: window-mode functions address the innermost match window;
+    // frame-mode functions fall back to frame-local slots. Bound-variable
+    // operands never route here — they stay frame locals via get/setLocal.
+    pub fn getScratch(self: *VM, slot: usize) Elem {
+        if (self.cur_frame.function.window_mode) {
+            return self.match_regs.items[self.current_window_base + slot];
+        }
+        return self.getLocal(slot);
+    }
+
+    pub fn setScratch(self: *VM, slot: usize, elem: Elem) void {
+        if (self.cur_frame.function.window_mode) {
+            self.match_regs.items[self.current_window_base + slot] = elem;
+            return;
+        }
+        self.setLocal(slot, elem);
     }
 
     // Match a value against a range whose non-evaluated bounds are encoded

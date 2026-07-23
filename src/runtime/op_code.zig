@@ -104,6 +104,12 @@ pub const OpCode = enum(u8) {
     MatchStrSuffix,
     MatchStrVal,
     MatchType,
+    // Open a fresh match register window sized to the operand width
+    // (placeholders), saving the current base; close it, releasing its
+    // live handles and restoring the enclosing base. Window scratch lives
+    // on the VM match register stack, not the value stack.
+    MatchWindowEnter,
+    MatchWindowExit,
     Merge,
     MergeAsString,
     NativeCode,
@@ -184,6 +190,9 @@ pub const OpCode = enum(u8) {
             .ResetInput,
             .SetClosureCaptures,
             .SetInputMark,
+            // Window bookkeeping touches the match register stack only.
+            .MatchWindowEnter,
+            .MatchWindowExit,
             => .{ .fixed = .{ .pops = 0, .pushes = 0 } },
 
             .CallFunctionConstant,
@@ -453,6 +462,11 @@ pub const OpCode = enum(u8) {
             .ResetInput,
             .SetClosureCaptures,
             .SetInputMark,
+            // Window ops manage match-register handles directly (Enter
+            // fills placeholders without retain, Exit releases), never the
+            // value stack.
+            .MatchWindowEnter,
+            .MatchWindowExit,
             => .{ .operands = .none, .result = .none },
 
             // Push a second handle to a local slot's value.
@@ -712,7 +726,9 @@ pub const OpCode = enum(u8) {
             .TakeLeft,
             .ValidateRepeatPattern,
             .MatchFail,
+            .MatchWindowExit,
             => self.simpleInstruction(writer, offset),
+            .MatchWindowEnter => self.byteInstruciton(chunk, writer, offset),
             .MatchScrutinee => self.registerInstruction(chunk, writer, offset),
             .MatchSearchInit => self.registerInstruction(chunk, writer, offset),
             .MatchNextUnclaimed => self.matchNextUnclaimedInstruction(chunk, vm, module, writer, offset),
