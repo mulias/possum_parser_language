@@ -717,10 +717,16 @@ pub const Ir = struct {
     }
 
     // The local slot an instruction overwrites without reading its previous
-    // value, if any.
-    pub fn localSlotDefOperand(op: OpCode, operand: Operand) ?u32 {
+    // value, if any. MatchScrutinee's operand is a match scratch register,
+    // a frame slot only in frame mode; SetLocal always targets a frame
+    // slot.
+    pub fn localSlotDefOperand(op: OpCode, operand: Operand, window_mode: bool) ?u32 {
         return switch (op) {
-            .SetLocal, .MatchScrutinee => switch (operand) {
+            .MatchScrutinee => if (window_mode) null else switch (operand) {
+                .byte => |b| b.byte,
+                else => null,
+            },
+            .SetLocal => switch (operand) {
                 .byte => |b| b.byte,
                 else => null,
             },

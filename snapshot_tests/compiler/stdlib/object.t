@@ -189,23 +189,25 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | CallFunctionLocal l0
-  0008    | JumpIfFailure 8 -> 16
-  0011    | MatchScrutinee r4
-  0013    | MatchBind l2 r4
-  0016    | TakeRight 16 -> 40
-  0019    | CallFunctionLocal l1
-  0021    | JumpIfFailure 21 -> 29
-  0024    | MatchScrutinee r4
-  0026    | MatchBind l3 r4
-  0029    | TakeRight 29 -> 40
-  0032    | GetConstantMutable 1: {_0_}
-  0034    | GetLocalMove l2
-  0036    | GetLocalMove l3
-  0038    | InsertKeyVal 0
-  0040    | End
+  0004    | CallFunctionLocal l0
+  0006    | JumpIfFailure 6 -> 17
+  0009    | MatchWindowEnter 2
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l2 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 44
+  0020    | CallFunctionLocal l1
+  0022    | JumpIfFailure 22 -> 33
+  0025    | MatchWindowEnter 2
+  0027    | MatchScrutinee r0
+  0029    | MatchBind l3 r0
+  0032    | MatchWindowExit
+  0033    | TakeRight 33 -> 44
+  0036    | GetConstantMutable 1: {_0_}
+  0038    | GetLocalMove l2
+  0040    | GetLocalMove l3
+  0042    | InsertKeyVal 0
+  0044    | End
   ========================================
   
   ===============1:pair_sep===============
@@ -213,43 +215,45 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | CallFunctionLocal l0
-  0008    | JumpIfFailure 8 -> 16
-  0011    | MatchScrutinee r5
-  0013    | MatchBind l3 r5
-  0016    | TakeRight 16 -> 21
-  0019    | CallFunctionLocal l1
-  0021    | TakeRight 21 -> 45
-  0024    | CallFunctionLocal l2
-  0026    | JumpIfFailure 26 -> 34
-  0029    | MatchScrutinee r5
-  0031    | MatchBind l4 r5
-  0034    | TakeRight 34 -> 45
-  0037    | GetConstantMutable 3: {_0_}
-  0039    | GetLocalMove l3
-  0041    | GetLocalMove l4
-  0043    | InsertKeyVal 0
-  0045    | End
+  0004    | CallFunctionLocal l0
+  0006    | JumpIfFailure 6 -> 17
+  0009    | MatchWindowEnter 2
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l3 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 22
+  0020    | CallFunctionLocal l1
+  0022    | TakeRight 22 -> 49
+  0025    | CallFunctionLocal l2
+  0027    | JumpIfFailure 27 -> 38
+  0030    | MatchWindowEnter 2
+  0032    | MatchScrutinee r0
+  0034    | MatchBind l4 r0
+  0037    | MatchWindowExit
+  0038    | TakeRight 38 -> 49
+  0041    | GetConstantMutable 3: {_0_}
+  0043    | GetLocalMove l3
+  0045    | GetLocalMove l4
+  0047    | InsertKeyVal 0
+  0049    | End
   ========================================
   
   ===============1:record1================
   record1(Key, value) = value -> Value $ {Key: Value}
   ========================================
   0000    | PushVar Value
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | CallFunctionLocal l1
-  0006    | JumpIfFailure 6 -> 14
-  0009    | MatchScrutinee r3
-  0011    | MatchBind l2 r3
-  0014    | TakeRight 14 -> 25
-  0017    | GetConstantMutable 12: {_0_}
-  0019    | GetLocalMove l0
-  0021    | GetLocalMove l2
-  0023    | InsertKeyVal 0
-  0025    | End
+  0002    | CallFunctionLocal l1
+  0004    | JumpIfFailure 4 -> 15
+  0007    | MatchWindowEnter 2
+  0009    | MatchScrutinee r0
+  0011    | MatchBind l2 r0
+  0014    | MatchWindowExit
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstantMutable 12: {_0_}
+  0020    | GetLocalMove l0
+  0022    | GetLocalMove l2
+  0024    | InsertKeyVal 0
+  0026    | End
   ========================================
   
   ===============1:record2================
@@ -260,26 +264,28 @@
   ========================================
   0000    | PushVar V1
   0002    | PushVar V2
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | CallFunctionLocal l1
-  0008    | JumpIfFailure 8 -> 16
-  0011    | MatchScrutinee r6
-  0013    | MatchBind l4 r6
-  0016    | TakeRight 16 -> 46
-  0019    | CallFunctionLocal l3
-  0021    | JumpIfFailure 21 -> 29
-  0024    | MatchScrutinee r6
-  0026    | MatchBind l5 r6
-  0029    | TakeRight 29 -> 46
-  0032    | GetConstantMutable 13: {_0_, _1_}
-  0034    | GetLocalMove l0
-  0036    | GetLocalMove l4
-  0038    | InsertKeyVal 0
-  0040    | GetLocalMove l2
-  0042    | GetLocalMove l5
-  0044    | InsertKeyVal 1
-  0046    | End
+  0004    | CallFunctionLocal l1
+  0006    | JumpIfFailure 6 -> 17
+  0009    | MatchWindowEnter 2
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l4 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 50
+  0020    | CallFunctionLocal l3
+  0022    | JumpIfFailure 22 -> 33
+  0025    | MatchWindowEnter 2
+  0027    | MatchScrutinee r0
+  0029    | MatchBind l5 r0
+  0032    | MatchWindowExit
+  0033    | TakeRight 33 -> 50
+  0036    | GetConstantMutable 13: {_0_, _1_}
+  0038    | GetLocalMove l0
+  0040    | GetLocalMove l4
+  0042    | InsertKeyVal 0
+  0044    | GetLocalMove l2
+  0046    | GetLocalMove l5
+  0048    | InsertKeyVal 1
+  0050    | End
   ========================================
   
   =============1:record2_sep==============
@@ -290,28 +296,30 @@
   ========================================
   0000    | PushVar V1
   0002    | PushVar V2
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | CallFunctionLocal l1
-  0008    | JumpIfFailure 8 -> 16
-  0011    | MatchScrutinee r7
-  0013    | MatchBind l5 r7
-  0016    | TakeRight 16 -> 21
-  0019    | CallFunctionLocal l2
-  0021    | TakeRight 21 -> 51
-  0024    | CallFunctionLocal l4
-  0026    | JumpIfFailure 26 -> 34
-  0029    | MatchScrutinee r7
-  0031    | MatchBind l6 r7
-  0034    | TakeRight 34 -> 51
-  0037    | GetConstantMutable 14: {_0_, _1_}
-  0039    | GetLocalMove l0
-  0041    | GetLocalMove l5
-  0043    | InsertKeyVal 0
-  0045    | GetLocalMove l3
-  0047    | GetLocalMove l6
-  0049    | InsertKeyVal 1
-  0051    | End
+  0004    | CallFunctionLocal l1
+  0006    | JumpIfFailure 6 -> 17
+  0009    | MatchWindowEnter 2
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l5 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 22
+  0020    | CallFunctionLocal l2
+  0022    | TakeRight 22 -> 55
+  0025    | CallFunctionLocal l4
+  0027    | JumpIfFailure 27 -> 38
+  0030    | MatchWindowEnter 2
+  0032    | MatchScrutinee r0
+  0034    | MatchBind l6 r0
+  0037    | MatchWindowExit
+  0038    | TakeRight 38 -> 55
+  0041    | GetConstantMutable 14: {_0_, _1_}
+  0043    | GetLocalMove l0
+  0045    | GetLocalMove l5
+  0047    | InsertKeyVal 0
+  0049    | GetLocalMove l3
+  0051    | GetLocalMove l6
+  0053    | InsertKeyVal 1
+  0055    | End
   ========================================
   
   ===============1:record3================
@@ -324,34 +332,38 @@
   0000    | PushVar V1
   0002    | PushVar V2
   0004    | PushVar V3
-  0006    | PushUnderscoreVar
-  0007    | PushUnderscoreVar
-  0008    | CallFunctionLocal l1
-  0010    | JumpIfFailure 10 -> 18
-  0013    | MatchScrutinee r9
-  0015    | MatchBind l6 r9
-  0018    | TakeRight 18 -> 31
-  0021    | CallFunctionLocal l3
-  0023    | JumpIfFailure 23 -> 31
-  0026    | MatchScrutinee r9
-  0028    | MatchBind l7 r9
-  0031    | TakeRight 31 -> 67
-  0034    | CallFunctionLocal l5
-  0036    | JumpIfFailure 36 -> 44
-  0039    | MatchScrutinee r9
-  0041    | MatchBind l8 r9
-  0044    | TakeRight 44 -> 67
-  0047    | GetConstantMutable 15: {_0_, _1_, _2_}
-  0049    | GetLocalMove l0
-  0051    | GetLocalMove l6
-  0053    | InsertKeyVal 0
-  0055    | GetLocalMove l2
-  0057    | GetLocalMove l7
-  0059    | InsertKeyVal 1
-  0061    | GetLocalMove l4
-  0063    | GetLocalMove l8
-  0065    | InsertKeyVal 2
-  0067    | End
+  0006    | CallFunctionLocal l1
+  0008    | JumpIfFailure 8 -> 19
+  0011    | MatchWindowEnter 2
+  0013    | MatchScrutinee r0
+  0015    | MatchBind l6 r0
+  0018    | MatchWindowExit
+  0019    | TakeRight 19 -> 35
+  0022    | CallFunctionLocal l3
+  0024    | JumpIfFailure 24 -> 35
+  0027    | MatchWindowEnter 2
+  0029    | MatchScrutinee r0
+  0031    | MatchBind l7 r0
+  0034    | MatchWindowExit
+  0035    | TakeRight 35 -> 74
+  0038    | CallFunctionLocal l5
+  0040    | JumpIfFailure 40 -> 51
+  0043    | MatchWindowEnter 2
+  0045    | MatchScrutinee r0
+  0047    | MatchBind l8 r0
+  0050    | MatchWindowExit
+  0051    | TakeRight 51 -> 74
+  0054    | GetConstantMutable 15: {_0_, _1_, _2_}
+  0056    | GetLocalMove l0
+  0058    | GetLocalMove l6
+  0060    | InsertKeyVal 0
+  0062    | GetLocalMove l2
+  0064    | GetLocalMove l7
+  0066    | InsertKeyVal 1
+  0068    | GetLocalMove l4
+  0070    | GetLocalMove l8
+  0072    | InsertKeyVal 2
+  0074    | End
   ========================================
   
   =============1:record3_sep==============
@@ -364,38 +376,42 @@
   0000    | PushVar V1
   0002    | PushVar V2
   0004    | PushVar V3
-  0006    | PushUnderscoreVar
-  0007    | PushUnderscoreVar
-  0008    | CallFunctionLocal l1
-  0010    | JumpIfFailure 10 -> 18
-  0013    | MatchScrutinee r11
-  0015    | MatchBind l8 r11
-  0018    | TakeRight 18 -> 23
-  0021    | CallFunctionLocal l2
-  0023    | TakeRight 23 -> 36
-  0026    | CallFunctionLocal l4
-  0028    | JumpIfFailure 28 -> 36
-  0031    | MatchScrutinee r11
-  0033    | MatchBind l9 r11
-  0036    | TakeRight 36 -> 41
-  0039    | CallFunctionLocal l5
-  0041    | TakeRight 41 -> 77
-  0044    | CallFunctionLocal l7
-  0046    | JumpIfFailure 46 -> 54
-  0049    | MatchScrutinee r11
-  0051    | MatchBind l10 r11
-  0054    | TakeRight 54 -> 77
-  0057    | GetConstantMutable 16: {_0_, _1_, _2_}
-  0059    | GetLocalMove l0
-  0061    | GetLocalMove l8
-  0063    | InsertKeyVal 0
-  0065    | GetLocalMove l3
-  0067    | GetLocalMove l9
-  0069    | InsertKeyVal 1
-  0071    | GetLocalMove l6
-  0073    | GetLocalMove l10
-  0075    | InsertKeyVal 2
-  0077    | End
+  0006    | CallFunctionLocal l1
+  0008    | JumpIfFailure 8 -> 19
+  0011    | MatchWindowEnter 2
+  0013    | MatchScrutinee r0
+  0015    | MatchBind l8 r0
+  0018    | MatchWindowExit
+  0019    | TakeRight 19 -> 24
+  0022    | CallFunctionLocal l2
+  0024    | TakeRight 24 -> 40
+  0027    | CallFunctionLocal l4
+  0029    | JumpIfFailure 29 -> 40
+  0032    | MatchWindowEnter 2
+  0034    | MatchScrutinee r0
+  0036    | MatchBind l9 r0
+  0039    | MatchWindowExit
+  0040    | TakeRight 40 -> 45
+  0043    | CallFunctionLocal l5
+  0045    | TakeRight 45 -> 84
+  0048    | CallFunctionLocal l7
+  0050    | JumpIfFailure 50 -> 61
+  0053    | MatchWindowEnter 2
+  0055    | MatchScrutinee r0
+  0057    | MatchBind l10 r0
+  0060    | MatchWindowExit
+  0061    | TakeRight 61 -> 84
+  0064    | GetConstantMutable 16: {_0_, _1_, _2_}
+  0066    | GetLocalMove l0
+  0068    | GetLocalMove l8
+  0070    | InsertKeyVal 0
+  0072    | GetLocalMove l3
+  0074    | GetLocalMove l9
+  0076    | InsertKeyVal 1
+  0078    | GetLocalMove l6
+  0080    | GetLocalMove l10
+  0082    | InsertKeyVal 2
+  0084    | End
   ========================================
   
   =================1:@fn0=================
@@ -445,18 +461,18 @@
   peek(p) = @input.offset -> Pos & @at(Pos, p)
   ========================================
   0000    | PushVar Pos
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | CallFunctionConstant 1: @input.offset
-  0006    | JumpIfFailure 6 -> 14
-  0009    | MatchScrutinee r2
-  0011    | MatchBind l1 r2
-  0014    | TakeRight 14 -> 25
-  0017    | GetConstant 2: @at
-  0019    | GetLocalMove l1
-  0021    | GetLocalMove l0
-  0023    | CallTailFunction 2
-  0025    | End
+  0002    | CallFunctionConstant 1: @input.offset
+  0004    | JumpIfFailure 4 -> 15
+  0007    | MatchWindowEnter 2
+  0009    | MatchScrutinee r0
+  0011    | MatchBind l1 r0
+  0014    | MatchWindowExit
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 2: @at
+  0020    | GetLocalMove l1
+  0022    | GetLocalMove l0
+  0024    | CallTailFunction 2
+  0026    | End
   ========================================
   
   ================2:unless================

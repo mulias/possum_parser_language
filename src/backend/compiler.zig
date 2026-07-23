@@ -500,6 +500,7 @@ pub const Compiler = struct {
         const ast = self.goalAst(module_id);
         const goal_body = goalFunctionBody(ast, decl.identName()) orelse
             @panic("Internal Error: no goal body for declaration");
+        function.window_mode = !self.goalMatchDebugging() and self.goalBodyWindowable(ast, goal_body);
         try self.emitGoalScratch(ast, goal_body, decl.region());
         try self.writeGoal(module_id, ast, goal_body);
 
@@ -2156,7 +2157,7 @@ pub const Compiler = struct {
         const plan_slots: []const liveness.PlanSlots =
             if (self.plan_slots.get(module_id)) |list| list.items else &.{};
 
-        var last_reads = try liveness.Liveness.analyze(self.vm.allocator, function_ir, plan_slots);
+        var last_reads = try liveness.Liveness.analyze(self.vm.allocator, function_ir, plan_slots, self.currentFunction().window_mode);
         defer last_reads.deinit(self.vm.allocator);
 
         for (function_ir.instructions.items, 0..) |*insn, i| {
@@ -2361,6 +2362,7 @@ pub const Compiler = struct {
         try self.irs.append(self.vm.allocator, Ir{});
 
         try self.pushLocalPlaceholders(module_id, function.arity, region);
+        function.window_mode = !self.goalMatchDebugging() and self.goalBodyWindowable(ast, body);
         try self.emitGoalScratch(ast, body, region);
 
         if (captures_count > 0) {
@@ -2386,6 +2388,9 @@ pub const Compiler = struct {
     // largest place list, pushed as placeholders at entry.
     fn emitGoalScratch(self: *Compiler, ast: *const GoalAst, body: GoalAst.NodeId, region: Region) !void {
         if (self.goalMatchDebugging()) return;
+        // Window-mode functions size a window per match instead of
+        // reserving one frame-local block for the whole function.
+        if (self.currentFunction().window_mode) return;
         const locals_len = self.currentScope().locals().len;
         const scratch = self.goalScratchNeed(ast, body);
         if (scratch == 0) return;
@@ -2457,35 +2462,103 @@ pub const Compiler = struct {
                 var need = self.goalScratchNeed(ast, match.scrutinee);
                 for (match.arms.items) |*arm| {
                     if (match.arms.items.len == 1 and self.armStepable(ast, arm)) {
-                        // Places, the dead register, one claim register per
-                        // search pair, a shared value + cursor register
-                        // when the arm searches at all, and a shared
-                        // repeat block when it repeats at all: the count
-                        // register, plus loop base and element registers
-                        // for array-chunk repeats.
-                        var searches: u32 = 0;
-                        var repeats: u32 = 0;
-                        var templates: u32 = 0;
-                        for (arm.constraints.items) |constraint| switch (constraint.kind) {
-                            .search_key => searches += 1,
-                            .solve_repeat => |c| {
-                                const shape = self.repeatShape(ast, c.pattern, c.count).?;
-                                repeats = @max(repeats, @as(u32, if (shape == .array) 3 else 1));
-                            },
-                            // The cursor path claims a template block above
-                            // the repeat block: front, end, rest dst, char.
-                            .match_template => |c| {
-                                if (self.templateStepable(ast, c.segments.items) == .cursor) templates = 4;
-                            },
-                            else => {},
-                        };
-                        const extra: u32 = if (searches > 0) searches + 2 else 0;
-                        need = @max(need, @as(u32, @intCast(match.places.items.len + 1)) + extra + repeats + templates);
+                        need = @max(need, self.armStepScratchWidth(ast, match, arm));
                     }
                     if (arm.guard) |guard| need = @max(need, self.goalScratchNeed(ast, guard));
                     if (arm.body) |body| need = @max(need, self.goalScratchNeed(ast, body));
                 }
                 break :blk need;
+            },
+        };
+    }
+
+    // The scratch register count one stepable arm's match steps use:
+    // places, the dead register, one claim register per search pair, a
+    // shared value + cursor register when the arm searches at all, a
+    // shared repeat block when it repeats at all (the count register,
+    // plus loop base and element registers for array-chunk repeats), and
+    // the cursor-template block (front, end, rest dst, char). A pure-place
+    // arm — no search/repeat/cursor-template pool — is exactly
+    // places.len + 1.
+    fn armStepScratchWidth(self: *Compiler, ast: *const GoalAst, match: *const GoalAst.Match, arm: *const GoalAst.MatchArm) u32 {
+        var searches: u32 = 0;
+        var repeats: u32 = 0;
+        var templates: u32 = 0;
+        for (arm.constraints.items) |constraint| switch (constraint.kind) {
+            .search_key => searches += 1,
+            .solve_repeat => |c| {
+                const shape = self.repeatShape(ast, c.pattern, c.count).?;
+                repeats = @max(repeats, @as(u32, if (shape == .array) 3 else 1));
+            },
+            .match_template => |c| {
+                if (self.templateStepable(ast, c.segments.items) == .cursor) templates = 4;
+            },
+            else => {},
+        };
+        const extra: u32 = if (searches > 0) searches + 2 else 0;
+        return @as(u32, @intCast(match.places.items.len + 1)) + extra + repeats + templates;
+    }
+
+    // Whether every inline-lowered match in the body uses only place
+    // registers (no search/repeat/cursor-template scratch pool), so the
+    // function can address match scratch through per-match windows sized
+    // to each match rather than a single frame-local reservation. Matches
+    // that take the plan path impose no requirement — they carry their own
+    // scratch.
+    fn goalBodyWindowable(self: *Compiler, ast: *const GoalAst, id: GoalAst.NodeId) bool {
+        const node = ast.goals.items[id].node;
+        return switch (node) {
+            .true, .false, .null, .string, .number_string, .number_float, .ident, .lambda => true,
+            .call => |call| blk: {
+                if (!self.goalBodyWindowable(ast, call.callee)) break :blk false;
+                for (call.args) |arg| if (!self.goalBodyWindowable(ast, arg)) break :blk false;
+                break :blk true;
+            },
+            .seq => |seq| blk: {
+                for (seq.goals.items) |g| if (!self.goalBodyWindowable(ast, g)) break :blk false;
+                break :blk true;
+            },
+            .alt => |arms| blk: {
+                for (arms.items) |arm| {
+                    if (arm.guard) |guard| if (!self.goalBodyWindowable(ast, guard)) break :blk false;
+                    if (arm.body) |body| if (!self.goalBodyWindowable(ast, body)) break :blk false;
+                }
+                break :blk true;
+            },
+            .merge => |merge| self.goalBodyWindowable(ast, merge.left) and self.goalBodyWindowable(ast, merge.right),
+            .mult => |mult| self.goalBodyWindowable(ast, mult.left) and self.goalBodyWindowable(ast, mult.right),
+            .neg, .to_string => |inner| self.goalBodyWindowable(ast, inner),
+            .range => |range| blk: {
+                if (range.lower) |lower| if (!self.goalBodyWindowable(ast, lower)) break :blk false;
+                if (range.upper) |upper| if (!self.goalBodyWindowable(ast, upper)) break :blk false;
+                break :blk true;
+            },
+            .array => |elems| blk: {
+                for (elems.items) |elem| if (!self.goalBodyWindowable(ast, elem)) break :blk false;
+                break :blk true;
+            },
+            .object => |pairs| blk: {
+                for (pairs.items) |pair| {
+                    if (!self.goalBodyWindowable(ast, pair.key)) break :blk false;
+                    if (!self.goalBodyWindowable(ast, pair.value)) break :blk false;
+                }
+                break :blk true;
+            },
+            .repeat => |repeat| blk: {
+                if (!self.goalBodyWindowable(ast, repeat.body)) break :blk false;
+                if (repeat.cap == .expr and !self.goalBodyWindowable(ast, repeat.cap.expr)) break :blk false;
+                break :blk true;
+            },
+            .match => |*match| blk: {
+                if (!self.goalBodyWindowable(ast, match.scrutinee)) break :blk false;
+                for (match.arms.items) |*arm| {
+                    if (match.arms.items.len == 1 and self.armStepable(ast, arm)) {
+                        if (self.armStepScratchWidth(ast, match, arm) != match.places.items.len + 1) break :blk false;
+                    }
+                    if (arm.guard) |guard| if (!self.goalBodyWindowable(ast, guard)) break :blk false;
+                    if (arm.body) |body| if (!self.goalBodyWindowable(ast, body)) break :blk false;
+                }
+                break :blk true;
             },
         };
     }
@@ -4008,7 +4081,11 @@ pub const Compiler = struct {
     ) Error!void {
         const allocator = self.vm.allocator;
         const places = match.places.items;
-        const scratch_base: u8 = @intCast(self.currentScope().locals().len);
+        // Window-mode functions address match scratch relative to the
+        // per-match window (base 0); frame-mode functions place scratch
+        // above the frame locals.
+        const window_mode = self.currentFunction().window_mode;
+        const scratch_base: u8 = if (window_mode) 0 else @intCast(self.currentScope().locals().len);
         const dead_reg: u8 = @intCast(scratch_base + places.len);
 
         const materialized = try allocator.alloc(bool, places.len);
@@ -4078,6 +4155,19 @@ pub const Compiler = struct {
             try self.emitOp(.MatchFail, region);
             self.patchJump(skipJump);
             return;
+        }
+
+        // Open the per-match window sized to this arm's scratch. The skip
+        // path above jumps past the whole match, so no window is open
+        // there; success and failure both converge on the MatchWindowExit
+        // emitted after the steps.
+        if (window_mode) {
+            const width = self.armStepScratchWidth(ast, match, arm);
+            if (width > 255) {
+                try self.printError(module_id, region, "Pattern too large to compile.", .{});
+                return Error.MaxFunctionLocals;
+            }
+            try self.emitUnaryOp(.MatchWindowEnter, @intCast(width), region);
         }
 
         try self.emitUnaryOp(.MatchScrutinee, scratch_base, region);
@@ -4451,14 +4541,20 @@ pub const Compiler = struct {
 
         if (fail_jumps.items.len == 0) {
             // Every step was deterministic; there is no failure path.
+            // Success falls through to the window exit; the skip lands
+            // after it.
+            if (window_mode) try self.emitOp(.MatchWindowExit, region);
             self.patchJump(skipJump);
             return;
         }
         const okJump = try self.emitJump(.Jump, region);
         for (fail_jumps.items) |jumpIndex| self.patchJump(jumpIndex);
         try self.emitOp(.MatchFail, region);
-        self.patchJump(skipJump);
+        // Both success (okJump) and failure (fall-through from MatchFail)
+        // run the window exit; the skip lands past it with no window open.
         self.patchJump(okJump);
+        if (window_mode) try self.emitOp(.MatchWindowExit, region);
+        self.patchJump(skipJump);
     }
 
     fn findSearchGroup(self: *Compiler, groups: []SearchGroup, src: GoalAst.PlaceId) ?*SearchGroup {

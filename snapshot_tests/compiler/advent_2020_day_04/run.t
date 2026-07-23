@@ -275,25 +275,27 @@
   ========================================
   0000    | PushVar K
   0002    | PushVar V
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | CallFunctionLocal l0
-  0008    | JumpIfFailure 8 -> 16
-  0011    | MatchScrutinee r5
-  0013    | MatchBind l3 r5
-  0016    | TakeRight 16 -> 21
-  0019    | CallFunctionLocal l1
-  0021    | TakeRight 21 -> 45
-  0024    | CallFunctionLocal l2
-  0026    | JumpIfFailure 26 -> 34
-  0029    | MatchScrutinee r5
-  0031    | MatchBind l4 r5
-  0034    | TakeRight 34 -> 45
-  0037    | GetConstantMutable 1: {_0_}
-  0039    | GetLocalMove l3
-  0041    | GetLocalMove l4
-  0043    | InsertKeyVal 0
-  0045    | End
+  0004    | CallFunctionLocal l0
+  0006    | JumpIfFailure 6 -> 17
+  0009    | MatchWindowEnter 2
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l3 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 22
+  0020    | CallFunctionLocal l1
+  0022    | TakeRight 22 -> 49
+  0025    | CallFunctionLocal l2
+  0027    | JumpIfFailure 27 -> 38
+  0030    | MatchWindowEnter 2
+  0032    | MatchScrutinee r0
+  0034    | MatchBind l4 r0
+  0037    | MatchWindowExit
+  0038    | TakeRight 38 -> 49
+  0041    | GetConstantMutable 1: {_0_}
+  0043    | GetLocalMove l3
+  0045    | GetLocalMove l4
+  0047    | InsertKeyVal 0
+  0049    | End
   ========================================
   
   ===============2:passport===============
@@ -316,23 +318,23 @@
     }
   ========================================
   0000    | PushUnderscoreVar
-  0001    | PushUnderscoreVar
-  0002    | PushUnderscoreVar
-  0003    | CallFunctionConstant 6: passport
-  0005    | JumpIfFailure 5 -> 73
-  0008    | MatchScrutinee r1
-  0010    | MatchType r1 object -> 72
-  0015    | MatchKeysMin r1 7 -> 72
-  0020    | MatchKey r2 r1["byr"] -> 72
-  0027    | MatchKey r2 r1["iyr"] -> 72
-  0034    | MatchKey r2 r1["eyr"] -> 72
-  0041    | MatchKey r2 r1["hgt"] -> 72
-  0048    | MatchKey r2 r1["hcl"] -> 72
-  0055    | MatchKey r2 r1["ecl"] -> 72
-  0062    | MatchKey r2 r1["pid"] -> 72
+  0001    | CallFunctionConstant 6: passport
+  0003    | JumpIfFailure 3 -> 74
+  0006    | MatchWindowEnter 2
+  0008    | MatchScrutinee r0
+  0010    | MatchType r0 object -> 72
+  0015    | MatchKeysMin r0 7 -> 72
+  0020    | MatchKey r1 r0["byr"] -> 72
+  0027    | MatchKey r1 r0["iyr"] -> 72
+  0034    | MatchKey r1 r0["eyr"] -> 72
+  0041    | MatchKey r1 r0["hgt"] -> 72
+  0048    | MatchKey r1 r0["hcl"] -> 72
+  0055    | MatchKey r1 r0["ecl"] -> 72
+  0062    | MatchKey r1 r0["pid"] -> 72
   0069    | Jump 69 -> 73
   0072    | MatchFail
-  0073    | End
+  0073    | MatchWindowExit
+  0074    | End
   ========================================
   
   =========2:count_valid_passport=========

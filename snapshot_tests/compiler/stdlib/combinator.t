@@ -174,18 +174,18 @@
   peek(p) = @input.offset -> Pos & @at(Pos, p)
   ========================================
   0000    | PushVar Pos
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | CallFunctionConstant 3: @input.offset
-  0006    | JumpIfFailure 6 -> 14
-  0009    | MatchScrutinee r2
-  0011    | MatchBind l1 r2
-  0014    | TakeRight 14 -> 25
-  0017    | GetConstant 4: @at
-  0019    | GetLocalMove l1
-  0021    | GetLocalMove l0
-  0023    | CallTailFunction 2
-  0025    | End
+  0002    | CallFunctionConstant 3: @input.offset
+  0004    | JumpIfFailure 4 -> 15
+  0007    | MatchWindowEnter 2
+  0009    | MatchScrutinee r0
+  0011    | MatchBind l1 r0
+  0014    | MatchWindowExit
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 4: @at
+  0020    | GetLocalMove l1
+  0022    | GetLocalMove l0
+  0024    | CallTailFunction 2
+  0026    | End
   ========================================
   
   ================1:maybe=================
@@ -629,18 +629,18 @@
   peek(p) = @input.offset -> Pos & @at(Pos, p)
   ========================================
   0000    | PushVar Pos
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | CallFunctionConstant 3: @input.offset
-  0006    | JumpIfFailure 6 -> 14
-  0009    | MatchScrutinee r2
-  0011    | MatchBind l1 r2
-  0014    | TakeRight 14 -> 25
-  0017    | GetConstant 4: @at
-  0019    | GetLocalMove l1
-  0021    | GetLocalMove l0
-  0023    | CallTailFunction 2
-  0025    | End
+  0002    | CallFunctionConstant 3: @input.offset
+  0004    | JumpIfFailure 4 -> 15
+  0007    | MatchWindowEnter 2
+  0009    | MatchScrutinee r0
+  0011    | MatchBind l1 r0
+  0014    | MatchWindowExit
+  0015    | TakeRight 15 -> 26
+  0018    | GetConstant 4: @at
+  0020    | GetLocalMove l1
+  0022    | GetLocalMove l0
+  0024    | CallTailFunction 2
+  0026    | End
   ========================================
   
   ================3:unless================
@@ -701,15 +701,15 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar Elem
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | CallFunctionLocal l0
-  0006    | JumpIfFailure 6 -> 14
-  0009    | MatchScrutinee r2
-  0011    | MatchBind l1 r2
-  0014    | TakeRight 14 -> 23
-  0017    | GetConstantMutable 1: [_]
-  0019    | GetLocalMove l1
-  0021    | InsertAtIndex 0
-  0023    | End
+  0002    | CallFunctionLocal l0
+  0004    | JumpIfFailure 4 -> 15
+  0007    | MatchWindowEnter 2
+  0009    | MatchScrutinee r0
+  0011    | MatchBind l1 r0
+  0014    | MatchWindowExit
+  0015    | TakeRight 15 -> 24
+  0018    | GetConstantMutable 1: [_]
+  0020    | GetLocalMove l1
+  0022    | InsertAtIndex 0
+  0024    | End
   ========================================

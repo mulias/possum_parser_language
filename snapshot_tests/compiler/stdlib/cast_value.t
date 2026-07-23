@@ -43,13 +43,13 @@
   Is.Number(V) = V -> (0 + _)
   ========================================
   0000    | PushUnderscoreVar
-  0001    | PushUnderscoreVar
-  0002    | PushUnderscoreVar
-  0003    | GetLocalMove l0
-  0005    | JumpIfFailure 5 -> 21
-  0008    | MatchScrutinee r2
-  0010    | MatchMergeNum r3 r2 - 0 -> 20
+  0001    | GetLocalMove l0
+  0003    | JumpIfFailure 3 -> 22
+  0006    | MatchWindowEnter 2
+  0008    | MatchScrutinee r0
+  0010    | MatchMergeNum r1 r0 - 0 -> 20
   0017    | Jump 17 -> 21
   0020    | MatchFail
-  0021    | End
+  0021    | MatchWindowExit
+  0022    | End
   ========================================

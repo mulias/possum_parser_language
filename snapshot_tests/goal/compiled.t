@@ -17,26 +17,28 @@ tail swaps the scrutinee for the failure const.
   ================2:@main=================
   json -> [A, 2, B] $ [B, A]
   ========================================
-  0011    | CallFunctionConstant 0: @main
-  0013    | JumpIfFailure 13 -> 56
-  0016    | MatchScrutinee r2
-  0018    | MatchType r2 array -> 55
-  0023    | MatchLen r2 3 -> 55
-  0028    | MatchElem r3 r2[0]
-  0032    | MatchBind l0 r3
-  0035    | MatchElem r4 r2[1]
-  0039    | MatchConst r4 2 -> 55
-  0045    | MatchElem r5 r2[2]
-  0049    | MatchBind l1 r5
-  0052    | Jump 52 -> 56
-  0055    | MatchFail
-  0056    | TakeRight 56 -> 69
-  0059    | GetConstantMutable 2: [_, _]
-  0061    | GetLocalMove l1
-  0063    | InsertAtIndex 0
-  0065    | GetLocalMove l0
-  0067    | InsertAtIndex 1
-  0069    | End
+  0006    | CallFunctionConstant 0: @main
+  0008    | JumpIfFailure 8 -> 54
+  0011    | MatchWindowEnter 5
+  0013    | MatchScrutinee r0
+  0015    | MatchType r0 array -> 52
+  0020    | MatchLen r0 3 -> 52
+  0025    | MatchElem r1 r0[0]
+  0029    | MatchBind l0 r1
+  0032    | MatchElem r2 r0[1]
+  0036    | MatchConst r2 2 -> 52
+  0042    | MatchElem r3 r0[2]
+  0046    | MatchBind l1 r3
+  0049    | Jump 49 -> 53
+  0052    | MatchFail
+  0053    | MatchWindowExit
+  0054    | TakeRight 54 -> 67
+  0057    | GetConstantMutable 2: [_, _]
+  0059    | GetLocalMove l1
+  0061    | InsertAtIndex 0
+  0063    | GetLocalMove l0
+  0065    | InsertAtIndex 1
+  0067    | End
 
 Behavior parity across the shapes: steps, plan-lowered composites, alt
 commits, repeats, and the stdlib parsers.

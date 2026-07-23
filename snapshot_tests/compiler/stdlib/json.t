@@ -182,23 +182,25 @@
   ========================================
   0000    | PushVar2 H
   0003    | PushVar2 L
-  0006    | PushUnderscoreVar
-  0007    | PushUnderscoreVar
-  0008    | CallFunctionConstant 30: _high_surrogate
-  0010    | JumpIfFailure 10 -> 18
-  0013    | MatchScrutinee r2
-  0015    | MatchBind l0 r2
-  0018    | TakeRight 18 -> 42
-  0021    | CallFunctionConstant 31: _low_surrogate
-  0023    | JumpIfFailure 23 -> 31
-  0026    | MatchScrutinee r2
-  0028    | MatchBind l1 r2
-  0031    | TakeRight 31 -> 42
-  0034    | GetConstant 32: @SurrogatePairCodepoint
-  0036    | GetLocalMove l0
-  0038    | GetLocalMove l1
-  0040    | CallTailFunction 2
-  0042    | End
+  0006    | CallFunctionConstant 30: _high_surrogate
+  0008    | JumpIfFailure 8 -> 19
+  0011    | MatchWindowEnter 2
+  0013    | MatchScrutinee r0
+  0015    | MatchBind l0 r0
+  0018    | MatchWindowExit
+  0019    | TakeRight 19 -> 46
+  0022    | CallFunctionConstant 31: _low_surrogate
+  0024    | JumpIfFailure 24 -> 35
+  0027    | MatchWindowEnter 2
+  0029    | MatchScrutinee r0
+  0031    | MatchBind l1 r0
+  0034    | MatchWindowExit
+  0035    | TakeRight 35 -> 46
+  0038    | GetConstant 32: @SurrogatePairCodepoint
+  0040    | GetLocalMove l0
+  0042    | GetLocalMove l1
+  0044    | CallTailFunction 2
+  0046    | End
   ========================================
   
   =======1:_invalid_surrogate_pair========
@@ -279,32 +281,32 @@
   _escaped_codepoint = `\u` > (hex_numeral * 4) -> U $ @Codepoint(U)
   ========================================
   0000    | PushVar2 U
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | CallFunctionConstant 33: "\u"
-  0007    | TakeRight 7 -> 34
-  0010    | PushNull
-  0011    | PushInteger 4
-  0013    | ValidateRepeatPattern
-  0014    | JumpIfZero 14 -> 33
-  0017    | Swap
-  0018    | CallFunctionConstant 34: hex_numeral
-  0020    | Merge
-  0021    | JumpIfFailure 21 -> 32
-  0024    | Swap
-  0025    | Decrement
-  0026    | JumpIfZero 26 -> 33
-  0029    | JumpBack 29 -> 17
-  0032    | Swap
-  0033    | Drop
-  0034    | JumpIfFailure 34 -> 42
-  0037    | MatchScrutinee r1
-  0039    | MatchBind l0 r1
-  0042    | TakeRight 42 -> 51
-  0045    | GetConstant 35: @Codepoint
-  0047    | GetLocalMove l0
-  0049    | CallTailFunction 1
-  0051    | End
+  0003    | CallFunctionConstant 33: "\u"
+  0005    | TakeRight 5 -> 32
+  0008    | PushNull
+  0009    | PushInteger 4
+  0011    | ValidateRepeatPattern
+  0012    | JumpIfZero 12 -> 31
+  0015    | Swap
+  0016    | CallFunctionConstant 34: hex_numeral
+  0018    | Merge
+  0019    | JumpIfFailure 19 -> 30
+  0022    | Swap
+  0023    | Decrement
+  0024    | JumpIfZero 24 -> 31
+  0027    | JumpBack 27 -> 15
+  0030    | Swap
+  0031    | Drop
+  0032    | JumpIfFailure 32 -> 43
+  0035    | MatchWindowEnter 2
+  0037    | MatchScrutinee r0
+  0039    | MatchBind l0 r0
+  0042    | MatchWindowExit
+  0043    | TakeRight 43 -> 52
+  0046    | GetConstant 35: @Codepoint
+  0048    | GetLocalMove l0
+  0050    | CallTailFunction 1
+  0052    | End
   ========================================
   
   ================1:array=================
@@ -875,17 +877,17 @@
   tuple1(elem) =  elem -> Elem $ [Elem]
   ========================================
   0000    | PushVar2 Elem
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | CallFunctionLocal l0
-  0007    | JumpIfFailure 7 -> 15
-  0010    | MatchScrutinee r2
-  0012    | MatchBind l1 r2
-  0015    | TakeRight 15 -> 24
-  0018    | GetConstantMutable 5: [_]
-  0020    | GetLocalMove l1
-  0022    | InsertAtIndex 0
-  0024    | End
+  0003    | CallFunctionLocal l0
+  0005    | JumpIfFailure 5 -> 16
+  0008    | MatchWindowEnter 2
+  0010    | MatchScrutinee r0
+  0012    | MatchBind l1 r0
+  0015    | MatchWindowExit
+  0016    | TakeRight 16 -> 25
+  0019    | GetConstantMutable 5: [_]
+  0021    | GetLocalMove l1
+  0023    | InsertAtIndex 0
+  0025    | End
   ========================================
   
   =================7:@fn0=================
@@ -984,25 +986,27 @@
   ========================================
   0000    | PushVar2 K
   0003    | PushVar2 V
-  0006    | PushUnderscoreVar
-  0007    | PushUnderscoreVar
-  0008    | CallFunctionLocal l0
-  0010    | JumpIfFailure 10 -> 18
-  0013    | MatchScrutinee r5
-  0015    | MatchBind l3 r5
-  0018    | TakeRight 18 -> 23
-  0021    | CallFunctionLocal l1
-  0023    | TakeRight 23 -> 47
-  0026    | CallFunctionLocal l2
-  0028    | JumpIfFailure 28 -> 36
-  0031    | MatchScrutinee r5
-  0033    | MatchBind l4 r5
-  0036    | TakeRight 36 -> 47
-  0039    | GetConstantMutable 4: {_0_}
-  0041    | GetLocalMove l3
-  0043    | GetLocalMove l4
-  0045    | InsertKeyVal 0
-  0047    | End
+  0006    | CallFunctionLocal l0
+  0008    | JumpIfFailure 8 -> 19
+  0011    | MatchWindowEnter 2
+  0013    | MatchScrutinee r0
+  0015    | MatchBind l3 r0
+  0018    | MatchWindowExit
+  0019    | TakeRight 19 -> 24
+  0022    | CallFunctionLocal l1
+  0024    | TakeRight 24 -> 51
+  0027    | CallFunctionLocal l2
+  0029    | JumpIfFailure 29 -> 40
+  0032    | MatchWindowEnter 2
+  0034    | MatchScrutinee r0
+  0036    | MatchBind l4 r0
+  0039    | MatchWindowExit
+  0040    | TakeRight 40 -> 51
+  0043    | GetConstantMutable 4: {_0_}
+  0045    | GetLocalMove l3
+  0047    | GetLocalMove l4
+  0049    | InsertKeyVal 0
+  0051    | End
   ========================================
   
   ================10:@fn2=================

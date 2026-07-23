@@ -430,18 +430,18 @@
   peek(p) = @input.offset -> Pos & @at(Pos, p)
   ========================================
   0000    | PushVar2 Pos
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | CallFunctionConstant 3: @input.offset
-  0007    | JumpIfFailure 7 -> 15
-  0010    | MatchScrutinee r2
-  0012    | MatchBind l1 r2
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstant 4: @at
-  0020    | GetLocalMove l1
-  0022    | GetLocalMove l0
-  0024    | CallTailFunction 2
-  0026    | End
+  0003    | CallFunctionConstant 3: @input.offset
+  0005    | JumpIfFailure 5 -> 16
+  0008    | MatchWindowEnter 2
+  0010    | MatchScrutinee r0
+  0012    | MatchBind l1 r0
+  0015    | MatchWindowExit
+  0016    | TakeRight 16 -> 27
+  0019    | GetConstant 4: @at
+  0021    | GetLocalMove l1
+  0023    | GetLocalMove l0
+  0025    | CallTailFunction 2
+  0027    | End
   ========================================
   
   ================2:unless================
