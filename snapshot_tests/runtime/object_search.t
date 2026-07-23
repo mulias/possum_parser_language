@@ -124,3 +124,47 @@ A rest pattern collects the members no pair claimed:
     "b",
     {"c": 3}
   ]
+
+A scanning pair's value may itself be a structural pattern: the search
+finds the member whose value matches the sub-pattern, binding the key and
+the sub-pattern's variables together.
+
+  $ possum -p 'const({"pt": [3, 4]}) -> {K: [X, Y]} $ [K, X, Y]' -i ''
+  ["pt", 3, 4]
+
+A member that does not fit the structural value is skipped for one that
+does, even when it shares the value's outer type:
+
+  $ possum -p 'const({"a": [1], "pt": [3, 4], "c": 5}) -> {K: [X, Y], ...R} $ [K, X, Y]' -i ''
+  ["pt", 3, 4]
+
+Tests inside the structural value narrow which member is claimed:
+
+  $ possum -p 'const({"a": [1, 2], "pt": [3, 4]}) -> {K: [3, Y], ...R} $ [K, Y]' -i ''
+  ["pt", 4]
+
+The search fails when no member matches the structural value:
+
+  $ possum -p 'const({"a": 1, "b": 2}) -> {K: [X, Y]}' -i ''
+  
+  Parse Failure: value {"a": 1, "b": 2} did not match pattern {K: [X, Y]}
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:27-38:
+  
+  1 \xe2\x96\x8f const({"a": 1, "b": 2}) -> {K: [X, Y]} (esc)
+    \xe2\x96\x8f                            ^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+A structural value nests object destructures too:
+
+  $ possum -p 'const({"a": 1, "pt": {"x": 3}}) -> {K: {"x": X}, ...R} $ [K, X]' -i ''
+  ["pt", 3]

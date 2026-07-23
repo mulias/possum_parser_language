@@ -103,6 +103,7 @@ pub const OpCode = enum(u8) {
     MatchStrRest,
     MatchStrSuffix,
     MatchStrVal,
+    MatchSubScrutinee,
     MatchType,
     // Open a fresh match register window sized to the operand width
     // (placeholders), saving the current base; close it, releasing its
@@ -275,6 +276,7 @@ pub const OpCode = enum(u8) {
             .MatchSlice,
             .MatchStrInit,
             .MatchStrRest,
+            .MatchSubScrutinee,
             => .{ .fixed = .{ .pops = 0, .pushes = 0 } },
 
             // Inspects the value under test on the stack top and copies it
@@ -592,6 +594,7 @@ pub const OpCode = enum(u8) {
             .MatchStrPrefix,
             .MatchStrRest,
             .MatchStrSuffix,
+            .MatchSubScrutinee,
             .MatchType,
             => .{ .operands = .borrowed, .result = .none },
 
@@ -734,6 +737,7 @@ pub const OpCode = enum(u8) {
             .MatchNextUnclaimed => self.matchNextUnclaimedInstruction(chunk, vm, module, writer, offset),
             .MatchObjectRestSearch => self.matchObjectRestSearchInstruction(chunk, vm, module, writer, offset),
             .MatchBind => self.matchBindInstruction(chunk, writer, offset),
+            .MatchSubScrutinee => self.matchSubScrutineeInstruction(chunk, writer, offset),
             .MatchElem => self.matchElemInstruction(chunk, writer, offset),
             .MatchElemBack => self.matchElemBackInstruction(chunk, writer, offset),
             .MatchElemDyn => self.matchElemDynInstruction(chunk, writer, offset),
@@ -943,6 +947,15 @@ pub const OpCode = enum(u8) {
         const local = chunk.read(offset + 1);
         const src = chunk.read(offset + 2);
         try writer.print("{s} l{} r{}\n", .{ @tagName(self), local, src });
+        return offset + 3;
+    }
+
+    // Copies a register from the enclosing window (^r) into this window's
+    // destination register.
+    fn matchSubScrutineeInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        try writer.print("{s} r{} ^r{}\n", .{ @tagName(self), dst, src });
         return offset + 3;
     }
 

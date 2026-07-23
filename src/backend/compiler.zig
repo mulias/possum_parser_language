@@ -3340,7 +3340,7 @@ pub const Compiler = struct {
         // the --explain step events; inline steps have neither yet, so
         // those modes take the plan path for every arm.
         if (!self.goalMatchDebugging() and self.armStepable(ast, arm)) {
-            try self.writeMatchSteps(module_id, ast, match.places.items, arm.constraints.items, region);
+            try self.writeMatchSteps(module_id, ast, match.places.items, arm.constraints.items, .input, region);
         } else {
             var lowerer = pattern.Lowerer{
                 .vm = self.vm,
@@ -3357,7 +3357,15 @@ pub const Compiler = struct {
     // fast path for fixed arrays and constant-key objects of binds and
     // constant tests. Everything else goes through a match plan.
     fn armStepable(self: *Compiler, ast: *const GoalAst, arm: *const GoalAst.MatchArm) bool {
-        for (arm.constraints.items) |constraint| switch (constraint.kind) {
+        return self.constraintsStepable(ast, arm.constraints.items);
+    }
+
+    // Whether every constraint in a set lowers to inline steps. Serves both
+    // a root arm and a nested sub-pattern's ConstraintSet (both have the
+    // same scrutinee-rooted shape), so it recurses through searchable
+    // structural values.
+    fn constraintsStepable(self: *Compiler, ast: *const GoalAst, constraints: []const GoalAst.Constraint) bool {
+        for (constraints) |constraint| switch (constraint.kind) {
             .is_type => {},
             .len_eq, .len_min, .keys_exact, .keys_min => {},
             .has_key, .str_prefix, .str_suffix, .bind, .eq_slot, .eq_global => {},
@@ -3371,13 +3379,16 @@ pub const Compiler = struct {
             .match_template => |c| {
                 if (self.templateStepable(ast, c.segments.items) == null) return false;
             },
-            // A search pair steps when its key and value sub-patterns are
-            // single-place and shallow: each binds (or ignores) its side of
-            // the found member or tests it against a leaf. Deeper
-            // sub-patterns keep the plan path.
+            // A search pair steps when its key sub-pattern is a shallow
+            // leaf (bind, ignore, or bound-local probe) and its value is
+            // either a shallow leaf or, for an unbound (scanning) key, a
+            // structural sub-pattern matched in a nested window. A
+            // structural value under a bound key keeps the plan path.
             .search_key => |c| {
                 if (!self.searchSetStepable(ast, c.key, true)) return false;
-                if (!self.searchSetStepable(ast, c.value, false)) return false;
+                if (self.searchSetStepable(ast, c.value, false)) continue;
+                if (self.searchKeyBound(ast, c.key)) return false;
+                if (!self.searchValueStructuralStepable(ast, c.value)) return false;
             },
             .solve_merge => |c| {
                 if (self.classifyNumMergeStep(ast, c.ty, c.parts.items) == null and
@@ -3390,6 +3401,31 @@ pub const Compiler = struct {
             else => return false,
         };
         return true;
+    }
+
+    // A search key is bound when it compares against an existing local
+    // (eq_slot) — a direct member probe rather than an unclaimed-member
+    // scan.
+    fn searchKeyBound(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+        _ = self;
+        const kc = singleSetConstraint(ast, set_id) orelse return false;
+        return kc.kind == .eq_slot;
+    }
+
+    // A search value that is not a shallow leaf lowers to inline steps when
+    // it is a genuine container destructure (more than the scrutinee place)
+    // whose whole ConstraintSet steps. It matches in a nested window whose
+    // scrutinee is the found member. Evaluated members are excluded: an
+    // eval in the value may read this pair's key, which the window path
+    // binds only after the value matches (the plan path binds the key
+    // first, so `{A: Id(A)}` stays there).
+    fn searchValueStructuralStepable(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len < 2) return false;
+        for (set.constraints.items) |constraint| {
+            if (constraint.kind == .eval_eq) return false;
+        }
+        return self.constraintsStepable(ast, set.constraints.items);
     }
 
     const RepeatShape = enum { value, chunk, range, array };
@@ -3914,6 +3950,19 @@ pub const Compiler = struct {
         return @intCast(idx);
     }
 
+    // How a match's window slot 0 is loaded and where a mismatch goes.
+    const StepScrutinee = union(enum) {
+        // Root arm: the value under test is the value-stack top; an already
+        // failed scrutinee skips the whole match, and a mismatch converges
+        // on the arm's MatchFail tail.
+        input,
+        // Nested sub-pattern: slot 0 is copied from a register in the
+        // enclosing window, and a mismatch closes this window and jumps
+        // back to the retry target (the search loop) to try the next
+        // candidate.
+        sub: struct { src_reg: u8, retry_target: Ir.Index },
+    };
+
     // Emit inline match steps for a lowered pattern: an already-open
     // scrutinee in window slot 0, tested and destructured by the
     // constraints against their places. Keyed on (places, constraints) so
@@ -3925,6 +3974,7 @@ pub const Compiler = struct {
         ast: *const GoalAst,
         places: []const GoalAst.PlaceDef,
         constraints: []const GoalAst.Constraint,
+        scrutinee: StepScrutinee,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -3968,8 +4018,12 @@ pub const Compiler = struct {
         const repeat_reg: u8 = if (search_groups.items.len > 0) cursor_reg + 1 else claim_next;
         const repeat_base_reg = repeat_reg + 1;
         const repeat_elem_reg = repeat_reg + 2;
+        // Save/restore rather than clear: a nested sub-pattern's
+        // writeMatchSteps runs mid-emission of the parent, whose later rest
+        // ops still need the parent's groups.
+        const prev_search_groups = self.arm_search_groups;
         self.arm_search_groups = search_groups.items;
-        defer self.arm_search_groups = &.{};
+        defer self.arm_search_groups = prev_search_groups;
 
         // The template block sits above the repeat block: front and end
         // cursors, the rest destination, and a character register for
@@ -3990,21 +4044,32 @@ pub const Compiler = struct {
         var fail_jumps = ArrayList(Ir.Index){};
         defer fail_jumps.deinit(allocator);
 
-        // An already-failed scrutinee skips the steps and stays the
-        // result, like DestructurePlan's success check.
-        const skipJump = try self.emitJump(.JumpIfFailure, region);
+        // An already-failed scrutinee skips the steps and stays the result,
+        // like DestructurePlan's success check. Only a root arm sees the
+        // value-stack input; a nested sub-pattern's scrutinee is a member
+        // register that a prior test already accepted.
+        const skipJump: ?Ir.Index = switch (scrutinee) {
+            .input => try self.emitJump(.JumpIfFailure, region),
+            .sub => null,
+        };
 
-        // An arm with a statically false constraint is just the fail
-        // tail; emitting steps after an unconditional fail jump would
-        // leave them unreachable.
+        // A statically false constraint is just the fail path; emitting
+        // steps after an unconditional fail jump would leave them
+        // unreachable. No window is open here, so the fail path needs no
+        // window exit.
         if (self.armAlwaysFails(ast, constraints)) {
-            try self.emitOp(.MatchFail, region);
-            self.patchJump(skipJump);
+            switch (scrutinee) {
+                .input => {
+                    try self.emitOp(.MatchFail, region);
+                    self.patchJump(skipJump.?);
+                },
+                .sub => |s| try self.emitJumpBack(.JumpBack, s.retry_target, region),
+            }
             return;
         }
 
-        // Open the per-match window sized to this arm's scratch. The skip
-        // path above jumps past the whole match, so no window is open
+        // Open the per-match window sized to this arm's scratch. A root
+        // arm's skip path jumps past the whole match, so no window is open
         // there; success and failure both converge on the MatchWindowExit
         // emitted after the steps.
         const width = self.armStepScratchWidth(ast, places, constraints);
@@ -4014,7 +4079,14 @@ pub const Compiler = struct {
         }
         try self.emitUnaryOp(.MatchWindowEnter, @intCast(width), region);
 
-        try self.emitUnaryOp(.MatchScrutinee, scratch_base, region);
+        switch (scrutinee) {
+            .input => try self.emitUnaryOp(.MatchScrutinee, scratch_base, region),
+            .sub => |s| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchSubScrutinee,
+                .byte1 = scratch_base,
+                .byte2 = s.src_reg,
+            } }, region),
+        }
         materialized[0] = true;
 
         for (constraints) |constraint| {
@@ -4256,6 +4328,17 @@ pub const Compiler = struct {
                         .target = Ir.unpatched_jump,
                     } }, step_region));
 
+                    if (!self.searchSetStepable(ast, c.value, false)) {
+                        // A structural value matches in a nested window
+                        // scrutinized by the found member; a rejected
+                        // candidate exits that window and loops back. The
+                        // key binds only once the value matched.
+                        const value_set = &ast.constraint_sets.items[c.value];
+                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .retry_target = loop } }, step_region);
+                        try self.emitSearchBind(ast, c.key, key_dst, step_region);
+                        continue;
+                    }
+
                     // Tests before binds: a member the pair rejects loops
                     // to the next candidate without touching any slot.
                     const value_fail = try self.emitSearchTest(module_id, ast, c.value, value_reg, step_region);
@@ -4385,20 +4468,33 @@ pub const Compiler = struct {
 
         if (fail_jumps.items.len == 0) {
             // Every step was deterministic; there is no failure path.
-            // Success falls through to the window exit; the skip lands
-            // after it.
+            // Success falls through to the window exit.
             try self.emitOp(.MatchWindowExit, region);
-            self.patchJump(skipJump);
+            if (skipJump) |j| self.patchJump(j);
             return;
         }
         const okJump = try self.emitJump(.Jump, region);
         for (fail_jumps.items) |jumpIndex| self.patchJump(jumpIndex);
-        try self.emitOp(.MatchFail, region);
-        // Both success (okJump) and failure (fall-through from MatchFail)
-        // run the window exit; the skip lands past it with no window open.
-        self.patchJump(okJump);
-        try self.emitOp(.MatchWindowExit, region);
-        self.patchJump(skipJump);
+        switch (scrutinee) {
+            .input => {
+                try self.emitOp(.MatchFail, region);
+                // Both success (okJump) and failure (fall-through from
+                // MatchFail) run the window exit; the skip lands past it
+                // with no window open.
+                self.patchJump(okJump);
+                try self.emitOp(.MatchWindowExit, region);
+                self.patchJump(skipJump.?);
+            },
+            .sub => |s| {
+                // A rejected candidate closes this window and loops back to
+                // the search for the next member; success closes it and
+                // falls through to the parent's continuation.
+                try self.emitOp(.MatchWindowExit, region);
+                try self.emitJumpBack(.JumpBack, s.retry_target, region);
+                self.patchJump(okJump);
+                try self.emitOp(.MatchWindowExit, region);
+            },
+        }
     }
 
     fn findSearchGroup(self: *Compiler, groups: []SearchGroup, src: GoalAst.PlaceId) ?*SearchGroup {

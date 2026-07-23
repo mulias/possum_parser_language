@@ -878,6 +878,19 @@ pub const VM = struct {
                 self.setScratch(slot, value);
                 previous.release();
             },
+            .MatchSubScrutinee => {
+                // A nested sub-pattern's scrutinee: copy a register from
+                // the enclosing window into this window's slot. The source
+                // is addressed relative to the parent base saved when this
+                // window opened (window_bases' top).
+                const dst = self.readByte();
+                const src = self.readByte();
+                const value = self.match_regs.items[self.window_bases.getLast() + src];
+                const previous = self.getScratch(dst);
+                value.retain();
+                self.setScratch(dst, value);
+                previous.release();
+            },
             .MatchType => {
                 const slot = self.readByte();
                 const ty = self.readByte();

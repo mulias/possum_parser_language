@@ -3626,3 +3626,49 @@
   0053    | MatchWindowExit
   0054    | End
   ========================================
+
+  $ possum -p '"" $ {"pt": [3, 4]} -> {K: [X, Y]} $ [K, X, Y]' -i ''
+  
+  ================2:@main=================
+  "" $ {"pt": [3, 4]} -> {K: [X, Y]} $ [K, X, Y]
+  ========================================
+  0000    | PushVar K
+  0002    | PushVar X
+  0004    | PushVar Y
+  0006    | GetConstantMutable 0: {_0_}
+  0008    | PushString "pt"
+  0010    | GetConstant 1: [3, 4]
+  0012    | InsertKeyVal 0
+  0014    | JumpIfFailure 14 -> 88
+  0017    | MatchWindowEnter 5
+  0019    | MatchScrutinee r0
+  0021    | MatchType r0 object -> 86
+  0026    | MatchKeys r0 1 -> 86
+  0031    | MatchSearchInit r4
+  0033    | MatchNextUnclaimed key=r2 val=r3 src=r0 cursor=r4 keys=r2..r2 \ [] loop->86
+  0043    | MatchWindowEnter 4
+  0045    | MatchSubScrutinee r0 ^r3
+  0048    | MatchType r0 array -> 75
+  0053    | MatchLen r0 2 -> 75
+  0058    | MatchElem r1 r0[0]
+  0062    | MatchBind l1 r1
+  0065    | MatchElem r2 r0[1]
+  0069    | MatchBind l2 r2
+  0072    | Jump 72 -> 79
+  0075    | MatchWindowExit
+  0076    | JumpBack 76 -> 33
+  0079    | MatchWindowExit
+  0080    | MatchBind l0 r2
+  0083    | Jump 83 -> 87
+  0086    | MatchFail
+  0087    | MatchWindowExit
+  0088    | TakeRight 88 -> 105
+  0091    | GetConstantMutable 3: [_, _, _]
+  0093    | GetLocalMove l0
+  0095    | InsertAtIndex 0
+  0097    | GetLocalMove l1
+  0099    | InsertAtIndex 1
+  0101    | GetLocalMove l2
+  0103    | InsertAtIndex 2
+  0105    | End
+  ========================================
