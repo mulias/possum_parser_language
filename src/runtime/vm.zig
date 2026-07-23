@@ -2572,18 +2572,11 @@ pub const VM = struct {
     // frame-mode functions fall back to frame-local slots. Bound-variable
     // operands never route here — they stay frame locals via get/setLocal.
     pub fn getScratch(self: *VM, slot: usize) Elem {
-        if (self.cur_frame.function.window_mode) {
-            return self.match_regs.items[self.current_window_base + slot];
-        }
-        return self.getLocal(slot);
+        return self.match_regs.items[self.current_window_base + slot];
     }
 
     pub fn setScratch(self: *VM, slot: usize, elem: Elem) void {
-        if (self.cur_frame.function.window_mode) {
-            self.match_regs.items[self.current_window_base + slot] = elem;
-            return;
-        }
-        self.setLocal(slot, elem);
+        self.match_regs.items[self.current_window_base + slot] = elem;
     }
 
     // Match a value against a range whose non-evaluated bounds are encoded

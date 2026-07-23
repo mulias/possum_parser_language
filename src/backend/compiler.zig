@@ -500,7 +500,6 @@ pub const Compiler = struct {
         const ast = self.goalAst(module_id);
         const goal_body = goalFunctionBody(ast, decl.identName()) orelse
             @panic("Internal Error: no goal body for declaration");
-        function.window_mode = !self.goalMatchDebugging();
         try self.writeGoal(module_id, ast, goal_body);
 
         try self.finishFunctionIr(module_id);
@@ -2156,7 +2155,7 @@ pub const Compiler = struct {
         const plan_slots: []const liveness.PlanSlots =
             if (self.plan_slots.get(module_id)) |list| list.items else &.{};
 
-        var last_reads = try liveness.Liveness.analyze(self.vm.allocator, function_ir, plan_slots, self.currentFunction().window_mode);
+        var last_reads = try liveness.Liveness.analyze(self.vm.allocator, function_ir, plan_slots);
         defer last_reads.deinit(self.vm.allocator);
 
         for (function_ir.instructions.items, 0..) |*insn, i| {
@@ -2361,7 +2360,6 @@ pub const Compiler = struct {
         try self.irs.append(self.vm.allocator, Ir{});
 
         try self.pushLocalPlaceholders(module_id, function.arity, region);
-        function.window_mode = !self.goalMatchDebugging();
 
         if (captures_count > 0) {
             try self.emitOp(.SetClosureCaptures, region);
@@ -3926,11 +3924,10 @@ pub const Compiler = struct {
     ) Error!void {
         const allocator = self.vm.allocator;
         const places = match.places.items;
-        // Window-mode functions address match scratch relative to the
-        // per-match window (base 0); frame-mode functions place scratch
-        // above the frame locals.
-        const window_mode = self.currentFunction().window_mode;
-        const scratch_base: u8 = if (window_mode) 0 else @intCast(self.currentScope().locals().len);
+        // Match scratch is addressed relative to the per-match window: each
+        // place id is its own window slot (base 0), with the search, repeat,
+        // and template pools allocated above.
+        const scratch_base: u8 = 0;
         const dead_reg: u8 = @intCast(scratch_base + places.len);
 
         const materialized = try allocator.alloc(bool, places.len);
@@ -4006,14 +4003,12 @@ pub const Compiler = struct {
         // path above jumps past the whole match, so no window is open
         // there; success and failure both converge on the MatchWindowExit
         // emitted after the steps.
-        if (window_mode) {
-            const width = self.armStepScratchWidth(ast, match, arm);
-            if (width > 255) {
-                try self.printError(module_id, region, "Pattern too large to compile.", .{});
-                return Error.MaxFunctionLocals;
-            }
-            try self.emitUnaryOp(.MatchWindowEnter, @intCast(width), region);
+        const width = self.armStepScratchWidth(ast, match, arm);
+        if (width > 255) {
+            try self.printError(module_id, region, "Pattern too large to compile.", .{});
+            return Error.MaxFunctionLocals;
         }
+        try self.emitUnaryOp(.MatchWindowEnter, @intCast(width), region);
 
         try self.emitUnaryOp(.MatchScrutinee, scratch_base, region);
         materialized[0] = true;
@@ -4388,7 +4383,7 @@ pub const Compiler = struct {
             // Every step was deterministic; there is no failure path.
             // Success falls through to the window exit; the skip lands
             // after it.
-            if (window_mode) try self.emitOp(.MatchWindowExit, region);
+            try self.emitOp(.MatchWindowExit, region);
             self.patchJump(skipJump);
             return;
         }
@@ -4398,7 +4393,7 @@ pub const Compiler = struct {
         // Both success (okJump) and failure (fall-through from MatchFail)
         // run the window exit; the skip lands past it with no window open.
         self.patchJump(okJump);
-        if (window_mode) try self.emitOp(.MatchWindowExit, region);
+        try self.emitOp(.MatchWindowExit, region);
         self.patchJump(skipJump);
     }
 
