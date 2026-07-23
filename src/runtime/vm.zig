@@ -2231,6 +2231,7 @@ pub const VM = struct {
         try self.printInput();
         try self.printFrames();
         try self.printElems();
+        try self.printPattern();
 
         if (self.frames.items.len > 0) {
             const module = self.currentFunctionModule();
@@ -3117,6 +3118,15 @@ pub const VM = struct {
         for (self.stack.items, 0..) |e, idx| {
             e.print(self.*, self.writers.debug) catch {};
             if (idx < self.stack.items.len - 1) try self.writers.debug.print(", ", .{});
+        }
+        try self.writers.debug.print("\n", .{});
+    }
+
+    fn printPattern(self: *VM) !void {
+        try self.writers.debug.print("Pattern | ", .{});
+        for (self.match_regs.items, 0..) |e, idx| {
+            e.print(self.*, self.writers.debug) catch {};
+            if (idx < self.match_regs.items.len - 1) try self.writers.debug.print(", ", .{});
         }
         try self.writers.debug.print("\n", .{});
     }
