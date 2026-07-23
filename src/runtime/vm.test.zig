@@ -1073,9 +1073,11 @@ test "a template with an array segment casts to json" {
             try Elem.numberStringFromBytes("2", &vm),
             vm,
         );
+        // The structural cast solvable lowers to MatchStrRest + MatchCastJson
+        // and a child window matching the parsed array; no plan remains.
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-        try std.testing.expectEqual(1, plan_count);
+        try std.testing.expectEqual(0, plan_count);
     }
 }
 

@@ -1370,6 +1370,27 @@ pub const VM = struct {
                     self.cur_frame.ip += offset;
                 }
             },
+            .MatchCastJson => {
+                // Parse src's string bytes as a JSON document into dst for
+                // a structural template solvable (an array/object cast), or
+                // fail — empty or non-JSON bytes fail. A following child
+                // window matches the parsed container. src == dst is the
+                // in-place form used after MatchStrRest; a whole-string
+                // template casts the source value directly.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const offset = self.readShort();
+                const bytes = (try self.getScratch(src).stringBytes(self)).?;
+                if (try Elem.parseJson(self, bytes)) |elem| {
+                    // The parsed dyn moves straight into the rooted match
+                    // register; no allocation intervenes to trigger GC.
+                    const previous = self.getScratch(dst);
+                    self.setScratch(dst, elem);
+                    previous.release();
+                } else {
+                    self.cur_frame.ip += offset;
+                }
+            },
             .MatchKey => {
                 const dst = self.readByte();
                 const src = self.readByte();

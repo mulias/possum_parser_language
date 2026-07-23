@@ -80,14 +80,6 @@ are knowable at compile time; the step path reports both.
   [FunctionCallTooManyArgs]
   [1]
 
-Non-solvable template segments only lower constants, bound locals, calls,
-and ranges. Compound segments that fold or evaluate to a value do not.
-Expected: [1, "x2y"] and "x[1]y".
-
-$ possum -p 'json -> [A, "x%(A + 1)y"]' -i '[1, "x2y"]'
-
-$ possum -p 'json -> "x%([1])y"' -i '"x[1]y"'
-
 A bound repeat count in a merge part only lowers constants, bound locals,
 and calls, not compound expressions of bound values. Expected: "x".
 

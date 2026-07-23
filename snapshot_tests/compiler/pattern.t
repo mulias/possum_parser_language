@@ -3257,8 +3257,25 @@
   ========================================
   0000    | PushVar A
   0002    | CallFunctionConstant 0: "[1,2,3]"
-  0004    | DestructurePlan 0: tmpl(([] + bind A))
-  0006    | End
+  0004    | JumpIfFailure 4 -> 57
+  0007    | MatchWindowEnter 6
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 string -> 55
+  0016    | MatchCastJson r4 <- r0 -> 55
+  0021    | MatchWindowEnter 3
+  0023    | MatchSubScrutinee r0 ^r4
+  0026    | MatchType r0 array -> 47
+  0031    | MatchLenMin r0 0 -> 47
+  0036    | MatchSlice r1 r0[0..^0]
+  0041    | MatchBind l0 r1
+  0044    | Jump 44 -> 51
+  0047    | MatchWindowExit
+  0048    | Jump 48 -> 55
+  0051    | MatchWindowExit
+  0052    | Jump 52 -> 56
+  0055    | MatchFail
+  0056    | MatchWindowExit
+  0057    | End
   ========================================
 
   $ possum -p '`{"a": 1, "b": 2}` -> "%({..._})"' -i '{"a": 1, "b": 2}'
@@ -3268,8 +3285,22 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | CallFunctionConstant 0: "{"a": 1, "b": 2}"
-  0003    | DestructurePlan 0: tmpl(({} + _))
-  0005    | End
+  0003    | JumpIfFailure 3 -> 43
+  0006    | MatchWindowEnter 6
+  0008    | MatchScrutinee r0
+  0010    | MatchType r0 string -> 41
+  0015    | MatchCastJson r4 <- r0 -> 41
+  0020    | MatchWindowEnter 2
+  0022    | MatchSubScrutinee r0 ^r4
+  0025    | MatchType r0 object -> 33
+  0030    | Jump 30 -> 37
+  0033    | MatchWindowExit
+  0034    | Jump 34 -> 41
+  0037    | MatchWindowExit
+  0038    | Jump 38 -> 42
+  0041    | MatchFail
+  0042    | MatchWindowExit
+  0043    | End
   ========================================
 
   $ possum -p '"abcabcabc" -> "%( `abc` * N)" $ N' -i 'abcabcabc'

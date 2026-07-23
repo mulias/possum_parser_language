@@ -1063,6 +1063,26 @@ pub const Elem = packed union {
         };
     }
 
+    // Parse `bytes` as a JSON document into an Elem, or null when the
+    // bytes are not valid JSON. The returned dyn is fully built (fromJson
+    // roots its interior during construction); callers must root it before
+    // the next allocation. Shared by the plan interpreter's template cast
+    // and the inline MatchCastJson step.
+    pub fn parseJson(vm: *VM, bytes: []const u8) !?Elem {
+        const parsed = json.parseFromSlice(
+            json.Value,
+            vm.allocator,
+            bytes,
+            .{ .parse_numbers = false },
+        ) catch |e| switch (e) {
+            error.OutOfMemory => |oom| return oom,
+            else => return null,
+        };
+        defer parsed.deinit();
+
+        return try fromJson(parsed.value, vm);
+    }
+
     pub const DynType = enum {
         String,
         Array,

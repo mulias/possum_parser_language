@@ -64,6 +64,7 @@ pub const OpCode = enum(u8) {
     // const and records the pattern mismatch.
     MatchBind,
     MatchCastBool,
+    MatchCastJson,
     MatchCastNum,
     MatchConst,
     MatchElem,
@@ -286,6 +287,7 @@ pub const OpCode = enum(u8) {
 
             // Semidet steps: no stack traffic on either path.
             .MatchCastBool,
+            .MatchCastJson,
             .MatchCastNum,
             .MatchConst,
             .MatchGlobal,
@@ -559,6 +561,7 @@ pub const OpCode = enum(u8) {
             // way.
             .MatchBind,
             .MatchCastBool,
+            .MatchCastJson,
             .MatchCastNum,
             .MatchConst,
             .MatchElem,
@@ -748,6 +751,7 @@ pub const OpCode = enum(u8) {
             .MatchStrCovered => self.matchStrCoveredInstruction(chunk, writer, offset),
             .MatchCastNum,
             .MatchCastBool,
+            .MatchCastJson,
             => self.matchCastInstruction(chunk, writer, offset),
             .MatchType => self.matchTypeInstruction(chunk, writer, offset),
             .MatchLen,

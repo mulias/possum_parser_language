@@ -3836,9 +3836,11 @@ pub const Compiler = struct {
                 .char_range
             else if (self.templateMergeSolvable(ast, set_id) != null)
                 .solvable_cast
+            else if (self.templateCastStepable(ast, set_id))
+                .solvable_cast
             else
-                // Array/object JSON casts, string-typed merges, and object
-                // merges keep the plan path until the set-emission refactor.
+                // String-typed merges, object merges, and repeat segments
+                // keep the plan path.
                 .gate,
             .global, .local => .gate,
         };
@@ -3861,6 +3863,25 @@ pub const Compiler = struct {
         }
     }
 
+    // Whether a template solvable sub-pattern is a structural array/object
+    // cast lowerable to inline steps: the byte range parses as JSON by the
+    // pattern's root type (an is_type array/object on place 0), and the
+    // whole ConstraintSet steps. The parsed container feeds a child window
+    // as its scrutinee, so the recursion is exactly a root arm's. Merges
+    // (no root is_type), repeats, and non-stepable interiors stay null.
+    fn templateCastStepable(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+        const set = &ast.constraint_sets.items[set_id];
+        var root_container = false;
+        for (set.constraints.items) |constraint| switch (constraint.kind) {
+            .is_type => |c| if (c.place == 0 and (c.ty == .array or c.ty == .object)) {
+                root_container = true;
+            },
+            else => {},
+        };
+        if (!root_container) return false;
+        return self.constraintsStepable(ast, set.constraints.items);
+    }
+
     // The lower/upper bounds of a template character-range sub-pattern —
     // exactly one place constrained by one in_range with step-encodable
     // bounds — or null when the sub-pattern isn't a plain range.
@@ -3875,6 +3896,29 @@ pub const Compiler = struct {
             },
             else => return null,
         }
+    }
+
+    // Whether a template range sub-pattern is a numeric range (integer
+    // bounds) rather than a codepoint range (character bounds). A template
+    // hole is always a substring, so a numeric range casts its decoded
+    // codepoint to a number before the range test; a codepoint range
+    // compares the character directly. Detected from a numeric literal
+    // bound; a range with only runtime-valued bounds defaults to codepoint.
+    fn templateRangeNumeric(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+        const limits = templateRangeLimits(ast, set_id) orelse return false;
+        return self.limitNumericLiteral(ast, limits.lower) or self.limitNumericLiteral(ast, limits.upper);
+    }
+
+    fn limitNumericLiteral(self: *Compiler, ast: *const GoalAst, limit: GoalAst.Limit) bool {
+        const id = switch (limit) {
+            .expr => |id| id,
+            else => return false,
+        };
+        return switch (ast.goals.items[id].node) {
+            .number_float, .number_string => true,
+            .neg => |inner| self.limitNumericLiteral(ast, .{ .expr = inner }),
+            else => false,
+        };
     }
 
     // Whether a template destructure lowers to inline steps, and by which
@@ -5031,7 +5075,7 @@ pub const Compiler = struct {
                     .byte2 = reg,
                 } }, region),
                 .placeholder => {},
-                .sub => |set_id| try self.emitTemplateCast(module_id, ast, set_id, reg, regs.rest, dead_reg, fail_jumps, region),
+                .sub => |set_id| try self.emitTemplateSubCast(module_id, ast, set_id, reg, regs.rest, dead_reg, fail_jumps, region),
                 else => unreachable,
             }
             return;
@@ -5071,11 +5115,13 @@ pub const Compiler = struct {
                 // A placeholder absorbs the gap between the cursors; no
                 // step needed.
                 .placeholder => {},
-                // A number/boolean merge solvable: take the raw substring,
-                // cast it in place, and run the merge residual against it.
+                // A merge or structural cast solvable: take the raw
+                // substring, cast it in place, and run the residual (a
+                // merge residual, or a child window for a structural cast)
+                // against it.
                 .sub => |set_id| {
                     try self.emitTemplateRest(reg, regs, region);
-                    try self.emitTemplateCast(module_id, ast, set_id, regs.rest, regs.rest, dead_reg, fail_jumps, region);
+                    try self.emitTemplateSubCast(module_id, ast, set_id, regs.rest, regs.rest, dead_reg, fail_jumps, region);
                 },
                 else => unreachable,
             }
@@ -5088,6 +5134,58 @@ pub const Compiler = struct {
                 .target = Ir.unpatched_jump,
             } }, region));
         }
+    }
+
+    // A template solvable sub-pattern cast: a number/boolean merge casts
+    // to its resolved type and runs the merge residual (emitTemplateCast);
+    // a structural array/object cast parses JSON and matches the parsed
+    // container in a child window (emitTemplateStructuralCast).
+    fn emitTemplateSubCast(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const GoalAst,
+        set_id: GoalAst.SetId,
+        cast_src: u8,
+        cast_dst: u8,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        if (self.templateMergeSolvable(ast, set_id) != null) {
+            try self.emitTemplateCast(module_id, ast, set_id, cast_src, cast_dst, dead_reg, fail_jumps, region);
+        } else {
+            try self.emitTemplateStructuralCast(module_id, ast, set_id, cast_src, cast_dst, fail_jumps, region);
+        }
+    }
+
+    // Parse the solvable's byte range (cast_src) as JSON into cast_dst,
+    // then match the parsed container against the sub-pattern in a child
+    // window scrutinized by cast_dst. A parse failure or a rejected match
+    // fails the whole template (a forward jump to the arm's fail tail).
+    // cast_src == cast_dst is the in-place form used after MatchStrRest;
+    // the whole-string path casts the source value directly.
+    fn emitTemplateStructuralCast(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const GoalAst,
+        set_id: GoalAst.SetId,
+        cast_src: u8,
+        cast_dst: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_test = .{
+            .op = .MatchCastJson,
+            .byte1 = cast_dst,
+            .byte2 = cast_src,
+            .target = Ir.unpatched_jump,
+        } }, region));
+        const set = &ast.constraint_sets.items[set_id];
+        try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{
+            .src_reg = cast_dst,
+            .on_fail = .{ .arm = fail_jumps },
+            .bind_mode = .bind,
+        } }, region);
     }
 
     // Cast a merge solvable's byte range (cast_src) to its resolved type
@@ -5198,6 +5296,18 @@ pub const Compiler = struct {
                     .back = back_byte,
                     .target = Ir.unpatched_jump,
                 } }, region));
+                // The decoded codepoint is a string; a numeric range's
+                // bounds are numbers, so cast it in place (a non-numeric
+                // codepoint fails the cast) before the range test. A
+                // codepoint range compares the character directly.
+                if (self.templateRangeNumeric(ast, set_id)) {
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                        .op = .MatchCastNum,
+                        .byte1 = regs.char,
+                        .byte2 = regs.char,
+                        .target = Ir.unpatched_jump,
+                    } }, region));
+                }
                 const limits = templateRangeLimits(ast, set_id).?;
                 try self.emitInRangeStep(module_id, ast, regs.char, limits.lower, limits.upper, fail_jumps, region);
             },

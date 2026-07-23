@@ -2062,20 +2062,8 @@ fn substringElem(vm: *VM, value: Elem, value_str: []const u8, start: usize, end:
 }
 
 fn parseBytesAsJsonElem(vm: *VM, bytes: []const u8) Error!?Elem {
-    const json_parsed = std.json.parseFromSlice(
-        std.json.Value,
-        vm.allocator,
-        bytes,
-        .{ .parse_numbers = false },
-    ) catch |e| switch (e) {
-        error.OutOfMemory => |oom| return oom,
-        else => return null,
-    };
-    defer json_parsed.deinit();
-
-    const elem = try Elem.fromJson(json_parsed.value, vm);
+    const elem = (try Elem.parseJson(vm, bytes)) orelse return null;
     if (elem.isType(.Dyn)) try vm.pushTempDyn(elem.asDyn());
-
     return elem;
 }
 
