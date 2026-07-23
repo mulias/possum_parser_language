@@ -49,21 +49,18 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | PushVar L
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | PushUnderscoreVar
-  0007    | PushUnderscoreVar
-  0008    | GetLocalMove l0
-  0010    | JumpIfFailure 10 -> 29
-  0013    | MatchScrutinee r3
-  0015    | MatchRepeatInit r3 /1 n=r5 base=r6 -> 28
-  0022    | MatchBind l2 r5
-  0025    | Jump 25 -> 29
-  0028    | MatchFail
-  0029    | TakeRight 29 -> 34
-  0032    | GetLocalMove l2
-  0034    | End
+  0003    | GetLocalMove l0
+  0005    | JumpIfFailure 5 -> 27
+  0008    | MatchWindowEnter 5
+  0010    | MatchScrutinee r0
+  0012    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 25
+  0019    | MatchBind l2 r2
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | TakeRight 27 -> 32
+  0030    | GetLocalMove l2
+  0032    | End
   ========================================
   
   ============1:Array.Reverse=============

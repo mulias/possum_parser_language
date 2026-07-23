@@ -1398,17 +1398,16 @@
   ================2:@main=================
   numerals -> ("3" * 10)
   ========================================
-  0000    | PushUnderscoreVar
-  0001    | PushUnderscoreVar
-  0002    | PushUnderscoreVar
-  0003    | CallFunctionConstant 0: numerals
-  0005    | JumpIfFailure 5 -> 27
-  0008    | MatchScrutinee r0
-  0010    | PushString "3"
-  0012    | MatchRepeatValue r0 r2 -> 26
-  0017    | MatchConst r2 10 -> 26
-  0023    | Jump 23 -> 27
-  0026    | MatchFail
+  0000    | CallFunctionConstant 0: numerals
+  0002    | JumpIfFailure 2 -> 27
+  0005    | MatchWindowEnter 3
+  0007    | MatchScrutinee r0
+  0009    | PushString "3"
+  0011    | MatchRepeatValue r0 r2 -> 25
+  0016    | MatchConst r2 10 -> 25
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
   0027    | End
   ========================================
 
@@ -1453,18 +1452,17 @@
   ================2:@main=================
   many(char) -> ("\u000000".. * 10)
   ========================================
-  0000    | PushUnderscoreVar
-  0001    | PushUnderscoreVar
-  0002    | PushUnderscoreVar
-  0003    | GetConstant 0: many
-  0005    | GetConstant 1: char
-  0007    | CallFunction 1
-  0009    | JumpIfFailure 9 -> 35
-  0012    | MatchScrutinee r0
-  0014    | MatchRepeatRange r0 r2 _0_.. -> 34
-  0025    | MatchConst r2 10 -> 34
-  0031    | Jump 31 -> 35
-  0034    | MatchFail
+  0000    | GetConstant 0: many
+  0002    | GetConstant 1: char
+  0004    | CallFunction 1
+  0006    | JumpIfFailure 6 -> 35
+  0009    | MatchWindowEnter 3
+  0011    | MatchScrutinee r0
+  0013    | MatchRepeatRange r0 r2 _0_.. -> 33
+  0024    | MatchConst r2 10 -> 33
+  0030    | Jump 30 -> 34
+  0033    | MatchFail
+  0034    | MatchWindowExit
   0035    | End
   ========================================
 
@@ -1962,28 +1960,25 @@
   ================2:@main=================
   array(digit) -> ([1] * 5)
   ========================================
-  0000    | PushUnderscoreVar
-  0001    | PushUnderscoreVar
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | GetConstant 0: array
-  0007    | GetConstant 1: digit
-  0009    | CallFunction 1
-  0011    | JumpIfFailure 11 -> 70
-  0014    | MatchScrutinee r0
-  0016    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 69
-  0023    | MatchConst r2 5 -> 69
-  0029    | MatchRepeatNext r0 base=r3+1 done->66
-  0035    | MatchElemDyn r4 r0[r3+0]
-  0040    | MatchConst r4 1 -> 69
-  0046    | MatchRepeatNext r0 base=r3+1 done->66
-  0052    | MatchElemDyn r4 r0[r3+0]
-  0057    | MatchConst r4 1 -> 69
-  0063    | JumpBack 63 -> 46
-  0066    | Jump 66 -> 70
-  0069    | MatchFail
-  0070    | End
+  0000    | GetConstant 0: array
+  0002    | GetConstant 1: digit
+  0004    | CallFunction 1
+  0006    | JumpIfFailure 6 -> 68
+  0009    | MatchWindowEnter 5
+  0011    | MatchScrutinee r0
+  0013    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 66
+  0020    | MatchConst r2 5 -> 66
+  0026    | MatchRepeatNext r0 base=r3+1 done->63
+  0032    | MatchElemDyn r4 r0[r3+0]
+  0037    | MatchConst r4 1 -> 66
+  0043    | MatchRepeatNext r0 base=r3+1 done->63
+  0049    | MatchElemDyn r4 r0[r3+0]
+  0054    | MatchConst r4 1 -> 66
+  0060    | JumpBack 60 -> 43
+  0063    | Jump 63 -> 67
+  0066    | MatchFail
+  0067    | MatchWindowExit
+  0068    | End
   ========================================
 
   $ possum -p 'array(digit) -> ([A] * 5)' -i '11111'
@@ -2049,28 +2044,25 @@
   array(digit) -> ([A] * 5)
   ========================================
   0000    | PushVar A
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | PushUnderscoreVar
-  0007    | GetConstant 0: array
-  0009    | GetConstant 1: digit
-  0011    | CallFunction 1
-  0013    | JumpIfFailure 13 -> 68
-  0016    | MatchScrutinee r1
-  0018    | MatchRepeatInit r1 /1 n=r3 base=r4 -> 67
-  0025    | MatchConst r3 5 -> 67
-  0031    | MatchRepeatNext r1 base=r4+1 done->64
-  0037    | MatchElemDyn r5 r1[r4+0]
-  0042    | MatchBind l0 r5
-  0045    | MatchRepeatNext r1 base=r4+1 done->64
-  0051    | MatchElemDyn r5 r1[r4+0]
-  0056    | MatchSlot r5 l0 -> 67
-  0061    | JumpBack 61 -> 45
-  0064    | Jump 64 -> 68
-  0067    | MatchFail
-  0068    | End
+  0002    | GetConstant 0: array
+  0004    | GetConstant 1: digit
+  0006    | CallFunction 1
+  0008    | JumpIfFailure 8 -> 66
+  0011    | MatchWindowEnter 5
+  0013    | MatchScrutinee r0
+  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 64
+  0022    | MatchConst r2 5 -> 64
+  0028    | MatchRepeatNext r0 base=r3+1 done->61
+  0034    | MatchElemDyn r4 r0[r3+0]
+  0039    | MatchBind l0 r4
+  0042    | MatchRepeatNext r0 base=r3+1 done->61
+  0048    | MatchElemDyn r4 r0[r3+0]
+  0053    | MatchSlot r4 l0 -> 64
+  0058    | JumpBack 58 -> 42
+  0061    | Jump 61 -> 65
+  0064    | MatchFail
+  0065    | MatchWindowExit
+  0066    | End
   ========================================
 
   $ possum -p 'array(digit) -> ([1] * N) $ N' -i '11111111'
@@ -2136,30 +2128,27 @@
   array(digit) -> ([1] * N) $ N
   ========================================
   0000    | PushVar N
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | PushUnderscoreVar
-  0007    | GetConstant 0: array
-  0009    | GetConstant 1: digit
-  0011    | CallFunction 1
-  0013    | JumpIfFailure 13 -> 69
-  0016    | MatchScrutinee r1
-  0018    | MatchRepeatInit r1 /1 n=r3 base=r4 -> 68
-  0025    | MatchBind l0 r3
-  0028    | MatchRepeatNext r1 base=r4+1 done->65
-  0034    | MatchElemDyn r5 r1[r4+0]
-  0039    | MatchConst r5 1 -> 68
-  0045    | MatchRepeatNext r1 base=r4+1 done->65
-  0051    | MatchElemDyn r5 r1[r4+0]
-  0056    | MatchConst r5 1 -> 68
-  0062    | JumpBack 62 -> 45
-  0065    | Jump 65 -> 69
-  0068    | MatchFail
-  0069    | TakeRight 69 -> 74
-  0072    | GetLocalMove l0
-  0074    | End
+  0002    | GetConstant 0: array
+  0004    | GetConstant 1: digit
+  0006    | CallFunction 1
+  0008    | JumpIfFailure 8 -> 67
+  0011    | MatchWindowEnter 5
+  0013    | MatchScrutinee r0
+  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 65
+  0022    | MatchBind l0 r2
+  0025    | MatchRepeatNext r0 base=r3+1 done->62
+  0031    | MatchElemDyn r4 r0[r3+0]
+  0036    | MatchConst r4 1 -> 65
+  0042    | MatchRepeatNext r0 base=r3+1 done->62
+  0048    | MatchElemDyn r4 r0[r3+0]
+  0053    | MatchConst r4 1 -> 65
+  0059    | JumpBack 59 -> 42
+  0062    | Jump 62 -> 66
+  0065    | MatchFail
+  0066    | MatchWindowExit
+  0067    | TakeRight 67 -> 72
+  0070    | GetLocalMove l0
+  0072    | End
   ========================================
 
   $ possum -p 'array(digit) -> [A, ..._, Z]' -i '12345678'
@@ -3294,17 +3283,16 @@
   "" -> ("" * N)
   ========================================
   0000    | PushVar N
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushEmptyString
-  0006    | JumpIfFailure 6 -> 24
-  0009    | MatchScrutinee r1
-  0011    | PushEmptyString
-  0012    | MatchRepeatValue r1 r3 -> 23
-  0017    | MatchBind l0 r3
-  0020    | Jump 20 -> 24
-  0023    | MatchFail
+  0002    | PushEmptyString
+  0003    | JumpIfFailure 3 -> 24
+  0006    | MatchWindowEnter 3
+  0008    | MatchScrutinee r0
+  0010    | PushEmptyString
+  0011    | MatchRepeatValue r0 r2 -> 22
+  0016    | MatchBind l0 r2
+  0019    | Jump 19 -> 23
+  0022    | MatchFail
+  0023    | MatchWindowExit
   0024    | End
   ========================================
 
@@ -3325,17 +3313,16 @@
   "" $ 0 -> (0 * N)
   ========================================
   0000    | PushVar N
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushInteger 0
-  0007    | JumpIfFailure 7 -> 26
-  0010    | MatchScrutinee r1
-  0012    | PushInteger 0
-  0014    | MatchRepeatValue r1 r3 -> 25
-  0019    | MatchBind l0 r3
-  0022    | Jump 22 -> 26
-  0025    | MatchFail
+  0002    | PushInteger 0
+  0004    | JumpIfFailure 4 -> 26
+  0007    | MatchWindowEnter 3
+  0009    | MatchScrutinee r0
+  0011    | PushInteger 0
+  0013    | MatchRepeatValue r0 r2 -> 24
+  0018    | MatchBind l0 r2
+  0021    | Jump 21 -> 25
+  0024    | MatchFail
+  0025    | MatchWindowExit
   0026    | End
   ========================================
 
@@ -3352,19 +3339,18 @@
   const($true) -> (true * N)
   ========================================
   0000    | PushVar N
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | GetConstant 0: const
-  0007    | PushTrue
-  0008    | CallFunction 1
-  0010    | JumpIfFailure 10 -> 28
-  0013    | MatchScrutinee r1
-  0015    | PushTrue
-  0016    | MatchRepeatValue r1 r3 -> 27
-  0021    | MatchBind l0 r3
-  0024    | Jump 24 -> 28
-  0027    | MatchFail
+  0002    | GetConstant 0: const
+  0004    | PushTrue
+  0005    | CallFunction 1
+  0007    | JumpIfFailure 7 -> 28
+  0010    | MatchWindowEnter 3
+  0012    | MatchScrutinee r0
+  0014    | PushTrue
+  0015    | MatchRepeatValue r0 r2 -> 26
+  0020    | MatchBind l0 r2
+  0023    | Jump 23 -> 27
+  0026    | MatchFail
+  0027    | MatchWindowExit
   0028    | End
   ========================================
 
@@ -3381,19 +3367,18 @@
   const($false) -> (false * N)
   ========================================
   0000    | PushVar N
-  0002    | PushUnderscoreVar
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | GetConstant 0: const
-  0007    | PushFalse
-  0008    | CallFunction 1
-  0010    | JumpIfFailure 10 -> 28
-  0013    | MatchScrutinee r1
-  0015    | PushFalse
-  0016    | MatchRepeatValue r1 r3 -> 27
-  0021    | MatchBind l0 r3
-  0024    | Jump 24 -> 28
-  0027    | MatchFail
+  0002    | GetConstant 0: const
+  0004    | PushFalse
+  0005    | CallFunction 1
+  0007    | JumpIfFailure 7 -> 28
+  0010    | MatchWindowEnter 3
+  0012    | MatchScrutinee r0
+  0014    | PushFalse
+  0015    | MatchRepeatValue r0 r2 -> 26
+  0020    | MatchBind l0 r2
+  0023    | Jump 23 -> 27
+  0026    | MatchFail
+  0027    | MatchWindowExit
   0028    | End
   ========================================
 

@@ -3697,21 +3697,18 @@
   ========================================
   0000    | PushUnderscoreVar
   0001    | PushVar2 L
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | PushUnderscoreVar
-  0007    | PushUnderscoreVar
-  0008    | PushUnderscoreVar
-  0009    | GetLocalMove l0
-  0011    | JumpIfFailure 11 -> 30
-  0014    | MatchScrutinee r3
-  0016    | MatchRepeatInit r3 /1 n=r5 base=r6 -> 29
-  0023    | MatchBind l2 r5
-  0026    | Jump 26 -> 30
-  0029    | MatchFail
-  0030    | TakeRight 30 -> 35
-  0033    | GetLocalMove l2
-  0035    | End
+  0004    | GetLocalMove l0
+  0006    | JumpIfFailure 6 -> 28
+  0009    | MatchWindowEnter 5
+  0011    | MatchScrutinee r0
+  0013    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 26
+  0020    | MatchBind l2 r2
+  0023    | Jump 23 -> 27
+  0026    | MatchFail
+  0027    | MatchWindowExit
+  0028    | TakeRight 28 -> 33
+  0031    | GetLocalMove l2
+  0033    | End
   ========================================
   
   ==============0:@Multiply===============

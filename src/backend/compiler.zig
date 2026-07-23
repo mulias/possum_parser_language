@@ -2500,12 +2500,12 @@ pub const Compiler = struct {
     }
 
     // Whether an arm's inline scratch pools are all ones window mode can
-    // address. Place registers and the search pool (claims + value +
-    // cursor) are windowed; the repeat and template pools still require
-    // the frame-local reservation, so an arm using either stays frame-mode.
+    // address. Place registers, the search pool (claims + value + cursor),
+    // and the repeat pool (count + loop base + element) are windowed; the
+    // template pool still requires the frame-local reservation, so an arm
+    // using it stays frame-mode.
     fn armScratchWindowable(self: *Compiler, ast: *const GoalAst, arm: *const GoalAst.MatchArm) bool {
         for (arm.constraints.items) |constraint| switch (constraint.kind) {
-            .solve_repeat => return false,
             .match_template => |c| if (self.templateStepable(ast, c.segments.items) == .cursor) return false,
             else => {},
         };
