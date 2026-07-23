@@ -500,8 +500,7 @@ pub const Compiler = struct {
         const ast = self.goalAst(module_id);
         const goal_body = goalFunctionBody(ast, decl.identName()) orelse
             @panic("Internal Error: no goal body for declaration");
-        function.window_mode = !self.goalMatchDebugging() and self.goalBodyWindowable(ast, goal_body);
-        try self.emitGoalScratch(ast, goal_body, decl.region());
+        function.window_mode = !self.goalMatchDebugging();
         try self.writeGoal(module_id, ast, goal_body);
 
         try self.finishFunctionIr(module_id);
@@ -2362,8 +2361,7 @@ pub const Compiler = struct {
         try self.irs.append(self.vm.allocator, Ir{});
 
         try self.pushLocalPlaceholders(module_id, function.arity, region);
-        function.window_mode = !self.goalMatchDebugging() and self.goalBodyWindowable(ast, body);
-        try self.emitGoalScratch(ast, body, region);
+        function.window_mode = !self.goalMatchDebugging();
 
         if (captures_count > 0) {
             try self.emitOp(.SetClosureCaptures, region);
@@ -2381,95 +2379,6 @@ pub const Compiler = struct {
     // step events, which inline steps do not yet emit.
     fn goalMatchDebugging(self: *Compiler) bool {
         return self.vm.config.explain;
-    }
-
-    // Match registers are frame slots above the locals; every inline-
-    // lowered match in the function shares one scratch block sized to the
-    // largest place list, pushed as placeholders at entry.
-    fn emitGoalScratch(self: *Compiler, ast: *const GoalAst, body: GoalAst.NodeId, region: Region) !void {
-        if (self.goalMatchDebugging()) return;
-        // Window-mode functions size a window per match instead of
-        // reserving one frame-local block for the whole function.
-        if (self.currentFunction().window_mode) return;
-        const locals_len = self.currentScope().locals().len;
-        const scratch = self.goalScratchNeed(ast, body);
-        if (scratch == 0) return;
-        if (locals_len + scratch > 255) {
-            try self.printError(self.currentFunction().mid, region, "Pattern too large to compile.", .{});
-            return Error.MaxFunctionLocals;
-        }
-        for (0..scratch) |_| {
-            try self.emitOp(.PushUnderscoreVar, region);
-        }
-    }
-
-    fn goalScratchNeed(self: *Compiler, ast: *const GoalAst, id: GoalAst.NodeId) u32 {
-        const node = ast.goals.items[id].node;
-        return switch (node) {
-            .true, .false, .null, .string, .number_string, .number_float, .ident, .lambda => 0,
-            .call => |call| blk: {
-                var need = self.goalScratchNeed(ast, call.callee);
-                for (call.args) |arg| need = @max(need, self.goalScratchNeed(ast, arg));
-                break :blk need;
-            },
-            .seq => |seq| blk: {
-                var need: u32 = 0;
-                for (seq.goals.items) |g| need = @max(need, self.goalScratchNeed(ast, g));
-                break :blk need;
-            },
-            .alt => |arms| blk: {
-                var need: u32 = 0;
-                for (arms.items) |arm| {
-                    if (arm.guard) |guard| need = @max(need, self.goalScratchNeed(ast, guard));
-                    if (arm.body) |body| need = @max(need, self.goalScratchNeed(ast, body));
-                }
-                break :blk need;
-            },
-            .merge => |merge| @max(
-                self.goalScratchNeed(ast, merge.left),
-                self.goalScratchNeed(ast, merge.right),
-            ),
-            .mult => |mult| @max(
-                self.goalScratchNeed(ast, mult.left),
-                self.goalScratchNeed(ast, mult.right),
-            ),
-            .neg, .to_string => |inner| self.goalScratchNeed(ast, inner),
-            .range => |range| blk: {
-                var need: u32 = 0;
-                if (range.lower) |lower| need = @max(need, self.goalScratchNeed(ast, lower));
-                if (range.upper) |upper| need = @max(need, self.goalScratchNeed(ast, upper));
-                break :blk need;
-            },
-            .array => |elems| blk: {
-                var need: u32 = 0;
-                for (elems.items) |elem| need = @max(need, self.goalScratchNeed(ast, elem));
-                break :blk need;
-            },
-            .object => |pairs| blk: {
-                var need: u32 = 0;
-                for (pairs.items) |pair| {
-                    need = @max(need, self.goalScratchNeed(ast, pair.key));
-                    need = @max(need, self.goalScratchNeed(ast, pair.value));
-                }
-                break :blk need;
-            },
-            .repeat => |repeat| blk: {
-                var need = self.goalScratchNeed(ast, repeat.body);
-                if (repeat.cap == .expr) need = @max(need, self.goalScratchNeed(ast, repeat.cap.expr));
-                break :blk need;
-            },
-            .match => |*match| blk: {
-                var need = self.goalScratchNeed(ast, match.scrutinee);
-                for (match.arms.items) |*arm| {
-                    if (match.arms.items.len == 1 and self.armStepable(ast, arm)) {
-                        need = @max(need, self.armStepScratchWidth(ast, match, arm));
-                    }
-                    if (arm.guard) |guard| need = @max(need, self.goalScratchNeed(ast, guard));
-                    if (arm.body) |body| need = @max(need, self.goalScratchNeed(ast, body));
-                }
-                break :blk need;
-            },
-        };
     }
 
     // The scratch register count one stepable arm's match steps use:
@@ -2497,83 +2406,6 @@ pub const Compiler = struct {
         };
         const extra: u32 = if (searches > 0) searches + 2 else 0;
         return @as(u32, @intCast(match.places.items.len + 1)) + extra + repeats + templates;
-    }
-
-    // Whether an arm's inline scratch pools are all ones window mode can
-    // address. Place registers, the search pool (claims + value + cursor),
-    // and the repeat pool (count + loop base + element) are windowed; the
-    // template pool still requires the frame-local reservation, so an arm
-    // using it stays frame-mode.
-    fn armScratchWindowable(self: *Compiler, ast: *const GoalAst, arm: *const GoalAst.MatchArm) bool {
-        for (arm.constraints.items) |constraint| switch (constraint.kind) {
-            .match_template => |c| if (self.templateStepable(ast, c.segments.items) == .cursor) return false,
-            else => {},
-        };
-        return true;
-    }
-
-    // Whether every inline-lowered match in the body uses only scratch
-    // pools window mode can address (see armScratchWindowable), so the
-    // function can address match scratch through per-match windows sized
-    // to each match rather than a single frame-local reservation. Matches
-    // that take the plan path impose no requirement — they carry their own
-    // scratch.
-    fn goalBodyWindowable(self: *Compiler, ast: *const GoalAst, id: GoalAst.NodeId) bool {
-        const node = ast.goals.items[id].node;
-        return switch (node) {
-            .true, .false, .null, .string, .number_string, .number_float, .ident, .lambda => true,
-            .call => |call| blk: {
-                if (!self.goalBodyWindowable(ast, call.callee)) break :blk false;
-                for (call.args) |arg| if (!self.goalBodyWindowable(ast, arg)) break :blk false;
-                break :blk true;
-            },
-            .seq => |seq| blk: {
-                for (seq.goals.items) |g| if (!self.goalBodyWindowable(ast, g)) break :blk false;
-                break :blk true;
-            },
-            .alt => |arms| blk: {
-                for (arms.items) |arm| {
-                    if (arm.guard) |guard| if (!self.goalBodyWindowable(ast, guard)) break :blk false;
-                    if (arm.body) |body| if (!self.goalBodyWindowable(ast, body)) break :blk false;
-                }
-                break :blk true;
-            },
-            .merge => |merge| self.goalBodyWindowable(ast, merge.left) and self.goalBodyWindowable(ast, merge.right),
-            .mult => |mult| self.goalBodyWindowable(ast, mult.left) and self.goalBodyWindowable(ast, mult.right),
-            .neg, .to_string => |inner| self.goalBodyWindowable(ast, inner),
-            .range => |range| blk: {
-                if (range.lower) |lower| if (!self.goalBodyWindowable(ast, lower)) break :blk false;
-                if (range.upper) |upper| if (!self.goalBodyWindowable(ast, upper)) break :blk false;
-                break :blk true;
-            },
-            .array => |elems| blk: {
-                for (elems.items) |elem| if (!self.goalBodyWindowable(ast, elem)) break :blk false;
-                break :blk true;
-            },
-            .object => |pairs| blk: {
-                for (pairs.items) |pair| {
-                    if (!self.goalBodyWindowable(ast, pair.key)) break :blk false;
-                    if (!self.goalBodyWindowable(ast, pair.value)) break :blk false;
-                }
-                break :blk true;
-            },
-            .repeat => |repeat| blk: {
-                if (!self.goalBodyWindowable(ast, repeat.body)) break :blk false;
-                if (repeat.cap == .expr and !self.goalBodyWindowable(ast, repeat.cap.expr)) break :blk false;
-                break :blk true;
-            },
-            .match => |*match| blk: {
-                if (!self.goalBodyWindowable(ast, match.scrutinee)) break :blk false;
-                for (match.arms.items) |*arm| {
-                    if (match.arms.items.len == 1 and self.armStepable(ast, arm)) {
-                        if (!self.armScratchWindowable(ast, arm)) break :blk false;
-                    }
-                    if (arm.guard) |guard| if (!self.goalBodyWindowable(ast, guard)) break :blk false;
-                    if (arm.body) |body| if (!self.goalBodyWindowable(ast, body)) break :blk false;
-                }
-                break :blk true;
-            },
-        };
     }
 
     fn writeGoal(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, id: GoalAst.NodeId) Error!void {
@@ -4140,7 +3972,7 @@ pub const Compiler = struct {
 
         // The template block sits above the repeat block: front and end
         // cursors, the rest destination, and a character register for
-        // range segments. Its size mirrors goalScratchNeed's accounting.
+        // range segments. Its size mirrors armStepScratchWidth's accounting.
         var repeat_block: u8 = 0;
         for (arm.constraints.items) |constraint| switch (constraint.kind) {
             .solve_repeat => |c| {

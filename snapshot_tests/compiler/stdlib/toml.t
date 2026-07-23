@@ -3391,23 +3391,19 @@
   as_number(p) = p -> "%(0 + N)" $ N
   ========================================
   0000    | PushVar2 N
-  0003    | PushUnderscoreVar
-  0004    | PushUnderscoreVar
-  0005    | PushUnderscoreVar
-  0006    | PushUnderscoreVar
-  0007    | PushUnderscoreVar
-  0008    | PushUnderscoreVar
-  0009    | CallFunctionLocal l0
-  0011    | JumpIfFailure 11 -> 33
-  0014    | MatchScrutinee r2
-  0016    | MatchType r2 string -> 32
-  0021    | MatchCastNum r6 <- r2 -> 32
-  0026    | MatchBind l1 r6
-  0029    | Jump 29 -> 33
-  0032    | MatchFail
-  0033    | TakeRight 33 -> 38
-  0036    | GetLocalMove l1
-  0038    | End
+  0003    | CallFunctionLocal l0
+  0005    | JumpIfFailure 5 -> 30
+  0008    | MatchWindowEnter 6
+  0010    | MatchScrutinee r0
+  0012    | MatchType r0 string -> 28
+  0017    | MatchCastNum r4 <- r0 -> 28
+  0022    | MatchBind l1 r4
+  0025    | Jump 25 -> 29
+  0028    | MatchFail
+  0029    | MatchWindowExit
+  0030    | TakeRight 30 -> 35
+  0033    | GetLocalMove l1
+  0035    | End
   ========================================
   
   ===============3:surround===============
