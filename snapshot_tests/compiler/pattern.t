@@ -1943,22 +1943,38 @@
   0000    | GetConstant 0: array
   0002    | GetConstant 1: digit
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 68
+  0006    | JumpIfFailure 6 -> 114
   0009    | MatchWindowEnter 5
   0011    | MatchScrutinee r0
-  0013    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 66
-  0020    | MatchConst r2 5 -> 66
-  0026    | MatchRepeatNext r0 base=r3+1 done->63
-  0032    | MatchElemDyn r4 r0[r3+0]
-  0037    | MatchConst r4 1 -> 66
-  0043    | MatchRepeatNext r0 base=r3+1 done->63
-  0049    | MatchElemDyn r4 r0[r3+0]
-  0054    | MatchConst r4 1 -> 66
-  0060    | JumpBack 60 -> 43
-  0063    | Jump 63 -> 67
-  0066    | MatchFail
-  0067    | MatchWindowExit
-  0068    | End
+  0013    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 112
+  0020    | MatchConst r2 5 -> 112
+  0026    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->109
+  0033    | MatchWindowEnter 3
+  0035    | MatchSubScrutinee r0 ^r4
+  0038    | MatchType r0 array -> 61
+  0043    | MatchLen r0 1 -> 61
+  0048    | MatchElem r1 r0[0]
+  0052    | MatchConst r1 1 -> 61
+  0058    | Jump 58 -> 65
+  0061    | MatchWindowExit
+  0062    | Jump 62 -> 112
+  0065    | MatchWindowExit
+  0066    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->109
+  0073    | MatchWindowEnter 3
+  0075    | MatchSubScrutinee r0 ^r4
+  0078    | MatchType r0 array -> 101
+  0083    | MatchLen r0 1 -> 101
+  0088    | MatchElem r1 r0[0]
+  0092    | MatchConst r1 1 -> 101
+  0098    | Jump 98 -> 105
+  0101    | MatchWindowExit
+  0102    | Jump 102 -> 112
+  0105    | MatchWindowExit
+  0106    | JumpBack 106 -> 66
+  0109    | Jump 109 -> 113
+  0112    | MatchFail
+  0113    | MatchWindowExit
+  0114    | End
   ========================================
 
   $ possum -p 'array(digit) -> ([A] * 5)' -i '11111'
@@ -2027,22 +2043,38 @@
   0002    | GetConstant 0: array
   0004    | GetConstant 1: digit
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 66
+  0008    | JumpIfFailure 8 -> 112
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 64
-  0022    | MatchConst r2 5 -> 64
-  0028    | MatchRepeatNext r0 base=r3+1 done->61
-  0034    | MatchElemDyn r4 r0[r3+0]
-  0039    | MatchBind l0 r4
-  0042    | MatchRepeatNext r0 base=r3+1 done->61
-  0048    | MatchElemDyn r4 r0[r3+0]
-  0053    | MatchSlot r4 l0 -> 64
-  0058    | JumpBack 58 -> 42
-  0061    | Jump 61 -> 65
-  0064    | MatchFail
-  0065    | MatchWindowExit
-  0066    | End
+  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 110
+  0022    | MatchConst r2 5 -> 110
+  0028    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->107
+  0035    | MatchWindowEnter 3
+  0037    | MatchSubScrutinee r0 ^r4
+  0040    | MatchType r0 array -> 60
+  0045    | MatchLen r0 1 -> 60
+  0050    | MatchElem r1 r0[0]
+  0054    | MatchBind l0 r1
+  0057    | Jump 57 -> 64
+  0060    | MatchWindowExit
+  0061    | Jump 61 -> 110
+  0064    | MatchWindowExit
+  0065    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->107
+  0072    | MatchWindowEnter 3
+  0074    | MatchSubScrutinee r0 ^r4
+  0077    | MatchType r0 array -> 99
+  0082    | MatchLen r0 1 -> 99
+  0087    | MatchElem r1 r0[0]
+  0091    | MatchSlot r1 l0 -> 99
+  0096    | Jump 96 -> 103
+  0099    | MatchWindowExit
+  0100    | Jump 100 -> 110
+  0103    | MatchWindowExit
+  0104    | JumpBack 104 -> 65
+  0107    | Jump 107 -> 111
+  0110    | MatchFail
+  0111    | MatchWindowExit
+  0112    | End
   ========================================
 
   $ possum -p 'array(digit) -> ([1] * N) $ N' -i '11111111'
@@ -2111,24 +2143,40 @@
   0002    | GetConstant 0: array
   0004    | GetConstant 1: digit
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 67
+  0008    | JumpIfFailure 8 -> 113
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 65
+  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 111
   0022    | MatchBind l0 r2
-  0025    | MatchRepeatNext r0 base=r3+1 done->62
-  0031    | MatchElemDyn r4 r0[r3+0]
-  0036    | MatchConst r4 1 -> 65
-  0042    | MatchRepeatNext r0 base=r3+1 done->62
-  0048    | MatchElemDyn r4 r0[r3+0]
-  0053    | MatchConst r4 1 -> 65
-  0059    | JumpBack 59 -> 42
-  0062    | Jump 62 -> 66
-  0065    | MatchFail
-  0066    | MatchWindowExit
-  0067    | TakeRight 67 -> 72
-  0070    | GetLocalMove l0
-  0072    | End
+  0025    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->108
+  0032    | MatchWindowEnter 3
+  0034    | MatchSubScrutinee r0 ^r4
+  0037    | MatchType r0 array -> 60
+  0042    | MatchLen r0 1 -> 60
+  0047    | MatchElem r1 r0[0]
+  0051    | MatchConst r1 1 -> 60
+  0057    | Jump 57 -> 64
+  0060    | MatchWindowExit
+  0061    | Jump 61 -> 111
+  0064    | MatchWindowExit
+  0065    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->108
+  0072    | MatchWindowEnter 3
+  0074    | MatchSubScrutinee r0 ^r4
+  0077    | MatchType r0 array -> 100
+  0082    | MatchLen r0 1 -> 100
+  0087    | MatchElem r1 r0[0]
+  0091    | MatchConst r1 1 -> 100
+  0097    | Jump 97 -> 104
+  0100    | MatchWindowExit
+  0101    | Jump 101 -> 111
+  0104    | MatchWindowExit
+  0105    | JumpBack 105 -> 65
+  0108    | Jump 108 -> 112
+  0111    | MatchFail
+  0112    | MatchWindowExit
+  0113    | TakeRight 113 -> 118
+  0116    | GetLocalMove l0
+  0118    | End
   ========================================
 
   $ possum -p 'array(digit) -> [A, ..._, Z]' -i '12345678'

@@ -3459,56 +3459,70 @@ pub const Compiler = struct {
     }
 
     // The chunk element length of a repeat's fixed-length array
-    // sub-pattern, or null when the sub-pattern doesn't lower to the
-    // chunk loop: it must be exactly an array shape (is_type + len_eq on
-    // the root) whose other places are direct elements carrying only
-    // leaf tests. Slices (rests), nested structure, searches, and
-    // composites keep the plan path.
+    // sub-pattern, or null when the sub-pattern doesn't lower to the chunk
+    // loop. The root must be a fixed-length array (is_type + len_eq on
+    // place 0); its interior may nest arrays and constant-key objects of
+    // leaf tests and binds, matched per chunk in a nested window. Rests
+    // (variable length), ranges, searches, nested repeats, merges, and
+    // templates inside a chunk keep the plan path.
     fn repeatArrayLen(ast: *const GoalAst, set_id: GoalAst.SetId) ?u32 {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len == 0) return null;
 
-        var is_array = false;
+        var root_array = false;
         var len: ?u32 = null;
         for (set.constraints.items) |constraint| switch (constraint.kind) {
-            .is_type => |c| {
-                if (c.place != 0 or c.ty != .array) return null;
-                is_array = true;
+            .is_type => |c| if (c.place == 0) {
+                if (c.ty != .array) return null;
+                root_array = true;
             },
-            .len_eq => |c| {
-                if (c.place != 0 or c.len == 0) return null;
+            .len_eq => |c| if (c.place == 0) {
+                if (c.len == 0) return null;
                 len = c.len;
             },
-            .bind, .eq_slot, .eq_const, .eq_global => {
-                if (constraintPlaceId(constraint.kind) == 0) return null;
-            },
-            .in_range => |c| {
-                if (c.place == 0) return null;
-            },
+            // Interior structure tests and leaf tests/binds; a bind
+            // compares against the first chunk's value in later chunks.
+            // (A range's own bind is not identity-checked across chunks —
+            // a pre-existing limitation carried from the leaf-chunk path.)
+            .keys_exact, .has_key, .bind, .eq_slot, .eq_const, .eq_global, .str_prefix, .str_suffix, .in_range => {},
             else => return null,
         };
-        if (!is_array or len == null) return null;
+        if (!root_array or len == null) return null;
 
-        for (set.places.items, 0..) |def, i| switch (def) {
-            .scrutinee => if (i != 0) return null,
-            .elem => |e| if (e.src != 0 or e.index >= len.?) return null,
+        // Only fixed projections: the materialized chunk slice is
+        // destructured like any array/object pattern. Rests and slices
+        // would make the chunk variable-length.
+        for (set.places.items) |def| switch (def) {
+            .scrutinee, .elem, .key => {},
             else => return null,
         };
         return len;
     }
 
-    fn repeatChunkHasElemTests(ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+    // Whether a repeat chunk constrains anything beyond the root array's
+    // type and length — i.e. needs the per-chunk matching loop. A chunk of
+    // bare placeholders (Array.length's `[_] * L`) does not.
+    fn repeatChunkNeedsLoop(ast: *const GoalAst, set_id: GoalAst.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         for (set.constraints.items) |constraint| {
-            if (constraintPlaceId(constraint.kind)) |place| {
+            if (constraintPrimaryPlace(constraint.kind)) |place| {
                 if (place != 0) return true;
             }
         }
         return false;
     }
 
-    fn constraintPlaceId(kind: GoalAst.Constraint.Kind) ?GoalAst.PlaceId {
+    // The place a constraint primarily tests or binds, across the kinds a
+    // repeat chunk admits (repeatArrayLen); null for kinds it never
+    // contains.
+    fn constraintPrimaryPlace(kind: GoalAst.Constraint.Kind) ?GoalAst.PlaceId {
         return switch (kind) {
+            .is_type => |c| c.place,
+            .len_eq => |c| c.place,
+            .keys_exact => |c| c.place,
+            .has_key => |c| c.place,
+            .str_prefix => |c| c.place,
+            .str_suffix => |c| c.place,
             .bind => |c| c.place,
             .eq_slot => |c| c.place,
             .eq_const => |c| c.place,
@@ -3957,11 +3971,31 @@ pub const Compiler = struct {
         // on the arm's MatchFail tail.
         input,
         // Nested sub-pattern: slot 0 is copied from a register in the
-        // enclosing window, and a mismatch closes this window and jumps
-        // back to the retry target (the search loop) to try the next
-        // candidate.
-        sub: struct { src_reg: u8, retry_target: Ir.Index },
+        // enclosing window (MatchSubScrutinee) and matched in its own
+        // window.
+        sub: SubStep,
     };
+
+    const SubStep = struct {
+        // The enclosing-window register holding the value to match.
+        src_reg: u8,
+        // Where a mismatch goes after the window closes.
+        on_fail: SubFail,
+        // Whether the sub-pattern's binds bind fresh or compare against
+        // already-bound locals (repeat chunks after the first).
+        bind_mode: BindMode = .bind,
+    };
+
+    const SubFail = union(enum) {
+        // Exit the window and loop back to a search's retry point to try
+        // the next candidate.
+        retry: Ir.Index,
+        // Exit the window and fail the whole match: a forward jump is
+        // appended to the arm's fail-jump list so it lands on MatchFail.
+        arm: *ArrayList(Ir.Index),
+    };
+
+    const BindMode = enum { bind, compare };
 
     // Emit inline match steps for a lowered pattern: an already-open
     // scrutinee in window slot 0, tested and destructured by the
@@ -4010,14 +4044,14 @@ pub const Compiler = struct {
         }
         const value_reg = claim_next;
         const cursor_reg = claim_next + 1;
-        // The repeat block holds a repeat's derived count or solved
-        // chunk while its tests and binds run, plus the loop base and
-        // element registers for array-chunk repeats; repeats in one arm
-        // reuse it sequentially. It sits above the search block when one
-        // exists.
+        // The repeat block holds a repeat's derived count or solved chunk
+        // while its tests and binds run, plus the loop base and the
+        // materialized-chunk register for array-chunk repeats; repeats in
+        // one arm reuse it sequentially. It sits above the search block
+        // when one exists.
         const repeat_reg: u8 = if (search_groups.items.len > 0) cursor_reg + 1 else claim_next;
         const repeat_base_reg = repeat_reg + 1;
-        const repeat_elem_reg = repeat_reg + 2;
+        const repeat_chunk_reg = repeat_reg + 2;
         // Save/restore rather than clear: a nested sub-pattern's
         // writeMatchSteps runs mid-emission of the parent, whose later rest
         // ops still need the parent's groups.
@@ -4063,7 +4097,10 @@ pub const Compiler = struct {
                     try self.emitOp(.MatchFail, region);
                     self.patchJump(skipJump.?);
                 },
-                .sub => |s| try self.emitJumpBack(.JumpBack, s.retry_target, region),
+                .sub => |s| switch (s.on_fail) {
+                    .retry => |target| try self.emitJumpBack(.JumpBack, target, region),
+                    .arm => |arm_fails| try arm_fails.append(allocator, try self.emitJump(.Jump, region)),
+                },
             }
             return;
         }
@@ -4088,6 +4125,13 @@ pub const Compiler = struct {
             } }, region),
         }
         materialized[0] = true;
+
+        // In compare mode a bind reuses an already-bound local as a test
+        // (repeat chunks after the first must agree with the first).
+        const bind_mode: BindMode = switch (scrutinee) {
+            .input => .bind,
+            .sub => |s| s.bind_mode,
+        };
 
         for (constraints) |constraint| {
             const step_region = constraint.region;
@@ -4217,11 +4261,20 @@ pub const Compiler = struct {
                 },
                 .bind => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                        .op = .MatchBind,
-                        .byte1 = c.slot,
-                        .byte2 = scratch_base + @as(u8, @intCast(c.place)),
-                    } }, step_region);
+                    switch (bind_mode) {
+                        .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                            .op = .MatchBind,
+                            .byte1 = c.slot,
+                            .byte2 = scratch_base + @as(u8, @intCast(c.place)),
+                        } }, step_region),
+                        // Compare against the value the first chunk bound.
+                        .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                            .op = .MatchSlot,
+                            .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                            .byte2 = c.slot,
+                            .target = Ir.unpatched_jump,
+                        } }, step_region)),
+                    }
                 },
                 .eq_slot => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -4334,7 +4387,7 @@ pub const Compiler = struct {
                         // candidate exits that window and loops back. The
                         // key binds only once the value matched.
                         const value_set = &ast.constraint_sets.items[c.value];
-                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .retry_target = loop } }, step_region);
+                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .retry = loop } } }, step_region);
                         try self.emitSearchBind(ast, c.key, key_dst, step_region);
                         continue;
                     }
@@ -4394,12 +4447,15 @@ pub const Compiler = struct {
                         },
                         // A fixed-length array sub-pattern: derive the
                         // chunk count from the length, test the count
-                        // operand, then match each chunk in a loop. The
-                        // first iteration is peeled so binds run exactly
-                        // once; loop iterations compare the bound slots
-                        // instead (the static form of the plan's
-                        // has_rebound_pattern re-lowering).
+                        // operand, then match each chunk in a loop. Each
+                        // chunk is materialized and matched in its own
+                        // window like any array/object pattern; the first
+                        // iteration binds and later iterations compare
+                        // against those binds (the static form of the
+                        // plan's has_rebound_pattern re-lowering), enforcing
+                        // that every chunk is identical.
                         .array => {
+                            const chunk_set = &ast.constraint_sets.items[c.pattern.sub];
                             const sub_len = repeatArrayLen(ast, c.pattern.sub).?;
                             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_init = .{
                                 .op = .MatchRepeatInit,
@@ -4415,16 +4471,17 @@ pub const Compiler = struct {
                             // placeholders, like Array.length's [_] * L)
                             // needs no loop: the length check is the
                             // whole match.
-                            if (!repeatChunkHasElemTests(ast, c.pattern.sub)) continue;
+                            if (!repeatChunkNeedsLoop(ast, c.pattern.sub)) continue;
 
                             const first_next = try self.ir().push(allocator, .{ .match_repeat_next = .{
                                 .op = .MatchRepeatNext,
                                 .src = src_reg,
                                 .base = repeat_base_reg,
                                 .len = @intCast(sub_len),
+                                .chunk_dst = repeat_chunk_reg,
                                 .target = Ir.unpatched_jump,
                             } }, step_region);
-                            try self.emitRepeatChunkBody(module_id, ast, c.pattern.sub, src_reg, repeat_base_reg, repeat_elem_reg, false, &fail_jumps, step_region);
+                            try self.writeMatchSteps(module_id, ast, chunk_set.places.items, chunk_set.constraints.items, .{ .sub = .{ .src_reg = repeat_chunk_reg, .on_fail = .{ .arm = &fail_jumps }, .bind_mode = .bind } }, step_region);
 
                             const loop_head = self.ir().nextIndex();
                             const loop_next = try self.ir().push(allocator, .{ .match_repeat_next = .{
@@ -4432,9 +4489,10 @@ pub const Compiler = struct {
                                 .src = src_reg,
                                 .base = repeat_base_reg,
                                 .len = @intCast(sub_len),
+                                .chunk_dst = repeat_chunk_reg,
                                 .target = Ir.unpatched_jump,
                             } }, step_region);
-                            try self.emitRepeatChunkBody(module_id, ast, c.pattern.sub, src_reg, repeat_base_reg, repeat_elem_reg, true, &fail_jumps, step_region);
+                            try self.writeMatchSteps(module_id, ast, chunk_set.places.items, chunk_set.constraints.items, .{ .sub = .{ .src_reg = repeat_chunk_reg, .on_fail = .{ .arm = &fail_jumps }, .bind_mode = .compare } }, step_region);
                             try self.emitJumpBack(.JumpBack, loop_head, step_region);
 
                             self.patchJump(first_next);
@@ -4486,11 +4544,18 @@ pub const Compiler = struct {
                 self.patchJump(skipJump.?);
             },
             .sub => |s| {
-                // A rejected candidate closes this window and loops back to
-                // the search for the next member; success closes it and
-                // falls through to the parent's continuation.
+                // Failure closes this window then routes per the fail
+                // disposition; success closes it and falls through to the
+                // parent's continuation.
                 try self.emitOp(.MatchWindowExit, region);
-                try self.emitJumpBack(.JumpBack, s.retry_target, region);
+                switch (s.on_fail) {
+                    // A rejected search candidate loops back for the next
+                    // member.
+                    .retry => |target| try self.emitJumpBack(.JumpBack, target, region),
+                    // A rejected chunk fails the whole match: jump to the
+                    // arm's shared fail tail.
+                    .arm => |arm_fails| try arm_fails.append(allocator, try self.emitJump(.Jump, region)),
+                }
                 self.patchJump(okJump);
                 try self.emitOp(.MatchWindowExit, region);
             },
@@ -4702,94 +4767,6 @@ pub const Compiler = struct {
             .constant = constant,
             .target = Ir.unpatched_jump,
         } }, region));
-    }
-
-    // One chunk iteration's element steps: load each constrained
-    // element of the current chunk with MatchElemDyn and run its leaf
-    // tests against the shared element register. all_bound emits the
-    // rebound variant — binds from the peeled first iteration become
-    // slot comparisons. repeatArrayLen admits exactly the leaf kinds
-    // handled here.
-    fn emitRepeatChunkBody(
-        self: *Compiler,
-        module_id: Module.Id,
-        ast: *const GoalAst,
-        set_id: GoalAst.SetId,
-        src_reg: u8,
-        base_reg: u8,
-        elem_reg: u8,
-        all_bound: bool,
-        fail_jumps: *ArrayList(Ir.Index),
-        region: Region,
-    ) Error!void {
-        const allocator = self.vm.allocator;
-        const set = &ast.constraint_sets.items[set_id];
-        var loaded_place: ?GoalAst.PlaceId = null;
-        for (set.constraints.items) |constraint| {
-            const place = constraintPlaceId(constraint.kind) orelse continue;
-            if (place == 0) continue;
-            if (loaded_place != place) {
-                const index = set.places.items[place].elem.index;
-                _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                    .op = .MatchElemDyn,
-                    .byte1 = elem_reg,
-                    .byte2 = src_reg,
-                    .byte3 = base_reg,
-                    .byte4 = @intCast(index),
-                } }, region);
-                loaded_place = place;
-            }
-            switch (constraint.kind) {
-                .bind => |c| if (all_bound) {
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchSlot,
-                        .byte1 = elem_reg,
-                        .byte2 = c.slot,
-                        .target = Ir.unpatched_jump,
-                    } }, region));
-                } else {
-                    _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                        .op = .MatchBind,
-                        .byte1 = c.slot,
-                        .byte2 = elem_reg,
-                    } }, region);
-                },
-                .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                    .op = .MatchSlot,
-                    .byte1 = elem_reg,
-                    .byte2 = c.slot,
-                    .target = Ir.unpatched_jump,
-                } }, region)),
-                .eq_const => |c| {
-                    const elem = try self.goalPatternConstElem(ast, c.value);
-                    const constant = try self.makeConstantU16(module_id, elem, region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-                        .op = .MatchConst,
-                        .byte1 = elem_reg,
-                        .constant = constant,
-                        .target = Ir.unpatched_jump,
-                    } }, region));
-                },
-                .eq_global => |c| {
-                    const global = self.resolveGlobal(module_id, c.name) orelse {
-                        try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(c.name)});
-                        return Error.UndefinedVariable;
-                    };
-                    if (global.isDynType(.Function) and global.asDyn().asFunction().arity != 0) {
-                        return error.UnsupportedPattern;
-                    }
-                    const constant = try self.makeConstantU16(module_id, global, region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-                        .op = .MatchGlobal,
-                        .byte1 = elem_reg,
-                        .constant = constant,
-                        .target = Ir.unpatched_jump,
-                    } }, region));
-                },
-                .in_range => |c| try self.emitInRangeStep(module_id, ast, elem_reg, c.lower, c.upper, fail_jumps, region),
-                else => unreachable,
-            }
-        }
     }
 
     // Emit the residual steps of a number or boolean merge rooted at

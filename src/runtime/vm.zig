@@ -973,21 +973,6 @@ pub const VM = struct {
                 self.setScratch(dst, value);
                 previous.release();
             },
-            .MatchElemDyn => {
-                // An element of the current repeat chunk: index off the
-                // loop's base register, so the chunk is never
-                // materialized.
-                const dst = self.readByte();
-                const src = self.readByte();
-                const base = self.readByte();
-                const index = self.readByte();
-                const base_idx: usize = @intFromFloat(self.getScratch(base).asFloat());
-                const value = self.getScratch(src).asDyn().asArray().elems.items[base_idx + index];
-                const previous = self.getScratch(dst);
-                value.retain();
-                self.setScratch(dst, value);
-                previous.release();
-            },
             .MatchRepeatInit => {
                 // Array-repeat loop entry: the value must be an array
                 // whose length is a multiple of the chunk element length.
@@ -1018,19 +1003,33 @@ pub const VM = struct {
                 prev_base.release();
             },
             .MatchRepeatNext => {
-                // Loop head: advance the base by the chunk element length
-                // and exit to the done target once the array is
-                // exhausted.
+                // Loop head: advance the base by the chunk element length,
+                // exit to the done target once the array is exhausted, and
+                // otherwise materialize the chunk slice src[base..base+L]
+                // into chunk_dst for the chunk sub-pattern. The fresh
+                // array's creator handle moves into chunk_dst.
                 const src = self.readByte();
                 const base = self.readByte();
-                const len: f64 = @floatFromInt(self.readByte());
+                const len_byte = self.readByte();
+                const chunk_dst = self.readByte();
                 const offset = self.readShort();
-                const next_base = self.getScratch(base).asFloat() + len;
+                const len: usize = len_byte;
+                const next_base = self.getScratch(base).asFloat() + @as(f64, @floatFromInt(len));
                 self.setScratch(base, Elem.numberFloat(next_base));
-                const elems_len = self.getScratch(src).asDyn().asArray().elems.items.len;
-                if (next_base >= @as(f64, @floatFromInt(elems_len))) {
+                const elems = self.getScratch(src).asDyn().asArray().elems.items;
+                if (next_base >= @as(f64, @floatFromInt(elems.len))) {
                     self.cur_frame.ip += offset;
+                    return;
                 }
+                const start: usize = @intFromFloat(next_base);
+                const chunk_arr = try Elem.DynElem.Array.create(self, len);
+                try self.pushTempDyn(&chunk_arr.dyn);
+                for (elems[start .. start + len]) |elem| elem.retain();
+                try chunk_arr.elems.appendSlice(self.gc.allocator(), elems[start .. start + len]);
+                self.dropTempDyn();
+                const previous = self.getScratch(chunk_dst);
+                self.setScratch(chunk_dst, chunk_arr.dyn.elem());
+                previous.release();
             },
             .MatchSlice => {
                 // The middle of an array (fresh Array) or string

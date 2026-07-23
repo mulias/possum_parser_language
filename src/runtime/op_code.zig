@@ -68,7 +68,6 @@ pub const OpCode = enum(u8) {
     MatchConst,
     MatchElem,
     MatchElemBack,
-    MatchElemDyn,
     MatchEval,
     MatchFail,
     MatchGlobal,
@@ -269,7 +268,6 @@ pub const OpCode = enum(u8) {
             .MatchBind,
             .MatchElem,
             .MatchElemBack,
-            .MatchElemDyn,
             .MatchObjectRest,
             .MatchObjectRestSearch,
             .MatchSearchInit,
@@ -565,7 +563,6 @@ pub const OpCode = enum(u8) {
             .MatchConst,
             .MatchElem,
             .MatchElemBack,
-            .MatchElemDyn,
             .MatchGlobal,
             .MatchInRange,
             .MatchKey,
@@ -740,7 +737,6 @@ pub const OpCode = enum(u8) {
             .MatchSubScrutinee => self.matchSubScrutineeInstruction(chunk, writer, offset),
             .MatchElem => self.matchElemInstruction(chunk, writer, offset),
             .MatchElemBack => self.matchElemBackInstruction(chunk, writer, offset),
-            .MatchElemDyn => self.matchElemDynInstruction(chunk, writer, offset),
             .MatchRepeatInit => self.matchRepeatInitInstruction(chunk, writer, offset),
             .MatchRepeatNext => self.matchRepeatNextInstruction(chunk, writer, offset),
             .MatchSlice => self.matchSliceInstruction(chunk, writer, offset),
@@ -1161,15 +1157,6 @@ pub const OpCode = enum(u8) {
         return offset + 5;
     }
 
-    fn matchElemDynInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
-        const dst = chunk.read(offset + 1);
-        const src = chunk.read(offset + 2);
-        const base = chunk.read(offset + 3);
-        const index = chunk.read(offset + 4);
-        try writer.print("{s} r{} r{}[r{}+{}]\n", .{ @tagName(self), dst, src, base, index });
-        return offset + 5;
-    }
-
     fn matchRepeatInitInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const src = chunk.read(offset + 1);
         const len = chunk.read(offset + 2);
@@ -1185,10 +1172,11 @@ pub const OpCode = enum(u8) {
         const src = chunk.read(offset + 1);
         const base = chunk.read(offset + 2);
         const len = chunk.read(offset + 3);
-        const jump = (@as(u16, @intCast(chunk.read(offset + 4))) << 8) | chunk.read(offset + 5);
-        const target = offset + 6 + jump;
-        try writer.print("{s} r{} base=r{}+{} done->{}\n", .{ @tagName(self), src, base, len, target });
-        return offset + 6;
+        const chunk_dst = chunk.read(offset + 4);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
+        const target = offset + 7 + jump;
+        try writer.print("{s} r{} base=r{}+{} chunk=r{} done->{}\n", .{ @tagName(self), src, base, len, chunk_dst, target });
+        return offset + 7;
     }
 
     fn matchRepeatInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {

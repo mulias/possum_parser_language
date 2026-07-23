@@ -92,10 +92,11 @@ pub const Ir = struct {
         // count = len / L into count_dst, base primed to -L so the first
         // MatchRepeatNext advances it to 0.
         match_repeat_init: struct { op: OpCode, src: u8, len: u8, count_dst: u8, base: u8, target: Index },
-        // MatchRepeatNext (src, base, chunk element length): loop head —
-        // advance base by L and jump to the done target when the array
-        // is exhausted. The body's MatchElemDyn loads index off base.
-        match_repeat_next: struct { op: OpCode, src: u8, base: u8, len: u8, target: Index },
+        // MatchRepeatNext (src, base, chunk element length, chunk_dst):
+        // loop head — advance base by L and jump to the done target when
+        // the array is exhausted; otherwise materialize the chunk slice
+        // src[base..base+L] into chunk_dst for the chunk sub-pattern.
+        match_repeat_next: struct { op: OpCode, src: u8, base: u8, len: u8, chunk_dst: u8, target: Index },
         // MatchStrInit (src, front cursor, end cursor): det string-template
         // loop entry — front = 0, end = src's byte length. src is
         // string-typed by the preceding MatchType.
@@ -271,10 +272,10 @@ pub const Ir = struct {
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.byte1, region);
                     try chunk.write(allocator, m.byte2, region);
-                    if (m.op == .MatchElem or m.op == .MatchElemBack or m.op == .MatchSlice or m.op == .MatchElemDyn) {
+                    if (m.op == .MatchElem or m.op == .MatchElemBack or m.op == .MatchSlice) {
                         try chunk.write(allocator, m.byte3, region);
                     }
-                    if (m.op == .MatchSlice or m.op == .MatchElemDyn) try chunk.write(allocator, m.byte4, region);
+                    if (m.op == .MatchSlice) try chunk.write(allocator, m.byte4, region);
                 },
                 .match_test => |m| {
                     std.debug.assert(m.target != unpatched_jump);
@@ -385,6 +386,7 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.src, region);
                     try chunk.write(allocator, m.base, region);
                     try chunk.write(allocator, m.len, region);
+                    try chunk.write(allocator, m.chunk_dst, region);
                     const insn_len = byteLength(insn.operand);
                     const distance = offsets[m.target] - (offsets[i] + insn_len);
                     try self.writeShortDistance(chunk, allocator, distance, region);
@@ -507,7 +509,7 @@ pub const Ir = struct {
             .jump, .jump_back => 3,
             .match_bytes => |m| switch (m.op) {
                 .MatchElem, .MatchElemBack => @as(u32, 4),
-                .MatchSlice, .MatchElemDyn => 5,
+                .MatchSlice => 5,
                 else => 3,
             },
             .match_test => 5,
@@ -519,7 +521,7 @@ pub const Ir = struct {
             .match_range => 10,
             .match_repeat_range => 11,
             .match_repeat_init => 7,
-            .match_repeat_next => 6,
+            .match_repeat_next => 7,
             .match_str_init => 4,
             .match_str_rest => 5,
             .match_str_lit => 9,
