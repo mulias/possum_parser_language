@@ -18,6 +18,7 @@ const ModuleLoader = @import("module_loader.zig").ModuleLoader;
 const OpCode = @import("op_code.zig").OpCode;
 const RangeLimitKind = @import("op_code.zig").RangeLimitKind;
 const MatchCmpKind = @import("op_code.zig").MatchCmpKind;
+const MatchCastKind = @import("op_code.zig").MatchCastKind;
 const StringTable = @import("string_table.zig").RuntimeStringTable;
 const Region = @import("../region.zig").Region;
 const LineRelativeRegion = @import("../region.zig").LineRelativeRegion;
@@ -1315,61 +1316,35 @@ pub const VM = struct {
                 };
                 if (!value.isEql(other, self.*)) self.cur_frame.ip += offset;
             },
-            .MatchCastNum => {
-                // Cast src's string bytes to a number into dst for a
-                // number-merge template solvable, or fail — empty or
-                // non-numeric bytes fail, mirroring the interpreter's
-                // number cast. src == dst is the in-place form; a
-                // whole-string template casts the source value directly.
+            .MatchCast => {
+                // Parse src's string bytes into dst as the target type — a
+                // number/boolean-merge template solvable, or a JSON
+                // document for a structural template solvable (whose parsed
+                // container a following child window matches). Empty or
+                // ill-typed bytes fail. src == dst is the in-place form
+                // used after MatchStrRest; a whole-string template casts
+                // the source value directly.
                 const dst = self.readByte();
                 const src = self.readByte();
+                const ty: MatchCastKind = @enumFromInt(self.readByte());
                 const offset = self.readShort();
                 const bytes = (try self.getScratch(src).stringBytes(self)).?;
-                if (bytes.len == 0 or !parsing.isValidNumberString(bytes)) {
-                    self.cur_frame.ip += offset;
-                    return;
-                }
-                const number = try Elem.numberStringFromBytes(bytes, self);
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, number);
-                previous.release();
-            },
-            .MatchCastBool => {
-                // Cast src's string bytes to a boolean into dst for a
-                // boolean-merge template solvable, or fail. src == dst is
-                // the in-place form.
-                const dst = self.readByte();
-                const src = self.readByte();
-                const offset = self.readShort();
-                const bytes = (try self.getScratch(src).stringBytes(self)).?;
-                const boolean: ?bool = if (std.mem.eql(u8, bytes, "true"))
-                    true
-                else if (std.mem.eql(u8, bytes, "false"))
-                    false
-                else
-                    null;
-                if (boolean) |b| {
-                    const previous = self.getScratch(dst);
-                    self.setScratch(dst, Elem.boolean(b));
-                    previous.release();
-                } else {
-                    self.cur_frame.ip += offset;
-                }
-            },
-            .MatchCastJson => {
-                // Parse src's string bytes as a JSON document into dst for
-                // a structural template solvable (an array/object cast), or
-                // fail — empty or non-JSON bytes fail. A following child
-                // window matches the parsed container. src == dst is the
-                // in-place form used after MatchStrRest; a whole-string
-                // template casts the source value directly.
-                const dst = self.readByte();
-                const src = self.readByte();
-                const offset = self.readShort();
-                const bytes = (try self.getScratch(src).stringBytes(self)).?;
-                if (try Elem.parseJson(self, bytes)) |elem| {
+                const cast: ?Elem = switch (ty) {
+                    .number => if (bytes.len == 0 or !parsing.isValidNumberString(bytes))
+                        null
+                    else
+                        try Elem.numberStringFromBytes(bytes, self),
+                    .boolean => if (std.mem.eql(u8, bytes, "true"))
+                        Elem.boolean(true)
+                    else if (std.mem.eql(u8, bytes, "false"))
+                        Elem.boolean(false)
+                    else
+                        null,
                     // The parsed dyn moves straight into the rooted match
                     // register; no allocation intervenes to trigger GC.
+                    .json => try Elem.parseJson(self, bytes),
+                };
+                if (cast) |elem| {
                     const previous = self.getScratch(dst);
                     self.setScratch(dst, elem);
                     previous.release();

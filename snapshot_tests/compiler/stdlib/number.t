@@ -552,18 +552,18 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionLocal l0
-  0004    | JumpIfFailure 4 -> 29
+  0004    | JumpIfFailure 4 -> 30
   0007    | MatchWindowEnter 6
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 27
-  0016    | MatchCastNum r4 <- r0 -> 27
-  0021    | MatchBind l1 r4
-  0024    | Jump 24 -> 28
-  0027    | MatchFail
-  0028    | MatchWindowExit
-  0029    | TakeRight 29 -> 34
-  0032    | GetLocalMove l1
-  0034    | End
+  0011    | MatchType r0 string -> 28
+  0016    | MatchCast r4 <- num r0 -> 28
+  0022    | MatchBind l1 r4
+  0025    | Jump 25 -> 29
+  0028    | MatchFail
+  0029    | MatchWindowExit
+  0030    | TakeRight 30 -> 35
+  0033    | GetLocalMove l1
+  0035    | End
   ========================================
   
   ================7:array=================

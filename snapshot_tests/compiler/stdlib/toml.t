@@ -3391,18 +3391,18 @@
   ========================================
   0000    | PushVar2 N
   0003    | CallFunctionLocal l0
-  0005    | JumpIfFailure 5 -> 30
+  0005    | JumpIfFailure 5 -> 31
   0008    | MatchWindowEnter 6
   0010    | MatchScrutinee r0
-  0012    | MatchType r0 string -> 28
-  0017    | MatchCastNum r4 <- r0 -> 28
-  0022    | MatchBind l1 r4
-  0025    | Jump 25 -> 29
-  0028    | MatchFail
-  0029    | MatchWindowExit
-  0030    | TakeRight 30 -> 35
-  0033    | GetLocalMove l1
-  0035    | End
+  0012    | MatchType r0 string -> 29
+  0017    | MatchCast r4 <- num r0 -> 29
+  0023    | MatchBind l1 r4
+  0026    | Jump 26 -> 30
+  0029    | MatchFail
+  0030    | MatchWindowExit
+  0031    | TakeRight 31 -> 36
+  0034    | GetLocalMove l1
+  0036    | End
   ========================================
   
   ===============3:surround===============

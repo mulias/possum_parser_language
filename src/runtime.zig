@@ -14,6 +14,7 @@ pub const ChunkError = chunk.ChunkError;
 pub const OpCode = @import("runtime/op_code.zig").OpCode;
 pub const RangeLimitKind = @import("runtime/op_code.zig").RangeLimitKind;
 pub const MatchCmpKind = @import("runtime/op_code.zig").MatchCmpKind;
+pub const MatchCastKind = @import("runtime/op_code.zig").MatchCastKind;
 pub const MatchPlan = @import("runtime/match_plan.zig").MatchPlan;
 pub const GC = @import("runtime/gc.zig").GC;
 pub const match_plan = @import("runtime/match_plan.zig");

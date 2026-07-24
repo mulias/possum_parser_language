@@ -10,20 +10,20 @@
   0003    | GetConstant 0: Is.Number
   0005    | GetLocal l0
   0007    | CallFunction 1
-  0009    | Or 9 -> 44
+  0009    | Or 9 -> 45
   0012    | GetLocalMove l0
-  0014    | JumpIfFailure 14 -> 39
+  0014    | JumpIfFailure 14 -> 40
   0017    | MatchWindowEnter 6
   0019    | MatchScrutinee r0
-  0021    | MatchType r0 string -> 37
-  0026    | MatchCastNum r4 <- r0 -> 37
-  0031    | MatchBind l1 r4
-  0034    | Jump 34 -> 38
-  0037    | MatchFail
-  0038    | MatchWindowExit
-  0039    | TakeRight 39 -> 44
-  0042    | GetLocalMove l1
-  0044    | End
+  0021    | MatchType r0 string -> 38
+  0026    | MatchCast r4 <- num r0 -> 38
+  0032    | MatchBind l1 r4
+  0035    | Jump 35 -> 39
+  0038    | MatchFail
+  0039    | MatchWindowExit
+  0040    | TakeRight 40 -> 45
+  0043    | GetLocalMove l1
+  0045    | End
   ========================================
   
   ==============1:As.String===============

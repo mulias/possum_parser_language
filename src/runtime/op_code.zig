@@ -25,6 +25,14 @@ pub const MatchCmpKind = enum(u8) {
     reg,
 };
 
+// The target type a MatchCast step parses its source register's string
+// bytes into: a number, a boolean, or a JSON document (array/object).
+pub const MatchCastKind = enum(u8) {
+    number,
+    boolean,
+    json,
+};
+
 pub const OpCode = enum(u8) {
     AssertFunctionArity,
     AssertParamTypes,
@@ -72,9 +80,7 @@ pub const OpCode = enum(u8) {
     // is the shared failure tail that swaps the value for the failure
     // const and records the pattern mismatch.
     MatchBind,
-    MatchCastBool,
-    MatchCastJson,
-    MatchCastNum,
+    MatchCast,
     MatchCmp,
     MatchCount,
     MatchElem,
@@ -288,9 +294,7 @@ pub const OpCode = enum(u8) {
             .MatchFail => .{ .fixed = .{ .pops = 1, .pushes = 1 } },
 
             // Semidet steps: no stack traffic on either path.
-            .MatchCastBool,
-            .MatchCastJson,
-            .MatchCastNum,
+            .MatchCast,
             .MatchCmp,
             .MatchCount,
             .MatchInRange,
@@ -559,9 +563,7 @@ pub const OpCode = enum(u8) {
             // fresh array's creator handle into its register the same
             // way.
             .MatchBind,
-            .MatchCastBool,
-            .MatchCastJson,
-            .MatchCastNum,
+            .MatchCast,
             .MatchCmp,
             .MatchCount,
             .MatchElem,
@@ -743,10 +745,7 @@ pub const OpCode = enum(u8) {
             .MatchStrVal => self.matchStrValInstruction(chunk, writer, offset),
             .MatchStrChar => self.matchStrCharInstruction(chunk, writer, offset),
             .MatchCmp => self.matchCmpInstruction(chunk, vm, module, writer, offset),
-            .MatchCastNum,
-            .MatchCastBool,
-            .MatchCastJson,
-            => self.matchCastInstruction(chunk, writer, offset),
+            .MatchCast => self.matchCastInstruction(chunk, writer, offset),
             .MatchType => self.matchTypeInstruction(chunk, writer, offset),
             .MatchCount => self.matchCountInstruction(chunk, writer, offset),
             .MatchEval => self.matchEvalInstruction(chunk, writer, offset),
@@ -1091,10 +1090,15 @@ pub const OpCode = enum(u8) {
     fn matchCastInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const dst = chunk.read(offset + 1);
         const src = chunk.read(offset + 2);
-        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
-        const target = offset + 5 + jump;
-        try writer.print("{s} r{} <- r{} -> {}\n", .{ @tagName(self), dst, src, target });
-        return offset + 5;
+        const ty: []const u8 = switch (@as(MatchCastKind, @enumFromInt(chunk.read(offset + 3)))) {
+            .number => "num",
+            .boolean => "bool",
+            .json => "json",
+        };
+        const jump = (@as(u16, @intCast(chunk.read(offset + 4))) << 8) | chunk.read(offset + 5);
+        const target = offset + 6 + jump;
+        try writer.print("{s} r{} <- {s} r{} -> {}\n", .{ @tagName(self), dst, ty, src, target });
+        return offset + 6;
     }
 
     fn matchCmpInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {

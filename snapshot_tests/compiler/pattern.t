@@ -1138,18 +1138,18 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "50"
-  0004    | JumpIfFailure 4 -> 29
+  0004    | JumpIfFailure 4 -> 30
   0007    | MatchWindowEnter 6
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 27
-  0016    | MatchCastNum r4 <- r0 -> 27
-  0021    | MatchBind l0 r4
-  0024    | Jump 24 -> 28
-  0027    | MatchFail
-  0028    | MatchWindowExit
-  0029    | TakeRight 29 -> 34
-  0032    | GetLocalMove l0
-  0034    | End
+  0011    | MatchType r0 string -> 28
+  0016    | MatchCast r4 <- num r0 -> 28
+  0022    | MatchBind l0 r4
+  0025    | Jump 25 -> 29
+  0028    | MatchFail
+  0029    | MatchWindowExit
+  0030    | TakeRight 30 -> 35
+  0033    | GetLocalMove l0
+  0035    | End
   ========================================
 
   $ possum -p '"ab" * 3' -i 'ababab'
@@ -1621,18 +1621,18 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionLocal l0
-  0004    | JumpIfFailure 4 -> 29
+  0004    | JumpIfFailure 4 -> 30
   0007    | MatchWindowEnter 6
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 27
-  0016    | MatchCastNum r4 <- r0 -> 27
-  0021    | MatchBind l1 r4
-  0024    | Jump 24 -> 28
-  0027    | MatchFail
-  0028    | MatchWindowExit
-  0029    | TakeRight 29 -> 34
-  0032    | GetLocalMove l1
-  0034    | End
+  0011    | MatchType r0 string -> 28
+  0016    | MatchCast r4 <- num r0 -> 28
+  0022    | MatchBind l1 r4
+  0025    | Jump 25 -> 29
+  0028    | MatchFail
+  0029    | MatchWindowExit
+  0030    | TakeRight 30 -> 35
+  0033    | GetLocalMove l1
+  0035    | End
   ========================================
   
   ===============6:integer================
@@ -3225,19 +3225,19 @@
   ========================================
   0000    | PushVar B
   0002    | CallFunctionConstant 0: "true"
-  0004    | JumpIfFailure 4 -> 36
+  0004    | JumpIfFailure 4 -> 37
   0007    | MatchWindowEnter 6
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 34
-  0016    | MatchCastBool r4 <- r0 -> 34
-  0021    | MatchMergeBool r1 r4 claim true -> 34
-  0028    | MatchBind l0 r1
-  0031    | Jump 31 -> 35
-  0034    | MatchFail
-  0035    | MatchWindowExit
-  0036    | TakeRight 36 -> 41
-  0039    | GetLocalMove l0
-  0041    | End
+  0011    | MatchType r0 string -> 35
+  0016    | MatchCast r4 <- bool r0 -> 35
+  0022    | MatchMergeBool r1 r4 claim true -> 35
+  0029    | MatchBind l0 r1
+  0032    | Jump 32 -> 36
+  0035    | MatchFail
+  0036    | MatchWindowExit
+  0037    | TakeRight 37 -> 42
+  0040    | GetLocalMove l0
+  0042    | End
   ========================================
 
   $ possum -p '"123" -> "%(0 + N)"' -i '123'
@@ -3247,16 +3247,16 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "123"
-  0004    | JumpIfFailure 4 -> 29
+  0004    | JumpIfFailure 4 -> 30
   0007    | MatchWindowEnter 6
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 27
-  0016    | MatchCastNum r4 <- r0 -> 27
-  0021    | MatchBind l0 r4
-  0024    | Jump 24 -> 28
-  0027    | MatchFail
-  0028    | MatchWindowExit
-  0029    | End
+  0011    | MatchType r0 string -> 28
+  0016    | MatchCast r4 <- num r0 -> 28
+  0022    | MatchBind l0 r4
+  0025    | Jump 25 -> 29
+  0028    | MatchFail
+  0029    | MatchWindowExit
+  0030    | End
   ========================================
 
   $ possum -p '"123" -> "%(N + 1)"' -i '123'
@@ -3266,17 +3266,17 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "123"
-  0004    | JumpIfFailure 4 -> 36
+  0004    | JumpIfFailure 4 -> 37
   0007    | MatchWindowEnter 6
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 34
-  0016    | MatchCastNum r4 <- r0 -> 34
-  0021    | MatchMergeNum r1 r4 - 1 -> 34
-  0028    | MatchBind l0 r1
-  0031    | Jump 31 -> 35
-  0034    | MatchFail
-  0035    | MatchWindowExit
-  0036    | End
+  0011    | MatchType r0 string -> 35
+  0016    | MatchCast r4 <- num r0 -> 35
+  0022    | MatchMergeNum r1 r4 - 1 -> 35
+  0029    | MatchBind l0 r1
+  0032    | Jump 32 -> 36
+  0035    | MatchFail
+  0036    | MatchWindowExit
+  0037    | End
   ========================================
 
   $ possum -p '"[1,2,3]" -> "%([...A])"' -i '[1,2,3]'
@@ -3286,25 +3286,25 @@
   ========================================
   0000    | PushVar A
   0002    | CallFunctionConstant 0: "[1,2,3]"
-  0004    | JumpIfFailure 4 -> 58
+  0004    | JumpIfFailure 4 -> 59
   0007    | MatchWindowEnter 6
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 56
-  0016    | MatchCastJson r4 <- r0 -> 56
-  0021    | MatchWindowEnter 3
-  0023    | MatchSubScrutinee r0 ^r4
-  0026    | MatchType r0 array -> 48
-  0031    | MatchCount r0 >=0 -> 48
-  0037    | MatchSlice r1 r0[0..^0]
-  0042    | MatchBind l0 r1
-  0045    | Jump 45 -> 52
-  0048    | MatchWindowExit
-  0049    | Jump 49 -> 56
-  0052    | MatchWindowExit
-  0053    | Jump 53 -> 57
-  0056    | MatchFail
-  0057    | MatchWindowExit
-  0058    | End
+  0011    | MatchType r0 string -> 57
+  0016    | MatchCast r4 <- json r0 -> 57
+  0022    | MatchWindowEnter 3
+  0024    | MatchSubScrutinee r0 ^r4
+  0027    | MatchType r0 array -> 49
+  0032    | MatchCount r0 >=0 -> 49
+  0038    | MatchSlice r1 r0[0..^0]
+  0043    | MatchBind l0 r1
+  0046    | Jump 46 -> 53
+  0049    | MatchWindowExit
+  0050    | Jump 50 -> 57
+  0053    | MatchWindowExit
+  0054    | Jump 54 -> 58
+  0057    | MatchFail
+  0058    | MatchWindowExit
+  0059    | End
   ========================================
 
   $ possum -p '`{"a": 1, "b": 2}` -> "%({..._})"' -i '{"a": 1, "b": 2}'
@@ -3313,22 +3313,22 @@
   `{"a": 1, "b": 2}` -> "%({..._})"
   ========================================
   0000    | CallFunctionConstant 0: "{"a": 1, "b": 2}"
-  0002    | JumpIfFailure 2 -> 42
+  0002    | JumpIfFailure 2 -> 43
   0005    | MatchWindowEnter 6
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 40
-  0014    | MatchCastJson r4 <- r0 -> 40
-  0019    | MatchWindowEnter 2
-  0021    | MatchSubScrutinee r0 ^r4
-  0024    | MatchType r0 object -> 32
-  0029    | Jump 29 -> 36
-  0032    | MatchWindowExit
-  0033    | Jump 33 -> 40
-  0036    | MatchWindowExit
-  0037    | Jump 37 -> 41
-  0040    | MatchFail
-  0041    | MatchWindowExit
-  0042    | End
+  0009    | MatchType r0 string -> 41
+  0014    | MatchCast r4 <- json r0 -> 41
+  0020    | MatchWindowEnter 2
+  0022    | MatchSubScrutinee r0 ^r4
+  0025    | MatchType r0 object -> 33
+  0030    | Jump 30 -> 37
+  0033    | MatchWindowExit
+  0034    | Jump 34 -> 41
+  0037    | MatchWindowExit
+  0038    | Jump 38 -> 42
+  0041    | MatchFail
+  0042    | MatchWindowExit
+  0043    | End
   ========================================
 
   $ possum -p '"abcabcabc" -> "%( `abc` * N)" $ N' -i 'abcabcabc'
@@ -3561,16 +3561,16 @@
   "-3" -> "%(-(1..5))"
   ========================================
   0000    | CallFunctionConstant 0: "-3"
-  0002    | JumpIfFailure 2 -> 34
+  0002    | JumpIfFailure 2 -> 35
   0005    | MatchWindowEnter 6
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 32
-  0014    | MatchCastNum r4 <- r0 -> 32
-  0019    | MatchInRange r4 -5..-1 -> 32
-  0029    | Jump 29 -> 33
-  0032    | MatchFail
-  0033    | MatchWindowExit
-  0034    | End
+  0009    | MatchType r0 string -> 33
+  0014    | MatchCast r4 <- num r0 -> 33
+  0020    | MatchInRange r4 -5..-1 -> 33
+  0030    | Jump 30 -> 34
+  0033    | MatchFail
+  0034    | MatchWindowExit
+  0035    | End
   ========================================
 
   $ possum -p '"a-3" -> "a%(-(1..5))"' -i 'a-3'
@@ -3579,19 +3579,19 @@
   "a-3" -> "a%(-(1..5))"
   ========================================
   0000    | CallFunctionConstant 0: "a-3"
-  0002    | JumpIfFailure 2 -> 52
+  0002    | JumpIfFailure 2 -> 53
   0005    | MatchWindowEnter 6
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 50
+  0009    | MatchType r0 string -> 51
   0014    | MatchStrInit r0 front=r2 end=r3
-  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "a" -> 50
+  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "a" -> 51
   0027    | MatchStrRest r4 r0[r2..r3]
-  0032    | MatchCastNum r4 <- r4 -> 50
-  0037    | MatchInRange r4 -5..-1 -> 50
-  0047    | Jump 47 -> 51
-  0050    | MatchFail
-  0051    | MatchWindowExit
-  0052    | End
+  0032    | MatchCast r4 <- num r4 -> 51
+  0038    | MatchInRange r4 -5..-1 -> 51
+  0048    | Jump 48 -> 52
+  0051    | MatchFail
+  0052    | MatchWindowExit
+  0053    | End
   ========================================
 
   $ possum -p '-4 -> (2 * -(1..5))' -i '-4'

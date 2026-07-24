@@ -7,6 +7,7 @@ const ChunkError = runtime.ChunkError;
 const OpCode = runtime.OpCode;
 pub const RangeLimitKind = runtime.RangeLimitKind;
 pub const MatchCmpKind = runtime.MatchCmpKind;
+pub const MatchCastKind = runtime.MatchCastKind;
 const Region = @import("../region.zig").Region;
 const StringTable = runtime.StringTable;
 
@@ -66,6 +67,10 @@ pub const Ir = struct {
         // slot (arg = bound local slot), or reg (arg = another scratch
         // register). Carries a forward fail-jump target.
         match_cmp: struct { reg: u8, kind: MatchCmpKind, arg: u16, target: Index },
+        // MatchCast (dst, src, target type): semidet parse of src's string
+        // bytes into dst as a number, boolean, or JSON document. Carries a
+        // forward fail-jump target.
+        match_cast: struct { dst: u8, src: u8, ty: MatchCastKind, target: Index },
         // MatchStrPrefix/MatchStrSuffix (slot, constant) and MatchKey/
         // MatchMergeBool/MatchMergeNum/MatchMergeNumNeg (dst, src, constant).
         match_const: struct { op: OpCode, byte1: u8, byte2: u8 = 0, constant: u16, target: Index },
@@ -209,6 +214,7 @@ pub const Ir = struct {
             .match_test => |*m| &m.target,
             .match_count => |*m| &m.target,
             .match_cmp => |*m| &m.target,
+            .match_cast => |*m| &m.target,
             .match_const => |*m| &m.target,
             .match_search => |*m| &m.target,
             .match_key_bound => |*m| &m.target,
@@ -318,6 +324,17 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.reg, region);
                     try chunk.write(allocator, @intFromEnum(m.kind), region);
                     try chunk.writeShort(allocator, m.arg, region);
+                    const insn_len = byteLength(insn.operand);
+                    const distance = offsets[m.target] - (offsets[i] + insn_len);
+                    try self.writeShortDistance(chunk, allocator, distance, region);
+                },
+                .match_cast => |m| {
+                    std.debug.assert(m.target != unpatched_jump);
+                    std.debug.assert(m.target > i);
+                    try chunk.writeOp(allocator, .MatchCast, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, @intFromEnum(m.ty), region);
                     const insn_len = byteLength(insn.operand);
                     const distance = offsets[m.target] - (offsets[i] + insn_len);
                     try self.writeShortDistance(chunk, allocator, distance, region);
@@ -549,6 +566,7 @@ pub const Ir = struct {
             .match_test => 5,
             .match_count => 6,
             .match_cmp => 7,
+            .match_cast => 6,
             .match_const => |m| if (matchConstHasSrcReg(m.op)) @as(u32, 7) else 6,
             .match_rest => 5,
             .match_rest_search => 7,
@@ -651,6 +669,7 @@ pub const Ir = struct {
                         .match_test => |m| m.target,
                         .match_count => |m| m.target,
                         .match_cmp => |m| m.target,
+                        .match_cast => |m| m.target,
                         .match_const => |m| m.target,
                         .match_search => |m| m.target,
                         .match_key_bound => |m| m.target,
@@ -726,6 +745,7 @@ pub const Ir = struct {
             .match_test => |m| m.op,
             .match_count => .MatchCount,
             .match_cmp => .MatchCmp,
+            .match_cast => .MatchCast,
             .match_const => |m| m.op,
             .match_rest => |m| m.op,
             .match_rest_search => |m| m.op,

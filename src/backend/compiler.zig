@@ -16,6 +16,7 @@ const NameResolver = name_resolver.NameResolver;
 const OpCode = runtime.OpCode;
 const RangeLimitKind = runtime.RangeLimitKind;
 const MatchCmpKind = runtime.MatchCmpKind;
+const MatchCastKind = runtime.MatchCastKind;
 const pattern = @import("pattern.zig");
 const Region = @import("../region.zig").Region;
 const FrontendStrings = Frontend.StringTable;
@@ -3352,8 +3353,8 @@ pub const Compiler = struct {
         parts: []const Ast.Part,
         src_reg: u8,
         dead_reg: u8,
-        // The source register is a proven number (a template MatchCastNum
-        // ran first). Enables the `0 + leftover` identity shortcut, which
+        // The source register is a proven number (a template MatchCast to
+        // number ran first). Enables the `0 + leftover` identity shortcut, which
         // otherwise would skip the number-type check MatchMergeNum performs.
         src_is_number: bool,
         fail_jumps: *ArrayList(Ir.Index),
@@ -3772,10 +3773,10 @@ pub const Compiler = struct {
         fail_jumps: *ArrayList(Ir.Index),
         region: Region,
     ) Error!void {
-        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_test = .{
-            .op = .MatchCastNum,
-            .byte1 = cast_dst,
-            .byte2 = cast_src,
+        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
+            .dst = cast_dst,
+            .src = cast_src,
+            .ty = .number,
             .target = Ir.unpatched_jump,
         } }, region));
         const limits = templateRangeLimits(ast, set_id).?;
@@ -3798,10 +3799,10 @@ pub const Compiler = struct {
         fail_jumps: *ArrayList(Ir.Index),
         region: Region,
     ) Error!void {
-        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_test = .{
-            .op = .MatchCastJson,
-            .byte1 = cast_dst,
-            .byte2 = cast_src,
+        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
+            .dst = cast_dst,
+            .src = cast_src,
+            .ty = .json,
             .target = Ir.unpatched_jump,
         } }, region));
         const set = &ast.constraint_sets.items[set_id];
@@ -3830,17 +3831,17 @@ pub const Compiler = struct {
         const allocator = self.vm.allocator;
         const set = &ast.constraint_sets.items[set_id];
         const merge = set.constraints.items[0].kind.solve_merge;
-        const cast_op: OpCode = switch (self.templateMergeSolvable(ast, set_id).?) {
-            .number => .MatchCastNum,
-            .boolean => .MatchCastBool,
+        const cast_ty: MatchCastKind = switch (self.templateMergeSolvable(ast, set_id).?) {
+            .number => .number,
+            .boolean => .boolean,
         };
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-            .op = cast_op,
-            .byte1 = cast_dst,
-            .byte2 = cast_src,
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cast = .{
+            .dst = cast_dst,
+            .src = cast_src,
+            .ty = cast_ty,
             .target = Ir.unpatched_jump,
         } }, region));
-        try self.emitMergeSolve(module_id, ast, merge.ty, merge.parts.items, cast_dst, dead_reg, cast_op == .MatchCastNum, fail_jumps, region);
+        try self.emitMergeSolve(module_id, ast, merge.ty, merge.parts.items, cast_dst, dead_reg, cast_ty == .number, fail_jumps, region);
     }
 
     fn emitTemplateRest(self: *Compiler, reg: u8, regs: TemplateRegs, region: Region) Error!void {

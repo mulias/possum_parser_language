@@ -1067,7 +1067,7 @@ pub const Elem = packed union {
     // bytes are not valid JSON. The returned dyn is fully built (fromJson
     // roots its interior during construction); callers must root it before
     // the next allocation. Shared by the plan interpreter's template cast
-    // and the inline MatchCastJson step.
+    // and the inline MatchCast json step.
     pub fn parseJson(vm: *VM, bytes: []const u8) !?Elem {
         const parsed = json.parseFromSlice(
             json.Value,
