@@ -106,11 +106,8 @@ fn instructionReads(operand: Ir.Operand, plan_slots: []const PlanSlots) SlotSet 
     // range bounds, plan slots) count.
     switch (operand) {
         .destructure_plan => |idx| return plan_slots[idx].reads,
-        // MatchSlot reads the bound local it compares against (byte2).
-        .match_test => |m| switch (m.op) {
-            .MatchSlot => reads.set(m.byte2),
-            else => {},
-        },
+        // A slot-kind MatchCmp reads the bound local it compares against.
+        .match_cmp => |m| if (m.kind == .slot) reads.set(@intCast(m.arg)),
         // MatchKeyBound reads the bound key local it matches against.
         .match_key_bound => |m| reads.set(m.slot),
         // MatchInRange reads any bound that reads a bound local's slot;
@@ -173,6 +170,7 @@ fn liveOut(insns: []const Ir.Insn, live_in: []const SlotSet, i: usize) SlotSet {
                 .jump_back => |j| j.target,
                 .match_test => |m| m.target,
                 .match_count => |m| m.target,
+                .match_cmp => |m| m.target,
                 .match_const => |m| m.target,
                 .match_search => |m| m.target,
                 .match_key_bound => |m| m.target,

@@ -15,21 +15,21 @@
   0000    | GetConstant 0: const
   0002    | GetConstant 1: [1, 2, 3]
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 62
+  0006    | JumpIfFailure 6 -> 65
   0009    | MatchWindowEnter 5
   0011    | MatchScrutinee r0
-  0013    | MatchType r0 array -> 60
-  0018    | MatchCount r0 ==3 -> 60
+  0013    | MatchType r0 array -> 63
+  0018    | MatchCount r0 ==3 -> 63
   0024    | MatchElem r1 r0[0]
-  0029    | MatchConst r1 1 -> 60
-  0035    | MatchElem r2 r0[1]
-  0040    | MatchConst r2 2 -> 60
-  0046    | MatchElem r3 r0[2]
-  0051    | MatchConst r3 3 -> 60
-  0057    | Jump 57 -> 61
-  0060    | MatchFail
-  0061    | MatchWindowExit
-  0062    | End
+  0029    | MatchCmp r1 == 1 -> 63
+  0036    | MatchElem r2 r0[1]
+  0041    | MatchCmp r2 == 2 -> 63
+  0048    | MatchElem r3 r0[2]
+  0053    | MatchCmp r3 == 3 -> 63
+  0060    | Jump 60 -> 64
+  0063    | MatchFail
+  0064    | MatchWindowExit
+  0065    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [A,B,C]' -i ''
@@ -84,21 +84,21 @@
   0004    | GetConstant 0: const
   0006    | GetConstant 1: [1, 2, 3]
   0008    | CallFunction 1
-  0010    | JumpIfFailure 10 -> 60
+  0010    | JumpIfFailure 10 -> 61
   0013    | MatchWindowEnter 5
   0015    | MatchScrutinee r0
-  0017    | MatchType r0 array -> 58
-  0022    | MatchCount r0 ==3 -> 58
+  0017    | MatchType r0 array -> 59
+  0022    | MatchCount r0 ==3 -> 59
   0028    | MatchElem r1 r0[0]
-  0033    | MatchConst r1 1 -> 58
-  0039    | MatchElem r2 r0[1]
-  0044    | MatchBind l0 r2
-  0047    | MatchElem r3 r0[2]
-  0052    | MatchBind l1 r3
-  0055    | Jump 55 -> 59
-  0058    | MatchFail
-  0059    | MatchWindowExit
-  0060    | End
+  0033    | MatchCmp r1 == 1 -> 59
+  0040    | MatchElem r2 r0[1]
+  0045    | MatchBind l0 r2
+  0048    | MatchElem r3 r0[2]
+  0053    | MatchBind l1 r3
+  0056    | Jump 56 -> 60
+  0059    | MatchFail
+  0060    | MatchWindowExit
+  0061    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [A, 2, 3]' -i ''
@@ -117,21 +117,21 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 2, 3]
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 61
+  0008    | JumpIfFailure 8 -> 63
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 array -> 59
-  0020    | MatchCount r0 ==3 -> 59
+  0015    | MatchType r0 array -> 61
+  0020    | MatchCount r0 ==3 -> 61
   0026    | MatchElem r1 r0[0]
   0031    | MatchBind l0 r1
   0034    | MatchElem r2 r0[1]
-  0039    | MatchConst r2 2 -> 59
-  0045    | MatchElem r3 r0[2]
-  0050    | MatchConst r3 3 -> 59
-  0056    | Jump 56 -> 60
-  0059    | MatchFail
-  0060    | MatchWindowExit
-  0061    | End
+  0039    | MatchCmp r2 == 2 -> 61
+  0046    | MatchElem r3 r0[2]
+  0051    | MatchCmp r3 == 3 -> 61
+  0058    | Jump 58 -> 62
+  0061    | MatchFail
+  0062    | MatchWindowExit
+  0063    | End
   ========================================
 
   $ possum -p 'const([1,[[2],3]]) -> [A, [[B], 3]] $ B' -i ''
@@ -155,29 +155,29 @@
   0012    | InsertAtIndex 0
   0014    | InsertAtIndex 1
   0016    | CallFunction 1
-  0018    | JumpIfFailure 18 -> 100
+  0018    | JumpIfFailure 18 -> 101
   0021    | MatchWindowEnter 7
   0023    | MatchScrutinee r0
-  0025    | MatchType r0 array -> 98
-  0030    | MatchCount r0 ==2 -> 98
+  0025    | MatchType r0 array -> 99
+  0030    | MatchCount r0 ==2 -> 99
   0036    | MatchElem r1 r0[0]
   0041    | MatchBind l0 r1
   0044    | MatchElem r2 r0[1]
-  0049    | MatchType r2 array -> 98
-  0054    | MatchCount r2 ==2 -> 98
+  0049    | MatchType r2 array -> 99
+  0054    | MatchCount r2 ==2 -> 99
   0060    | MatchElem r3 r2[0]
-  0065    | MatchType r3 array -> 98
-  0070    | MatchCount r3 ==1 -> 98
+  0065    | MatchType r3 array -> 99
+  0070    | MatchCount r3 ==1 -> 99
   0076    | MatchElem r4 r3[0]
   0081    | MatchBind l1 r4
   0084    | MatchElem r5 r2[1]
-  0089    | MatchConst r5 3 -> 98
-  0095    | Jump 95 -> 99
-  0098    | MatchFail
-  0099    | MatchWindowExit
-  0100    | TakeRight 100 -> 105
-  0103    | GetLocalMove l1
-  0105    | End
+  0089    | MatchCmp r5 == 3 -> 99
+  0096    | Jump 96 -> 100
+  0099    | MatchFail
+  0100    | MatchWindowExit
+  0101    | TakeRight 101 -> 106
+  0104    | GetLocalMove l1
+  0106    | End
   ========================================
 
   $ possum -p '3 -> (2 + B)' -i '3'
@@ -214,21 +214,21 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 2, 3]
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 61
+  0008    | JumpIfFailure 8 -> 63
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 array -> 59
-  0020    | MatchCount r0 ==3 -> 59
+  0015    | MatchType r0 array -> 61
+  0020    | MatchCount r0 ==3 -> 61
   0026    | MatchElem r1 r0[0]
   0031    | MatchBind l0 r1
   0034    | MatchElem r2 r0[1]
-  0039    | MatchConst r2 2 -> 59
-  0045    | MatchElem r3 r0[2]
-  0050    | MatchConst r3 3 -> 59
-  0056    | Jump 56 -> 60
-  0059    | MatchFail
-  0060    | MatchWindowExit
-  0061    | End
+  0039    | MatchCmp r2 == 2 -> 61
+  0046    | MatchElem r3 r0[2]
+  0051    | MatchCmp r3 == 3 -> 61
+  0058    | Jump 58 -> 62
+  0061    | MatchFail
+  0062    | MatchWindowExit
+  0063    | End
   ========================================
 
   $ possum -p 'const([1, @Add(1, 2), 3]) -> [A, @Add(1, 1), 3]' -i ''
@@ -259,11 +259,11 @@
   0012    | CallFunction 2
   0014    | InsertAtIndex 1
   0016    | CallFunction 1
-  0018    | JumpIfFailure 18 -> 78
+  0018    | JumpIfFailure 18 -> 79
   0021    | MatchWindowEnter 5
   0023    | MatchScrutinee r0
-  0025    | MatchType r0 array -> 76
-  0030    | MatchCount r0 ==3 -> 76
+  0025    | MatchType r0 array -> 77
+  0030    | MatchCount r0 ==3 -> 77
   0036    | MatchElem r1 r0[0]
   0041    | MatchBind l0 r1
   0044    | MatchElem r2 r0[1]
@@ -271,13 +271,13 @@
   0051    | PushInteger 1
   0053    | PushInteger 1
   0055    | CallFunction 2
-  0057    | MatchEval r2 -> 76
+  0057    | MatchEval r2 -> 77
   0062    | MatchElem r3 r0[2]
-  0067    | MatchConst r3 3 -> 76
-  0073    | Jump 73 -> 77
-  0076    | MatchFail
-  0077    | MatchWindowExit
-  0078    | End
+  0067    | MatchCmp r3 == 3 -> 77
+  0074    | Jump 74 -> 78
+  0077    | MatchFail
+  0078    | MatchWindowExit
+  0079    | End
   ========================================
 
   $ possum -p 'const([1,2]) -> ([1] + [2])' -i ''
@@ -295,19 +295,19 @@
   0000    | GetConstant 0: const
   0002    | GetConstant 1: [1, 2]
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 51
+  0006    | JumpIfFailure 6 -> 53
   0009    | MatchWindowEnter 4
   0011    | MatchScrutinee r0
-  0013    | MatchType r0 array -> 49
-  0018    | MatchCount r0 ==2 -> 49
+  0013    | MatchType r0 array -> 51
+  0018    | MatchCount r0 ==2 -> 51
   0024    | MatchElem r1 r0[0]
-  0029    | MatchConst r1 1 -> 49
-  0035    | MatchElem r2 r0[1]
-  0040    | MatchConst r2 2 -> 49
-  0046    | Jump 46 -> 50
-  0049    | MatchFail
-  0050    | MatchWindowExit
-  0051    | End
+  0029    | MatchCmp r1 == 1 -> 51
+  0036    | MatchElem r2 r0[1]
+  0041    | MatchCmp r2 == 2 -> 51
+  0048    | Jump 48 -> 52
+  0051    | MatchFail
+  0052    | MatchWindowExit
+  0053    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> ([1] + B + [3])' -i ''
@@ -326,21 +326,21 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 2, 3]
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 61
+  0008    | JumpIfFailure 8 -> 63
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 array -> 59
-  0020    | MatchCount r0 >=2 -> 59
+  0015    | MatchType r0 array -> 61
+  0020    | MatchCount r0 >=2 -> 61
   0026    | MatchElem r1 r0[0]
-  0031    | MatchConst r1 1 -> 59
-  0037    | MatchSlice r2 r0[1..^1]
-  0042    | MatchBind l0 r2
-  0045    | MatchElem r3 r0[^0]
-  0050    | MatchConst r3 3 -> 59
-  0056    | Jump 56 -> 60
-  0059    | MatchFail
-  0060    | MatchWindowExit
-  0061    | End
+  0031    | MatchCmp r1 == 1 -> 61
+  0038    | MatchSlice r2 r0[1..^1]
+  0043    | MatchBind l0 r2
+  0046    | MatchElem r3 r0[^0]
+  0051    | MatchCmp r3 == 3 -> 61
+  0058    | Jump 58 -> 62
+  0061    | MatchFail
+  0062    | MatchWindowExit
+  0063    | End
   ========================================
 
   $ possum -p 'const([1,[2],2,3]) -> ([1,A] + A + [3])' -i ''
@@ -361,23 +361,23 @@
   0006    | GetConstant 2: [2]
   0008    | InsertAtIndex 1
   0010    | CallFunction 1
-  0012    | JumpIfFailure 12 -> 75
+  0012    | JumpIfFailure 12 -> 79
   0015    | MatchWindowEnter 6
   0017    | MatchScrutinee r0
-  0019    | MatchType r0 array -> 73
-  0024    | MatchCount r0 >=3 -> 73
+  0019    | MatchType r0 array -> 77
+  0024    | MatchCount r0 >=3 -> 77
   0030    | MatchElem r1 r0[0]
-  0035    | MatchConst r1 1 -> 73
-  0041    | MatchElem r2 r0[1]
-  0046    | MatchBind l0 r2
-  0049    | MatchSlice r3 r0[2..^1]
-  0054    | MatchSlot r3 l0 -> 73
-  0059    | MatchElem r4 r0[^0]
-  0064    | MatchConst r4 3 -> 73
-  0070    | Jump 70 -> 74
-  0073    | MatchFail
-  0074    | MatchWindowExit
-  0075    | End
+  0035    | MatchCmp r1 == 1 -> 77
+  0042    | MatchElem r2 r0[1]
+  0047    | MatchBind l0 r2
+  0050    | MatchSlice r3 r0[2..^1]
+  0055    | MatchCmp r3 == l0 -> 77
+  0062    | MatchElem r4 r0[^0]
+  0067    | MatchCmp r4 == 3 -> 77
+  0074    | Jump 74 -> 78
+  0077    | MatchFail
+  0078    | MatchWindowExit
+  0079    | End
   ========================================
 
   $ possum -p '"foobar" -> ("fo" + Ob + "ar") $ Ob' -i ''
@@ -420,21 +420,21 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 2, 3]
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 50
+  0008    | JumpIfFailure 8 -> 51
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 array -> 48
-  0020    | MatchCount r0 >=1 -> 48
+  0015    | MatchType r0 array -> 49
+  0020    | MatchCount r0 >=1 -> 49
   0026    | MatchElem r1 r0[0]
-  0031    | MatchConst r1 1 -> 48
-  0037    | MatchSlice r2 r0[1..^0]
-  0042    | MatchBind l0 r2
-  0045    | Jump 45 -> 49
-  0048    | MatchFail
-  0049    | MatchWindowExit
-  0050    | TakeRight 50 -> 55
-  0053    | GetLocalMove l0
-  0055    | End
+  0031    | MatchCmp r1 == 1 -> 49
+  0038    | MatchSlice r2 r0[1..^0]
+  0043    | MatchBind l0 r2
+  0046    | Jump 46 -> 50
+  0049    | MatchFail
+  0050    | MatchWindowExit
+  0051    | TakeRight 51 -> 56
+  0054    | GetLocalMove l0
+  0056    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, "b": 2}' -i ''
@@ -452,19 +452,19 @@
   0000    | GetConstant 0: const
   0002    | GetConstant 1: {"a": 1, "b": 2}
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 55
+  0006    | JumpIfFailure 6 -> 57
   0009    | MatchWindowEnter 4
   0011    | MatchScrutinee r0
-  0013    | MatchType r0 object -> 53
-  0018    | MatchCount r0 ==2 -> 53
-  0024    | MatchKey r1 r0["a"] -> 53
-  0031    | MatchConst r1 1 -> 53
-  0037    | MatchKey r2 r0["b"] -> 53
-  0044    | MatchConst r2 2 -> 53
-  0050    | Jump 50 -> 54
-  0053    | MatchFail
-  0054    | MatchWindowExit
-  0055    | End
+  0013    | MatchType r0 object -> 55
+  0018    | MatchCount r0 ==2 -> 55
+  0024    | MatchKey r1 r0["a"] -> 55
+  0031    | MatchCmp r1 == 1 -> 55
+  0038    | MatchKey r2 r0["b"] -> 55
+  0045    | MatchCmp r2 == 2 -> 55
+  0052    | Jump 52 -> 56
+  0055    | MatchFail
+  0056    | MatchWindowExit
+  0057    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": A, "b": B}' -i ''
@@ -543,19 +543,19 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 52
+  0008    | JumpIfFailure 8 -> 53
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 50
-  0020    | MatchCount r0 >=1 -> 50
-  0026    | MatchKey r1 r0["a"] -> 50
-  0033    | MatchConst r1 1 -> 50
-  0039    | MatchObjectRest r2 r0 \ ["a"]
-  0044    | MatchBind l0 r2
-  0047    | Jump 47 -> 51
-  0050    | MatchFail
-  0051    | MatchWindowExit
-  0052    | End
+  0015    | MatchType r0 object -> 51
+  0020    | MatchCount r0 >=1 -> 51
+  0026    | MatchKey r1 r0["a"] -> 51
+  0033    | MatchCmp r1 == 1 -> 51
+  0040    | MatchObjectRest r2 r0 \ ["a"]
+  0045    | MatchBind l0 r2
+  0048    | Jump 48 -> 52
+  0051    | MatchFail
+  0052    | MatchWindowExit
+  0053    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> ({"b": 2} + A)' -i ''
@@ -574,19 +574,19 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 52
+  0008    | JumpIfFailure 8 -> 53
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 50
-  0020    | MatchCount r0 >=1 -> 50
-  0026    | MatchKey r1 r0["b"] -> 50
-  0033    | MatchConst r1 2 -> 50
-  0039    | MatchObjectRest r2 r0 \ ["b"]
-  0044    | MatchBind l0 r2
-  0047    | Jump 47 -> 51
-  0050    | MatchFail
-  0051    | MatchWindowExit
-  0052    | End
+  0015    | MatchType r0 object -> 51
+  0020    | MatchCount r0 >=1 -> 51
+  0026    | MatchKey r1 r0["b"] -> 51
+  0033    | MatchCmp r1 == 2 -> 51
+  0040    | MatchObjectRest r2 r0 \ ["b"]
+  0045    | MatchBind l0 r2
+  0048    | Jump 48 -> 52
+  0051    | MatchFail
+  0052    | MatchWindowExit
+  0053    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> (A + {"b": 2})' -i ''
@@ -605,19 +605,19 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 52
+  0008    | JumpIfFailure 8 -> 53
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 50
-  0020    | MatchCount r0 >=1 -> 50
+  0015    | MatchType r0 object -> 51
+  0020    | MatchCount r0 >=1 -> 51
   0026    | MatchObjectRest r1 r0 \ ["b"]
   0031    | MatchBind l0 r1
-  0034    | MatchKey r2 r0["b"] -> 50
-  0041    | MatchConst r2 2 -> 50
-  0047    | Jump 47 -> 51
-  0050    | MatchFail
-  0051    | MatchWindowExit
-  0052    | End
+  0034    | MatchKey r2 r0["b"] -> 51
+  0041    | MatchCmp r2 == 2 -> 51
+  0048    | Jump 48 -> 52
+  0051    | MatchFail
+  0052    | MatchWindowExit
+  0053    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, ...B}' -i ''
@@ -636,19 +636,19 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 52
+  0008    | JumpIfFailure 8 -> 53
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 50
-  0020    | MatchCount r0 >=1 -> 50
-  0026    | MatchKey r1 r0["a"] -> 50
-  0033    | MatchConst r1 1 -> 50
-  0039    | MatchObjectRest r2 r0 \ ["a"]
-  0044    | MatchBind l0 r2
-  0047    | Jump 47 -> 51
-  0050    | MatchFail
-  0051    | MatchWindowExit
-  0052    | End
+  0015    | MatchType r0 object -> 51
+  0020    | MatchCount r0 >=1 -> 51
+  0026    | MatchKey r1 r0["a"] -> 51
+  0033    | MatchCmp r1 == 1 -> 51
+  0040    | MatchObjectRest r2 r0 \ ["a"]
+  0045    | MatchBind l0 r2
+  0048    | Jump 48 -> 52
+  0051    | MatchFail
+  0052    | MatchWindowExit
+  0053    | End
   ========================================
 
   $ possum -p '2 -> 0..5' -i '2'
@@ -869,14 +869,14 @@
   4 -> (1 + 1 + 2)
   ========================================
   0000    | ParseNumberStringChar 4
-  0002    | JumpIfFailure 2 -> 20
+  0002    | JumpIfFailure 2 -> 21
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchConst r0 4 -> 18
-  0015    | Jump 15 -> 19
-  0018    | MatchFail
-  0019    | MatchWindowExit
-  0020    | End
+  0009    | MatchCmp r0 == 4 -> 19
+  0016    | Jump 16 -> 20
+  0019    | MatchFail
+  0020    | MatchWindowExit
+  0021    | End
   ========================================
 
   $ possum -p '5 -> (2 + 3)' -i '5'
@@ -885,14 +885,14 @@
   5 -> (2 + 3)
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | JumpIfFailure 2 -> 20
+  0002    | JumpIfFailure 2 -> 21
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchConst r0 5 -> 18
-  0015    | Jump 15 -> 19
-  0018    | MatchFail
-  0019    | MatchWindowExit
-  0020    | End
+  0009    | MatchCmp r0 == 5 -> 19
+  0016    | Jump 16 -> 20
+  0019    | MatchFail
+  0020    | MatchWindowExit
+  0021    | End
   ========================================
 
   $ possum -p '5 -> (2 + X + 3)' -i '5'
@@ -919,14 +919,14 @@
   7 -> (X + 4)
   ========================================
   0000    | ParseNumberStringChar 7
-  0002    | JumpIfFailure 2 -> 20
+  0002    | JumpIfFailure 2 -> 21
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchConst r0 7 -> 18
-  0015    | Jump 15 -> 19
-  0018    | MatchFail
-  0019    | MatchWindowExit
-  0020    | End
+  0009    | MatchCmp r0 == 7 -> 19
+  0016    | Jump 16 -> 20
+  0019    | MatchFail
+  0020    | MatchWindowExit
+  0021    | End
   ========================================
 
   $ possum -p 'X = 2; Y = 3; 5 -> (X + Y)' -i '5'
@@ -935,14 +935,14 @@
   5 -> (X + Y)
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | JumpIfFailure 2 -> 20
+  0002    | JumpIfFailure 2 -> 21
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchConst r0 5 -> 18
-  0015    | Jump 15 -> 19
-  0018    | MatchFail
-  0019    | MatchWindowExit
-  0020    | End
+  0009    | MatchCmp r0 == 5 -> 19
+  0016    | Jump 16 -> 20
+  0019    | MatchFail
+  0020    | MatchWindowExit
+  0021    | End
   ========================================
 
   $ possum -p '6 -> (1 + X + 3) $ X' -i '6'
@@ -971,14 +971,14 @@
   5 -> (2 - 3)
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | JumpIfFailure 2 -> 20
+  0002    | JumpIfFailure 2 -> 21
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchConst r0 -1 -> 18
-  0015    | Jump 15 -> 19
-  0018    | MatchFail
-  0019    | MatchWindowExit
-  0020    | End
+  0009    | MatchCmp r0 == -1 -> 19
+  0016    | Jump 16 -> 20
+  0019    | MatchFail
+  0020    | MatchWindowExit
+  0021    | End
   ========================================
 
   $ possum -p '6 -> (1 + X - 3) $ X' -i '6'
@@ -1027,14 +1027,14 @@
   5 -> (1 + 6 + 3 - (2 + 3))
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | JumpIfFailure 2 -> 20
+  0002    | JumpIfFailure 2 -> 21
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchConst r0 5 -> 18
-  0015    | Jump 15 -> 19
-  0018    | MatchFail
-  0019    | MatchWindowExit
-  0020    | End
+  0009    | MatchCmp r0 == 5 -> 19
+  0016    | Jump 16 -> 20
+  0019    | MatchFail
+  0020    | MatchWindowExit
+  0021    | End
   ========================================
 
   $ possum -p '5 -> -(X + 1) $ X' -i '5'
@@ -1073,24 +1073,24 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 5, 2]
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 68
+  0008    | JumpIfFailure 8 -> 70
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 array -> 66
-  0020    | MatchCount r0 ==3 -> 66
+  0015    | MatchType r0 array -> 68
+  0020    | MatchCount r0 ==3 -> 68
   0026    | MatchElem r1 r0[0]
-  0031    | MatchConst r1 1 -> 66
-  0037    | MatchElem r2 r0[1]
-  0042    | MatchMergeNumNeg r4 r2 - -1 -> 66
-  0049    | MatchBind l0 r4
-  0052    | MatchElem r3 r0[2]
-  0057    | MatchConst r3 2 -> 66
-  0063    | Jump 63 -> 67
-  0066    | MatchFail
-  0067    | MatchWindowExit
-  0068    | TakeRight 68 -> 73
-  0071    | GetLocalMove l0
-  0073    | End
+  0031    | MatchCmp r1 == 1 -> 68
+  0038    | MatchElem r2 r0[1]
+  0043    | MatchMergeNumNeg r4 r2 - -1 -> 68
+  0050    | MatchBind l0 r4
+  0053    | MatchElem r3 r0[2]
+  0058    | MatchCmp r3 == 2 -> 68
+  0065    | Jump 65 -> 69
+  0068    | MatchFail
+  0069    | MatchWindowExit
+  0070    | TakeRight 70 -> 75
+  0073    | GetLocalMove l0
+  0075    | End
   ========================================
 
   $ possum -p '"1" -> "%(1)"' -i '1'
@@ -1099,17 +1099,17 @@
   "1" -> "%(1)"
   ========================================
   0000    | ParseChar '1'
-  0002    | JumpIfFailure 2 -> 37
+  0002    | JumpIfFailure 2 -> 39
   0005    | MatchWindowEnter 6
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 35
+  0009    | MatchType r0 string -> 37
   0014    | MatchStrInit r0 front=r2 end=r3
-  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "1" -> 35
-  0027    | MatchStrCovered r2==r3 -> 35
-  0032    | Jump 32 -> 36
-  0035    | MatchFail
-  0036    | MatchWindowExit
-  0037    | End
+  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "1" -> 37
+  0027    | MatchCmp r2 == r3 -> 37
+  0034    | Jump 34 -> 38
+  0037    | MatchFail
+  0038    | MatchWindowExit
+  0039    | End
   ========================================
 
   $ possum -p '"2" -> "%(1 + 1)"' -i '2'
@@ -1118,17 +1118,17 @@
   "2" -> "%(1 + 1)"
   ========================================
   0000    | ParseChar '2'
-  0002    | JumpIfFailure 2 -> 37
+  0002    | JumpIfFailure 2 -> 39
   0005    | MatchWindowEnter 6
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 35
+  0009    | MatchType r0 string -> 37
   0014    | MatchStrInit r0 front=r2 end=r3
-  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "2" -> 35
-  0027    | MatchStrCovered r2==r3 -> 35
-  0032    | Jump 32 -> 36
-  0035    | MatchFail
-  0036    | MatchWindowExit
-  0037    | End
+  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "2" -> 37
+  0027    | MatchCmp r2 == r3 -> 37
+  0034    | Jump 34 -> 38
+  0037    | MatchFail
+  0038    | MatchWindowExit
+  0039    | End
   ========================================
 
   $ possum -p '"50" -> "%(0 + N)" $ N' -i '50'
@@ -1239,14 +1239,14 @@
   "abc" -> "abc"
   ========================================
   0000    | CallFunctionConstant 0: "abc"
-  0002    | JumpIfFailure 2 -> 20
+  0002    | JumpIfFailure 2 -> 21
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchConst r0 "abc" -> 18
-  0015    | Jump 15 -> 19
-  0018    | MatchFail
-  0019    | MatchWindowExit
-  0020    | End
+  0009    | MatchCmp r0 == "abc" -> 19
+  0016    | Jump 16 -> 20
+  0019    | MatchFail
+  0020    | MatchWindowExit
+  0021    | End
   ========================================
 
   $ possum -p 'many(char) -> `\nfoo`' -i '\nfoo'
@@ -1293,14 +1293,14 @@
   0000    | GetConstant 0: many
   0002    | GetConstant 1: char
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 24
+  0006    | JumpIfFailure 6 -> 25
   0009    | MatchWindowEnter 2
   0011    | MatchScrutinee r0
-  0013    | MatchConst r0 "\nfoo" -> 22
-  0019    | Jump 19 -> 23
-  0022    | MatchFail
-  0023    | MatchWindowExit
-  0024    | End
+  0013    | MatchCmp r0 == "\nfoo" -> 23
+  0020    | Jump 20 -> 24
+  0023    | MatchFail
+  0024    | MatchWindowExit
+  0025    | End
   ========================================
 
   $ possum -p 'many(char) -> "%(`a`..`z`)%(_)"' -i 'abcd'
@@ -1411,16 +1411,16 @@
   numerals -> ("3" * 10)
   ========================================
   0000    | CallFunctionConstant 0: numerals
-  0002    | JumpIfFailure 2 -> 27
+  0002    | JumpIfFailure 2 -> 28
   0005    | MatchWindowEnter 3
   0007    | MatchScrutinee r0
   0009    | PushString "3"
-  0011    | MatchRepeatValue r0 r2 -> 25
-  0016    | MatchConst r2 10 -> 25
-  0022    | Jump 22 -> 26
-  0025    | MatchFail
-  0026    | MatchWindowExit
-  0027    | End
+  0011    | MatchRepeatValue r0 r2 -> 26
+  0016    | MatchCmp r2 == 10 -> 26
+  0023    | Jump 23 -> 27
+  0026    | MatchFail
+  0027    | MatchWindowExit
+  0028    | End
   ========================================
 
   $ possum -p 'many(char) -> ("\u000000".. * 10)' -i '12345678901234567890'
@@ -1467,15 +1467,15 @@
   0000    | GetConstant 0: many
   0002    | GetConstant 1: char
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 35
+  0006    | JumpIfFailure 6 -> 36
   0009    | MatchWindowEnter 3
   0011    | MatchScrutinee r0
-  0013    | MatchRepeatRange r0 r2 _0_.. -> 33
-  0024    | MatchConst r2 10 -> 33
-  0030    | Jump 30 -> 34
-  0033    | MatchFail
-  0034    | MatchWindowExit
-  0035    | End
+  0013    | MatchRepeatRange r0 r2 _0_.. -> 34
+  0024    | MatchCmp r2 == 10 -> 34
+  0031    | Jump 31 -> 35
+  0034    | MatchFail
+  0035    | MatchWindowExit
+  0036    | End
   ========================================
 
   $ possum -p 'bool(1, 0) -> true' -i '1'
@@ -1533,14 +1533,14 @@
   0002    | PushNumberStringOne
   0003    | PushNumberStringZero
   0004    | CallFunction 2
-  0006    | JumpIfFailure 6 -> 24
+  0006    | JumpIfFailure 6 -> 25
   0009    | MatchWindowEnter 2
   0011    | MatchScrutinee r0
-  0013    | MatchConst r0 true -> 22
-  0019    | Jump 19 -> 23
-  0022    | MatchFail
-  0023    | MatchWindowExit
-  0024    | End
+  0013    | MatchCmp r0 == true -> 23
+  0020    | Jump 20 -> 24
+  0023    | MatchFail
+  0024    | MatchWindowExit
+  0025    | End
   ========================================
 
   $ possum -p 'int -> 5' -i '5'
@@ -1682,14 +1682,14 @@
   int -> 5
   ========================================
   0000    | CallFunctionConstant 0: integer
-  0002    | JumpIfFailure 2 -> 20
+  0002    | JumpIfFailure 2 -> 21
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchConst r0 5 -> 18
-  0015    | Jump 15 -> 19
-  0018    | MatchFail
-  0019    | MatchWindowExit
-  0020    | End
+  0009    | MatchCmp r0 == 5 -> 19
+  0016    | Jump 16 -> 20
+  0019    | MatchFail
+  0020    | MatchWindowExit
+  0021    | End
   ========================================
 
   $ possum -p '5 -> 2..7' -i '5'
@@ -1809,21 +1809,21 @@
   0000    | GetConstant 0: array
   0002    | GetConstant 1: digit
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 62
+  0006    | JumpIfFailure 6 -> 65
   0009    | MatchWindowEnter 5
   0011    | MatchScrutinee r0
-  0013    | MatchType r0 array -> 60
-  0018    | MatchCount r0 ==3 -> 60
+  0013    | MatchType r0 array -> 63
+  0018    | MatchCount r0 ==3 -> 63
   0024    | MatchElem r1 r0[0]
-  0029    | MatchConst r1 1 -> 60
-  0035    | MatchElem r2 r0[1]
-  0040    | MatchConst r2 2 -> 60
-  0046    | MatchElem r3 r0[2]
-  0051    | MatchConst r3 3 -> 60
-  0057    | Jump 57 -> 61
-  0060    | MatchFail
-  0061    | MatchWindowExit
-  0062    | End
+  0029    | MatchCmp r1 == 1 -> 63
+  0036    | MatchElem r2 r0[1]
+  0041    | MatchCmp r2 == 2 -> 63
+  0048    | MatchElem r3 r0[2]
+  0053    | MatchCmp r3 == 3 -> 63
+  0060    | Jump 60 -> 64
+  0063    | MatchFail
+  0064    | MatchWindowExit
+  0065    | End
   ========================================
 
   $ possum -p 'array(digit) -> [A, ..._]' -i '123'
@@ -1970,38 +1970,38 @@
   0000    | GetConstant 0: array
   0002    | GetConstant 1: digit
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 118
+  0006    | JumpIfFailure 6 -> 121
   0009    | MatchWindowEnter 5
   0011    | MatchScrutinee r0
-  0013    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 116
-  0020    | MatchConst r2 5 -> 116
-  0026    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->113
-  0033    | MatchWindowEnter 3
-  0035    | MatchSubScrutinee r0 ^r4
-  0038    | MatchType r0 array -> 63
-  0043    | MatchCount r0 ==1 -> 63
-  0049    | MatchElem r1 r0[0]
-  0054    | MatchConst r1 1 -> 63
-  0060    | Jump 60 -> 67
-  0063    | MatchWindowExit
-  0064    | Jump 64 -> 116
-  0067    | MatchWindowExit
-  0068    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->113
-  0075    | MatchWindowEnter 3
-  0077    | MatchSubScrutinee r0 ^r4
-  0080    | MatchType r0 array -> 105
-  0085    | MatchCount r0 ==1 -> 105
-  0091    | MatchElem r1 r0[0]
-  0096    | MatchConst r1 1 -> 105
-  0102    | Jump 102 -> 109
-  0105    | MatchWindowExit
-  0106    | Jump 106 -> 116
-  0109    | MatchWindowExit
-  0110    | JumpBack 110 -> 68
-  0113    | Jump 113 -> 117
-  0116    | MatchFail
-  0117    | MatchWindowExit
-  0118    | End
+  0013    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 119
+  0020    | MatchCmp r2 == 5 -> 119
+  0027    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->116
+  0034    | MatchWindowEnter 3
+  0036    | MatchSubScrutinee r0 ^r4
+  0039    | MatchType r0 array -> 65
+  0044    | MatchCount r0 ==1 -> 65
+  0050    | MatchElem r1 r0[0]
+  0055    | MatchCmp r1 == 1 -> 65
+  0062    | Jump 62 -> 69
+  0065    | MatchWindowExit
+  0066    | Jump 66 -> 119
+  0069    | MatchWindowExit
+  0070    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->116
+  0077    | MatchWindowEnter 3
+  0079    | MatchSubScrutinee r0 ^r4
+  0082    | MatchType r0 array -> 108
+  0087    | MatchCount r0 ==1 -> 108
+  0093    | MatchElem r1 r0[0]
+  0098    | MatchCmp r1 == 1 -> 108
+  0105    | Jump 105 -> 112
+  0108    | MatchWindowExit
+  0109    | Jump 109 -> 119
+  0112    | MatchWindowExit
+  0113    | JumpBack 113 -> 70
+  0116    | Jump 116 -> 120
+  0119    | MatchFail
+  0120    | MatchWindowExit
+  0121    | End
   ========================================
 
   $ possum -p 'array(digit) -> ([A] * 5)' -i '11111'
@@ -2070,38 +2070,38 @@
   0002    | GetConstant 0: array
   0004    | GetConstant 1: digit
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 116
+  0008    | JumpIfFailure 8 -> 119
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 114
-  0022    | MatchConst r2 5 -> 114
-  0028    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->111
-  0035    | MatchWindowEnter 3
-  0037    | MatchSubScrutinee r0 ^r4
-  0040    | MatchType r0 array -> 62
-  0045    | MatchCount r0 ==1 -> 62
-  0051    | MatchElem r1 r0[0]
-  0056    | MatchBind l0 r1
-  0059    | Jump 59 -> 66
-  0062    | MatchWindowExit
-  0063    | Jump 63 -> 114
-  0066    | MatchWindowExit
-  0067    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->111
-  0074    | MatchWindowEnter 3
-  0076    | MatchSubScrutinee r0 ^r4
-  0079    | MatchType r0 array -> 103
-  0084    | MatchCount r0 ==1 -> 103
-  0090    | MatchElem r1 r0[0]
-  0095    | MatchSlot r1 l0 -> 103
-  0100    | Jump 100 -> 107
-  0103    | MatchWindowExit
-  0104    | Jump 104 -> 114
-  0107    | MatchWindowExit
-  0108    | JumpBack 108 -> 67
-  0111    | Jump 111 -> 115
-  0114    | MatchFail
-  0115    | MatchWindowExit
-  0116    | End
+  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 117
+  0022    | MatchCmp r2 == 5 -> 117
+  0029    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->114
+  0036    | MatchWindowEnter 3
+  0038    | MatchSubScrutinee r0 ^r4
+  0041    | MatchType r0 array -> 63
+  0046    | MatchCount r0 ==1 -> 63
+  0052    | MatchElem r1 r0[0]
+  0057    | MatchBind l0 r1
+  0060    | Jump 60 -> 67
+  0063    | MatchWindowExit
+  0064    | Jump 64 -> 117
+  0067    | MatchWindowExit
+  0068    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->114
+  0075    | MatchWindowEnter 3
+  0077    | MatchSubScrutinee r0 ^r4
+  0080    | MatchType r0 array -> 106
+  0085    | MatchCount r0 ==1 -> 106
+  0091    | MatchElem r1 r0[0]
+  0096    | MatchCmp r1 == l0 -> 106
+  0103    | Jump 103 -> 110
+  0106    | MatchWindowExit
+  0107    | Jump 107 -> 117
+  0110    | MatchWindowExit
+  0111    | JumpBack 111 -> 68
+  0114    | Jump 114 -> 118
+  0117    | MatchFail
+  0118    | MatchWindowExit
+  0119    | End
   ========================================
 
   $ possum -p 'array(digit) -> ([1] * N) $ N' -i '11111111'
@@ -2170,40 +2170,40 @@
   0002    | GetConstant 0: array
   0004    | GetConstant 1: digit
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 117
+  0008    | JumpIfFailure 8 -> 119
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 115
+  0015    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 117
   0022    | MatchBind l0 r2
-  0025    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->112
+  0025    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->114
   0032    | MatchWindowEnter 3
   0034    | MatchSubScrutinee r0 ^r4
-  0037    | MatchType r0 array -> 62
-  0042    | MatchCount r0 ==1 -> 62
+  0037    | MatchType r0 array -> 63
+  0042    | MatchCount r0 ==1 -> 63
   0048    | MatchElem r1 r0[0]
-  0053    | MatchConst r1 1 -> 62
-  0059    | Jump 59 -> 66
-  0062    | MatchWindowExit
-  0063    | Jump 63 -> 115
-  0066    | MatchWindowExit
-  0067    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->112
-  0074    | MatchWindowEnter 3
-  0076    | MatchSubScrutinee r0 ^r4
-  0079    | MatchType r0 array -> 104
-  0084    | MatchCount r0 ==1 -> 104
-  0090    | MatchElem r1 r0[0]
-  0095    | MatchConst r1 1 -> 104
-  0101    | Jump 101 -> 108
-  0104    | MatchWindowExit
-  0105    | Jump 105 -> 115
-  0108    | MatchWindowExit
-  0109    | JumpBack 109 -> 67
-  0112    | Jump 112 -> 116
-  0115    | MatchFail
-  0116    | MatchWindowExit
-  0117    | TakeRight 117 -> 122
-  0120    | GetLocalMove l0
-  0122    | End
+  0053    | MatchCmp r1 == 1 -> 63
+  0060    | Jump 60 -> 67
+  0063    | MatchWindowExit
+  0064    | Jump 64 -> 117
+  0067    | MatchWindowExit
+  0068    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->114
+  0075    | MatchWindowEnter 3
+  0077    | MatchSubScrutinee r0 ^r4
+  0080    | MatchType r0 array -> 106
+  0085    | MatchCount r0 ==1 -> 106
+  0091    | MatchElem r1 r0[0]
+  0096    | MatchCmp r1 == 1 -> 106
+  0103    | Jump 103 -> 110
+  0106    | MatchWindowExit
+  0107    | Jump 107 -> 117
+  0110    | MatchWindowExit
+  0111    | JumpBack 111 -> 68
+  0114    | Jump 114 -> 118
+  0117    | MatchFail
+  0118    | MatchWindowExit
+  0119    | TakeRight 119 -> 124
+  0122    | GetLocalMove l0
+  0124    | End
   ========================================
 
   $ possum -p 'array(digit) -> [A, ..._, Z]' -i '12345678'
@@ -2354,19 +2354,19 @@
   0002    | GetConstant 0: array
   0004    | GetConstant 1: digit
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 50
+  0008    | JumpIfFailure 8 -> 51
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 array -> 48
-  0020    | MatchCount r0 ==3 -> 48
+  0015    | MatchType r0 array -> 49
+  0020    | MatchCount r0 ==3 -> 49
   0026    | MatchElem r1 r0[0]
-  0031    | MatchConst r1 1 -> 48
-  0037    | MatchElem r2 r0[1]
-  0042    | MatchBind l0 r2
-  0045    | Jump 45 -> 49
-  0048    | MatchFail
-  0049    | MatchWindowExit
-  0050    | End
+  0031    | MatchCmp r1 == 1 -> 49
+  0038    | MatchElem r2 r0[1]
+  0043    | MatchBind l0 r2
+  0046    | Jump 46 -> 50
+  0049    | MatchFail
+  0050    | MatchWindowExit
+  0051    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": 1, "b": 2}' -i 'a1b2'
@@ -2456,19 +2456,19 @@
   0002    | GetConstant 1: alpha
   0004    | GetConstant 2: digit
   0006    | CallFunction 2
-  0008    | JumpIfFailure 8 -> 57
+  0008    | JumpIfFailure 8 -> 59
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 55
-  0020    | MatchCount r0 ==2 -> 55
-  0026    | MatchKey r1 r0["a"] -> 55
-  0033    | MatchConst r1 1 -> 55
-  0039    | MatchKey r2 r0["b"] -> 55
-  0046    | MatchConst r2 2 -> 55
-  0052    | Jump 52 -> 56
-  0055    | MatchFail
-  0056    | MatchWindowExit
-  0057    | End
+  0015    | MatchType r0 object -> 57
+  0020    | MatchCount r0 ==2 -> 57
+  0026    | MatchKey r1 r0["a"] -> 57
+  0033    | MatchCmp r1 == 1 -> 57
+  0040    | MatchKey r2 r0["b"] -> 57
+  0047    | MatchCmp r2 == 2 -> 57
+  0054    | Jump 54 -> 58
+  0057    | MatchFail
+  0058    | MatchWindowExit
+  0059    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": 1, ..._}' -i 'a1b2'
@@ -2558,17 +2558,17 @@
   0002    | GetConstant 1: alpha
   0004    | GetConstant 2: digit
   0006    | CallFunction 2
-  0008    | JumpIfFailure 8 -> 44
+  0008    | JumpIfFailure 8 -> 45
   0011    | MatchWindowEnter 3
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 42
-  0020    | MatchCount r0 >=1 -> 42
-  0026    | MatchKey r1 r0["a"] -> 42
-  0033    | MatchConst r1 1 -> 42
-  0039    | Jump 39 -> 43
-  0042    | MatchFail
-  0043    | MatchWindowExit
-  0044    | End
+  0015    | MatchType r0 object -> 43
+  0020    | MatchCount r0 >=1 -> 43
+  0026    | MatchKey r1 r0["a"] -> 43
+  0033    | MatchCmp r1 == 1 -> 43
+  0040    | Jump 40 -> 44
+  0043    | MatchFail
+  0044    | MatchWindowExit
+  0045    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {_: 1, ..._}' -i 'a1b2'
@@ -2658,20 +2658,20 @@
   0002    | GetConstant 1: alpha
   0004    | GetConstant 2: digit
   0006    | CallFunction 2
-  0008    | JumpIfFailure 8 -> 55
+  0008    | JumpIfFailure 8 -> 56
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 53
-  0020    | MatchCount r0 >=1 -> 53
+  0015    | MatchType r0 object -> 54
+  0020    | MatchCount r0 >=1 -> 54
   0026    | MatchSearchInit r4
-  0028    | MatchNextUnclaimed key=r2 val=r3 src=r0 cursor=r4 keys=r2..r2 \ [] loop->53
-  0038    | MatchConst r3 1 -> 47
-  0044    | Jump 44 -> 50
-  0047    | JumpBack 47 -> 28
-  0050    | Jump 50 -> 54
-  0053    | MatchFail
-  0054    | MatchWindowExit
-  0055    | End
+  0028    | MatchNextUnclaimed key=r2 val=r3 src=r0 cursor=r4 keys=r2..r2 \ [] loop->54
+  0038    | MatchCmp r3 == 1 -> 48
+  0045    | Jump 45 -> 51
+  0048    | JumpBack 48 -> 28
+  0051    | Jump 51 -> 55
+  0054    | MatchFail
+  0055    | MatchWindowExit
+  0056    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": A, ..._}' -i 'a1b2'
@@ -3183,17 +3183,17 @@
   "null" -> "%(null)"
   ========================================
   0000    | CallFunctionConstant 0: "null"
-  0002    | JumpIfFailure 2 -> 37
+  0002    | JumpIfFailure 2 -> 39
   0005    | MatchWindowEnter 6
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 35
+  0009    | MatchType r0 string -> 37
   0014    | MatchStrInit r0 front=r2 end=r3
-  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "null" -> 35
-  0027    | MatchStrCovered r2==r3 -> 35
-  0032    | Jump 32 -> 36
-  0035    | MatchFail
-  0036    | MatchWindowExit
-  0037    | End
+  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "null" -> 37
+  0027    | MatchCmp r2 == r3 -> 37
+  0034    | Jump 34 -> 38
+  0037    | MatchFail
+  0038    | MatchWindowExit
+  0039    | End
   ========================================
 
   $ possum -p '"null" -> "%(null + N)" $ N' -i 'null'
@@ -3833,25 +3833,25 @@
   ("" $ [1, -2, 3]) -> [1, -Inc(1), 3]
   ========================================
   0000    | GetConstant 0: [1, -2, 3]
-  0002    | JumpIfFailure 2 -> 64
+  0002    | JumpIfFailure 2 -> 66
   0005    | MatchWindowEnter 5
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 array -> 62
-  0014    | MatchCount r0 ==3 -> 62
+  0009    | MatchType r0 array -> 64
+  0014    | MatchCount r0 ==3 -> 64
   0020    | MatchElem r1 r0[0]
-  0025    | MatchConst r1 1 -> 62
-  0031    | MatchElem r2 r0[1]
-  0036    | GetConstant 2: Inc
-  0038    | PushInteger 1
-  0040    | CallFunction 1
-  0042    | NegateNumber
-  0043    | MatchEval r2 -> 62
-  0048    | MatchElem r3 r0[2]
-  0053    | MatchConst r3 3 -> 62
-  0059    | Jump 59 -> 63
-  0062    | MatchFail
-  0063    | MatchWindowExit
-  0064    | End
+  0025    | MatchCmp r1 == 1 -> 64
+  0032    | MatchElem r2 r0[1]
+  0037    | GetConstant 2: Inc
+  0039    | PushInteger 1
+  0041    | CallFunction 1
+  0043    | NegateNumber
+  0044    | MatchEval r2 -> 64
+  0049    | MatchElem r3 r0[2]
+  0054    | MatchCmp r3 == 3 -> 64
+  0061    | Jump 61 -> 65
+  0064    | MatchFail
+  0065    | MatchWindowExit
+  0066    | End
   ========================================
 
   $ possum -p 'Check(Y) = [1, -2, 3] -> [1, -Y, 3] ; "" $ Check(2)' -i ''
@@ -3860,23 +3860,23 @@
   Check(Y) = [1, -2, 3] -> [1, -Y, 3]
   ========================================
   0000    | GetConstant 0: [1, -2, 3]
-  0002    | JumpIfFailure 2 -> 60
+  0002    | JumpIfFailure 2 -> 62
   0005    | MatchWindowEnter 5
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 array -> 58
-  0014    | MatchCount r0 ==3 -> 58
+  0009    | MatchType r0 array -> 60
+  0014    | MatchCount r0 ==3 -> 60
   0020    | MatchElem r1 r0[0]
-  0025    | MatchConst r1 1 -> 58
-  0031    | MatchElem r2 r0[1]
-  0036    | GetLocalMove l0
-  0038    | NegateNumber
-  0039    | MatchEval r2 -> 58
-  0044    | MatchElem r3 r0[2]
-  0049    | MatchConst r3 3 -> 58
-  0055    | Jump 55 -> 59
-  0058    | MatchFail
-  0059    | MatchWindowExit
-  0060    | End
+  0025    | MatchCmp r1 == 1 -> 60
+  0032    | MatchElem r2 r0[1]
+  0037    | GetLocalMove l0
+  0039    | NegateNumber
+  0040    | MatchEval r2 -> 60
+  0045    | MatchElem r3 r0[2]
+  0050    | MatchCmp r3 == 3 -> 60
+  0057    | Jump 57 -> 61
+  0060    | MatchFail
+  0061    | MatchWindowExit
+  0062    | End
   ========================================
   
   ================2:@main=================
@@ -3903,14 +3903,14 @@
   ("" $ [1, 1]) -> (F() * 2)
   ========================================
   0000    | GetConstant 1: [1, 1]
-  0002    | JumpIfFailure 2 -> 27
+  0002    | JumpIfFailure 2 -> 28
   0005    | MatchWindowEnter 3
   0007    | MatchScrutinee r0
   0009    | CallFunctionConstant 2: F
-  0011    | MatchRepeatValue r0 r2 -> 25
-  0016    | MatchConst r2 2 -> 25
-  0022    | Jump 22 -> 26
-  0025    | MatchFail
-  0026    | MatchWindowExit
-  0027    | End
+  0011    | MatchRepeatValue r0 r2 -> 26
+  0016    | MatchCmp r2 == 2 -> 26
+  0023    | Jump 23 -> 27
+  0026    | MatchFail
+  0027    | MatchWindowExit
+  0028    | End
   ========================================

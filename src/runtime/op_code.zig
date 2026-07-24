@@ -16,6 +16,15 @@ pub const RangeLimitKind = enum(u8) {
     bind,
 };
 
+// The comparand a MatchCmp step tests its register against. `constant`
+// carries a module constant index; `slot` a bound frame-local slot; `reg`
+// another match scratch register in the same window.
+pub const MatchCmpKind = enum(u8) {
+    constant,
+    slot,
+    reg,
+};
+
 pub const OpCode = enum(u8) {
     AssertFunctionArity,
     AssertParamTypes,
@@ -66,12 +75,11 @@ pub const OpCode = enum(u8) {
     MatchCastBool,
     MatchCastJson,
     MatchCastNum,
-    MatchConst,
+    MatchCmp,
     MatchCount,
     MatchElem,
     MatchEval,
     MatchFail,
-    MatchGlobal,
     MatchInRange,
     MatchKey,
     MatchKeyBound,
@@ -90,9 +98,7 @@ pub const OpCode = enum(u8) {
     MatchScrutinee,
     MatchSearchInit,
     MatchSlice,
-    MatchSlot,
     MatchStrChar,
-    MatchStrCovered,
     MatchStrInit,
     MatchStrLit,
     MatchStrPrefix,
@@ -285,9 +291,8 @@ pub const OpCode = enum(u8) {
             .MatchCastBool,
             .MatchCastJson,
             .MatchCastNum,
-            .MatchConst,
+            .MatchCmp,
             .MatchCount,
-            .MatchGlobal,
             .MatchInRange,
             .MatchKey,
             .MatchKeyBound,
@@ -298,9 +303,7 @@ pub const OpCode = enum(u8) {
             .MatchRepeatInit,
             .MatchRepeatNext,
             .MatchRepeatRange,
-            .MatchSlot,
             .MatchStrChar,
-            .MatchStrCovered,
             .MatchStrLit,
             .MatchStrPrefix,
             .MatchStrSuffix,
@@ -559,10 +562,9 @@ pub const OpCode = enum(u8) {
             .MatchCastBool,
             .MatchCastJson,
             .MatchCastNum,
-            .MatchConst,
+            .MatchCmp,
             .MatchCount,
             .MatchElem,
-            .MatchGlobal,
             .MatchInRange,
             .MatchKey,
             .MatchKeyBound,
@@ -578,9 +580,7 @@ pub const OpCode = enum(u8) {
             .MatchScrutinee,
             .MatchSearchInit,
             .MatchSlice,
-            .MatchSlot,
             .MatchStrChar,
-            .MatchStrCovered,
             .MatchStrInit,
             .MatchStrLit,
             .MatchStrPrefix,
@@ -742,14 +742,13 @@ pub const OpCode = enum(u8) {
             .MatchStrLit => self.matchStrLitInstruction(chunk, vm, module, writer, offset),
             .MatchStrVal => self.matchStrValInstruction(chunk, writer, offset),
             .MatchStrChar => self.matchStrCharInstruction(chunk, writer, offset),
-            .MatchStrCovered => self.matchStrCoveredInstruction(chunk, writer, offset),
+            .MatchCmp => self.matchCmpInstruction(chunk, vm, module, writer, offset),
             .MatchCastNum,
             .MatchCastBool,
             .MatchCastJson,
             => self.matchCastInstruction(chunk, writer, offset),
             .MatchType => self.matchTypeInstruction(chunk, writer, offset),
             .MatchCount => self.matchCountInstruction(chunk, writer, offset),
-            .MatchSlot => self.matchSlotInstruction(chunk, writer, offset),
             .MatchEval => self.matchEvalInstruction(chunk, writer, offset),
             .MatchSubtractEval => self.matchSubtractEvalInstruction(chunk, writer, offset),
             .MatchRepeatChunk,
@@ -758,8 +757,6 @@ pub const OpCode = enum(u8) {
             .MatchRepeatRange => self.matchRepeatRangeInstruction(chunk, vm, module, writer, offset),
             .MatchInRange => self.matchInRangeInstruction(chunk, vm, module, writer, offset),
             .MatchRangeBound => self.matchRangeBoundInstruction(chunk, writer, offset),
-            .MatchConst,
-            .MatchGlobal,
             .MatchStrPrefix,
             .MatchStrSuffix,
             => self.matchConstJumpInstruction(chunk, vm, module, writer, offset),
@@ -1100,13 +1097,23 @@ pub const OpCode = enum(u8) {
         return offset + 5;
     }
 
-    fn matchStrCoveredInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
-        const front = chunk.read(offset + 1);
-        const end = chunk.read(offset + 2);
-        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
-        const target = offset + 5 + jump;
-        try writer.print("{s} r{}==r{} -> {}\n", .{ @tagName(self), front, end, target });
-        return offset + 5;
+    fn matchCmpInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const reg = chunk.read(offset + 1);
+        const kind = chunk.read(offset + 2);
+        const arg = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
+        const target = offset + 7 + jump;
+        try writer.print("{s} r{} == ", .{ @tagName(self), reg });
+        switch (@as(MatchCmpKind, @enumFromInt(kind))) {
+            .constant => {
+                var constant = module.getConstant(arg);
+                try constant.print(vm, writer);
+            },
+            .slot => try writer.print("l{}", .{arg}),
+            .reg => try writer.print("r{}", .{arg}),
+        }
+        try writer.print(" -> {}\n", .{target});
+        return offset + 7;
     }
 
     fn matchTypeInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
@@ -1132,15 +1139,6 @@ pub const OpCode = enum(u8) {
         const cmp: []const u8 = if (mode != 0) ">=" else "==";
         try writer.print("{s} r{} {s}{} -> {}\n", .{ @tagName(self), register, cmp, count, target });
         return offset + 6;
-    }
-
-    fn matchSlotInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
-        const register = chunk.read(offset + 1);
-        const local = chunk.read(offset + 2);
-        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
-        const target = offset + 5 + jump;
-        try writer.print("{s} r{} l{} -> {}\n", .{ @tagName(self), register, local, target });
-        return offset + 5;
     }
 
     fn matchEvalInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {

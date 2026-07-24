@@ -363,7 +363,7 @@
   0000    | GetConstant 0: tuple1
   0002    | GetLocal l0
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 88
+  0006    | JumpIfFailure 6 -> 90
   0009    | PushNull
   0010    | GetLocal l2
   0012    | JumpIfFailure 12 -> 18
@@ -395,17 +395,17 @@
   0058    | PushNegInteger -1
   0060    | Merge
   0061    | Merge
-  0062    | JumpIfFailure 62 -> 86
+  0062    | JumpIfFailure 62 -> 88
   0065    | MatchWindowEnter 2
   0067    | MatchScrutinee r0
-  0069    | MatchMergeNum r1 r0 - -1 -> 84
-  0076    | MatchSlot r1 l2 -> 84
-  0081    | Jump 81 -> 85
-  0084    | MatchFail
-  0085    | MatchWindowExit
-  0086    | Drop
-  0087    | Merge
-  0088    | End
+  0069    | MatchMergeNum r1 r0 - -1 -> 86
+  0076    | MatchCmp r1 == l2 -> 86
+  0083    | Jump 83 -> 87
+  0086    | MatchFail
+  0087    | MatchWindowExit
+  0088    | Drop
+  0089    | Merge
+  0090    | End
   ========================================
   
   =================1:rows=================

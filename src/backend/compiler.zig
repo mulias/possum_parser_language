@@ -15,6 +15,7 @@ const name_resolver = @import("name_resolver.zig");
 const NameResolver = name_resolver.NameResolver;
 const OpCode = runtime.OpCode;
 const RangeLimitKind = runtime.RangeLimitKind;
+const MatchCmpKind = runtime.MatchCmpKind;
 const pattern = @import("pattern.zig");
 const Region = @import("../region.zig").Region;
 const FrontendStrings = Frontend.StringTable;
@@ -517,6 +518,35 @@ pub const Compiler = struct {
     fn writeCallFunctionConstant(self: *Compiler, module_id: Module.Id, elem: Elem, region: Region) !void {
         const constId = try self.makeConstant(module_id, elem);
         return try self.emitCallFunctionConstant(constId, region);
+    }
+
+    // Compile-time split of an eq_global pattern comparand. A plain value
+    // global compares directly (MatchCmp const). A zero-arity function
+    // global evaluates per match: emit its call, then a MatchEval that
+    // pops the result and compares it against the place register. Returns
+    // the failing semidet step for the caller to patch.
+    fn emitEqGlobalStep(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id, reg: u8, region: Region) Error!Ir.Index {
+        const global = self.resolveGlobal(module_id, name) orelse {
+            try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+            return Error.UndefinedVariable;
+        };
+        if (global.isDynType(.Function)) {
+            if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+            try self.writeCallFunctionConstant(module_id, global, region);
+            return try self.ir().push(self.vm.allocator, .{ .match_test = .{
+                .op = .MatchEval,
+                .byte1 = reg,
+                .byte2 = 0,
+                .target = Ir.unpatched_jump,
+            } }, region);
+        }
+        const constant = try self.makeConstantU16(module_id, global, region);
+        return try self.ir().push(self.vm.allocator, .{ .match_cmp = .{
+            .reg = reg,
+            .kind = .constant,
+            .arg = constant,
+            .target = Ir.unpatched_jump,
+        } }, region);
     }
 
     fn numberStringNodeToElem(self: *Compiler, number: []const u8, negated: bool) !Elem {
@@ -2796,31 +2826,17 @@ pub const Compiler = struct {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
                     const elem = try self.goalPatternConstElem(ast, c.value);
                     const constant = try self.makeConstantU16(module_id, elem, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-                        .op = .MatchConst,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                        .constant = constant,
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .kind = .constant,
+                        .arg = constant,
                         .target = Ir.unpatched_jump,
                     } }, step_region));
                 },
                 .eq_global => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    const global = self.resolveGlobal(module_id, c.name) orelse {
-                        try self.printError(module_id, step_region, "undefined variable '{s}'", .{self.frontend.pathString(c.name)});
-                        return Error.UndefinedVariable;
-                    };
-                    // Only zero-arity functions evaluate per match; the
-                    // plan path rejects the rest at compile time too.
-                    if (global.isDynType(.Function) and global.asDyn().asFunction().arity != 0) {
-                        return error.UnsupportedPattern;
-                    }
-                    const constant = try self.makeConstantU16(module_id, global, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-                        .op = .MatchGlobal,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                        .constant = constant,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try fail_jumps.append(allocator, try self.emitEqGlobalStep(module_id, c.name, reg, step_region));
                 },
                 .bind => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -2831,20 +2847,20 @@ pub const Compiler = struct {
                             .byte2 = scratch_base + @as(u8, @intCast(c.place)),
                         } }, step_region),
                         // Compare against the value the first chunk bound.
-                        .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                            .op = .MatchSlot,
-                            .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                            .byte2 = c.slot,
+                        .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                            .reg = scratch_base + @as(u8, @intCast(c.place)),
+                            .kind = .slot,
+                            .arg = c.slot,
                             .target = Ir.unpatched_jump,
                         } }, step_region)),
                     }
                 },
                 .eq_slot => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchSlot,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                        .byte2 = c.slot,
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .kind = .slot,
+                        .arg = c.slot,
                         .target = Ir.unpatched_jump,
                     } }, step_region));
                 },
@@ -3195,36 +3211,23 @@ pub const Compiler = struct {
             .eq_const => |c| {
                 const elem = try self.goalPatternConstElem(ast, c.value);
                 const constant = try self.makeConstantU16(module_id, elem, region);
-                return try self.ir().push(allocator, .{ .match_const = .{
-                    .op = .MatchConst,
-                    .byte1 = reg,
-                    .constant = constant,
+                return try self.ir().push(allocator, .{ .match_cmp = .{
+                    .reg = reg,
+                    .kind = .constant,
+                    .arg = constant,
                     .target = Ir.unpatched_jump,
                 } }, region);
             },
             .eq_slot => |c| {
-                return try self.ir().push(allocator, .{ .match_test = .{
-                    .op = .MatchSlot,
-                    .byte1 = reg,
-                    .byte2 = c.slot,
+                return try self.ir().push(allocator, .{ .match_cmp = .{
+                    .reg = reg,
+                    .kind = .slot,
+                    .arg = c.slot,
                     .target = Ir.unpatched_jump,
                 } }, region);
             },
             .eq_global => |c| {
-                const global = self.resolveGlobal(module_id, c.name) orelse {
-                    try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(c.name)});
-                    return Error.UndefinedVariable;
-                };
-                if (global.isDynType(.Function) and global.asDyn().asFunction().arity != 0) {
-                    return error.UnsupportedPattern;
-                }
-                const constant = try self.makeConstantU16(module_id, global, region);
-                return try self.ir().push(allocator, .{ .match_const = .{
-                    .op = .MatchGlobal,
-                    .byte1 = reg,
-                    .constant = constant,
-                    .target = Ir.unpatched_jump,
-                } }, region);
+                return try self.emitEqGlobalStep(module_id, c.name, reg, region);
             },
             else => unreachable,
         }
@@ -3288,10 +3291,10 @@ pub const Compiler = struct {
                 .byte1 = ls.slot,
                 .byte2 = reg,
             } }, region),
-            .read => |ls| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                .op = .MatchSlot,
-                .byte1 = reg,
-                .byte2 = ls.slot,
+            .read => |ls| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = reg,
+                .kind = .slot,
+                .arg = ls.slot,
                 .target = Ir.unpatched_jump,
             } }, region)),
             .expr => |id| try self.emitRepeatCountConst(module_id, ast, id, reg, fail_jumps, region),
@@ -3304,10 +3307,10 @@ pub const Compiler = struct {
                         .byte1 = c.slot,
                         .byte2 = reg,
                     } }, region),
-                    .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchSlot,
-                        .byte1 = reg,
-                        .byte2 = c.slot,
+                    .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = reg,
+                        .kind = .slot,
+                        .arg = c.slot,
                         .target = Ir.unpatched_jump,
                     } }, region)),
                     .in_range => |c| try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, fail_jumps, region),
@@ -3329,10 +3332,10 @@ pub const Compiler = struct {
     ) Error!void {
         const elem = try self.goalPatternConstElem(ast, id);
         const constant = try self.makeConstantU16(module_id, elem, region);
-        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_const = .{
-            .op = .MatchConst,
-            .byte1 = reg,
-            .constant = constant,
+        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cmp = .{
+            .reg = reg,
+            .kind = .constant,
+            .arg = constant,
             .target = Ir.unpatched_jump,
         } }, region));
     }
@@ -3377,10 +3380,10 @@ pub const Compiler = struct {
                 // L); only a static-false claim verifies L equals the
                 // residual scrutinee.
                 .read => if (!step.static_true) {
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchSlot,
-                        .byte1 = dead_reg,
-                        .byte2 = step.slot,
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .reg = dead_reg,
+                        .kind = .slot,
+                        .arg = step.slot,
                         .target = Ir.unpatched_jump,
                     } }, region));
                 },
@@ -3410,10 +3413,10 @@ pub const Compiler = struct {
                     .byte1 = step.slot,
                     .byte2 = src_reg,
                 } }, region),
-                .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                    .op = .MatchSlot,
-                    .byte1 = src_reg,
-                    .byte2 = step.slot,
+                .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                    .reg = src_reg,
+                    .kind = .slot,
+                    .arg = step.slot,
                     .target = Ir.unpatched_jump,
                 } }, region)),
                 .placeholder => {},
@@ -3434,10 +3437,10 @@ pub const Compiler = struct {
                 .byte1 = step.slot,
                 .byte2 = dead_reg,
             } }, region),
-            .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                .op = .MatchSlot,
-                .byte1 = dead_reg,
-                .byte2 = step.slot,
+            .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = dead_reg,
+                .kind = .slot,
+                .arg = step.slot,
                 .target = Ir.unpatched_jump,
             } }, region)),
             .placeholder => {},
@@ -3501,10 +3504,10 @@ pub const Compiler = struct {
                 .byte1 = step.slot,
                 .byte2 = dead_reg,
             } }, region),
-            .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                .op = .MatchSlot,
-                .byte1 = dead_reg,
-                .byte2 = step.slot,
+            .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = dead_reg,
+                .kind = .slot,
+                .arg = step.slot,
                 .target = Ir.unpatched_jump,
             } }, region)),
             .placeholder => {},
@@ -3722,10 +3725,10 @@ pub const Compiler = struct {
             }
         } else {
             // No solvable: the fixed segments must cover the whole string.
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                .op = .MatchStrCovered,
-                .byte1 = regs.front,
-                .byte2 = regs.end,
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = regs.front,
+                .kind = .reg,
+                .arg = regs.end,
                 .target = Ir.unpatched_jump,
             } }, region));
         }

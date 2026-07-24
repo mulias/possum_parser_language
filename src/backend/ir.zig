@@ -6,6 +6,7 @@ const Chunk = runtime.Chunk;
 const ChunkError = runtime.ChunkError;
 const OpCode = runtime.OpCode;
 pub const RangeLimitKind = runtime.RangeLimitKind;
+pub const MatchCmpKind = runtime.MatchCmpKind;
 const Region = @import("../region.zig").Region;
 const StringTable = runtime.StringTable;
 
@@ -50,7 +51,7 @@ pub const Ir = struct {
         // MatchBind (local, src), MatchElem (dst, src, index, dir), and
         // MatchSlice (dst, src, front, back).
         match_bytes: struct { op: OpCode, byte1: u8, byte2: u8, byte3: u8 = 0, byte4: u8 = 0 },
-        // MatchType (slot, immediate), MatchSlot (register, local), and
+        // MatchType (slot, immediate), MatchEval (register, unused), and
         // MatchRepeatValue/MatchRepeatChunk (src register, destination
         // register) which pop their evaluated repeat operand from the
         // stack.
@@ -60,7 +61,12 @@ pub const Ir = struct {
         // compares against the immediate; mode 0 is equal, mode 1 at
         // least. Carries a forward fail-jump target.
         match_count: struct { reg: u8, n: u8, mode: u8, target: Index },
-        // MatchConst/MatchGlobal (slot, constant) and MatchKey/
+        // MatchCmp (register, comparand kind, arg): semidet equality test.
+        // kind selects the comparand — constant (arg = constant index),
+        // slot (arg = bound local slot), or reg (arg = another scratch
+        // register). Carries a forward fail-jump target.
+        match_cmp: struct { reg: u8, kind: MatchCmpKind, arg: u16, target: Index },
+        // MatchStrPrefix/MatchStrSuffix (slot, constant) and MatchKey/
         // MatchMergeBool/MatchMergeNum/MatchMergeNumNeg (dst, src, constant).
         match_const: struct { op: OpCode, byte1: u8, byte2: u8 = 0, constant: u16, target: Index },
         // MatchObjectRest (dst, src, key-list constant): det, no jump.
@@ -202,6 +208,7 @@ pub const Ir = struct {
             .jump => |*j| &j.target,
             .match_test => |*m| &m.target,
             .match_count => |*m| &m.target,
+            .match_cmp => |*m| &m.target,
             .match_const => |*m| &m.target,
             .match_search => |*m| &m.target,
             .match_key_bound => |*m| &m.target,
@@ -300,6 +307,17 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.reg, region);
                     try chunk.write(allocator, m.n, region);
                     try chunk.write(allocator, m.mode, region);
+                    const insn_len = byteLength(insn.operand);
+                    const distance = offsets[m.target] - (offsets[i] + insn_len);
+                    try self.writeShortDistance(chunk, allocator, distance, region);
+                },
+                .match_cmp => |m| {
+                    std.debug.assert(m.target != unpatched_jump);
+                    std.debug.assert(m.target > i);
+                    try chunk.writeOp(allocator, .MatchCmp, region);
+                    try chunk.write(allocator, m.reg, region);
+                    try chunk.write(allocator, @intFromEnum(m.kind), region);
+                    try chunk.writeShort(allocator, m.arg, region);
                     const insn_len = byteLength(insn.operand);
                     const distance = offsets[m.target] - (offsets[i] + insn_len);
                     try self.writeShortDistance(chunk, allocator, distance, region);
@@ -530,6 +548,7 @@ pub const Ir = struct {
             },
             .match_test => 5,
             .match_count => 6,
+            .match_cmp => 7,
             .match_const => |m| if (matchConstHasSrcReg(m.op)) @as(u32, 7) else 6,
             .match_rest => 5,
             .match_rest_search => 7,
@@ -631,6 +650,7 @@ pub const Ir = struct {
                         .jump => |j| j.target,
                         .match_test => |m| m.target,
                         .match_count => |m| m.target,
+                        .match_cmp => |m| m.target,
                         .match_const => |m| m.target,
                         .match_search => |m| m.target,
                         .match_key_bound => |m| m.target,
@@ -705,6 +725,7 @@ pub const Ir = struct {
             .match_bytes => |m| m.op,
             .match_test => |m| m.op,
             .match_count => .MatchCount,
+            .match_cmp => .MatchCmp,
             .match_const => |m| m.op,
             .match_rest => |m| m.op,
             .match_rest_search => |m| m.op,

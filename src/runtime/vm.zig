@@ -17,6 +17,7 @@ const Module = @import("module.zig").Module;
 const ModuleLoader = @import("module_loader.zig").ModuleLoader;
 const OpCode = @import("op_code.zig").OpCode;
 const RangeLimitKind = @import("op_code.zig").RangeLimitKind;
+const MatchCmpKind = @import("op_code.zig").MatchCmpKind;
 const StringTable = @import("string_table.zig").RuntimeStringTable;
 const Region = @import("../region.zig").Region;
 const LineRelativeRegion = @import("../region.zig").LineRelativeRegion;
@@ -1295,15 +1296,24 @@ pub const VM = struct {
                 self.setScratch(dst, rest);
                 previous.release();
             },
-            .MatchStrCovered => {
-                // No-solvable template: the fixed segments must cover the
-                // whole string, i.e. the cursors meet.
-                const front = self.readByte();
-                const end = self.readByte();
+            .MatchCmp => {
+                // Compare the register against a comparand — a module
+                // constant, a bound frame local, or another scratch
+                // register — and take the fail jump when they differ.
+                // Absorbs the former MatchConst (constant), MatchSlot
+                // (slot), MatchStrCovered (reg: cursors meeting), and the
+                // constant case of MatchGlobal.
+                const reg = self.readByte();
+                const kind = self.readByte();
+                const arg = self.readShort();
                 const offset = self.readShort();
-                if (self.getScratch(front).asFloat() != self.getScratch(end).asFloat()) {
-                    self.cur_frame.ip += offset;
-                }
+                const value = self.getScratch(reg);
+                const other = switch (@as(MatchCmpKind, @enumFromInt(kind))) {
+                    .constant => self.getConstant(arg),
+                    .slot => try self.getBoundLocal(arg),
+                    .reg => self.getScratch(@intCast(arg)),
+                };
+                if (!value.isEql(other, self.*)) self.cur_frame.ip += offset;
             },
             .MatchCastNum => {
                 // Cast src's string bytes to a number into dst for a
@@ -1427,15 +1437,6 @@ pub const VM = struct {
                 self.setScratch(val_dst, val_elem);
                 prev_val.release();
             },
-            .MatchConst => {
-                const slot = self.readByte();
-                const constant_idx = self.readShort();
-                const offset = self.readShort();
-                const value = self.getScratch(slot);
-                if (!value.isEql(self.getConstant(constant_idx), self.*)) {
-                    self.cur_frame.ip += offset;
-                }
-            },
             .MatchMergeNum, .MatchMergeNumNeg => {
                 // The residual of a number merge: src minus the folded
                 // constant parts, into dst. The Neg variant flips the sign
@@ -1511,42 +1512,6 @@ pub const VM = struct {
                 const previous = self.getScratch(dst);
                 self.setScratch(dst, Elem.boolean(value_true and !static_true));
                 previous.release();
-            },
-            .MatchGlobal => {
-                // eq_global mirrors the plan interpreter's const_fn: a
-                // zero-arity Function global evaluates per match and its
-                // result is compared; everything else compares directly.
-                const slot = self.readByte();
-                const constant_idx = self.readShort();
-                const offset = self.readShort();
-                const value = self.getScratch(slot);
-                var pattern_value = self.getConstant(constant_idx);
-                var rooted = false;
-                if (pattern_value.isDynType(.Function)) {
-                    const function = pattern_value.asDyn().asFunction();
-                    if (function.arity != 0) {
-                        return self.runtimeError("Pattern function '{s}' expects arguments.", .{self.strings.get(function.name)});
-                    }
-                    try self.push(pattern_value);
-                    try self.callFunction(pattern_value, 0, false);
-                    try self.runFunction();
-                    pattern_value = self.pop();
-                    if (pattern_value.isType(.Dyn)) {
-                        try self.pushTempDyn(pattern_value.asDyn());
-                        rooted = true;
-                    }
-                }
-                const matched = value.isEql(pattern_value, self.*);
-                if (rooted) self.dropTempDyn();
-                if (!matched) self.cur_frame.ip += offset;
-            },
-            .MatchSlot => {
-                const register = self.readByte();
-                const local = self.readByte();
-                const offset = self.readShort();
-                const value = self.getScratch(register);
-                const bound = try self.getBoundLocal(local);
-                if (!value.isEql(bound, self.*)) self.cur_frame.ip += offset;
             },
             .MatchEval => {
                 // The preceding expression left its result on the stack;
@@ -2692,7 +2657,7 @@ pub const VM = struct {
             .const_elem => return self.compareRangeBound(self.getConstant(arg), value, is_upper),
             .global => {
                 // A zero-arity function bound evaluates per match and its
-                // result is compared, mirroring MatchGlobal.
+                // result is compared, like an eq_global function comparand.
                 var limit = self.getConstant(arg);
                 var rooted = false;
                 if (limit.isDynType(.Function)) {

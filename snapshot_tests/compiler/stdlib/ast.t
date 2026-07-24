@@ -546,23 +546,23 @@
   ========================================
   0000    | SetInputMark
   0001    | GetLocal l0
-  0003    | JumpIfFailure 3 -> 20
+  0003    | JumpIfFailure 3 -> 22
   0006    | MatchWindowEnter 2
   0008    | MatchScrutinee r0
-  0010    | MatchSlot r0 l1 -> 18
-  0015    | Jump 15 -> 19
-  0018    | MatchFail
-  0019    | MatchWindowExit
-  0020    | ConditionalThen 20 -> 28
-  0023    | CallTailFunctionConstant 0: @Fail
-  0025    | Jump 25 -> 52
-  0028    | GetLocalMove l0
-  0030    | JumpIfFailure 30 -> 52
-  0033    | MatchWindowEnter 2
-  0035    | MatchScrutinee r0
-  0037    | MatchInRange r0 ..s1 -> 50
-  0047    | Jump 47 -> 51
-  0050    | MatchFail
-  0051    | MatchWindowExit
-  0052    | End
+  0010    | MatchCmp r0 == l1 -> 20
+  0017    | Jump 17 -> 21
+  0020    | MatchFail
+  0021    | MatchWindowExit
+  0022    | ConditionalThen 22 -> 30
+  0025    | CallTailFunctionConstant 0: @Fail
+  0027    | Jump 27 -> 54
+  0030    | GetLocalMove l0
+  0032    | JumpIfFailure 32 -> 54
+  0035    | MatchWindowEnter 2
+  0037    | MatchScrutinee r0
+  0039    | MatchInRange r0 ..s1 -> 52
+  0049    | Jump 49 -> 53
+  0052    | MatchFail
+  0053    | MatchWindowExit
+  0054    | End
   ========================================

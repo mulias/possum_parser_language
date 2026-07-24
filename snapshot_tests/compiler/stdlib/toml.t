@@ -1697,53 +1697,53 @@
   0008    | GetLocal l0
   0010    | GetLocal l1
   0012    | CallFunction 2
-  0014    | JumpIfFailure 14 -> 84
+  0014    | JumpIfFailure 14 -> 85
   0017    | MatchWindowEnter 6
   0019    | MatchScrutinee r0
-  0021    | MatchType r0 object -> 82
-  0026    | MatchCount r0 ==2 -> 82
-  0032    | MatchKey r1 r0["value"] -> 82
+  0021    | MatchType r0 object -> 83
+  0026    | MatchCount r0 ==2 -> 83
+  0032    | MatchKey r1 r0["value"] -> 83
   0039    | MatchBind l3 r1
-  0042    | MatchKey r2 r0["type"] -> 82
-  0049    | MatchType r2 array -> 82
-  0054    | MatchCount r2 ==2 -> 82
+  0042    | MatchKey r2 r0["type"] -> 83
+  0049    | MatchType r2 array -> 83
+  0054    | MatchCount r2 ==2 -> 83
   0060    | MatchElem r3 r2[0]
-  0065    | MatchConst r3 "array_of_tables" -> 82
-  0071    | MatchElem r4 r2[1]
-  0076    | MatchBind l4 r4
-  0079    | Jump 79 -> 83
-  0082    | MatchFail
-  0083    | MatchWindowExit
-  0084    | TakeRight 84 -> 141
-  0087    | GetConstant 75: _Doc.Insert
-  0089    | GetLocalMove l0
-  0091    | GetLocalMove l1
-  0093    | PushEmptyArray
-  0094    | JumpIfFailure 94 -> 100
-  0097    | GetLocalMove l3
-  0099    | Merge
-  0100    | JumpIfFailure 100 -> 114
-  0103    | GetConstantMutable 110: [_]
-  0105    | GetConstant 7: _Doc.Value
-  0107    | GetLocal l2
-  0109    | CallFunction 1
-  0111    | InsertAtIndex 0
-  0113    | Merge
-  0114    | GetConstantMutable 111: ["array_of_tables", _]
-  0116    | PushEmptyArray
-  0117    | JumpIfFailure 117 -> 123
-  0120    | GetLocalMove l4
-  0122    | Merge
-  0123    | JumpIfFailure 123 -> 137
-  0126    | GetConstantMutable 112: [_]
-  0128    | GetConstant 76: _Doc.Type
-  0130    | GetLocalMove l2
-  0132    | CallFunction 1
-  0134    | InsertAtIndex 0
-  0136    | Merge
-  0137    | InsertAtIndex 1
-  0139    | CallTailFunction 4
-  0141    | End
+  0065    | MatchCmp r3 == "array_of_tables" -> 83
+  0072    | MatchElem r4 r2[1]
+  0077    | MatchBind l4 r4
+  0080    | Jump 80 -> 84
+  0083    | MatchFail
+  0084    | MatchWindowExit
+  0085    | TakeRight 85 -> 142
+  0088    | GetConstant 75: _Doc.Insert
+  0090    | GetLocalMove l0
+  0092    | GetLocalMove l1
+  0094    | PushEmptyArray
+  0095    | JumpIfFailure 95 -> 101
+  0098    | GetLocalMove l3
+  0100    | Merge
+  0101    | JumpIfFailure 101 -> 115
+  0104    | GetConstantMutable 110: [_]
+  0106    | GetConstant 7: _Doc.Value
+  0108    | GetLocal l2
+  0110    | CallFunction 1
+  0112    | InsertAtIndex 0
+  0114    | Merge
+  0115    | GetConstantMutable 111: ["array_of_tables", _]
+  0117    | PushEmptyArray
+  0118    | JumpIfFailure 118 -> 124
+  0121    | GetLocalMove l4
+  0123    | Merge
+  0124    | JumpIfFailure 124 -> 138
+  0127    | GetConstantMutable 112: [_]
+  0129    | GetConstant 76: _Doc.Type
+  0131    | GetLocalMove l2
+  0133    | CallFunction 1
+  0135    | InsertAtIndex 0
+  0137    | Merge
+  0138    | InsertAtIndex 1
+  0140    | CallTailFunction 4
+  0142    | End
   ========================================
   
   ==========1:_Doc.InsertAtPath===========
@@ -2161,7 +2161,7 @@
   0012    | GetLocal l0
   0014    | GetLocal l1
   0016    | CallFunction 2
-  0018    | ConditionalThen 18 -> 160
+  0018    | ConditionalThen 18 -> 161
   0021    | GetConstant 74: _Doc.Get
   0023    | GetLocal l0
   0025    | GetLocal l1
@@ -2171,79 +2171,79 @@
   0034    | MatchScrutinee r0
   0036    | MatchBind l5 r0
   0039    | MatchWindowExit
-  0040    | TakeRight 40 -> 134
+  0040    | TakeRight 40 -> 135
   0043    | SetInputMark
   0044    | GetConstant 76: _Doc.Type
   0046    | GetLocal l5
   0048    | CallFunction 1
-  0050    | JumpIfFailure 50 -> 84
+  0050    | JumpIfFailure 50 -> 85
   0053    | MatchWindowEnter 3
   0055    | MatchScrutinee r0
-  0057    | MatchType r0 array -> 82
-  0062    | MatchCount r0 >=1 -> 82
+  0057    | MatchType r0 array -> 83
+  0062    | MatchCount r0 >=1 -> 83
   0068    | MatchElem r1 r0[0]
-  0073    | MatchConst r1 "array_of_tables" -> 82
-  0079    | Jump 79 -> 83
-  0082    | MatchFail
-  0083    | MatchWindowExit
-  0084    | ConditionalThen 84 -> 102
-  0087    | GetConstant 87: _Doc.UpdateAtLastAoTElement
-  0089    | GetLocalMove l5
-  0091    | GetLocalMove l2
-  0093    | GetLocalMove l3
-  0095    | GetLocalMove l4
-  0097    | CallFunction 4
-  0099    | Jump 99 -> 123
-  0102    | GetConstant 73: _Doc.IsTable
-  0104    | GetLocal l5
-  0106    | CallFunction 1
-  0108    | TakeRight 108 -> 123
-  0111    | GetConstant 67: _Doc.UpdateAtHeaderPath
-  0113    | GetLocalMove l5
-  0115    | GetLocalMove l2
-  0117    | GetLocalMove l3
-  0119    | GetLocalMove l4
-  0121    | CallFunction 4
-  0123    | JumpIfFailure 123 -> 134
-  0126    | MatchWindowEnter 2
-  0128    | MatchScrutinee r0
-  0130    | MatchBind l6 r0
-  0133    | MatchWindowExit
-  0134    | TakeRight 134 -> 157
-  0137    | GetConstant 75: _Doc.Insert
-  0139    | GetLocalMove l0
-  0141    | GetLocalMove l1
-  0143    | GetConstant 7: _Doc.Value
-  0145    | GetLocal l6
-  0147    | CallFunction 1
-  0149    | GetConstant 76: _Doc.Type
-  0151    | GetLocalMove l6
-  0153    | CallFunction 1
-  0155    | CallTailFunction 4
-  0157    | Jump 157 -> 206
-  0160    | GetConstant 67: _Doc.UpdateAtHeaderPath
-  0162    | CallFunctionConstant 14: _Doc.Empty
-  0164    | GetLocalMove l2
-  0166    | GetLocalMove l3
-  0168    | GetLocalMove l4
-  0170    | CallFunction 4
-  0172    | JumpIfFailure 172 -> 183
-  0175    | MatchWindowEnter 2
-  0177    | MatchScrutinee r0
-  0179    | MatchBind l7 r0
-  0182    | MatchWindowExit
-  0183    | TakeRight 183 -> 206
-  0186    | GetConstant 75: _Doc.Insert
-  0188    | GetLocalMove l0
-  0190    | GetLocalMove l1
-  0192    | GetConstant 7: _Doc.Value
-  0194    | GetLocal l7
-  0196    | CallFunction 1
-  0198    | GetConstant 76: _Doc.Type
-  0200    | GetLocalMove l7
-  0202    | CallFunction 1
-  0204    | CallTailFunction 4
-  0206    | End
+  0073    | MatchCmp r1 == "array_of_tables" -> 83
+  0080    | Jump 80 -> 84
+  0083    | MatchFail
+  0084    | MatchWindowExit
+  0085    | ConditionalThen 85 -> 103
+  0088    | GetConstant 87: _Doc.UpdateAtLastAoTElement
+  0090    | GetLocalMove l5
+  0092    | GetLocalMove l2
+  0094    | GetLocalMove l3
+  0096    | GetLocalMove l4
+  0098    | CallFunction 4
+  0100    | Jump 100 -> 124
+  0103    | GetConstant 73: _Doc.IsTable
+  0105    | GetLocal l5
+  0107    | CallFunction 1
+  0109    | TakeRight 109 -> 124
+  0112    | GetConstant 67: _Doc.UpdateAtHeaderPath
+  0114    | GetLocalMove l5
+  0116    | GetLocalMove l2
+  0118    | GetLocalMove l3
+  0120    | GetLocalMove l4
+  0122    | CallFunction 4
+  0124    | JumpIfFailure 124 -> 135
+  0127    | MatchWindowEnter 2
+  0129    | MatchScrutinee r0
+  0131    | MatchBind l6 r0
+  0134    | MatchWindowExit
+  0135    | TakeRight 135 -> 158
+  0138    | GetConstant 75: _Doc.Insert
+  0140    | GetLocalMove l0
+  0142    | GetLocalMove l1
+  0144    | GetConstant 7: _Doc.Value
+  0146    | GetLocal l6
+  0148    | CallFunction 1
+  0150    | GetConstant 76: _Doc.Type
+  0152    | GetLocalMove l6
+  0154    | CallFunction 1
+  0156    | CallTailFunction 4
+  0158    | Jump 158 -> 207
+  0161    | GetConstant 67: _Doc.UpdateAtHeaderPath
+  0163    | CallFunctionConstant 14: _Doc.Empty
+  0165    | GetLocalMove l2
+  0167    | GetLocalMove l3
+  0169    | GetLocalMove l4
+  0171    | CallFunction 4
+  0173    | JumpIfFailure 173 -> 184
+  0176    | MatchWindowEnter 2
+  0178    | MatchScrutinee r0
+  0180    | MatchBind l7 r0
+  0183    | MatchWindowExit
+  0184    | TakeRight 184 -> 207
+  0187    | GetConstant 75: _Doc.Insert
+  0189    | GetLocalMove l0
+  0191    | GetLocalMove l1
+  0193    | GetConstant 7: _Doc.Value
+  0195    | GetLocal l7
+  0197    | CallFunction 1
+  0199    | GetConstant 76: _Doc.Type
+  0201    | GetLocalMove l7
+  0203    | CallFunction 1
+  0205    | CallTailFunction 4
+  0207    | End
   ========================================
   
   =====1:_Doc.UpdateAtLastAoTElement======
@@ -2278,76 +2278,76 @@
   0055    | Jump 55 -> 59
   0058    | MatchFail
   0059    | MatchWindowExit
-  0060    | TakeRight 60 -> 135
+  0060    | TakeRight 60 -> 136
   0063    | GetConstant 76: _Doc.Type
   0065    | GetLocalMove l0
   0067    | CallFunction 1
-  0069    | JumpIfFailure 69 -> 135
+  0069    | JumpIfFailure 69 -> 136
   0072    | MatchWindowEnter 6
   0074    | MatchScrutinee r0
-  0076    | MatchType r0 array -> 133
-  0081    | MatchCount r0 ==2 -> 133
+  0076    | MatchType r0 array -> 134
+  0081    | MatchCount r0 ==2 -> 134
   0087    | MatchElem r1 r0[0]
-  0092    | MatchConst r1 "array_of_tables" -> 133
-  0098    | MatchElem r2 r0[1]
-  0103    | MatchType r2 array -> 133
-  0108    | MatchCount r2 >=1 -> 133
-  0114    | MatchSlice r3 r2[0..^1]
-  0119    | MatchBind l6 r3
-  0122    | MatchElem r4 r2[^0]
-  0127    | MatchBind l7 r4
-  0130    | Jump 130 -> 134
-  0133    | MatchFail
-  0134    | MatchWindowExit
-  0135    | TakeRight 135 -> 175
-  0138    | GetConstant 67: _Doc.UpdateAtHeaderPath
-  0140    | GetConstantMutable 88: {_0_, _1_}
-  0142    | PushString2 "value"
-  0145    | GetLocalMove l5
-  0147    | InsertKeyVal 0
-  0149    | PushString2 "type"
-  0152    | GetLocalMove l7
-  0154    | InsertKeyVal 1
-  0156    | GetLocalMove l1
-  0158    | GetLocalMove l2
-  0160    | GetLocalMove l3
-  0162    | CallFunction 4
-  0164    | JumpIfFailure 164 -> 175
-  0167    | MatchWindowEnter 2
-  0169    | MatchScrutinee r0
-  0171    | MatchBind l8 r0
-  0174    | MatchWindowExit
-  0175    | TakeRight 175 -> 236
-  0178    | GetConstantMutable 89: {_0_, _1_}
-  0180    | PushString2 "value"
-  0183    | PushEmptyArray
-  0184    | JumpIfFailure 184 -> 190
-  0187    | GetLocalMove l4
-  0189    | Merge
-  0190    | JumpIfFailure 190 -> 204
-  0193    | GetConstantMutable 90: [_]
-  0195    | GetConstant 7: _Doc.Value
-  0197    | GetLocal l8
-  0199    | CallFunction 1
-  0201    | InsertAtIndex 0
-  0203    | Merge
-  0204    | InsertKeyVal 0
-  0206    | PushString2 "type"
-  0209    | GetConstantMutable 91: ["array_of_tables", _]
-  0211    | PushEmptyArray
-  0212    | JumpIfFailure 212 -> 218
-  0215    | GetLocalMove l6
-  0217    | Merge
-  0218    | JumpIfFailure 218 -> 232
-  0221    | GetConstantMutable 92: [_]
-  0223    | GetConstant 76: _Doc.Type
-  0225    | GetLocalMove l8
-  0227    | CallFunction 1
-  0229    | InsertAtIndex 0
-  0231    | Merge
-  0232    | InsertAtIndex 1
-  0234    | InsertKeyVal 1
-  0236    | End
+  0092    | MatchCmp r1 == "array_of_tables" -> 134
+  0099    | MatchElem r2 r0[1]
+  0104    | MatchType r2 array -> 134
+  0109    | MatchCount r2 >=1 -> 134
+  0115    | MatchSlice r3 r2[0..^1]
+  0120    | MatchBind l6 r3
+  0123    | MatchElem r4 r2[^0]
+  0128    | MatchBind l7 r4
+  0131    | Jump 131 -> 135
+  0134    | MatchFail
+  0135    | MatchWindowExit
+  0136    | TakeRight 136 -> 176
+  0139    | GetConstant 67: _Doc.UpdateAtHeaderPath
+  0141    | GetConstantMutable 88: {_0_, _1_}
+  0143    | PushString2 "value"
+  0146    | GetLocalMove l5
+  0148    | InsertKeyVal 0
+  0150    | PushString2 "type"
+  0153    | GetLocalMove l7
+  0155    | InsertKeyVal 1
+  0157    | GetLocalMove l1
+  0159    | GetLocalMove l2
+  0161    | GetLocalMove l3
+  0163    | CallFunction 4
+  0165    | JumpIfFailure 165 -> 176
+  0168    | MatchWindowEnter 2
+  0170    | MatchScrutinee r0
+  0172    | MatchBind l8 r0
+  0175    | MatchWindowExit
+  0176    | TakeRight 176 -> 237
+  0179    | GetConstantMutable 89: {_0_, _1_}
+  0181    | PushString2 "value"
+  0184    | PushEmptyArray
+  0185    | JumpIfFailure 185 -> 191
+  0188    | GetLocalMove l4
+  0190    | Merge
+  0191    | JumpIfFailure 191 -> 205
+  0194    | GetConstantMutable 90: [_]
+  0196    | GetConstant 7: _Doc.Value
+  0198    | GetLocal l8
+  0200    | CallFunction 1
+  0202    | InsertAtIndex 0
+  0204    | Merge
+  0205    | InsertKeyVal 0
+  0207    | PushString2 "type"
+  0210    | GetConstantMutable 91: ["array_of_tables", _]
+  0212    | PushEmptyArray
+  0213    | JumpIfFailure 213 -> 219
+  0216    | GetLocalMove l6
+  0218    | Merge
+  0219    | JumpIfFailure 219 -> 233
+  0222    | GetConstantMutable 92: [_]
+  0224    | GetConstant 76: _Doc.Type
+  0226    | GetLocalMove l8
+  0228    | CallFunction 1
+  0230    | InsertAtIndex 0
+  0232    | Merge
+  0233    | InsertAtIndex 1
+  0235    | InsertKeyVal 1
+  0237    | End
   ========================================
   
   ================1:@main=================

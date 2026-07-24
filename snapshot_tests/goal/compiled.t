@@ -18,27 +18,27 @@ tail swaps the scrutinee for the failure const.
   json -> [A, 2, B] $ [B, A]
   ========================================
   0006    | CallFunctionConstant 0: @main
-  0008    | JumpIfFailure 8 -> 58
+  0008    | JumpIfFailure 8 -> 59
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 array -> 56
-  0020    | MatchCount r0 ==3 -> 56
+  0015    | MatchType r0 array -> 57
+  0020    | MatchCount r0 ==3 -> 57
   0026    | MatchElem r1 r0[0]
   0031    | MatchBind l0 r1
   0034    | MatchElem r2 r0[1]
-  0039    | MatchConst r2 2 -> 56
-  0045    | MatchElem r3 r0[2]
-  0050    | MatchBind l1 r3
-  0053    | Jump 53 -> 57
-  0056    | MatchFail
-  0057    | MatchWindowExit
-  0058    | TakeRight 58 -> 71
-  0061    | GetConstantMutable 2: [_, _]
-  0063    | GetLocalMove l1
-  0065    | InsertAtIndex 0
-  0067    | GetLocalMove l0
-  0069    | InsertAtIndex 1
-  0071    | End
+  0039    | MatchCmp r2 == 2 -> 57
+  0046    | MatchElem r3 r0[2]
+  0051    | MatchBind l1 r3
+  0054    | Jump 54 -> 58
+  0057    | MatchFail
+  0058    | MatchWindowExit
+  0059    | TakeRight 59 -> 72
+  0062    | GetConstantMutable 2: [_, _]
+  0064    | GetLocalMove l1
+  0066    | InsertAtIndex 0
+  0068    | GetLocalMove l0
+  0070    | InsertAtIndex 1
+  0072    | End
 
 Behavior parity across the shapes: steps, plan-lowered composites, alt
 commits, repeats, and the stdlib parsers.
