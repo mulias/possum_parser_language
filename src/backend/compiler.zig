@@ -1775,6 +1775,11 @@ pub const Compiler = struct {
     }
 
     fn writeGoalCountDestructure(self: *Compiler, module_id: Module.Id, ast: *const Ast, set_id: Ast.SetId, region: Region) Error!void {
+        const set = &ast.constraint_sets.items[set_id];
+        if (!self.goalMatchDebugging() and self.constraintsStepable(ast, set.constraints.items)) {
+            try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .input, region);
+            return;
+        }
         var lowerer = pattern.Lowerer{
             .vm = self.vm,
             .frontend = self.frontend,

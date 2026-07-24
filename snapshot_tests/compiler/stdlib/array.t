@@ -363,7 +363,7 @@
   0000    | GetConstant 0: tuple1
   0002    | GetLocal l0
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 66
+  0006    | JumpIfFailure 6 -> 88
   0009    | PushNull
   0010    | GetLocal l2
   0012    | JumpIfFailure 12 -> 18
@@ -395,10 +395,17 @@
   0058    | PushNegInteger -1
   0060    | Merge
   0061    | Merge
-  0062    | DestructurePlan 0: (bound_eq N + eq -1)
-  0064    | Drop
-  0065    | Merge
-  0066    | End
+  0062    | JumpIfFailure 62 -> 86
+  0065    | MatchWindowEnter 2
+  0067    | MatchScrutinee r0
+  0069    | MatchMergeNum r1 r0 - -1 -> 84
+  0076    | MatchSlot r1 l2 -> 84
+  0081    | Jump 81 -> 85
+  0084    | MatchFail
+  0085    | MatchWindowExit
+  0086    | Drop
+  0087    | Merge
+  0088    | End
   ========================================
   
   =================1:rows=================
@@ -407,7 +414,7 @@
     (tuple1(row_sep > array_sep(elem, col_sep)) * 0..)
   ========================================
   0000    | GetConstant 0: tuple1
-  0002    | GetConstant 16: @fn5
+  0002    | GetConstant 17: @fn5
   0004    | CreateClosure 2
   0006    | CaptureLocal l0
   0008    | CaptureLocal l1
@@ -419,7 +426,7 @@
   0019    | JumpIfZero 19 -> 49
   0022    | Swap
   0023    | GetConstant 0: tuple1
-  0025    | GetConstant 17: @fn6
+  0025    | GetConstant 18: @fn6
   0027    | CreateClosure 3
   0029    | CaptureLocal l2
   0031    | CaptureLocal l0
@@ -434,7 +441,7 @@
   0049    | Swap
   0050    | SetInputMark
   0051    | GetConstant 0: tuple1
-  0053    | GetConstant 17: @fn6
+  0053    | GetConstant 18: @fn6
   0055    | CreateClosure 3
   0057    | CaptureLocal l2
   0059    | CaptureLocal l0
@@ -460,7 +467,7 @@
   0000    | PushVar2 MaxRowLen
   0003    | PushVar2 First
   0006    | GetConstant 5: peek
-  0008    | GetConstant 18: @fn7
+  0008    | GetConstant 19: @fn7
   0010    | CreateClosure 3
   0012    | CaptureLocal l0
   0014    | CaptureLocal l1
@@ -484,14 +491,14 @@
   0061    | MatchBind l5 r0
   0064    | MatchWindowExit
   0065    | TakeRight 65 -> 91
-  0068    | GetConstant 19: _rows_padded
+  0068    | GetConstant 20: _rows_padded
   0070    | GetLocalMove l0
   0072    | GetLocalMove l1
   0074    | GetLocalMove l2
   0076    | GetLocalMove l3
   0078    | PushInteger 1
   0080    | GetLocalMove l4
-  0082    | GetConstantMutable 20: [_]
+  0082    | GetConstantMutable 21: [_]
   0084    | GetLocalMove l5
   0086    | InsertAtIndex 0
   0088    | PushEmptyArray
@@ -519,12 +526,12 @@
   0020    | MatchBind l8 r0
   0023    | MatchWindowExit
   0024    | ConditionalThen 24 -> 69
-  0027    | GetConstant 19: _rows_padded
+  0027    | GetConstant 20: _rows_padded
   0029    | GetLocalMove l0
   0031    | GetLocalMove l1
   0033    | GetLocalMove l2
   0035    | GetLocalMove l3
-  0037    | GetConstant 23: Num.Inc
+  0037    | GetConstant 24: Num.Inc
   0039    | GetLocalMove l4
   0041    | CallFunction 1
   0043    | GetLocalMove l5
@@ -533,7 +540,7 @@
   0049    | GetLocalMove l6
   0051    | Merge
   0052    | JumpIfFailure 52 -> 62
-  0055    | GetConstantMutable 27: [_]
+  0055    | GetConstantMutable 28: [_]
   0057    | GetLocalMove l8
   0059    | InsertAtIndex 0
   0061    | Merge
@@ -550,14 +557,14 @@
   0084    | MatchBind l9 r0
   0087    | MatchWindowExit
   0088    | ConditionalThen 88 -> 148
-  0091    | GetConstant 19: _rows_padded
+  0091    | GetConstant 20: _rows_padded
   0093    | GetLocalMove l0
   0095    | GetLocalMove l1
   0097    | GetLocalMove l2
   0099    | GetLocal l3
   0101    | PushInteger 1
   0103    | GetLocal l5
-  0105    | GetConstantMutable 28: [_]
+  0105    | GetConstantMutable 29: [_]
   0107    | GetLocalMove l9
   0109    | InsertAtIndex 0
   0111    | PushEmptyArray
@@ -565,8 +572,8 @@
   0115    | GetLocalMove l7
   0117    | Merge
   0118    | JumpIfFailure 118 -> 143
-  0121    | GetConstantMutable 29: [_]
-  0123    | GetConstant 30: Array.AppendN
+  0121    | GetConstantMutable 30: [_]
+  0123    | GetConstant 31: Array.AppendN
   0125    | GetLocalMove l6
   0127    | GetLocalMove l3
   0129    | GetLocalMove l5
@@ -579,14 +586,14 @@
   0142    | Merge
   0143    | CallTailFunction 8
   0145    | Jump 145 -> 184
-  0148    | GetConstant 25: const
+  0148    | GetConstant 26: const
   0150    | PushEmptyArray
   0151    | JumpIfFailure 151 -> 157
   0154    | GetLocalMove l7
   0156    | Merge
   0157    | JumpIfFailure 157 -> 182
-  0160    | GetConstantMutable 31: [_]
-  0162    | GetConstant 30: Array.AppendN
+  0160    | GetConstantMutable 32: [_]
+  0162    | GetConstant 31: Array.AppendN
   0164    | GetLocalMove l6
   0166    | GetLocalMove l3
   0168    | GetLocalMove l5
@@ -607,7 +614,7 @@
   ========================================
   0000    | CallFunctionLocal l0
   0002    | TakeRight 2 -> 21
-  0005    | GetConstant 22: __dimensions
+  0005    | GetConstant 23: __dimensions
   0007    | GetLocalMove l0
   0009    | GetLocalMove l1
   0011    | GetLocalMove l2
@@ -631,11 +638,11 @@
   0003    | TakeRight 3 -> 8
   0006    | CallFunctionLocal l0
   0008    | ConditionalThen 8 -> 34
-  0011    | GetConstant 22: __dimensions
+  0011    | GetConstant 23: __dimensions
   0013    | GetLocalMove l0
   0015    | GetLocalMove l1
   0017    | GetLocalMove l2
-  0019    | GetConstant 23: Num.Inc
+  0019    | GetConstant 24: Num.Inc
   0021    | GetLocalMove l3
   0023    | CallFunction 1
   0025    | GetLocalMove l4
@@ -647,23 +654,23 @@
   0037    | TakeRight 37 -> 42
   0040    | CallFunctionLocal l0
   0042    | ConditionalThen 42 -> 74
-  0045    | GetConstant 22: __dimensions
+  0045    | GetConstant 23: __dimensions
   0047    | GetLocalMove l0
   0049    | GetLocalMove l1
   0051    | GetLocalMove l2
   0053    | PushInteger 1
-  0055    | GetConstant 23: Num.Inc
+  0055    | GetConstant 24: Num.Inc
   0057    | GetLocalMove l4
   0059    | CallFunction 1
-  0061    | GetConstant 24: Num.Max
+  0061    | GetConstant 25: Num.Max
   0063    | GetLocalMove l3
   0065    | GetLocalMove l5
   0067    | CallFunction 2
   0069    | CallTailFunction 6
   0071    | Jump 71 -> 94
-  0074    | GetConstant 25: const
-  0076    | GetConstantMutable 26: [_, _]
-  0078    | GetConstant 24: Num.Max
+  0074    | GetConstant 26: const
+  0076    | GetConstantMutable 27: [_, _]
+  0078    | GetConstant 25: Num.Max
   0080    | GetLocalMove l3
   0082    | GetLocalMove l5
   0084    | CallFunction 2
@@ -680,7 +687,7 @@
     Table.Transpose(Rows)
   ========================================
   0000    | PushVar2 Rows
-  0003    | GetConstant 32: rows
+  0003    | GetConstant 33: rows
   0005    | GetLocalMove l0
   0007    | GetLocalMove l1
   0009    | GetLocalMove l2
@@ -691,7 +698,7 @@
   0020    | MatchBind l3 r0
   0023    | MatchWindowExit
   0024    | TakeRight 24 -> 33
-  0027    | GetConstant 33: Table.Transpose
+  0027    | GetConstant 34: Table.Transpose
   0029    | GetLocalMove l3
   0031    | CallTailFunction 1
   0033    | End
@@ -703,7 +710,7 @@
     Table.Transpose(Rows)
   ========================================
   0000    | PushVar2 Rows
-  0003    | GetConstant 32: rows
+  0003    | GetConstant 33: rows
   0005    | GetLocalMove l0
   0007    | GetLocalMove l1
   0009    | GetLocalMove l2
@@ -714,7 +721,7 @@
   0020    | MatchBind l3 r0
   0023    | MatchWindowExit
   0024    | TakeRight 24 -> 33
-  0027    | GetConstant 33: Table.Transpose
+  0027    | GetConstant 34: Table.Transpose
   0029    | GetLocalMove l3
   0031    | CallTailFunction 1
   0033    | End
@@ -726,7 +733,7 @@
     Table.Transpose(Rows)
   ========================================
   0000    | PushVar2 Rows
-  0003    | GetConstant 34: rows_padded
+  0003    | GetConstant 35: rows_padded
   0005    | GetLocalMove l0
   0007    | GetLocalMove l1
   0009    | GetLocalMove l2
@@ -738,7 +745,7 @@
   0022    | MatchBind l4 r0
   0025    | MatchWindowExit
   0026    | TakeRight 26 -> 35
-  0029    | GetConstant 33: Table.Transpose
+  0029    | GetConstant 34: Table.Transpose
   0031    | GetLocalMove l4
   0033    | CallTailFunction 1
   0035    | End
@@ -750,7 +757,7 @@
     Table.Transpose(Rows)
   ========================================
   0000    | PushVar2 Rows
-  0003    | GetConstant 34: rows_padded
+  0003    | GetConstant 35: rows_padded
   0005    | GetLocalMove l0
   0007    | GetLocalMove l1
   0009    | GetLocalMove l2
@@ -762,7 +769,7 @@
   0022    | MatchBind l4 r0
   0025    | MatchWindowExit
   0026    | TakeRight 26 -> 35
-  0029    | GetConstant 33: Table.Transpose
+  0029    | GetConstant 34: Table.Transpose
   0031    | GetLocalMove l4
   0033    | CallTailFunction 1
   0035    | End
@@ -843,17 +850,17 @@
   =================1:@fn6=================
   row_sep > array_sep(elem, col_sep)
   ========================================
-  0000    | PushVar2 row_sep
-  0003    | PushVar elem
-  0005    | PushVar col_sep
-  0007    | SetClosureCaptures
-  0008    | CallFunctionLocal l0
-  0010    | TakeRight 10 -> 21
-  0013    | GetConstant 10: array_sep
-  0015    | GetLocalMove l1
-  0017    | GetLocalMove l2
-  0019    | CallTailFunction 2
-  0021    | End
+  0000    | PushVar row_sep
+  0002    | PushVar elem
+  0004    | PushVar col_sep
+  0006    | SetClosureCaptures
+  0007    | CallFunctionLocal l0
+  0009    | TakeRight 9 -> 20
+  0012    | GetConstant 10: array_sep
+  0014    | GetLocalMove l1
+  0016    | GetLocalMove l2
+  0018    | CallTailFunction 2
+  0020    | End
   ========================================
   
   =================1:@fn7=================
@@ -861,14 +868,14 @@
   ========================================
   0000    | PushVar elem
   0002    | PushVar col_sep
-  0004    | PushVar2 row_sep
-  0007    | SetClosureCaptures
-  0008    | GetConstant 21: _dimensions
-  0010    | GetLocalMove l0
-  0012    | GetLocalMove l1
-  0014    | GetLocalMove l2
-  0016    | CallTailFunction 3
-  0018    | End
+  0004    | PushVar row_sep
+  0006    | SetClosureCaptures
+  0007    | GetConstant 22: _dimensions
+  0009    | GetLocalMove l0
+  0011    | GetLocalMove l1
+  0013    | GetLocalMove l2
+  0015    | CallTailFunction 3
+  0017    | End
   ========================================
   
   =================2:peek=================
