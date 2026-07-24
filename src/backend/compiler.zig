@@ -5,6 +5,7 @@ const ChunkError = runtime.ChunkError;
 const Elem = runtime.Elem;
 const Frontend = @import("../frontend.zig");
 const Ast = Frontend.Ast;
+const CanAst = @import("../frontend/can_ast.zig");
 const GlobalKey = Frontend.GlobalKey;
 const DependencyGraphNode = Frontend.DependencyGraphNode;
 const GoalAst = @import("../frontend/goal_ast.zig");
@@ -169,8 +170,8 @@ pub const Compiler = struct {
         if (self.frontend.target_module_id) |target_module_id| {
             try self.compileModule(target_module_id);
 
-            if (self.frontend.main) |main_ast| {
-                try self.compileMainParser(target_module_id, main_ast);
+            if (self.frontend.main) |main_name| {
+                try self.compileMainParser(target_module_id, main_name);
             }
 
             if (self.printBytecode) try self.printCompiled();
@@ -204,16 +205,16 @@ pub const Compiler = struct {
         }
     }
 
-    fn compileMainParser(self: *Compiler, module_id: Module.Id, main_ast: *Ast.RNode(Ast.Parser.AnonymousFunction)) !void {
-        const main_node = self.frontend.getNode(.{ .module_id = module_id, .name = main_ast.node.name });
+    fn compileMainParser(self: *Compiler, module_id: Module.Id, main_name: Frontend.PathTable.Id) !void {
+        const main_node = self.frontend.getNode(.{ .module_id = module_id, .name = main_name });
 
         for (main_node.dependencies()) |edge| {
             try self.compileDeclaration(edge.target);
         }
 
-        const function = try self.declareAnonFunction(.{ .module_id = module_id, .name = main_ast.node.name });
+        const function = try self.declareAnonFunction(.{ .module_id = module_id, .name = main_name });
 
-        try self.emitAnonFunctionBody(module_id, main_node, function, main_ast.region);
+        try self.emitAnonFunctionBody(module_id, main_node, function, main_node.anonymous_function.ast.region);
 
         self.main = function;
     }
@@ -342,7 +343,7 @@ pub const Compiler = struct {
 
     // A parameterless alias body inlines to a value elem; a bare-identifier
     // body is an alias to another declaration; everything else is a function.
-    fn classifyDecl(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !DeclKind {
+    fn classifyDecl(self: *Compiler, decl: CanAst.ParserOrValue.Declaration) !DeclKind {
         if (try self.getAliasBody(decl)) |elem| {
             return .{ .alias_value = elem };
         }
@@ -352,7 +353,7 @@ pub const Compiler = struct {
         return .function;
     }
 
-    fn declareFromKind(self: *Compiler, key: GlobalKey, decl: Ast.ParserOrValue.Declaration, kind: DeclKind) !void {
+    fn declareFromKind(self: *Compiler, key: GlobalKey, decl: CanAst.ParserOrValue.Declaration, kind: DeclKind) !void {
         switch (kind) {
             .alias_value => |alias_elem| try self.addGlobal(key.module_id, key.name, alias_elem),
             .alias_ident => try self.denormalizeAlias(key, decl),
@@ -360,7 +361,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn declareFunction(self: *Compiler, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
+    fn declareFunction(self: *Compiler, module_id: Module.Id, decl: CanAst.ParserOrValue.Declaration) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
@@ -407,7 +408,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn denormalizeAlias(self: *Compiler, decl_key: GlobalKey, decl: Ast.ParserOrValue.Declaration) !void {
+    fn denormalizeAlias(self: *Compiler, decl_key: GlobalKey, decl: CanAst.ParserOrValue.Declaration) !void {
         var path = AutoHashMap(GlobalKey, void){};
         defer path.deinit(self.vm.allocator);
 
@@ -473,7 +474,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn getAliasDependency(self: *Compiler, decl_key: GlobalKey, decl: Ast.ParserOrValue.Declaration) !?GlobalKey {
+    fn getAliasDependency(self: *Compiler, decl_key: GlobalKey, decl: CanAst.ParserOrValue.Declaration) !?GlobalKey {
         if (!self.declHasNoParams(decl)) {
             return null;
         }
@@ -485,7 +486,7 @@ pub const Compiler = struct {
         return node.dependencyNamed(ident_name);
     }
 
-    fn compileFunction(self: *Compiler, node: *DependencyGraphNode, module_id: Module.Id, decl: Ast.ParserOrValue.Declaration) !void {
+    fn compileFunction(self: *Compiler, node: *DependencyGraphNode, module_id: Module.Id, decl: CanAst.ParserOrValue.Declaration) !void {
         const global_sid = decl.identName();
         const globalVal = self.getGlobal(.{ .module_id = module_id, .name = global_sid });
 
@@ -1405,7 +1406,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn parserNodeToElem(self: *Compiler, node: Ast.Parser.Node) !?Elem {
+    fn parserNodeToElem(self: *Compiler, node: CanAst.Parser.Node) !?Elem {
         const result = switch (node) {
             .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
             .string => |s| Elem.string(try self.vm.strings.insert(s)),
@@ -1415,7 +1416,7 @@ pub const Compiler = struct {
         return result;
     }
 
-    fn valueNodeToElem(self: *Compiler, node: Ast.Value.Node) !?Elem {
+    fn valueNodeToElem(self: *Compiler, node: CanAst.Value.Node) !?Elem {
         const result = switch (node) {
             .false => Elem.boolean(false),
             .null => Elem.nullConst,
@@ -2063,7 +2064,7 @@ pub const Compiler = struct {
         };
     }
 
-    fn declHasNoParams(self: *Compiler, decl: Ast.ParserOrValue.Declaration) bool {
+    fn declHasNoParams(self: *Compiler, decl: CanAst.ParserOrValue.Declaration) bool {
         _ = self;
         return switch (decl) {
             .parser => |p_decl| p_decl.node.params.items.len == 0,
@@ -2071,7 +2072,7 @@ pub const Compiler = struct {
         };
     }
 
-    fn getAliasBody(self: *Compiler, decl: Ast.ParserOrValue.Declaration) !?Elem {
+    fn getAliasBody(self: *Compiler, decl: CanAst.ParserOrValue.Declaration) !?Elem {
         if (self.declHasNoParams(decl)) {
             return switch (decl) {
                 .parser => |p_decl| self.parserNodeToElem(p_decl.node.body.node),
@@ -2082,7 +2083,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn getAliasChainName(self: *Compiler, decl: Ast.ParserOrValue.Declaration) ?Frontend.PathTable.Id {
+    fn getAliasChainName(self: *Compiler, decl: CanAst.ParserOrValue.Declaration) ?Frontend.PathTable.Id {
         if (self.declHasNoParams(decl)) {
             return switch (decl) {
                 .parser => |p_decl| if (p_decl.node.body.node == .identifier)

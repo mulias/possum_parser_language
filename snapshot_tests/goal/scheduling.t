@@ -5,12 +5,10 @@ and no eval read of an unbound slot another pending constraint could
 still bind. Binder selection is an output of readiness, not textual
 first sight. Constraint lists print in scheduled order.
 
-Can-binding still consumes the can ast and reports errors textually, so
-patterns only the fixpoint can order print their bound goal and then
-fail compilation; they become runnable when the compiler consumes goal.
-Diagnostics from goal binding print after the bound goal as `goal
-diagnostic:` lines (the "Program Error" below each is can-binding's);
-goal regions point at the whole constraint since parts carry no regions.
+Goal binding is the reporter: a pattern the fixpoint cannot order prints
+its bound goal and then fails compilation with an `UnboundVariable`
+error. Patterns the fixpoint can order compile and run. Goal regions
+point at the whole constraint since parts carry no regions.
 
   $ export PRINT_GOAL_AST=bound RUN_VM=false
 
@@ -38,17 +36,11 @@ one-unbound-part rule rejects it.
         B~1
       ]))
   
-  goal diagnostic: variable 'B' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  
   program:1:9-21:
   1 \xe2\x96\x8f input -> [...A, ...B] $ [A, B] (esc)
     \xe2\x96\x8f          ^^^^^^^^^^^^ (esc)
-  
-  
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
-  
-  program:1:19-21:
-  1 \xe2\x96\x8f input -> [...A, ...B] $ [A, B] (esc)
-    \xe2\x96\x8f                    ^^ (esc)
   
   [UnboundVariable]
   [1]
@@ -59,8 +51,8 @@ one-unbound-part rule rejects it.
 The same merge inside a larger pattern is decidable: element 1 binds B,
 which leaves element 0's merge with one unknown. The merge delays until
 B arrives — the schedule places element 1's constraint first and B
-becomes a read in the merge, with A the solvable part. Can-binding
-still rejects the pattern textually.
+becomes a read in the merge, with A the solvable part. The pattern
+compiles and runs.
 
   $ possum -p 'input -> [[...A, ...B], [...B]] $ [A, B]' -i ''
   main =
@@ -88,23 +80,13 @@ still rejects the pattern textually.
         A~0
         B~1
       ]))
-  
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
-  
-  program:1:20-22:
-  1 \xe2\x96\x8f input -> [[...A, ...B], [...B]] $ [A, B] (esc)
-    \xe2\x96\x8f                     ^^ (esc)
-  
-  [UnboundVariable]
-  [1]
 
 
 
 
 An eval that reads a slot another constraint can bind delays until the
 binder has run: the eval_eq schedules after the bind even though it
-appears first. This pattern compiles under can-binding too (its lenient
-walk treats the read as bound), so the whole program is accepted.
+appears first, so the whole program is accepted.
 
   $ possum -p 'Inc(N) = N + 1 ; main = input -> [Inc(A), A] $ A' -i ''
   Inc(N) =
@@ -127,10 +109,10 @@ walk treats the read as bound), so the whole program is accepted.
 
 
 A genuine cycle — each merge's eval needs the other merge's binder —
-can never become ready. The textual fallback reproduces can-binding's
-lenient walk exactly: the program compiles (and fails at runtime when
-the solver evaluates Inc with B unbound). Cycles become compile errors
-when goal binding becomes the reporter.
+can never become ready. Nothing is ready, so the fixpoint falls back to
+source order and the program compiles (and fails at runtime when the
+solver evaluates Inc with B unbound). Reporting cycles as compile errors
+from the stuck set is future work.
 
   $ possum -p 'Inc(N) = N + 1 ; main = input -> [("a" + A + Inc(B)), ("b" + B + Inc(A))] $ [A, B]' -i ''
   Inc(N) =
@@ -225,15 +207,6 @@ unlocking B's merge, unlocking A's.
         B~1
         C~2
       ]))
-  
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
-  
-  program:1:20-22:
-  1 \xe2\x96\x8f input -> [[...A, ...B], [...B, ...C], [...C]] $ [A, B, C] (esc)
-    \xe2\x96\x8f                     ^^ (esc)
-  
-  [UnboundVariable]
-  [1]
 
 
 
@@ -255,17 +228,11 @@ solvable-part count judges parts before classification, so both count.
             (read A~0))))
       A~0)
   
-  goal diagnostic: variable 'A' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'A' is unbound here: a merge can solve at most one unbound part
+  
   program:1:9-22:
   1 \xe2\x96\x8f input -> ("x" + A + A) $ A (esc)
     \xe2\x96\x8f          ^^^^^^^^^^^^^ (esc)
-  
-  
-  Program Error: variable 'A' is unbound here: a merge can solve at most one unbound part
-  
-  program:1:20-21:
-  1 \xe2\x96\x8f input -> ("x" + A + A) $ A (esc)
-    \xe2\x96\x8f                     ^ (esc)
   
   [UnboundVariable]
   [1]

@@ -227,9 +227,8 @@ constraints; simplification prunes places no constraint reaches.
 
 Adjacent placeholder parts collapse — `_ + _` is "whatever plus
 whatever", one absorption — so `[1, _ + _]` folds to the same goal as
-`[1, _]`. `A + _` must not fold: "A plus whatever" is underdetermined.
-(The can compiler still rejects both; the goal-side error arrives with
-binding on goal.)
+`[1, _]` and compiles. `A + _` must not fold: "A plus whatever" is
+underdetermined, and goal binding rejects it.
 
   $ PRINT_GOAL_AST=folded possum -p 'json -> [1, _ + _]' -i '[1, 2]'
   main =
@@ -241,15 +240,6 @@ binding on goal.)
         (is_type %0 array)
         (len_eq %0 2)
         (eq_const %1 1)))
-  
-  Program Error: pattern part is unbound here: a merge can solve at most one unbound part
-  
-  program:1:16-17:
-  1 \xe2\x96\x8f json -> [1, _ + _] (esc)
-    \xe2\x96\x8f                 ^ (esc)
-  
-  [UnboundVariable]
-  [1]
 
   $ PRINT_GOAL_AST=folded possum -p 'json -> [1, A + _]' -i '[1, 2]'
   main =
@@ -268,9 +258,9 @@ binding on goal.)
   
   Program Error: pattern part is unbound here: a merge can solve at most one unbound part
   
-  program:1:16-17:
+  program:1:12-17:
   1 \xe2\x96\x8f json -> [1, A + _] (esc)
-    \xe2\x96\x8f                 ^ (esc)
+    \xe2\x96\x8f             ^^^^^ (esc)
   
   [UnboundVariable]
   [1]

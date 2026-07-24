@@ -2,11 +2,11 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const HashMap = std.AutoArrayHashMapUnmanaged;
 const Can = @import("frontend/can.zig");
-pub const Ast = @import("frontend/can_ast.zig");
+const CanAst = @import("frontend/can_ast.zig");
+const Goal = @import("frontend/goal.zig");
+pub const Ast = @import("frontend/goal_ast.zig");
 const DependencyGraph = @import("frontend/dependency_graph.zig");
 const DependencyResolver = @import("frontend/dependency_resolver.zig");
-const Goal = @import("frontend/goal.zig");
-const GoalAst = @import("frontend/goal_ast.zig");
 const Module = @import("runtime.zig").Module;
 const Parser = @import("frontend/parser.zig").Parser;
 pub const StringTable = @import("frontend/string_table.zig").FrontendStringTable;
@@ -15,9 +15,8 @@ const VM = @import("runtime.zig").VM;
 const Writers = @import("writer.zig").Writers;
 const Region = @import("region.zig").Region;
 const std = @import("std");
-const binding = @import("frontend/binding.zig");
 const call_check = @import("frontend/call_check.zig");
-const goal_binding = @import("frontend/goal_binding.zig");
+const binding = @import("frontend/goal_binding.zig");
 
 vm: *VM,
 allocator: Allocator,
@@ -27,8 +26,10 @@ strings: StringTable,
 paths: PathTable,
 target_module_id: ?Module.Id = null,
 resolver: DependencyResolver.Resolver,
-main: ?*Ast.RNode(Ast.Parser.AnonymousFunction) = null,
-binding_maps: binding.Maps = .{},
+// The target module's main anonymous-function graph-node name, if it has
+// one. Its body compiles from the module's goal ast like any other
+// anonymous function.
+main: ?PathTable.Id = null,
 // Per-module goal asts, built from unfolded can during parse and folded
 // immediately; the goal binding pass classifies them in finalize, once
 // the dependency graph is resolved.
@@ -38,10 +39,10 @@ goals: std.AutoArrayHashMapUnmanaged(Module.Id, *Goal) = .{},
 // finalize asserts these are empty whenever can-binding succeeds. They
 // print to the debug writer with the bound goal so cram tests can see
 // them.
-goal_diagnostics: std.ArrayListUnmanaged(goal_binding.Diagnostic) = .{},
+goal_diagnostics: std.ArrayListUnmanaged(binding.Diagnostic) = .{},
 // The target module's requested goal print stage; the bound stage can
 // only print from finalize.
-print_goal_stage: ?GoalAst.Stage = null,
+print_goal_stage: ?Ast.Stage = null,
 // Modules every added module implicitly dumps (builtins, then stdlib).
 // Registered before a module's own imports so user imports shadow them.
 implicit_dumps: std.ArrayListUnmanaged(Module.Id) = .{},
@@ -53,7 +54,7 @@ pub const AddModuleOpts = struct {
     printScanner: bool = false,
     printParser: bool = false,
     printAst: bool = false,
-    printGoalAst: ?GoalAst.Stage = null,
+    printGoalAst: ?Ast.Stage = null,
 };
 
 pub const Frontend = @This();
@@ -94,7 +95,6 @@ pub fn init(vm: *VM) !*Frontend {
     frontend.paths = PathTable.init(allocator);
     frontend.target_module_id = null;
     frontend.main = null;
-    frontend.binding_maps = .{};
     frontend.goals = .{};
     frontend.goal_diagnostics = .{};
     frontend.print_goal_stage = null;
@@ -105,7 +105,6 @@ pub fn init(vm: *VM) !*Frontend {
 }
 
 pub fn deinit(self: *Frontend) void {
-    self.binding_maps.deinit(self.allocator);
     self.paths.deinit();
     self.strings.deinit();
     self.arena.deinit();
@@ -127,7 +126,7 @@ pub fn addTargetModule(self: *Frontend, module: Module, opts: AddModuleOpts) Add
     try self.registerImports(module, ast);
 
     if (ast.main) |main_ast| {
-        self.main = main_ast;
+        self.main = main_ast.node.name;
     }
 }
 
@@ -155,7 +154,7 @@ fn applyImplicitDumps(self: *Frontend, module_id: Module.Id) !void {
 // Load each imported module and wire the import into the resolver. A
 // newly loaded module is parsed and registered recursively, depth-first,
 // so its own imports load before the importer's next import.
-fn registerImports(self: *Frontend, module: Module, ast: Ast) AddModuleError!void {
+fn registerImports(self: *Frontend, module: Module, ast: CanAst) AddModuleError!void {
     for (ast.imports.items) |import| {
         const result = switch (import.path) {
             .file => |p| self.vm.loader.getOrLoadFile(p, module.id),
@@ -260,12 +259,10 @@ pub fn finalize(self: *Frontend) !void {
     try self.reportResolverDiagnostics();
     // try self.resolver.prune();
     try self.analyzeGoalBindings();
-    // Before can-binding, so newly-schedulable patterns can-binding
-    // still rejects (fixpoint-ordered constraints) print their bound
-    // goal ahead of the can error.
+    // Print the bound goal (when requested) ahead of any binding error, so
+    // a rejected pattern's bound goal is visible above the diagnostic.
     try self.printBoundGoal();
-    try self.analyzeBindings();
-    self.checkGoalBindingParity();
+    try self.reportGoalDiagnostics();
     try self.checkFunctionCalls();
     // try self.analyzeLiveness();
 }
@@ -301,29 +298,62 @@ fn checkFunctionCalls(self: *Frontend) !void {
 fn analyzeGoalBindings(self: *Frontend) !void {
     var iter = self.goals.iterator();
     while (iter.next()) |entry| {
-        try goal_binding.analyzeModule(
+        try binding.analyzeModule(
             self,
             entry.key_ptr.*,
             &entry.value_ptr.*.ast,
             &self.goal_diagnostics,
         );
-        goal_binding.verifyModule(self, entry.key_ptr.*, &entry.value_ptr.*.ast);
+        binding.verifyModule(self, entry.key_ptr.*, &entry.value_ptr.*.ast);
     }
 }
 
-// Differential check while both binding passes coexist: can-binding
-// succeeded (analyzeBindings returned without error), so any goal
-// diagnostic is a bug in the goal pass.
-fn checkGoalBindingParity(self: *Frontend) void {
-    if (!std.debug.runtime_safety) return;
-    if (self.goal_diagnostics.items.len == 0) return;
+// Report the binding diagnostics collected by goal binding as compile
+// errors. Each diagnostic carries its own module and region.
+fn reportGoalDiagnostics(self: *Frontend) !void {
     for (self.goal_diagnostics.items) |diagnostic| {
-        std.debug.print("goal binding diagnostic without can counterpart: {s} '{s}'\n", .{
-            @tagName(diagnostic.kind),
-            if (diagnostic.name) |name| self.strings.get(name) else "?",
-        });
+        const module_id = diagnostic.module_id;
+        const region = diagnostic.region;
+        switch (diagnostic.kind) {
+            .unbound => try self.printError(
+                module_id,
+                region,
+                "variable '{s}' is unbound here",
+                .{self.strings.get(diagnostic.name.?)},
+            ),
+            .out_of_scope => try self.printError(
+                module_id,
+                region,
+                "variable '{s}' is unbound here: its binding is out of scope",
+                .{self.strings.get(diagnostic.name.?)},
+            ),
+            .split => try self.printError(
+                module_id,
+                region,
+                "variable '{s}' may be unbound here: it is not bound on every path",
+                .{self.strings.get(diagnostic.name.?)},
+            ),
+            .unbound_function_var => try self.printError(
+                module_id,
+                region,
+                "variable '{s}' is unbound here: variables in pattern function calls must be bound",
+                .{self.strings.get(diagnostic.name.?)},
+            ),
+            .extra_unbound_part => if (diagnostic.name) |name| try self.printError(
+                module_id,
+                region,
+                "variable '{s}' is unbound here: a merge can solve at most one unbound part",
+                .{self.strings.get(name)},
+            ) else try self.printError(
+                module_id,
+                region,
+                "pattern part is unbound here: a merge can solve at most one unbound part",
+                .{},
+            ),
+        }
     }
-    @panic("goal binding diagnostics diverge from can binding");
+
+    if (self.goal_diagnostics.items.len > 0) return Error.UnboundVariable;
 }
 
 fn printBoundGoal(self: *Frontend) !void {
@@ -332,49 +362,6 @@ fn printBoundGoal(self: *Frontend) !void {
     const target = self.target_module_id orelse return;
     const goal = self.goals.get(target) orelse return;
     try goal.print(self.writers.debug);
-    try self.printGoalDiagnostics();
-}
-
-// Goal binding diagnostics print with the bound goal, mirroring
-// reportBindingDiagnostics' messages, so cram tests can see what goal
-// binding diagnosed while can-binding remains the error reporter.
-fn printGoalDiagnostics(self: *Frontend) !void {
-    const writer = self.writers.debug;
-    for (self.goal_diagnostics.items) |diagnostic| {
-        const name: []const u8 = if (diagnostic.name) |n| self.strings.get(n) else "";
-        try writer.print("\ngoal diagnostic: ", .{});
-        switch (diagnostic.kind) {
-            .unbound => try writer.print(
-                "variable '{s}' is unbound here",
-                .{name},
-            ),
-            .out_of_scope => try writer.print(
-                "variable '{s}' is unbound here: its binding is out of scope",
-                .{name},
-            ),
-            .split => try writer.print(
-                "variable '{s}' may be unbound here: it is not bound on every path",
-                .{name},
-            ),
-            .unbound_function_var => try writer.print(
-                "variable '{s}' is unbound here: variables in pattern function calls must be bound",
-                .{name},
-            ),
-            .extra_unbound_part => if (diagnostic.name != null) try writer.print(
-                "variable '{s}' is unbound here: a merge can solve at most one unbound part",
-                .{name},
-            ) else try writer.print(
-                "pattern part is unbound here: a merge can solve at most one unbound part",
-                .{},
-            ),
-        }
-        const module = self.vm.getModule(diagnostic.module_id);
-        try writer.print("\n{s}:", .{module.name});
-        try diagnostic.region.printLineRelative(module.source, writer);
-        try writer.print(":\n", .{});
-        try module.highlight(diagnostic.region, writer);
-        try writer.print("\n", .{});
-    }
 }
 
 fn reportResolverDiagnostics(self: *Frontend) !void {
@@ -426,10 +413,6 @@ pub fn getNode(self: *Frontend, key: GlobalKey) *DependencyGraph.Node {
     return self.resolver.graph.nodes.get(key).?;
 }
 
-pub fn getDeclaration(self: *Frontend, key: GlobalKey) Ast.ParserOrValue.Declaration {
-    return self.getNode(key).declaration.ast;
-}
-
 pub fn findNode(self: *Frontend, module_id: Module.Id, name: PathTable.Id) ?*DependencyGraph.Node {
     const key = DependencyGraph.NodeKey{
         .module_id = module_id,
@@ -442,7 +425,7 @@ pub fn dependenciesIterator(self: *Frontend) HashMap(DependencyGraph.NodeKey, *D
     return self.resolver.graph.nodes.iterator();
 }
 
-fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !Ast {
+fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !CanAst {
     var can = Can.init(&self.arena, self.writers, &self.strings, &self.paths, module);
 
     if (module.source.len > 0) {

@@ -3,25 +3,75 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Frontend = @import("../frontend.zig");
 const Ast = @import("goal_ast.zig");
-const binding = @import("binding.zig");
 const Module = @import("../runtime.zig").Module;
 const Region = @import("../region.zig").Region;
 const Strings = @import("string_table.zig").FrontendStringTable;
 const Paths = @import("path_table.zig").PathTable;
 
-const Env = binding.Env;
-const SlotSet = binding.SlotSet;
+// Where a local stands on the control paths reaching a program point:
+// bound on every path, on none, or only on some.
+pub const State = enum { unbound, bound, split };
 
-// binding.Diagnostic plus the module, so the frontend can print regions
-// without re-threading module state.
+pub const Slot = struct {
+    state: State = .unbound,
+    // The frame slot may still physically hold a value from a binding that
+    // is out of scope: a failed alternative or an earlier loop iteration.
+    // Only meaningful while state is not .bound.
+    stale: bool = false,
+};
+
+pub const Env = struct {
+    slots: [max_locals]Slot = [_]Slot{.{}} ** max_locals,
+};
+
+pub const max_locals = 256;
+pub const SlotSet = std.bit_set.StaticBitSet(max_locals);
+
 pub const Diagnostic = struct {
     module_id: Module.Id,
     region: Region,
     name: ?Strings.Id,
-    kind: binding.Diagnostic.Kind,
+    kind: Kind,
+
+    pub const Kind = enum {
+        // No path reaching this point binds the local.
+        unbound,
+        // Only bound by a failed alternative or an earlier loop iteration.
+        out_of_scope,
+        // Bound on some paths but not others.
+        split,
+        // A second unbound part in a single merge or string template.
+        extra_unbound_part,
+        // A function callee or argument with no binding in scope and no
+        // binding occurrence anywhere in the pattern.
+        unbound_function_var,
+    };
 };
-const markStaleBinds = binding.markStaleBinds;
-const joinEnv = binding.joinEnv;
+
+// Mark slots that `after` may have bound or dirtied relative to `base`
+// as stale in `target`: the values may physically remain in the frame
+// while the bindings are out of scope.
+pub fn markStaleBinds(target: *Env, base: *const Env, after: *const Env) void {
+    for (&target.slots, base.slots, after.slots) |*t, b, a| {
+        if (a.stale or (b.state == .unbound and a.state != .unbound)) {
+            t.stale = true;
+        }
+    }
+}
+
+pub fn joinEnv(a: *const Env, b: *const Env) Env {
+    var out = Env{};
+    for (&out.slots, a.slots, b.slots) |*o, x, y| {
+        if (x.state == .bound and y.state == .bound) {
+            o.* = .{ .state = .bound, .stale = false };
+        } else if (x.state == .unbound and y.state == .unbound) {
+            o.* = .{ .state = .unbound, .stale = x.stale or y.stale };
+        } else {
+            o.* = .{ .state = .split, .stale = x.stale or y.stale };
+        }
+    }
+    return out;
+}
 
 // Binding analysis on the goal ast: the same forward walk and binding
 // rules as binding.zig, but instead of producing side tables for the can
@@ -125,7 +175,7 @@ const Analyzer = struct {
         return &self.scopes.items[self.scopes.items.len - 1];
     }
 
-    fn diagnose(self: *Analyzer, region: Region, name: ?Strings.Id, kind: binding.Diagnostic.Kind) !void {
+    fn diagnose(self: *Analyzer, region: Region, name: ?Strings.Id, kind: Diagnostic.Kind) !void {
         try self.diagnostics.append(self.allocator, .{
             .module_id = self.module_id,
             .region = region,

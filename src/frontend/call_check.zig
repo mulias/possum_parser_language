@@ -1,7 +1,7 @@
 const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const Frontend = @import("../frontend.zig");
-const Ast = Frontend.Ast;
+const Ast = @import("can_ast.zig");
 const Paths = @import("path_table.zig").PathTable;
 const Region = @import("../region.zig").Region;
 
