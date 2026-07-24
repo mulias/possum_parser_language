@@ -54,12 +54,16 @@ Parameters occupy the first frame slots and are bound on entry.
     (call pair [int ","])
   
 
-A global with the same name wins over a local in pattern position.
+A global with the same name wins over a local in pattern position. The
+global is runtime-valued so it stays an eq_global reference; a scalar
+global would fold to its constant instead.
 
-  $ possum -p 'Max = 5
+  $ possum -p 'Max = "" $ 5
   > main = int -> Max' -i ''
   Max =
-    5
+    (seq result=1
+      ""
+      5)
   
   main =
     (match

@@ -284,11 +284,76 @@ pub fn finalize(self: *Frontend) !void {
     try self.checkFunctionCalls();
 }
 
+// Fold every graph node's body, inlining scalar globals. Driven per node
+// (not per module) so each fold sees the owning node's dependency edges,
+// which distinguish a global reference from a frame local. A referenced
+// declaration is folded on demand so its scalar is ready regardless of
+// source or module order; the recursion stack guards value self-reference
+// (`A = A + 1`), which is not an alias and so escapes resolveAliases.
+const FoldStack = std.AutoHashMapUnmanaged(GlobalKey, void);
+
 fn foldGoals(self: *Frontend) !void {
-    var iter = self.goals.iterator();
+    var stack = FoldStack{};
+    defer stack.deinit(self.arena.allocator());
+    var iter = self.dependenciesIterator();
     while (iter.next()) |entry| {
-        try entry.value_ptr.*.fold();
+        try self.foldNode(entry.key_ptr.*, entry.value_ptr.*, &stack);
     }
+}
+
+fn foldNode(self: *Frontend, key: GlobalKey, node: *DependencyGraph.Node, stack: *FoldStack) Goal.FoldError!void {
+    // On the stack: currently folding, so a reference back to it leaves
+    // the identifier and reads whatever the body holds so far (non-scalar).
+    if (stack.contains(key)) return;
+    const goal = self.goals.get(key.module_id) orelse return;
+    const body: Goal.NodeId = switch (node.*) {
+        .precompiled => return,
+        .declaration => |*d| d.decl.body,
+        .anonymous_function => |*a| a.body,
+    };
+
+    try stack.put(self.arena.allocator(), key, {});
+    defer _ = stack.remove(key);
+
+    var ctx = FoldCtx{ .frontend = self, .owner = node, .stack = stack };
+    try goal.foldBody(body, .{ .ctx = &ctx, .scalarFn = scalarCallback });
+}
+
+const FoldCtx = struct {
+    frontend: *Frontend,
+    owner: *DependencyGraph.Node,
+    stack: *FoldStack,
+};
+
+fn scalarCallback(ctx_opaque: *anyopaque, name: PathTable.Id) Goal.FoldError!?Goal.ScalarValue {
+    const ctx: *FoldCtx = @ptrCast(@alignCast(ctx_opaque));
+    return ctx.frontend.scalarGlobal(ctx.owner, name, ctx.stack);
+}
+
+// The constant scalar the reference `name` folds to when it resolves to a
+// value declaration with a scalar body, else null. Follows alias
+// terminals and folds the target on demand before reading its body.
+fn scalarGlobal(self: *Frontend, owner: *DependencyGraph.Node, name: PathTable.Id, stack: *FoldStack) Goal.FoldError!?Goal.ScalarValue {
+    const target = owner.dependencyNamed(name) orelse return null;
+    const terminal = self.foldTerminalKey(target) orelse return null;
+    const tnode = self.getNode(terminal);
+    if (tnode.* != .declaration) return null;
+    const decl = tnode.declaration.decl;
+    // A function global (any parameters) is not a value.
+    if (decl.params.items.len != 0) return null;
+
+    try self.foldNode(terminal, tnode, stack);
+    const tgoal = self.goals.get(terminal.module_id) orelse return null;
+    return tgoal.scalarOfBody(decl.body);
+}
+
+// Follow an alias declaration to the terminal it names; a non-alias key
+// is its own terminal, a dangling alias resolves to nothing.
+fn foldTerminalKey(self: *Frontend, key: GlobalKey) ?GlobalKey {
+    return switch (self.aliasResolution(key) orelse return key) {
+        .terminal => |terminal| terminal,
+        .undefined => null,
+    };
 }
 
 fn lowerGoals(self: *Frontend) !void {

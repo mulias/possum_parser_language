@@ -3421,8 +3421,10 @@ test "('' $ 4) -> (-2 * N) folds the negated repeat pattern" {
 }
 
 test "a negated global compiles to a match plan" {
+    // A runtime-valued global does not fold, so the negation stays a
+    // match-plan constraint. A scalar global would inline and fold away.
     const parser =
-        \\Two = 2 ; ("" $ -2) -> -Two $ "ok"
+        \\Two = "" $ 2 ; ("" $ -2) -> -Two $ "ok"
     ;
     var vm = VM.create();
     try vm.init(allocator, writers, config);

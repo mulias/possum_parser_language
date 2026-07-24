@@ -33,6 +33,11 @@ declared_names: std.AutoHashMapUnmanaged(PathTable.Id, void) = .{},
 // folded and bound stages they print the lowered constraints. Set at the
 // start of print.
 print_stage: Ast.Stage = .bound,
+// Set for the duration of a foldBody call: the frontend-supplied resolver
+// that answers "does this identifier name a constant scalar global?", for
+// inlining. Null outside folding, so the idempotent re-folds run during
+// lowering never inline.
+inline_resolver: ?InlineResolver = null,
 
 pub const Goal = @This();
 pub const NodeId = Ast.NodeId;
@@ -1255,7 +1260,26 @@ fn foldPattern(self: *Goal, pattern: *Pattern.RNode) FoldError!*Pattern.RNode {
             for (parts.items) |*p| p.* = try self.foldPattern(p.*);
             return pattern;
         },
-        .true, .false, .null, .number_float, .number_string, .string, .identifier, .function_call => return pattern,
+        // A bare identifier naming a constant scalar global inlines to the
+        // constant, so a surrounding merge/repeat/negation folds it. Frame
+        // locals and non-scalar globals resolve to null and stay identifiers.
+        .identifier => |ident| {
+            if (!self.isPlaceholder(ident.name)) {
+                if (self.inline_resolver) |resolver| {
+                    if (try resolver.scalar(ident.name)) |value| {
+                        pattern.node = value.toPatternNode();
+                    }
+                }
+            }
+            return pattern;
+        },
+        // The leaf holds a goal expression; fold it so nested scalar
+        // globals inline there too.
+        .function_call => |expr| {
+            try self.foldNodeRec(expr);
+            return pattern;
+        },
+        .true, .false, .null, .number_float, .number_string, .string => return pattern,
     }
 }
 
@@ -1963,36 +1987,101 @@ fn patternExprGoal(self: *Goal, pattern: *Pattern.RNode) Error!NodeId {
 // pattern folds in place. Lowering (lowerGoals) runs afterward, so no
 // constraint-level folding is needed. Nodes rewrite in place; ids stay
 // stable.
-pub fn fold(self: *Goal) FoldError!void {
-    // Children are appended before parents, so one forward pass folds
-    // bottom-up. Patterns fold in place on their match/repeat nodes;
-    // foldPattern allocates only pattern nodes, never goals, so the held
-    // rnode pointer stays valid.
-    for (self.ast.goals.items) |*rnode| {
-        switch (rnode.node) {
-            .merge => |op| {
-                if (try self.foldedMerge(self.goalNode(op.left), self.goalNode(op.right))) |folded| {
-                    rnode.node = folded;
-                }
-            },
-            .mult => |op| {
-                if (try self.foldedMult(self.goalNode(op.left), self.goalNode(op.right))) |folded| {
-                    rnode.node = folded;
-                }
-            },
-            .neg => |inner| {
-                if (foldedNeg(self.goalNode(inner))) |folded| {
-                    rnode.node = folded;
-                }
-            },
-            // Fold the pattern but keep its original region: diagnostics
-            // point at the whole written pattern, not the narrower span a
-            // folded merge would carry.
-            .match => |*match| match.pattern = try self.foldPatternKeepingRegion(match.pattern),
-            .repeat => |*rep| rep.count_pattern = try self.foldPatternKeepingRegion(rep.count_pattern),
-            else => {},
-        }
+// Fold one graph node's body subtree, inlining scalar globals through
+// `resolver`. The frontend drives this per node so each fold sees the
+// owning node's dependency edges. foldPattern reads inline_resolver for
+// the same inlining; it is scoped to this call and restored on return so
+// the resolver-free re-folds during lowering never inline.
+pub fn foldBody(self: *Goal, body: NodeId, resolver: InlineResolver) FoldError!void {
+    const prev = self.inline_resolver;
+    self.inline_resolver = resolver;
+    defer self.inline_resolver = prev;
+    try self.foldNodeRec(body);
+}
+
+// Post-order fold of a goal subtree: children fold first, then the
+// operator combines them. A scalar-global reference inlines in place, so
+// a parent merge/mult/neg/pattern sees the constant. foldPattern
+// allocates only pattern nodes and folding never appends goals, so the
+// goals array stays put and index-based mutation is stable. Lambda bodies
+// are separate graph nodes, folded when the frontend reaches them.
+fn foldNodeRec(self: *Goal, id: NodeId) FoldError!void {
+    switch (self.ast.goals.items[id].node) {
+        .ident => |ident| {
+            if (ident.kind != .value or self.isPlaceholder(ident.name)) return;
+            const resolver = self.inline_resolver orelse return;
+            if (try resolver.scalar(ident.name)) |value| {
+                self.ast.goals.items[id].node = value.toGoalNode();
+            }
+        },
+        .merge => |op| {
+            try self.foldNodeRec(op.left);
+            try self.foldNodeRec(op.right);
+            if (try self.foldedMerge(self.goalNode(op.left), self.goalNode(op.right))) |folded| {
+                self.ast.goals.items[id].node = folded;
+            }
+        },
+        .mult => |op| {
+            try self.foldNodeRec(op.left);
+            try self.foldNodeRec(op.right);
+            if (try self.foldedMult(self.goalNode(op.left), self.goalNode(op.right))) |folded| {
+                self.ast.goals.items[id].node = folded;
+            }
+        },
+        .neg => |inner| {
+            try self.foldNodeRec(inner);
+            if (foldedNeg(self.goalNode(inner))) |folded| {
+                self.ast.goals.items[id].node = folded;
+            }
+        },
+        .to_string => |inner| try self.foldNodeRec(inner),
+        .seq => |seq| for (seq.goals.items) |g| try self.foldNodeRec(g),
+        .alt => |arms| for (arms.items) |arm| {
+            if (arm.guard) |g| try self.foldNodeRec(g);
+            if (arm.body) |b| try self.foldNodeRec(b);
+        },
+        // The callee names the function to invoke; it is never a foldable
+        // value, and inlining a scalar into it would turn a call-of-a-value
+        // error into malformed IR. Only the arguments fold.
+        .call => |call| for (call.args) |arg| try self.foldNodeRec(arg),
+        .array => |items| for (items.items) |item| try self.foldNodeRec(item),
+        .object => |pairs| for (pairs.items) |pair| {
+            try self.foldNodeRec(pair.key);
+            try self.foldNodeRec(pair.value);
+        },
+        .range => |range| {
+            if (range.lower) |l| try self.foldNodeRec(l);
+            if (range.upper) |u| try self.foldNodeRec(u);
+        },
+        // Fold the pattern but keep its original region: diagnostics
+        // point at the whole written pattern, not the narrower span a
+        // folded merge would carry.
+        .match => |*match| {
+            try self.foldNodeRec(match.scrutinee);
+            match.pattern = try self.foldPatternKeepingRegion(match.pattern);
+        },
+        .repeat => |*rep| {
+            try self.foldNodeRec(rep.body);
+            rep.count_pattern = try self.foldPatternKeepingRegion(rep.count_pattern);
+        },
+        .lambda => {},
+        .number_string, .number_float, .string, .true, .false, .null => {},
     }
+}
+
+// The constant scalar a (folded) declaration body evaluates to, or null
+// when the body is a function, a runtime value, or a structural literal.
+// Read by the frontend to resolve a scalar-global reference.
+pub fn scalarOfBody(self: *Goal, id: NodeId) ?ScalarValue {
+    return switch (self.ast.goals.items[id].node) {
+        .number_float => |f| .{ .number_float = f },
+        .number_string => |ns| .{ .number_string = ns },
+        .string => |s| .{ .string = s },
+        .true => .true,
+        .false => .false,
+        .null => .null,
+        else => null,
+    };
 }
 
 // Fold a top-level pattern, preserving the source region it was written
@@ -2151,6 +2240,57 @@ fn remapPlaces(constraints: []Ast.Constraint, map: []const Ast.PlaceId) void {
 }
 
 pub const FoldError = error{ OutOfMemory, InvalidCharacter };
+
+// A constant scalar a global reference folds to. Strings and number
+// digits are arena slices shared across modules, so a value extracted
+// from one module inlines safely into another. Structural values
+// (arrays, objects) are deliberately excluded.
+pub const ScalarValue = union(enum) {
+    number_float: f64,
+    number_string: Ast.NumberString,
+    string: []const u8,
+    true,
+    false,
+    null,
+
+    fn toGoalNode(self: ScalarValue) Ast.GoalNode {
+        return switch (self) {
+            .number_float => |f| .{ .number_float = f },
+            .number_string => |ns| .{ .number_string = ns },
+            .string => |s| .{ .string = s },
+            .true => .true,
+            .false => .false,
+            .null => .null,
+        };
+    }
+
+    fn toPatternNode(self: ScalarValue) Pattern.Node {
+        return switch (self) {
+            .number_float => |f| .{ .number_float = f },
+            .number_string => |ns| .{ .number_string = .{
+                .number = ns.number,
+                .negated = ns.negated,
+            } },
+            .string => |s| .{ .string = s },
+            .true => .true,
+            .false => .false,
+            .null => .null,
+        };
+    }
+};
+
+// Supplied by the frontend for the duration of a foldBody call: it holds
+// the graph context a scalar-global lookup needs (the owning node's
+// dependency edges, alias terminals, cross-module goals) that Goal cannot
+// reach on its own.
+pub const InlineResolver = struct {
+    ctx: *anyopaque,
+    scalarFn: *const fn (ctx: *anyopaque, name: PathTable.Id) FoldError!?ScalarValue,
+
+    fn scalar(self: InlineResolver, name: PathTable.Id) FoldError!?ScalarValue {
+        return self.scalarFn(self.ctx, name);
+    }
+};
 
 fn foldedMerge(self: *Goal, a: Ast.GoalNode, b: Ast.GoalNode) FoldError!?Ast.GoalNode {
     if (a == .null) return b;

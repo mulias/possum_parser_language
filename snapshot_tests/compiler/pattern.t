@@ -90,7 +90,7 @@
   0017    | MatchType r0 array -> 54
   0022    | MatchLen r0 3 -> 54
   0027    | MatchElem r1 r0[0]
-  0031    | MatchGlobal r1 1 -> 54
+  0031    | MatchConst r1 1 -> 54
   0037    | MatchElem r2 r0[1]
   0041    | MatchBind l0 r2
   0044    | MatchElem r3 r0[2]
@@ -919,8 +919,14 @@
   7 -> (X + 4)
   ========================================
   0000    | ParseNumberStringChar 7
-  0002    | DestructurePlan 0: (eq 3 + eq 4)
-  0004    | End
+  0002    | JumpIfFailure 2 -> 20
+  0005    | MatchWindowEnter 2
+  0007    | MatchScrutinee r0
+  0009    | MatchConst r0 7 -> 18
+  0015    | Jump 15 -> 19
+  0018    | MatchFail
+  0019    | MatchWindowExit
+  0020    | End
   ========================================
 
   $ possum -p 'X = 2; Y = 3; 5 -> (X + Y)' -i '5'
@@ -929,8 +935,14 @@
   5 -> (X + Y)
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | DestructurePlan 0: (eq 2 + eq 3)
-  0004    | End
+  0002    | JumpIfFailure 2 -> 20
+  0005    | MatchWindowEnter 2
+  0007    | MatchScrutinee r0
+  0009    | MatchConst r0 5 -> 18
+  0015    | Jump 15 -> 19
+  0018    | MatchFail
+  0019    | MatchWindowExit
+  0020    | End
   ========================================
 
   $ possum -p '6 -> (1 + X + 3) $ X' -i '6'
