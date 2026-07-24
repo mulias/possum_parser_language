@@ -47,8 +47,8 @@ pub const Ir = struct {
         jump_back: struct { op: OpCode, target: Index },
         // Match step operands. Registers are frame slots; semidet steps
         // carry a fail-jump target patched like other jumps.
-        // MatchBind (local, src), MatchElem/MatchElemBack (dst, src,
-        // index), and MatchSlice (dst, src, front, back).
+        // MatchBind (local, src), MatchElem (dst, src, index, dir), and
+        // MatchSlice (dst, src, front, back).
         match_bytes: struct { op: OpCode, byte1: u8, byte2: u8, byte3: u8 = 0, byte4: u8 = 0 },
         // MatchType/MatchLen/MatchKeys (slot, immediate), MatchSlot
         // (register, local), and MatchRepeatValue/MatchRepeatChunk (src
@@ -272,10 +272,10 @@ pub const Ir = struct {
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.byte1, region);
                     try chunk.write(allocator, m.byte2, region);
-                    if (m.op == .MatchElem or m.op == .MatchElemBack or m.op == .MatchSlice) {
+                    if (m.op == .MatchElem or m.op == .MatchSlice) {
                         try chunk.write(allocator, m.byte3, region);
+                        try chunk.write(allocator, m.byte4, region);
                     }
-                    if (m.op == .MatchSlice) try chunk.write(allocator, m.byte4, region);
                 },
                 .match_test => |m| {
                     std.debug.assert(m.target != unpatched_jump);
@@ -508,8 +508,7 @@ pub const Ir = struct {
             .push_string, .push_var => |sid| sidByteLength(sid),
             .jump, .jump_back => 3,
             .match_bytes => |m| switch (m.op) {
-                .MatchElem, .MatchElemBack => @as(u32, 4),
-                .MatchSlice => 5,
+                .MatchElem, .MatchSlice => @as(u32, 5),
                 else => 3,
             },
             .match_test => 5,

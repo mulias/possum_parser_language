@@ -204,78 +204,78 @@
   0112    | Merge
   0113    | Merge
   0114    | CallTailFunction 6
-  0116    | Jump 116 -> 289
+  0116    | Jump 116 -> 291
   0119    | SetInputMark
   0120    | CallFunctionLocal l2
-  0122    | JumpIfFailure 122 -> 183
+  0122    | JumpIfFailure 122 -> 185
   0125    | MatchWindowEnter 6
   0127    | MatchScrutinee r0
-  0129    | MatchType r0 object -> 181
-  0134    | MatchKeysMin r0 1 -> 181
-  0139    | MatchKey r1 r0["power"] -> 181
-  0146    | MatchType r1 array -> 181
-  0151    | MatchLen r1 2 -> 181
+  0129    | MatchType r0 object -> 183
+  0134    | MatchKeysMin r0 1 -> 183
+  0139    | MatchKey r1 r0["power"] -> 183
+  0146    | MatchType r1 array -> 183
+  0151    | MatchLen r1 2 -> 183
   0156    | MatchElem r2 r1[0]
-  0160    | MatchBind l6 r2
-  0163    | MatchElem r3 r1[1]
-  0167    | MatchBind l8 r3
-  0170    | MatchObjectRest r4 r0 \ ["power"]
-  0175    | MatchBind l9 r4
-  0178    | Jump 178 -> 182
-  0181    | MatchFail
-  0182    | MatchWindowExit
-  0183    | TakeRight 183 -> 198
-  0186    | GetConstant 7: const
-  0188    | GetConstant 8: Is.LessThan
-  0190    | GetLocal l4
-  0192    | GetLocalMove l6
-  0194    | CallFunction 2
-  0196    | CallFunction 1
-  0198    | ConditionalThen 198 -> 283
-  0201    | GetConstant 0: _with_precedence_start
-  0203    | GetLocal l0
-  0205    | GetLocal l1
-  0207    | GetLocal l2
-  0209    | GetLocal l3
-  0211    | GetLocalMove l8
-  0213    | CallFunction 5
-  0215    | JumpIfFailure 215 -> 226
-  0218    | MatchWindowEnter 2
-  0220    | MatchScrutinee r0
-  0222    | MatchBind l10 r0
-  0225    | MatchWindowExit
-  0226    | TakeRight 226 -> 280
-  0229    | GetConstant 3: _with_precedence_rest
-  0231    | GetLocalMove l0
-  0233    | GetLocalMove l1
-  0235    | GetLocalMove l2
-  0237    | GetLocalMove l3
-  0239    | GetLocalMove l4
-  0241    | PushEmptyObject
-  0242    | JumpIfFailure 242 -> 248
-  0245    | GetLocalMove l9
-  0247    | Merge
-  0248    | JumpIfFailure 248 -> 278
-  0251    | GetConstantMutable 11: {_0_, _1_}
-  0253    | PushString "left"
-  0255    | GetLocal l5
-  0257    | InsertKeyVal 0
-  0259    | PushString "right"
-  0261    | GetLocal l10
-  0263    | InsertKeyVal 1
-  0265    | JumpIfFailure 265 -> 277
-  0268    | GetConstant 5: _MergePos
-  0270    | GetLocalMove l5
-  0272    | GetLocalMove l10
-  0274    | CallFunction 2
-  0276    | Merge
-  0277    | Merge
-  0278    | CallTailFunction 6
-  0280    | Jump 280 -> 289
-  0283    | GetConstant 7: const
-  0285    | GetLocalMove l5
-  0287    | CallTailFunction 1
-  0289    | End
+  0161    | MatchBind l6 r2
+  0164    | MatchElem r3 r1[1]
+  0169    | MatchBind l8 r3
+  0172    | MatchObjectRest r4 r0 \ ["power"]
+  0177    | MatchBind l9 r4
+  0180    | Jump 180 -> 184
+  0183    | MatchFail
+  0184    | MatchWindowExit
+  0185    | TakeRight 185 -> 200
+  0188    | GetConstant 7: const
+  0190    | GetConstant 8: Is.LessThan
+  0192    | GetLocal l4
+  0194    | GetLocalMove l6
+  0196    | CallFunction 2
+  0198    | CallFunction 1
+  0200    | ConditionalThen 200 -> 285
+  0203    | GetConstant 0: _with_precedence_start
+  0205    | GetLocal l0
+  0207    | GetLocal l1
+  0209    | GetLocal l2
+  0211    | GetLocal l3
+  0213    | GetLocalMove l8
+  0215    | CallFunction 5
+  0217    | JumpIfFailure 217 -> 228
+  0220    | MatchWindowEnter 2
+  0222    | MatchScrutinee r0
+  0224    | MatchBind l10 r0
+  0227    | MatchWindowExit
+  0228    | TakeRight 228 -> 282
+  0231    | GetConstant 3: _with_precedence_rest
+  0233    | GetLocalMove l0
+  0235    | GetLocalMove l1
+  0237    | GetLocalMove l2
+  0239    | GetLocalMove l3
+  0241    | GetLocalMove l4
+  0243    | PushEmptyObject
+  0244    | JumpIfFailure 244 -> 250
+  0247    | GetLocalMove l9
+  0249    | Merge
+  0250    | JumpIfFailure 250 -> 280
+  0253    | GetConstantMutable 11: {_0_, _1_}
+  0255    | PushString "left"
+  0257    | GetLocal l5
+  0259    | InsertKeyVal 0
+  0261    | PushString "right"
+  0263    | GetLocal l10
+  0265    | InsertKeyVal 1
+  0267    | JumpIfFailure 267 -> 279
+  0270    | GetConstant 5: _MergePos
+  0272    | GetLocalMove l5
+  0274    | GetLocalMove l10
+  0276    | CallFunction 2
+  0278    | Merge
+  0279    | Merge
+  0280    | CallTailFunction 6
+  0282    | Jump 282 -> 291
+  0285    | GetConstant 7: const
+  0287    | GetLocalMove l5
+  0289    | CallTailFunction 1
+  0291    | End
   ========================================
   
   =================1:node=================

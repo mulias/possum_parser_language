@@ -68,7 +68,6 @@ pub const OpCode = enum(u8) {
     MatchCastNum,
     MatchConst,
     MatchElem,
-    MatchElemBack,
     MatchEval,
     MatchFail,
     MatchGlobal,
@@ -269,7 +268,6 @@ pub const OpCode = enum(u8) {
             // projections: no stack traffic.
             .MatchBind,
             .MatchElem,
-            .MatchElemBack,
             .MatchObjectRest,
             .MatchObjectRestSearch,
             .MatchSearchInit,
@@ -558,7 +556,7 @@ pub const OpCode = enum(u8) {
             .SetLocal => .{ .operands = .consumed, .result = .none },
 
             // Match steps never pop handles: tests borrow, and the copy
-            // steps (MatchScrutinee, MatchElem, MatchElemBack, MatchKey,
+            // steps (MatchScrutinee, MatchElem, MatchKey,
             // MatchBind) retain into their target slot and release the
             // slot's previous handle in the dispatch. MatchSlice stores a
             // fresh array's creator handle into its register the same
@@ -569,7 +567,6 @@ pub const OpCode = enum(u8) {
             .MatchCastNum,
             .MatchConst,
             .MatchElem,
-            .MatchElemBack,
             .MatchGlobal,
             .MatchInRange,
             .MatchKey,
@@ -746,7 +743,6 @@ pub const OpCode = enum(u8) {
             .MatchBind => self.matchBindInstruction(chunk, writer, offset),
             .MatchSubScrutinee => self.matchSubScrutineeInstruction(chunk, writer, offset),
             .MatchElem => self.matchElemInstruction(chunk, writer, offset),
-            .MatchElemBack => self.matchElemBackInstruction(chunk, writer, offset),
             .MatchRepeatInit => self.matchRepeatInitInstruction(chunk, writer, offset),
             .MatchRepeatNext => self.matchRepeatNextInstruction(chunk, writer, offset),
             .MatchSlice => self.matchSliceInstruction(chunk, writer, offset),
@@ -971,8 +967,13 @@ pub const OpCode = enum(u8) {
         const dst = chunk.read(offset + 1);
         const src = chunk.read(offset + 2);
         const index = chunk.read(offset + 3);
-        try writer.print("{s} r{} r{}[{}]\n", .{ @tagName(self), dst, src, index });
-        return offset + 4;
+        const back = chunk.read(offset + 4);
+        if (back != 0) {
+            try writer.print("{s} r{} r{}[^{}]\n", .{ @tagName(self), dst, src, index });
+        } else {
+            try writer.print("{s} r{} r{}[{}]\n", .{ @tagName(self), dst, src, index });
+        }
+        return offset + 5;
     }
 
     fn matchObjectRestInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
@@ -1033,14 +1034,6 @@ pub const OpCode = enum(u8) {
         try keys.print(vm, writer);
         try writer.print(" -> {}\n", .{target});
         return offset + 10;
-    }
-
-    fn matchElemBackInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
-        const dst = chunk.read(offset + 1);
-        const src = chunk.read(offset + 2);
-        const index = chunk.read(offset + 3);
-        try writer.print("{s} r{} r{}[^{}]\n", .{ @tagName(self), dst, src, index });
-        return offset + 4;
     }
 
     fn matchSliceInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {

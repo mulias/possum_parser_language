@@ -964,18 +964,9 @@ pub const VM = struct {
                 const dst = self.readByte();
                 const src = self.readByte();
                 const index = self.readByte();
-                const value = self.getScratch(src).asDyn().asArray().elems.items[index];
-                const previous = self.getScratch(dst);
-                value.retain();
-                self.setScratch(dst, value);
-                previous.release();
-            },
-            .MatchElemBack => {
-                const dst = self.readByte();
-                const src = self.readByte();
-                const index = self.readByte();
+                const back = self.readByte();
                 const elems = self.getScratch(src).asDyn().asArray().elems.items;
-                const value = elems[elems.len - 1 - index];
+                const value = if (back != 0) elems[elems.len - 1 - index] else elems[index];
                 const previous = self.getScratch(dst);
                 value.retain();
                 self.setScratch(dst, value);

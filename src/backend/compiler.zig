@@ -4094,15 +4094,17 @@ pub const Compiler = struct {
                     .byte1 = scratch_base + @as(u8, @intCast(place)),
                     .byte2 = scratch_base + @as(u8, @intCast(e.src)),
                     .byte3 = @intCast(e.index),
+                    .byte4 = 0,
                 } }, region);
             },
             .elem_back => |e| {
                 try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, e.src, region);
                 _ = try self.ir().push(self.vm.allocator, .{ .match_bytes = .{
-                    .op = .MatchElemBack,
+                    .op = .MatchElem,
                     .byte1 = scratch_base + @as(u8, @intCast(place)),
                     .byte2 = scratch_base + @as(u8, @intCast(e.src)),
                     .byte3 = @intCast(e.index),
+                    .byte4 = 1,
                 } }, region);
             },
             .slice => |s| {
