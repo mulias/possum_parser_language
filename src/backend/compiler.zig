@@ -2768,8 +2768,9 @@ pub const Compiler = struct {
                     const sid = try self.vm.strings.insert(c.literal);
                     const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-                        .op = .MatchStrPrefix,
+                        .op = .MatchStrEnd,
                         .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte2 = 0,
                         .constant = constant,
                         .target = Ir.unpatched_jump,
                     } }, step_region));
@@ -2779,8 +2780,9 @@ pub const Compiler = struct {
                     const sid = try self.vm.strings.insert(c.literal);
                     const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-                        .op = .MatchStrSuffix,
+                        .op = .MatchStrEnd,
                         .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte2 = 1,
                         .constant = constant,
                         .target = Ir.unpatched_jump,
                     } }, step_region));
@@ -3558,8 +3560,9 @@ pub const Compiler = struct {
             const sid = try self.vm.strings.insert(prefix.items);
             const constant = try self.makeConstantU16(module_id, Elem.string(sid), region);
             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-                .op = .MatchStrPrefix,
+                .op = .MatchStrEnd,
                 .byte1 = reg,
+                .byte2 = 0,
                 .constant = constant,
                 .target = Ir.unpatched_jump,
             } }, region));
@@ -3568,8 +3571,9 @@ pub const Compiler = struct {
             const sid = try self.vm.strings.insert(suffix.items);
             const constant = try self.makeConstantU16(module_id, Elem.string(sid), region);
             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-                .op = .MatchStrSuffix,
+                .op = .MatchStrEnd,
                 .byte1 = reg,
+                .byte2 = 1,
                 .constant = constant,
                 .target = Ir.unpatched_jump,
             } }, region));

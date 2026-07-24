@@ -387,21 +387,21 @@
   ========================================
   0000    | PushVar Ob
   0002    | CallFunctionConstant 0: "foobar"
-  0004    | JumpIfFailure 4 -> 47
+  0004    | JumpIfFailure 4 -> 49
   0007    | MatchWindowEnter 3
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 45
-  0016    | MatchCount r0 >=4 -> 45
-  0022    | MatchStrPrefix r0 "fo" -> 45
-  0028    | MatchStrSuffix r0 "ar" -> 45
-  0034    | MatchSlice r1 r0[2..^2]
-  0039    | MatchBind l0 r1
-  0042    | Jump 42 -> 46
-  0045    | MatchFail
-  0046    | MatchWindowExit
-  0047    | TakeRight 47 -> 52
-  0050    | GetLocalMove l0
-  0052    | End
+  0011    | MatchType r0 string -> 47
+  0016    | MatchCount r0 >=4 -> 47
+  0022    | MatchStrEnd r0 prefix "fo" -> 47
+  0029    | MatchStrEnd r0 suffix "ar" -> 47
+  0036    | MatchSlice r1 r0[2..^2]
+  0041    | MatchBind l0 r1
+  0044    | Jump 44 -> 48
+  0047    | MatchFail
+  0048    | MatchWindowExit
+  0049    | TakeRight 49 -> 54
+  0052    | GetLocalMove l0
+  0054    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [1, ...Rest] $ Rest' -i ''

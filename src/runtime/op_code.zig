@@ -104,11 +104,10 @@ pub const OpCode = enum(u8) {
     MatchSearchInit,
     MatchSlice,
     MatchStrChar,
+    MatchStrEnd,
     MatchStrInit,
     MatchStrLit,
-    MatchStrPrefix,
     MatchStrRest,
-    MatchStrSuffix,
     MatchStrVal,
     MatchSubScrutinee,
     MatchSubtractEval,
@@ -306,9 +305,8 @@ pub const OpCode = enum(u8) {
             .MatchRepeatNext,
             .MatchRepeatRange,
             .MatchStrChar,
+            .MatchStrEnd,
             .MatchStrLit,
-            .MatchStrPrefix,
-            .MatchStrSuffix,
             .MatchType,
             => .{ .branch = .{
                 .fallthrough = .{ .pops = 0, .pushes = 0 },
@@ -580,11 +578,10 @@ pub const OpCode = enum(u8) {
             .MatchSearchInit,
             .MatchSlice,
             .MatchStrChar,
+            .MatchStrEnd,
             .MatchStrInit,
             .MatchStrLit,
-            .MatchStrPrefix,
             .MatchStrRest,
-            .MatchStrSuffix,
             .MatchSubScrutinee,
             .MatchType,
             => .{ .operands = .borrowed, .result = .none },
@@ -753,9 +750,7 @@ pub const OpCode = enum(u8) {
             .MatchRepeatRange => self.matchRepeatRangeInstruction(chunk, vm, module, writer, offset),
             .MatchInRange => self.matchInRangeInstruction(chunk, vm, module, writer, offset),
             .MatchRangeBound => self.matchRangeBoundInstruction(chunk, writer, offset),
-            .MatchStrPrefix,
-            .MatchStrSuffix,
-            => self.matchConstJumpInstruction(chunk, vm, module, writer, offset),
+            .MatchStrEnd => self.matchStrEndInstruction(chunk, vm, module, writer, offset),
             .MatchKey => self.matchKeyInstruction(chunk, vm, module, writer, offset),
             .MatchKeyBound => self.matchKeyBoundInstruction(chunk, vm, module, writer, offset),
             .MatchMergeBool => self.matchMergeBoolInstruction(chunk, vm, module, writer, offset),
@@ -1245,16 +1240,17 @@ pub const OpCode = enum(u8) {
         return offset + 5;
     }
 
-    fn matchConstJumpInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+    fn matchStrEndInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         const register = chunk.read(offset + 1);
-        const constant_idx = (@as(u16, @intCast(chunk.read(offset + 2))) << 8) | chunk.read(offset + 3);
-        const jump = (@as(u16, @intCast(chunk.read(offset + 4))) << 8) | chunk.read(offset + 5);
-        const target = offset + 6 + jump;
+        const back = chunk.read(offset + 2) != 0;
+        const constant_idx = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
+        const target = offset + 7 + jump;
         var constant = module.getConstant(constant_idx);
-        try writer.print("{s} r{} ", .{ @tagName(self), register });
+        try writer.print("{s} r{} {s} ", .{ @tagName(self), register, if (back) "suffix" else "prefix" });
         try constant.print(vm, writer);
         try writer.print(" -> {}\n", .{target});
-        return offset + 6;
+        return offset + 7;
     }
 
     fn matchKeyInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {

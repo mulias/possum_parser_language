@@ -1150,29 +1150,19 @@ pub const VM = struct {
                     self.cur_frame.ip += offset;
                 }
             },
-            .MatchStrPrefix => {
+            .MatchStrEnd => {
+                // The string under test must start (front) or end (back)
+                // with the literal. Absorbs the former MatchStrPrefix and
+                // MatchStrSuffix via the direction byte.
                 const slot = self.readByte();
+                const back = self.readByte() != 0;
                 const constant_idx = self.readShort();
                 const offset = self.readShort();
                 const value = self.getScratch(slot);
                 const literal = self.strings.get(self.getConstant(constant_idx).asString());
                 const bytes = (try value.stringBytes(self)).?;
-                if (bytes.len < literal.len or
-                    !std.mem.eql(u8, bytes[0..literal.len], literal))
-                {
-                    self.cur_frame.ip += offset;
-                }
-            },
-            .MatchStrSuffix => {
-                const slot = self.readByte();
-                const constant_idx = self.readShort();
-                const offset = self.readShort();
-                const value = self.getScratch(slot);
-                const literal = self.strings.get(self.getConstant(constant_idx).asString());
-                const bytes = (try value.stringBytes(self)).?;
-                if (bytes.len < literal.len or
-                    !std.mem.eql(u8, bytes[bytes.len - literal.len ..], literal))
-                {
+                const end = if (back) bytes[bytes.len -| literal.len ..] else bytes[0..@min(literal.len, bytes.len)];
+                if (bytes.len < literal.len or !std.mem.eql(u8, end, literal)) {
                     self.cur_frame.ip += offset;
                 }
             },

@@ -71,8 +71,9 @@ pub const Ir = struct {
         // bytes into dst as a number, boolean, or JSON document. Carries a
         // forward fail-jump target.
         match_cast: struct { dst: u8, src: u8, ty: MatchCastKind, target: Index },
-        // MatchStrPrefix/MatchStrSuffix (slot, constant) and MatchKey/
-        // MatchMergeBool (dst, src, constant).
+        // MatchKey/MatchMergeBool (dst, src, constant) and MatchStrEnd
+        // (slot, direction, constant). byte2 is the src register or the
+        // direction flag; it is omitted for ops that carry neither.
         match_const: struct { op: OpCode, byte1: u8, byte2: u8 = 0, constant: u16, target: Index },
         // MatchMergeNum (dst, src, folded-constant sum, negate): the
         // residual of a number merge. negate flips src − sum to sum − src
@@ -603,11 +604,11 @@ pub const Ir = struct {
         };
     }
 
-    // Which match_const ops carry a source register in byte2 alongside
-    // the byte1 destination.
+    // Which match_const ops write byte2 (a source register for MatchKey/
+    // MatchMergeBool, a direction flag for MatchStrEnd) after byte1.
     pub fn matchConstHasSrcReg(op: OpCode) bool {
         return switch (op) {
-            .MatchKey, .MatchMergeBool => true,
+            .MatchKey, .MatchMergeBool, .MatchStrEnd => true,
             else => false,
         };
     }
