@@ -187,15 +187,15 @@
   ========================================
   0000    | PushVar B
   0002    | ParseNumberStringChar 3
-  0004    | JumpIfFailure 4 -> 26
+  0004    | JumpIfFailure 4 -> 27
   0007    | MatchWindowEnter 2
   0009    | MatchScrutinee r0
-  0011    | MatchMergeNum r1 r0 - 2 -> 24
-  0018    | MatchBind l0 r1
-  0021    | Jump 21 -> 25
-  0024    | MatchFail
-  0025    | MatchWindowExit
-  0026    | End
+  0011    | MatchMergeNum r1 r0 - 2 -> 25
+  0019    | MatchBind l0 r1
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | End
   ========================================
 
   $ possum -p 'const([1,2,3]) -> [A, 1 + 1, 3]' -i ''
@@ -902,15 +902,15 @@
   ========================================
   0000    | PushVar X
   0002    | ParseNumberStringChar 5
-  0004    | JumpIfFailure 4 -> 26
+  0004    | JumpIfFailure 4 -> 27
   0007    | MatchWindowEnter 2
   0009    | MatchScrutinee r0
-  0011    | MatchMergeNum r1 r0 - 5 -> 24
-  0018    | MatchBind l0 r1
-  0021    | Jump 21 -> 25
-  0024    | MatchFail
-  0025    | MatchWindowExit
-  0026    | End
+  0011    | MatchMergeNum r1 r0 - 5 -> 25
+  0019    | MatchBind l0 r1
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | End
   ========================================
 
   $ possum -p 'X = 3; 7 -> (X + 4)' -i '7'
@@ -952,17 +952,17 @@
   ========================================
   0000    | PushVar X
   0002    | ParseNumberStringChar 6
-  0004    | JumpIfFailure 4 -> 26
+  0004    | JumpIfFailure 4 -> 27
   0007    | MatchWindowEnter 2
   0009    | MatchScrutinee r0
-  0011    | MatchMergeNum r1 r0 - 4 -> 24
-  0018    | MatchBind l0 r1
-  0021    | Jump 21 -> 25
-  0024    | MatchFail
-  0025    | MatchWindowExit
-  0026    | TakeRight 26 -> 31
-  0029    | GetLocalMove l0
-  0031    | End
+  0011    | MatchMergeNum r1 r0 - 4 -> 25
+  0019    | MatchBind l0 r1
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | TakeRight 27 -> 32
+  0030    | GetLocalMove l0
+  0032    | End
   ========================================
 
   $ possum -p '5 -> (2 - 3)' -i '5'
@@ -988,17 +988,17 @@
   ========================================
   0000    | PushVar X
   0002    | ParseNumberStringChar 6
-  0004    | JumpIfFailure 4 -> 26
+  0004    | JumpIfFailure 4 -> 27
   0007    | MatchWindowEnter 2
   0009    | MatchScrutinee r0
-  0011    | MatchMergeNum r1 r0 - -2 -> 24
-  0018    | MatchBind l0 r1
-  0021    | Jump 21 -> 25
-  0024    | MatchFail
-  0025    | MatchWindowExit
-  0026    | TakeRight 26 -> 31
-  0029    | GetLocalMove l0
-  0031    | End
+  0011    | MatchMergeNum r1 r0 - -2 -> 25
+  0019    | MatchBind l0 r1
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | TakeRight 27 -> 32
+  0030    | GetLocalMove l0
+  0032    | End
   ========================================
 
   $ possum -p '6 -> (1 - X + 3) $ X' -i '6'
@@ -1008,17 +1008,17 @@
   ========================================
   0000    | PushVar X
   0002    | ParseNumberStringChar 6
-  0004    | JumpIfFailure 4 -> 26
+  0004    | JumpIfFailure 4 -> 27
   0007    | MatchWindowEnter 2
   0009    | MatchScrutinee r0
-  0011    | MatchMergeNumNeg r1 r0 - 4 -> 24
-  0018    | MatchBind l0 r1
-  0021    | Jump 21 -> 25
-  0024    | MatchFail
-  0025    | MatchWindowExit
-  0026    | TakeRight 26 -> 31
-  0029    | GetLocalMove l0
-  0031    | End
+  0011    | MatchMergeNum r1 r0 - 4 neg -> 25
+  0019    | MatchBind l0 r1
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | TakeRight 27 -> 32
+  0030    | GetLocalMove l0
+  0032    | End
   ========================================
 
   $ possum -p '5 -> (1 + 6 + 3 - (2 + 3))' -i '5'
@@ -1044,17 +1044,17 @@
   ========================================
   0000    | PushVar X
   0002    | ParseNumberStringChar 5
-  0004    | JumpIfFailure 4 -> 26
+  0004    | JumpIfFailure 4 -> 27
   0007    | MatchWindowEnter 2
   0009    | MatchScrutinee r0
-  0011    | MatchMergeNumNeg r1 r0 - -1 -> 24
-  0018    | MatchBind l0 r1
-  0021    | Jump 21 -> 25
-  0024    | MatchFail
-  0025    | MatchWindowExit
-  0026    | TakeRight 26 -> 31
-  0029    | GetLocalMove l0
-  0031    | End
+  0011    | MatchMergeNum r1 r0 - -1 neg -> 25
+  0019    | MatchBind l0 r1
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | TakeRight 27 -> 32
+  0030    | GetLocalMove l0
+  0032    | End
   ========================================
 
   $ possum -p 'const([1, 5, 2]) -> [1, -(X + 1), 2] $ X' -i ''
@@ -1073,24 +1073,24 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 5, 2]
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 70
+  0008    | JumpIfFailure 8 -> 71
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 array -> 68
-  0020    | MatchCount r0 ==3 -> 68
+  0015    | MatchType r0 array -> 69
+  0020    | MatchCount r0 ==3 -> 69
   0026    | MatchElem r1 r0[0]
-  0031    | MatchCmp r1 == 1 -> 68
+  0031    | MatchCmp r1 == 1 -> 69
   0038    | MatchElem r2 r0[1]
-  0043    | MatchMergeNumNeg r4 r2 - -1 -> 68
-  0050    | MatchBind l0 r4
-  0053    | MatchElem r3 r0[2]
-  0058    | MatchCmp r3 == 2 -> 68
-  0065    | Jump 65 -> 69
-  0068    | MatchFail
-  0069    | MatchWindowExit
-  0070    | TakeRight 70 -> 75
-  0073    | GetLocalMove l0
-  0075    | End
+  0043    | MatchMergeNum r4 r2 - -1 neg -> 69
+  0051    | MatchBind l0 r4
+  0054    | MatchElem r3 r0[2]
+  0059    | MatchCmp r3 == 2 -> 69
+  0066    | Jump 66 -> 70
+  0069    | MatchFail
+  0070    | MatchWindowExit
+  0071    | TakeRight 71 -> 76
+  0074    | GetLocalMove l0
+  0076    | End
   ========================================
 
   $ possum -p '"1" -> "%(1)"' -i '1'
@@ -1715,15 +1715,15 @@
   ========================================
   0000    | PushVar N
   0002    | ParseNumberStringChar 8
-  0004    | JumpIfFailure 4 -> 26
+  0004    | JumpIfFailure 4 -> 27
   0007    | MatchWindowEnter 2
   0009    | MatchScrutinee r0
-  0011    | MatchMergeNum r1 r0 - 0 -> 24
-  0018    | MatchBind l0 r1
-  0021    | Jump 21 -> 25
-  0024    | MatchFail
-  0025    | MatchWindowExit
-  0026    | End
+  0011    | MatchMergeNum r1 r0 - 0 -> 25
+  0019    | MatchBind l0 r1
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | End
   ========================================
 
   $ possum -p '8 -> (N + 100)' -i '8'
@@ -1733,15 +1733,15 @@
   ========================================
   0000    | PushVar N
   0002    | ParseNumberStringChar 8
-  0004    | JumpIfFailure 4 -> 26
+  0004    | JumpIfFailure 4 -> 27
   0007    | MatchWindowEnter 2
   0009    | MatchScrutinee r0
-  0011    | MatchMergeNum r1 r0 - 100 -> 24
-  0018    | MatchBind l0 r1
-  0021    | Jump 21 -> 25
-  0024    | MatchFail
-  0025    | MatchWindowExit
-  0026    | End
+  0011    | MatchMergeNum r1 r0 - 100 -> 25
+  0019    | MatchBind l0 r1
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | End
   ========================================
 
   $ possum -p 'array(digit) -> [1, 2, 3]' -i '123'
@@ -3266,17 +3266,17 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "123"
-  0004    | JumpIfFailure 4 -> 37
+  0004    | JumpIfFailure 4 -> 38
   0007    | MatchWindowEnter 6
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 35
-  0016    | MatchCast r4 <- num r0 -> 35
-  0022    | MatchMergeNum r1 r4 - 1 -> 35
-  0029    | MatchBind l0 r1
-  0032    | Jump 32 -> 36
-  0035    | MatchFail
-  0036    | MatchWindowExit
-  0037    | End
+  0011    | MatchType r0 string -> 36
+  0016    | MatchCast r4 <- num r0 -> 36
+  0022    | MatchMergeNum r1 r4 - 1 -> 36
+  0030    | MatchBind l0 r1
+  0033    | Jump 33 -> 37
+  0036    | MatchFail
+  0037    | MatchWindowExit
+  0038    | End
   ========================================
 
   $ possum -p '"[1,2,3]" -> "%([...A])"' -i '[1,2,3]'

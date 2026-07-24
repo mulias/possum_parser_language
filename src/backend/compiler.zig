@@ -3425,11 +3425,11 @@ pub const Compiler = struct {
             return;
         }
         const constant = try self.makeConstantU16(module_id, Elem.numberFloat(sum), region);
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-            .op = if (step.negate) OpCode.MatchMergeNumNeg else OpCode.MatchMergeNum,
-            .byte1 = dead_reg,
-            .byte2 = src_reg,
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_merge_num = .{
+            .dst = dead_reg,
+            .src = src_reg,
             .constant = constant,
+            .negate = step.negate,
             .target = Ir.unpatched_jump,
         } }, region));
         switch (step.kind) {
@@ -3477,11 +3477,11 @@ pub const Compiler = struct {
             }
         }
         const constant = try self.makeConstantU16(module_id, Elem.numberFloat(const_sum), region);
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-            .op = .MatchMergeNum,
-            .byte1 = dead_reg,
-            .byte2 = src_reg,
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_merge_num = .{
+            .dst = dead_reg,
+            .src = src_reg,
             .constant = constant,
+            .negate = false,
             .target = Ir.unpatched_jump,
         } }, region));
         for (parts, 0..) |part, i| {
@@ -3992,7 +3992,7 @@ pub const Compiler = struct {
     // the plan's negated-eval path: evaluate the pattern, negate the
     // result (NegateNumber errors on a non-number, like the interpreter),
     // then compare against the scrutinee. A structural inner negates the
-    // scrutinee in place — an odd count flips the sign (MatchMergeNumNeg),
+    // scrutinee in place — an odd count flips the sign (negate),
     // an even count is the identity but still number-gates via a zero
     // constant — then binds or matches the inner against the negated value.
     fn emitNegatedStep(
@@ -4021,11 +4021,11 @@ pub const Compiler = struct {
             },
             .bind, .placeholder, .sub => {
                 const constant = try self.makeConstantU16(module_id, Elem.numberFloat(0), region);
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
-                    .op = if (count % 2 == 1) OpCode.MatchMergeNumNeg else OpCode.MatchMergeNum,
-                    .byte1 = dead_reg,
-                    .byte2 = reg,
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_merge_num = .{
+                    .dst = dead_reg,
+                    .src = reg,
                     .constant = constant,
+                    .negate = count % 2 == 1,
                     .target = Ir.unpatched_jump,
                 } }, region));
                 switch (part) {

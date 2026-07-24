@@ -26,14 +26,14 @@
   Is.Number(V) = V -> (0 + _)
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 21
+  0002    | JumpIfFailure 2 -> 22
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchMergeNum r1 r0 - 0 -> 19
-  0016    | Jump 16 -> 20
-  0019    | MatchFail
-  0020    | MatchWindowExit
-  0021    | End
+  0009    | MatchMergeNum r1 r0 - 0 -> 20
+  0017    | Jump 17 -> 21
+  0020    | MatchFail
+  0021    | MatchWindowExit
+  0022    | End
   ========================================
   
   ===============1:Is.Bool================

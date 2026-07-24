@@ -1412,14 +1412,15 @@ pub const VM = struct {
                 self.setScratch(val_dst, val_elem);
                 prev_val.release();
             },
-            .MatchMergeNum, .MatchMergeNumNeg => {
+            .MatchMergeNum => {
                 // The residual of a number merge: src minus the folded
-                // constant parts, into dst. The Neg variant flips the sign
+                // constant parts, into dst. The negate flag flips the sign
                 // for a leftover part under an odd negation count. Fails
                 // when src isn't a number.
                 const dst = self.readByte();
                 const src = self.readByte();
                 const constant_idx = self.readShort();
+                const negate = self.readByte() != 0;
                 const offset = self.readShort();
                 const value = self.getScratch(src);
                 var src_float: f64 = undefined;
@@ -1432,7 +1433,7 @@ pub const VM = struct {
                     return;
                 }
                 const sum = self.getConstant(constant_idx).asFloat();
-                const residual = if (opCode == .MatchMergeNumNeg) sum - src_float else src_float - sum;
+                const residual = if (negate) sum - src_float else src_float - sum;
                 const previous = self.getScratch(dst);
                 self.setScratch(dst, Elem.numberFloat(residual));
                 previous.release();

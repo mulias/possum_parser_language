@@ -173,6 +173,7 @@ fn liveOut(insns: []const Ir.Insn, live_in: []const SlotSet, i: usize) SlotSet {
                 .match_cmp => |m| m.target,
                 .match_cast => |m| m.target,
                 .match_const => |m| m.target,
+                .match_merge_num => |m| m.target,
                 .match_search => |m| m.target,
                 .match_key_bound => |m| m.target,
                 .match_range => |m| m.target,

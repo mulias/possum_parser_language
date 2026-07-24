@@ -72,8 +72,13 @@ pub const Ir = struct {
         // forward fail-jump target.
         match_cast: struct { dst: u8, src: u8, ty: MatchCastKind, target: Index },
         // MatchStrPrefix/MatchStrSuffix (slot, constant) and MatchKey/
-        // MatchMergeBool/MatchMergeNum/MatchMergeNumNeg (dst, src, constant).
+        // MatchMergeBool (dst, src, constant).
         match_const: struct { op: OpCode, byte1: u8, byte2: u8 = 0, constant: u16, target: Index },
+        // MatchMergeNum (dst, src, folded-constant sum, negate): the
+        // residual of a number merge. negate flips src − sum to sum − src
+        // for a leftover under an odd negation count. Carries a forward
+        // fail-jump target.
+        match_merge_num: struct { dst: u8, src: u8, constant: u16, negate: bool, target: Index },
         // MatchObjectRest (dst, src, key-list constant): det, no jump.
         match_rest: struct { op: OpCode, byte1: u8, byte2: u8, constant: u16 },
         // MatchObjectRestSearch (dst, src, key-list constant, claim
@@ -216,6 +221,7 @@ pub const Ir = struct {
             .match_cmp => |*m| &m.target,
             .match_cast => |*m| &m.target,
             .match_const => |*m| &m.target,
+            .match_merge_num => |*m| &m.target,
             .match_search => |*m| &m.target,
             .match_key_bound => |*m| &m.target,
             .match_range => |*m| &m.target,
@@ -346,6 +352,18 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.byte1, region);
                     if (matchConstHasSrcReg(m.op)) try chunk.write(allocator, m.byte2, region);
                     try chunk.writeShort(allocator, m.constant, region);
+                    const insn_len = byteLength(insn.operand);
+                    const distance = offsets[m.target] - (offsets[i] + insn_len);
+                    try self.writeShortDistance(chunk, allocator, distance, region);
+                },
+                .match_merge_num => |m| {
+                    std.debug.assert(m.target != unpatched_jump);
+                    std.debug.assert(m.target > i);
+                    try chunk.writeOp(allocator, .MatchMergeNum, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.writeShort(allocator, m.constant, region);
+                    try chunk.write(allocator, @intFromBool(m.negate), region);
                     const insn_len = byteLength(insn.operand);
                     const distance = offsets[m.target] - (offsets[i] + insn_len);
                     try self.writeShortDistance(chunk, allocator, distance, region);
@@ -568,6 +586,7 @@ pub const Ir = struct {
             .match_cmp => 7,
             .match_cast => 6,
             .match_const => |m| if (matchConstHasSrcReg(m.op)) @as(u32, 7) else 6,
+            .match_merge_num => 8,
             .match_rest => 5,
             .match_rest_search => 7,
             .match_search => 10,
@@ -588,7 +607,7 @@ pub const Ir = struct {
     // the byte1 destination.
     pub fn matchConstHasSrcReg(op: OpCode) bool {
         return switch (op) {
-            .MatchKey, .MatchMergeBool, .MatchMergeNum, .MatchMergeNumNeg => true,
+            .MatchKey, .MatchMergeBool => true,
             else => false,
         };
     }
@@ -671,6 +690,7 @@ pub const Ir = struct {
                         .match_cmp => |m| m.target,
                         .match_cast => |m| m.target,
                         .match_const => |m| m.target,
+                        .match_merge_num => |m| m.target,
                         .match_search => |m| m.target,
                         .match_key_bound => |m| m.target,
                         .match_range => |m| m.target,
@@ -747,6 +767,7 @@ pub const Ir = struct {
             .match_cmp => .MatchCmp,
             .match_cast => .MatchCast,
             .match_const => |m| m.op,
+            .match_merge_num => .MatchMergeNum,
             .match_rest => |m| m.op,
             .match_rest_search => |m| m.op,
             .match_search => |m| m.op,

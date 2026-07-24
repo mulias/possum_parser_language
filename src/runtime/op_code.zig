@@ -91,7 +91,6 @@ pub const OpCode = enum(u8) {
     MatchKeyBound,
     MatchMergeBool,
     MatchMergeNum,
-    MatchMergeNumNeg,
     MatchNextUnclaimed,
     MatchObjectRest,
     MatchObjectRestSearch,
@@ -302,7 +301,6 @@ pub const OpCode = enum(u8) {
             .MatchKeyBound,
             .MatchMergeBool,
             .MatchMergeNum,
-            .MatchMergeNumNeg,
             .MatchNextUnclaimed,
             .MatchRepeatInit,
             .MatchRepeatNext,
@@ -572,7 +570,6 @@ pub const OpCode = enum(u8) {
             .MatchKeyBound,
             .MatchMergeBool,
             .MatchMergeNum,
-            .MatchMergeNumNeg,
             .MatchNextUnclaimed,
             .MatchObjectRest,
             .MatchObjectRestSearch,
@@ -762,7 +759,7 @@ pub const OpCode = enum(u8) {
             .MatchKey => self.matchKeyInstruction(chunk, vm, module, writer, offset),
             .MatchKeyBound => self.matchKeyBoundInstruction(chunk, vm, module, writer, offset),
             .MatchMergeBool => self.matchMergeBoolInstruction(chunk, vm, module, writer, offset),
-            .MatchMergeNum, .MatchMergeNumNeg => self.matchMergeNumInstruction(chunk, vm, module, writer, offset),
+            .MatchMergeNum => self.matchMergeNumInstruction(chunk, vm, module, writer, offset),
             .MatchObjectRest => self.matchObjectRestInstruction(chunk, vm, module, writer, offset),
             .CallFunctionConstant,
             .CallTailFunctionConstant,
@@ -1290,13 +1287,15 @@ pub const OpCode = enum(u8) {
         const dst = chunk.read(offset + 1);
         const src = chunk.read(offset + 2);
         const constant_idx = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
-        const jump = (@as(u16, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
-        const target = offset + 7 + jump;
+        const negate = chunk.read(offset + 5) != 0;
+        const jump = (@as(u16, @intCast(chunk.read(offset + 6))) << 8) | chunk.read(offset + 7);
+        const target = offset + 8 + jump;
         var constant = module.getConstant(constant_idx);
         try writer.print("{s} r{} r{} - ", .{ @tagName(self), dst, src });
         try constant.print(vm, writer);
+        if (negate) try writer.writeAll(" neg");
         try writer.print(" -> {}\n", .{target});
-        return offset + 7;
+        return offset + 8;
     }
 
     fn byteInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
