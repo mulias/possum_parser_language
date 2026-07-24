@@ -86,6 +86,19 @@ pub const Declaration = struct {
     ident_region: Region,
 };
 
+pub fn aliasTargetName(self: *const Goal, decl: *const Declaration) ?PathTable.Id {
+    if (decl.params.items.len != 0) return null;
+    return self.bareIdentName(decl.body);
+}
+
+fn bareIdentName(self: *const Goal, id: NodeId) ?PathTable.Id {
+    return switch (self.goals.items[id].node) {
+        .ident => |ident| ident.name,
+        .call => |call| if (call.args.len == 0) self.bareIdentName(call.callee) else null,
+        else => null,
+    };
+}
+
 pub const GoalType = enum {
     alt,
     seq,

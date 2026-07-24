@@ -70,7 +70,7 @@ pub const Compiler = struct {
     // own bytecode. Computed once by classifyDecl and reused.
     const DeclKind = union(enum) {
         alias_value: Elem,
-        alias_ident: Frontend.PathTable.Id,
+        alias_ident,
         function,
     };
 
@@ -82,7 +82,6 @@ pub const Compiler = struct {
         TooManyConstants,
         TooManyPatterns,
         ShortOverflow,
-        AliasCycle,
         UndefinedVariable,
         FunctionCallTooManyArgs,
         FunctionCallTooFewArgs,
@@ -293,7 +292,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn ensureDeclared(self: *Compiler, dep_key: GlobalKey) !void {
+    fn ensureDeclared(self: *Compiler, dep_key: GlobalKey) Error!void {
         if (self.findGlobal(dep_key.module_id, dep_key.name) != null) {
             return;
         }
@@ -348,16 +347,30 @@ pub const Compiler = struct {
         if (try self.getAliasBody(ast, decl)) |elem| {
             return .{ .alias_value = elem };
         }
-        if (getAliasChainName(ast, decl)) |name| {
-            return .{ .alias_ident = name };
+        if (ast.aliasTargetName(decl) != null) {
+            return .alias_ident;
         }
         return .function;
     }
 
-    fn declareFromKind(self: *Compiler, key: GlobalKey, decl: *const Ast.Declaration, kind: DeclKind) !void {
+    fn declareFromKind(self: *Compiler, key: GlobalKey, decl: *const Ast.Declaration, kind: DeclKind) Error!void {
         switch (kind) {
             .alias_value => |alias_elem| try self.addGlobal(key.module_id, key.name, alias_elem),
-            .alias_ident => try self.denormalizeAlias(key),
+            // The frontend resolved the chain (and already rejected any
+            // cycle). A terminal shares its elem, whose bytecode fills in
+            // when it compiles; a dangling reference is reported now that
+            // this alias is actually being compiled.
+            .alias_ident => switch (self.frontend.aliasResolution(key).?) {
+                .terminal => |terminal| {
+                    try self.ensureDeclared(terminal);
+                    try self.addGlobal(key.module_id, key.name, self.getGlobal(terminal));
+                },
+                .undefined => |u| {
+                    const link_decl = self.frontend.getNode(u.key).declaration.decl;
+                    try self.printError(u.key.module_id, link_decl.region, "undefined variable '{s}'", .{self.frontend.pathString(u.name)});
+                    return Error.UndefinedVariable;
+                },
+            },
             .function => try self.declareFunction(key.module_id, decl),
         }
     }
@@ -391,83 +404,6 @@ pub const Compiler = struct {
 
         function.arity = @intCast(decl.params.items.len);
         function.param_types.bitset = decl.param_types;
-    }
-
-    fn denormalizeAlias(self: *Compiler, decl_key: GlobalKey) !void {
-        var path = AutoHashMap(GlobalKey, void){};
-        defer path.deinit(self.vm.allocator);
-
-        var target_key = decl_key;
-        var target_elem: ?Elem = null;
-
-        while (true) {
-            if (self.findGlobal(target_key.module_id, target_key.name)) |elem| {
-                target_elem = elem;
-                break;
-            }
-
-            if (path.contains(target_key)) {
-                const ast = self.goalAst(decl_key.module_id);
-                const decl = goalDeclaration(ast, decl_key.name);
-                try self.printError(decl_key.module_id, decl.region, "Circular alias dependency detected for '{s}'", .{self.frontend.pathString(decl_key.name)});
-                return Error.AliasCycle;
-            }
-            try path.put(self.vm.allocator, target_key, undefined);
-
-            const target_node = self.frontend.getNode(target_key);
-
-            if (target_node.* == .precompiled) {
-                try self.createBuiltin(target_key);
-                target_elem = self.getGlobal(target_key);
-                break;
-            }
-
-            const target_ast = self.goalAst(target_key.module_id);
-            const target_decl = goalDeclaration(target_ast, target_key.name);
-
-            if (self.getAliasDependency(target_key, target_ast, target_decl)) |next_key| {
-                target_key = next_key;
-                continue;
-            }
-
-            if (try self.getAliasBody(target_ast, target_decl)) |elem| {
-                target_elem = elem;
-                break;
-            }
-
-            // The target is itself an alias to a bare identifier, but the
-            // resolver recorded no dependency edge for it, so that identifier
-            // names nothing.
-            if (getAliasChainName(target_ast, target_decl)) |unresolved_name| {
-                try self.printError(target_key.module_id, target_decl.region, "undefined variable '{s}'", .{self.frontend.pathString(unresolved_name)});
-                return Error.UndefinedVariable;
-            }
-
-            // The chain ends at a function declaration that hasn't been
-            // declared yet. Its bytecode is filled in when the target's own
-            // declaration is compiled.
-            try self.declareFunction(target_key.module_id, target_decl);
-            target_elem = self.getGlobal(target_key);
-            break;
-        }
-
-        if (target_elem) |elem| {
-            var key_iter = path.keyIterator();
-            while (key_iter.next()) |key| {
-                try self.addGlobal(key.module_id, key.name, elem);
-            }
-            try self.addGlobal(decl_key.module_id, decl_key.name, elem);
-        } else {
-            unreachable;
-        }
-    }
-
-    fn getAliasDependency(self: *Compiler, decl_key: GlobalKey, ast: *const Ast, decl: *const Ast.Declaration) ?GlobalKey {
-        const ident_name = getAliasChainName(ast, decl) orelse return null;
-
-        const node = self.frontend.findNode(decl_key.module_id, decl_key.name) orelse return null;
-
-        return node.dependencyNamed(ident_name);
     }
 
     fn compileFunction(self: *Compiler, node: *DependencyGraphNode, decl_key: GlobalKey) !void {
@@ -610,25 +546,6 @@ pub const Compiler = struct {
             .string => |s| Elem.string(try self.vm.strings.insert(s)),
             .call => |call| if (call.args.len == 0)
                 try self.goalLiteralElem(ast, call.callee)
-            else
-                null,
-            else => null,
-        };
-    }
-
-    // A parameterless declaration whose body is a bare identifier is an alias
-    // to another declaration. Parser-position idents are wrapped in an
-    // invoking call in the goal ast; value-position idents stand bare.
-    fn getAliasChainName(ast: *const Ast, decl: *const Ast.Declaration) ?Frontend.PathTable.Id {
-        if (decl.params.items.len != 0) return null;
-        return goalAliasTarget(ast, decl.body);
-    }
-
-    fn goalAliasTarget(ast: *const Ast, id: Ast.NodeId) ?Frontend.PathTable.Id {
-        return switch (ast.goals.items[id].node) {
-            .ident => |i| i.name,
-            .call => |call| if (call.args.len == 0)
-                goalAliasTarget(ast, call.callee)
             else
                 null,
             else => null,

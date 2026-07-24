@@ -32,6 +32,11 @@ main: ?PathTable.Id = null,
 // and classified by the goal binding pass in finalize, once the
 // dependency graph is resolved.
 goals: std.AutoArrayHashMapUnmanaged(Module.Id, *Goal) = .{},
+// Each alias declaration mapped to how its chain resolves. A
+// reachable cycle is rejected during resolution; a terminal or dangling
+// reference is recorded for the backend. An unused alias in an imported
+// module is never compiled, so its cycle is never reported.
+alias_resolutions: std.AutoHashMapUnmanaged(GlobalKey, AliasResolution) = .{},
 // Diagnostics collected by the goal binding pass, reported as compile
 // errors in finalize.
 goal_diagnostics: std.ArrayListUnmanaged(binding.Diagnostic) = .{},
@@ -66,6 +71,21 @@ pub const Error = error{
     ImportResolution,
     UnknownModule,
     FunctionCallTypeMismatch,
+    AliasCycle,
+};
+
+pub const AliasResolution = union(enum) {
+    terminal: GlobalKey,
+    undefined: DanglingAlias,
+};
+
+// A chain link whose body names nothing: the link's key and the name.
+pub const DanglingAlias = struct { key: GlobalKey, name: PathTable.Id };
+
+const AliasOutcome = union(enum) {
+    terminal: GlobalKey,
+    cycle,
+    undefined: DanglingAlias,
 };
 
 const ImportChainEntry = struct {
@@ -91,6 +111,7 @@ pub fn init(vm: *VM) !*Frontend {
     frontend.target_module_id = null;
     frontend.main = null;
     frontend.goals = .{};
+    frontend.alias_resolutions = .{};
     frontend.goal_diagnostics = .{};
     frontend.print_goal_stage = null;
     frontend.implicit_dumps = .{};
@@ -250,6 +271,7 @@ pub fn addModuleAlias(
 pub fn finalize(self: *Frontend) !void {
     try self.resolver.resolve();
     try self.reportResolverDiagnostics();
+    try self.resolveAliases();
     // Value folding runs after resolution: it can drop an identifier
     // operand the resolver must have already recorded.
     try self.foldGoals();
@@ -422,6 +444,96 @@ fn reportResolverDiagnostics(self: *Frontend) !void {
             else => Error.ImportResolution,
         };
     }
+}
+
+// Walk every alias declaration's chain to its terminal — the first
+// declaration on the chain that is not itself a bare-identifier alias: a
+// function, an inlinable value, or a precompiled builtin. A cycle or
+// dangling reference is a compile error, but only for a reachable alias:
+// an unused alias in an imported module is never compiled and so never fails.
+fn resolveAliases(self: *Frontend) !void {
+    var reachable = try self.reachableNodes();
+    defer reachable.deinit(self.arena.allocator());
+
+    var iter = self.dependenciesIterator();
+    while (iter.next()) |entry| {
+        const key = entry.key_ptr.*;
+        const node = entry.value_ptr.*;
+        if (node.* != .declaration) continue;
+        const ast = &self.goals.get(key.module_id).?.ast;
+        if (ast.aliasTargetName(node.declaration.decl) == null) continue;
+
+        switch (try self.aliasOutcomeFor(key)) {
+            .terminal => |terminal| try self.alias_resolutions.put(self.arena.allocator(), key, .{ .terminal = terminal }),
+            .undefined => |u| try self.alias_resolutions.put(self.arena.allocator(), key, .{ .undefined = u }),
+            // A cycle is a hard error, but only for a reachable alias: an
+            // unused cyclic alias in an imported module never compiles.
+            .cycle => {
+                if (!reachable.contains(key)) continue;
+                const decl = node.declaration.decl;
+                try self.printError(key.module_id, decl.region, "Circular alias dependency detected for '{s}'", .{self.pathString(key.name)});
+                return Error.AliasCycle;
+            },
+        }
+    }
+}
+
+fn aliasOutcomeFor(self: *Frontend, alias_key: GlobalKey) !AliasOutcome {
+    var path = std.AutoHashMapUnmanaged(GlobalKey, void){};
+    defer path.deinit(self.arena.allocator());
+
+    var key = alias_key;
+    while (true) {
+        const node = self.getNode(key);
+        if (node.* != .declaration) return .{ .terminal = key };
+
+        const ast = &self.goals.get(key.module_id).?.ast;
+        const chain_name = ast.aliasTargetName(node.declaration.decl) orelse
+            return .{ .terminal = key };
+
+        const next = node.dependencyNamed(chain_name) orelse
+            return .{ .undefined = .{ .key = key, .name = chain_name } };
+
+        if (try path.fetchPut(self.arena.allocator(), key, {})) |_| return .cycle;
+        key = next;
+    }
+}
+
+// The set of graph nodes the backend will compile: every declaration in
+// the target module (compiled whether or not it is used), plus main, plus
+// everything reachable from those through dependency edges.
+fn reachableNodes(self: *Frontend) !std.AutoHashMapUnmanaged(GlobalKey, void) {
+    var reachable = std.AutoHashMapUnmanaged(GlobalKey, void){};
+    var stack = std.ArrayListUnmanaged(GlobalKey){};
+    defer stack.deinit(self.arena.allocator());
+
+    const target = self.target_module_id orelse return reachable;
+
+    var iter = self.dependenciesIterator();
+    while (iter.next()) |entry| {
+        const key = entry.key_ptr.*;
+        if (key.module_id == target and entry.value_ptr.*.* == .declaration) {
+            try stack.append(self.arena.allocator(), key);
+        }
+    }
+    if (self.main) |main_name| {
+        try stack.append(self.arena.allocator(), .{ .module_id = target, .name = main_name });
+    }
+
+    while (stack.pop()) |key| {
+        if ((try reachable.fetchPut(self.arena.allocator(), key, {})) != null) continue;
+        for (self.getNode(key).dependencies()) |edge| {
+            try stack.append(self.arena.allocator(), edge.target);
+        }
+    }
+    return reachable;
+}
+
+// How an alias declaration's chain resolves, or null if the key is not an
+// alias. A cyclic alias has no entry: a reachable one aborted compilation,
+// and an unreachable one is never queried.
+pub fn aliasResolution(self: *Frontend, key: GlobalKey) ?AliasResolution {
+    return self.alias_resolutions.get(key);
 }
 
 pub fn getNode(self: *Frontend, key: GlobalKey) *DependencyGraph.Node {

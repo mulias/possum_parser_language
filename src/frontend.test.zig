@@ -908,28 +908,19 @@ test "circular deps" {
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
 
-    const source =
+    // Created through the VM so that diagnostic reporting can look the
+    // module up when finalize fails.
+    const module = try vm.createModule("test",
         \\ foo = bar
         \\ bar = foo
         \\ foo
-    ;
+    );
 
-    const module = Module{
-        .id = 0,
-        .name = "test",
-        .source = source,
-    };
+    try frontend.addTargetModule(module.*, .{});
 
-    try frontend.addTargetModule(module, .{});
-    try frontend.finalize();
-
-    const foo = try frontend.paths.insert(&frontend.strings, "foo");
-    const bar = try frontend.paths.insert(&frontend.strings, "bar");
-
-    // The resolver records edges without rejecting cycles: foo and bar depend
-    // on each other. Breaking the cycle is left to the compiler.
-    try expect(dependsOn(frontend, key(0, foo), key(0, bar)));
-    try expect(dependsOn(frontend, key(0, bar), key(0, foo)));
+    // The resolver records the foo <-> bar edges; alias resolution then
+    // rejects the cycle, which is reachable through main.
+    try std.testing.expectError(Frontend.Error.AliasCycle, frontend.finalize());
 }
 
 test "import syntax registers an unqualified dump" {
