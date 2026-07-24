@@ -62,9 +62,7 @@ A solve_merge whose parts are all constants collapses to eq_const.
       scrutinee: (call int)
       %0 = scrutinee
       (arm
-        (solve_merge %0 ty=string
-          "a"
-          "b")))
+        (eq_const %0 "ab")))
 
   $ PRINT_GOAL_AST=folded possum -p 'int -> ("a" + "b")' -i ''
   main =
@@ -120,14 +118,6 @@ compile time; non-constant parts stay runtime negations.
       scrutinee: (call int)
       %0 = scrutinee
       (arm
-        (negated %0 2 5)))
-
-  $ PRINT_GOAL_AST=folded possum -p 'int -> --5' -i ''
-  main =
-    (match
-      scrutinee: (call int)
-      %0 = scrutinee
-      (arm
         (eq_const %0 5)))
 
   $ PRINT_GOAL_AST=folded possum -p 'int -> -A' -i ''
@@ -149,9 +139,7 @@ collapses back to an expression part of its parent.
       (arm
         (solve_merge %0 ty=number
           (local N)
-          (set
-            %0 = scrutinee
-            (negated %0 1 1)))))
+          -1)))
 
   $ PRINT_GOAL_AST=folded possum -p 'int -> (N + -1)' -i ''
   main =
@@ -286,12 +274,10 @@ array, the count pattern's solve_merge collapses to eq_const.
   main =
     (repeat
       body: (call int)
-      cap: (merge 1 2)
+      cap: 3
       count: (set
         %0 = scrutinee
-        (solve_merge %0 ty=number
-          1
-          2)))
+        (eq_const %0 3)))
 
   $ PRINT_GOAL_AST=folded possum -p 'int * (1 + 2)' -i ''
   main =

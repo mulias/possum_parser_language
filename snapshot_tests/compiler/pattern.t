@@ -1036,10 +1036,17 @@
   ========================================
   0000    | PushVar X
   0002    | ParseNumberStringChar 5
-  0004    | DestructurePlan 0: negated (bind X + eq 1)
-  0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove l0
-  0011    | End
+  0004    | JumpIfFailure 4 -> 26
+  0007    | MatchWindowEnter 2
+  0009    | MatchScrutinee r0
+  0011    | MatchMergeNumNeg r1 r0 - -1 -> 24
+  0018    | MatchBind l0 r1
+  0021    | Jump 21 -> 25
+  0024    | MatchFail
+  0025    | MatchWindowExit
+  0026    | TakeRight 26 -> 31
+  0029    | GetLocalMove l0
+  0031    | End
   ========================================
 
   $ possum -p 'const([1, 5, 2]) -> [1, -(X + 1), 2] $ X' -i ''
@@ -1058,10 +1065,24 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: [1, 5, 2]
   0006    | CallFunction 1
-  0008    | DestructurePlan 0: [eq 1, negated (bind X + eq 1), eq 2]
-  0010    | TakeRight 10 -> 15
-  0013    | GetLocalMove l0
-  0015    | End
+  0008    | JumpIfFailure 8 -> 64
+  0011    | MatchWindowEnter 5
+  0013    | MatchScrutinee r0
+  0015    | MatchType r0 array -> 62
+  0020    | MatchLen r0 3 -> 62
+  0025    | MatchElem r1 r0[0]
+  0029    | MatchConst r1 1 -> 62
+  0035    | MatchElem r2 r0[1]
+  0039    | MatchMergeNumNeg r4 r2 - -1 -> 62
+  0046    | MatchBind l0 r4
+  0049    | MatchElem r3 r0[2]
+  0053    | MatchConst r3 2 -> 62
+  0059    | Jump 59 -> 63
+  0062    | MatchFail
+  0063    | MatchWindowExit
+  0064    | TakeRight 64 -> 69
+  0067    | GetLocalMove l0
+  0069    | End
   ========================================
 
   $ possum -p '"1" -> "%(1)"' -i '1'
@@ -3183,10 +3204,19 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionConstant 0: "null"
-  0004    | DestructurePlan 0: tmpl(bind N)
-  0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove l0
-  0011    | End
+  0004    | JumpIfFailure 4 -> 34
+  0007    | MatchWindowEnter 2
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 string -> 32
+  0016    | MatchLenMin r0 0 -> 32
+  0021    | MatchSlice r1 r0[0..^0]
+  0026    | MatchBind l0 r1
+  0029    | Jump 29 -> 33
+  0032    | MatchFail
+  0033    | MatchWindowExit
+  0034    | TakeRight 34 -> 39
+  0037    | GetLocalMove l0
+  0039    | End
   ========================================
 
   $ possum -p '"true" -> "%(true + B)" $ B' -i 'true'

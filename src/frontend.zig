@@ -458,8 +458,6 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !CanAst {
             if (stage == .folded) try goal.print(self.writers.debug);
         }
         try self.goals.put(self.arena.allocator(), module.id, goal);
-
-        try can.foldConstants();
     }
 
     return can.ast;

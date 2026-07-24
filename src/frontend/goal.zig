@@ -27,7 +27,7 @@ pub const PlaceId = Ast.PlaceId;
 // GoalAstGap: a can construct the goal ast cannot express yet.
 // PatternTooLarge: a place index, length, or key count exceeds what the
 // match-step byte encoding admits.
-pub const Error = error{ OutOfMemory, GoalAstGap, MergeTypeConflict, PatternTooLarge } || Writer.Error;
+pub const Error = error{ OutOfMemory, GoalAstGap, MergeTypeConflict, PatternTooLarge, InvalidCharacter } || Writer.Error;
 
 pub fn init(
     arena: *ArenaAllocator,
@@ -193,11 +193,15 @@ fn convertParser(self: *Goal, rnode: *CanAst.Parser.RNode) Error!NodeId {
             op.right,
             region,
         ),
-        .repeat => |op| self.addGoal(.{ .repeat = .{
-            .body = try self.convertParser(op.left),
-            .cap = try self.repeatCap(op.right),
-            .count_test = try self.patternSet(op.right),
-        } }, region),
+        .repeat => |op| blk: {
+            const body = try self.convertParser(op.left);
+            const count = try self.foldPattern(op.right);
+            break :blk self.addGoal(.{ .repeat = .{
+                .body = body,
+                .cap = try self.repeatCap(count),
+                .count_test = try self.patternSet(count),
+            } }, region);
+        },
     };
 }
 
@@ -458,6 +462,7 @@ fn convertDestructure(
     pattern: *CanAst.Pattern.RNode,
     region: Region,
 ) Error!NodeId {
+    const folded = try self.foldPattern(pattern);
     var match = Ast.Match{
         .scrutinee = scrutinee,
         .places = .{},
@@ -465,7 +470,7 @@ fn convertDestructure(
     };
     try match.places.append(self.alloc(), .scrutinee);
     var constraints = ArrayList(Ast.Constraint){};
-    try self.lowerPattern(pattern, 0, &match.places, &constraints);
+    try self.lowerPattern(folded, 0, &match.places, &constraints);
     try match.arms.append(self.alloc(), .{
         .constraints = constraints,
         .guard = null,
@@ -478,13 +483,14 @@ fn convertDestructure(
 // A ConstraintSet rooted at a synthetic scrutinee: repeat counts and
 // composite sub-patterns.
 fn patternSet(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!SetId {
+    const folded = try self.foldPattern(pattern);
     var set = Ast.ConstraintSet{
         .places = .{},
         .constraints = .{},
         .region = pattern.region,
     };
     try set.places.append(self.alloc(), .scrutinee);
-    try self.lowerPattern(pattern, 0, &set.places, &set.constraints);
+    try self.lowerPattern(folded, 0, &set.places, &set.constraints);
     return self.addSet(set);
 }
 
@@ -524,6 +530,178 @@ fn boundedByte(self: *Goal, value: usize, region: Region, comptime what: []const
         return Error.PatternTooLarge;
     }
     return @intCast(value);
+}
+
+// Bottom-up constant folding of a pattern tree, run before lowering to
+// places and constraints. Constant merges, repeats, and negations fold
+// by interval/numeric arithmetic (CanAst.Pattern.merge/repeat/negate);
+// negation distributes over a number merge (`-(X + 3)` is `-X + -3`) so
+// the merge's sole variable part stays solvable. Folding before lowering
+// keeps the constraint form free of the fold machinery it would
+// otherwise need on places and sub-sets.
+fn foldPattern(self: *Goal, pattern: *CanAst.Pattern.RNode) FoldError!*CanAst.Pattern.RNode {
+    const Pattern = CanAst.Pattern;
+    switch (pattern.node) {
+        .merge => |op| {
+            const left = try self.foldPattern(op.left);
+            const right = try self.foldPattern(op.right);
+            if (try Pattern.merge(self.alloc(), left.*, right.*)) |folded| {
+                return try Pattern.create(self.alloc(), folded.node, folded.region);
+            }
+            pattern.node = .{ .merge = .{ .left = left, .right = right } };
+            return pattern;
+        },
+        .repeat => |op| {
+            const left = try self.foldPattern(op.left);
+            const right = try self.foldPattern(op.right);
+            // Only constant-size results fold, matching the goal fold's
+            // deliberate exclusions: `2 * 3` is one number and a range
+            // scales by a constant count, but `"ab" * N`, `[A] * N`, and
+            // `2..3 * 2..3` (the discrete set {4,6,9}, not `4..9`) all
+            // stay unfolded to avoid materializing or mistyping.
+            if (try self.foldedPatternRepeat(left, right, pattern.region)) |folded| {
+                return folded;
+            }
+            pattern.node = .{ .repeat = .{ .left = left, .right = right } };
+            return pattern;
+        },
+        .negation => |inner| {
+            const folded_inner = try self.foldPattern(inner);
+            if (Pattern.negate(folded_inner.*, pattern.region)) |neg| {
+                return try Pattern.create(self.alloc(), neg.node, neg.region);
+            }
+            if (folded_inner.node == .merge and self.mergeTypeOf(folded_inner) == .number) {
+                const m = folded_inner.node.merge;
+                const nl = try self.foldPattern(try Pattern.create(
+                    self.alloc(),
+                    .{ .negation = m.left },
+                    m.left.region,
+                ));
+                const nr = try self.foldPattern(try Pattern.create(
+                    self.alloc(),
+                    .{ .negation = m.right },
+                    m.right.region,
+                ));
+                if (try Pattern.merge(self.alloc(), nl.*, nr.*)) |folded| {
+                    return try Pattern.create(self.alloc(), folded.node, folded.region);
+                }
+                pattern.node = .{ .merge = .{ .left = nl, .right = nr } };
+                return pattern;
+            }
+            pattern.node = .{ .negation = folded_inner };
+            return pattern;
+        },
+        .array => |elems| {
+            for (elems.items) |*elem| elem.* = try self.foldPattern(elem.*);
+            return pattern;
+        },
+        .object => |pairs| {
+            for (pairs.items) |*pair| {
+                pair.key = try self.foldPattern(pair.key);
+                pair.value = try self.foldPattern(pair.value);
+            }
+            return pattern;
+        },
+        .range => |*r| {
+            if (r.lower) |l| r.lower = try self.foldPattern(l);
+            if (r.upper) |u| r.upper = try self.foldPattern(u);
+            return pattern;
+        },
+        .string_template => |parts| {
+            for (parts.items) |*p| p.* = try self.foldPattern(p.*);
+            return pattern;
+        },
+        .true, .false, .null, .number_float, .number_string, .string, .identifier, .function_call => return pattern,
+    }
+}
+
+// Fold a pattern repeat whose result is constant-size: number * number,
+// null/true/false * non-negative integer (zero repetitions is null), and
+// a constant-number range scaled by a non-negative count (open bounds
+// stay open). Everything else — variable counts, `string * N`, `[A] * N`,
+// range * range — returns null and keeps the repeat node.
+fn foldedPatternRepeat(
+    self: *Goal,
+    left: *CanAst.Pattern.RNode,
+    right: *CanAst.Pattern.RNode,
+    region: Region,
+) FoldError!?*CanAst.Pattern.RNode {
+    const Pattern = CanAst.Pattern;
+    const count = constPatternNumber(right) orelse return null;
+    switch (left.node) {
+        .number_float, .number_string => {
+            const v = constPatternNumber(left).?;
+            return try Pattern.create(self.alloc(), .{ .number_float = v * count }, region);
+        },
+        .null, .true, .false => {
+            if (count < 0 or count != @floor(count)) return null;
+            if (count == 0) return try Pattern.create(self.alloc(), .null, region);
+            return left;
+        },
+        .range => |r| {
+            if (count < 0) return null;
+            var new_lower: ?*CanAst.Pattern.RNode = null;
+            if (r.lower) |l| {
+                const lv = constPatternNumber(l) orelse return null;
+                new_lower = try Pattern.create(self.alloc(), .{ .number_float = lv * count }, region);
+            }
+            var new_upper: ?*CanAst.Pattern.RNode = null;
+            if (r.upper) |u| {
+                const uv = constPatternNumber(u) orelse return null;
+                new_upper = try Pattern.create(self.alloc(), .{ .number_float = uv * count }, region);
+            }
+            return try Pattern.create(self.alloc(), .{ .range = .{
+                .lower = new_lower,
+                .upper = new_upper,
+            } }, region);
+        },
+        else => return null,
+    }
+}
+
+// Fold a flattened merge part list in place: adjacent constants fuse
+// (CanAst.Pattern.merge), null identities drop, and adjacent placeholders
+// collapse (`_ + _` is one absorption). Mirrors what the constraint-level
+// foldMergeParts did, but on the pattern tree before lowering.
+fn foldMergePartPatterns(self: *Goal, parts: *ArrayList(*CanAst.Pattern.RNode)) FoldError!void {
+    const Pattern = CanAst.Pattern;
+    var write: usize = 0;
+    for (parts.items) |part| {
+        if (write > 0) {
+            if (self.isPatternPlaceholder(part) and self.isPatternPlaceholder(parts.items[write - 1])) {
+                continue;
+            }
+            if (try Pattern.merge(self.alloc(), parts.items[write - 1].*, part.*)) |folded| {
+                parts.items[write - 1] = try Pattern.create(self.alloc(), folded.node, folded.region);
+                continue;
+            }
+        }
+        parts.items[write] = part;
+        write += 1;
+    }
+    parts.shrinkRetainingCapacity(write);
+}
+
+fn isPatternPlaceholder(self: *Goal, pattern: *const CanAst.Pattern.RNode) bool {
+    return pattern.node == .identifier and self.isPlaceholder(pattern.node.identifier.name);
+}
+
+fn constPatternNumber(pattern: *const CanAst.Pattern.RNode) ?f64 {
+    return switch (pattern.node) {
+        .number_float => |f| f,
+        .number_string => |ns| ns.toFloat() catch null,
+        else => null,
+    };
+}
+
+// The static merge type a pattern merge imposes: the first structurally
+// typed leaf, ignoring conflicts (they surface at lowering). Used only
+// to decide whether negation distributes.
+fn mergeTypeOf(self: *Goal, pattern: *const CanAst.Pattern.RNode) ?Ast.ValueType {
+    return switch (pattern.node) {
+        .merge => |op| self.mergeTypeOf(op.left) orelse self.mergeTypeOf(op.right),
+        else => mergePartStaticType(pattern),
+    };
 }
 
 fn lowerPattern(
@@ -641,6 +819,15 @@ fn lowerPattern(
                 if (try self.lowerObjectMerge(part_patterns.items, place, places, constraints, region)) {
                     return;
                 }
+            }
+            // Fold adjacent constant parts and drop null identities on the
+            // flattened list (leading literals of a typed merge already
+            // fused in the array/string/object lowerings above; this is the
+            // solve_merge fallback). A merge that collapses to one part is
+            // that part's pattern.
+            try self.foldMergePartPatterns(&part_patterns);
+            if (part_patterns.items.len == 1) {
+                return self.lowerPattern(part_patterns.items[0], place, places, constraints);
             }
             var parts = ArrayList(Ast.Part){};
             try parts.ensureTotalCapacity(self.alloc(), part_patterns.items.len);
@@ -1147,11 +1334,12 @@ fn patternExprGoal(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!NodeId {
     };
 }
 
-// Goal→goal constant folding. The goal ast is built from unfolded can,
-// so this pass recovers what can-level folding produces there: constant
-// merges and negations fold on the goals array, then constraints whose
-// parts became constants collapse (solve_merge/negated/solve_repeat →
-// eq_const). Nodes rewrite in place; ids stay stable.
+// Goal→goal constant folding of expression nodes: constant merges,
+// multiplications, and negations fold bottom-up on the goals array.
+// Pattern folding happens earlier, on the pattern tree before lowering
+// (foldPattern), so no constraint-level folding is needed here.
+// simplifyPatterns then prunes unreferenced places and collapses
+// identity match/repeat shells. Nodes rewrite in place; ids stay stable.
 pub fn fold(self: *Goal) FoldError!void {
     // Children are appended before parents, so one forward pass folds
     // bottom-up.
@@ -1171,20 +1359,6 @@ pub fn fold(self: *Goal) FoldError!void {
                 if (foldedNeg(self.goalNode(inner))) |folded| {
                     rnode.node = folded;
                 }
-            },
-            else => {},
-        }
-    }
-
-    try self.distributeNegatedMerges();
-
-    for (self.ast.constraint_sets.items) |*set| {
-        try self.foldConstraints(&set.constraints);
-    }
-    for (self.ast.goals.items) |*rnode| {
-        switch (rnode.node) {
-            .match => |*match| {
-                for (match.arms.items) |*arm| try self.foldConstraints(&arm.constraints);
             },
             else => {},
         }
@@ -1214,22 +1388,7 @@ fn simplifyPatterns(self: *Goal) FoldError!void {
             .repeat => |*rep| {
                 if (rep.count_test) |set_id| {
                     const constraints = self.ast.constraint_sets.items[set_id].constraints.items;
-                    if (constraints.len == 0) {
-                        rep.count_test = null;
-                    } else if (rep.cap == .none and constraints.len == 1) {
-                        // Folding can leave count shapes whose cap was not
-                        // recognizable at creation: `(2 * 2)` folds to an
-                        // exact count, `(0..1 + 1)` to a range.
-                        switch (constraints[0].kind) {
-                            .eq_const => |c| if (self.constNumber(c.value) != null) {
-                                rep.cap = .{ .expr = c.value };
-                            },
-                            .in_range => |c| if (c.upper != .none) {
-                                rep.cap = c.upper;
-                            },
-                            else => {},
-                        }
-                    }
+                    if (constraints.len == 0) rep.count_test = null;
                 }
             },
             else => {},
@@ -1327,389 +1486,6 @@ fn remapPlaces(constraints: []Ast.Constraint, map: []const Ast.PlaceId) void {
 
 pub const FoldError = error{ OutOfMemory, InvalidCharacter };
 
-fn foldConstraints(self: *Goal, constraints: *ArrayList(Ast.Constraint)) FoldError!void {
-    var i: usize = 0;
-    while (i < constraints.items.len) {
-        var remove = false;
-        const kind = &constraints.items[i].kind;
-        switch (kind.*) {
-            .negated => |*c| {
-                c.part = self.simplifiedPart(c.part);
-                if (c.part == .expr) {
-                    if (negatedConst(self.goalNode(c.part.expr), c.count)) |folded| {
-                        self.ast.goals.items[c.part.expr].node = folded;
-                        kind.* = .{ .eq_const = .{ .place = c.place, .value = c.part.expr } };
-                    }
-                }
-            },
-            .solve_merge => |*c| {
-                const last_null = try self.foldMergeParts(&c.parts);
-                if (c.parts.items.len == 0) {
-                    // Every part was a constant null; their merge is null.
-                    kind.* = .{ .eq_const = .{ .place = c.place, .value = last_null.? } };
-                } else if (c.parts.items.len == 1) {
-                    switch (c.parts.items[0]) {
-                        .expr => |value| kind.* = .{ .eq_const = .{
-                            .place = c.place,
-                            .value = value,
-                        } },
-                        .local => |name| kind.* = .{ .local = .{
-                            .place = c.place,
-                            .name = name,
-                        } },
-                        .placeholder => remove = true,
-                        // A lone structural part keeps its merge wrapper —
-                        // splicing the sub-set would rebase its places —
-                        // except a bare in_range, whose limits reference
-                        // no places and lift to the merged place directly.
-                        .sub => |set_id| {
-                            if (self.loneInRange(set_id)) |range| {
-                                kind.* = .{ .in_range = .{
-                                    .place = c.place,
-                                    .lower = range.lower,
-                                    .upper = range.upper,
-                                } };
-                            }
-                        },
-                        // Folding runs before binding; classified parts
-                        // cannot occur here.
-                        .bind, .read, .global => unreachable,
-                    }
-                }
-            },
-            // Only constant-size results fold: `2 * 3` is one number,
-            // but expanding `[A] * N` or `"ab" * N` materializes output
-            // proportional to the count. A range pattern scales by a
-            // constant non-negative count; range * range stays unfolded
-            // because `2..3 * 2..3` is the discrete set {4, 6, 9}, not
-            // `4..9`.
-            .solve_repeat => |*c| {
-                c.pattern = self.simplifiedPart(c.pattern);
-                c.count = self.simplifiedPart(c.count);
-                if (c.pattern == .expr and c.count == .expr) {
-                    if (try foldedRepeat(
-                        self.goalNode(c.pattern.expr),
-                        self.goalNode(c.count.expr),
-                    )) |folded| {
-                        self.ast.goals.items[c.pattern.expr].node = folded;
-                        kind.* = .{ .eq_const = .{ .place = c.place, .value = c.pattern.expr } };
-                    }
-                } else if (c.count == .expr) {
-                    if (self.rangePart(c.pattern)) |range| {
-                        if (self.constNumber(c.count.expr)) |n| {
-                            if (n >= 0) {
-                                const region = constraints.items[i].region;
-                                kind.* = .{ .in_range = .{
-                                    .place = c.place,
-                                    .lower = try self.boundLimit(scaledBound(range.lower, n), region),
-                                    .upper = try self.boundLimit(scaledBound(range.upper, n), region),
-                                } };
-                            }
-                        }
-                    }
-                }
-            },
-            .match_template => |*c| {
-                for (c.segments.items) |*segment| {
-                    switch (segment.*) {
-                        .part => |part| segment.* = .{ .part = self.simplifiedPart(part) },
-                        .literal => {},
-                    }
-                }
-            },
-            else => {},
-        }
-        if (remove) {
-            _ = constraints.orderedRemove(i);
-        } else {
-            i += 1;
-        }
-    }
-}
-
-// Drops constant-null parts (merge identity), folds runs of adjacent
-// constant parts into their merged value (mutating the surviving part's
-// goal node), and collapses runs of adjacent placeholders — `_ + _` is
-// "whatever plus whatever", one absorption. Returns the last dropped
-// null, for the all-null case.
-fn foldMergeParts(self: *Goal, parts: *ArrayList(Ast.Part)) FoldError!?NodeId {
-    var last_null: ?NodeId = null;
-    var write: usize = 0;
-    for (parts.items) |raw_part| {
-        const part = self.simplifiedPart(raw_part);
-        if (part == .expr and self.goalNode(part.expr) == .null) {
-            last_null = part.expr;
-            continue;
-        }
-        if (write > 0 and part == .placeholder and parts.items[write - 1] == .placeholder) {
-            continue;
-        }
-        if (write > 0) {
-            if (try self.foldedMergePair(&parts.items[write - 1], part)) continue;
-        }
-        parts.items[write] = part;
-        write += 1;
-    }
-    parts.shrinkRetainingCapacity(write);
-    return last_null;
-}
-
-const NegatedLeaf = struct { part: Ast.Part, negated: bool };
-
-// Negation distributes over a number merge — `-(X + 3)` is `-X + -3` —
-// so a merge part that negates a nested number merge splices its parts
-// (each with the enclosing negations composed in) into the merge. Runs
-// before part folding so distributed constants merge with their
-// neighbours and the sole non-constant part becomes the leftover;
-// otherwise a negated sub-merge keeps the plan path, which cannot solve
-// a negated structural part.
-fn distributeNegatedMerges(self: *Goal) FoldError!void {
-    var si: usize = 0;
-    while (si < self.ast.constraint_sets.items.len) : (si += 1) {
-        var ci: usize = 0;
-        while (ci < self.ast.constraint_sets.items[si].constraints.items.len) : (ci += 1) {
-            const constraint = self.ast.constraint_sets.items[si].constraints.items[ci];
-            if (constraint.kind != .solve_merge or constraint.kind.solve_merge.ty != .number) continue;
-            const distributed = try self.distributedMergeParts(constraint.kind.solve_merge.parts, constraint.region) orelse continue;
-            // Appending wrapper sets above may have moved the set array.
-            const merge = &self.ast.constraint_sets.items[si].constraints.items[ci].kind.solve_merge;
-            merge.parts.deinit(self.alloc());
-            merge.parts = distributed;
-        }
-    }
-    // Index-based: distributing appends fresh constant nodes to the goal
-    // array, which may move the match node holding these constraints.
-    var gi: usize = 0;
-    while (gi < self.ast.goals.items.len) : (gi += 1) {
-        if (self.ast.goals.items[gi].node != .match) continue;
-        const arms = self.ast.goals.items[gi].node.match.arms.items;
-        for (arms) |*arm| {
-            var ci: usize = 0;
-            while (ci < arm.constraints.items.len) : (ci += 1) {
-                const constraint = arm.constraints.items[ci];
-                if (constraint.kind != .solve_merge or constraint.kind.solve_merge.ty != .number) continue;
-                const distributed = try self.distributedMergeParts(constraint.kind.solve_merge.parts, constraint.region) orelse continue;
-                const merge = &arm.constraints.items[ci].kind.solve_merge;
-                merge.parts.deinit(self.alloc());
-                merge.parts = distributed;
-            }
-        }
-    }
-}
-
-// The parts of `parts` with every negated number sub-merge flattened, or
-// null when none needs it. Match-arm merges live outside constraint_sets,
-// so wrapper-set appends never move them; set-merge callers re-fetch.
-fn distributedMergeParts(self: *Goal, parts: ArrayList(Ast.Part), region: Region) FoldError!?ArrayList(Ast.Part) {
-    var needs = false;
-    for (parts.items) |part| {
-        if (self.negatesNumberMerge(part)) {
-            needs = true;
-            break;
-        }
-    }
-    if (!needs) return null;
-
-    var leaves = ArrayList(NegatedLeaf){};
-    defer leaves.deinit(self.alloc());
-    for (parts.items) |part| try self.collectMergeLeaves(part, false, &leaves);
-
-    var out = ArrayList(Ast.Part){};
-    for (leaves.items) |leaf| {
-        try out.append(self.alloc(), try self.negatedLeafPart(leaf.part, leaf.negated, region));
-    }
-    return out;
-}
-
-// Whether a merge part is a negation wrapping (through further negations)
-// a number sub-merge — the shape distribution flattens.
-fn negatesNumberMerge(self: *Goal, part: Ast.Part) bool {
-    if (part != .sub) return false;
-    const set = self.ast.constraint_sets.items[part.sub];
-    if (set.constraints.items.len != 1) return false;
-    return switch (set.constraints.items[0].kind) {
-        .negated => |n| self.wrapsNumberMerge(n.part),
-        else => false,
-    };
-}
-
-fn wrapsNumberMerge(self: *Goal, part: Ast.Part) bool {
-    if (part != .sub) return false;
-    const set = self.ast.constraint_sets.items[part.sub];
-    if (set.constraints.items.len != 1) return false;
-    return switch (set.constraints.items[0].kind) {
-        .solve_merge => |m| m.ty == .number,
-        .negated => |n| self.wrapsNumberMerge(n.part),
-        else => false,
-    };
-}
-
-// Flatten a part into merge leaves, composing negation parity through
-// nested negations and number sub-merges. A leaf is anything else — a
-// constant, a local, a placeholder, or a non-number structural part.
-fn collectMergeLeaves(self: *Goal, part: Ast.Part, negated: bool, leaves: *ArrayList(NegatedLeaf)) FoldError!void {
-    if (part == .sub) {
-        const set = &self.ast.constraint_sets.items[part.sub];
-        if (set.constraints.items.len == 1) {
-            switch (set.constraints.items[0].kind) {
-                .negated => |n| return self.collectMergeLeaves(n.part, negated != (n.count % 2 == 1), leaves),
-                .solve_merge => |m| if (m.ty == .number) {
-                    for (m.parts.items) |mp| try self.collectMergeLeaves(mp, negated, leaves);
-                    return;
-                },
-                else => {},
-            }
-        }
-    }
-    try leaves.append(self.alloc(), .{ .part = part, .negated = negated });
-}
-
-// A leaf carrying its accumulated negation: a constant becomes a fresh
-// signed node, anything else negated is wrapped in a single-negation
-// sub-set mirroring how `-X` lowers at creation. Constants get a fresh
-// node rather than reusing the leaf's — folding still visits the now-dead
-// constraint the leaf came from and would negate a shared node.
-fn negatedLeafPart(self: *Goal, part: Ast.Part, negated: bool, region: Region) FoldError!Ast.Part {
-    if (part == .expr) {
-        const node = self.goalNode(part.expr);
-        if (node == .number_float or node == .number_string) {
-            return .{ .expr = try self.addGoal(negatedConst(node, @intFromBool(negated)).?, region) };
-        }
-    }
-    if (!negated) return part;
-    var set = Ast.ConstraintSet{ .places = .{}, .constraints = .{}, .region = region };
-    try set.places.append(self.alloc(), .scrutinee);
-    try set.constraints.append(self.alloc(), .{
-        .kind = .{ .negated = .{ .place = 0, .count = 1, .part = part } },
-        .region = region,
-    });
-    const id: SetId = @intCast(self.ast.constraint_sets.items.len);
-    try self.ast.constraint_sets.append(self.alloc(), set);
-    return .{ .sub = id };
-}
-
-// Folds `part` into `prev` when both are constants or constant ranges.
-// Constant pairs fold through foldedMerge; a range merges by interval
-// addition — a number is a range with that value as both bounds, so
-// `0..1 + 1` is `0..1 + 1..1` = `1..2` — and an open bound absorbs
-// (`0.. + 1` is `1..`).
-fn foldedMergePair(self: *Goal, prev: *Ast.Part, part: Ast.Part) FoldError!bool {
-    if (prev.* == .expr and part == .expr) {
-        if (try self.foldedMerge(self.goalNode(prev.expr), self.goalNode(part.expr))) |folded| {
-            self.ast.goals.items[prev.expr].node = folded;
-            return true;
-        }
-        return false;
-    }
-    const prev_range = self.rangePart(prev.*);
-    const part_range = self.rangePart(part);
-    if (prev_range) |a| {
-        const b = part_range orelse (if (part == .expr) self.numberRange(part.expr) else null) orelse
-            return false;
-        try self.writeRangeSet(a.set, addedBound(a.lower, b.lower), addedBound(a.upper, b.upper));
-        return true;
-    }
-    if (part_range) |b| {
-        if (prev.* != .expr) return false;
-        const a = self.numberRange(prev.expr) orelse return false;
-        try self.writeRangeSet(b.set, addedBound(a.lower, b.lower), addedBound(a.upper, b.upper));
-        prev.* = part;
-        return true;
-    }
-    return false;
-}
-
-// A range bound folding can compute with: open or a constant number.
-// A range with any other bound shape does not fold.
-const Bound = union(enum) {
-    open,
-    value: f64,
-};
-
-const RangeBounds = struct {
-    // The sub-set holding the in_range constraint, for foldable parts;
-    // unused for a number's degenerate range.
-    set: SetId = 0,
-    lower: Bound,
-    upper: Bound,
-};
-
-// The in_range constraint of a set that contains nothing else. Its
-// limits reference no places, so it can lift out of the set.
-fn loneInRange(self: *Goal, set_id: SetId) ?struct { lower: Ast.Limit, upper: Ast.Limit } {
-    const set = self.ast.constraint_sets.items[set_id];
-    if (set.places.items.len != 1 or set.constraints.items.len != 1) return null;
-    return switch (set.constraints.items[0].kind) {
-        .in_range => |range| .{ .lower = range.lower, .upper = range.upper },
-        else => null,
-    };
-}
-
-// A structural part that is exactly one in_range constraint with
-// foldable bounds: a range sub-pattern like `0..1`.
-fn rangePart(self: *Goal, part: Ast.Part) ?RangeBounds {
-    if (part != .sub) return null;
-    const set = self.ast.constraint_sets.items[part.sub];
-    if (set.places.items.len != 1 or set.constraints.items.len != 1) return null;
-    if (set.constraints.items[0].kind != .in_range) return null;
-    const range = set.constraints.items[0].kind.in_range;
-    return .{
-        .set = part.sub,
-        .lower = self.foldableBound(range.lower) orelse return null,
-        .upper = self.foldableBound(range.upper) orelse return null,
-    };
-}
-
-fn numberRange(self: *Goal, id: NodeId) ?RangeBounds {
-    const n = self.constNumber(id) orelse return null;
-    return .{ .lower = .{ .value = n }, .upper = .{ .value = n } };
-}
-
-fn foldableBound(self: *Goal, limit: Ast.Limit) ?Bound {
-    return switch (limit) {
-        .none => .open,
-        .expr => |id| if (self.constNumber(id)) |n| .{ .value = n } else null,
-        else => null,
-    };
-}
-
-fn constNumber(self: *Goal, id: NodeId) ?f64 {
-    return switch (self.goalNode(id)) {
-        .number_float => |f| f,
-        .number_string => |ns| ns.toFloat() catch null,
-        else => null,
-    };
-}
-
-fn addedBound(a: Bound, b: Bound) Bound {
-    if (a == .open or b == .open) return .open;
-    return .{ .value = a.value + b.value };
-}
-
-fn scaledBound(bound: Bound, n: f64) Bound {
-    return switch (bound) {
-        .open => .open,
-        .value => |v| .{ .value = v * n },
-    };
-}
-
-fn writeRangeSet(self: *Goal, set_id: SetId, lower: Bound, upper: Bound) FoldError!void {
-    const region = self.ast.constraint_sets.items[set_id].region;
-    const limits = .{
-        .lower = try self.boundLimit(lower, region),
-        .upper = try self.boundLimit(upper, region),
-    };
-    const kind = &self.ast.constraint_sets.items[set_id].constraints.items[0].kind;
-    kind.in_range.lower = limits.lower;
-    kind.in_range.upper = limits.upper;
-}
-
-fn boundLimit(self: *Goal, bound: Bound, region: Region) FoldError!Ast.Limit {
-    return switch (bound) {
-        .open => .none,
-        .value => |v| .{ .expr = try self.addGoal(.{ .number_float = v }, region) },
-    };
-}
 
 fn foldedMerge(self: *Goal, a: Ast.GoalNode, b: Ast.GoalNode) FoldError!?Ast.GoalNode {
     if (a == .null) return b;
@@ -1770,28 +1546,6 @@ fn foldedNeg(inner: Ast.GoalNode) ?Ast.GoalNode {
         .number_float => |f| .{ .number_float = -f },
         .number_string => |ns| .{ .number_string = ns.negate() },
         else => null,
-    };
-}
-
-// A negated pattern constraint chain applied to a constant: numbers fold
-// for any count, everything else stays a runtime negation.
-fn negatedConst(node: Ast.GoalNode, count: u32) ?Ast.GoalNode {
-    if (node != .number_float and node != .number_string) return null;
-    if (count % 2 == 0) return node;
-    return foldedNeg(node);
-}
-
-// A structural sub-pattern whose set folded to nothing constrains
-// nothing — a placeholder; one that folded to a single constant
-// comparison collapses back to an expression part.
-fn simplifiedPart(self: *Goal, part: Ast.Part) Ast.Part {
-    if (part != .sub) return part;
-    const set = self.ast.constraint_sets.items[part.sub];
-    if (set.constraints.items.len == 0) return .placeholder;
-    if (set.places.items.len != 1 or set.constraints.items.len != 1) return part;
-    return switch (set.constraints.items[0].kind) {
-        .eq_const => |c| .{ .expr = c.value },
-        else => part,
     };
 }
 
